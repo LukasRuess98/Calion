@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from energis.config.merge import PROJECT_ROOT, load_and_merge
 
 
@@ -16,3 +18,16 @@ def test_load_and_merge_from_subdirectory(monkeypatch):
     expected = (repo_root / "configs/base.yaml").resolve()
 
     assert expected in merged_paths
+
+
+def test_grid_caps_schema_validation(tmp_path):
+    config = tmp_path / "grid_caps.yaml"
+    config.write_text(
+        """
+grid:
+  max_import_mw: wrong
+"""
+    )
+
+    with pytest.raises(TypeError):
+        load_and_merge([str(config)])

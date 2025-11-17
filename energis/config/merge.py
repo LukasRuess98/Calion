@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from energis.utils import simple_yaml
+from energis.config.schema import validate_config_schema
 
 def _deep_merge(a: dict, b: dict) -> dict:
     out = copy.deepcopy(a)
@@ -78,4 +79,5 @@ def load_and_merge(paths: List[str]) -> Dict[str,Any]:
     cfg["meta"] = cfg.get("meta", {})
     cfg["meta"]["config_hash"] = h.hexdigest()[:16]
     cfg["meta"]["merged_from"] = norm
+    validate_config_schema(cfg)
     return cfg

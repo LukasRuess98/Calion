@@ -59,6 +59,28 @@ def test_grid_mode_gates_mutually_exclusive():
 
 
 @pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not available")
+def test_grid_import_export_caps():
+    table = _table(1, prices=[50.0], heat=[0.0])
+    cfg = {
+        "costs": {
+            "include_gridcost_in_energy": False,
+            "include_demand_charge_in_rh": False,
+            "include_co2_cost_in_objective": False,
+            "dump_cost_eur_per_mwh_th": 0.0,
+        },
+        "grid": {"big_m_grid_mw": 10.0, "max_import_mw": 1.5, "max_export_mw": 0.5},
+        "system": {"heat_pumps": [], "storage": {"enabled": False}, "generators": {}},
+    }
+
+    model = build_model(table, cfg, dt_h=1.0)
+
+    assert model.max_import.value == pytest.approx(1.5)
+    assert model.max_export.value == pytest.approx(0.5)
+    assert pytest.approx(pyo.value(model.buy_limit[1].upper)) == 1.5
+    assert pytest.approx(pyo.value(model.sell_limit[1].upper)) == 0.5
+
+
+@pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not available")
 def test_energy_cost_components_and_demand_charge():
     table = _table(2, prices=[50.0, 40.0], heat=[2.0, 0.0])
     cfg = {
