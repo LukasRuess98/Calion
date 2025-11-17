@@ -58,6 +58,7 @@ class StorageBlock:
         eff_charge_series: Sequence[float] | Mapping[int, float] | None = None,
         eff_discharge_series: Sequence[float] | Mapping[int, float] | None = None,
         capacity_active_series: Sequence[float] | Mapping[int, float] | None = None,
+        power_energy_coupling: float | None = None,
     ):
         self.name = name
         self.e_min = float(e_min)
@@ -80,6 +81,7 @@ class StorageBlock:
         self.eff_charge_series = eff_charge_series
         self.eff_discharge_series = eff_discharge_series
         self.capacity_active_series = capacity_active_series
+        self.power_energy_coupling = power_energy_coupling
 
     def attach(self, m, Tset, cfg, buses):
         if pyo is None:
@@ -197,6 +199,14 @@ class StorageBlock:
             return cap_p >= mm.__getattribute__(f"{comp}_capP_min") * build
 
         setattr(m, f"{comp}_capP_lo", pyo.Constraint(rule=cap_p_lo))
+
+        if self.power_energy_coupling is not None:
+            coupling = float(self.power_energy_coupling)
+
+            def power_energy_ratio(mm):
+                return cap_p <= coupling * cap_e
+
+            setattr(m, f"{comp}_capP_coupling", pyo.Constraint(rule=power_energy_ratio))
 
         def soc_dyn(mm, t):
             loss = mm.__getattribute__(f"{comp}_loss")[t]

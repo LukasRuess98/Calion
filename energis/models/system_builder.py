@@ -389,30 +389,43 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         horizon_cfg = cfg.get("scenario", {}).get("horizon", {})
         enforce_terminal = bool(horizon_cfg.get("enforce", True))
         terminal_cfg = sto_cfg.get("terminal", {})
-        terminal_policy = str(terminal_cfg.get("policy", "")).lower()
+        terminal_policy_raw = str(terminal_cfg.get("policy", "")).lower()
+        terminal_state = str(terminal_cfg.get("state", sto_cfg.get("terminal_state", ""))).strip().lower()
         terminal_target_cfg = terminal_cfg.get("target_mwh", terminal_cfg.get("target"))
         if terminal_target_cfg is None and "terminal_soc_mwh" in sto_cfg:
             terminal_target_cfg = float(sto_cfg["terminal_soc_mwh"])
-            if not terminal_policy:
-                terminal_policy = "equal"
-        if not terminal_policy:
-            if terminal_target_cfg is not None:
-                terminal_policy = "equal"
-            elif not enforce_terminal:
-                terminal_policy = "equal"
-                terminal_target_cfg = soc_init
-            else:
-                terminal_policy = "equal"
-                terminal_target_cfg = soc_init
-        terminal_policy = terminal_policy or "equal"
-        if terminal_policy not in {"equal", "geq", "free"}:
-            terminal_policy = "equal"
+        if not terminal_state:
+            terminal_state = "free" if not enforce_terminal else "cyclic"
+        if terminal_state not in {"free", "cyclic", "target"}:
+            raise ValueError("storage.terminal.state/terminal_state must be one of: free, cyclic, target")
+
+        if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free"}:
+            raise ValueError("storage.terminal.policy must be one of: equal, geq, free")
+
+        terminal_policy = "free" if terminal_state == "free" else (terminal_policy_raw or "equal")
         terminal_target_val: float | None
-        if terminal_policy == "free":
+        if terminal_state == "free":
             terminal_target_val = None
+        elif terminal_state == "cyclic":
+            terminal_policy = "equal"
+            terminal_target_val = float(soc_init)
         else:
-            target_source = terminal_target_cfg if terminal_target_cfg is not None else soc_init
-            terminal_target_val = float(target_source)
+            if terminal_target_cfg is None:
+                terminal_target_cfg = soc_init
+            terminal_target_val = float(terminal_target_cfg)
+            if terminal_policy not in {"equal", "geq"}:
+                terminal_policy = "equal"
+
+        coupling_factor = storage_defaults.get("power_energy_coupling")
+        if "power_energy_coupling" in sto_cfg:
+            coupling_factor = sto_cfg.get("power_energy_coupling")
+        power_energy_coupling: float | None
+        if coupling_factor is None:
+            power_energy_coupling = None
+        else:
+            power_energy_coupling = float(coupling_factor)
+            if power_energy_coupling <= 0:
+                raise ValueError("storage.power_energy_coupling must be positive when provided")
 
         block = StorageBlock(
             "TES",
@@ -436,6 +449,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             eff_charge_series=eff_charge_series,
             eff_discharge_series=eff_discharge_series,
             capacity_active_series=capacity_active_series,
+            power_energy_coupling=power_energy_coupling,
         )
         fs = block.attach(m, m.t, cfg, {})
         ht_out.append(fs["Q_th_out"])
