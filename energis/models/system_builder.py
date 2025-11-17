@@ -219,6 +219,14 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.sell_fee = pyo.Param(initialize=float(grid.get("sell_fee_eur_mwh", 0.0)))
     m.sell_premium = pyo.Param(initialize=float(grid.get("sell_premium_eur_mwh", 0.0)))
     m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", 1e4)))
+    max_import = grid.get("max_import_mw")
+    max_export = grid.get("max_export_mw")
+    m.max_import = pyo.Param(
+        initialize=float(max_import if max_import is not None else m.M_GRID.value)
+    )
+    m.max_export = pyo.Param(
+        initialize=float(max_export if max_export is not None else m.M_GRID.value)
+    )
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
     m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", 100.0)))
     m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", 1.0)))
@@ -569,6 +577,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)
+    m.buy_limit = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.max_import)
+    m.sell_limit = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= mm.max_export)
 
     base_prices = [float(table["strompreis_EUR_MWh"][i]) for i in range(T)]
     if include_gridcost:
