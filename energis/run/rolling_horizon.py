@@ -20,7 +20,7 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set
 
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
@@ -118,6 +118,24 @@ class WorkflowContext:
     pf_result: Optional[ScenarioResult] = None
     rh_result: Optional[RollingHorizonResult] = None
     design: Optional[DesignData] = None
+
+
+@dataclass
+class _CostAggregationPlan:
+    """Configuration for rolling-horizon cost handling."""
+
+    include_investment: bool
+    amortise_once: bool
+    include_tie_breaker: bool
+    include_installation: bool
+    include_activation: bool
+
+    def investment_active(self, window_idx: int) -> bool:
+        if not self.include_investment:
+            return False
+        if self.amortise_once and window_idx > 0:
+            return False
+        return True
 
 
 StepHandler = Callable[[WorkflowContext], None]
@@ -430,6 +448,8 @@ def _run_rolling_horizon(
     windows: List[WindowResult] = []
 
     design_state = design
+    cost_plan = _load_cost_plan(base_cfg, fix_design)
+    once_costs: Set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
     base_storage_enabled = _storage_enabled(base_cfg)
@@ -451,12 +471,22 @@ def _run_rolling_horizon(
         if should_fix_design:
             window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
 
+        _apply_cost_overrides(window_cfg, cost_plan, window_idx)
+
         window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
         commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
 
         _extend_series(aggregated_series, window_result.series, commit_len)
         aggregated_indices.extend(indices[:commit_len])
-        _accumulate_costs(aggregated_costs, window_result.costs)
+        commit_fraction = float(commit_len / len(window_table)) if len(window_table) else 0.0
+        _accumulate_costs(
+            aggregated_costs,
+            window_result.costs,
+            cost_plan,
+            commit_fraction,
+            window_idx,
+            once_costs,
+        )
 
         soc_next = _next_soc(window_result.series, commit_len, soc_next)
 
@@ -481,6 +511,8 @@ def _run_rolling_horizon(
     if aggregated_indices != list(range(n)):
         raise RuntimeError("Rolling horizon aggregation did not cover the full time series")
 
+    _recompute_objective_costs(aggregated_costs)
+
     aggregated_table = orchestrator._slice_table(table, aggregated_indices)  # type: ignore[attr-defined]
     return RollingHorizonResult(aggregated_table, aggregated_series, aggregated_costs, windows, design_state)
 
@@ -503,10 +535,97 @@ def _extend_series(
         dest.extend(slice_values)
 
 
-def _accumulate_costs(target: Dict[str, float], window_costs: Mapping[str, Any]) -> None:
+def _apply_cost_overrides(cfg: MutableMapping[str, Any], plan: _CostAggregationPlan, window_idx: int) -> None:
+    costs_cfg = cfg.setdefault("costs", {})
+    include_investment = plan.investment_active(window_idx)
+    if isinstance(costs_cfg, dict):
+        costs_cfg["include_capex_costs"] = include_investment
+        costs_cfg["include_activation_costs"] = include_investment and plan.include_activation
+        costs_cfg["include_tie_breaker_costs"] = include_investment and plan.include_tie_breaker
+        costs_cfg["include_storage_installation_costs"] = include_investment and plan.include_installation
+
+
+_INVESTMENT_KEYS = {
+    "objective.Capex_cost_EUR",
+    "objective.Activation_cost_EUR",
+    "objective.Tie_breaker_cost_EUR",
+    "objective.Storage_installation_cost_EUR",
+}
+_SKIP_KEYS = {"objective.OBJ_value_EUR", "objective.Objective_residual_EUR"}
+
+
+def _accumulate_costs(
+    target: Dict[str, float],
+    window_costs: Mapping[str, Any],
+    plan: _CostAggregationPlan,
+    commit_fraction: float,
+    window_idx: int,
+    once_costs: Set[str],
+) -> None:
+    """Aggregate per-window costs while avoiding RH double-counting.
+
+    Objective-related figures are scaled by the committed fraction of the
+    window so overlap regions do not artificially inflate totals. Investment
+    terms (CapEx, activation, tie-breaker, installation) are included once by
+    default to mimic a single PF design phase; the behaviour can be
+    controlled via :class:`_CostAggregationPlan`.
+    """
+
+    if commit_fraction <= 0:
+        return
+
+    include_investment = plan.investment_active(window_idx)
+
     for key, value in window_costs.items():
-        if isinstance(value, (int, float)) and math.isfinite(value):
+        if not (isinstance(value, (int, float)) and math.isfinite(value)):
+            continue
+        if key in _SKIP_KEYS:
+            continue
+        if key in _INVESTMENT_KEYS:
+            if not include_investment:
+                continue
+            if plan.amortise_once and key in once_costs:
+                continue
+            once_costs.add(key)
             target[key] = float(target.get(key, 0.0) + float(value))
+            continue
+        scaled_value = float(value)
+        if key.startswith("objective."):
+            scaled_value *= commit_fraction
+        target[key] = float(target.get(key, 0.0) + scaled_value)
+
+
+def _recompute_objective_costs(costs: MutableMapping[str, float]) -> None:
+    if not costs:
+        return
+
+    energy_cost = float(costs.get("objective.Grid_energy_cost_EUR", 0.0))
+    energy_revenue = float(costs.get("objective.Grid_sell_revenue_EUR", 0.0))
+    fuel_cost = float(costs.get("objective.Fuel_cost_EUR", 0.0))
+    dump_cost = float(costs.get("objective.Dump_cost_EUR", 0.0))
+    co2_cost = float(costs.get("objective.CO2_cost_EUR", 0.0))
+    demand_cost = float(costs.get("objective.Demand_charge_cost_EUR", 0.0))
+    capex_cost = float(costs.get("objective.Capex_cost_EUR", 0.0))
+    activation_cost = float(costs.get("objective.Activation_cost_EUR", 0.0))
+    tie_break_cost = float(costs.get("objective.Tie_breaker_cost_EUR", 0.0))
+    install_cost = float(costs.get("objective.Storage_installation_cost_EUR", 0.0))
+
+    net_cost = energy_cost - energy_revenue
+    costs["objective.Grid_net_cost_EUR"] = net_cost
+
+    objective_total = (
+        net_cost
+        + fuel_cost
+        + dump_cost
+        + co2_cost
+        + demand_cost
+        + capex_cost
+        + activation_cost
+        + tie_break_cost
+        + install_cost
+    )
+    costs["objective.OBJ_value_EUR"] = objective_total
+    costs["objective.Objective_residual_EUR"] = 0.0
 
 
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
@@ -600,6 +719,31 @@ def _load_rolling_params(cfg: Mapping[str, Any]) -> _RollingParams:
         step_hours=step_hours,
         overlap_hours=overlap_hours,
         terminal_policy=terminal_policy,
+    )
+
+
+def _load_cost_plan(cfg: Mapping[str, Any], fix_design: bool) -> _CostAggregationPlan:
+    scenario_cfg = cfg.get("scenario", {}) if isinstance(cfg.get("scenario"), dict) else {}
+    costs_cfg = scenario_cfg.get("costs") if isinstance(scenario_cfg.get("costs"), dict) else {}
+    global_costs_cfg = cfg.get("costs", {}) if isinstance(cfg.get("costs"), dict) else {}
+
+    include_investment = costs_cfg.get("include_investment_in_rh")
+    if include_investment is None:
+        include_investment = global_costs_cfg.get("include_investment_in_rh")
+    if include_investment is None:
+        include_investment = not fix_design
+
+    amortise_once = bool(global_costs_cfg.get("amortise_investment_once_in_rh", True))
+    include_tie_breaker = bool(global_costs_cfg.get("include_tie_breaker_in_rh", include_investment))
+    include_installation = bool(global_costs_cfg.get("include_installation_in_rh", include_investment))
+    include_activation = bool(global_costs_cfg.get("include_activation_in_rh", include_investment))
+
+    return _CostAggregationPlan(
+        include_investment=bool(include_investment),
+        amortise_once=amortise_once,
+        include_tie_breaker=include_tie_breaker,
+        include_installation=include_installation,
+        include_activation=include_activation,
     )
 
 

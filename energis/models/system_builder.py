@@ -235,6 +235,10 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     include_gridcost = bool(costs.get("include_gridcost_in_energy", False))
     include_demand = bool(grid.get("include_demand_charge_in_rh", costs.get("include_demand_charge_in_rh", True)))
     include_co2 = bool(costs.get("include_co2_cost_in_objective", True))
+    include_capex_costs = bool(costs.get("include_capex_costs", True))
+    include_activation_costs = bool(costs.get("include_activation_costs", True))
+    include_tie_breaker_costs = bool(costs.get("include_tie_breaker_costs", True))
+    include_storage_install_costs = bool(costs.get("include_storage_installation_costs", True))
 
     fuels = cfg.get("fuels", {})
 
@@ -333,9 +337,11 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 annual_factor = period_frac / lifetime
             else:
                 annual_factor = 0.0
-            capex_terms.append(cap_var * capex * annual_factor)
-            activation_terms.append(build_var * activation * annual_factor)
-            if tie_breaker:
+            if include_capex_costs:
+                capex_terms.append(cap_var * capex * annual_factor)
+            if include_activation_costs:
+                activation_terms.append(build_var * activation * annual_factor)
+            if tie_breaker and include_tie_breaker_costs:
                 tie_breaker_terms.append(cap_var * tie_breaker)
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
@@ -503,16 +509,18 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             annual_factor = 0.0
         install_components: List = []
         if cap_var is not None:
-            capex_terms.append(cap_var * e_capex * annual_factor)
+            if include_capex_costs:
+                capex_terms.append(cap_var * e_capex * annual_factor)
             install_components.append(cap_var * e_capex)
-            if tie_breaker:
+            if tie_breaker and include_tie_breaker_costs:
                 tie_breaker_terms.append(cap_var * tie_breaker)
         if pow_var is not None:
-            capex_terms.append(pow_var * p_capex * annual_factor)
+            if include_capex_costs:
+                capex_terms.append(pow_var * p_capex * annual_factor)
             install_components.append(pow_var * p_capex)
-        if build_var is not None:
+        if build_var is not None and include_activation_costs:
             activation_terms.append(build_var * activation * annual_factor)
-        if install_share and install_components:
+        if install_share and install_components and include_storage_install_costs:
             storage_install_terms.append(sum(install_components) * install_share * annual_factor)
 
     gens = syscfg.get("generators", {})
