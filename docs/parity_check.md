@@ -2,21 +2,20 @@
 
 This checklist captures the remaining gaps between the current EnerGIS framework implementation and the behaviour of the original monolithic Pyomo script.
 
-## Cost toggles and rolling-horizon alignment
-- **CapEx/installation switches missing**: The objective always adds capacity, activation, tie-breaker and installation terms for heat pumps and storage, regardless of whether a rolling-horizon (RH) run is intended to be opex-only. There are no `include_capex_in_rh`/`include_install_in_rh` flags like in the original script, so RH windows still charge full investment components. 【F:energis/models/system_builder.py†L589-L613】
-- **Double counting in RH windows**: Each RH window builds a full model via `_solve_scenario` with the same objective (including CapEx) and aggregates the window costs without adjustment. The original workflow only charged investments in the PF step. 【F:energis/run/rolling_horizon.py†L395-L460】【F:energis/models/system_builder.py†L589-L613】
+## Objective terms and cost toggles
+- **CapEx/installation switches missing in RH**: The objective always adds capacity, activation, tie-breaker and installation terms for heat pumps and storage, even when running rolling-horizon windows. There are no `include_capex_in_rh` / `include_install_in_rh` style flags, so RH runs still charge investment components that should only appear in the PF step. The tie-breaker is also always active, instead of being suppressed when CapEx is present. 【F:energis/models/system_builder.py†L590-L613】
+- **Rolling-horizon double counting**: Each RH window rebuilds `_solve_scenario` with the full objective (including CapEx) and `_accumulate_costs` sums the per-window costs, so one-time investment terms are added once per window instead of once per design. 【F:energis/run/rolling_horizon.py†L419-L460】【F:energis/models/system_builder.py†L590-L613】
 
-## Storage terminal policy
-- The terminal policy defaults to `equal` even when `scenario.horizon.enforce` is false, forcing the end SOC to match the start SOC unless the user explicitly sets `terminal.policy: free`. The original script allowed truly free terminals when the policy was “free” or enforcement was disabled. 【F:energis/models/system_builder.py†L389-L407】
+## Storage behaviour
+- **Terminal policy defaults to equality**: When `scenario.horizon.enforce` is false or no policy is provided, the terminal policy is still forced to `equal` with a target of the initial SOC. The original script allowed a free terminal unless a target was specified. 【F:energis/models/system_builder.py†L389-L415】
+- **Power/energy coupling absent**: Storage charging/ discharging power is independent of energy capacity (no `storage_power_rate` equivalent), so power can exceed a reasonable fraction of installed energy, unlike the original rate-bound formulation. 【F:energis/models/blocks/storage.py†L88-L166】
 
-## Storage sizing behaviour
-- Storage power is unconstrained relative to energy capacity (no `storage_power_rate` equivalent). The original script bound charging/ discharging power to a fraction of energy capacity; here `cap_power` and `cap_energy` are independent, which can produce different designs. 【F:energis/models/system_builder.py†L420-L494】
-
-## Miscellaneous
-- The tech catalog contained a typo (`ture`) for default investment enablement; this was corrected to `true` to keep defaults consistent. 【F:configs/tech_catalog.yaml†L15-L40】
+## Grid modelling
+- **No explicit grid flow cap**: `P_buy` and `P_sell` are unbounded continuous variables gated only by a large `M_GRID` (default 10,000 MW). The original model limited each to 300 MW via variable bounds plus the buy/sell mode binary. 【F:energis/models/system_builder.py†L240-L243】【F:energis/models/system_builder.py†L221-L230】
 
 ## Recommendations
-1. Introduce cost toggles for CapEx/installation analogous to `include_capex_in_rh` and `include_install_in_rh`, and suppress these terms when RH is meant to be opex-only.
-2. When running RH, strip or amortise CapEx terms so they are not accumulated per window; consider reusing PF design data or applying one-time annualised costs.
-3. Respect `scenario.horizon.enforce: false` by defaulting the terminal policy to `free` instead of `equal`, unless a terminal target is explicitly set.
-4. Add an optional `storage_power_rate` parameter to link `cap_power` to `cap_energy` when desired, keeping current behaviour as the unrestricted fallback.
+1. Add cost switches for CapEx/installation (and tie-breaker suppression) that mirror the original `include_capex_in_rh` and `include_install_in_rh` flags, and omit these terms during RH aggregation.
+2. When running RH, amortise investments once (PF step or a single annualised term) instead of per window, or reuse PF design data to avoid double counting.
+3. Default the storage terminal policy to `free` when enforcement is disabled or no target is given, matching the monolithic script’s flexibility.
+4. Introduce an optional `storage_power_rate` that ties charging/ discharging bounds to installed energy capacity, while keeping the current uncoupled behaviour available via configuration.
+5. Add configurable grid flow bounds (e.g., `P_FLOW_CAP`) so buy/sell capacities match the original 300 MW limits when desired.
