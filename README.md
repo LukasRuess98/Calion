@@ -3,6 +3,10 @@
 This package contains a minimal, runnable skeleton to model industrial energy systems with **explicit fuel buses**.
 It keeps the structure close to oemof/pypsa (configs, components, buses, orchestrator) and your previous monolithic code.
 
+## Motivation & Forschungsfragen
+- EnerGIS digitalisiert eine bestehende Stadtbach-Referenz, um Wartbarkeit, Transparenz und CI-basierte Validierung für Fern- und Nahwärmenetze sicherzustellen.
+- Forschungsfragen und Paper-Skopierung sind in [`docs/paper_outline.md`](docs/paper_outline.md) skizziert: Wie nah kommt die modulare PF→RH-Architektur an die Legacy-Ergebnisse, welche Modellierungsentscheidungen treiben Abweichungen, und wie wird die Validierung automatisiert?
+
 ## Highlights
 - YAML config-layer with merge order (base → tech_catalog → site → system → scenario → overrides.local)
 - Explicit **buses**: `electricity`, `heat`, `gas`, `biomass`, `waste`
@@ -55,6 +59,11 @@ Use the convenience wrapper to run the PF→RH workflow, export Excel/JSON bundl
 Optional overrides:
 - Pass an alternative config list as arguments to the script.
 - `CASE_TAG=mytag` adjusts the folder suffix, `ARTIFACT_ROOT=/tmp/out` changes the export root.
+
+### Validierung (Stadtbach-Referenz)
+
+- Der Test [`tests/test_stadtbach_validation.py`](tests/test_stadtbach_validation.py) führt einen 24h-Stadtbach-Lauf gegen die Legacy-Referenz aus, erstellt eine Kennzahlentabelle EnerGIS vs. Legacy und exportiert sie (CSV) für Artefakte.
+- Notebook [`notebooks/04_stadtbach_validation.ipynb`](notebooks/04_stadtbach_validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
 
 ### Configuration quick reference
 
