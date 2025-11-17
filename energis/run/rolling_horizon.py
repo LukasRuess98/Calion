@@ -15,7 +15,11 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import argparse
 import copy
+import json
+import logging
 import math
+import os
+from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
 
 try:  # pragma: no cover - optional dependency
@@ -114,7 +118,138 @@ class WorkflowContext:
 StepHandler = Callable[[WorkflowContext], None]
 
 
+logger = logging.getLogger(__name__)
+
+
 _STEP_HANDLERS: Dict[str, StepHandler] = {}
+
+
+_RUN_MODE_ALIASES = {
+    "PF": "PF_ONLY",
+    "PF_ONLY": "PF_ONLY",
+    "PF_THEN_RH": "PF_THEN_RH",
+    "PF_AND_RH": "PF_THEN_RH",
+    "RH": "RH_ONLY",
+    "RH_ONLY": "RH_ONLY",
+}
+
+
+def _normalise_run_mode(value: str | None) -> str | None:
+    if value is None:
+        return None
+    key = str(value).strip().upper()
+    if not key:
+        return None
+    return _RUN_MODE_ALIASES.get(key, key)
+
+
+def _parse_run_mode(value: str) -> str:
+    normalised = _normalise_run_mode(value)
+    if normalised is None:
+        raise argparse.ArgumentTypeError("run mode must not be empty")
+    if normalised not in {"PF_ONLY", "RH_ONLY", "PF_THEN_RH"}:
+        raise argparse.ArgumentTypeError(
+            "run mode must be one of PF_ONLY, RH_ONLY or PF_THEN_RH"
+        )
+    return normalised
+
+
+def _env_str(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = str(value).strip()
+    return value or None
+
+
+def _env_float(name: str) -> float | None:
+    raw = _env_str(name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:  # pragma: no cover - guarded by tests
+        raise ValueError(f"Invalid float for {name}: {raw!r}") from exc
+
+
+def _env_bool(name: str) -> bool | None:
+    raw = _env_str(name)
+    if raw is None:
+        return None
+    lowered = raw.lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"Invalid boolean for {name}: {raw!r}")
+
+
+def _assign(target: MutableMapping[str, Any], path: Iterable[str], value: Any) -> None:
+    node: MutableMapping[str, Any] = target
+    keys = list(path)
+    for key in keys[:-1]:
+        child = node.get(key)
+        if not isinstance(child, MutableMapping):
+            child = {}
+            node[key] = child
+        node = child
+    node[keys[-1]] = value
+
+
+def _design_from_mapping(data: Mapping[str, Any]) -> DesignData:
+    heat_pumps: Dict[str, Dict[str, float]] = {}
+    raw_hps = data.get("heat_pumps")
+    if isinstance(raw_hps, Mapping):
+        for hp_id, entry in raw_hps.items():
+            if not isinstance(entry, Mapping):
+                continue
+            heat_pumps[str(hp_id)] = {
+                "capacity_mw": float(entry.get("capacity_mw", entry.get("Thermal_capacity_MW", 0.0)) or 0.0),
+                "build_binary": float(
+                    entry.get("build_binary", entry.get("Build", entry.get("Build_binary", 0.0))) or 0.0
+                ),
+            }
+
+    storage_data = data.get("storage")
+    storage: Dict[str, float] | None
+    if isinstance(storage_data, Mapping):
+        storage = {
+            "name": str(storage_data.get("name", storage_data.get("id", "TES")) or "TES"),
+            "capacity_mwh": float(
+                storage_data.get("capacity_mwh", storage_data.get("Capacity_MWh", 0.0)) or 0.0
+            ),
+            "power_mw": float(
+                storage_data.get("power_mw", storage_data.get("Power_limit_MW", 0.0)) or 0.0
+            ),
+            "build_binary": float(
+                storage_data.get("build_binary", storage_data.get("Build", storage_data.get("Build_binary", 0.0)))
+                or 0.0
+            ),
+        }
+    else:
+        storage = None
+
+    return DesignData(heat_pumps=heat_pumps, storage=storage)
+
+
+def _load_design_override(scenario_cfg: Mapping[str, Any]) -> DesignData | None:
+    path = scenario_cfg.get("pf_design_json") or scenario_cfg.get("design_json")
+    if not path:
+        return None
+    design_path = Path(str(path)).expanduser()
+    if not design_path.exists():
+        logger.warning("PF design file %s not found – continuing without design fixation.", design_path)
+        return None
+    try:
+        with open(design_path, "r", encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except Exception as exc:  # pragma: no cover - defensive branch
+        logger.warning("Failed to load PF design file %s: %s", design_path, exc)
+        return None
+    if not isinstance(raw, Mapping):
+        logger.warning("Design file %s does not contain a mapping – ignoring content.", design_path)
+        return None
+    return _design_from_mapping(raw)
 
 
 def register_workflow_step(name: str, handler: StepHandler) -> None:
@@ -189,6 +324,9 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
     solver_name = str(run_cfg.get("solver", "glpk"))
 
     context = WorkflowContext(cfg, table, dt_h, solver_name, plan)
+    design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
+    if design_override is not None:
+        context.design = design_override
 
     for step in plan.steps:
         handler = _STEP_HANDLERS.get(step)
@@ -237,6 +375,10 @@ def _rh_step(context: WorkflowContext) -> None:
     params = _load_rolling_params(context.cfg)
     horizon_steps, step_steps = params.as_steps(context.dt_h)
     fix_design = context.plan.fix_design and context.design is not None
+    if context.plan.fix_design and context.design is None:
+        logger.warning(
+            "Design fixation requested but no PF design data available – proceeding without fixation."
+        )
     context.rh_result = _run_rolling_horizon(
         context.cfg,
         context.table,
@@ -543,13 +685,130 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Configuration files passed to load_and_merge in the given order",
     )
     parser.add_argument(
+        "--run-mode",
+        type=_parse_run_mode,
+        choices=["PF_ONLY", "RH_ONLY", "PF_THEN_RH"],
+        help="Override scenario.run_mode (env: RUN_MODE)",
+    )
+    parser.add_argument(
+        "--heat-horizon-hours",
+        type=float,
+        help="Override rolling horizon window size in hours (env: HEAT_HORIZON_HOURS)",
+    )
+    parser.add_argument(
+        "--step-hours",
+        type=float,
+        help="Override rolling horizon commit length in hours (env: STEP_HOURS)",
+    )
+    parser.add_argument(
+        "--terminal-policy",
+        help="Override storage terminal policy for RH windows (env: TERMINAL_POLICY)",
+    )
+    parser.add_argument(
+        "--pf-design-json",
+        help="Path to a PF design JSON exported by a previous run (env: PF_DESIGN_JSON)",
+    )
+    parser.add_argument(
+        "--fix-design",
+        dest="fix_design",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Enable/disable design fixation during RH (env: FIX_DESIGN)",
+    )
+    parser.add_argument(
+        "--include-gridcost-in-energy",
+        dest="include_gridcost_in_energy",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Include grid cost in PF objective (env: INCLUDE_GRIDCOST_IN_ENERGY)",
+    )
+    parser.add_argument(
+        "--include-demand-charge-in-rh",
+        dest="include_demand_charge_in_rh",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Include demand charge during RH runs (env: INCLUDE_DEMAND_CHARGE_IN_RH)",
+    )
+    parser.add_argument(
+        "--include-co2-cost-in-objective",
+        dest="include_co2_cost_in_objective",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Include CO2 pricing in the optimisation objective (env: INCLUDE_CO2_COST_IN_OBJECTIVE)",
+    )
+    parser.add_argument(
         "--print-design",
         action="store_true",
         help="Print extracted design values when available",
     )
     args = parser.parse_args(argv)
 
-    result = run_workflow(args.configs)
+    overrides: Dict[str, Any] = {}
+    try:
+        env_run_mode = _normalise_run_mode(_env_str("RUN_MODE"))
+        env_heat_horizon = _env_float("HEAT_HORIZON_HOURS")
+        env_step_hours = _env_float("STEP_HOURS")
+        env_terminal = _env_str("TERMINAL_POLICY")
+        env_fix_design = _env_bool("FIX_DESIGN")
+        env_gridcost = _env_bool("INCLUDE_GRIDCOST_IN_ENERGY")
+        env_demand_charge = _env_bool("INCLUDE_DEMAND_CHARGE_IN_RH")
+        env_co2_cost = _env_bool("INCLUDE_CO2_COST_IN_OBJECTIVE")
+        env_design_json = _env_str("PF_DESIGN_JSON")
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    run_mode = args.run_mode or env_run_mode
+    if run_mode:
+        _assign(overrides, ["scenario", "run_mode"], run_mode)
+
+    fix_design_value = args.fix_design if args.fix_design is not None else env_fix_design
+    if fix_design_value is not None:
+        _assign(overrides, ["scenario", "fix_design"], bool(fix_design_value))
+
+    horizon_value = args.heat_horizon_hours if args.heat_horizon_hours is not None else env_heat_horizon
+    if horizon_value is not None:
+        _assign(overrides, ["scenario", "rolling_horizon", "heat_horizon_hours"], float(horizon_value))
+        _assign(overrides, ["rolling_horizon", "heat_horizon_hours"], float(horizon_value))
+
+    step_value = args.step_hours if args.step_hours is not None else env_step_hours
+    if step_value is not None:
+        _assign(overrides, ["scenario", "rolling_horizon", "step_hours"], float(step_value))
+        _assign(overrides, ["rolling_horizon", "step_hours"], float(step_value))
+
+    terminal_value = args.terminal_policy or env_terminal
+    if terminal_value:
+        _assign(overrides, ["scenario", "rolling_horizon", "terminal_policy"], str(terminal_value))
+        _assign(overrides, ["rolling_horizon", "terminal_policy"], str(terminal_value))
+
+    design_json_value = args.pf_design_json or env_design_json
+    if design_json_value:
+        _assign(overrides, ["scenario", "pf_design_json"], str(design_json_value))
+
+    include_gridcost = (
+        args.include_gridcost_in_energy
+        if args.include_gridcost_in_energy is not None
+        else env_gridcost
+    )
+    if include_gridcost is not None:
+        _assign(overrides, ["costs", "include_gridcost_in_energy"], bool(include_gridcost))
+
+    include_demand = (
+        args.include_demand_charge_in_rh
+        if args.include_demand_charge_in_rh is not None
+        else env_demand_charge
+    )
+    if include_demand is not None:
+        _assign(overrides, ["costs", "include_demand_charge_in_rh"], bool(include_demand))
+
+    include_co2 = (
+        args.include_co2_cost_in_objective
+        if args.include_co2_cost_in_objective is not None
+        else env_co2_cost
+    )
+    if include_co2 is not None:
+        _assign(overrides, ["costs", "include_co2_cost_in_objective"], bool(include_co2))
+
+    result = run_workflow(args.configs, overrides=overrides or None)
     steps = " -> ".join(result.plan.steps)
     print(f"[workflow] Executed steps: {steps}")
 

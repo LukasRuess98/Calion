@@ -2,6 +2,19 @@ run:
   dt_h: 1.0
   solver: gurobi
 
+scenario:
+  run_mode: PF_ONLY
+  fix_design: false
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
+
+rolling_horizon:
+  heat_horizon_hours: 168.0
+  step_hours: 24.0
+  terminal_policy: free
+
 costs:
   include_gridcost_in_energy: true
   include_demand_charge_in_rh: true
