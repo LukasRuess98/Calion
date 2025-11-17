@@ -9,6 +9,7 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
 - Modular components (blocks): HeatPump, Storage, ThermalGenerator, P2H
 - PF + RH orchestration and single Excel export
 - Tests that build a tiny model and check bus balances (skipped if Pyomo missing)
+- Kurzgefasste Formulierungsdetails: siehe [`docs/methodology.md`](docs/methodology.md)
 
 ## Quickstart
 1. Put your `Import_Data.xlsx` in the repo root or change the path in `configs/sites/default.site.yaml`.
