@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import math
 import os
 import re
@@ -61,6 +62,34 @@ def _resolve_input_path(path: str, site_cfg: Dict[str, Any]) -> Path:
             return resolved.resolve()
 
     raise RuntimeError(f"Datei nicht gefunden: {path}")
+
+
+def _read_tabular(path: Path, sheet_name: str | None) -> tuple[list[str], list[list[Any]]]:
+    """Return ``(header, rows)`` from CSV or XLSX input.
+
+    CSV keeps diffs text-only for synthetic examples; XLSX remains supported for
+    backwards compatibility.
+    """
+
+    if path.suffix.lower() == ".csv":
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = list(csv.reader(handle))
+        if not reader:
+            return [], []
+        header = [col.strip() for col in reader[0]]
+        data_rows: List[List[Any]] = []
+        for row in reader[1:]:
+            if not any(str(cell).strip() for cell in row):
+                continue
+            cells = list(row)
+            if len(cells) < len(header):
+                cells.extend([""] * (len(header) - len(cells)))
+            elif len(cells) > len(header):
+                cells = cells[: len(header)]
+            data_rows.append(cells)
+        return header, data_rows
+
+    return read_xlsx(str(path), sheet_name=sheet_name)
 
 
 def _parse_datetime(value: Any) -> datetime:
@@ -145,8 +174,8 @@ def load_input_excel(
     ambiguous_policy: str = "first",
 ) -> TimeSeriesTable:
     resolved_path = _resolve_input_path(path, site_cfg)
-    header, rows = read_xlsx(str(resolved_path), sheet_name=site_cfg.get("sheet_name"))
-    _require(header, f"Excel-Datei {resolved_path} enthält keine Daten")
+    header, rows = _read_tabular(resolved_path, site_cfg.get("sheet_name"))
+    _require(header, f"Eingabedatei {resolved_path} enthält keine Daten")
     records = _build_records(header, rows)
 
     time_col = _find_time_column(header)
