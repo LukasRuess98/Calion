@@ -1,6 +1,6 @@
 # Parity review vs. original Stadtbach script
 
-This checklist captures the remaining gaps between the current EnerGIS framework implementation and the behaviour of the original monolithic Pyomo script.
+This checklist captures the remaining gaps between the current EnerGIS framework implementation and the behaviour of the original monolithic Pyomo script. A compact Überblick über Variablen, Constraints und Objective-Teile findet sich in [`docs/methodology.md`](./methodology.md).
 
 ## Objective terms and cost toggles
 - **CapEx/installation switches missing in RH**: The objective always adds capacity, activation, tie-breaker and installation terms for heat pumps and storage, even when running rolling-horizon windows. There are no `include_capex_in_rh` / `include_install_in_rh` style flags, so RH runs still charge investment components that should only appear in the PF step. The tie-breaker is also always active, instead of being suppressed when CapEx is present. 【F:energis/models/system_builder.py†L590-L613】
