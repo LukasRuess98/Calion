@@ -83,6 +83,17 @@ class WorkflowPlan:
 
 
 @dataclass
+class WorkflowInputs:
+    """Prepared artefacts required to execute a workflow."""
+
+    cfg: Dict[str, Any]
+    table: TimeSeriesTable
+    dt_h: float
+    solver_name: str
+    plan: WorkflowPlan
+
+
+@dataclass
 class _RollingParams:
     """Internal helper capturing rolling horizon parameters."""
 
@@ -214,6 +225,131 @@ def _parse_float_list(value: str) -> List[float]:
         raise argparse.ArgumentTypeError(f"Invalid float list: {value}") from exc
 
 
+@dataclass
+class _OverrideValues:
+    """Merged CLI/environment overrides for a single run."""
+
+    run_mode: str | None = None
+    fix_design: bool | None = None
+    horizon_hours: float | None = None
+    step_hours: float | None = None
+    overlap_hours: float | None = None
+    terminal_policy: str | None = None
+    design_json: str | None = None
+    include_gridcost: bool | None = None
+    include_demand_charge: bool | None = None
+    include_co2_cost: bool | None = None
+
+
+def _gather_env_overrides() -> _OverrideValues:
+    return _OverrideValues(
+        run_mode=_normalise_run_mode(_env_str("RUN_MODE")),
+        horizon_hours=_env_float("HEAT_HORIZON_HOURS"),
+        step_hours=_env_float("STEP_HOURS"),
+        overlap_hours=_env_float("OVERLAP_HOURS"),
+        terminal_policy=_env_str("TERMINAL_POLICY"),
+        fix_design=_env_bool("FIX_DESIGN"),
+        include_gridcost=_env_bool("INCLUDE_GRIDCOST_IN_ENERGY"),
+        include_demand_charge=_env_bool("INCLUDE_DEMAND_CHARGE_IN_RH"),
+        include_co2_cost=_env_bool("INCLUDE_CO2_COST_IN_OBJECTIVE"),
+        design_json=_env_str("PF_DESIGN_JSON"),
+    )
+
+
+def _merge_cli_and_env(
+    args: argparse.Namespace, env_values: _OverrideValues
+) -> tuple[_OverrideValues, float | None, float | None, float | None]:
+    values = _OverrideValues(
+        run_mode=args.run_mode or env_values.run_mode,
+        fix_design=args.fix_design if args.fix_design is not None else env_values.fix_design,
+        terminal_policy=args.terminal_policy or env_values.terminal_policy,
+        design_json=args.pf_design_json or env_values.design_json,
+        include_gridcost=(
+            args.include_gridcost_in_energy
+            if args.include_gridcost_in_energy is not None
+            else env_values.include_gridcost
+        ),
+        include_demand_charge=(
+            args.include_demand_charge_in_rh
+            if args.include_demand_charge_in_rh is not None
+            else env_values.include_demand_charge
+        ),
+        include_co2_cost=(
+            args.include_co2_cost_in_objective
+            if args.include_co2_cost_in_objective is not None
+            else env_values.include_co2_cost
+        ),
+    )
+
+    horizon_value = args.heat_horizon_hours
+    if horizon_value is None:
+        horizon_value = args.rh_window_hours if args.rh_window_hours is not None else env_values.horizon_hours
+
+    step_value = args.step_hours if args.step_hours is not None else env_values.step_hours
+    overlap_value = args.rh_overlap_hours if args.rh_overlap_hours is not None else env_values.overlap_hours
+    return values, horizon_value, step_value, overlap_value
+
+
+def _build_override_dict(values: _OverrideValues) -> Dict[str, Any]:
+    overrides: Dict[str, Any] = {}
+    if values.run_mode:
+        _assign(overrides, ["scenario", "run_mode"], values.run_mode)
+    if values.fix_design is not None:
+        _assign(overrides, ["scenario", "fix_design"], bool(values.fix_design))
+    if values.terminal_policy:
+        _assign(overrides, ["scenario", "rolling_horizon", "terminal_policy"], str(values.terminal_policy))
+    if values.design_json:
+        _assign(overrides, ["scenario", "pf_design_json"], str(values.design_json))
+    if values.include_gridcost is not None:
+        _assign(overrides, ["costs", "include_gridcost_in_energy"], bool(values.include_gridcost))
+    if values.include_demand_charge is not None:
+        _assign(overrides, ["costs", "include_demand_charge_in_rh"], bool(values.include_demand_charge))
+    if values.include_co2_cost is not None:
+        _assign(overrides, ["costs", "include_co2_cost_in_objective"], bool(values.include_co2_cost))
+    return overrides
+
+
+def _expand_sensitivity_runs(
+    args: argparse.Namespace,
+    base_overrides: Dict[str, Any],
+    horizon_value: float | None,
+    step_value: float | None,
+    overlap_value: float | None,
+) -> List[tuple[float | None, float | None, float | None, Dict[str, Any]]]:
+    def _choices(values: List[float] | None, default: float | None) -> List[float | None]:
+        if values:
+            return list(values)
+        if default is not None:
+            return [default]
+        return [None]
+
+    horizon_choices = _choices(args.sensitivity_horizon_hours, horizon_value)
+    step_choices = _choices(args.sensitivity_step_hours, step_value)
+    overlap_choices = _choices(args.sensitivity_overlap_hours, overlap_value)
+
+    runs = []
+    for horizon in horizon_choices:
+        for step in step_choices:
+            for overlap in overlap_choices:
+                iter_overrides = copy.deepcopy(base_overrides)
+                if horizon is not None:
+                    _assign(
+                        iter_overrides,
+                        ["scenario", "rolling_horizon", "heat_horizon_hours"],
+                        float(horizon),
+                    )
+                if step is not None:
+                    _assign(iter_overrides, ["scenario", "rolling_horizon", "step_hours"], float(step))
+                if overlap is not None:
+                    _assign(
+                        iter_overrides,
+                        ["scenario", "rolling_horizon", "overlap_hours"],
+                        float(overlap),
+                    )
+                runs.append((horizon, step, overlap, iter_overrides))
+    return runs
+
+
 def _assign(target: MutableMapping[str, Any], path: Iterable[str], value: Any) -> None:
     node: MutableMapping[str, Any] = target
     keys = list(path)
@@ -325,15 +461,14 @@ class WorkflowResult:
     plan: WorkflowPlan
 
 
-def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> WorkflowResult:
-    """Execute the configured workflow (PF, RH or PF→RH).
+def _build_workflow_inputs(
+    config_paths: List[str], overrides: Optional[Dict[str, Any]] = None
+) -> WorkflowInputs:
+    """Load configs, inputs and workflow plan in a single place.
 
-    Parameters
-    ----------
-    config_paths:
-        List of configuration file paths that should be merged.
-    overrides:
-        Optional dictionary applied on top of the merged configuration.
+    The helper keeps :func:`run_workflow` small and ensures that configuration
+    merging, time-step preparation and capacity validation follow the same
+    order across CLI and notebook usage.
     """
 
     cfg = load_and_merge(config_paths)
@@ -352,19 +487,35 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
 
     plan = _parse_workflow_plan(scenario_cfg)
     solver_name = str(run_cfg.get("solver", "glpk"))
+    return WorkflowInputs(cfg, table, dt_h, solver_name, plan)
 
-    context = WorkflowContext(cfg, table, dt_h, solver_name, plan)
+
+def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> WorkflowResult:
+    """Execute the configured workflow (PF, RH or PF→RH).
+
+    Parameters
+    ----------
+    config_paths:
+        List of configuration file paths that should be merged.
+    overrides:
+        Optional dictionary applied on top of the merged configuration.
+    """
+
+    inputs = _build_workflow_inputs(config_paths, overrides)
+
+    context = WorkflowContext(inputs.cfg, inputs.table, inputs.dt_h, inputs.solver_name, inputs.plan)
+    scenario_cfg = inputs.cfg.get("scenario", {})
     design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
     if design_override is not None:
         context.design = design_override
 
-    for step in plan.steps:
+    for step in inputs.plan.steps:
         handler = _STEP_HANDLERS.get(step)
         if handler is None:
             raise ValueError(f"Unsupported workflow step: {step}")
         handler(context)
 
-    return WorkflowResult(cfg, context.pf_result, context.rh_result, context.design, plan)
+    return WorkflowResult(inputs.cfg, context.pf_result, context.rh_result, context.design, inputs.plan)
 
 
 def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
@@ -943,100 +1094,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    overrides: Dict[str, Any] = {}
     try:
-        env_run_mode = _normalise_run_mode(_env_str("RUN_MODE"))
-        env_heat_horizon = _env_float("HEAT_HORIZON_HOURS")
-        env_step_hours = _env_float("STEP_HOURS")
-        env_overlap_hours = _env_float("OVERLAP_HOURS")
-        env_terminal = _env_str("TERMINAL_POLICY")
-        env_fix_design = _env_bool("FIX_DESIGN")
-        env_gridcost = _env_bool("INCLUDE_GRIDCOST_IN_ENERGY")
-        env_demand_charge = _env_bool("INCLUDE_DEMAND_CHARGE_IN_RH")
-        env_co2_cost = _env_bool("INCLUDE_CO2_COST_IN_OBJECTIVE")
-        env_design_json = _env_str("PF_DESIGN_JSON")
+        env_values = _gather_env_overrides()
     except ValueError as exc:
         parser.error(str(exc))
 
-    run_mode = args.run_mode or env_run_mode
-    if run_mode:
-        _assign(overrides, ["scenario", "run_mode"], run_mode)
-
-    fix_design_value = args.fix_design if args.fix_design is not None else env_fix_design
-    if fix_design_value is not None:
-        _assign(overrides, ["scenario", "fix_design"], bool(fix_design_value))
-
-    horizon_value = args.heat_horizon_hours
-    if horizon_value is None:
-        horizon_value = args.rh_window_hours if args.rh_window_hours is not None else env_heat_horizon
-
-    step_value = args.step_hours if args.step_hours is not None else env_step_hours
-    overlap_value = args.rh_overlap_hours if args.rh_overlap_hours is not None else env_overlap_hours
-    terminal_value = args.terminal_policy or env_terminal
-    if terminal_value:
-        _assign(overrides, ["scenario", "rolling_horizon", "terminal_policy"], str(terminal_value))
-
-    design_json_value = args.pf_design_json or env_design_json
-    if design_json_value:
-        _assign(overrides, ["scenario", "pf_design_json"], str(design_json_value))
-
-    include_gridcost = (
-        args.include_gridcost_in_energy
-        if args.include_gridcost_in_energy is not None
-        else env_gridcost
-    )
-    if include_gridcost is not None:
-        _assign(overrides, ["costs", "include_gridcost_in_energy"], bool(include_gridcost))
-
-    include_demand = (
-        args.include_demand_charge_in_rh
-        if args.include_demand_charge_in_rh is not None
-        else env_demand_charge
-    )
-    if include_demand is not None:
-        _assign(overrides, ["costs", "include_demand_charge_in_rh"], bool(include_demand))
-
-    include_co2 = (
-        args.include_co2_cost_in_objective
-        if args.include_co2_cost_in_objective is not None
-        else env_co2_cost
-    )
-    if include_co2 is not None:
-        _assign(overrides, ["costs", "include_co2_cost_in_objective"], bool(include_co2))
-
-    base_overrides = copy.deepcopy(overrides)
-
-    def _choices(values: List[float] | None, default: float | None) -> List[float | None]:
-        if values:
-            return list(values)
-        if default is not None:
-            return [default]
-        return [None]
-
-    horizon_choices = _choices(args.sensitivity_horizon_hours, horizon_value)
-    step_choices = _choices(args.sensitivity_step_hours, step_value)
-    overlap_choices = _choices(args.sensitivity_overlap_hours, overlap_value)
-
-    runs = []
-    for horizon in horizon_choices:
-        for step in step_choices:
-            for overlap in overlap_choices:
-                iter_overrides = copy.deepcopy(base_overrides)
-                if horizon is not None:
-                    _assign(
-                        iter_overrides,
-                        ["scenario", "rolling_horizon", "heat_horizon_hours"],
-                        float(horizon),
-                    )
-                if step is not None:
-                    _assign(iter_overrides, ["scenario", "rolling_horizon", "step_hours"], float(step))
-                if overlap is not None:
-                    _assign(
-                        iter_overrides,
-                        ["scenario", "rolling_horizon", "overlap_hours"],
-                        float(overlap),
-                    )
-                runs.append((horizon, step, overlap, iter_overrides))
+    values, horizon_value, step_value, overlap_value = _merge_cli_and_env(args, env_values)
+    base_overrides = _build_override_dict(values)
+    runs = _expand_sensitivity_runs(args, base_overrides, horizon_value, step_value, overlap_value)
 
     for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):
         if len(runs) > 1:
@@ -1069,6 +1134,7 @@ __all__ = [
     "WindowResult",
     "RollingHorizonResult",
     "DesignData",
+    "WorkflowInputs",
     "WorkflowResult",
     "run_workflow",
     "WorkflowContext",
