@@ -39,7 +39,7 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    `TERMINAL_POLICY`, `FIX_DESIGN`, `PF_DESIGN_JSON`, `INCLUDE_GRIDCOST_IN_ENERGY`,
    `INCLUDE_DEMAND_CHARGE_IN_RH`, `INCLUDE_CO2_COST_IN_OBJECTIVE`) so the workflow can be steered by
    CI pipelines or notebooks without modifying YAML files.
-5. Or open `notebooks/01_scenario_studio.ipynb` and run.
+5. Open `notebooks/01_scenario_studio.ipynb` for eine geführte Variante **oder** `notebooks/02_all_in_one_runner.ipynb` für einen Sammel-Runner mit Quicktest, PF/RH-Workflow, Export und Fixture-Generator.
 
 ### Configuration quick reference
 
