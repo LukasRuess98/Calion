@@ -412,6 +412,96 @@ def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Captu
     assert overrides["costs"]["include_co2_cost_in_objective"] is True
 
 
+def test_rh_costs_amortised_once(monkeypatch: pytest.MonkeyPatch, simple_config: dict) -> None:
+    config = copy.deepcopy(simple_config)
+    config["costs"] = {"amortise_investment_once_in_rh": True}
+    config["scenario"] = {
+        "workflow": ["RH"],
+        "rolling_horizon": {"heat_horizon_hours": 2.0, "step_hours": 1.0},
+    }
+
+    table = _make_table(3)
+    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+
+    recorded_cost_flags = []
+
+    def fake_solve(table_arg, cfg, dt_h, solver_name):
+        window_idx = len(recorded_cost_flags)
+        costs_cfg = cfg.get("costs", {})
+        recorded_cost_flags.append(
+            (
+                costs_cfg.get("include_capex_costs"),
+                costs_cfg.get("include_tie_breaker_costs"),
+                costs_cfg.get("include_storage_installation_costs"),
+            )
+        )
+        series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
+        base_cost = 100.0 + 10.0 * window_idx
+        costs = {
+            "objective.Grid_energy_cost_EUR": base_cost,
+            "objective.Grid_sell_revenue_EUR": 0.0,
+            "objective.Capex_cost_EUR": 200.0,
+            "objective.Activation_cost_EUR": 50.0,
+            "objective.Tie_breaker_cost_EUR": 1.0,
+            "objective.Storage_installation_cost_EUR": 5.0,
+            "objective.Period_fraction_of_year": 0.01,
+        }
+        summary = OrderedDict({"objective": OrderedDict()})
+        return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
+
+    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+
+    result = rh.run_workflow([], overrides=config)
+    assert result.rh_result is not None
+    aggregated = result.rh_result.costs
+
+    assert recorded_cost_flags[0] == (True, True, True)
+    assert recorded_cost_flags[1][0] is False
+    assert aggregated["objective.Capex_cost_EUR"] == pytest.approx(200.0)
+    assert aggregated["objective.Activation_cost_EUR"] == pytest.approx(50.0)
+    assert aggregated["objective.Tie_breaker_cost_EUR"] == pytest.approx(1.0)
+    assert aggregated["objective.Storage_installation_cost_EUR"] == pytest.approx(5.0)
+    assert aggregated["objective.Grid_energy_cost_EUR"] == pytest.approx(225.0)
+    assert aggregated["objective.Period_fraction_of_year"] == pytest.approx(0.02)
+    assert aggregated["objective.OBJ_value_EUR"] == pytest.approx(481.0)
+
+
+def test_rh_investment_opt_out(monkeypatch: pytest.MonkeyPatch, simple_config: dict) -> None:
+    config = copy.deepcopy(simple_config)
+    config["costs"] = {"include_investment_in_rh": False}
+    config["scenario"] = {
+        "workflow": ["RH"],
+        "rolling_horizon": {"heat_horizon_hours": 2.0, "step_hours": 1.0},
+    }
+
+    table = _make_table(2)
+    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+
+    recorded_flags = []
+
+    def fake_solve(table_arg, cfg, dt_h, solver_name):
+        costs_cfg = cfg.get("costs", {})
+        recorded_flags.append(costs_cfg.get("include_capex_costs"))
+        series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
+        costs = {
+            "objective.Grid_energy_cost_EUR": 10.0,
+            "objective.Grid_sell_revenue_EUR": 0.0,
+            "objective.Capex_cost_EUR": 100.0,
+        }
+        summary = OrderedDict({"objective": OrderedDict()})
+        return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
+
+    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+
+    result = rh.run_workflow([], overrides=config)
+    assert result.rh_result is not None
+    aggregated = result.rh_result.costs
+
+    assert recorded_flags == [False, False]
+    assert aggregated.get("objective.Capex_cost_EUR", 0.0) == pytest.approx(0.0)
+    assert aggregated["objective.Grid_energy_cost_EUR"] == pytest.approx(15.0)
+    assert aggregated["objective.OBJ_value_EUR"] == pytest.approx(15.0)
+
 def test_run_workflow_uses_design_file(
     monkeypatch: pytest.MonkeyPatch, simple_config: dict, tmp_path: Path
 ) -> None:
