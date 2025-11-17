@@ -88,18 +88,22 @@ class _RollingParams:
 
     horizon_hours: float
     step_hours: float
+    overlap_hours: float
     terminal_policy: str
 
-    def as_steps(self, dt_h: float) -> tuple[int, int]:
-        """Return window and step lengths measured in simulation steps."""
+    def as_steps(self, dt_h: float) -> tuple[int, int, int]:
+        """Return window, commit and overlap lengths measured in simulation steps."""
 
         if dt_h <= 0:
             raise ValueError("dt_h must be positive")
         horizon_steps = _hours_to_steps(self.horizon_hours, dt_h, "HEAT_HORIZON_HOURS")
         step_steps = _hours_to_steps(self.step_hours, dt_h, "STEP_HOURS")
+        overlap_steps = _hours_to_steps(self.overlap_hours, dt_h, "OVERLAP_HOURS") if self.overlap_hours else 0
         if step_steps > horizon_steps:
             raise ValueError("STEP_HOURS must not exceed HEAT_HORIZON_HOURS")
-        return horizon_steps, step_steps
+        if overlap_steps >= step_steps:
+            raise ValueError("OVERLAP_HOURS must be smaller than STEP_HOURS")
+        return horizon_steps, step_steps, overlap_steps
 
 
 @dataclass
@@ -183,6 +187,13 @@ def _env_bool(name: str) -> bool | None:
     if lowered in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"Invalid boolean for {name}: {raw!r}")
+
+
+def _parse_float_list(value: str) -> List[float]:
+    try:
+        return [float(item) for item in value.replace(";", ",").split(",") if item.strip()]
+    except ValueError as exc:  # pragma: no cover - guarded by argparse
+        raise argparse.ArgumentTypeError(f"Invalid float list: {value}") from exc
 
 
 def _assign(target: MutableMapping[str, Any], path: Iterable[str], value: Any) -> None:
@@ -374,7 +385,7 @@ def _pf_step(context: WorkflowContext) -> None:
 
 def _rh_step(context: WorkflowContext) -> None:
     params = _load_rolling_params(context.cfg)
-    horizon_steps, step_steps = params.as_steps(context.dt_h)
+    horizon_steps, step_steps, overlap_steps = params.as_steps(context.dt_h)
     fix_design = context.plan.fix_design and context.design is not None
     if context.plan.fix_design and context.design is None:
         logger.warning(
@@ -388,6 +399,7 @@ def _rh_step(context: WorkflowContext) -> None:
         params,
         horizon_steps,
         step_steps,
+        overlap_steps,
         context.design,
         fix_design,
     )
@@ -403,6 +415,7 @@ def _run_rolling_horizon(
     params: _RollingParams,
     horizon_steps: int,
     step_steps: int,
+    overlap_steps: int,
     design: Optional[DesignData],
     fix_design: bool,
 ) -> RollingHorizonResult:
@@ -439,7 +452,7 @@ def _run_rolling_horizon(
             window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
 
         window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
-        commit_len = min(step_steps, len(window_table))
+        commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
 
         _extend_series(aggregated_series, window_result.series, commit_len)
         aggregated_indices.extend(indices[:commit_len])
@@ -459,7 +472,7 @@ def _run_rolling_horizon(
             )
         )
 
-        start += step_steps
+        start += max(step_steps - overlap_steps, 1)
         window_idx += 1
 
         if design_state is None:
@@ -577,11 +590,17 @@ def _load_rolling_params(cfg: Mapping[str, Any]) -> _RollingParams:
                 return mapping[key]
         return default
 
-    horizon_hours = float(_get(rolling_cfg, "HEAT_HORIZON_HOURS", "heat_horizon_hours", default=168.0))
+    horizon_hours = float(_get(rolling_cfg, "HEAT_HORIZON_HOURS", "heat_horizon_hours", "window_hours", default=168.0))
     step_hours = float(_get(rolling_cfg, "STEP_HOURS", "step_hours", default=horizon_hours))
+    overlap_hours = float(_get(rolling_cfg, "OVERLAP_HOURS", "overlap_hours", default=0.0))
     terminal_policy = str(_get(rolling_cfg, "terminal_policy", "TERMINAL_POLICY", default="")).strip().lower()
 
-    return _RollingParams(horizon_hours=horizon_hours, step_hours=step_hours, terminal_policy=terminal_policy)
+    return _RollingParams(
+        horizon_hours=horizon_hours,
+        step_hours=step_hours,
+        overlap_hours=overlap_hours,
+        terminal_policy=terminal_policy,
+    )
 
 
 def _hours_to_steps(hours: float, dt_h: float, name: str) -> int:
@@ -708,9 +727,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Override rolling horizon window size in hours (env: HEAT_HORIZON_HOURS)",
     )
     parser.add_argument(
+        "--rh-window-hours",
+        type=float,
+        help="Alias for --heat-horizon-hours (env: HEAT_HORIZON_HOURS)",
+    )
+    parser.add_argument(
         "--step-hours",
         type=float,
         help="Override rolling horizon commit length in hours (env: STEP_HOURS)",
+    )
+    parser.add_argument(
+        "--rh-overlap-hours",
+        type=float,
+        help="Overlap between consecutive RH windows in hours (env: OVERLAP_HOURS)",
+    )
+    parser.add_argument(
+        "--sensitivity-horizon-hours",
+        type=_parse_float_list,
+        help="Comma/semicolon separated list of window sizes for a sensitivity sweep",
+    )
+    parser.add_argument(
+        "--sensitivity-step-hours",
+        type=_parse_float_list,
+        help="Comma/semicolon separated list of commit lengths for a sensitivity sweep",
+    )
+    parser.add_argument(
+        "--sensitivity-overlap-hours",
+        type=_parse_float_list,
+        help="Comma/semicolon separated list of RH overlaps for a sensitivity sweep",
     )
     parser.add_argument(
         "--terminal-policy",
@@ -760,6 +804,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         env_run_mode = _normalise_run_mode(_env_str("RUN_MODE"))
         env_heat_horizon = _env_float("HEAT_HORIZON_HOURS")
         env_step_hours = _env_float("STEP_HOURS")
+        env_overlap_hours = _env_float("OVERLAP_HOURS")
         env_terminal = _env_str("TERMINAL_POLICY")
         env_fix_design = _env_bool("FIX_DESIGN")
         env_gridcost = _env_bool("INCLUDE_GRIDCOST_IN_ENERGY")
@@ -777,16 +822,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if fix_design_value is not None:
         _assign(overrides, ["scenario", "fix_design"], bool(fix_design_value))
 
-    horizon_value = args.heat_horizon_hours if args.heat_horizon_hours is not None else env_heat_horizon
-    if horizon_value is not None:
-        _assign(overrides, ["scenario", "rolling_horizon", "heat_horizon_hours"], float(horizon_value))
-        _assign(overrides, ["rolling_horizon", "heat_horizon_hours"], float(horizon_value))
+    horizon_value = args.heat_horizon_hours
+    if horizon_value is None:
+        horizon_value = args.rh_window_hours if args.rh_window_hours is not None else env_heat_horizon
 
     step_value = args.step_hours if args.step_hours is not None else env_step_hours
-    if step_value is not None:
-        _assign(overrides, ["scenario", "rolling_horizon", "step_hours"], float(step_value))
-        _assign(overrides, ["rolling_horizon", "step_hours"], float(step_value))
-
+    overlap_value = args.rh_overlap_hours if args.rh_overlap_hours is not None else env_overlap_hours
     terminal_value = args.terminal_policy or env_terminal
     if terminal_value:
         _assign(overrides, ["scenario", "rolling_horizon", "terminal_policy"], str(terminal_value))
@@ -820,25 +861,65 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if include_co2 is not None:
         _assign(overrides, ["costs", "include_co2_cost_in_objective"], bool(include_co2))
 
-    result = run_workflow(args.configs, overrides=overrides or None)
-    steps = " -> ".join(result.plan.steps)
-    print(f"[workflow] Executed steps: {steps}")
+    base_overrides = copy.deepcopy(overrides)
 
-    if result.pf_result is not None:
-        pf_obj = result.pf_result.costs.get("objective.OBJ_value_EUR") if result.pf_result.costs else None
-        print(f"  • PF time steps: {len(result.pf_result.table)}")
-        if pf_obj is not None:
-            print(f"  • PF objective: {pf_obj}")
+    def _choices(values: List[float] | None, default: float | None) -> List[float | None]:
+        if values:
+            return list(values)
+        if default is not None:
+            return [default]
+        return [None]
 
-    if result.rh_result is not None:
-        print(f"  • RH windows: {len(result.rh_result.windows)}")
-        print(f"  • RH committed steps: {len(result.rh_result.table)}")
+    horizon_choices = _choices(args.sensitivity_horizon_hours, horizon_value)
+    step_choices = _choices(args.sensitivity_step_hours, step_value)
+    overlap_choices = _choices(args.sensitivity_overlap_hours, overlap_value)
 
-    if args.print_design and result.design is not None:
-        hp_parts = ", ".join(sorted(result.design.heat_pumps.keys())) or "none"
-        print(f"  • Design heat pumps: {hp_parts}")
-        if result.design.storage is not None:
-            print(f"  • Storage design: {result.design.storage}")
+    runs = []
+    for horizon in horizon_choices:
+        for step in step_choices:
+            for overlap in overlap_choices:
+                iter_overrides = copy.deepcopy(base_overrides)
+                if horizon is not None:
+                    _assign(
+                        iter_overrides,
+                        ["scenario", "rolling_horizon", "heat_horizon_hours"],
+                        float(horizon),
+                    )
+                    _assign(iter_overrides, ["rolling_horizon", "heat_horizon_hours"], float(horizon))
+                if step is not None:
+                    _assign(iter_overrides, ["scenario", "rolling_horizon", "step_hours"], float(step))
+                    _assign(iter_overrides, ["rolling_horizon", "step_hours"], float(step))
+                if overlap is not None:
+                    _assign(
+                        iter_overrides,
+                        ["scenario", "rolling_horizon", "overlap_hours"],
+                        float(overlap),
+                    )
+                    _assign(iter_overrides, ["rolling_horizon", "overlap_hours"], float(overlap))
+                runs.append((horizon, step, overlap, iter_overrides))
+
+    for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):
+        if len(runs) > 1:
+            print(f"[workflow] Sweep run {idx}/{len(runs)}: horizon={horizon}, step={step}, overlap={overlap}")
+        result = run_workflow(args.configs, overrides=override_cfg or None)
+        steps = " -> ".join(result.plan.steps)
+        print(f"[workflow] Executed steps: {steps}")
+
+        if result.pf_result is not None:
+            pf_obj = result.pf_result.costs.get("objective.OBJ_value_EUR") if result.pf_result.costs else None
+            print(f"  • PF time steps: {len(result.pf_result.table)}")
+            if pf_obj is not None:
+                print(f"  • PF objective: {pf_obj}")
+
+        if result.rh_result is not None:
+            print(f"  • RH windows: {len(result.rh_result.windows)}")
+            print(f"  • RH committed steps: {len(result.rh_result.table)}")
+
+        if args.print_design and result.design is not None:
+            hp_parts = ", ".join(sorted(result.design.heat_pumps.keys())) or "none"
+            print(f"  • Design heat pumps: {hp_parts}")
+            if result.design.storage is not None:
+                print(f"  • Storage design: {result.design.storage}")
 
     return 0
 

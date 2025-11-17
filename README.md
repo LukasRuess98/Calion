@@ -39,8 +39,22 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    All CLI flags have matching environment variables (`RUN_MODE`, `HEAT_HORIZON_HOURS`, `STEP_HOURS`,
    `TERMINAL_POLICY`, `FIX_DESIGN`, `PF_DESIGN_JSON`, `INCLUDE_GRIDCOST_IN_ENERGY`,
    `INCLUDE_DEMAND_CHARGE_IN_RH`, `INCLUDE_CO2_COST_IN_OBJECTIVE`) so the workflow can be steered by
-   CI pipelines or notebooks without modifying YAML files.
+   CI pipelines or notebooks without modifying YAML files. Additional helpers:
+   - `--rh-window-hours`/`--heat-horizon-hours` and `--rh-overlap-hours` allow explicit control of window length and overlap.
+   - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
 5. Open `notebooks/01_scenario_studio.ipynb` for eine geführte Variante **oder** `notebooks/02_all_in_one_runner.ipynb` für einen Sammel-Runner mit Quicktest, PF/RH-Workflow, Export und Fixture-Generator.
+
+### Case study exports
+
+Use the convenience wrapper to run the PF→RH workflow, export Excel/JSON bundles and plot images into `artifacts/`:
+
+```bash
+./scripts/run_case_study.sh
+```
+
+Optional overrides:
+- Pass an alternative config list as arguments to the script.
+- `CASE_TAG=mytag` adjusts the folder suffix, `ARTIFACT_ROOT=/tmp/out` changes the export root.
 
 ### Configuration quick reference
 
