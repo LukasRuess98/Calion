@@ -63,6 +63,7 @@ class RollingHorizonResult:
     series: OrderedDict[str, List[float]]
     costs: Dict[str, Any]
     windows: List[WindowResult]
+    design: Optional[DesignData] = None
 
 
 @dataclass
@@ -390,6 +391,8 @@ def _rh_step(context: WorkflowContext) -> None:
         context.design,
         fix_design,
     )
+    if context.rh_result.design is not None:
+        context.design = context.design or context.rh_result.design
 
 
 def _run_rolling_horizon(
@@ -406,17 +409,20 @@ def _run_rolling_horizon(
     n = len(table)
     if n == 0:
         empty_series: OrderedDict[str, List[float]] = OrderedDict()
-        return RollingHorizonResult(table, empty_series, {}, [])
+        return RollingHorizonResult(table, empty_series, {}, [], design)
 
     aggregated_indices: List[int] = []
     aggregated_series: OrderedDict[str, List[float]] = OrderedDict()
     aggregated_costs: Dict[str, float] = {}
     windows: List[WindowResult] = []
 
+    design_state = design
+
     soc_next = _initial_soc(base_cfg)
     base_storage_enabled = _storage_enabled(base_cfg)
 
     start = 0
+    window_idx = 0
     while start < n:
         end = min(start + horizon_steps, n)
         indices = list(range(start, end))
@@ -427,8 +433,10 @@ def _run_rolling_horizon(
             _apply_terminal_policy(window_cfg, params.terminal_policy)
         if soc_next is not None and base_storage_enabled:
             _set_initial_soc(window_cfg, soc_next)
-        if fix_design and design is not None:
-            window_cfg = _apply_design_fix(window_cfg, design)
+
+        should_fix_design = design_state is not None and (fix_design or window_idx > 0)
+        if should_fix_design:
+            window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
 
         window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
         commit_len = min(step_steps, len(window_table))
@@ -452,12 +460,16 @@ def _run_rolling_horizon(
         )
 
         start += step_steps
+        window_idx += 1
+
+        if design_state is None:
+            design_state = _extract_design_data(window_result.summary)
 
     if aggregated_indices != list(range(n)):
         raise RuntimeError("Rolling horizon aggregation did not cover the full time series")
 
     aggregated_table = orchestrator._slice_table(table, aggregated_indices)  # type: ignore[attr-defined]
-    return RollingHorizonResult(aggregated_table, aggregated_series, aggregated_costs, windows)
+    return RollingHorizonResult(aggregated_table, aggregated_series, aggregated_costs, windows, design_state)
 
 
 def _extend_series(
