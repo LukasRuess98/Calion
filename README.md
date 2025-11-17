@@ -29,8 +29,40 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
        configs/sites/default.site.yaml \
        configs/systems/baseline.system.yaml \
        configs/scenarios/pf_then_rh.workflow.scenario.yaml \
-       --print-design
+       --print-design \
+       --run-mode PF_THEN_RH \
+       --heat-horizon-hours 168 \
+       --step-hours 24 \
+       --terminal-policy free
    ```
+   All CLI flags have matching environment variables (`RUN_MODE`, `HEAT_HORIZON_HOURS`, `STEP_HOURS`,
+   `TERMINAL_POLICY`, `FIX_DESIGN`, `PF_DESIGN_JSON`, `INCLUDE_GRIDCOST_IN_ENERGY`,
+   `INCLUDE_DEMAND_CHARGE_IN_RH`, `INCLUDE_CO2_COST_IN_OBJECTIVE`) so the workflow can be steered by
+   CI pipelines or notebooks without modifying YAML files.
 5. Or open `notebooks/01_scenario_studio.ipynb` and run.
+
+### Configuration quick reference
+
+The default `configs/base.yaml` now ships sane defaults for the rolling horizon settings and cost flags:
+
+```yaml
+scenario:
+  run_mode: PF_ONLY
+  fix_design: false
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
+
+costs:
+  include_gridcost_in_energy: true
+  include_demand_charge_in_rh: true
+  include_co2_cost_in_objective: true
+```
+
+Individual scenarios can override these entries (see `configs/scenarios/`).  When `PF_THEN_RH` is used
+without executing a PF step, point `scenario.pf_design_json` to a previously exported `pf_design.json` so
+that the design fixation step can reuse those capacities. Missing design files are detected and reported
+gracefully.
 
 Exports go to `exports/<timestamp>_<tag>/scenario.xlsx`.

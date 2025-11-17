@@ -6,6 +6,6 @@ scenario:
     - RH
   fix_design: true
   rolling_horizon:
-    HEAT_HORIZON_HOURS: 168
-    STEP_HOURS: 24
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
     terminal_policy: free

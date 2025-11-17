@@ -1,6 +1,13 @@
 scenario:
   title: Perfect Forecast Baseline
-  mode: PF
+  run_mode: PF_ONLY
+  workflow:
+    - PF
+  fix_design: false
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
   tag: PF_FULL_YEAR-Baseline
   description: "Perfect-forecast Optimierung über das komplette Zieljahr"
   horizon:

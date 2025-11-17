@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import OrderedDict
 from datetime import datetime, timedelta
 import copy
+import json
+from pathlib import Path
 from typing import List
 
 import pytest
@@ -344,4 +346,141 @@ def test_cli_entrypoint(monkeypatch: pytest.MonkeyPatch, simple_config: dict, ca
 
     assert exit_code == 0
     assert "[workflow] Executed steps" in captured.out
+
+
+def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    captured: dict = {}
+
+    def fake_run_workflow(configs, overrides=None):
+        captured["overrides"] = overrides
+        return rh.WorkflowResult(
+            config={},
+            pf_result=None,
+            rh_result=None,
+            design=None,
+            plan=rh.WorkflowPlan(steps=("RH",), fix_design=False),
+        )
+
+    monkeypatch.setattr(rh, "run_workflow", fake_run_workflow)
+
+    monkeypatch.setenv("RUN_MODE", "RH_ONLY")
+    monkeypatch.setenv("HEAT_HORIZON_HOURS", "6")
+    monkeypatch.setenv("STEP_HOURS", "3")
+    monkeypatch.setenv("TERMINAL_POLICY", "hold")
+    monkeypatch.setenv("FIX_DESIGN", "1")
+    monkeypatch.setenv("INCLUDE_GRIDCOST_IN_ENERGY", "0")
+    monkeypatch.setenv("INCLUDE_DEMAND_CHARGE_IN_RH", "1")
+    monkeypatch.setenv("INCLUDE_CO2_COST_IN_OBJECTIVE", "0")
+    monkeypatch.setenv("PF_DESIGN_JSON", "/tmp/env_design.json")
+
+    exit_code = rh.main(
+        [
+            "config.yaml",
+            "--run-mode",
+            "PF_THEN_RH",
+            "--heat-horizon-hours",
+            "24",
+            "--step-hours",
+            "12",
+            "--terminal-policy",
+            "free",
+            "--include-gridcost-in-energy",
+            "--no-include-demand-charge-in-rh",
+            "--include-co2-cost-in-objective",
+            "--no-fix-design",
+            "--pf-design-json",
+            "/tmp/cli_design.json",
+        ]
+    )
+
+    captured_out = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "[workflow] Executed steps" in captured_out.out
+    overrides = captured.get("overrides")
+    assert overrides is not None
+    assert overrides["scenario"]["run_mode"] == "PF_THEN_RH"
+    assert overrides["scenario"]["fix_design"] is False
+    assert overrides["scenario"]["rolling_horizon"]["heat_horizon_hours"] == pytest.approx(24.0)
+    assert overrides["rolling_horizon"]["heat_horizon_hours"] == pytest.approx(24.0)
+    assert overrides["scenario"]["rolling_horizon"]["step_hours"] == pytest.approx(12.0)
+    assert overrides["rolling_horizon"]["step_hours"] == pytest.approx(12.0)
+    assert overrides["scenario"]["rolling_horizon"]["terminal_policy"] == "free"
+    assert overrides["scenario"]["pf_design_json"] == "/tmp/cli_design.json"
+    assert overrides["costs"]["include_gridcost_in_energy"] is True
+    assert overrides["costs"]["include_demand_charge_in_rh"] is False
+    assert overrides["costs"]["include_co2_cost_in_objective"] is True
+
+
+def test_run_workflow_uses_design_file(
+    monkeypatch: pytest.MonkeyPatch, simple_config: dict, tmp_path: Path
+) -> None:
+    config = copy.deepcopy(simple_config)
+    design_path = tmp_path / "pf_design.json"
+    design_data = {
+        "heat_pumps": {"HP1": {"capacity_mw": 7.5, "build_binary": 1.0}},
+        "storage": {"capacity_mwh": 15.0, "power_mw": 6.0, "build_binary": 1.0},
+    }
+    design_path.write_text(json.dumps(design_data))
+
+    config["scenario"] = {
+        "run_mode": "RH_ONLY",
+        "fix_design": True,
+        "pf_design_json": str(design_path),
+        "rolling_horizon": {"heat_horizon_hours": 4.0, "step_hours": 2.0, "terminal_policy": "hold"},
+    }
+
+    table = _make_table(4)
+    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+
+    def fake_solve(table_arg, cfg, dt_h, solver_name):
+        hp_cfg = cfg["system"]["heat_pumps"][0]
+        assert hp_cfg["max_th_mw"] == pytest.approx(7.5)
+        assert hp_cfg["min_th_mw"] == pytest.approx(7.5)
+        assert hp_cfg["investment"]["enabled"] is False
+        storage_cfg = cfg["system"]["storage"]
+        assert storage_cfg["max_energy_mwh"] == pytest.approx(15.0)
+        assert storage_cfg["max_power_mw"] == pytest.approx(6.0)
+        assert storage_cfg["investment"]["enabled"] is False
+        series = OrderedDict({"TES_SOC_MWh": [0.0, 1.0, 2.0, 3.0]})
+        summary = OrderedDict({"objective": OrderedDict()})
+        costs = {"objective.OBJ_value_EUR": 0.0}
+        solver = {"status": "ok"}
+        return rh.ScenarioResult(table_arg, series, summary, costs, solver)
+
+    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+
+    result = rh.run_workflow([], overrides=config)
+
+    assert result.rh_result is not None
+    assert result.design is not None
+    assert result.design.heat_pumps["HP1"]["capacity_mw"] == pytest.approx(7.5)
+
+
+def test_run_workflow_missing_design_file(
+    monkeypatch: pytest.MonkeyPatch, simple_config: dict, caplog: pytest.LogCaptureFixture
+) -> None:
+    config = copy.deepcopy(simple_config)
+    config["scenario"] = {
+        "run_mode": "RH_ONLY",
+        "fix_design": True,
+        "pf_design_json": "nonexistent_design.json",
+        "rolling_horizon": {"heat_horizon_hours": 2.0, "step_hours": 2.0},
+    }
+
+    table = _make_table(2)
+    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+
+    def fake_solve(table_arg, cfg, dt_h, solver_name):
+        series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
+        summary = OrderedDict({"objective": OrderedDict()})
+        return rh.ScenarioResult(table_arg, series, summary, {}, {})
+
+    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+
+    with caplog.at_level("WARNING"):
+        result = rh.run_workflow([], overrides=config)
+
+    assert result.rh_result is not None
+    assert "design file" in caplog.text.lower()
 
