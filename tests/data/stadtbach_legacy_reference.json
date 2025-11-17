@@ -1,0 +1,12 @@
+{
+  "horizon": {
+    "start": "2023-01-01T00:00:00",
+    "end": "2023-01-01T23:00:00"
+  },
+  "legacy": {
+    "objective.OBJ_value_EUR": 0.0,
+    "grid.Energy_from_grid_MWh": 0.0,
+    "grid.Heat_demand_MWh": 2065.9
+  },
+  "notes": "Legacy metrics captured from the original Stadtbach script for the first 24 hours of 2023 with hourly resolution."
+}
