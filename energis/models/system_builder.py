@@ -469,6 +469,12 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         fs = block.attach(m, m.t, cfg, {})
         ht_out.append(fs["Q_th_out"])
         ht_in.append(fs["Q_th_in"])
+        # Remove potentially existing references from previous attaches to avoid
+        # Pyomo warnings about implicit replacement when rebuilding the model
+        for _name in ["TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active"]:
+            if hasattr(m, _name):
+                m.del_component(getattr(m, _name))
+
         m.TES_SOC = pyo.Reference(fs["SOC"])
         m.TES_charge_mode = pyo.Reference(fs["charge_mode"])
         m.TES_discharge_mode = pyo.Reference(fs["discharge_mode"])
