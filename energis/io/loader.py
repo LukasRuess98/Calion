@@ -37,7 +37,9 @@ def _normalise(name: str) -> str:
 def _resolve_input_path(path: str, site_cfg: Dict[str, Any]) -> Path:
     candidate = Path(path)
     if candidate.is_absolute():
-        return candidate
+        if candidate.exists():
+            return candidate
+        raise RuntimeError(f"Datei nicht gefunden: {candidate}")
 
     search_roots = []
 

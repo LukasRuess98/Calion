@@ -18,11 +18,12 @@ except Exception:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
 
-from energis.config.merge import load_and_merge
+from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
 from energis.models.system_builder import build_model
+from energis.utils.config_utils import apply_heat_pump_defaults
 from energis.utils.timeseries import TimeSeriesTable
 
 
@@ -52,7 +53,7 @@ def _json_safe(value: Any) -> Any:
 def _estimate_max_thermal_capacity(cfg: dict) -> float:
     syscfg = cfg.get("system", {})
     cap = 0.0
-    for hp in syscfg.get("heat_pumps", []):
+    for hp in apply_heat_pump_defaults(syscfg):
         if hp.get("enabled", True):
             cap += float(hp.get("max_th_mw", 0.0))
     gens = syscfg.get("generators", {})
@@ -71,16 +72,6 @@ def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float 
         )
 
 
-def _deep_update(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-    result = dict(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(result.get(key), dict):
-            result[key] = _deep_update(result[key], value)
-        else:
-            result[key] = value
-    return result
-
-
 def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
     meta: Dict[str, Any] = {
         "heat_pumps": [],
@@ -91,7 +82,7 @@ def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     syscfg = cfg.get("system", {})
 
-    for hp in syscfg.get("heat_pumps", []):
+    for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):
             continue
         inv_cfg = hp.get("investment", {})
@@ -762,7 +753,7 @@ def _apply_horizon(table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: f
 def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     cfg = load_and_merge(config_paths)
     if overrides:
-        cfg = _deep_update(cfg, overrides)
+        cfg = deep_merge(cfg, overrides)
 
     site = cfg.get("site", {})
     run_cfg = cfg.get("run", {})

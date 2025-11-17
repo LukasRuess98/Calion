@@ -29,7 +29,7 @@ except Exception:  # pragma: no cover - the solver stack is optional for tests
     HAVE_PYOMO = False
     pyo = None
 
-from energis.config.merge import load_and_merge
+from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
 from energis.models.system_builder import build_model
 from energis.utils.timeseries import TimeSeriesTable
@@ -338,7 +338,7 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
 
     cfg = load_and_merge(config_paths)
     if overrides:
-        cfg = orchestrator._deep_update(cfg, overrides)  # type: ignore[attr-defined]
+        cfg = deep_merge(cfg, overrides)
 
     run_cfg = cfg.get("run", {})
     scenario_cfg = cfg.get("scenario", {})
@@ -701,7 +701,7 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
 
 def _load_rolling_params(cfg: Mapping[str, Any]) -> _RollingParams:
     scenario_cfg = cfg.get("scenario", {}) if isinstance(cfg.get("scenario"), dict) else {}
-    rolling_cfg = scenario_cfg.get("rolling_horizon") or cfg.get("rolling_horizon", {}) or {}
+    rolling_cfg = scenario_cfg.get("rolling_horizon") or {}
 
     def _get(mapping: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
         for key in keys:
@@ -975,7 +975,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     terminal_value = args.terminal_policy or env_terminal
     if terminal_value:
         _assign(overrides, ["scenario", "rolling_horizon", "terminal_policy"], str(terminal_value))
-        _assign(overrides, ["rolling_horizon", "terminal_policy"], str(terminal_value))
 
     design_json_value = args.pf_design_json or env_design_json
     if design_json_value:
@@ -1029,17 +1028,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         ["scenario", "rolling_horizon", "heat_horizon_hours"],
                         float(horizon),
                     )
-                    _assign(iter_overrides, ["rolling_horizon", "heat_horizon_hours"], float(horizon))
                 if step is not None:
                     _assign(iter_overrides, ["scenario", "rolling_horizon", "step_hours"], float(step))
-                    _assign(iter_overrides, ["rolling_horizon", "step_hours"], float(step))
                 if overlap is not None:
                     _assign(
                         iter_overrides,
                         ["scenario", "rolling_horizon", "overlap_hours"],
                         float(overlap),
                     )
-                    _assign(iter_overrides, ["rolling_horizon", "overlap_hours"], float(overlap))
                 runs.append((horizon, step, overlap, iter_overrides))
 
     for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):

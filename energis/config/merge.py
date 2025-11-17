@@ -8,11 +8,14 @@ from typing import List, Dict, Any
 from energis.utils import simple_yaml
 from energis.config.schema import validate_config_schema
 
-def _deep_merge(a: dict, b: dict) -> dict:
+
+def deep_merge(a: dict, b: dict) -> dict:
+    """Recursively merge mapping ``b`` into ``a`` without mutating inputs."""
+
     out = copy.deepcopy(a)
     for k, v in b.items():
         if isinstance(v, dict) and isinstance(out.get(k), dict):
-            out[k] = _deep_merge(out[k], v)
+            out[k] = deep_merge(out[k], v)
         else:
             out[k] = copy.deepcopy(v)
     return out
@@ -70,7 +73,7 @@ def load_and_merge(paths: List[str]) -> Dict[str,Any]:
             continue
         resolved = _resolve_config_path(p)
         norm.append(str(resolved))
-        cfg = _deep_merge(cfg, load_yaml(str(resolved)))
+        cfg = deep_merge(cfg, load_yaml(str(resolved)))
     # compute hash for provenance
     h = hashlib.sha256()
     for p in norm:
