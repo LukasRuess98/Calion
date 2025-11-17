@@ -1,49 +1,26 @@
 system:
+  heat_pump_defaults:
+    enabled: true
+    type: standard
+    max_th_mw: 40.0
+    min_th_mw: 5.0
+    investment:
+      enabled: true
+      capacity_min_mw: 1.0
+      capacity_max_mw: 100.0
   heat_pumps:
     - id: HP1
-      enabled: true
-      type: standard
-      max_th_mw: 40.0
-      min_th_mw: 5.0
       wrg_source_column: WRG1_T_K
       wrg_capacity_column: WRG1_Q_cap
-      investment:
-        enabled: true
-        capacity_min_mw: 1.0
-        capacity_max_mw: 100.0
     - id: HP2
-      enabled: true
-      type: standard
-      max_th_mw: 40.0
-      min_th_mw: 5.0
       wrg_source_column: WRG2_T_K
       wrg_capacity_column: WRG2_Q_cap
-      investment:
-        enabled: true
-        capacity_min_mw: 1.0
-        capacity_max_mw: 100.0
     - id: HP3
-      enabled: true
-      type: standard
-      max_th_mw: 40.0
-      min_th_mw: 5.0
       wrg_source_column: WRG3_T_K
       wrg_capacity_column: WRG3_Q_cap
-      investment:
-        enabled: true
-        capacity_min_mw: 1.0
-        capacity_max_mw: 100.0
     - id: HP4
-      enabled: true
-      type: standard
-      max_th_mw: 40.0
-      min_th_mw: 5.0
       wrg_source_column: WRG4_T_K
       wrg_capacity_column: WRG4_Q_cap
-      investment:
-        enabled: true
-        capacity_min_mw: 1.0
-        capacity_max_mw: 100.0
 
   storage:
     enabled: true

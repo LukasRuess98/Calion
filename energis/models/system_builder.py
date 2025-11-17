@@ -11,6 +11,7 @@ except Exception:  # pragma: no cover - optional dependency
     pyo = None
 
 from energis.utils.timeseries import TimeSeriesTable
+from energis.utils.config_utils import apply_heat_pump_defaults
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
@@ -271,7 +272,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     tie_breaker_terms: List = []
     storage_install_terms: List = []
 
-    for hp in syscfg.get("heat_pumps", []):
+    for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):
             continue
         name = hp.get("id", "HP")
