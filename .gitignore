@@ -9,3 +9,21 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 .DS_Store
+
+# Experiment outputs (should not be tracked in version control)
+notebooks/exports/
+*.xlsx
+!Import_Data.xlsx
+*.png
+
+# IDE settings (personal configurations)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Generated artifacts
+artifacts/
+exports/
+*.log
