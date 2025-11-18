@@ -212,7 +212,7 @@ WORKBOOK_RELS_XML = """<?xml version='1.0' encoding='UTF-8'?>
 </Relationships>
 """
 
-STYLES_XML = """<?xml version='1.0' encoding='UTF-8'?>
+STYLES_XML = r"""<?xml version='1.0' encoding='UTF-8'?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <numFmts count="1">
     <numFmt numFmtId="165" formatCode="yyyy-mm-dd\ hh:mm"/>
