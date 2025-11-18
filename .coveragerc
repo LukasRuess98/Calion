@@ -1,0 +1,82 @@
+[run]
+# Coverage.py configuration
+
+# Source packages to measure
+source = energis
+
+# Files to omit from coverage
+omit =
+    # Test files
+    */tests/*
+    */test_*.py
+    # Setup and configuration
+    setup.py
+    */setup.py
+    # Virtual environments
+    */venv/*
+    */.venv/*
+    */env/*
+    # Version files
+    */__version__.py
+    # Init files (often just imports)
+    */__init__.py
+
+# Enable branch coverage
+branch = True
+
+# Run coverage in parallel mode (useful for multiprocessing)
+parallel = False
+
+[report]
+# Reporting options
+
+# Precision for coverage percentage
+precision = 2
+
+# Show lines that weren't executed
+show_missing = True
+
+# Skip covered files in report
+skip_covered = False
+
+# Skip empty files
+skip_empty = True
+
+# Fail if coverage is under this threshold
+fail_under = 60
+
+# Exclude certain lines from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug-only code
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Don't complain about abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Don't complain about pass statements
+    pass
+
+    # Don't complain about ellipsis in protocol/stub definitions
+    \.\.\.
+
+[html]
+# HTML report options
+directory = htmlcov
+title = EnerGIS Coverage Report
+
+[xml]
+# XML report for CI/CD integration
+output = coverage.xml

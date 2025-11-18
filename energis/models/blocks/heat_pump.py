@@ -7,6 +7,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
+from ...constants import COP_MIN, COP_MAX_HEATPUMP, COP_DEFAULT
 from ..component import BaseComponent, Flow, InvestmentResult
 from ..registry import register_component
 
@@ -24,20 +25,20 @@ class HeatPumpBlock(BaseComponent):
         capacity_init_mw: float,
         investable: bool,
         wrg_cap_series: Optional[Dict[int, float]] = None,
-        cop_default: float = 3.0,
+        cop_default: float = COP_DEFAULT,
         label: str = None
     ):
         super().__init__(name, label)
         self.min_load = float(min_load)
 
-        # Validate and clamp COP values to safe ranges (minimum 1.01 to avoid division issues)
+        # Validate and clamp COP values to safe ranges
         cop_list = []
         for c in cop_series:
             cop_val = float(c)
-            if cop_val < 1.01:
-                raise ValueError(f"Heat pump COP must be >= 1.01 to avoid division by zero, got {cop_val}")
-            if cop_val > 20.0:
-                raise ValueError(f"Heat pump COP suspiciously high (> 20), got {cop_val}")
+            if cop_val < COP_MIN:
+                raise ValueError(f"Heat pump COP must be >= {COP_MIN} to avoid division by zero, got {cop_val}")
+            if cop_val > COP_MAX_HEATPUMP:
+                raise ValueError(f"Heat pump COP suspiciously high (> {COP_MAX_HEATPUMP}), got {cop_val}")
             cop_list.append(cop_val)
         self.COP_series = cop_list
 
@@ -48,9 +49,9 @@ class HeatPumpBlock(BaseComponent):
         self.wrg_cap_series = wrg_cap_series or {}
 
         # Validate default COP
-        cop_default_val = float(cop_default) if cop_default else 3.0
-        if cop_default_val < 1.01:
-            raise ValueError(f"Heat pump default COP must be >= 1.01, got {cop_default_val}")
+        cop_default_val = float(cop_default) if cop_default else COP_DEFAULT
+        if cop_default_val < COP_MIN:
+            raise ValueError(f"Heat pump default COP must be >= {COP_MIN}, got {cop_default_val}")
         self.cop_default = cop_default_val
 
     def attach(self, m, Tset, cfg, buses):
