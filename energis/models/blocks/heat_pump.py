@@ -7,7 +7,12 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
-class HeatPumpBlock:
+from ..component import BaseComponent, Flow, InvestmentResult
+from ..registry import register_component
+
+
+@register_component("heat_pump", category="converter", description="Heat pump with COP series and waste heat recovery")
+class HeatPumpBlock(BaseComponent):
     def __init__(
         self,
         name: str,
@@ -20,8 +25,9 @@ class HeatPumpBlock:
         investable: bool,
         wrg_cap_series: Optional[Dict[int, float]] = None,
         cop_default: float = 3.0,
+        label: str = None
     ):
-        self.name = name
+        super().__init__(name, label)
         self.min_load = float(min_load)
 
         # Validate and clamp COP values to safe ranges (minimum 1.01 to avoid division issues)
@@ -126,8 +132,46 @@ class HeatPumpBlock:
 
             setattr(m, f"{comp}_wrg_limit", pyo.Constraint(Tset, rule=wrg_rule))
 
-        # Flows to buses
+        # Register flows with framework
+        self.add_flow(Flow(
+            bus="heat",
+            direction="output",
+            variable=Q,
+            nominal_value=self.capacity_max_mw,
+            investment=self.investable
+        ))
+
+        self.add_flow(Flow(
+            bus="electricity",
+            direction="input",
+            variable=Pel_expr,
+            flow_type="electric_power"
+        ))
+
+        # Register with buses if available
+        if buses:
+            if "heat" in buses:
+                buses["heat"].add_output(Q)
+            if "electricity" in buses:
+                buses["electricity"].add_input(Pel_expr)
+
+        # Return standardized format
         return {
+            "flows": {
+                "heat": {"output": Q},
+                "electricity": {"input": Pel_expr}
+            },
+            "investment": InvestmentResult(
+                capacity=cap,
+                build=build
+            ) if self.investable else None,
+            "metadata": {
+                "Q_wrg": Q_wrg,
+                "Q_def": Q_def,
+                "min_load": self.min_load,
+                "cop_default": self.cop_default
+            },
+            # Legacy compatibility - keep old keys for now
             "Q_th_out": Q,
             "P_el_in": Pel_expr,
             "build": build,
