@@ -630,7 +630,21 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             continue
         gpar = cfg.get("generators", {}).get(key, {})
         if key == "p2h":
-            block = P2HBlock("P2H", eff=float(gpar.get("el_to_th_eff", 0.99)), cap_th_mw=float(par.get("cap_th_mw", 10.0)))
+            # Extract P2H parameters with defaults for backward compatibility
+            eff = float(gpar.get("el_to_th_eff", 0.99))
+            cap_th = float(par.get("cap_th_mw", 10.0))
+            min_load = float(gpar.get("min_load", 0.0))
+            eff_series = gpar.get("eff_series", None)
+            part_load_penalty = float(gpar.get("part_load_penalty", 0.0))
+
+            block = P2HBlock(
+                "P2H",
+                eff=eff,
+                cap_th_mw=cap_th,
+                min_load=min_load,
+                eff_series=eff_series,
+                part_load_penalty=part_load_penalty
+            )
             fs = block.attach(m, m.t, cfg, {})
             el_in.append(fs["P_el_in"])
             ht_out.append(fs["Q_th_out"])
