@@ -48,6 +48,20 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
 5. Open `notebooks/01_scenario_studio.ipynb` for eine geführte Variante **oder** `notebooks/02_all_in_one_runner.ipynb` für einen Sammel-Runner mit Quicktest, PF/RH-Workflow, Export und Fixture-Generator.
 
+### Pyomo-Modell vor dem Solverlauf prüfen
+
+In den Runner-Notebooks kannst du das gebaute Pyomo-Modell mit `notebooks/model_dump_helper.py` inspizieren:
+
+```python
+from notebooks.model_dump_helper import dump_model_structure, export_model_json
+
+# ... Modell bauen (z. B. über orchestrator.build_model)
+dump_model_structure(model)  # sortierte Konsolenansicht
+export_model_json(model, "model_dump.json")  # strukturierter JSON-Export
+```
+
+So lässt sich vor dem Solverlauf nachvollziehen, ob Variablen, Parameter, Nebenbedingungen und Zielfunktion korrekt aufgebaut sind. Im Notebook [`notebooks/02_all_in_one_runner.ipynb`](notebooks/02_all_in_one_runner.ipynb) findest du zusätzlich Abschnitt **3a**, der den Modell-Dump direkt in den Sammel-Runner einbindet.
+
 ### Case study exports
 
 Use the convenience wrapper to run the PF→RH workflow, export Excel/JSON bundles and plot images into `artifacts/`:
