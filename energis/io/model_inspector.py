@@ -11,6 +11,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 import os
 import json
+import math
 
 try:
     import pyomo.environ as pyo
@@ -19,10 +20,22 @@ except Exception:
     HAVE_PYOMO = False
     pyo = None
 
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Non-interactive backend
+    import matplotlib.pyplot as plt
+    import numpy as np
+    HAVE_MATPLOTLIB = True
+except Exception:
+    HAVE_MATPLOTLIB = False
+    plt = None
+    np = None
+
 
 __all__ = [
     "export_model_structure",
     "inspect_pyomo_model",
+    "create_model_plots",
 ]
 
 
@@ -516,6 +529,344 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
     wb.save(filepath)
 
 
+def create_model_plots(
+    model: Any,
+    inspection: Dict[str, Any],
+    output_dir: str,
+    prefix: str = "model"
+) -> List[str]:
+    """Create visualization plots for Pyomo model structure.
+
+    Args:
+        model: Pyomo ConcreteModel
+        inspection: Model inspection dictionary from inspect_pyomo_model()
+        output_dir: Directory for plot outputs
+        prefix: Filename prefix for plots
+
+    Returns:
+        List of paths to created plot files
+    """
+    if not HAVE_MATPLOTLIB or not HAVE_PYOMO or model is None:
+        return []
+
+    os.makedirs(output_dir, exist_ok=True)
+    plot_files = []
+
+    try:
+        # Set style for professional-looking plots
+        plt.style.use('seaborn-v0_8-darkgrid')
+    except Exception:
+        try:
+            plt.style.use('seaborn-darkgrid')
+        except Exception:
+            pass  # Use default style
+
+    # Plot 1: Model Size Overview
+    try:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        summary = inspection.get("summary", {})
+
+        categories = ['Sets', 'Parameters', 'Variables', 'Constraints', 'Objectives']
+        values = [
+            summary.get('num_sets', 0),
+            summary.get('num_parameters', 0),
+            summary.get('num_variables', 0),
+            summary.get('num_constraints', 0),
+            summary.get('num_objectives', 0)
+        ]
+
+        colors = ['#2ecc71', '#3498db', '#e74c3c', '#f39c12', '#9b59b6']
+        bars = ax.bar(categories, values, color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
+
+        # Add value labels on bars
+        for bar, val in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{int(val):,}',
+                   ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+        ax.set_ylabel('Count', fontsize=12, fontweight='bold')
+        ax.set_title(f'Model Structure Overview: {summary.get("model_name", "Unknown")}',
+                    fontsize=14, fontweight='bold', pad=20)
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        path = os.path.join(output_dir, f"{prefix}_01_overview.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        plot_files.append(path)
+        print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create overview plot: {e}")
+
+    # Plot 2: Variable Types Distribution
+    try:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        var_types = {}
+        for v in inspection.get("variables", []):
+            domain = v.get("domain", "Unknown")
+            size = v.get("size", 1)
+            var_types[domain] = var_types.get(domain, 0) + size
+
+        if var_types:
+            domains = list(var_types.keys())
+            counts = list(var_types.values())
+
+            colors_map = {
+                'NonNegativeReals': '#3498db',
+                'Binary': '#e74c3c',
+                'Reals': '#2ecc71',
+                'PositiveReals': '#f39c12',
+            }
+            colors = [colors_map.get(d, '#95a5a6') for d in domains]
+
+            wedges, texts, autotexts = ax.pie(counts, labels=domains, autopct='%1.1f%%',
+                                               colors=colors, startangle=90,
+                                               textprops={'fontsize': 10, 'fontweight': 'bold'})
+
+            # Add count labels
+            for i, (domain, count) in enumerate(zip(domains, counts)):
+                texts[i].set_text(f'{domain}\n({count:,})')
+
+            ax.set_title('Variable Types Distribution', fontsize=14, fontweight='bold', pad=20)
+
+            plt.tight_layout()
+            path = os.path.join(output_dir, f"{prefix}_02_variable_types.png")
+            plt.savefig(path, dpi=300, bbox_inches='tight')
+            plt.close()
+            plot_files.append(path)
+            print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create variable types plot: {e}")
+
+    # Plot 3: Constraint Sizes
+    try:
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        constraints = inspection.get("constraints", [])[:20]  # Top 20
+        if constraints:
+            names = [c.get("name", "")[:30] for c in constraints]
+            sizes = [c.get("size", 0) for c in constraints]
+
+            bars = ax.barh(names, sizes, color='#e74c3c', alpha=0.7, edgecolor='black', linewidth=1.0)
+
+            # Add value labels
+            for bar, size in zip(bars, sizes):
+                width = bar.get_width()
+                ax.text(width, bar.get_y() + bar.get_height()/2.,
+                       f' {int(size):,}',
+                       ha='left', va='center', fontsize=9, fontweight='bold')
+
+            ax.set_xlabel('Number of Constraints', fontsize=12, fontweight='bold')
+            ax.set_title('Constraint Sizes (Top 20)', fontsize=14, fontweight='bold', pad=20)
+            ax.set_xscale('log')
+            ax.grid(True, alpha=0.3, axis='x')
+
+            plt.tight_layout()
+            path = os.path.join(output_dir, f"{prefix}_03_constraint_sizes.png")
+            plt.savefig(path, dpi=300, bbox_inches='tight')
+            plt.close()
+            plot_files.append(path)
+            print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create constraint sizes plot: {e}")
+
+    # Plot 4: Parameter Time Series (if available)
+    try:
+        # Look for common time series parameters
+        timeseries_params = {}
+        for p in inspection.get("parameters", []):
+            name = p.get("name", "")
+            if p.get("indexed", False) and p.get("size", 0) > 100:  # Likely time series
+                if any(keyword in name.lower() for keyword in
+                      ['preis', 'price', 'bedarf', 'demand', 'co2', 'temperatur', 'temp']):
+                    if "sample_values" in p:
+                        # Extract values
+                        samples = p["sample_values"]
+                        values = [v for v in samples.values() if isinstance(v, (int, float))]
+                        if values:
+                            timeseries_params[name] = values[:1000]  # First 1000 values
+
+        if timeseries_params:
+            n_plots = len(timeseries_params)
+            fig, axes = plt.subplots(n_plots, 1, figsize=(14, 4*n_plots))
+
+            if n_plots == 1:
+                axes = [axes]
+
+            colors_list = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
+
+            for i, (name, values) in enumerate(timeseries_params.items()):
+                ax = axes[i]
+                x = list(range(len(values)))
+                color = colors_list[i % len(colors_list)]
+
+                ax.plot(x, values, linewidth=2, color=color, alpha=0.8)
+                ax.fill_between(x, values, alpha=0.3, color=color)
+                ax.set_ylabel(name, fontsize=11, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+
+                # Add statistics
+                mean_val = np.mean(values)
+                min_val = np.min(values)
+                max_val = np.max(values)
+                ax.axhline(mean_val, color='red', linestyle='--', linewidth=1.5, alpha=0.7, label=f'Mean: {mean_val:.2f}')
+                ax.legend(loc='upper right', fontsize=9)
+
+            axes[-1].set_xlabel('Time Step', fontsize=12, fontweight='bold')
+            fig.suptitle('Key Parameter Time Series', fontsize=14, fontweight='bold', y=0.995)
+
+            plt.tight_layout()
+            path = os.path.join(output_dir, f"{prefix}_04_parameter_timeseries.png")
+            plt.savefig(path, dpi=300, bbox_inches='tight')
+            plt.close()
+            plot_files.append(path)
+            print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create parameter time series plot: {e}")
+
+    # Plot 5: Variable Bounds Overview
+    try:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Collect bounds info
+        bounded_vars = []
+        unbounded_vars = []
+
+        for v in inspection.get("variables", [])[:30]:  # Top 30
+            name = v.get("name", "")
+            lb = v.get("lower_bound")
+            ub = v.get("upper_bound")
+
+            if lb is not None and ub is not None and lb != float('-inf') and ub != float('inf'):
+                bounded_vars.append((name, lb, ub))
+            else:
+                unbounded_vars.append(name)
+
+        # Left plot: Bounded variables
+        if bounded_vars:
+            names = [n[:25] for n, _, _ in bounded_vars[:15]]  # Top 15
+            lbs = [lb if lb != float('-inf') else 0 for _, lb, _ in bounded_vars[:15]]
+            ubs = [ub if ub != float('inf') else 1e6 for _, _, ub in bounded_vars[:15]]
+
+            y_pos = np.arange(len(names))
+
+            # Plot ranges as horizontal bars
+            for i, (lb, ub) in enumerate(zip(lbs, ubs)):
+                ax1.barh(i, ub - lb, left=lb, height=0.6,
+                        color='#3498db', alpha=0.7, edgecolor='black')
+
+            ax1.set_yticks(y_pos)
+            ax1.set_yticklabels(names, fontsize=9)
+            ax1.set_xlabel('Value Range', fontsize=11, fontweight='bold')
+            ax1.set_title('Variable Bounds (Top 15)', fontsize=12, fontweight='bold')
+            ax1.grid(True, alpha=0.3, axis='x')
+
+        # Right plot: Bounded vs Unbounded
+        bounded_count = len(bounded_vars)
+        unbounded_count = len(unbounded_vars)
+
+        if bounded_count > 0 or unbounded_count > 0:
+            labels = ['Bounded', 'Unbounded']
+            sizes = [bounded_count, unbounded_count]
+            colors = ['#2ecc71', '#e74c3c']
+            explode = (0.05, 0)
+
+            wedges, texts, autotexts = ax2.pie(sizes, explode=explode, labels=labels,
+                                               autopct='%1.1f%%', colors=colors,
+                                               startangle=90, textprops={'fontweight': 'bold'})
+
+            ax2.set_title('Variables: Bounded vs Unbounded', fontsize=12, fontweight='bold')
+
+        plt.tight_layout()
+        path = os.path.join(output_dir, f"{prefix}_05_variable_bounds.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        plot_files.append(path)
+        print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create variable bounds plot: {e}")
+
+    # Plot 6: Model Complexity Heatmap
+    try:
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        # Create complexity matrix
+        components = ['Sets', 'Parameters', 'Variables', 'Constraints']
+        metrics = ['Count', 'Indexed', 'Scalar', 'Size (Total)']
+
+        summary = inspection.get("summary", {})
+
+        # Build data matrix
+        data = np.zeros((len(components), len(metrics)))
+
+        # Sets
+        data[0, 0] = summary.get('num_sets', 0)
+
+        # Parameters
+        params = inspection.get("parameters", [])
+        data[1, 0] = len(params)
+        data[1, 1] = sum(1 for p in params if p.get("indexed", False))
+        data[1, 2] = sum(1 for p in params if not p.get("indexed", False))
+        data[1, 3] = sum(p.get("size", 1) for p in params)
+
+        # Variables
+        vars_list = inspection.get("variables", [])
+        data[2, 0] = len(vars_list)
+        data[2, 1] = sum(1 for v in vars_list if v.get("indexed", False))
+        data[2, 2] = sum(1 for v in vars_list if not v.get("indexed", False))
+        data[2, 3] = summary.get('num_variables', 0)
+
+        # Constraints
+        constrs = inspection.get("constraints", [])
+        data[3, 0] = len(constrs)
+        data[3, 1] = sum(1 for c in constrs if c.get("indexed", False))
+        data[3, 2] = sum(1 for c in constrs if not c.get("indexed", False))
+        data[3, 3] = summary.get('num_constraints', 0)
+
+        # Normalize for better visualization (log scale)
+        data_log = np.log10(data + 1)  # +1 to avoid log(0)
+
+        im = ax.imshow(data_log, cmap='YlOrRd', aspect='auto')
+
+        # Set ticks and labels
+        ax.set_xticks(np.arange(len(metrics)))
+        ax.set_yticks(np.arange(len(components)))
+        ax.set_xticklabels(metrics, fontsize=10, fontweight='bold')
+        ax.set_yticklabels(components, fontsize=11, fontweight='bold')
+
+        # Rotate x labels
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+        # Add text annotations
+        for i in range(len(components)):
+            for j in range(len(metrics)):
+                val = int(data[i, j])
+                if val > 0:
+                    text = ax.text(j, i, f'{val:,}',
+                                  ha="center", va="center", color="black",
+                                  fontsize=9, fontweight='bold')
+
+        ax.set_title('Model Complexity Matrix', fontsize=14, fontweight='bold', pad=20)
+
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('log10(Count + 1)', rotation=270, labelpad=20, fontweight='bold')
+
+        plt.tight_layout()
+        path = os.path.join(output_dir, f"{prefix}_06_complexity_matrix.png")
+        plt.savefig(path, dpi=300, bbox_inches='tight')
+        plt.close()
+        plot_files.append(path)
+        print(f"[PLOT] Created: {os.path.basename(path)}")
+    except Exception as e:
+        print(f"[PLOT] Warning: Could not create complexity matrix plot: {e}")
+
+    return plot_files
+
+
 def export_model_structure(
     model: Any,
     output_dir: str,
@@ -567,8 +918,19 @@ def export_model_structure(
     print(f"  - Parameters: {summary.get('num_parameters', 0)}")
     print(f"  - Objectives: {summary.get('num_objectives', 0)}")
 
+    # Create visualization plots
+    plot_paths = []
+    try:
+        print(f"[MODEL_EXPORT] Creating visualization plots...")
+        plot_paths = create_model_plots(model, inspection, output_dir, prefix=prefix)
+        if plot_paths:
+            print(f"[MODEL_EXPORT] Created {len(plot_paths)} visualization plots")
+    except Exception as exc:
+        print(f"[MODEL_EXPORT] Warning: Could not create plots: {exc}")
+
     return {
         "excel_path": excel_path,
         "markdown_path": markdown_path,
         "json_path": json_path,
+        "plot_paths": plot_paths,
     }

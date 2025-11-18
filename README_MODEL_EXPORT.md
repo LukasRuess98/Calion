@@ -14,13 +14,14 @@ Das Framework exportiert jetzt automatisch die vollständige Modellstruktur **vo
 
 ### Export-Formate
 
-Das Modell wird in **3 Formaten** exportiert:
+Das Modell wird in **3 Formaten** exportiert **plus 6 Visualisierungen**:
 
 | Format | Datei | Verwendung |
 |--------|-------|------------|
 | **Excel** | `pyomo_model_before_solve.xlsx` | Tabellen für einfache Analyse |
 | **Markdown** | `pyomo_model_before_solve.md` | Lesbare Dokumentation |
 | **JSON** | `pyomo_model_before_solve.json` | Maschinenlesbar für Automatisierung |
+| **Plots (6x)** | `*_01_overview.png` bis `*_06_complexity_matrix.png` | 📊 Visuelle Analysen |
 
 ### Wo finde ich die Exporte?
 
@@ -29,10 +30,16 @@ Nach einem Optimierungslauf:
 ```
 exports/
   └── YYYYMMDD_HHMMSS_<scenario_tag>/
-      ├── model_structure/                    ← NEU!
-      │   ├── pyomo_model_before_solve.xlsx   ← Excel-Tabellen
-      │   ├── pyomo_model_before_solve.md     ← Markdown-Doku
-      │   └── pyomo_model_before_solve.json   ← JSON-Daten
+      ├── model_structure/                                    ← NEU!
+      │   ├── pyomo_model_before_solve.xlsx                  ← Excel-Tabellen
+      │   ├── pyomo_model_before_solve.md                    ← Markdown-Doku
+      │   ├── pyomo_model_before_solve.json                  ← JSON-Daten
+      │   ├── pyomo_model_before_solve_01_overview.png       ← 📊 Modellgröße
+      │   ├── pyomo_model_before_solve_02_variable_types.png ← 📊 Variablentypen
+      │   ├── pyomo_model_before_solve_03_constraint_sizes.png ← 📊 Constraint-Größen
+      │   ├── pyomo_model_before_solve_04_parameter_timeseries.png ← 📊 Parameter-Zeitreihen
+      │   ├── pyomo_model_before_solve_05_variable_bounds.png ← 📊 Variablen-Bounds
+      │   └── pyomo_model_before_solve_06_complexity_matrix.png ← 📊 Komplexitätsmatrix
       ├── scenario.xlsx
       ├── costs.json
       └── ...
@@ -208,9 +215,32 @@ Ein Heat Planning Modell für ein Jahr (stündlich) enthält typischerweise:
   - JSON: ~500 KB - 2 MB
 - **Overhead**: Minimal, da nur vor Solver-Ausführung
 
+## 📊 Visualisierungen
+
+Zusätzlich zu den Daten-Exporten werden **6 professionelle Plots** automatisch erstellt:
+
+1. **Model Structure Overview** - Modellgröße auf einen Blick
+2. **Variable Types Distribution** - Verteilung der Variablentypen
+3. **Constraint Sizes** - Top 20 größte Constraint-Gruppen
+4. **Parameter Time Series** - Zeitreihen (Strompreis, Wärmebedarf, CO2)
+5. **Variable Bounds Overview** - Variablengrenzen und Bounded/Unbounded
+6. **Model Complexity Matrix** - Komplexitäts-Heatmap
+
+📖 **Detaillierte Plot-Dokumentation**: [`docs/MODEL_PLOTS.md`](docs/MODEL_PLOTS.md)
+
+### Beispiel-Plots
+
+Die Plots helfen dir:
+- ✅ **Vor Optimierung**: Modell schnell validieren
+- ✅ **Beim Debugging**: Probleme visuell identifizieren
+- ✅ **Für Dokumentation**: Professionelle Präsentationen
+- ✅ **Beim Vergleich**: Szenarien visuell gegenüberstellen
+
 ## Weitere Informationen
 
 📖 **Vollständige Dokumentation**: [`docs/MODEL_EXPORT.md`](docs/MODEL_EXPORT.md)
+
+📊 **Plot-Dokumentation**: [`docs/MODEL_PLOTS.md`](docs/MODEL_PLOTS.md)
 
 🔧 **Implementierung**: [`energis/io/model_inspector.py`](energis/io/model_inspector.py)
 
