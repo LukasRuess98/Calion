@@ -1,0 +1,675 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{a4paper, margin=2.5cm}
+
+\title{EnerGIS: Complete Mathematical Formulation\\
+\large Supplementary Material for Applied Energy Submission}
+\author{Supplementary Material S1}
+\date{Version 1.0 - \today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document provides the complete mathematical formulation of the EnerGIS framework as Mixed Integer Linear Programming (MILP) problems. The formulation is presented in two parts: (1) Planning Framework (PF) for long-horizon design optimization, and (2) Rolling Horizon (RH) for short-horizon operational scheduling. All notation follows standard conventions in energy systems optimization literature.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Notation}
+% ============================================================
+
+\subsection{Sets and Indices}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$\mathcal{T}$ & Set of time steps (hours), indexed by $t$ \\
+$\mathcal{H}$ & Set of heat pumps, indexed by $h$ \\
+$\mathcal{G}$ & Set of thermal generators (CHP, boilers), indexed by $g$ \\
+$\mathcal{S}$ & Set of storage units, indexed by $s$ \\
+$\mathcal{P}$ & Set of power-to-heat converters, indexed by $p$ \\
+$\mathcal{B}$ & Set of buses (energy carriers), indexed by $b$ \\
+$\mathcal{F}$ & Set of fuel types, indexed by $f$ \\
+$\mathcal{W}$ & Set of waste heat recovery sources, indexed by $w$ \\
+\bottomrule
+\end{tabular}
+\caption{Sets and indices used in the formulation}
+\label{tab:sets}
+\end{table}
+
+\subsection{Parameters}
+
+\subsubsection{Time Series and Demand}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$D_t^{\text{heat}}$ & Heat demand at time $t$ [MWh] \\
+$\pi_t^{\text{elec}}$ & Electricity price at time $t$ [\euro/MWh] \\
+$\rho_t^{\text{CO}_2}$ & Grid CO$_2$ intensity at time $t$ [kg/MWh] \\
+$\Delta t$ & Time step duration [h] (typically 1 hour) \\
+\bottomrule
+\end{tabular}
+\caption{Time series parameters}
+\label{tab:params_timeseries}
+\end{table}
+
+\subsubsection{Heat Pump Parameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$\text{COP}_{h,t}$ & Coefficient of Performance for heat pump $h$ at time $t$ [-] \\
+$Q_{h}^{\text{max}}$ & Maximum thermal capacity of heat pump $h$ [MW] \\
+$Q_{h}^{\text{min}}$ & Minimum thermal load when operating [MW] \\
+$\eta_{h}^{\text{wrg}}$ & Waste heat recovery efficiency for heat pump $h$ [-] \\
+$Q_{w,t}^{\text{wrg,avail}}$ & Available waste heat from source $w$ at time $t$ [MW] \\
+$c_{h}^{\text{inv}}$ & Investment cost for heat pump $h$ [\euro/MW] \\
+$c_{h}^{\text{fix}}$ & Fixed O\&M cost [\euro/MW/year] \\
+$c_{h}^{\text{var}}$ & Variable O\&M cost [\euro/MWh] \\
+$L_h$ & Lifetime of heat pump $h$ [years] \\
+$r$ & Discount rate [-] \\
+\bottomrule
+\end{tabular}
+\caption{Heat pump parameters}
+\label{tab:params_hp}
+\end{table}
+
+\subsubsection{Storage Parameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$E_s^{\text{max}}$ & Maximum energy capacity of storage $s$ [MWh] \\
+$P_s^{\text{c,max}}$ & Maximum charging power [MW] \\
+$P_s^{\text{d,max}}$ & Maximum discharging power [MW] \\
+$\eta_s^{\text{c}}$ & Charging efficiency [-] \\
+$\eta_s^{\text{d}}$ & Discharging efficiency [-] \\
+$\sigma_s$ & Standby loss rate per hour [1/h] \\
+$E_s^{\text{init}}$ & Initial state of charge [MWh] \\
+$E_s^{\text{term}}$ & Terminal state of charge requirement [MWh] \\
+$c_s^{\text{inv,E}}$ & Investment cost per energy capacity [\euro/MWh] \\
+$c_s^{\text{inv,P}}$ & Investment cost per power capacity [\euro/MW] \\
+\bottomrule
+\end{tabular}
+\caption{Storage parameters}
+\label{tab:params_storage}
+\end{table}
+
+\subsubsection{Thermal Generator Parameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$Q_g^{\text{max}}$ & Maximum thermal capacity of generator $g$ [MW] \\
+$\eta_g^{\text{th}}$ & Thermal efficiency [-] \\
+$\alpha_g$ & Power-to-heat ratio (CHP) [-] \\
+$f_g$ & Fuel type for generator $g$ \\
+$\pi_f$ & Fuel price for fuel type $f$ [\euro/MWh] \\
+$\rho_f^{\text{CO}_2}$ & CO$_2$ emission factor for fuel $f$ [kg/MWh] \\
+$c_g^{\text{inv}}$ & Investment cost [\euro/MW] \\
+\bottomrule
+\end{tabular}
+\caption{Thermal generator parameters}
+\label{tab:params_gen}
+\end{table}
+
+\subsubsection{Grid and Cost Parameters}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$P^{\text{grid,max}}$ & Maximum grid connection capacity [MW] \\
+$c^{\text{demand}}$ & Annual demand charge [\euro/MW/year] \\
+$c^{\text{CO}_2}$ & CO$_2$ price [\euro/kg] \\
+$c^{\text{dump}}$ & Heat dumping penalty [\euro/MWh] \\
+$M$ & Big-M value for binary constraints [MW] \\
+\bottomrule
+\end{tabular}
+\caption{Grid and cost parameters}
+\label{tab:params_grid}
+\end{table}
+
+\subsection{Decision Variables}
+
+\subsubsection{Continuous Variables}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$Q_{h,t}$ & Thermal output from heat pump $h$ at time $t$ [MW] \\
+$Q_{h,t}^{\text{wrg}}$ & Waste heat recovered by heat pump $h$ at time $t$ [MW] \\
+$P_{h,t}^{\text{elec}}$ & Electricity consumption of heat pump $h$ at time $t$ [MW] \\
+$Q_{g,t}$ & Thermal output from generator $g$ at time $t$ [MW] \\
+$F_{g,t}$ & Fuel consumption of generator $g$ at time $t$ [MW] \\
+$P_{g,t}^{\text{elec}}$ & Electricity generation from CHP $g$ at time $t$ [MW] \\
+$Q_{p,t}$ & Thermal output from power-to-heat $p$ at time $t$ [MW] \\
+$E_{s,t}$ & State of charge of storage $s$ at time $t$ [MWh] \\
+$P_{s,t}^{\text{c}}$ & Charging power of storage $s$ at time $t$ [MW] \\
+$P_{s,t}^{\text{d}}$ & Discharging power of storage $s$ at time $t$ [MW] \\
+$P_t^{\text{buy}}$ & Electricity purchased from grid at time $t$ [MW] \\
+$P_t^{\text{sell}}$ & Electricity sold to grid at time $t$ [MW] \\
+$Q_t^{\text{dump}}$ & Heat dumped at time $t$ [MW] \\
+$P^{\text{peak}}$ & Peak grid demand over all time steps [MW] \\
+\midrule
+\multicolumn{2}{l}{\textit{Design Variables (Planning Framework only):}} \\
+$\hat{Q}_h$ & Installed capacity of heat pump $h$ [MW] \\
+$\hat{E}_s$ & Installed energy capacity of storage $s$ [MWh] \\
+$\hat{P}_s^{\text{c}}$ & Installed charging power of storage $s$ [MW] \\
+$\hat{P}_s^{\text{d}}$ & Installed discharging power of storage $s$ [MW] \\
+$\hat{Q}_g$ & Installed capacity of generator $g$ [MW] \\
+\bottomrule
+\end{tabular}
+\caption{Continuous decision variables}
+\label{tab:vars_cont}
+\end{table}
+
+\subsubsection{Binary Variables}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$u_{h,t}$ & Operating status of heat pump $h$ at time $t$ (1=on, 0=off) \\
+$u_{g,t}$ & Operating status of generator $g$ at time $t$ (1=on, 0=off) \\
+$u_{s,t}^{\text{c}}$ & Charging mode of storage $s$ at time $t$ (1=charging, 0=not) \\
+$u_{s,t}^{\text{d}}$ & Discharging mode of storage $s$ at time $t$ (1=discharging, 0=not) \\
+$u_t^{\text{grid}}$ & Grid mode at time $t$ (1=buying, 0=selling) \\
+\midrule
+\multicolumn{2}{l}{\textit{Investment Variables (Planning Framework only):}} \\
+$y_h$ & Investment decision for heat pump $h$ (1=build, 0=no) \\
+$y_s$ & Investment decision for storage $s$ (1=build, 0=no) \\
+$y_g$ & Investment decision for generator $g$ (1=build, 0=no) \\
+\bottomrule
+\end{tabular}
+\caption{Binary decision variables}
+\label{tab:vars_binary}
+\end{table}
+
+% ============================================================
+\section{Planning Framework (PF) Formulation}
+% ============================================================
+
+The Planning Framework optimizes system design (capacities) over a long time horizon (typically one year, $|\mathcal{T}| = 8760$ hours).
+
+\subsection{Objective Function}
+
+The objective is to minimize the total annualized system cost:
+
+\begin{equation}
+\min \quad C^{\text{total}} = C^{\text{inv}} + C^{\text{opex}} + C^{\text{grid}} + C^{\text{fuel}} + C^{\text{CO}_2} + C^{\text{dump}}
+\label{eq:obj_pf}
+\end{equation}
+
+where each cost component is defined as follows.
+
+\subsubsection{Investment Cost (Annualized)}
+
+Investment costs are annualized using the capital recovery factor (CRF):
+
+\begin{equation}
+\text{CRF}(L, r) = \frac{r(1+r)^L}{(1+r)^L - 1}
+\label{eq:crf}
+\end{equation}
+
+\begin{align}
+C^{\text{inv}} &= \sum_{h \in \mathcal{H}} \text{CRF}(L_h, r) \cdot c_h^{\text{inv}} \cdot \hat{Q}_h \notag \\
+&\quad + \sum_{s \in \mathcal{S}} \text{CRF}(L_s, r) \cdot \left( c_s^{\text{inv,E}} \cdot \hat{E}_s + c_s^{\text{inv,P}} \cdot (\hat{P}_s^{\text{c}} + \hat{P}_s^{\text{d}}) \right) \notag \\
+&\quad + \sum_{g \in \mathcal{G}} \text{CRF}(L_g, r) \cdot c_g^{\text{inv}} \cdot \hat{Q}_g
+\label{eq:cost_inv}
+\end{align}
+
+\subsubsection{Operational Expenditure (OPEX)}
+
+\begin{equation}
+C^{\text{opex}} = \Delta t \sum_{t \in \mathcal{T}} \sum_{h \in \mathcal{H}} c_h^{\text{var}} \cdot Q_{h,t}
+\label{eq:cost_opex}
+\end{equation}
+
+\subsubsection{Grid Electricity Cost}
+
+\begin{equation}
+C^{\text{grid}} = \Delta t \sum_{t \in \mathcal{T}} \pi_t^{\text{elec}} \cdot P_t^{\text{buy}} + c^{\text{demand}} \cdot P^{\text{peak}}
+\label{eq:cost_grid}
+\end{equation}
+
+\subsubsection{Fuel Cost}
+
+\begin{equation}
+C^{\text{fuel}} = \Delta t \sum_{t \in \mathcal{T}} \sum_{g \in \mathcal{G}} \pi_{f_g} \cdot F_{g,t}
+\label{eq:cost_fuel}
+\end{equation}
+
+\subsubsection{CO$_2$ Cost}
+
+\begin{equation}
+C^{\text{CO}_2} = c^{\text{CO}_2} \cdot \Delta t \sum_{t \in \mathcal{T}} \left( \rho_t^{\text{CO}_2} \cdot P_t^{\text{buy}} + \sum_{g \in \mathcal{G}} \rho_{f_g}^{\text{CO}_2} \cdot F_{g,t} \right)
+\label{eq:cost_co2}
+\end{equation}
+
+\subsubsection{Heat Dumping Penalty}
+
+\begin{equation}
+C^{\text{dump}} = c^{\text{dump}} \cdot \Delta t \sum_{t \in \mathcal{T}} Q_t^{\text{dump}}
+\label{eq:cost_dump}
+\end{equation}
+
+\subsection{Constraints}
+
+\subsubsection{Heat Balance}
+
+At each time step, heat supply must meet demand:
+
+\begin{equation}
+\sum_{h \in \mathcal{H}} Q_{h,t} + \sum_{g \in \mathcal{G}} Q_{g,t} + \sum_{p \in \mathcal{P}} Q_{p,t} + \sum_{s \in \mathcal{S}} P_{s,t}^{\text{d}} = D_t^{\text{heat}} + \sum_{s \in \mathcal{S}} P_{s,t}^{\text{c}} + Q_t^{\text{dump}} \quad \forall t \in \mathcal{T}
+\label{eq:heat_balance}
+\end{equation}
+
+\subsubsection{Electricity Balance}
+
+\begin{equation}
+P_t^{\text{buy}} + \sum_{g \in \mathcal{G}} P_{g,t}^{\text{elec}} = P_t^{\text{sell}} + \sum_{h \in \mathcal{H}} P_{h,t}^{\text{elec}} + \sum_{p \in \mathcal{P}} Q_{p,t} / \eta_p \quad \forall t \in \mathcal{T}
+\label{eq:elec_balance}
+\end{equation}
+
+\subsubsection{Heat Pump Constraints}
+
+\textbf{Capacity Constraint:}
+\begin{equation}
+Q_{h,t} \leq \hat{Q}_h \quad \forall h \in \mathcal{H}, \; \forall t \in \mathcal{T}
+\label{eq:hp_cap}
+\end{equation}
+
+\textbf{Minimum Load Constraint:}
+\begin{equation}
+Q_{h,t} \geq Q_h^{\text{min}} \cdot u_{h,t} \quad \forall h \in \mathcal{H}, \; \forall t \in \mathcal{T}
+\label{eq:hp_minload}
+\end{equation}
+
+\textbf{Operating Status Linkage:}
+\begin{equation}
+Q_{h,t} \leq Q_h^{\text{max}} \cdot u_{h,t} \quad \forall h \in \mathcal{H}, \; \forall t \in \mathcal{T}
+\label{eq:hp_on_off}
+\end{equation}
+
+\textbf{COP Relationship:}
+\begin{equation}
+P_{h,t}^{\text{elec}} = \frac{Q_{h,t} - Q_{h,t}^{\text{wrg}}}{\text{COP}_{h,t}} \quad \forall h \in \mathcal{H}, \; \forall t \in \mathcal{T}
+\label{eq:hp_cop}
+\end{equation}
+
+\textbf{Waste Heat Recovery Availability:}
+\begin{equation}
+\sum_{h \in \mathcal{H}} Q_{h,t}^{\text{wrg}} \leq \sum_{w \in \mathcal{W}} Q_{w,t}^{\text{wrg,avail}} \quad \forall t \in \mathcal{T}
+\label{eq:wrg_avail}
+\end{equation}
+
+\textbf{Waste Heat Recovery per Heat Pump:}
+\begin{equation}
+Q_{h,t}^{\text{wrg}} \leq \eta_h^{\text{wrg}} \cdot Q_{h,t} \quad \forall h \in \mathcal{H}, \; \forall t \in \mathcal{T}
+\label{eq:wrg_hp}
+\end{equation}
+
+\subsubsection{Storage Constraints}
+
+\textbf{State of Charge Dynamics:}
+\begin{equation}
+E_{s,t} = E_{s,t-1} \cdot (1 - \sigma_s \Delta t) + \eta_s^{\text{c}} P_{s,t}^{\text{c}} \Delta t - \frac{P_{s,t}^{\text{d}}}{\eta_s^{\text{d}}} \Delta t \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T}
+\label{eq:storage_soc}
+\end{equation}
+
+\textbf{Initial Condition:}
+\begin{equation}
+E_{s,0} = E_s^{\text{init}} \quad \forall s \in \mathcal{S}
+\label{eq:storage_init}
+\end{equation}
+
+\textbf{Terminal Condition (depending on policy):}
+\begin{align}
+\text{Equal:} \quad & E_{s,|\mathcal{T}|} = E_s^{\text{term}} \quad \forall s \in \mathcal{S} \label{eq:storage_term_equal} \\
+\text{GEQ:} \quad & E_{s,|\mathcal{T}|} \geq E_s^{\text{term}} \quad \forall s \in \mathcal{S} \label{eq:storage_term_geq} \\
+\text{Free:} \quad & \text{(no constraint)} \label{eq:storage_term_free}
+\end{align}
+
+\textbf{Energy Capacity:}
+\begin{equation}
+E_{s,t} \leq \hat{E}_s \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T}
+\label{eq:storage_energy_cap}
+\end{equation}
+
+\textbf{Charging Power Capacity:}
+\begin{equation}
+P_{s,t}^{\text{c}} \leq \hat{P}_s^{\text{c}} \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T}
+\label{eq:storage_charge_cap}
+\end{equation}
+
+\textbf{Discharging Power Capacity:}
+\begin{equation}
+P_{s,t}^{\text{d}} \leq \hat{P}_s^{\text{d}} \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T}
+\label{eq:storage_discharge_cap}
+\end{equation}
+
+\textbf{Charge/Discharge Mutual Exclusion:}
+\begin{align}
+P_{s,t}^{\text{c}} &\leq M \cdot u_{s,t}^{\text{c}} \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T} \label{eq:storage_charge_binary} \\
+P_{s,t}^{\text{d}} &\leq M \cdot u_{s,t}^{\text{d}} \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T} \label{eq:storage_discharge_binary} \\
+u_{s,t}^{\text{c}} + u_{s,t}^{\text{d}} &\leq 1 \quad \forall s \in \mathcal{S}, \; \forall t \in \mathcal{T} \label{eq:storage_mutex}
+\end{align}
+
+\subsubsection{Thermal Generator Constraints}
+
+\textbf{Capacity Constraint:}
+\begin{equation}
+Q_{g,t} \leq \hat{Q}_g \quad \forall g \in \mathcal{G}, \; \forall t \in \mathcal{T}
+\label{eq:gen_cap}
+\end{equation}
+
+\textbf{Fuel Consumption:}
+\begin{equation}
+F_{g,t} = \frac{Q_{g,t}}{\eta_g^{\text{th}}} \quad \forall g \in \mathcal{G}, \; \forall t \in \mathcal{T}
+\label{eq:gen_fuel}
+\end{equation}
+
+\textbf{CHP Electricity Generation:}
+\begin{equation}
+P_{g,t}^{\text{elec}} = \alpha_g \cdot Q_{g,t} \quad \forall g \in \mathcal{G} \text{ with CHP}, \; \forall t \in \mathcal{T}
+\label{eq:chp_elec}
+\end{equation}
+
+\subsubsection{Grid Constraints}
+
+\textbf{Peak Demand:}
+\begin{equation}
+P^{\text{peak}} \geq P_t^{\text{buy}} \quad \forall t \in \mathcal{T}
+\label{eq:grid_peak}
+\end{equation}
+
+\textbf{Buy/Sell Mutual Exclusion (Big-M):}
+\begin{align}
+P_t^{\text{buy}} &\leq M \cdot u_t^{\text{grid}} \quad \forall t \in \mathcal{T} \label{eq:grid_buy_binary} \\
+P_t^{\text{sell}} &\leq M \cdot (1 - u_t^{\text{grid}}) \quad \forall t \in \mathcal{T} \label{eq:grid_sell_binary}
+\end{align}
+
+\textbf{Grid Connection Limit:}
+\begin{align}
+P_t^{\text{buy}} &\leq P^{\text{grid,max}} \quad \forall t \in \mathcal{T} \label{eq:grid_buy_limit} \\
+P_t^{\text{sell}} &\leq P^{\text{grid,max}} \quad \forall t \in \mathcal{T} \label{eq:grid_sell_limit}
+\end{align}
+
+\subsubsection{Investment Decision Linkage}
+
+Investment decisions determine whether capacities can be non-zero:
+
+\begin{align}
+\hat{Q}_h &\leq Q_h^{\text{max}} \cdot y_h \quad \forall h \in \mathcal{H} \label{eq:inv_hp} \\
+\hat{E}_s &\leq E_s^{\text{max}} \cdot y_s \quad \forall s \in \mathcal{S} \label{eq:inv_storage_e} \\
+\hat{P}_s^{\text{c}} &\leq P_s^{\text{c,max}} \cdot y_s \quad \forall s \in \mathcal{S} \label{eq:inv_storage_pc} \\
+\hat{P}_s^{\text{d}} &\leq P_s^{\text{d,max}} \cdot y_s \quad \forall s \in \mathcal{S} \label{eq:inv_storage_pd} \\
+\hat{Q}_g &\leq Q_g^{\text{max}} \cdot y_g \quad \forall g \in \mathcal{G} \label{eq:inv_gen}
+\end{align}
+
+\subsubsection{Variable Domains}
+
+\begin{align}
+Q_{h,t}, P_{h,t}^{\text{elec}}, Q_{h,t}^{\text{wrg}} &\geq 0 \quad \forall h, t \label{eq:domain_hp} \\
+Q_{g,t}, F_{g,t}, P_{g,t}^{\text{elec}} &\geq 0 \quad \forall g, t \label{eq:domain_gen} \\
+Q_{p,t} &\geq 0 \quad \forall p, t \label{eq:domain_p2h} \\
+E_{s,t}, P_{s,t}^{\text{c}}, P_{s,t}^{\text{d}} &\geq 0 \quad \forall s, t \label{eq:domain_storage} \\
+P_t^{\text{buy}}, P_t^{\text{sell}}, Q_t^{\text{dump}}, P^{\text{peak}} &\geq 0 \quad \forall t \label{eq:domain_grid} \\
+\hat{Q}_h, \hat{Q}_g, \hat{E}_s, \hat{P}_s^{\text{c}}, \hat{P}_s^{\text{d}} &\geq 0 \quad \forall h, g, s \label{eq:domain_cap} \\
+u_{h,t}, u_{g,t}, u_{s,t}^{\text{c}}, u_{s,t}^{\text{d}}, u_t^{\text{grid}} &\in \{0, 1\} \quad \forall h, g, s, t \label{eq:domain_binary_op} \\
+y_h, y_g, y_s &\in \{0, 1\} \quad \forall h, g, s \label{eq:domain_binary_inv}
+\end{align}
+
+% ============================================================
+\section{Rolling Horizon (RH) Formulation}
+% ============================================================
+
+The Rolling Horizon framework performs operational optimization over a short time window with fixed capacities from the Planning Framework.
+
+\subsection{Modifications from Planning Framework}
+
+The RH formulation differs from PF in the following ways:
+
+\begin{enumerate}
+\item \textbf{Fixed Capacities:} All capacity variables $\hat{Q}_h, \hat{Q}_g, \hat{E}_s, \hat{P}_s^{\text{c}}, \hat{P}_s^{\text{d}}$ are \textit{parameters} (fixed from PF solution), not decision variables.
+
+\item \textbf{No Investment Decisions:} Variables $y_h, y_g, y_s$ are removed. Constraints \eqref{eq:inv_hp}--\eqref{eq:inv_gen} are replaced with direct capacity limits.
+
+\item \textbf{Reduced Time Horizon:} $|\mathcal{T}| \ll 8760$ (typically 168 hours = 1 week).
+
+\item \textbf{Simplified Objective:} Investment cost term $C^{\text{inv}}$ is removed (sunk cost):
+\begin{equation}
+\min \quad C^{\text{total,RH}} = C^{\text{opex}} + C^{\text{grid}} + C^{\text{fuel}} + C^{\text{CO}_2} + C^{\text{dump}}
+\label{eq:obj_rh}
+\end{equation}
+
+\item \textbf{Initial Storage State:} $E_{s,0}$ is set to the final state from the previous RH window (for $t > 0$ in rolling sequence).
+
+\item \textbf{Terminal Policy:} One of \eqref{eq:storage_term_equal}, \eqref{eq:storage_term_geq}, or \eqref{eq:storage_term_free} is applied at the end of each window.
+\end{enumerate}
+
+All other constraints \eqref{eq:heat_balance}--\eqref{eq:domain_binary_op} remain identical, with capacity variables replaced by fixed parameters.
+
+\subsection{Rolling Horizon Workflow}
+
+The rolling horizon proceeds as follows:
+
+\begin{enumerate}
+\item \textbf{Window Definition:} Define window $w$ with time steps $\mathcal{T}_w = \{t_{\text{start}}^w, \ldots, t_{\text{end}}^w\}$ where $|\mathcal{T}_w| = H$ (horizon length).
+
+\item \textbf{Commitment Period:} Only the first $C$ hours ($C < H$) are committed; remaining $H - C$ hours provide look-ahead.
+
+\item \textbf{Initial State:} Set $E_{s,t_{\text{start}}^w}$ from previous window's committed final state.
+
+\item \textbf{Solve Optimization:} Solve \eqref{eq:obj_rh} subject to all constraints over $\mathcal{T}_w$.
+
+\item \textbf{Commit Results:} Record operational decisions for $t \in \{t_{\text{start}}^w, \ldots, t_{\text{start}}^w + C - 1\}$.
+
+\item \textbf{Advance Window:} Set $t_{\text{start}}^{w+1} = t_{\text{start}}^w + C$ and repeat until all time steps are covered.
+\end{enumerate}
+
+\textbf{Example:} With $H = 168$ hours (7 days) and $C = 24$ hours (1 day), each window solves for one week but only commits the first day, then advances the window by 24 hours.
+
+% ============================================================
+\section{COP Calculation Details}
+% ============================================================
+
+The coefficient of performance $\text{COP}_{h,t}$ is calculated using bilinear interpolation from manufacturer performance maps or analytical approximations.
+
+\subsection{Bilinear Interpolation from Performance Maps}
+
+Given a 2D table of COP values indexed by source temperature $T_{\text{source}}$ and sink temperature $T_{\text{sink}}$:
+
+\begin{equation}
+\text{COP}_{h,t} = \text{interp2D}\left( T_{\text{source},t}, T_{\text{sink},t}, \text{COP\_table}_h \right)
+\label{eq:cop_interp}
+\end{equation}
+
+\subsection{Analytical Carnot-Based Approximation}
+
+When performance maps are unavailable, a Carnot-based approximation with log mean temperature difference (LMTD) correction is used:
+
+\begin{equation}
+\text{COP}_{\text{Carnot}} = \frac{T_{\text{sink}} + \Delta T_{\text{lift}}}{T_{\text{sink}} - T_{\text{source}}}
+\label{eq:cop_carnot}
+\end{equation}
+
+\begin{equation}
+\text{COP}_{h,t} = \eta_{\text{Carnot}} \cdot \text{COP}_{\text{Carnot}}
+\label{eq:cop_analytical}
+\end{equation}
+
+where $\eta_{\text{Carnot}} \approx 0.5$--$0.6$ is the Carnot efficiency factor, and $\Delta T_{\text{lift}}$ accounts for heat exchanger pinch points.
+
+\subsection{Bounds and Numerical Stability}
+
+To ensure numerical stability, COP values are bounded:
+
+\begin{equation}
+\text{COP}_{h,t} \in [1.01, 12.0]
+\label{eq:cop_bounds}
+\end{equation}
+
+% ============================================================
+\section{Summary of Model Size and Complexity}
+% ============================================================
+
+\subsection{Planning Framework (Full Year)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Item} & \textbf{Count (Typical)} \\
+\midrule
+Time steps $|\mathcal{T}|$ & 8,760 \\
+Heat pumps $|\mathcal{H}|$ & 4 \\
+Generators $|\mathcal{G}|$ & 5 \\
+Storage units $|\mathcal{S}|$ & 1 \\
+P2H converters $|\mathcal{P}|$ & 1 \\
+\midrule
+Continuous variables & $\approx 140{,}000$ \\
+Binary variables & $\approx 90{,}000$ \\
+Constraints & $\approx 270{,}000$ \\
+\midrule
+Solver time (Gurobi, typical) & 5--30 minutes \\
+\bottomrule
+\end{tabular}
+\caption{Model size for Planning Framework (full year, typical system)}
+\label{tab:model_size_pf}
+\end{table}
+
+\subsection{Rolling Horizon (One Week Window)}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Item} & \textbf{Count (Typical)} \\
+\midrule
+Time steps $|\mathcal{T}|$ & 168 \\
+Continuous variables & $\approx 2{,}700$ \\
+Binary variables & $\approx 1{,}700$ \\
+Constraints & $\approx 5{,}200$ \\
+\midrule
+Solver time (Gurobi, typical) & 5--60 seconds \\
+Total annual RH runtime (365 windows, 24h step) & 30--60 minutes \\
+\bottomrule
+\end{tabular}
+\caption{Model size for Rolling Horizon (one week window, typical system)}
+\label{tab:model_size_rh}
+\end{table}
+
+% ============================================================
+\section{Nomenclature Summary}
+% ============================================================
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Abbreviation} & \textbf{Meaning} \\
+\midrule
+CHP & Combined Heat and Power \\
+COP & Coefficient of Performance \\
+CRF & Capital Recovery Factor \\
+LMTD & Log Mean Temperature Difference \\
+MILP & Mixed Integer Linear Programming \\
+O\&M & Operations and Maintenance \\
+OPEX & Operational Expenditure \\
+P2H & Power-to-Heat \\
+PF & Planning Framework \\
+RH & Rolling Horizon \\
+SOC & State of Charge \\
+TES & Thermal Energy Storage \\
+WRG & Waste Heat Recovery (German: Wärmerückgewinnung) \\
+\bottomrule
+\end{tabular}
+\caption{Nomenclature and abbreviations}
+\label{tab:nomenclature}
+\end{table}
+
+% ============================================================
+\section{Implementation Notes}
+% ============================================================
+
+\subsection{Software Implementation}
+
+The EnerGIS framework is implemented in Python using:
+\begin{itemize}
+\item \textbf{Pyomo} for algebraic modeling (version $\geq$ 6.0)
+\item \textbf{Solvers:} Gurobi (recommended), CBC, GLPK (fallback)
+\item \textbf{Data handling:} Custom time series class (no pandas dependency in core)
+\item \textbf{Configuration:} YAML with deep merging
+\end{itemize}
+
+\subsection{Code References}
+
+All equations in this document correspond to implementations in the EnerGIS codebase:
+
+\begin{itemize}
+\item Heat balance: \texttt{energis/models/system\_builder.py:273--286}
+\item Storage dynamics: \texttt{energis/models/blocks/storage.py:96--155}
+\item Heat pump COP: \texttt{energis/models/blocks/heat\_pump.py:34--115}
+\item Rolling horizon: \texttt{energis/run/rolling\_horizon.py:100--533}
+\end{itemize}
+
+\subsection{Validation and Testing}
+
+The formulation has been validated against:
+\begin{itemize}
+\item Legacy reference implementation (Stadtbach network, 24h test: 100\% parity)
+\item Benchmark frameworks (oemof-solph, PyPSA)
+\item Automated regression tests (2,189 lines of test code, 12 test modules)
+\end{itemize}
+
+% ============================================================
+\section{References}
+% ============================================================
+
+For the complete list of references, see the main manuscript and \texttt{paper/references.bib}.
+
+Key methodological references:
+\begin{itemize}
+\item Pyomo: Hart et al. (2017), \textit{Pyomo---Optimization Modeling in Python}, Springer.
+\item Rolling Horizon: Powell (2011), \textit{Approximate Dynamic Programming}, Wiley.
+\item District Heating: Lund et al. (2014), ``4th Generation District Heating'', \textit{Energy}.
+\item MILP Formulations: Carrión \& Arroyo (2006), IEEE Trans. Power Systems.
+\end{itemize}
+
+\end{document}
