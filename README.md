@@ -46,7 +46,7 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    CI pipelines or notebooks without modifying YAML files. Additional helpers:
    - `--rh-window-hours`/`--heat-horizon-hours` and `--rh-overlap-hours` allow explicit control of window length and overlap.
    - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
-5. Interaktive Notebooks (siehe `notebooks/`):
+5. Interaktive Notebooks (siehe [`notebooks/README.md`](notebooks/README.md) für Details):
    - **`runner.ipynb`** - Haupteinstiegspunkt für Optimierungsläufe (PF/RH)
    - **`scenario_studio.ipynb`** - Interaktives Dashboard mit detaillierten Visualisierungen
    - **`synthetic_example.ipynb`** - Beispiel mit synthetischen Daten
@@ -112,3 +112,39 @@ EnerGIS uses a **v2.0 component-based architecture** inspired by Oemof and PyPSA
 - ✅ **Backward Compatible** - All v1.0 code works unchanged
 
 See `examples/custom_component_example.py` for a complete guide on adding new components.
+
+## Development Setup
+
+For contributors and developers:
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks (recommended)
+pip install pre-commit
+pre-commit install
+
+# This will automatically:
+# - Strip notebook outputs before commits
+# - Format Python code with Black
+# - Sort imports with isort
+# - Run flake8 linting
+# - Check YAML/JSON syntax
+
+# Manual pre-commit run
+pre-commit run --all-files
+
+# Run tests
+pytest tests/ -v
+
+# Clear notebook outputs manually (if not using pre-commit)
+jupyter nbconvert --clear-output --inplace notebooks/*.ipynb
+```
+
+**Pre-commit hooks ensure:**
+- No large notebook outputs in Git history
+- Consistent code formatting
+- Clean diffs and easy code reviews
+
+See [`.pre-commit-config.yaml`](.pre-commit-config.yaml) for configuration details.
