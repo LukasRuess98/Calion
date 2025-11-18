@@ -338,14 +338,17 @@ def _expand_sensitivity_runs(
                         ["scenario", "rolling_horizon", "heat_horizon_hours"],
                         float(horizon),
                     )
+                    _assign(iter_overrides, ["rolling_horizon", "heat_horizon_hours"], float(horizon))
                 if step is not None:
                     _assign(iter_overrides, ["scenario", "rolling_horizon", "step_hours"], float(step))
+                    _assign(iter_overrides, ["rolling_horizon", "step_hours"], float(step))
                 if overlap is not None:
                     _assign(
                         iter_overrides,
                         ["scenario", "rolling_horizon", "overlap_hours"],
                         float(overlap),
                     )
+                    _assign(iter_overrides, ["rolling_horizon", "overlap_hours"], float(overlap))
                 runs.append((horizon, step, overlap, iter_overrides))
     return runs
 
@@ -623,7 +626,13 @@ def _run_rolling_horizon(
         if soc_next is not None and base_storage_enabled:
             _set_initial_soc(window_cfg, soc_next)
 
-        should_fix_design = design_state is not None and (fix_design or window_idx > 0)
+        should_fix_design = bool(
+            design_state is not None
+            and (
+                fix_design
+                or (design is None and window_idx > 0)
+            )
+        )
         if should_fix_design:
             window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
 
