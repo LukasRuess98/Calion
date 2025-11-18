@@ -109,7 +109,7 @@ def export_latex_tables(
     summary_sections : Mapping[str, Mapping[str, object]]
         Summary data sections
     table_style : str, default="booktabs"
-        LaTeX table style: "booktabs", "simple", or "ieee"
+        LaTeX table style: "booktabs", "simple", "ieee", or "applied_energies"
 
     Returns
     -------
@@ -141,6 +141,9 @@ def _get_table_preamble(table_style: str) -> str:
     """Get LaTeX table preamble based on style."""
     if table_style == "booktabs":
         return "\\usepackage{booktabs}\n\\usepackage{siunitx}\n"
+    elif table_style == "applied_energies":
+        # Applied Energies: horizontal lines only, clean style
+        return "\\usepackage{siunitx}\n% Applied Energy style: horizontal lines only\n"
     elif table_style == "ieee":
         return "% IEEE style tables\n"
     else:
@@ -151,6 +154,9 @@ def _get_table_rules(table_style: str) -> tuple[str, str, str]:
     """Get LaTeX table rules (top, mid, bottom) based on style."""
     if table_style == "booktabs":
         return "\\toprule", "\\midrule", "\\bottomrule"
+    elif table_style == "applied_energies":
+        # Applied Energies uses horizontal lines only
+        return "\\hline", "\\hline", "\\hline"
     else:
         return "\\hline", "\\hline", "\\hline"
 

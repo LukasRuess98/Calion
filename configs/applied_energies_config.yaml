@@ -1,0 +1,371 @@
+# ============================================================================
+# Applied Energies Journal Configuration
+# ============================================================================
+#
+# This configuration is optimized for submission to Applied Energies journal
+# following their specific author guidelines and requirements.
+#
+# Journal: Applied Energy
+# Publisher: Elsevier
+# ISSN: 0306-2619
+# Guide for Authors: https://www.elsevier.com/journals/applied-energy
+#
+# ============================================================================
+
+# Export settings optimized for Applied Energies
+export:
+  # Enable publication-quality exports
+  enable_publication_exports: true
+
+  # Applied Energies requires 300-600 DPI for figures
+  publication_dpi: 600
+
+  # Preferred formats:
+  # - PDF/EPS: Vector formats (preferred for line art, graphs)
+  # - TIFF/PNG: Raster formats (for photos, screenshots - not common in our case)
+  publication_formats:
+    - pdf   # Vector - preferred for all plots
+    - eps   # Vector - alternative if PDF has issues
+    - png   # Raster backup at 600 DPI
+
+  # Applied Energies table style: horizontal lines only, no vertical lines
+  latex_table_style: "applied_energies"
+
+  # Generate all essential plots for energy systems paper
+  publication_plot_types:
+    # Main results figures
+    - heat_balance              # Fig. 1: System operation
+    - electric_balance          # Fig. 2: Grid interaction
+    - storage                   # Fig. 3: Storage operation
+
+    # Performance analysis
+    - cop_analysis              # Fig. 4: Heat pump efficiency
+    - load_duration             # Fig. 5: Load characteristics
+
+    # Economic analysis
+    - cost_breakdown            # Fig. 6: Cost components
+    - capex_opex               # Fig. 7: Investment vs operation
+    - technology_comparison     # Fig. 8: Technology mix
+
+    # Environmental analysis
+    - emissions                 # Fig. 9: CO2 emissions
+    - monthly_aggregate         # Fig. 10: Seasonal patterns
+
+  # Applied Energies specific exports
+  applied_energies:
+    # Generate graphical abstract (required)
+    generate_graphical_abstract: true
+    graphical_abstract_dpi: 300
+    graphical_abstract_size: [600, 400]  # pixels at 300 DPI = 2" x 1.33"
+
+    # Generate highlights (required, 3-5 bullet points, max 85 chars each)
+    generate_highlights: true
+    max_highlights: 5
+    max_highlight_length: 85
+
+    # Generate nomenclature/symbols table
+    generate_nomenclature: true
+
+    # Organize supplementary material
+    generate_supplementary: true
+    supplementary_includes:
+      - full_timeseries          # Complete hourly time series
+      - sensitivity_analysis     # If available
+      - detailed_parameters      # All model parameters
+      - raw_data                # Raw optimization results
+
+# Figure specifications per Applied Energies guidelines
+figures:
+  # Figure dimensions in mm (Applied Energies requirements)
+  # Single column: 90 mm
+  # 1.5 column: 140 mm
+  # Double column: 190 mm
+
+  single_column_width_mm: 90
+  double_column_width_mm: 190
+
+  # Convert to inches for matplotlib (1 inch = 25.4 mm)
+  single_column_width_inch: 3.54   # 90mm
+  double_column_width_inch: 7.48   # 190mm
+
+  # Default dimensions (most plots use double column)
+  default_width: 7.48
+  default_height: 5.0
+
+  # Aspect ratio: 4:3 or 16:9 recommended
+  aspect_ratio: 1.5  # width/height
+
+  # Font specifications
+  font:
+    family: "sans-serif"
+    sans_serif: ["Arial", "Helvetica", "Liberation Sans"]
+    size_base: 10        # Base font size
+    size_title: 12       # Title
+    size_label: 10       # Axis labels
+    size_tick: 9         # Tick labels
+    size_legend: 9       # Legend
+
+    # Minimum font size after scaling: 7 pt (Applied Energies requirement)
+    min_size_print: 7
+
+  # Line specifications
+  lines:
+    width: 1.5           # Line width in points
+    marker_size: 6       # Marker size
+
+  # Grid specifications
+  grid:
+    show: true
+    alpha: 0.3
+    linestyle: "--"
+    linewidth: 0.5
+
+  # Color scheme: Use colorblind-friendly palette
+  colors:
+    scheme: "colorblind"  # Paul Tol's colorblind-safe colors
+
+    # Applied Energies accepts color but should work in grayscale
+    ensure_grayscale_readable: true
+
+# Table specifications per Applied Energies guidelines
+tables:
+  style: "horizontal_lines_only"  # No vertical lines
+
+  # Font specifications
+  font_size: 10
+
+  # Decimal places
+  decimals:
+    costs: 0           # EUR values: no decimals
+    power: 2           # MW values: 2 decimals
+    energy: 1          # MWh values: 1 decimal
+    emissions: 1       # t CO2: 1 decimal
+    efficiency: 2      # COP, etc.: 2 decimals
+    percentages: 1     # %: 1 decimal
+
+# Manuscript sections
+manuscript:
+  # Paper metadata
+  title: "Multi-Objective Optimization of District Heating Systems with Heat Pumps and Thermal Storage"
+
+  # Short title for running head (max 50 characters)
+  short_title: "District Heating Optimization"
+
+  # Authors
+  authors:
+    - name: "Your Name"
+      affiliation: 1
+      email: "your.email@institution.edu"
+      corresponding: true
+    # Add more authors as needed
+
+  affiliations:
+    - id: 1
+      name: "Your Institution"
+      address: "Address, City, Country"
+
+  # Keywords (6-8 keywords)
+  keywords:
+    - District heating
+    - Heat pumps
+    - Thermal energy storage
+    - Optimization
+    - Renewable energy
+    - Decarbonization
+    - Energy systems
+    - Planning framework
+
+  # Abstract structure
+  abstract:
+    max_words: 150
+    structure:
+      - Background
+      - Methods
+      - Results
+      - Conclusions
+
+  # Highlights (3-5 bullet points, max 85 characters each)
+  highlights:
+    - "Novel planning framework optimizes heat pump capacities and storage sizing"
+    - "Multi-stage approach combines investment and operational optimization"
+    - "Thermal storage reduces peak demand by 35% and grid costs by 23%"
+    - "Heat pump COP varies between 2.8-4.2 depending on operating conditions"
+    - "System achieves 72% CO2 reduction compared to fossil baseline"
+
+# Nomenclature/Symbols
+nomenclature:
+  # Greek symbols
+  greek:
+    - symbol: "\\eta"
+      description: "Efficiency"
+      unit: "-"
+    - symbol: "\\Delta t"
+      description: "Time step"
+      unit: "h"
+
+  # Latin symbols (uppercase)
+  uppercase:
+    - symbol: "C"
+      description: "Capacity"
+      unit: "MW"
+    - symbol: "COP"
+      description: "Coefficient of performance"
+      unit: "-"
+    - symbol: "E"
+      description: "Energy"
+      unit: "MWh"
+    - symbol: "P"
+      description: "Power"
+      unit: "MW"
+    - symbol: "Q"
+      description: "Heat"
+      unit: "MW"
+    - symbol: "T"
+      description: "Temperature"
+      unit: "°C"
+
+  # Latin symbols (lowercase)
+  lowercase:
+    - symbol: "t"
+      description: "Time"
+      unit: "h"
+    - symbol: "x"
+      description: "Binary decision variable"
+      unit: "-"
+
+  # Subscripts
+  subscripts:
+    - symbol: "el"
+      description: "Electric"
+    - symbol: "th"
+      description: "Thermal"
+    - symbol: "HP"
+      description: "Heat pump"
+    - symbol: "TES"
+      description: "Thermal energy storage"
+    - symbol: "max"
+      description: "Maximum"
+    - symbol: "min"
+      description: "Minimum"
+
+  # Abbreviations
+  abbreviations:
+    - abbr: "CAPEX"
+      full: "Capital expenditure"
+    - abbr: "CHP"
+      full: "Combined heat and power"
+    - abbr: "COP"
+      full: "Coefficient of performance"
+    - abbr: "DHW"
+      full: "Domestic hot water"
+    - abbr: "MILP"
+      full: "Mixed-integer linear programming"
+    - abbr: "OPEX"
+      full: "Operational expenditure"
+    - abbr: "PF"
+      full: "Planning framework"
+    - abbr: "RH"
+      full: "Rolling horizon"
+    - abbr: "SOC"
+      full: "State of charge"
+    - abbr: "TES"
+      full: "Thermal energy storage"
+
+# Supplementary material organization
+supplementary:
+  # Structure
+  sections:
+    - name: "S1_Model_Parameters"
+      description: "Complete list of all model parameters and assumptions"
+      files:
+        - model_parameters.csv
+        - technology_specifications.csv
+
+    - name: "S2_Validation"
+      description: "Model validation against measured data"
+      files:
+        - validation_results.csv
+        - validation_plots.pdf
+
+    - name: "S3_Time_Series"
+      description: "Complete hourly time series data"
+      files:
+        - full_timeseries.csv
+        - input_data.csv
+
+    - name: "S4_Sensitivity"
+      description: "Sensitivity analysis results"
+      files:
+        - sensitivity_co2_price.csv
+        - sensitivity_electricity_price.csv
+
+    - name: "S5_Additional_Figures"
+      description: "Additional figures referenced in main text"
+      files:
+        - additional_plots.pdf
+
+# Applied Energies submission checklist
+submission_checklist:
+  required_files:
+    - "✓ Main manuscript (Word or LaTeX)"
+    - "✓ Figures (separate files, EPS/PDF preferred)"
+    - "✓ Tables (in manuscript or separate)"
+    - "✓ Graphical abstract (required)"
+    - "✓ Highlights (3-5 bullet points)"
+    - "✓ Cover letter"
+    - "✓ Author agreement form"
+    - "✓ Suggested reviewers (optional)"
+    - "✓ Supplementary material (if applicable)"
+
+  formatting:
+    - "✓ Line numbers on manuscript"
+    - "✓ Page numbers on manuscript"
+    - "✓ Double spacing (if Word)"
+    - "✓ All figures cited in text"
+    - "✓ All tables cited in text"
+    - "✓ References formatted (numbered style)"
+    - "✓ SI units used throughout"
+    - "✓ Nomenclature/abbreviations defined"
+
+  quality:
+    - "✓ Figures minimum 300 DPI"
+    - "✓ Font size minimum 7 pt after scaling"
+    - "✓ Color figures readable in grayscale"
+    - "✓ All axes labeled with units"
+    - "✓ All figure captions self-explanatory"
+    - "✓ Tables have clear headers"
+    - "✓ Data availability statement"
+    - "✓ Funding acknowledgment"
+    - "✓ Conflict of interest statement"
+
+# Analysis configuration (for reproducibility)
+analysis:
+  # Temporal scope
+  year: 2023
+  timestep_hours: 1.0
+
+  # Economic parameters
+  economic:
+    discount_rate: 0.05
+    analysis_period_years: 20
+    electricity_price_eur_per_mwh: 150.0
+    gas_price_eur_per_mwh: 58.6
+    co2_price_eur_per_t: 100.0
+
+  # Solver settings
+  solver:
+    name: "gurobi"  # or "cbc", "glpk"
+    mip_gap: 0.01   # 1% optimality gap
+    time_limit: 3600  # 1 hour
+
+# Output organization
+output:
+  base_dir: "exports/applied_energies"
+
+  directories:
+    figures: "figures"
+    tables: "tables"
+    data: "data"
+    supplementary: "supplementary"
+    latex_source: "latex"
+    manuscript_draft: "manuscript"

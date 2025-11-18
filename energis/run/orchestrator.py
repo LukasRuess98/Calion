@@ -1021,6 +1021,19 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
 
             print(f"[EXPORT] Publication exports completed: {len(publication_plots)} plot types, {len(latex_tables)} LaTeX tables")
 
+            # Applied Energies specific exports (graphical abstract, highlights, nomenclature, etc.)
+            if cfg.get("applied_energies", {}) or cfg.get("export", {}).get("applied_energies"):
+                try:
+                    print("[EXPORT] Generating Applied Energies specific exports...")
+                    ae_dir = os.path.join(outdir, "applied_energies")
+                    ae_bundle = export_applied_energies_bundle(ae_dir, summary_sections, cfg)
+                    publication_files["applied_energies"] = ae_bundle
+                    print(f"[EXPORT] Applied Energies bundle generated in: {ae_dir}")
+                except Exception as exc:
+                    print(f"[EXPORT] Applied Energies exports failed: {exc}")
+                    import traceback
+                    traceback.print_exc()
+
         except Exception as exc:  # pragma: no cover - publication exports are optional
             print(f"[EXPORT] Publication exports failed: {exc}")
             import traceback
