@@ -46,21 +46,11 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    CI pipelines or notebooks without modifying YAML files. Additional helpers:
    - `--rh-window-hours`/`--heat-horizon-hours` and `--rh-overlap-hours` allow explicit control of window length and overlap.
    - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
-5. Open `notebooks/01_scenario_studio.ipynb` for eine geführte Variante **oder** `notebooks/02_all_in_one_runner.ipynb` für einen Sammel-Runner mit Quicktest, PF/RH-Workflow, Export und Fixture-Generator.
-
-### Pyomo-Modell vor dem Solverlauf prüfen
-
-In den Runner-Notebooks kannst du das gebaute Pyomo-Modell mit `notebooks/model_dump_helper.py` inspizieren:
-
-```python
-from notebooks.model_dump_helper import dump_model_structure, export_model_json
-
-# ... Modell bauen (z. B. über orchestrator.build_model)
-dump_model_structure(model)  # sortierte Konsolenansicht
-export_model_json(model, "model_dump.json")  # strukturierter JSON-Export
-```
-
-So lässt sich vor dem Solverlauf nachvollziehen, ob Variablen, Parameter, Nebenbedingungen und Zielfunktion korrekt aufgebaut sind. Im Notebook [`notebooks/02_all_in_one_runner.ipynb`](notebooks/02_all_in_one_runner.ipynb) findest du zusätzlich Abschnitt **3a**, der den Modell-Dump direkt in den Sammel-Runner einbindet.
+5. Interaktive Notebooks (siehe `notebooks/`):
+   - **`runner.ipynb`** - Haupteinstiegspunkt für Optimierungsläufe (PF/RH)
+   - **`scenario_studio.ipynb`** - Interaktives Dashboard mit detaillierten Visualisierungen
+   - **`synthetic_example.ipynb`** - Beispiel mit synthetischen Daten
+   - **`validation.ipynb`** - Validierung gegen Legacy-Referenz
 
 ### Case study exports
 
@@ -77,7 +67,7 @@ Optional overrides:
 ### Validierung (Stadtbach-Referenz)
 
 - Der Test [`tests/test_stadtbach_validation.py`](tests/test_stadtbach_validation.py) führt einen 24h-Stadtbach-Lauf gegen die Legacy-Referenz aus, erstellt eine Kennzahlentabelle EnerGIS vs. Legacy und exportiert sie (CSV) für Artefakte.
-- Notebook [`notebooks/04_stadtbach_validation.ipynb`](notebooks/04_stadtbach_validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
+- Notebook [`notebooks/validation.ipynb`](notebooks/validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
 
 ### Configuration quick reference
 
