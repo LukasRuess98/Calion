@@ -23,13 +23,29 @@ class HeatPumpBlock:
     ):
         self.name = name
         self.min_load = float(min_load)
-        self.COP_series = [float(c) for c in cop_series]
+
+        # Validate and clamp COP values to safe ranges (minimum 1.01 to avoid division issues)
+        cop_list = []
+        for c in cop_series:
+            cop_val = float(c)
+            if cop_val < 1.01:
+                raise ValueError(f"Heat pump COP must be >= 1.01 to avoid division by zero, got {cop_val}")
+            if cop_val > 20.0:
+                raise ValueError(f"Heat pump COP suspiciously high (> 20), got {cop_val}")
+            cop_list.append(cop_val)
+        self.COP_series = cop_list
+
         self.capacity_min_mw = float(capacity_min_mw)
         self.capacity_max_mw = float(capacity_max_mw)
         self.capacity_init_mw = float(capacity_init_mw)
         self.investable = bool(investable)
         self.wrg_cap_series = wrg_cap_series or {}
-        self.cop_default = float(cop_default) if cop_default else 3.0
+
+        # Validate default COP
+        cop_default_val = float(cop_default) if cop_default else 3.0
+        if cop_default_val < 1.01:
+            raise ValueError(f"Heat pump default COP must be >= 1.01, got {cop_default_val}")
+        self.cop_default = cop_default_val
 
     def attach(self, m, Tset, cfg, buses):
         if pyo is None:

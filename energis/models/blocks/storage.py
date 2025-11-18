@@ -29,7 +29,11 @@ def _prepare_series(
     return {i: float(values[pos]) for pos, i in enumerate(idx_list)}
 
 
-def _clamp_positive(values: Dict[int, float], floor: float = 1e-6) -> Dict[int, float]:
+def _clamp_positive(values: Dict[int, float], floor: float = 0.01) -> Dict[int, float]:
+    """Clamp values to a safe minimum to prevent division by zero or numerical instability.
+
+    Default floor of 0.01 ensures numerical stability in Pyomo constraints.
+    """
     return {idx: (val if val > floor else floor) for idx, val in values.items()}
 
 
@@ -64,8 +68,17 @@ class StorageBlock:
         self.e_min = float(e_min)
         self.e_max = float(e_max)
         self.p_max = float(p_max)
-        self.eff_c = float(eff_c)
-        self.eff_d = float(eff_d)
+
+        # Validate and clamp efficiencies to safe ranges
+        eff_c_val = float(eff_c)
+        eff_d_val = float(eff_d)
+        if not (0.01 <= eff_c_val <= 1.0):
+            raise ValueError(f"Storage charge efficiency must be in [0.01, 1.0], got {eff_c_val}")
+        if not (0.01 <= eff_d_val <= 1.0):
+            raise ValueError(f"Storage discharge efficiency must be in [0.01, 1.0], got {eff_d_val}")
+
+        self.eff_c = eff_c_val
+        self.eff_d = eff_d_val
         self.hourly_loss = float(hourly_loss)
         self.dt_h = float(dt_h)
         self.soc0 = float(soc0)
