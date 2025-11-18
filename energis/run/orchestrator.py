@@ -24,6 +24,21 @@ from energis.io.loader import load_input_excel
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
 from energis.io.model_inspector import export_model_structure
+
+# Publication exports (optional)
+try:
+    from energis.io.publication_plotter import export_publication_plots, HAVE_MATPLOTLIB as HAVE_PUBLICATION_MATPLOTLIB
+    from energis.io.publication_exporter import export_publication_bundle, export_kpi_summary, export_latex_tables
+    from energis.io.applied_energies_exporter import export_applied_energies_bundle
+    HAVE_PUBLICATION_EXPORTS = True
+except ImportError:  # pragma: no cover
+    HAVE_PUBLICATION_EXPORTS = False
+    export_publication_plots = None
+    export_publication_bundle = None
+    export_kpi_summary = None
+    export_latex_tables = None
+    export_applied_energies_bundle = None
+
 from energis.models.system_builder import build_model
 from energis.utils.config_utils import apply_heat_pump_defaults
 from energis.utils.timeseries import TimeSeriesTable
@@ -970,6 +985,50 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
         print(f"[EXPORT] Diagramm-Export übersprungen: {exc}")
         plot_files = []
 
+    # Publication-quality exports (optional, controlled by config)
+    publication_plots = {}
+    publication_files = {}
+    enable_publication = cfg.get("export", {}).get("enable_publication_exports", False)
+
+    if enable_publication and HAVE_PUBLICATION_EXPORTS:
+        try:
+            print("[EXPORT] Generating publication-quality plots and tables...")
+
+            # Generate publication plots
+            pub_plot_dir = os.path.join(outdir, "publication_plots")
+            publication_plots = export_publication_plots(
+                pub_plot_dir,
+                table,
+                series,
+                summary_sections,
+                dpi=cfg.get("export", {}).get("publication_dpi", 300),
+                formats=cfg.get("export", {}).get("publication_formats", ["png", "pdf"]),
+                plot_types=cfg.get("export", {}).get("publication_plot_types", None),
+            )
+
+            # Generate LaTeX tables
+            latex_dir = os.path.join(outdir, "publication_latex")
+            latex_tables = export_latex_tables(
+                latex_dir,
+                summary_sections,
+                table_style=cfg.get("export", {}).get("latex_table_style", "booktabs"),
+            )
+            publication_files["latex_tables"] = latex_tables
+
+            # Generate KPI summary
+            kpi_path = export_kpi_summary(outdir, summary_sections, table, series)
+            publication_files["kpi_summary"] = kpi_path
+
+            print(f"[EXPORT] Publication exports completed: {len(publication_plots)} plot types, {len(latex_tables)} LaTeX tables")
+
+        except Exception as exc:  # pragma: no cover - publication exports are optional
+            print(f"[EXPORT] Publication exports failed: {exc}")
+            import traceback
+            traceback.print_exc()
+
+    elif enable_publication and not HAVE_PUBLICATION_EXPORTS:
+        print("[EXPORT] Publication exports requested but modules not available. Install matplotlib for publication exports.")
+
     summary_json = _json_safe({section: dict(metrics) for section, metrics in summary_sections.items()})
     metadata_json = _json_safe({section: dict(entries) for section, entries in metadata_sections.items()})
 
@@ -997,6 +1056,8 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
         "scenario": scenario_cfg,
         "design": design_export,
         "plots": plot_files,
+        "publication_plots": publication_plots,
+        "publication_files": publication_files,
     }
 
 def _extract_pyomo_series(var: Any, times: Sequence[Any], name: str, tolerance: float = 1e-9) -> List[float]:
