@@ -8,6 +8,9 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
+from ..component import BaseComponent, Flow, InvestmentResult
+from ..registry import register_component
+
 
 def _prepare_series(
     indices: Iterable[int],
@@ -37,7 +40,8 @@ def _clamp_positive(values: Dict[int, float], floor: float = 0.01) -> Dict[int, 
     return {idx: (val if val > floor else floor) for idx, val in values.items()}
 
 
-class StorageBlock:
+@register_component("storage", category="storage", description="Thermal energy storage with power/energy decoupling")
+class StorageBlock(BaseComponent):
     def __init__(
         self,
         name: str,
@@ -63,8 +67,9 @@ class StorageBlock:
         eff_discharge_series: Sequence[float] | Mapping[int, float] | None = None,
         capacity_active_series: Sequence[float] | Mapping[int, float] | None = None,
         power_energy_coupling: float | None = None,
+        label: str = None
     ):
-        self.name = name
+        super().__init__(name, label)
         self.e_min = float(e_min)
         self.e_max = float(e_max)
         self.p_max = float(p_max)
@@ -233,7 +238,49 @@ class StorageBlock:
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
+        # Register flows with framework
+        self.add_flow(Flow(
+            bus="heat",
+            direction="output",
+            variable=Qd,
+            nominal_value=self.p_max,
+            investment=self.investable
+        ))
+
+        self.add_flow(Flow(
+            bus="heat",
+            direction="input",
+            variable=Qc,
+            nominal_value=self.p_max,
+            investment=self.investable
+        ))
+
+        # Register with buses if available
+        if buses:
+            if "heat" in buses:
+                buses["heat"].add_output(Qd)
+                buses["heat"].add_input(Qc)
+
+        # Return standardized format
         return {
+            "flows": {
+                "heat": {"output": Qd, "input": Qc}
+            },
+            "investment": InvestmentResult(
+                capacity_energy=cap_e,
+                capacity_power=cap_p,
+                build=build
+            ) if self.investable else None,
+            "state": E,
+            "metadata": {
+                "charge_mode": charge_mode,
+                "discharge_mode": discharge_mode,
+                "active": active,
+                "soc0": self.soc0,
+                "efficiency_charge": self.eff_c,
+                "efficiency_discharge": self.eff_d
+            },
+            # Legacy compatibility - keep old keys for now
             "Q_th_out": Qd,
             "Q_th_in": Qc,
             "SOC": E,
