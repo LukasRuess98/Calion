@@ -23,6 +23,7 @@ from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
+from energis.io.model_inspector import export_model_structure
 from energis.models.system_builder import build_model
 from energis.utils.config_utils import apply_heat_pump_defaults
 from energis.utils.timeseries import TimeSeriesTable
@@ -805,6 +806,20 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
     _assert_capacity_vs_demand(table, cfg)
 
     m = build_model(table, cfg, dt_h=dt_h)
+
+    # Export model structure before solver execution
+    export_model = bool(run_cfg.get("export_model_structure", True))
+    if export_model and m is not None and HAVE_PYOMO:
+        try:
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            mode = str(scenario_cfg.get("mode", "PF"))
+            title = str(scenario_cfg.get("title", "Baseline"))
+            tag = scenario_cfg.get("tag") or f"{mode}-{title}"
+            model_export_dir = os.path.join("exports", f"{stamp}_{_slugify(tag)}", "model_structure")
+
+            export_model_structure(m, model_export_dir, prefix="pyomo_model_before_solve")
+        except Exception as exc:
+            print(f"[MODEL_EXPORT] Warning: Could not export model structure: {exc}")
 
     solver_result = None
     solver_requested = run_cfg.get("solver", "glpk")
