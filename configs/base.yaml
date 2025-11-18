@@ -1,6 +1,13 @@
 run:
   dt_h: 1.0
   solver: gurobi
+  solver_options:
+    MIPGap: 0.02  # 2% MIP Gap (Standard: 0.0001) - Akzeptiere 2% Suboptimalität für schnellere Lösung
+    TimeLimit: 3600  # 1 Stunde Zeitlimit
+    Threads: 0  # 0 = nutze alle CPU-Kerne
+    MIPFocus: 1  # 1 = fokussiere auf zulässige Lösungen finden
+    Presolve: 2  # 2 = aggressive Presolve
+    Cuts: 2  # 2 = aggressive Cuts
 
 scenario:
   run_mode: PF_ONLY
@@ -27,4 +34,6 @@ grid:
   sell_fee_eur_mwh: 0.0
   sell_premium_eur_mwh: 0.0
   year_fraction: 1.0
-  big_m_grid_mw: 10000.0
+  big_m_grid_mw: 200.0  # OPTIMIERT: Reduziert von 10000 auf 200 MW (realistische Obergrenze)
+  max_import_mw: 200.0  # Explizites Limit für Grid-Import
+  max_export_mw: 100.0  # Explizites Limit für Grid-Export

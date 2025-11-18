@@ -819,6 +819,14 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
             solver_used = "glpk"
         else:
             solver_used = solver_requested
+
+        # Apply solver options if configured
+        solver_options = run_cfg.get("solver_options", {})
+        if solver_options:
+            for key, value in solver_options.items():
+                opt.options[key] = value
+            print(f"[SOLVER] Gurobi options: {solver_options}")
+
         solver_result = opt.solve(model_for_summary, tee=False)
     series, summary_sections, costs = _collect_timeseries_and_summary(table, cfg, dt_h, model_for_summary)
 
