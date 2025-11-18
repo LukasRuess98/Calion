@@ -34,6 +34,11 @@ generators:
     th_eff: 1.0
     el_eff: null
     fuel_bus: waste
+  p2h:
+    el_to_th_eff: 0.99
+    min_load: 0.0  # Optional: minimum load fraction (0-1), 0 = no constraint
+    # eff_series: null  # Optional: time-varying efficiency array for load-dependent modeling
+    # part_load_penalty: 0.0  # Optional: efficiency penalty at minimum load (e.g., 0.02 = 2%)
 
 heat_pumps:
   cop:
