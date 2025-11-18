@@ -615,7 +615,8 @@ def _run_rolling_horizon(
         end = min(start + horizon_steps, n)
         if end <= start:
             raise RuntimeError(
-                "Rolling horizon window length is non-positive – check dt_h and HEAT_HORIZON_HOURS"
+                f"Rolling horizon window length is non-positive – check dt_h and HEAT_HORIZON_HOURS. "
+                f"Got: start={start}, horizon_steps={horizon_steps}, end={end}, n={n}, dt_h={dt_h}"
             )
         indices = list(range(start, end))
         window_table = orchestrator._slice_table(table, indices)  # type: ignore[attr-defined]
@@ -642,7 +643,9 @@ def _run_rolling_horizon(
         commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
         if commit_len <= 0:
             raise RuntimeError(
-                "Rolling horizon produced a zero commit length – ensure STEP_HOURS exceeds OVERLAP_HOURS"
+                f"Rolling horizon produced a zero commit length – ensure STEP_HOURS exceeds OVERLAP_HOURS. "
+                f"Got: step_steps={step_steps}, overlap_steps={overlap_steps}, "
+                f"window_length={len(window_table)}, commit_len={commit_len}"
             )
 
         _extend_series(aggregated_series, window_result.series, commit_len)
@@ -674,7 +677,9 @@ def _run_rolling_horizon(
         start += max(step_steps - overlap_steps, 1)
         if start <= last_start:
             raise RuntimeError(
-                "Rolling horizon iteration did not advance – check step_hours/overlap_hours configuration"
+                f"Rolling horizon iteration did not advance – check step_hours/overlap_hours configuration. "
+                f"Got: step_steps={step_steps}, overlap_steps={overlap_steps}, "
+                f"last_start={last_start}, new_start={start}"
             )
         window_idx += 1
 

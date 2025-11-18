@@ -168,10 +168,23 @@ def _cop_series_from_table(
     Tout = [max(t - dT, 1.0) for t in temps]
 
     def _lmtd(Th: float, Tc: float) -> float:
-        d1 = max(Th - Tc, 1e-6)
-        numerator = d1
-        denominator = abs(math.log(max(Th - 1e-9, Th) / max(Tc + 1e-9, Tc)))
-        return numerator / max(denominator, 1e-6)
+        """Calculate log mean temperature difference with proper numerical safeguards."""
+        # Ensure positive temperatures with small offset to avoid log(0)
+        Th_safe = max(Th, 1e-3)
+        Tc_safe = max(Tc, 1e-3)
+
+        # If temperatures are too close, return arithmetic mean
+        if abs(Th_safe - Tc_safe) < 1e-6:
+            return max((Th_safe + Tc_safe) / 2.0, 1e-6)
+
+        # Standard LMTD calculation: (Th - Tc) / ln(Th / Tc)
+        ratio = Th_safe / Tc_safe
+        if abs(ratio - 1.0) < 1e-9:  # Too close to 1, log is unstable
+            return max((Th_safe + Tc_safe) / 2.0, 1e-6)
+
+        numerator = Th_safe - Tc_safe
+        denominator = math.log(ratio)
+        return abs(numerator / max(abs(denominator), 1e-9))
 
     Ls = _lmtd(Ts_out, Ts_in)
     cop: List[float] = []

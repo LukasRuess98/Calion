@@ -78,11 +78,16 @@ class TimeSeriesTable:
 
 
 def forward_fill(values: List[float]) -> List[float]:
+    """Forward fill missing values (None or NaN) with the last valid value.
+
+    If the first value(s) are missing, they remain None until a valid value is found.
+    """
     out = []
     last = None
     for v in values:
         if v is None or v != v:  # NaN check
-            out.append(last)
+            # Only fill if we have a valid last value
+            out.append(last if last is not None else v)
         else:
             out.append(v)
             last = v
@@ -90,12 +95,17 @@ def forward_fill(values: List[float]) -> List[float]:
 
 
 def backward_fill(values: List[float]) -> List[float]:
+    """Backward fill missing values (None or NaN) with the next valid value.
+
+    If the last value(s) are missing, they remain None until a valid value is found.
+    """
     out = values[:]
     next_val = None
     for i in range(len(out) - 1, -1, -1):
         v = out[i]
         if v is None or v != v:
-            out[i] = next_val
+            # Only fill if we have a valid next value
+            out[i] = next_val if next_val is not None else v
         else:
             next_val = v
     return out
