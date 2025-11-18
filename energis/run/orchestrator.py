@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
 
+from energis.constants import CAPACITY_SAFETY_FACTOR, HOURS_PER_YEAR, HOURS_PER_LEAP_YEAR
 from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
@@ -63,7 +64,7 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
     return cap
 
 
-def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float = 1.05) -> None:
+def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float = CAPACITY_SAFETY_FACTOR) -> None:
     peak_demand = max(table["waermebedarf_MWth"])
     cap = _estimate_max_thermal_capacity(cfg)
     if cap < safety * peak_demand and peak_demand > 0:
@@ -242,10 +243,47 @@ def _collect_timeseries_and_summary(
     dt_h: float,
     model: Any | None,
 ) -> tuple[OrderedDict[str, List[float]], OrderedDict[str, OrderedDict[str, Any]], Dict[str, Any]]:
+    """Collect optimization results into time series and summary dictionaries.
+
+    Extracts decision variable values from solved Pyomo model and organizes them into:
+    1. Time series data - hourly flows, states, and operational values
+    2. Component summaries - aggregated metrics per component (energy, costs, capacity)
+    3. System-level KPIs - total costs, CO2 emissions, investment decisions
+
+    This function handles:
+    - Grid electricity purchase and sales
+    - Heat pump operation and waste heat recovery
+    - Storage state of charge and flows
+    - Thermal generator outputs
+    - Bus balances and slack variables
+    - Investment costs (CAPEX) and operational costs (OPEX)
+    - CO2 emissions accounting
+
+    Args:
+        table (TimeSeriesTable): Input time series with demand and price data
+        cfg (Dict[str, Any]): System configuration with component definitions
+        dt_h (float): Time step duration in hours
+        model (Any | None): Solved Pyomo model with optimal variable values.
+            If None, returns zero-filled results.
+
+    Returns:
+        tuple containing:
+            - OrderedDict[str, List[float]]: Time series data with keys like:
+                "P_buy_MW", "P_sell_MW", "HP1_Q_MWth", "TES_SOC_MWh", etc.
+            - OrderedDict[str, OrderedDict[str, Any]]: Component summaries with keys like:
+                "HP1": {"energy_MWh": X, "capex_EUR": Y, "capacity_MW": Z, ...}
+            - Dict[str, Any]: System KPIs including:
+                "total_cost_EUR", "capex_total_EUR", "opex_total_EUR",
+                "grid_import_MWh", "co2_total_kg", etc.
+
+    Note:
+        If model is None (e.g., Pyomo not available), returns empty/zero-filled structures.
+        All monetary values are in EUR, energy in MWh, power in MW, emissions in kg CO2.
+    """
     meta = _gather_component_metadata(cfg)
     n = len(table)
     grid_cfg = cfg.get("grid", {})
-    period_fraction = float(n * dt_h / 8760.0) if n else 0.0
+    period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n else 0.0
     demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
 
     series: OrderedDict[str, List[float]] = OrderedDict()
@@ -712,7 +750,7 @@ def _apply_horizon(table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: f
             raise RuntimeError(f"Im Jahr {year} wurden keine Zeitschritte gefunden.")
         subset = _slice_table(table, indices)
         subset.ensure_frequency(dt_h)
-        expected_hours = 8784 if calendar.isleap(year) else 8760
+        expected_hours = HOURS_PER_LEAP_YEAR if calendar.isleap(year) else HOURS_PER_YEAR
         actual_hours = len(subset) * dt_h
         diff = abs(actual_hours - expected_hours)
         if diff > 1e-6 and enforce:

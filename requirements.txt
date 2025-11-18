@@ -1,0 +1,8 @@
+# Core dependencies
+openpyxl>=3.0.0          # Excel file reading/writing
+
+# Optional but recommended dependencies
+pyomo>=6.0.0             # Optimization modeling (required for core functionality)
+matplotlib>=3.5.0        # Plotting and visualization
+
+# Development dependencies (install with: pip install -r requirements-dev.txt)

@@ -8,6 +8,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
+from ...constants import EFFICIENCY_FLOOR, EFFICIENCY_MIN, EFFICIENCY_MAX
 from ..component import BaseComponent, Flow, InvestmentResult
 from ..registry import register_component
 
@@ -32,10 +33,10 @@ def _prepare_series(
     return {i: float(values[pos]) for pos, i in enumerate(idx_list)}
 
 
-def _clamp_positive(values: Dict[int, float], floor: float = 0.01) -> Dict[int, float]:
+def _clamp_positive(values: Dict[int, float], floor: float = EFFICIENCY_FLOOR) -> Dict[int, float]:
     """Clamp values to a safe minimum to prevent division by zero or numerical instability.
 
-    Default floor of 0.01 ensures numerical stability in Pyomo constraints.
+    Default floor ensures numerical stability in Pyomo constraints.
     """
     return {idx: (val if val > floor else floor) for idx, val in values.items()}
 
@@ -77,10 +78,10 @@ class StorageBlock(BaseComponent):
         # Validate and clamp efficiencies to safe ranges
         eff_c_val = float(eff_c)
         eff_d_val = float(eff_d)
-        if not (0.01 <= eff_c_val <= 1.0):
-            raise ValueError(f"Storage charge efficiency must be in [0.01, 1.0], got {eff_c_val}")
-        if not (0.01 <= eff_d_val <= 1.0):
-            raise ValueError(f"Storage discharge efficiency must be in [0.01, 1.0], got {eff_d_val}")
+        if not (EFFICIENCY_MIN <= eff_c_val <= EFFICIENCY_MAX):
+            raise ValueError(f"Storage charge efficiency must be in [{EFFICIENCY_MIN}, {EFFICIENCY_MAX}], got {eff_c_val}")
+        if not (EFFICIENCY_MIN <= eff_d_val <= EFFICIENCY_MAX):
+            raise ValueError(f"Storage discharge efficiency must be in [{EFFICIENCY_MIN}, {EFFICIENCY_MAX}], got {eff_d_val}")
 
         self.eff_c = eff_c_val
         self.eff_d = eff_d_val
