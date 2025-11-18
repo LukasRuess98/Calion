@@ -104,3 +104,21 @@ that the design fixation step can reuse those capacities. Missing design files a
 gracefully.
 
 Exports go to `exports/<timestamp>_<tag>/scenario.xlsx`.
+
+## Architecture & Documentation
+
+EnerGIS uses a **v2.0 component-based architecture** inspired by Oemof and PyPSA:
+
+- **[ARCHITECTURE_V2.md](ARCHITECTURE_V2.md)** - Technical architecture reference (Component Protocol, BaseComponent, Bus abstraction, Registry pattern)
+- **[MIGRATION_GUIDE_V2.md](MIGRATION_GUIDE_V2.md)** - Migration guide for v1.0 → v2.0 (100% backward compatible)
+- **[docs/archive/](docs/archive/)** - Historical analysis and implementation reports
+
+### Key Features (v2.0)
+
+- ✅ **Plugin Architecture** - Add custom components via `@register_component` decorator
+- ✅ **Type Safety** - Full type hints with `typing.Protocol` for IDE support
+- ✅ **Explicit Flows** - Flow objects replace implicit dictionary returns
+- ✅ **Bus Abstraction** - Buses as first-class objects with capacity limits and loss factors
+- ✅ **Backward Compatible** - All v1.0 code works unchanged
+
+See `examples/custom_component_example.py` for a complete guide on adding new components.
