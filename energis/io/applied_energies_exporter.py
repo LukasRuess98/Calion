@@ -578,7 +578,7 @@ def generate_manuscript_template(
                 name = aff["name"]
                 address = aff.get("address", "")
                 f.write(f"\\affiliation[{aff_id}]{{organization={{{name}}},\n")
-                f.write(f"            addressline={{{address}}}}\n")
+                f.write(f"            addressline={{{address}}}\n")
             f.write("\n")
 
         # Corresponding author
