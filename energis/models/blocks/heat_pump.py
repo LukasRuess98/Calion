@@ -7,7 +7,13 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
-class HeatPumpBlock:
+from ...constants import COP_MIN, COP_MAX_HEATPUMP, COP_DEFAULT
+from ..component import BaseComponent, Flow, InvestmentResult
+from ..registry import register_component
+
+
+@register_component("heat_pump", category="converter", description="Heat pump with COP series and waste heat recovery")
+class HeatPumpBlock(BaseComponent):
     def __init__(
         self,
         name: str,
@@ -19,17 +25,34 @@ class HeatPumpBlock:
         capacity_init_mw: float,
         investable: bool,
         wrg_cap_series: Optional[Dict[int, float]] = None,
-        cop_default: float = 3.0,
+        cop_default: float = COP_DEFAULT,
+        label: str = None
     ):
-        self.name = name
+        super().__init__(name, label)
         self.min_load = float(min_load)
-        self.COP_series = [float(c) for c in cop_series]
+
+        # Validate and clamp COP values to safe ranges
+        cop_list = []
+        for c in cop_series:
+            cop_val = float(c)
+            if cop_val < COP_MIN:
+                raise ValueError(f"Heat pump COP must be >= {COP_MIN} to avoid division by zero, got {cop_val}")
+            if cop_val > COP_MAX_HEATPUMP:
+                raise ValueError(f"Heat pump COP suspiciously high (> {COP_MAX_HEATPUMP}), got {cop_val}")
+            cop_list.append(cop_val)
+        self.COP_series = cop_list
+
         self.capacity_min_mw = float(capacity_min_mw)
         self.capacity_max_mw = float(capacity_max_mw)
         self.capacity_init_mw = float(capacity_init_mw)
         self.investable = bool(investable)
         self.wrg_cap_series = wrg_cap_series or {}
-        self.cop_default = float(cop_default) if cop_default else 3.0
+
+        # Validate default COP
+        cop_default_val = float(cop_default) if cop_default else COP_DEFAULT
+        if cop_default_val < COP_MIN:
+            raise ValueError(f"Heat pump default COP must be >= {COP_MIN}, got {cop_default_val}")
+        self.cop_default = cop_default_val
 
     def attach(self, m, Tset, cfg, buses):
         if pyo is None:
@@ -110,8 +133,46 @@ class HeatPumpBlock:
 
             setattr(m, f"{comp}_wrg_limit", pyo.Constraint(Tset, rule=wrg_rule))
 
-        # Flows to buses
+        # Register flows with framework
+        self.add_flow(Flow(
+            bus="heat",
+            direction="output",
+            variable=Q,
+            nominal_value=self.capacity_max_mw,
+            investment=self.investable
+        ))
+
+        self.add_flow(Flow(
+            bus="electricity",
+            direction="input",
+            variable=Pel_expr,
+            flow_type="electric_power"
+        ))
+
+        # Register with buses if available
+        if buses:
+            if "heat" in buses:
+                buses["heat"].add_output(Q)
+            if "electricity" in buses:
+                buses["electricity"].add_input(Pel_expr)
+
+        # Return standardized format
         return {
+            "flows": {
+                "heat": {"output": Q},
+                "electricity": {"input": Pel_expr}
+            },
+            "investment": InvestmentResult(
+                capacity=cap,
+                build=build
+            ) if self.investable else None,
+            "metadata": {
+                "Q_wrg": Q_wrg,
+                "Q_def": Q_def,
+                "min_load": self.min_load,
+                "cop_default": self.cop_default
+            },
+            # Legacy compatibility - keep old keys for now
             "Q_th_out": Q,
             "P_el_in": Pel_expr,
             "build": build,

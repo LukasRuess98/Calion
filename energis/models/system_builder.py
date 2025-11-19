@@ -10,6 +10,14 @@ except Exception:  # pragma: no cover - optional dependency
     HAVE_PYOMO = False
     pyo = None
 
+from energis.constants import (
+    COP_MIN,
+    COP_MAX_SYSTEM_BUILDER,
+    COP_DEFAULT,
+    COP_DELTA_T_K,
+    HOURS_PER_YEAR,
+    DEFAULT_LIFETIME_YEARS,
+)
 from energis.utils.timeseries import TimeSeriesTable
 from energis.utils.config_utils import apply_heat_pump_defaults
 from .blocks.heat_pump import HeatPumpBlock
@@ -21,6 +29,36 @@ from .blocks.p2h import P2HBlock
 def _cop_series_from_table(
     table: TimeSeriesTable, wrg_col: str | None, cfg: Dict[str, Any], hp_type: str
 ) -> List[float]:
+    """Calculate heat pump COP (Coefficient of Performance) time series.
+
+    Computes COP values for each timestep using either:
+    1. 2D interpolation from lookup tables (preferred if configured)
+    2. Analytical calculation based on heat pump physics and thermodynamics
+
+    The function supports waste heat recovery (WRG) integration and automatically
+    clamps COP values to safe numerical ranges to prevent optimization issues.
+
+    Args:
+        table (TimeSeriesTable): Time series data with temperature/demand profiles
+        wrg_col (str | None): Column name for waste heat recovery temperature data.
+            If None or column missing, uses analytical fallback.
+        cfg (Dict[str, Any]): Configuration with COP calculation parameters:
+            - heat_pumps.cop.tables: Lookup table definitions
+            - heat_pumps.cop.sink_defaults: Sink temperature settings
+            - heat_pumps.types[hp_type]: Heat pump specific parameters
+        hp_type (str): Heat pump type identifier (e.g., "default", "high_temp")
+
+    Returns:
+        List[float]: COP value for each timestep, clamped to [COP_MIN, COP_MAX_SYSTEM_BUILDER]
+
+    Raises:
+        ValueError: If COP table axes are invalid or interpolation fails
+        RuntimeError: If required temperature data is missing
+
+    Note:
+        Falls back to analytical COP calculation if table-based method unavailable.
+        Analytical method uses log-mean temperature difference (LMTD) and efficiency factors.
+    """
     copcfg = cfg.get("heat_pumps", {}).get("cop", {})
     tables_cfg = copcfg.get("tables", {})
     table_spec = tables_cfg.get(hp_type) or tables_cfg.get("default")
@@ -124,8 +162,8 @@ def _cop_series_from_table(
         y_column = table_spec.get("y_column")
         y_series = _series_from_column(y_column, table_spec.get("y_default", Ts_out)) if has_y else [0.0] * len(table)
 
-        cop_min = float(table_spec.get("cop_min", copcfg.get("cop_min", 1.01)))
-        cop_max = float(table_spec.get("cop_max", copcfg.get("cop_max", 12.0)))
+        cop_min = float(table_spec.get("cop_min", copcfg.get("cop_min", COP_MIN)))
+        cop_max = float(table_spec.get("cop_max", copcfg.get("cop_max", COP_MAX_SYSTEM_BUILDER)))
 
         result: List[float] = []
         for xv, yv in zip(x_series, y_series):
@@ -151,7 +189,7 @@ def _cop_series_from_table(
         return result
 
     # Fallback auf analytische Berechnung
-    dT = float(copcfg.get("deltaT_K", 20.0))
+    dT = float(copcfg.get("deltaT_K", COP_DELTA_T_K))
     dTpp = float(copcfg.get("deltaTpp_K", 5.0))
     sink = copcfg.get("sink_defaults", {})
     Ts_out = float(sink.get("Tsink_out_K", 363.15))
@@ -168,10 +206,23 @@ def _cop_series_from_table(
     Tout = [max(t - dT, 1.0) for t in temps]
 
     def _lmtd(Th: float, Tc: float) -> float:
-        d1 = max(Th - Tc, 1e-6)
-        numerator = d1
-        denominator = abs(math.log(max(Th - 1e-9, Th) / max(Tc + 1e-9, Tc)))
-        return numerator / max(denominator, 1e-6)
+        """Calculate log mean temperature difference with proper numerical safeguards."""
+        # Ensure positive temperatures with small offset to avoid log(0)
+        Th_safe = max(Th, 1e-3)
+        Tc_safe = max(Tc, 1e-3)
+
+        # If temperatures are too close, return arithmetic mean
+        if abs(Th_safe - Tc_safe) < 1e-6:
+            return max((Th_safe + Tc_safe) / 2.0, 1e-6)
+
+        # Standard LMTD calculation: (Th - Tc) / ln(Th / Tc)
+        ratio = Th_safe / Tc_safe
+        if abs(ratio - 1.0) < 1e-9:  # Too close to 1, log is unstable
+            return max((Th_safe + Tc_safe) / 2.0, 1e-6)
+
+        numerator = Th_safe - Tc_safe
+        denominator = math.log(ratio)
+        return abs(numerator / max(abs(denominator), 1e-9))
 
     Ls = _lmtd(Ts_out, Ts_in)
     cop: List[float] = []
@@ -182,20 +233,60 @@ def _cop_series_from_table(
         A = Ls / max(1e-9, Ls - Lsrc)
         B = (1 + (mdts + dTpp) / max(1e-9, Ls)) / (1 + (mdts + 0.5 * (Tin - Tout_i) + 2 * dTpp) / max(1e-9, (Ls - Lsrc)))
         val = A * B * eta * (1 - qww) + 1 - eta - FQ
-        if not math.isfinite(val) or val < 1.01:
-            val = float(copcfg.get("cop_fallback", 3.0))
-        cop.append(float(min(max(val, 1.01), 12.0)))
+        if not math.isfinite(val) or val < COP_MIN:
+            val = float(copcfg.get("cop_fallback", COP_DEFAULT))
+        cop.append(float(min(max(val, COP_MIN), COP_MAX_SYSTEM_BUILDER)))
     return cop
 
 
 def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
+    """Build a Pyomo ConcreteModel for the energy system optimization.
+
+    This is the main model builder that constructs a Mixed-Integer Linear Programming (MILP)
+    model for industrial heat network planning. It creates decision variables, constraints,
+    and the objective function based on the configuration and time series data.
+
+    The model includes:
+    - Heat pumps with COP series and waste heat recovery
+    - Thermal energy storage with power/energy decoupling
+    - Combined heat and power (CHP) generators
+    - Power-to-heat converters
+    - Multiple bus types (electricity, heat, gas, biomass, waste)
+    - Investment decisions with CAPEX/OPEX modeling
+    - Grid electricity purchase with demand charges and CO2 costs
+
+    Args:
+        table (TimeSeriesTable): Time series data containing demand profiles, weather data,
+            and other input time series. Must have datetime index.
+        cfg (Dict[str, Any]): Configuration dictionary with system topology, technology
+            parameters, and scenario settings. See configs/ for structure.
+        dt_h (float, optional): Time step duration in hours. Defaults to 1.0.
+
+    Returns:
+        pyo.ConcreteModel | None: Pyomo optimization model ready for solving, or None if
+            Pyomo is not available. The model includes:
+            - Decision variables for flows, capacities, and investment decisions
+            - Constraints for energy balances, component limits, and operational rules
+            - Objective function minimizing total system cost
+
+    Raises:
+        ValueError: If configuration is invalid or incompatible
+        RuntimeError: If heat pump or storage definitions are incomplete
+
+    Example:
+        >>> table = load_input_excel("data/Import_Data.xlsx")
+        >>> cfg = load_and_merge(["configs/base.yaml", "configs/systems/baseline.system.yaml"])
+        >>> model = build_model(table, cfg, dt_h=1.0)
+        >>> solver = pyo.SolverFactory("gurobi")
+        >>> result = solver.solve(model)
+    """
     if not HAVE_PYOMO:
         return None
 
     T = len(table)
     m = pyo.ConcreteModel(name="EnerGIS_FuelBus")
     m.t = pyo.RangeSet(1, T)
-    period_frac = float(T * dt_h / 8760.0)
+    period_frac = float(T * dt_h / HOURS_PER_YEAR)
 
     def series_dict(name: str) -> Dict[int, float]:
         values = table[name]
@@ -308,9 +399,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         type_cfg = cfg.get("heat_pumps", {}).get("types", {})
         type_par = type_cfg.get(hp_type, {})
         min_load = float(type_par.get("min_load", 0.3))
-        cop_default = float(type_par.get("COPdefault", cfg.get("heat_pumps", {}).get("cop", {}).get("cop_fallback", 3.0)))
+        cop_default = float(type_par.get("COPdefault", cfg.get("heat_pumps", {}).get("cop", {}).get("cop_fallback", COP_DEFAULT)))
         if not math.isfinite(cop_default) or cop_default <= 0:
-            cop_default = 3.0
+            cop_default = COP_DEFAULT
 
         block = HeatPumpBlock(
             name,
@@ -330,7 +421,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
         if cap_var is not None and build_var is not None:
-            lifetime = float(inv_cfg.get("lifetime_years", hp_inv_defaults.get("lifetime_years", 20.0)))
+            lifetime = float(inv_cfg.get("lifetime_years", hp_inv_defaults.get("lifetime_years", DEFAULT_LIFETIME_YEARS)))
             capex = float(inv_cfg.get("capex_eur_per_mw", hp_inv_defaults.get("capex_eur_per_mw", 0.0)))
             activation = float(inv_cfg.get("activation_cost_eur", hp_inv_defaults.get("activation_cost_eur", 0.0)))
             tie_breaker = float(inv_cfg.get("tie_breaker_eur_per_mw", hp_inv_defaults.get("tie_breaker_eur_per_mw", 0.0)))
@@ -504,7 +595,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
         build_var = fs.get("build")
-        lifetime = float(sto_inv.get("lifetime_years", sto_defaults.get("lifetime_years", 20.0)))
+        lifetime = float(sto_inv.get("lifetime_years", sto_defaults.get("lifetime_years", DEFAULT_LIFETIME_YEARS)))
         e_capex = float(sto_inv.get("energy_capex_eur_per_mwh", sto_defaults.get("energy_capex_eur_per_mwh", 0.0)))
         p_capex = float(sto_inv.get("power_capex_eur_per_mw", sto_defaults.get("power_capex_eur_per_mw", 0.0)))
         activation = float(sto_inv.get("activation_cost_eur", sto_defaults.get("activation_cost_eur", 0.0)))
@@ -539,7 +630,21 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             continue
         gpar = cfg.get("generators", {}).get(key, {})
         if key == "p2h":
-            block = P2HBlock("P2H", eff=float(gpar.get("el_to_th_eff", 0.99)), cap_th_mw=float(par.get("cap_th_mw", 10.0)))
+            # Extract P2H parameters with defaults for backward compatibility
+            eff = float(gpar.get("el_to_th_eff", 0.99))
+            cap_th = float(par.get("cap_th_mw", 10.0))
+            min_load = float(gpar.get("min_load", 0.0))
+            eff_series = gpar.get("eff_series", None)
+            part_load_penalty = float(gpar.get("part_load_penalty", 0.0))
+
+            block = P2HBlock(
+                "P2H",
+                eff=eff,
+                cap_th_mw=cap_th,
+                min_load=min_load,
+                eff_series=eff_series,
+                part_load_penalty=part_load_penalty
+            )
             fs = block.attach(m, m.t, cfg, {})
             el_in.append(fs["P_el_in"])
             ht_out.append(fs["Q_th_out"])

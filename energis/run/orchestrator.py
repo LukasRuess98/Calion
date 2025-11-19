@@ -18,10 +18,27 @@ except Exception:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
 
+from energis.constants import CAPACITY_SAFETY_FACTOR, HOURS_PER_YEAR, HOURS_PER_LEAP_YEAR
 from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
+from energis.io.model_inspector import export_model_structure
+
+# Publication exports (optional)
+try:
+    from energis.io.publication_plotter import export_publication_plots, HAVE_MATPLOTLIB as HAVE_PUBLICATION_MATPLOTLIB
+    from energis.io.publication_exporter import export_publication_bundle, export_kpi_summary, export_latex_tables
+    from energis.io.applied_energies_exporter import export_applied_energies_bundle
+    HAVE_PUBLICATION_EXPORTS = True
+except ImportError:  # pragma: no cover
+    HAVE_PUBLICATION_EXPORTS = False
+    export_publication_plots = None
+    export_publication_bundle = None
+    export_kpi_summary = None
+    export_latex_tables = None
+    export_applied_energies_bundle = None
+
 from energis.models.system_builder import build_model
 from energis.utils.config_utils import apply_heat_pump_defaults
 from energis.utils.timeseries import TimeSeriesTable
@@ -63,7 +80,7 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
     return cap
 
 
-def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float = 1.05) -> None:
+def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float = CAPACITY_SAFETY_FACTOR) -> None:
     peak_demand = max(table["waermebedarf_MWth"])
     cap = _estimate_max_thermal_capacity(cfg)
     if cap < safety * peak_demand and peak_demand > 0:
@@ -242,10 +259,47 @@ def _collect_timeseries_and_summary(
     dt_h: float,
     model: Any | None,
 ) -> tuple[OrderedDict[str, List[float]], OrderedDict[str, OrderedDict[str, Any]], Dict[str, Any]]:
+    """Collect optimization results into time series and summary dictionaries.
+
+    Extracts decision variable values from solved Pyomo model and organizes them into:
+    1. Time series data - hourly flows, states, and operational values
+    2. Component summaries - aggregated metrics per component (energy, costs, capacity)
+    3. System-level KPIs - total costs, CO2 emissions, investment decisions
+
+    This function handles:
+    - Grid electricity purchase and sales
+    - Heat pump operation and waste heat recovery
+    - Storage state of charge and flows
+    - Thermal generator outputs
+    - Bus balances and slack variables
+    - Investment costs (CAPEX) and operational costs (OPEX)
+    - CO2 emissions accounting
+
+    Args:
+        table (TimeSeriesTable): Input time series with demand and price data
+        cfg (Dict[str, Any]): System configuration with component definitions
+        dt_h (float): Time step duration in hours
+        model (Any | None): Solved Pyomo model with optimal variable values.
+            If None, returns zero-filled results.
+
+    Returns:
+        tuple containing:
+            - OrderedDict[str, List[float]]: Time series data with keys like:
+                "P_buy_MW", "P_sell_MW", "HP1_Q_MWth", "TES_SOC_MWh", etc.
+            - OrderedDict[str, OrderedDict[str, Any]]: Component summaries with keys like:
+                "HP1": {"energy_MWh": X, "capex_EUR": Y, "capacity_MW": Z, ...}
+            - Dict[str, Any]: System KPIs including:
+                "total_cost_EUR", "capex_total_EUR", "opex_total_EUR",
+                "grid_import_MWh", "co2_total_kg", etc.
+
+    Note:
+        If model is None (e.g., Pyomo not available), returns empty/zero-filled structures.
+        All monetary values are in EUR, energy in MWh, power in MW, emissions in kg CO2.
+    """
     meta = _gather_component_metadata(cfg)
     n = len(table)
     grid_cfg = cfg.get("grid", {})
-    period_fraction = float(n * dt_h / 8760.0) if n else 0.0
+    period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n else 0.0
     demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
 
     series: OrderedDict[str, List[float]] = OrderedDict()
@@ -712,7 +766,7 @@ def _apply_horizon(table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: f
             raise RuntimeError(f"Im Jahr {year} wurden keine Zeitschritte gefunden.")
         subset = _slice_table(table, indices)
         subset.ensure_frequency(dt_h)
-        expected_hours = 8784 if calendar.isleap(year) else 8760
+        expected_hours = HOURS_PER_LEAP_YEAR if calendar.isleap(year) else HOURS_PER_YEAR
         actual_hours = len(subset) * dt_h
         diff = abs(actual_hours - expected_hours)
         if diff > 1e-6 and enforce:
@@ -768,6 +822,20 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
 
     m = build_model(table, cfg, dt_h=dt_h)
 
+    # Export model structure before solver execution
+    export_model = bool(run_cfg.get("export_model_structure", True))
+    if export_model and m is not None and HAVE_PYOMO:
+        try:
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            mode = str(scenario_cfg.get("mode", "PF"))
+            title = str(scenario_cfg.get("title", "Baseline"))
+            tag = scenario_cfg.get("tag") or f"{mode}-{title}"
+            model_export_dir = os.path.join("exports", f"{stamp}_{_slugify(tag)}", "model_structure")
+
+            export_model_structure(m, model_export_dir, prefix="pyomo_model_before_solve")
+        except Exception as exc:
+            print(f"[MODEL_EXPORT] Warning: Could not export model structure: {exc}")
+
     solver_result = None
     solver_requested = run_cfg.get("solver", "glpk")
     solver_used = solver_requested
@@ -781,6 +849,14 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
             solver_used = "glpk"
         else:
             solver_used = solver_requested
+
+        # Apply solver options if configured
+        solver_options = run_cfg.get("solver_options", {})
+        if solver_options:
+            for key, value in solver_options.items():
+                opt.options[key] = value
+            print(f"[SOLVER] Gurobi options: {solver_options}")
+
         solver_result = opt.solve(model_for_summary, tee=False)
     series, summary_sections, costs = _collect_timeseries_and_summary(table, cfg, dt_h, model_for_summary)
 
@@ -917,6 +993,63 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
         print(f"[EXPORT] Diagramm-Export übersprungen: {exc}")
         plot_files = []
 
+    # Publication-quality exports (optional, controlled by config)
+    publication_plots = {}
+    publication_files = {}
+    enable_publication = cfg.get("export", {}).get("enable_publication_exports", False)
+
+    if enable_publication and HAVE_PUBLICATION_EXPORTS:
+        try:
+            print("[EXPORT] Generating publication-quality plots and tables...")
+
+            # Generate publication plots
+            pub_plot_dir = os.path.join(outdir, "publication_plots")
+            publication_plots = export_publication_plots(
+                pub_plot_dir,
+                table,
+                series,
+                summary_sections,
+                dpi=cfg.get("export", {}).get("publication_dpi", 300),
+                formats=cfg.get("export", {}).get("publication_formats", ["png", "pdf"]),
+                plot_types=cfg.get("export", {}).get("publication_plot_types", None),
+            )
+
+            # Generate LaTeX tables
+            latex_dir = os.path.join(outdir, "publication_latex")
+            latex_tables = export_latex_tables(
+                latex_dir,
+                summary_sections,
+                table_style=cfg.get("export", {}).get("latex_table_style", "booktabs"),
+            )
+            publication_files["latex_tables"] = latex_tables
+
+            # Generate KPI summary
+            kpi_path = export_kpi_summary(outdir, summary_sections, table, series)
+            publication_files["kpi_summary"] = kpi_path
+
+            print(f"[EXPORT] Publication exports completed: {len(publication_plots)} plot types, {len(latex_tables)} LaTeX tables")
+
+            # Applied Energies specific exports (graphical abstract, highlights, nomenclature, etc.)
+            if cfg.get("applied_energies", {}) or cfg.get("export", {}).get("applied_energies"):
+                try:
+                    print("[EXPORT] Generating Applied Energies specific exports...")
+                    ae_dir = os.path.join(outdir, "applied_energies")
+                    ae_bundle = export_applied_energies_bundle(ae_dir, summary_sections, cfg)
+                    publication_files["applied_energies"] = ae_bundle
+                    print(f"[EXPORT] Applied Energies bundle generated in: {ae_dir}")
+                except Exception as exc:
+                    print(f"[EXPORT] Applied Energies exports failed: {exc}")
+                    import traceback
+                    traceback.print_exc()
+
+        except Exception as exc:  # pragma: no cover - publication exports are optional
+            print(f"[EXPORT] Publication exports failed: {exc}")
+            import traceback
+            traceback.print_exc()
+
+    elif enable_publication and not HAVE_PUBLICATION_EXPORTS:
+        print("[EXPORT] Publication exports requested but modules not available. Install matplotlib for publication exports.")
+
     summary_json = _json_safe({section: dict(metrics) for section, metrics in summary_sections.items()})
     metadata_json = _json_safe({section: dict(entries) for section, entries in metadata_sections.items()})
 
@@ -944,6 +1077,8 @@ def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None)
         "scenario": scenario_cfg,
         "design": design_export,
         "plots": plot_files,
+        "publication_plots": publication_plots,
+        "publication_files": publication_files,
     }
 
 def _extract_pyomo_series(var: Any, times: Sequence[Any], name: str, tolerance: float = 1e-9) -> List[float]:

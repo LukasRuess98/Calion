@@ -8,6 +8,10 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover
     pyo = None
 
+from ...constants import EFFICIENCY_FLOOR, EFFICIENCY_MIN, EFFICIENCY_MAX
+from ..component import BaseComponent, Flow, InvestmentResult
+from ..registry import register_component
+
 
 def _prepare_series(
     indices: Iterable[int],
@@ -29,11 +33,16 @@ def _prepare_series(
     return {i: float(values[pos]) for pos, i in enumerate(idx_list)}
 
 
-def _clamp_positive(values: Dict[int, float], floor: float = 1e-6) -> Dict[int, float]:
+def _clamp_positive(values: Dict[int, float], floor: float = EFFICIENCY_FLOOR) -> Dict[int, float]:
+    """Clamp values to a safe minimum to prevent division by zero or numerical instability.
+
+    Default floor ensures numerical stability in Pyomo constraints.
+    """
     return {idx: (val if val > floor else floor) for idx, val in values.items()}
 
 
-class StorageBlock:
+@register_component("storage", category="storage", description="Thermal energy storage with power/energy decoupling")
+class StorageBlock(BaseComponent):
     def __init__(
         self,
         name: str,
@@ -59,13 +68,23 @@ class StorageBlock:
         eff_discharge_series: Sequence[float] | Mapping[int, float] | None = None,
         capacity_active_series: Sequence[float] | Mapping[int, float] | None = None,
         power_energy_coupling: float | None = None,
+        label: str = None
     ):
-        self.name = name
+        super().__init__(name, label)
         self.e_min = float(e_min)
         self.e_max = float(e_max)
         self.p_max = float(p_max)
-        self.eff_c = float(eff_c)
-        self.eff_d = float(eff_d)
+
+        # Validate and clamp efficiencies to safe ranges
+        eff_c_val = float(eff_c)
+        eff_d_val = float(eff_d)
+        if not (EFFICIENCY_MIN <= eff_c_val <= EFFICIENCY_MAX):
+            raise ValueError(f"Storage charge efficiency must be in [{EFFICIENCY_MIN}, {EFFICIENCY_MAX}], got {eff_c_val}")
+        if not (EFFICIENCY_MIN <= eff_d_val <= EFFICIENCY_MAX):
+            raise ValueError(f"Storage discharge efficiency must be in [{EFFICIENCY_MIN}, {EFFICIENCY_MAX}], got {eff_d_val}")
+
+        self.eff_c = eff_c_val
+        self.eff_d = eff_d_val
         self.hourly_loss = float(hourly_loss)
         self.dt_h = float(dt_h)
         self.soc0 = float(soc0)
@@ -220,7 +239,49 @@ class StorageBlock:
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
+        # Register flows with framework
+        self.add_flow(Flow(
+            bus="heat",
+            direction="output",
+            variable=Qd,
+            nominal_value=self.p_max,
+            investment=self.investable
+        ))
+
+        self.add_flow(Flow(
+            bus="heat",
+            direction="input",
+            variable=Qc,
+            nominal_value=self.p_max,
+            investment=self.investable
+        ))
+
+        # Register with buses if available
+        if buses:
+            if "heat" in buses:
+                buses["heat"].add_output(Qd)
+                buses["heat"].add_input(Qc)
+
+        # Return standardized format
         return {
+            "flows": {
+                "heat": {"output": Qd, "input": Qc}
+            },
+            "investment": InvestmentResult(
+                capacity_energy=cap_e,
+                capacity_power=cap_p,
+                build=build
+            ) if self.investable else None,
+            "state": E,
+            "metadata": {
+                "charge_mode": charge_mode,
+                "discharge_mode": discharge_mode,
+                "active": active,
+                "soc0": self.soc0,
+                "efficiency_charge": self.eff_c,
+                "efficiency_discharge": self.eff_d
+            },
+            # Legacy compatibility - keep old keys for now
             "Q_th_out": Qd,
             "Q_th_in": Qc,
             "SOC": E,

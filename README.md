@@ -46,21 +46,11 @@ It keeps the structure close to oemof/pypsa (configs, components, buses, orchest
    CI pipelines or notebooks without modifying YAML files. Additional helpers:
    - `--rh-window-hours`/`--heat-horizon-hours` and `--rh-overlap-hours` allow explicit control of window length and overlap.
    - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
-5. Open `notebooks/01_scenario_studio.ipynb` for eine geführte Variante **oder** `notebooks/02_all_in_one_runner.ipynb` für einen Sammel-Runner mit Quicktest, PF/RH-Workflow, Export und Fixture-Generator.
-
-### Pyomo-Modell vor dem Solverlauf prüfen
-
-In den Runner-Notebooks kannst du das gebaute Pyomo-Modell mit `notebooks/model_dump_helper.py` inspizieren:
-
-```python
-from notebooks.model_dump_helper import dump_model_structure, export_model_json
-
-# ... Modell bauen (z. B. über orchestrator.build_model)
-dump_model_structure(model)  # sortierte Konsolenansicht
-export_model_json(model, "model_dump.json")  # strukturierter JSON-Export
-```
-
-So lässt sich vor dem Solverlauf nachvollziehen, ob Variablen, Parameter, Nebenbedingungen und Zielfunktion korrekt aufgebaut sind. Im Notebook [`notebooks/02_all_in_one_runner.ipynb`](notebooks/02_all_in_one_runner.ipynb) findest du zusätzlich Abschnitt **3a**, der den Modell-Dump direkt in den Sammel-Runner einbindet.
+5. Interaktive Notebooks (siehe [`notebooks/README.md`](notebooks/README.md) für Details):
+   - **`runner.ipynb`** - Haupteinstiegspunkt für Optimierungsläufe (PF/RH)
+   - **`scenario_studio.ipynb`** - Interaktives Dashboard mit detaillierten Visualisierungen
+   - **`synthetic_example.ipynb`** - Beispiel mit synthetischen Daten
+   - **`validation.ipynb`** - Validierung gegen Legacy-Referenz
 
 ### Case study exports
 
@@ -77,7 +67,7 @@ Optional overrides:
 ### Validierung (Stadtbach-Referenz)
 
 - Der Test [`tests/test_stadtbach_validation.py`](tests/test_stadtbach_validation.py) führt einen 24h-Stadtbach-Lauf gegen die Legacy-Referenz aus, erstellt eine Kennzahlentabelle EnerGIS vs. Legacy und exportiert sie (CSV) für Artefakte.
-- Notebook [`notebooks/04_stadtbach_validation.ipynb`](notebooks/04_stadtbach_validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
+- Notebook [`notebooks/validation.ipynb`](notebooks/validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
 
 ### Configuration quick reference
 
@@ -104,3 +94,57 @@ that the design fixation step can reuse those capacities. Missing design files a
 gracefully.
 
 Exports go to `exports/<timestamp>_<tag>/scenario.xlsx`.
+
+## Architecture & Documentation
+
+EnerGIS uses a **v2.0 component-based architecture** inspired by Oemof and PyPSA:
+
+- **[ARCHITECTURE_V2.md](ARCHITECTURE_V2.md)** - Technical architecture reference (Component Protocol, BaseComponent, Bus abstraction, Registry pattern)
+- **[MIGRATION_GUIDE_V2.md](MIGRATION_GUIDE_V2.md)** - Migration guide for v1.0 → v2.0 (100% backward compatible)
+- **[docs/archive/](docs/archive/)** - Historical analysis and implementation reports
+
+### Key Features (v2.0)
+
+- ✅ **Plugin Architecture** - Add custom components via `@register_component` decorator
+- ✅ **Type Safety** - Full type hints with `typing.Protocol` for IDE support
+- ✅ **Explicit Flows** - Flow objects replace implicit dictionary returns
+- ✅ **Bus Abstraction** - Buses as first-class objects with capacity limits and loss factors
+- ✅ **Backward Compatible** - All v1.0 code works unchanged
+
+See `examples/custom_component_example.py` for a complete guide on adding new components.
+
+## Development Setup
+
+For contributors and developers:
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks (recommended)
+pip install pre-commit
+pre-commit install
+
+# This will automatically:
+# - Strip notebook outputs before commits
+# - Format Python code with Black
+# - Sort imports with isort
+# - Run flake8 linting
+# - Check YAML/JSON syntax
+
+# Manual pre-commit run
+pre-commit run --all-files
+
+# Run tests
+pytest tests/ -v
+
+# Clear notebook outputs manually (if not using pre-commit)
+jupyter nbconvert --clear-output --inplace notebooks/*.ipynb
+```
+
+**Pre-commit hooks ensure:**
+- No large notebook outputs in Git history
+- Consistent code formatting
+- Clean diffs and easy code reviews
+
+See [`.pre-commit-config.yaml`](.pre-commit-config.yaml) for configuration details.
