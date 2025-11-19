@@ -5,13 +5,13 @@
 **Ziel:** Erweiterung des EnerGIS-Frameworks um detaillierte thermisch-hydraulische Netzwerkmodellierung
 
 **Umfang:**
-- 8 neue Komponenten-Klassen
-- 15 neue Constraint-Typen
-- 3 neue Konfigurationsmodule
-- ~3000 Zeilen Python-Code
-- ~50 Unit-Tests
+- 12 neue Komponenten-Klassen (inkl. Cooling & Seasonal Storage)
+- 20 neue Constraint-Typen
+- 4 neue Konfigurationsmodule
+- ~5250 Zeilen Python-Code
+- ~75 Unit-Tests
 
-**Zeitrahmen:** 6-8 Wochen (1 Entwickler)
+**Zeitrahmen:** 10-12 Wochen (1 Entwickler)
 
 **Dependencies:**
 - Keine neuen externen Libraries erforderlich
@@ -70,6 +70,11 @@ energis/
 │   │   │   ├── __init__.py
 │   │   │   └── heat_recovery_unit.py     # Abwärme-Integration
 │   │   │
+│   │   ├── seasonal_storage/             # NEU: Saisonale Speicher (Phase 5)
+│   │   │   ├── __init__.py
+│   │   │   ├── ptes.py                   # Erdbeckenspeicher
+│   │   │   └── ates.py                   # Aquifer-Speicher
+│   │   │
 │   │   ├── heat_pump.py                  # EXISTIERT → ERWEITERN (Kältenetz)
 │   │   ├── storage.py                    # EXISTIERT
 │   │   └── ...
@@ -86,6 +91,10 @@ energis/
 │   │   ├── mccormick.py                  # McCormick Envelopes
 │   │   └── steam_tables.py               # Dampftafel-Approximationen
 │   │
+│   ├── seasonal_storage/                 # NEU: Saisonale Speicher Utils
+│   │   ├── __init__.py
+│   │   └── time_aggregation.py           # Monatlich ↔ Stündlich
+│   │
 │   ├── component.py                      # EXISTIERT: Basis-Klassen
 │   ├── bus.py                            # ERWEITERN: Multi-Netz
 │   └── system_builder.py                 # ERWEITERN: Netzwerk-Support
@@ -94,7 +103,9 @@ energis/
 │   ├── catalogs/                         # NEU: Technologie-Kataloge
 │   │   ├── pipes.yaml
 │   │   ├── pumps.yaml
-│   │   └── insulation.yaml
+│   │   ├── insulation.yaml
+│   │   ├── chillers.yaml
+│   │   └── seasonal_storage.yaml
 │   │
 │   ├── networks/                         # NEU: Netzwerk-Konfigurationen
 │   │   ├── network_definition.yaml       # Netzwerk-Parameter (T, p, etc.)
@@ -109,6 +120,16 @@ energis/
 │   │   │   ├── test_pipe.py
 │   │   │   ├── test_pump.py
 │   │   │   └── test_thermal_node.py
+│   │   │
+│   │   ├── cooling/                      # NEU: Cooling-Tests
+│   │   │   ├── test_chiller.py
+│   │   │   ├── test_cooling_tower.py
+│   │   │   └── test_free_cooling.py
+│   │   │
+│   │   ├── seasonal_storage/             # NEU: Seasonal Storage Tests
+│   │   │   ├── test_ptes.py
+│   │   │   ├── test_ates.py
+│   │   │   └── test_time_aggregation.py
 │   │   │
 │   │   └── linearization/                # NEU: Linearisierungs-Tests
 │   │       ├── test_pwl.py
@@ -153,8 +174,12 @@ energis/
 | `cooling/free_cooling.py` | ~300 | Free Cooling | NEU (Phase 4) |
 | `heat_recovery/heat_recovery_unit.py` | ~400 | Wärmerückgewinnung | NEU (Phase 4) |
 | `heat_pump.py` (extend) | ~100 | Kältenetz-Anbindung | ERWEITERT (Phase 4) |
+| `seasonal_storage/ptes.py` | ~400 | Erdbeckenspeicher | NEU (Phase 5) |
+| `seasonal_storage/ates.py` | ~450 | Aquifer-Speicher | NEU (Phase 5) |
+| `seasonal_storage/time_aggregation.py` | ~150 | Monatlich ↔ Stündlich | NEU (Phase 5) |
 | **SUMME Basis** | **~2750** | | |
 | **SUMME + Cooling/HR** | **~4150** | | |
+| **SUMME + Seasonal Storage** | **~5250** | | |
 
 ---
 
@@ -1454,11 +1479,344 @@ networks:
 
 ---
 
-## 6. Phase 5: Integration & Testing
+## 6. Phase 5: Saisonale Wärmespeicher
+
+**Dauer:** 2 Wochen
+**Ziel:** Integration saisonaler Wärmespeicher (PTES/ATES)
+
+### Task 5.1: PTES Component
+
+**`energis/models/blocks/seasonal_storage/ptes.py`** (~400 Zeilen)
+
+**Features:**
+- Erdbeckenspeicher (Pit Thermal Energy Storage)
+- Monatliche Zeitauflösung (statt stündlich)
+- Energiebilanz mit Wärmeverlusten
+- Investment in Speichergröße (diskret: 50k, 100k, 200k m³)
+- Kopplung mit stündlichem Netzwerkmodell
+
+**Variablen:**
+```python
+# Monatliche Zeitschritte
+M = pyo.RangeSet(1, 12)  # Monate
+
+SOC[month]               # State of Charge [m³]
+E_stored[month]          # Energieinhalt [MWh]
+T_storage[month]         # Durchschnittstemperatur [°C]
+Q_charge[month]          # Ladeleistung [MWh/Monat]
+Q_discharge[month]       # Entladeleistung [MWh/Monat]
+Q_loss[month]            # Wärmeverlust [MWh/Monat]
+
+# Investment
+build_ptes               # Binary: Baue PTES?
+V_max                    # Maximales Volumen [m³] - diskret
+```
+
+**Constraints:**
+```python
+# 1. Energiebilanz (monatlich)
+E_stored[month+1] = E_stored[month] + Q_charge[month]
+                    - Q_discharge[month] - Q_loss[month]
+
+# 2. Zyklische Randbedingung
+E_stored[1] = E_stored[12]
+
+# 3. Wärmeverluste (temperaturabhängig)
+Q_loss[month] = U_ptes · A_surface · (T_storage[month] - T_soil[month])
+                · hours_per_month / 1000
+
+# 4. Kapazitätsgrenzen
+0 ≤ SOC[month] ≤ V_max
+T_min ≤ T_storage[month] ≤ T_max
+
+# 5. Investment-Logik
+V_max ∈ {0, 50000, 100000, 200000}  # m³
+SOC[month] ≤ V_max · build_ptes
+```
+
+**Linearisierung:**
+```python
+# Bilinearer Term: SOC · T_storage
+# → McCormick Envelopes
+
+# ODER: PWL-Vereinfachung
+# T_storage ≈ f(SOC/V_max)
+T_storage[month] = PWL_SOS2(SOC[month]/V_max, SOC_frac_pts, T_storage_pts)
+```
+
+**Test:** `tests/unit/seasonal_storage/test_ptes.py`
+```python
+def test_ptes_seasonal_cycle():
+    """Test saisonaler Zyklus: Sommer laden, Winter entladen"""
+    # Sommer (Monat 5-9): Q_charge > 0
+    # Winter (Monat 11-2): Q_discharge > 0
+    # Validiere: SOC erreicht Maximum im September
+    # Validiere: SOC erreicht Minimum im Februar
+
+def test_ptes_investment():
+    """Test Investment-Optimierung"""
+    # Gegeben: Hoher solarer Überschuss im Sommer
+    # Erwarte: Optimierer wählt große PTES (100k-200k m³)
+
+def test_ptes_heat_loss():
+    """Test Wärmeverluste"""
+    # Validiere: Q_loss höher bei hoher T_storage
+    # Validiere: Q_loss höher im Winter (niedriger T_soil)
+```
+
+---
+
+### Task 5.2: ATES Component
+
+**`energis/models/blocks/seasonal_storage/ates.py`** (~450 Zeilen)
+
+**Features:**
+- Aquifer Thermal Energy Storage
+- Warm- und Kaltbohrloch
+- Monatliche Zeitauflösung
+- Recovery Efficiency (geologieabhängig)
+- Investment in Anzahl Bohrlochpaare
+
+**Variablen:**
+```python
+T_warm_well[month]       # Temperatur warmes Bohrloch [°C]
+T_cold_well[month]       # Temperatur kaltes Bohrloch [°C]
+E_stored_warm[month]     # Energie im warmen Bereich [MWh]
+Q_charge[month]          # Wärme ins warme Bohrloch [MWh/Monat]
+Q_discharge[month]       # Wärme aus warmem Bohrloch [MWh/Monat]
+
+# Investment
+build_ates               # Binary: Baue ATES?
+num_well_pairs           # Anzahl Bohrlochpaare [1-5]
+```
+
+**Constraints:**
+```python
+# 1. Energiebilanz Warm-Seite
+E_stored_warm[month+1] = E_stored_warm[month] + Q_charge[month]
+                         - Q_discharge[month] / η_recovery
+                         - Q_loss_underground[month]
+
+# 2. Temperatur-Grenzen
+T_warm_min ≤ T_warm_well[month] ≤ T_warm_max
+T_warm_well[month] - T_cold_well[month] ≥ ΔT_min  # z.B. 5K
+
+# 3. Kapazität abhängig von Anzahl Bohrungen
+E_max = num_well_pairs · E_per_well_pair
+
+# 4. Investment
+num_well_pairs ∈ {1, 2, 3, 4, 5}
+```
+
+**Test:** `tests/unit/seasonal_storage/test_ates.py`
+
+---
+
+### Task 5.3: Monatliche Aggregation (Hybrid-Modell)
+
+**`energis/models/seasonal_storage/time_aggregation.py`** (~150 Zeilen)
+
+**Problem:** Netzwerkmodell ist stündlich (8760 h), aber saisonale Speicher monatlich (12 Monate).
+
+**Lösung: Hybrid-Modell**
+
+```python
+# Stündliche Variablen (Netzwerk)
+T_hourly = pyo.RangeSet(1, 8760)  # Stunden
+
+# Monatliche Variablen (Saisonalspeicher)
+M = pyo.RangeSet(1, 12)  # Monate
+
+# Mapping hour → month
+def month_of_hour(h):
+    """Gibt Monat für Stunde h zurück"""
+    cumulative_hours = [0, 744, 1416, 2160, 2880, 3624, 4344, 5088,
+                        5832, 6552, 7296, 8016, 8760]
+    for m in range(1, 13):
+        if cumulative_hours[m-1] < h <= cumulative_hours[m]:
+            return m
+    return 12
+
+# Kopplung: Monatliche Aggregation
+def monthly_aggregation_constraint(model, month):
+    """Summiere stündliche Flows zu monatlichem Flow"""
+    hours_in_month = [h for h in T_hourly if month_of_hour(h) == month]
+
+    return (model.Q_charge_monthly[month] ==
+            sum(model.Q_to_storage_hourly[h] for h in hours_in_month))
+
+model.charge_aggregation = pyo.Constraint(M, rule=monthly_aggregation_constraint)
+```
+
+**Alternative: Representative Days**
+```python
+# Statt 8760h: 12 Monate × 3 repräsentative Tage × 24h = 864h
+# → Faktor 10 schneller, aber weniger genau
+
+def select_representative_days(hourly_data, month, num_days=3):
+    """
+    Wähle repräsentative Tage für Monat
+
+    Kriterien:
+    - 1 Tag mit max. Solarproduktion
+    - 1 Tag mit max. Nachfrage
+    - 1 Durchschnittstag
+    """
+    # ...
+```
+
+**Test:** `tests/unit/seasonal_storage/test_time_aggregation.py`
+
+---
+
+### Task 5.4: Integration mit System Builder
+
+**Erweitere `energis/models/system_builder.py`:**
+
+```python
+def build_seasonal_storage_components(
+    model: pyo.ConcreteModel,
+    seasonal_storage_config: Dict,
+    hourly_time_set: pyo.Set,
+    monthly_time_set: pyo.Set,
+    buses: Dict
+) -> None:
+    """
+    Integriere saisonale Speicher in System Builder
+    """
+
+    for storage_cfg in seasonal_storage_config:
+        if storage_cfg["type"] == "PTES":
+            ptes_component = PTESBlock(storage_cfg)
+            ptes_component.attach(
+                model,
+                hourly_time_set,
+                monthly_time_set,
+                config,
+                buses
+            )
+
+        elif storage_cfg["type"] == "ATES":
+            ates_component = ATESBlock(storage_cfg)
+            ates_component.attach(
+                model,
+                hourly_time_set,
+                monthly_time_set,
+                config,
+                buses
+            )
+```
+
+---
+
+### Task 5.5: Kataloge & Konfiguration
+
+**Neue Dateien:**
+
+**`config/catalogs/seasonal_storage.yaml`:**
+```yaml
+ptes_catalog:
+  standard_50k:
+    V_nominal: 50000  # m³
+    T_min: 40
+    T_max: 95
+    U_value: 0.3  # W/(m²·K)
+    depth: 10  # m
+    cost_fixed: 500000  # EUR
+    cost_per_m3: 75  # EUR/m³
+    cost_lining_per_m2: 50  # EUR/m²
+
+  standard_100k:
+    V_nominal: 100000
+    T_min: 40
+    T_max: 95
+    U_value: 0.25  # Bessere Isolierung bei größerem Volumen
+    depth: 12
+    cost_fixed: 750000
+    cost_per_m3: 65  # Economies of scale
+    cost_lining_per_m2: 45
+
+  standard_200k:
+    V_nominal: 200000
+    T_min: 40
+    T_max: 95
+    U_value: 0.2
+    depth: 15
+    cost_fixed: 1000000
+    cost_per_m3: 55
+    cost_lining_per_m2: 40
+
+ates_catalog:
+  shallow_aquifer:
+    depth_range: [50, 150]  # m
+    aquifer_thickness: 50  # m
+    porosity: 0.3
+    η_recovery: 0.7
+    cost_per_borehole: 150000  # EUR
+    cost_pumps: 50000  # EUR
+    cost_heat_exchanger: 30000  # EUR
+
+  deep_aquifer:
+    depth_range: [150, 300]
+    aquifer_thickness: 80
+    porosity: 0.35
+    η_recovery: 0.75  # Bessere Isolation
+    cost_per_borehole: 300000
+    cost_pumps: 75000
+    cost_heat_exchanger: 50000
+```
+
+**`config/networks/solar_district_heating_with_ptes.yaml`:**
+```yaml
+networks:
+  - id: "dh_ht"
+    network_type: "heating"
+    T_supply: 90
+    T_return: 50
+
+components:
+  solar_thermal:
+    - id: "solar_1"
+      type: "SolarThermalCollector"
+      network: "dh_ht"
+      A_collector: 10000  # m² (investment variable)
+
+  seasonal_storage:
+    - id: "ptes_solar_1"
+      type: "PTES"
+      network: "dh_ht"
+      invest: true
+      V_options: [50000, 100000, 200000]  # m³
+      catalog: "standard_100k"
+
+  backup:
+    - id: "gas_boiler"
+      type: "Boiler"
+      network: "dh_ht"
+      Q_max: 20  # MW
+```
+
+---
+
+### Zeitplan Phase 5
+
+| **Task** | **Aufwand** | **Kumulativ** |
+|----------|-------------|---------------|
+| 5.1 PTES Component | 4 Tage | 4 Tage |
+| 5.2 ATES Component | 5 Tage | 9 Tage |
+| 5.3 Monatliche Aggregation | 2 Tage | 11 Tage |
+| 5.4 System Builder Integration | 1 Tag | 12 Tage |
+| 5.5 Kataloge | 1 Tag | 13 Tage |
+| Tests | 2 Tage | 15 Tage |
+| **SUMME** | **15 Tage** | **≈ 2 Wochen** |
+
+---
+
+## 7. Phase 6: Integration & Testing
 
 **Dauer:** 1 Woche
 
-### Task 5.1: System Builder Integration
+### Task 6.1: System Builder Integration
 
 **Erweitere** `energis/models/system_builder.py`:
 
@@ -1485,7 +1843,7 @@ def build_network_model(
     # ... (Pumpen, Verbraucher, etc.)
 ```
 
-### Task 4.2: Integrationstests
+### Task 6.2: Integrationstests
 
 **`tests/integration/test_simple_network.py`:**
 ```python
@@ -1532,7 +1890,7 @@ def test_two_network_cascade():
     # ...
 ```
 
-### Task 4.3: Validierung gegen TESpy (optional)
+### Task 6.3: Validierung gegen TESpy (optional)
 
 **`tests/integration/test_vs_tespy.py`:**
 ```python
@@ -1561,11 +1919,11 @@ def test_energis_vs_tespy_simple_network():
 
 ---
 
-## 6. Phase 5: Dokumentation & Beispiele
+## 8. Phase 7: Dokumentation & Beispiele
 
 **Dauer:** 3-4 Tage
 
-### Task 5.1: User Guide
+### Task 7.1: User Guide
 
 **`docs/user_guide_thermal_networks.md`:**
 ```markdown
@@ -1592,7 +1950,7 @@ def test_energis_vs_tespy_simple_network():
 ...
 ```
 
-### Task 5.2: Jupyter Notebooks
+### Task 7.2: Jupyter Notebooks
 
 **`examples/notebooks/01_simple_district_heating.ipynb`:**
 - Schritt-für-Schritt Tutorial
@@ -1608,7 +1966,7 @@ def test_energis_vs_tespy_simple_network():
 - Kostenanalyse
 - Sensitivitätsanalyse
 
-### Task 5.3: API-Dokumentation
+### Task 7.3: API-Dokumentation
 
 **Generiere mit Sphinx:**
 ```bash
@@ -1619,9 +1977,9 @@ make html
 
 ---
 
-## 7. Code-Templates
+## 9. Code-Templates
 
-### 7.1 Component Template
+### 9.1 Component Template
 
 **Für neue Komponenten:**
 ```python
@@ -1683,7 +2041,7 @@ class NewComponentBlock(BaseComponent):
         }
 ```
 
-### 7.2 Test Template
+### 9.2 Test Template
 
 **Für Component-Tests:**
 ```python
@@ -1728,9 +2086,9 @@ def test_new_component_edge_cases(model):
 
 ---
 
-## 8. Testing-Strategie
+## 10. Testing-Strategie
 
-### 8.1 Test-Pyramide
+### 10.1 Test-Pyramide
 
 ```
                       ╱╲
@@ -1745,7 +2103,7 @@ def test_new_component_edge_cases(model):
              ╱__________________╲  - Einzelne Komponenten
 ```
 
-### 8.2 Coverage-Ziel
+### 10.2 Coverage-Ziel
 
 **Minimum: 80% Code Coverage**
 
@@ -1753,7 +2111,7 @@ def test_new_component_edge_cases(model):
 pytest --cov=energis/models/blocks/network --cov-report=html
 ```
 
-### 8.3 Continuous Integration
+### 10.3 Continuous Integration
 
 **GitHub Actions:** `.github/workflows/test_network.yml`
 ```yaml
@@ -1788,9 +2146,9 @@ jobs:
 
 ---
 
-## 9. Migration von bestehenden Systemen
+## 11. Migration von bestehenden Systemen
 
-### 9.1 Für Nutzer des v1.0 Frameworks
+### 11.1 Für Nutzer des v1.0 Frameworks
 
 **Migrations-Guide:**
 
@@ -1833,9 +2191,9 @@ def migrate_config_v1_to_v2(old_config_path: str, output_path: str):
 
 ---
 
-## 10. Zeitplan & Meilensteine
+## 12. Zeitplan & Meilensteine
 
-### Gantt-Chart
+### 12.1 Gantt-Chart
 
 ```
 Woche   Aufgaben
@@ -1848,11 +2206,13 @@ Woche   Aufgaben
 6       [████████    ] Phase 4.1-2: Chiller, Cooling Tower
 7       [    ████████] Phase 4.3-4: Free Cooling, Heat Recovery
 8       [████        ] Phase 4.5-7: HeatPump, Kataloge
-9       [    ████████] Phase 5: Integration & Tests
-10      [████████    ] Phase 6: Dokumentation
+9       [████████    ] Phase 5.1-3: PTES, ATES, Aggregation
+10      [    ████████] Phase 5.4-5: Integration, Kataloge
+11      [    ████████] Phase 6: Integration & Tests
+12      [████████    ] Phase 7: Dokumentation
 ```
 
-### Meilensteine
+### 12.2 Meilensteine
 
 **M1 (Ende Woche 1):** Infrastruktur fertig
 - ✓ PWL/McCormick Utilities
@@ -1873,19 +2233,26 @@ Woche   Aufgaben
 - ✓ Multi-Network Update
 - ✓ Kataloge
 
-**M5 (Ende Woche 9):** Integration fertig
+**M5 (Ende Woche 10):** Seasonal Storage fertig
+- ✓ PTES Component implementiert & getestet
+- ✓ ATES Component implementiert & getestet
+- ✓ Monatliche Zeitauflösung (Hybrid-Modell)
+- ✓ Aggregation stündlich → monatlich
+- ✓ Kataloge für saisonale Speicher
+
+**M6 (Ende Woche 11):** Integration fertig
 - ✓ System Builder erweitert
 - ✓ Integrationstests bestehen
 - ✓ Optional: TESpy-Validierung
 
-**M6 (Ende Woche 10):** Release-Ready
+**M7 (Ende Woche 12):** Release-Ready
 - ✓ Dokumentation vollständig
-- ✓ Beispiel-Notebooks (Heating + Cooling)
+- ✓ Beispiel-Notebooks (Heating + Cooling + Seasonal Storage)
 - ✓ User Guide
 
 ---
 
-## 11. Risiken & Mitigation
+## 13. Risiken & Mitigation
 
 | **Risiko** | **Wahrscheinlichkeit** | **Impact** | **Mitigation** |
 |------------|------------------------|------------|----------------|
@@ -1896,30 +2263,33 @@ Woche   Aufgaben
 
 ---
 
-## 12. Deliverables
+## 14. Deliverables
 
 **Code:**
 - ✅ 6 Basis-Komponenten (Pipe, Pump, ThermalNode, HeatExchanger, PointLoad, DistributedLoad)
 - ✅ 4 Cooling-Komponenten (Chiller, CoolingTower, FreeCooling, HeatRecoveryUnit)
+- ✅ 2 Seasonal Storage-Komponenten (PTES, ATES)
 - ✅ HeatPump erweitert (Kältenetz-Anbindung)
 - ✅ 3 Linearisierungs-Module (PWL, McCormick, SteamTables)
 - ✅ 3 Netzwerk-Management-Module (Topology, Geographic, MultiNetwork)
+- ✅ 1 Time Aggregation-Modul (monatlich ↔ stündlich)
 - ✅ System Builder erweitert
-- ✅ ~65 Unit Tests
-- ✅ ~15 Integrationstests
+- ✅ ~75 Unit Tests
+- ✅ ~20 Integrationstests
 
 **Konfiguration:**
-- ✅ 4 Technologie-Kataloge (pipes, pumps, insulation, chillers)
-- ✅ 3 Beispiel-Netzwerk-Konfigurationen (heating, cooling, integrated)
+- ✅ 5 Technologie-Kataloge (pipes, pumps, insulation, chillers, seasonal_storage)
+- ✅ 4 Beispiel-Netzwerk-Konfigurationen (heating, cooling, integrated, solar_with_ptes)
 - ✅ Multi-Netz Definition Template (heating + cooling)
 
 **Dokumentation:**
-- ✅ Requirements-Dokument (FERTIG, mit Cooling-Erweiterung)
+- ✅ Requirements-Dokument (FERTIG, mit Cooling + Seasonal Storage)
 - ✅ Mathematisches Design-Dokument (FERTIG)
 - ✅ Implementierungsplan (DIESES DOKUMENT)
 - ✅ Cooling & Heat Recovery Extension Document (FERTIG)
+- ✅ Future Extensions Document (FERTIG)
 - ✅ User Guide
-- ✅ 4 Tutorial-Notebooks (Heating, Cooling, Multi-Temperature, Investment)
+- ✅ 5 Tutorial-Notebooks (Heating, Cooling, Multi-Temperature, Investment, Seasonal Storage)
 - ✅ API-Dokumentation (Sphinx)
 
 **Tests & Validierung:**
@@ -1930,5 +2300,5 @@ Woche   Aufgaben
 ---
 
 **Status:** Ready to implement
-**Zeitrahmen:** 8-10 Wochen (inkl. Cooling & Heat Recovery)
+**Zeitrahmen:** 10-12 Wochen (inkl. Cooling, Heat Recovery & Seasonal Storage)
 **Nächster Schritt:** Start Phase 1 - Task 1.1 (PWL Utilities)

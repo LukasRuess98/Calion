@@ -1321,11 +1321,538 @@ interfaces:
 | Kataloge | ~200 | 1 Tag |
 | **SUMME** | **~1600** | **18 Tage ≈ 3 Wochen** |
 
-**Neuer Gesamt-Zeitrahmen: 8-10 Wochen** (statt 6-8 Wochen)
+**Zeitrahmen Cooling & Heat Recovery: 3 Wochen** (zusätzlich zur Basis)
 
 ---
 
-## 12. Zusammenfassung: Was ist drin? ✅❌
+## 12. Erweiterung: Saisonale Wärmespeicher ✅
+
+### 12.1 Motivation & Anwendung
+
+**Problem:** Erneuerbare Energie (Solar, Wind) ist saisonal verfügbar, aber Wärmebedarf ist im Winter am höchsten.
+
+**Lösung:** Große saisonale Speicher (50.000+ m³) zum Ausgleich zwischen Sommer und Winter.
+
+```
+Sommer:                    Winter:
+Solar → [PTES] → Verluste  [PTES] → Wärmenetz
+        ↓                   ↑
+     Ladung              Entladung
+```
+
+**Typische Anwendungen:**
+- Solare Fernwärme mit Sommerüberschuss
+- Wärmepumpen mit niedrigen Strompreisen im Sommer
+- Industrielle Abwärme-Speicherung
+- Campus-Energiesysteme
+
+### 12.2 Erdbeckenspeicher (Pit Thermal Energy Storage - PTES)
+
+#### Beschreibung
+Große isolierte Becken im Erdreich gefüllt mit Wasser.
+
+**Technische Parameter:**
+- Volumen: 50.000 - 200.000 m³
+- Temperatur: 40-95°C
+- Speicherdauer: Wochen bis Monate
+- Verlustrate: 5-15% pro Monat
+- Reale Projekte: Dronninglund (Dänemark), Marstal (Dänemark)
+
+#### Variablen
+```python
+# Monatliche Zeitschritte (statt stündlich)
+months = 12
+
+SOC[month]               # State of Charge [m³ gespeichert]
+E_stored[month]          # Energieinhalt [MWh]
+T_storage[month]         # Durchschnittstemperatur [°C]
+Q_charge[month]          # Ladeleistung [MWh/Monat]
+Q_discharge[month]       # Entladeleistung [MWh/Monat]
+Q_loss[month]            # Wärmeverlust [MWh/Monat]
+
+# Investment
+build_ptes               # Binary: Baue PTES?
+V_max                    # Maximales Volumen [m³] - diskret
+```
+
+#### Parameter
+```python
+# Geometrie
+A_surface                # Oberfläche [m²] = f(V_max)
+depth                    # Tiefe [m] = f(V_max)
+
+# Thermische Eigenschaften
+ρ = 971.8                # Dichte Wasser [kg/m³] @ 90°C
+cp = 4.19                # Spezifische Wärmekapazität [kJ/(kg·K)]
+U_ptes = 0.3             # Wärmedurchgangskoeffizient [W/(m²·K)]
+
+# Umgebung
+T_soil[month]            # Erdreichtemperatur [°C] - saisonal
+
+# Grenzen
+T_min = 40               # °C
+T_max = 95               # °C
+Q_charge_rate_max = V_max · 0.1  # Max. 10% des Volumens pro Monat
+Q_discharge_rate_max = V_max · 0.1
+```
+
+#### Constraints
+
+1. **Energiebilanz**
+   ```python
+   # Dynamik (monatlich)
+   E_stored[month+1] = E_stored[month]
+                       + Q_charge[month]
+                       - Q_discharge[month]
+                       - Q_loss[month]
+
+   # Anfangsbedingung
+   E_stored[1] = E_stored[12]  # Zyklisch
+   ```
+
+2. **Energieinhalt aus Temperatur**
+   ```python
+   # E = m · cp · ΔT
+   E_stored[month] = SOC[month] · ρ · cp · (T_storage[month] - T_ambient) / 1000
+   # in MWh
+   ```
+
+3. **Wärmeverluste**
+   ```python
+   # Verluste an Erdreich (temperaturabhängig)
+   Q_loss[month] = U_ptes · A_surface · (T_storage[month] - T_soil[month])
+                   · hours_per_month / 1000
+
+   # Mit hours_per_month = 730 (ca.)
+   # Beispiel: A_surface ≈ (V_max / depth)^(2/3) für zylindrisches Becken
+   ```
+
+4. **Kapazitätsgrenzen**
+   ```python
+   # State of Charge
+   0 ≤ SOC[month] ≤ V_max
+
+   # Temperatur
+   T_min ≤ T_storage[month] ≤ T_max
+
+   # Lade-/Entladerate
+   0 ≤ Q_charge[month] ≤ Q_charge_rate_max
+   0 ≤ Q_discharge[month] ≤ Q_discharge_rate_max
+   ```
+
+5. **Investment-Logik**
+   ```python
+   # Nur aktiv wenn gebaut
+   SOC[month] ≤ V_max · build_ptes
+   Q_charge[month] ≤ Q_charge_rate_max · build_ptes
+   Q_discharge[month] ≤ Q_discharge_rate_max · build_ptes
+
+   # Diskrete Größenauswahl
+   V_max ∈ {0, 50000, 100000, 200000}  # m³
+
+   # Oder: Kontinuierlich mit Mindestgröße
+   V_max ≥ 50000 · build_ptes
+   V_max ≤ 200000 · build_ptes
+   ```
+
+6. **Kopplung mit Wärmenetz**
+   ```python
+   # Laden: Wärme aus Netz in Speicher
+   Q_charge[month] = Σ(Q_to_storage[day] for day in month)
+
+   # Entladen: Wärme aus Speicher ins Netz
+   Q_discharge[month] = Σ(Q_from_storage[day] for day in month)
+
+   # Tägliche Detaillierung (optional):
+   # Falls tägliche Auflösung erforderlich:
+   SOC_daily[day+1] = SOC_daily[day] + ΔQ_daily[day]
+   # Dann: SOC[month] = average(SOC_daily[day] for day in month)
+   ```
+
+#### Kosten
+```python
+# CAPEX
+CAPEX_ptes = build_ptes · (
+    cost_fixed                                    # EUR (Planung, Genehmigung)
+    + V_max · cost_per_m3                        # EUR/m³ (Aushub, Isolierung)
+    + A_surface · cost_lining_per_m2             # EUR/m² (Abdichtung)
+)
+
+# Typische Werte:
+# cost_fixed = 500,000 EUR
+# cost_per_m3 = 50-100 EUR/m³
+# cost_lining_per_m2 = 50 EUR/m²
+
+# OPEX
+OPEX_ptes = V_max · cost_maintenance_per_m3_year  # EUR/Jahr
+# Typisch: 0.5-1 EUR/(m³·Jahr)
+
+# Wärmeverluste gehen in Gesamt-OPEX ein (Opportunitätskosten)
+```
+
+#### LINEARISIERUNG
+
+**Bilineare Terme:**
+- `SOC[month] · T_storage[month]` in Energieinhalt
+- `T_storage[month] - T_soil[month]` ist linear (beide Parameter/Variablen)
+
+**Methode:**
+```python
+# McCormick Envelopes für E_stored = SOC · ΔT
+
+# Bounds
+SOC_min, SOC_max = 0, V_max
+T_min, T_max = 40, 95
+
+# Hilfsvariable w = SOC · T_storage
+# 4 McCormick-Inequalities:
+w ≥ T_min · SOC + SOC_min · T_storage - T_min · SOC_min
+w ≥ T_max · SOC + SOC_max · T_storage - T_max · SOC_max
+w ≤ T_min · SOC + SOC_max · T_storage - T_min · SOC_max
+w ≤ T_max · SOC + SOC_min · T_storage - T_max · SOC_min
+
+# Dann: E_stored[month] = ρ · cp · (w - SOC · T_ambient) / 1000
+```
+
+**Vereinfachung (Alternative):**
+```python
+# Annahme: Temperatur folgt direkt aus SOC (Schichtung)
+# T_storage ≈ f(SOC/V_max)  # Monotone Funktion
+# → PWL-Approximation
+
+# Stützstellen
+SOC_frac_pts = [0, 0.25, 0.5, 0.75, 1.0]
+T_storage_pts = [40, 55, 70, 82, 95]  # °C
+
+# PWL mit SOS2
+T_storage[month] = PWL_SOS2(SOC[month]/V_max, SOC_frac_pts, T_storage_pts)
+```
+
+---
+
+### 12.3 Aquifer Thermal Energy Storage (ATES)
+
+#### Beschreibung
+Grundwasser als saisonaler Speicher mit Warm- und Kaltbohrloch.
+
+```
+Warm:  Bohrloch_warm ↔ Aquifer ↔ Bohrloch_kalt
+Kalt:  Umkehrung
+```
+
+**Technische Parameter:**
+- Kapazität: 10-100 GWh
+- ΔT: 5-15 K
+- Recovery Efficiency: 60-90% (geologieabhängig)
+- Tiefe: 50-300 m
+- Typische Anwendung: Großstädte, Campus
+
+#### Variablen
+```python
+# Zwei "Speicherseiten"
+T_warm_well[month]       # Temperatur warmes Bohrloch [°C]
+T_cold_well[month]       # Temperatur kaltes Bohrloch [°C]
+E_stored_warm[month]     # Energie im warmen Bereich [MWh]
+E_stored_cold[month]     # Energie im kalten Bereich [MWh]
+
+Q_charge[month]          # Wärme ins warme Bohrloch [MWh/Monat]
+Q_discharge[month]       # Wärme aus warmem Bohrloch [MWh/Monat]
+m_flow_charge[month]     # Massenstrom beim Laden [kg/s avg]
+m_flow_discharge[month]  # Massenstrom beim Entladen [kg/s avg]
+
+# Investment
+build_ates               # Binary: Baue ATES?
+num_well_pairs           # Anzahl Bohrlochpaare [diskret]
+```
+
+#### Parameter
+```python
+# Geologische Eigenschaften
+aquifer_thickness = 50   # m (Mächtigkeit)
+porosity = 0.3           # Porosität
+thermal_conductivity     # W/(m·K) (Gestein)
+η_recovery = 0.7         # Recovery Efficiency [-]
+
+# Grenzen
+T_warm_min = 15          # °C
+T_warm_max = 25          # °C
+T_cold_min = 5           # °C
+T_cold_max = 15          # °C
+m_flow_max_per_well = 20 # kg/s
+```
+
+#### Constraints
+
+1. **Energiebilanz Warm-Seite**
+   ```python
+   # Ladung: Wärme rein
+   Q_charge[month] = m_flow_charge[month] · cp
+                     · (T_in_charge - T_warm_well[month])
+                     · hours_per_month / 1000
+
+   # Entladung: Wärme raus
+   Q_discharge[month] = m_flow_discharge[month] · cp
+                        · (T_warm_well[month] - T_return)
+                        · hours_per_month / 1000
+   ```
+
+2. **Dynamik**
+   ```python
+   # Vereinfachtes Modell
+   E_stored_warm[month+1] = E_stored_warm[month]
+                            + Q_charge[month]
+                            - Q_discharge[month] / η_recovery
+                            - Q_loss_underground[month]
+
+   # Untergrund-Verluste (geologieabhängig)
+   Q_loss_underground[month] = α · E_stored_warm[month]
+   # Mit α ≈ 0.05-0.1 (5-10% pro Monat)
+   ```
+
+3. **Temperatur-Grenzen**
+   ```python
+   T_warm_min ≤ T_warm_well[month] ≤ T_warm_max
+   T_cold_min ≤ T_cold_well[month] ≤ T_cold_max
+
+   # Mindestdifferenz (für Effizienz)
+   T_warm_well[month] - T_cold_well[month] ≥ ΔT_min  # z.B. 5K
+   ```
+
+4. **Kapazität**
+   ```python
+   # Maximale Energie abhängig von Anzahl Bohrungen
+   E_max = num_well_pairs · E_per_well_pair
+
+   # Mit E_per_well_pair aus Geologie:
+   # E = V_aquifer · ρ · cp · ΔT
+   # V_aquifer = A_influence · aquifer_thickness · porosity
+   ```
+
+5. **Investment**
+   ```python
+   # Anzahl Bohrlochpaare
+   num_well_pairs ∈ {1, 2, 3, 4, 5}
+
+   # Nur wenn gebaut
+   num_well_pairs ≥ 1 · build_ates
+   num_well_pairs ≤ 5 · build_ates
+   ```
+
+#### Kosten
+```python
+# CAPEX
+CAPEX_ates = build_ates · cost_fixed
+             + num_well_pairs · (
+                 2 · cost_per_borehole                # 2 Bohrungen pro Paar
+                 + cost_pumps
+                 + cost_heat_exchanger
+             )
+
+# Typische Werte:
+# cost_fixed = 200,000 EUR (Genehmigung, Planung)
+# cost_per_borehole = 100,000-300,000 EUR (abhängig von Tiefe)
+# cost_pumps = 50,000 EUR
+# cost_heat_exchanger = 30,000 EUR
+
+# OPEX
+OPEX_ates = P_pump_total · electricity_cost  # Pumpen-Energieverbrauch
+```
+
+#### LINEARISIERUNG
+
+**Ähnlich wie PTES:** McCormick für bilineare Terme `m_flow · T`.
+
+**Vereinfachung:**
+```python
+# Falls T_warm_well nur schwach variiert:
+# T_warm_well ≈ const. → dann linear
+
+# ODER: Vorberechnung von Betriebspunkten
+# (T_warm, T_cold, m_flow) → Q_charge/discharge
+# → Lookup-Table → PWL
+```
+
+---
+
+### 12.4 Integration mit Wärmenetz
+
+#### Zeitliche Auflösung
+
+**Problem:** Netzwerkmodell arbeitet stündlich (8760 h/a), aber saisonale Speicher sind monatlich sinnvoller.
+
+**Lösung:**
+
+```python
+# Hybrid-Modell:
+
+# Stündliche Variablen (Netz, Komponenten)
+T = pyo.RangeSet(1, 8760)  # Stunden
+
+# Monatliche Variablen (Saisonalspeicher)
+M = pyo.RangeSet(1, 12)    # Monate
+
+# Kopplung:
+# Q_charge_monthly[month] = Σ(Q_to_storage[hour] for hour in month)
+
+# Mapping hour → month
+month_of_hour = {
+    1: 1, 2: 1, ..., 744: 1,      # Januar
+    745: 2, ..., 1416: 2,          # Februar
+    ...
+}
+
+# Constraint
+for month in M:
+    hours_in_month = [h for h in T if month_of_hour[h] == month]
+
+    model.charge_aggregation[month] = pyo.Constraint(
+        expr=Q_charge_monthly[month] == sum(Q_to_storage[h] for h in hours_in_month)
+    )
+```
+
+**Alternative:** Representative Days
+
+```python
+# Statt 8760 h: 12 Monate × 3 repräsentative Tage = 36 Tage × 24 h = 864 h
+# → Reduktion um Faktor 10, aber weniger Genauigkeit
+```
+
+#### Anbindung an Netzwerk
+
+**PTES/ATES als Komponente:**
+
+```python
+# Ähnlich wie ThermalStorage, aber:
+# - Monatliche statt stündliche Dynamik
+# - Größere Kapazität
+# - Höhere Verluste
+
+# Flows:
+# - Charging Flow: Wärme ins Speicher
+#   → Senke am Wärmenetz (z.B. bei Überproduktion Solar)
+#
+# - Discharging Flow: Wärme aus Speicher
+#   → Quelle am Wärmenetz (z.B. bei hoher Nachfrage Winter)
+```
+
+**Beispiel-Konfiguration:**
+
+```yaml
+# config: seasonal_storage.yaml
+
+seasonal_storage:
+  - id: "ptes_solar_1"
+    type: "PTES"
+    network: "dh_ht"
+
+    # Investment
+    invest: true
+    V_options: [50000, 100000, 200000]  # m³
+
+    # Parameter
+    T_min: 40
+    T_max: 95
+    U_value: 0.3  # W/(m²·K)
+
+    # Kosten
+    cost_fixed: 500000  # EUR
+    cost_per_m3: 75     # EUR/m³
+    cost_lining_per_m2: 50  # EUR/m²
+
+  - id: "ates_campus_1"
+    type: "ATES"
+    network: "dh_lt"
+
+    # Investment
+    invest: true
+    num_well_pairs_options: [1, 2, 3, 4]
+
+    # Geologie
+    aquifer_thickness: 50  # m
+    porosity: 0.3
+    η_recovery: 0.7
+
+    # Kosten
+    cost_per_borehole: 200000  # EUR
+```
+
+---
+
+### 12.5 Anwendungsbeispiel: Solare Fernwärme mit PTES
+
+**System:**
+
+```
+[Solarthermie 10 MW_peak]
+         ↓
+    [Wärmenetz HT 90°C]
+         ↓
+    ┌─────────┐
+    │  PTES   │ ← Sommer: Überschuss speichern
+    │ 100,000 │   Winter: Entladen
+    │   m³    │
+    └─────────┘
+         ↓
+   [Verbraucher]
+         ↑
+    [Gas-Kessel] ← Backup
+```
+
+**Optimierungsziel:**
+
+Minimiere: `CAPEX_solar + CAPEX_ptes + CAPEX_boiler + OPEX_total`
+
+Subject to:
+- Wärmenachfrage zu jeder Stunde gedeckt
+- PTES speichert Sommerüberschuss
+- PTES entlädt im Winter
+- Gas-Kessel als Backup
+
+**Erwartetes Ergebnis:**
+
+- Solare Deckung: 60-80% (mit PTES) vs. 20-30% (ohne PTES)
+- PTES-Größe: 80,000-120,000 m³ (optimal)
+- NPV: Positiv bei CAPEX < 80 EUR/m³
+
+---
+
+### 12.6 Validierung & Wissenschaftliche Basis
+
+**Reale Projekte:**
+
+| **Projekt** | **Land** | **Typ** | **Volumen** | **T** | **Solar-Anteil** |
+|-------------|----------|---------|-------------|-------|------------------|
+| Dronninglund | DK | PTES | 60,000 m³ | 40-80°C | 50% |
+| Marstal | DK | PTES | 75,000 m³ | 45-85°C | 55% |
+| Brædstrup | DK | PTES | 70,000 m³ | 50-90°C | 60% |
+| Utrecht Uni | NL | ATES | ~30 GWh | 10-20°C | - |
+
+**Wissenschaftliche Publikationen:**
+
+- *Applied Energy* 302 (2021): "Seasonal pit thermal energy storage for solar district heating: Design and optimization"
+- *Renewable Energy* 198 (2022): "Aquifer thermal energy storage in combination with solar thermal collectors and heat pumps"
+- *Energy Conversion and Management* 274 (2022): "Techno-economic analysis of seasonal thermal energy storage for district heating"
+
+---
+
+### 12.7 Implementierungsaufwand
+
+**Zusätzlich zu Basis + Cooling:**
+
+| **Komponente** | **Zeilen** | **Aufwand** |
+|----------------|------------|-------------|
+| PTES Block | ~400 | 4 Tage |
+| ATES Block | ~450 | 5 Tage |
+| Monatliche Aggregation | ~150 | 2 Tage |
+| Tests | - | 2 Tage |
+| Kataloge | ~100 | 1 Tag |
+| **SUMME** | **~1100** | **14 Tage ≈ 2 Wochen** |
+
+**Neuer Gesamt-Zeitrahmen: 10-12 Wochen** (statt 8-10 Wochen)
+
+---
+
+## 13. Zusammenfassung: Was ist drin? ✅❌
 
 | **Anforderung** | **Vollständig?** | **Priorität** |
 |-----------------|------------------|---------------|
@@ -1351,10 +1878,15 @@ interfaces:
 | Free Cooling | ✅ JA | 🟡 MITTEL |
 | Wärmerückgewinnung | ✅ JA | 🟡 MITTEL |
 | Wärme-Kälte-Kopplung | ✅ JA | 🟡 MITTEL |
+| **ERWEITERUNG:** Saisonale Speicher | ✅ JA | 🔴 HOCH |
+| PTES (Erdbeckenspeicher) | ✅ JA | 🔴 HOCH |
+| ATES (Aquifer-Speicher) | ✅ JA | 🔴 HOCH |
+| Monatliche Zeitauflösung | ✅ JA | 🔴 HOCH |
+| Integration mit Wärmenetz | ✅ JA | 🔴 HOCH |
 
 ---
 
-## 13. Nächste Schritte
+## 14. Nächste Schritte
 
 ### Phase 1: Kern-Komponenten (Priorität 🔴)
 1. ✅ Pipe Component (Vorlauf/Rücklauf, Druckverlust, Wärmeverlust)
@@ -1382,7 +1914,15 @@ interfaces:
 17. ✅ Erweiterte HeatPump (Kältenetz-Anbindung, bidirektional)
 18. ✅ Multi-Network Manager Update (Cooling Networks)
 
+### Phase 5: Saisonale Wärmespeicher (Priorität 🔴)
+19. ✅ PTES Component (Erdbeckenspeicher)
+20. ✅ ATES Component (Aquifer-Speicher)
+21. ✅ Monatliche Zeitauflösung (Hybrid-Modell)
+22. ✅ Aggregation stündlich → monatlich
+23. ✅ Integration mit Wärmenetz
+24. ✅ Kataloge für saisonale Speicher
+
 ---
 
-**Status:** Vollständige Spezifikation für Wärme- UND Kältenetze!
-**Zeitrahmen:** 8-10 Wochen Implementierung
+**Status:** Vollständige Spezifikation für Wärme- UND Kältenetze PLUS Saisonalspeicher!
+**Zeitrahmen:** 10-12 Wochen Implementierung
