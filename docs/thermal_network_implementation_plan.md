@@ -60,7 +60,17 @@ energis/
 │   │   │   ├── steam_generator.py
 │   │   │   └── condenser.py
 │   │   │
-│   │   ├── heat_pump.py                  # EXISTIERT
+│   │   ├── cooling/                      # NEU: Kälte-Komponenten (Phase 4)
+│   │   │   ├── __init__.py
+│   │   │   ├── chiller.py                # Kältemaschine
+│   │   │   ├── cooling_tower.py          # Rückkühler
+│   │   │   └── free_cooling.py           # Free Cooling
+│   │   │
+│   │   ├── heat_recovery/                # NEU: Wärmerückgewinnung (Phase 4)
+│   │   │   ├── __init__.py
+│   │   │   └── heat_recovery_unit.py     # Abwärme-Integration
+│   │   │
+│   │   ├── heat_pump.py                  # EXISTIERT → ERWEITERN (Kältenetz)
 │   │   ├── storage.py                    # EXISTIERT
 │   │   └── ...
 │   │
@@ -138,7 +148,13 @@ energis/
 | `linearization/mccormick.py` | ~150 | McCormick Utilities | NEU |
 | `network/topology.py` | ~300 | NetworkX Integration | NEU |
 | `network/multi_network.py` | ~200 | Multi-Netz Manager | NEU |
-| **SUMME** | **~2750** | | |
+| `cooling/chiller.py` | ~350 | Kältemaschine | NEU (Phase 4) |
+| `cooling/cooling_tower.py` | ~250 | Rückkühler | NEU (Phase 4) |
+| `cooling/free_cooling.py` | ~300 | Free Cooling | NEU (Phase 4) |
+| `heat_recovery/heat_recovery_unit.py` | ~400 | Wärmerückgewinnung | NEU (Phase 4) |
+| `heat_pump.py` (extend) | ~100 | Kältenetz-Anbindung | ERWEITERT (Phase 4) |
+| **SUMME Basis** | **~2750** | | |
+| **SUMME + Cooling/HR** | **~4150** | | |
 
 ---
 
@@ -1239,11 +1255,210 @@ def test_pipe_heat_loss():
 
 ---
 
-## 5. Phase 4: Integration & Testing
+## 5. Phase 4: Kältenetze & Wärmerückgewinnung
+
+**Dauer:** 3 Wochen
+**Ziel:** Integration von Cooling Networks und Heat Recovery
+
+### Task 4.1: Chiller Component
+
+**`energis/models/blocks/cooling/chiller.py`** (~350 Zeilen)
+
+**Features:**
+- Kompressionskältemaschine (elektrisch)
+- Absorptionskältemaschine (thermisch)
+- COP temperaturabhängig: COP = f(T_evap, T_cond)
+- 2D-PWL für COP-Kurve
+- Investment in Größe
+- Anbindung an Kältenetz + Kondensator (Rückkühlung)
+
+**Variablen:**
+```python
+Q_cold[t]              # Kälteleistung [MW]
+Q_cond[t]              # Kondensatorwärme [MW]
+P_el[t]                # Elektrische Leistung [MW]
+COP[t]                 # Coefficient of Performance
+T_evap[t]              # Verdampfertemperatur [°C]
+T_cond[t]              # Kondensatortemperatur [°C]
+```
+
+**Test:** `tests/unit/cooling/test_chiller.py`
+
+---
+
+### Task 4.2: Cooling Tower Component
+
+**`energis/models/blocks/cooling/cooling_tower.py`** (~250 Zeilen)
+
+**Features:**
+- Wet vs. Dry Cooling
+- Kühlgrenze T_wetbulb vs. T_ambient
+- Lüfterleistung P_fan = α · Q_reject
+- Vereinfachung: Konstante T_out (Design-Temperatur)
+
+**Variablen:**
+```python
+Q_reject[t]            # Abgeführte Wärme [MW]
+m_water[t]             # Wassermassenstrom [kg/s]
+T_water_in[t]          # Eintrittstemperatur [°C]
+T_water_out[t]         # Austrittstemperatur [°C]
+P_fan[t]               # Lüfterleistung [MW]
+```
+
+**Test:** `tests/unit/cooling/test_cooling_tower.py`
+
+---
+
+### Task 4.3: Free Cooling Component
+
+**`energis/models/blocks/cooling/free_cooling.py`** (~300 Zeilen)
+
+**Features:**
+- Grundwasser, Fluss/See, Außenluft als Quelle
+- Binary is_active[t] (abhängig von T_source)
+- Wärmeübertrager mit ε_HEX
+- Pinch-Point Constraint
+- Minimale Betriebskosten (nur Pumpen)
+
+**Variablen:**
+```python
+Q_cool[t]              # Bereitgestellte Kälte [MW]
+is_active[t]           # Binary: Verfügbar?
+T_source_in[t]         # Temperatur Quelle [°C] (exogen)
+m_source[t]            # Massenstrom Quelle [kg/s]
+P_pump[t]              # Pumpenleistung [MW]
+```
+
+**Test:** `tests/unit/cooling/test_free_cooling.py`
+
+---
+
+### Task 4.4: Heat Recovery Unit
+
+**`energis/models/blocks/heat_recovery/heat_recovery_unit.py`** (~400 Zeilen)
+
+**Features:**
+- Abwärmequellen: Industrie, Rechenzentren, Abwasser
+- Fall A: Direkte Einspeisung (T_waste hoch)
+- Fall B: Mit Wärmepumpe (T_waste niedrig)
+- Binary use_heatpump[t]
+- COP-Berechnung für Wärmepumpe
+
+**Variablen:**
+```python
+Q_waste_available[t]   # Verfügbare Abwärme [MW] (exogen)
+Q_recovered[t]         # Rückgewonnene Wärme [MW]
+T_waste_in[t]          # Temperatur Abwärme [°C]
+use_heatpump[t]        # Binary: WP nutzen?
+COP_hp[t]              # COP Wärmepumpe
+P_el_hp[t]             # Elektrische Leistung WP [MW]
+```
+
+**Test:** `tests/unit/heat_recovery/test_heat_recovery_unit.py`
+
+---
+
+### Task 4.5: Erweiterte HeatPump-Modellierung
+
+**Erweitere `energis/models/blocks/heat_pump.py`** (+~100 Zeilen)
+
+**Neue Features:**
+- Anbindung an Kältenetz (`cold_network` Parameter)
+- Bidirektionaler Betrieb (optional): mode[t] ∈ {0, 1}
+- Heizmodus: Kälte-Quelle → Wärme-Senke
+- Kühlmodus: Wärme-Quelle → Kälte-Senke
+
+**Config-Erweiterung:**
+```python
+@dataclass
+class HeatPumpConfig:
+    # ... (existing)
+    cold_network: Optional[str] = None
+    supports_cooling: bool = False
+```
+
+**Test:** `tests/unit/test_heat_pump_extended.py`
+
+---
+
+### Task 4.6: Multi-Network Manager Update
+
+**Erweitere `energis/models/network/multi_network.py`**
+
+**Änderungen:**
+```python
+@dataclass
+class NetworkDefinition:
+    # ... (existing)
+    network_type: str  # "heating" | "cooling"  # NEU
+```
+
+**Neue Methoden:**
+```python
+def get_cooling_networks(self) -> List[str]:
+    """Gibt alle Kältenetze zurück"""
+
+def get_heating_networks(self) -> List[str]:
+    """Gibt alle Wärmenetze zurück"""
+```
+
+---
+
+### Task 4.7: Kataloge & Konfiguration
+
+**Neue Dateien:**
+
+**`config/catalogs/chillers.yaml`:**
+```yaml
+chiller_catalog:
+  compression_small:
+    Q_cold_nominal: 1  # MW
+    COP_nominal: 5
+    COP_curve:
+      T_evap: [4, 6, 8, 10]
+      T_cond: [25, 30, 35, 40]
+      COP_values: [[5.5, 5.0, 4.5, 4.0], ...]
+    cost_fixed: 200000  # EUR
+    cost_variable: 150000  # EUR/MW
+```
+
+**`config/networks/heating_cooling_system.yaml`:**
+```yaml
+networks:
+  - id: "heat_net"
+    network_type: "heating"
+    T_supply: 55
+    T_return: 35
+
+  - id: "cold_net"
+    network_type: "cooling"
+    T_supply: 8
+    T_return: 12
+```
+
+---
+
+### Zeitplan Phase 4
+
+| **Task** | **Aufwand** | **Kumulativ** |
+|----------|-------------|---------------|
+| 4.1 Chiller | 4 Tage | 4 Tage |
+| 4.2 Cooling Tower | 2 Tage | 6 Tage |
+| 4.3 Free Cooling | 3 Tage | 9 Tage |
+| 4.4 Heat Recovery | 4 Tage | 13 Tage |
+| 4.5 HeatPump Extend | 2 Tage | 15 Tage |
+| 4.6 Multi-Network | 1 Tag | 16 Tage |
+| 4.7 Kataloge | 1 Tag | 17 Tage |
+| Tests | 2 Tage | 19 Tage |
+| **SUMME** | **19 Tage** | **≈ 3 Wochen** |
+
+---
+
+## 6. Phase 5: Integration & Testing
 
 **Dauer:** 1 Woche
 
-### Task 4.1: System Builder Integration
+### Task 5.1: System Builder Integration
 
 **Erweitere** `energis/models/system_builder.py`:
 
@@ -1630,9 +1845,11 @@ Woche   Aufgaben
 3       [    ████████] Phase 2.2-3: Pump, Node
 4       [    ████████] Phase 2.4-5: HEX, Loads
 5       [████        ] Phase 2.6: Distributed Load
-6       [    ████████] Phase 4: Integration & Tests
-7       [████████    ] Phase 5: Dokumentation
-8       [    ████    ] Buffer & Review
+6       [████████    ] Phase 4.1-2: Chiller, Cooling Tower
+7       [    ████████] Phase 4.3-4: Free Cooling, Heat Recovery
+8       [████        ] Phase 4.5-7: HeatPump, Kataloge
+9       [    ████████] Phase 5: Integration & Tests
+10      [████████    ] Phase 6: Dokumentation
 ```
 
 ### Meilensteine
@@ -1646,18 +1863,24 @@ Woche   Aufgaben
 - ✓ PipeBlock implementiert & getestet
 - ✓ PumpBlock implementiert & getestet
 
-**M3 (Ende Woche 5):** Alle Komponenten fertig
-- ✓ 6 Komponenten implementiert
+**M3 (Ende Woche 5):** Basis-Komponenten fertig
+- ✓ 6 Basis-Komponenten implementiert (Pipe, Pump, Node, HEX, Loads)
 - ✓ Unit-Tests 100%
 
-**M4 (Ende Woche 6):** Integration fertig
+**M4 (Ende Woche 8):** Cooling & Heat Recovery fertig
+- ✓ 4 Cooling-Komponenten (Chiller, Cooling Tower, Free Cooling, Heat Recovery)
+- ✓ HeatPump erweitert
+- ✓ Multi-Network Update
+- ✓ Kataloge
+
+**M5 (Ende Woche 9):** Integration fertig
 - ✓ System Builder erweitert
 - ✓ Integrationstests bestehen
 - ✓ Optional: TESpy-Validierung
 
-**M5 (Ende Woche 7):** Release-Ready
+**M6 (Ende Woche 10):** Release-Ready
 - ✓ Dokumentation vollständig
-- ✓ Beispiel-Notebooks
+- ✓ Beispiel-Notebooks (Heating + Cooling)
 - ✓ User Guide
 
 ---
@@ -1676,24 +1899,27 @@ Woche   Aufgaben
 ## 12. Deliverables
 
 **Code:**
-- ✅ 8 neue Komponenten-Klassen (NEU)
-- ✅ 3 Linearisierungs-Module (NEU)
-- ✅ 3 Netzwerk-Management-Module (NEU)
+- ✅ 6 Basis-Komponenten (Pipe, Pump, ThermalNode, HeatExchanger, PointLoad, DistributedLoad)
+- ✅ 4 Cooling-Komponenten (Chiller, CoolingTower, FreeCooling, HeatRecoveryUnit)
+- ✅ HeatPump erweitert (Kältenetz-Anbindung)
+- ✅ 3 Linearisierungs-Module (PWL, McCormick, SteamTables)
+- ✅ 3 Netzwerk-Management-Module (Topology, Geographic, MultiNetwork)
 - ✅ System Builder erweitert
-- ✅ ~50 Unit Tests
-- ✅ ~10 Integrationstests
+- ✅ ~65 Unit Tests
+- ✅ ~15 Integrationstests
 
 **Konfiguration:**
-- ✅ 3 Technologie-Kataloge (pipes, pumps, insulation)
-- ✅ 2 Beispiel-Netzwerk-Konfigurationen
-- ✅ Multi-Netz Definition Template
+- ✅ 4 Technologie-Kataloge (pipes, pumps, insulation, chillers)
+- ✅ 3 Beispiel-Netzwerk-Konfigurationen (heating, cooling, integrated)
+- ✅ Multi-Netz Definition Template (heating + cooling)
 
 **Dokumentation:**
-- ✅ Requirements-Dokument (FERTIG)
+- ✅ Requirements-Dokument (FERTIG, mit Cooling-Erweiterung)
 - ✅ Mathematisches Design-Dokument (FERTIG)
 - ✅ Implementierungsplan (DIESES DOKUMENT)
+- ✅ Cooling & Heat Recovery Extension Document (FERTIG)
 - ✅ User Guide
-- ✅ 3 Tutorial-Notebooks
+- ✅ 4 Tutorial-Notebooks (Heating, Cooling, Multi-Temperature, Investment)
 - ✅ API-Dokumentation (Sphinx)
 
 **Tests & Validierung:**
@@ -1704,4 +1930,5 @@ Woche   Aufgaben
 ---
 
 **Status:** Ready to implement
+**Zeitrahmen:** 8-10 Wochen (inkl. Cooling & Heat Recovery)
 **Nächster Schritt:** Start Phase 1 - Task 1.1 (PWL Utilities)

@@ -1158,7 +1158,174 @@ def test_vs_tespy():
 
 ---
 
-## 11. Zusammenfassung: Was ist drin? ✅❌
+## 11. Erweiterung: Kältenetze & Wärmerückgewinnung ✅
+
+### 11.1 Kältenetze (District Cooling)
+
+**Motivation:** Moderne Energiesysteme benötigen sowohl Wärme als auch Kälte (Klimatisierung, Prozess-Kühlung, Rechenzentren).
+
+#### Neue Netzwerk-Typen
+- [ ] **Cooling Network Definition**
+  - `network_type: "cooling"` (zusätzlich zu "heating")
+  - Typische Parameter: T_supply = 6-8°C, T_return = 12-16°C
+  - Gleiche physikalische Modellierung wie Wärmenetze
+  - Unterschied: Wärmegewinne statt Verluste (Umgebung wärmer als Netz)
+
+#### Kälte-Komponenten
+- [ ] **Chiller (Kältemaschine)**
+  - Kompressionskältemaschine (elektrisch): Q_cold = COP · P_el
+  - Absorptionskältemaschine (thermisch): Q_cold / Q_heat_in
+  - COP temperaturabhängig: COP = f(T_evap, T_cond)
+  - Linearisierung: 2D-PWL für COP(T_evap, T_cond)
+  - Investment in Chiller-Größe
+  - Datei: `energis/models/blocks/cooling/chiller.py`
+
+- [ ] **Cooling Tower (Rückkühler)**
+  - Verdunstungskühlung (wet) oder Trockenkühlung (dry)
+  - Wärmeabfuhr an Umgebung
+  - Kühlgrenze: T_wetbulb (wet) oder T_ambient (dry)
+  - Lüfterleistung: P_fan = α · Q_reject (α ≈ 0.01-0.03)
+  - Datei: `energis/models/blocks/cooling/cooling_tower.py`
+
+- [ ] **Free Cooling Unit**
+  - Natürliche Kältequellen: Grundwasser, Fluss/See, Außenluft
+  - Wärmeübertrager zwischen Quelle und Kältenetz
+  - Verfügbarkeit abhängig von T_source[t]
+  - Minimale Betriebskosten (nur Pumpen)
+  - Binary: is_active[t] (nur bei ausreichend niedriger T_source)
+  - Datei: `energis/models/blocks/cooling/free_cooling.py`
+
+### 11.2 Wärmerückgewinnung (Heat Recovery)
+
+**Motivation:** Nutzung von Abwärme aus Prozessen, Rechenzentren, Kühlung für Wärmenetze.
+
+#### Heat Recovery Unit
+- [ ] **Abwärmequellen**
+  - Industrieprozesse (80-200°C): Direkte Einspeisung möglich
+  - Rechenzentren (30-50°C): Wärmepumpe erforderlich
+  - Abwasser (20-30°C): Wärmepumpe mit niedrigem COP
+  - Kühlprozesse: Variable Temperaturen
+
+- [ ] **Integration**
+  - **Fall A:** T_waste hoch → Direkter Wärmeübertrager ins Wärmenetz
+  - **Fall B:** T_waste niedrig → Wärmepumpe zur Temperaturanhebung
+  - Binary: use_heatpump[t] abhängig von T_waste vs. T_heat_net
+  - Energiebilanz: Q_recovered = ε_HEX · m_waste · cp · ΔT
+  - Datei: `energis/models/blocks/heat_recovery/heat_recovery_unit.py`
+
+### 11.3 Wärme-Kälte-Kopplung
+
+**Systemintegration:**
+```
+Wärmepumpe (zentral)
+├─ Verdampfer @ Kältenetz (8°C) → Kälte für Klimatisierung
+└─ Kondensator @ Wärmenetz (55°C) → Wärme für Heizung
+
+Quellen:
+- Free Cooling (Grundwasser)
+- Chiller (Backup)
+- Abwärme (Rechenzentrum, Industrie)
+```
+
+#### Erweiterte Wärmepumpen-Modellierung
+- [ ] **Bidirektionale Wärmepumpe**
+  - mode[t] ∈ {0, 1}: 0 = Heizen, 1 = Kühlen
+  - Heizmodus: Kälte-Quelle → Wärme-Senke
+  - Kühlmodus: Wärme-Quelle → Kälte-Senke (reversibel)
+  - Unterschiedliche COP/EER je Modus
+
+- [ ] **Multi-Netz-Anbindung**
+  - heat_network: ID des Wärmenetzes
+  - cold_network: ID des Kältenetzes
+  - Flows zu beiden Netzen registrieren
+  - Erweitere existierende HeatPumpBlock
+
+### 11.4 Physikalische Besonderheiten Kältenetz
+
+**Unterschiede zu Wärmenetzen:**
+
+| **Aspekt** | **Wärmenetz** | **Kältenetz** |
+|------------|---------------|---------------|
+| Vorlauftemperatur | 55-120°C | 6-12°C |
+| Wärmeverluste | Nachteilig | Vorteilhaft! (Kühlung durch Umgebung) |
+| Energiebilanz Rohr | T_out < T_in | T_out > T_in (Erwärmung) |
+| Isolierung | Hochwertig | Reduziert (Kondensat-Schutz) |
+
+**Modellierung:**
+```python
+# Wärmegewinne bei Kältenetz (Vorzeichen!)
+Q_gain[t] = U · π · D · L · (T_ambient - T_pipe[t])  # > 0
+
+# Energiebilanz
+m · cp · (T_out[t] - T_in[t]) = Q_gain[t]
+# T_out > T_in (statt T_out < T_in bei Wärme)
+```
+
+**WICHTIG:** Gleiche Gleichungen, nur Vorzeichen beachten!
+
+### 11.5 Neue Kataloge & Konfiguration
+
+**Chiller-Katalog:**
+```yaml
+# config/catalogs/chillers.yaml
+chiller_catalog:
+  compression_small:
+    Q_cold_nominal: 1  # MW
+    COP_nominal: 5
+    COP_curve:  # 2D über (T_evap, T_cond)
+      T_evap: [4, 6, 8, 10]
+      T_cond: [25, 30, 35, 40]
+      COP_values: [[5.5, 5.0, 4.5, 4.0], ...]
+    cost_fixed: 200000  # EUR
+    cost_variable: 150000  # EUR/MW
+```
+
+**Multi-Netz-Konfiguration:**
+```yaml
+# config/networks/heating_cooling_system.yaml
+networks:
+  - id: "heat_net"
+    network_type: "heating"
+    T_supply: 55
+    T_return: 35
+
+  - id: "cold_net"
+    network_type: "cooling"
+    T_supply: 8
+    T_return: 12
+
+  - id: "waste_heat_net"
+    network_type: "heating"
+    T_supply: 35
+    T_return: 25
+
+interfaces:
+  - component: "heat_pump_central"
+    connects: ["cold_net", "heat_net"]
+  - component: "heat_recovery_datacenter"
+    connects: ["waste_heat_net", "heat_net"]
+```
+
+### 11.6 Implementierungsaufwand
+
+**Zusätzlich zu Basis-Implementierung:**
+
+| **Komponente** | **Zeilen** | **Aufwand** |
+|----------------|------------|-------------|
+| Chiller | ~350 | 4 Tage |
+| Cooling Tower | ~250 | 2 Tage |
+| Free Cooling | ~300 | 3 Tage |
+| Heat Recovery Unit | ~400 | 4 Tage |
+| HeatPump Extension | ~100 | 2 Tage |
+| Tests | - | 2 Tage |
+| Kataloge | ~200 | 1 Tag |
+| **SUMME** | **~1600** | **18 Tage ≈ 3 Wochen** |
+
+**Neuer Gesamt-Zeitrahmen: 8-10 Wochen** (statt 6-8 Wochen)
+
+---
+
+## 12. Zusammenfassung: Was ist drin? ✅❌
 
 | **Anforderung** | **Vollständig?** | **Priorität** |
 |-----------------|------------------|---------------|
@@ -1178,10 +1345,16 @@ def test_vs_tespy():
 | Dampf-Komponenten | ✅ JA | 🟢 NIEDRIG |
 | Investitionsoptimierung | ✅ JA | 🔴 HOCH |
 | Validierung & Tests | ✅ JA | 🔴 HOCH |
+| **ERWEITERUNG:** Kältenetze | ✅ JA | 🟡 MITTEL |
+| Chiller (Kältemaschine) | ✅ JA | 🟡 MITTEL |
+| Cooling Tower (Rückkühler) | ✅ JA | 🟡 MITTEL |
+| Free Cooling | ✅ JA | 🟡 MITTEL |
+| Wärmerückgewinnung | ✅ JA | 🟡 MITTEL |
+| Wärme-Kälte-Kopplung | ✅ JA | 🟡 MITTEL |
 
 ---
 
-## 12. Nächste Schritte
+## 13. Nächste Schritte
 
 ### Phase 1: Kern-Komponenten (Priorität 🔴)
 1. ✅ Pipe Component (Vorlauf/Rücklauf, Druckverlust, Wärmeverlust)
@@ -1201,6 +1374,15 @@ def test_vs_tespy():
 11. ⚠️ Multi-Period Investment Optimization
 12. ⚠️ TESpy-Integration für Validierung
 
+### Phase 4: Kältenetze & Wärmerückgewinnung (Priorität 🟡)
+13. ✅ Chiller Component (Kompressions- und Absorptionskältemaschine)
+14. ✅ Cooling Tower Component (Rückkühlung)
+15. ✅ Free Cooling Component (Grundwasser, Außenluft)
+16. ✅ Heat Recovery Unit (Abwärme-Integration)
+17. ✅ Erweiterte HeatPump (Kältenetz-Anbindung, bidirektional)
+18. ✅ Multi-Network Manager Update (Cooling Networks)
+
 ---
 
-**Bereit für Option 3 (Design-Dokument) und Option 1 (Implementierungsplan)!**
+**Status:** Vollständige Spezifikation für Wärme- UND Kältenetze!
+**Zeitrahmen:** 8-10 Wochen Implementierung
