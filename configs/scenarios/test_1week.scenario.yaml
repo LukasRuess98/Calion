@@ -10,7 +10,6 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"  # Anpassen an deine Daten
-    end: "2023-01-08 00:00"    # 1 Woche = 7 Tage = 168h * 4 (15-Min) = 672 Zeitschritte
     enforce: false  # Nicht strikte Prüfung
 
   # Rolling Horizon Einstellungen (falls verwendet)
