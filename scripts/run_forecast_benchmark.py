@@ -494,55 +494,60 @@ def export_to_excel(results, excel_path, base_configs):
         logger.warning("openpyxl not available, skipping Excel export")
         return
 
-    # Group results by method
-    methods_data = {}
-    for r in results:
-        if r.method not in methods_data:
-            methods_data[r.method] = []
-        methods_data[r.method].append(r)
+    try:
+        # Group results by method
+        methods_data = {}
+        for r in results:
+            if r.method not in methods_data:
+                methods_data[r.method] = []
+            methods_data[r.method].append(r)
 
-    # Build metadata
-    meta_sections = {
-        "Benchmark Info": {
-            "Total Methods": len(methods_data),
-            "Total Runs": len(results),
-            "Base Configs": ", ".join(base_configs),
-        }
-    }
-
-    # Build costs table
-    cost_sections = {}
-    for method, method_results in methods_data.items():
-        avg_cost = sum(r.total_cost_eur for r in method_results) / len(method_results)
-        avg_capex = sum(r.capex_eur for r in method_results) / len(method_results)
-        avg_opex = sum(r.opex_eur for r in method_results) / len(method_results)
-
-        cost_sections[method] = {
-            "total_cost_eur": avg_cost,
-            "capex_eur": avg_capex,
-            "opex_eur": avg_opex,
-            "num_runs": len(method_results),
+        # Build metadata
+        meta_sections = {
+            "Benchmark Info": {
+                "Total Methods": len(methods_data),
+                "Total Runs": len(results),
+                "Base Configs": ", ".join(base_configs),
+            }
         }
 
-    # Build design table
-    design_sections = {}
-    for method, method_results in methods_data.items():
-        r = method_results[0]  # Use first run
-        design_sections[method] = {
-            "total_hp_capacity_mw": r.total_hp_capacity_mw,
-            "storage_capacity_mwh": r.storage_capacity_mwh,
-            "storage_power_mw": r.storage_power_mw,
-        }
+        # Build costs table
+        cost_sections = {}
+        for method, method_results in methods_data.items():
+            avg_cost = sum(r.total_cost_eur for r in method_results) / len(method_results)
+            avg_capex = sum(r.capex_eur for r in method_results) / len(method_results)
+            avg_opex = sum(r.opex_eur for r in method_results) / len(method_results)
 
-    write_scenario_workbook(
-        excel_path,
-        meta_sections=meta_sections,
-        cost_sections=cost_sections,
-        design=design_sections,
-        timeseries_sections=None,  # Too large for Excel
-    )
+            cost_sections[method] = {
+                "total_cost_eur": avg_cost,
+                "capex_eur": avg_capex,
+                "opex_eur": avg_opex,
+                "num_runs": len(method_results),
+            }
 
-    logger.info(f"Exported results to Excel: {excel_path}")
+        # Build design table
+        design_sections = {}
+        for method, method_results in methods_data.items():
+            r = method_results[0]  # Use first run
+            design_sections[method] = {
+                "total_hp_capacity_mw": r.total_hp_capacity_mw,
+                "storage_capacity_mwh": r.storage_capacity_mwh,
+                "storage_power_mw": r.storage_power_mw,
+            }
+
+        write_scenario_workbook(
+            excel_path,
+            meta_sections=meta_sections,
+            cost_sections=cost_sections,
+            design=design_sections,
+            timeseries_sections=None,  # Too large for Excel
+        )
+
+        logger.info(f"Exported results to Excel: {excel_path}")
+
+    except Exception as e:
+        logger.error(f"Excel export failed: {e}")
+        logger.warning("Continuing without Excel export...")
 
 
 if __name__ == "__main__":

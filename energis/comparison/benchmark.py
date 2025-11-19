@@ -206,7 +206,14 @@ class BenchmarkSuite:
         # Extract costs
         costs = active_result.costs
         total_cost = sum(costs.values())
-        capex = costs.get('cost_capex', 0) + costs.get('cost_capex_annualized', 0)
+
+        # Extract CAPEX (investment costs)
+        capex = sum(costs.get(k, 0) for k in [
+            "objective.Capex_cost_EUR",
+            "objective.Activation_cost_EUR",
+            "objective.Tie_breaker_cost_EUR",
+            "objective.Storage_installation_cost_EUR"
+        ])
         opex = total_cost - capex
 
         # Calculate vs PF
@@ -258,9 +265,9 @@ class BenchmarkSuite:
             solve_time_seconds=solve_time,
             num_windows=num_windows,
             avg_window_time_seconds=avg_window_time,
-            cost_energy=costs.get('cost_energy', 0),
-            cost_demand_charge=costs.get('cost_demand_charge', 0),
-            cost_co2=costs.get('cost_co2', 0),
+            cost_energy=costs.get('objective.Grid_energy_cost_EUR', 0),
+            cost_demand_charge=costs.get('objective.Demand_charge_cost_EUR', 0),
+            cost_co2=costs.get('objective.CO2_cost_EUR', 0),
             cost_breakdown=dict(costs),
             config_hash=config_hash,
             timestamp=datetime.now().isoformat(),
