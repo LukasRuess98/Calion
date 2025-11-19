@@ -836,7 +836,7 @@ interfaces:
 from energis.models.component import BaseComponent, Flow, register_component
 from energis.models.linearization.pwl import create_pwl_sos2
 import pyomo.environ as pyo
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 @dataclass
@@ -851,14 +851,19 @@ class PipeConfig:
     # Geometrie
     length: float  # m (aus Topology)
 
-    # Investment
-    invest: bool = False
-    DN_options: List[str] = None  # ["DN100", "DN150", ...]
-    insulation_options: List[str] = None  # ["standard", "good", ...]
+    # NEU: Brownfield-Support
+    existing: bool = False           # Rohr existiert bereits?
+    invest: bool = False             # Investment möglich?
 
-    # Fixed design (falls nicht invest)
-    DN_fixed: str = None
-    insulation_fixed: str = "standard"
+    # Für Brownfield (wenn existing=True):
+    DN_fixed: Optional[str] = None   # z.B. "DN150"
+    insulation_fixed: Optional[str] = None  # z.B. "standard"
+    installation_year: Optional[int] = None
+    condition: str = "good"          # "good" | "fair" | "poor"
+
+    # Für Greenfield (wenn invest=True):
+    DN_options: Optional[List[str]] = None  # ["DN100", "DN150", ...]
+    insulation_options: Optional[List[str]] = None  # ["standard", "good", ...]
 
     # Grenzen
     m_flow_max: float = 100.0  # kg/s
@@ -1227,6 +1232,328 @@ def test_pipe_heat_loss():
     """Test Wärmeverlust-Berechnung"""
     # ...
 ```
+
+---
+
+#### Task 2.1.5: Brownfield Support für PipeBlock
+
+**Zweck:** Implementiere Logik für bestehende Rohre (Brownfield-Szenarien)
+
+**Erweiterte `_add_investment_constraints()` Methode:**
+```python
+def _add_investment_constraints(self, model, name):
+    """Investment-Logik für DN und Isolierung"""
+
+    # NEU: Brownfield-Check
+    if self.pipe_cfg.existing:
+        # Bestehendes Rohr: Geometrie ist FEST
+        D = getattr(model, f"{name}_D")
+        U = getattr(model, f"{name}_U")
+
+        # Fixe Werte aus Katalog
+        DN_fixed = self.pipe_cfg.DN_fixed
+        ins_fixed = self.pipe_cfg.insulation_fixed
+
+        if DN_fixed is None:
+            raise ValueError(f"Pipe {name}: existing=True benötigt DN_fixed")
+
+        D_value = self.catalog["pipes"][DN_fixed]["diameter_inner"]
+        U_value = self.catalog["insulation"][ins_fixed]["U_value"]
+
+        # Optional: Zustandsabhängige Anpassung
+        if self.pipe_cfg.condition == "fair":
+            U_value *= 1.1  # 10% mehr Verluste
+        elif self.pipe_cfg.condition == "poor":
+            U_value *= 1.2  # 20% mehr Verluste
+
+        D.fix(D_value)
+        U.fix(U_value)
+
+        # Kein build_pipe Variable nötig (existiert bereits)
+        # Falls Variable erstellt wurde, fixiere sie auf 1
+        if hasattr(model, f"{name}_build"):
+            getattr(model, f"{name}_build").fix(1)
+
+        return  # Keine weiteren Investment-Constraints
+
+    elif self.pipe_cfg.invest:
+        # GREENFIELD: Investment-Optimierung (wie bisher)
+        build = getattr(model, f"{name}_build")
+        select_DN = getattr(model, f"{name}_select_DN")
+        DN_set = getattr(model, f"{name}_DN_set")
+        D = getattr(model, f"{name}_D")
+        U = getattr(model, f"{name}_U")
+
+        # (1) Genau eine DN wenn gebaut
+        def dn_selection_rule(model):
+            return sum(select_DN[dn] for dn in DN_set) == build
+
+        model.add_component(
+            f"{name}_dn_selection",
+            pyo.Constraint(rule=dn_selection_rule)
+        )
+
+        # (2) D aus Auswahl
+        def diameter_rule(model):
+            return D == sum(
+                select_DN[dn] * self.catalog["pipes"][dn]["diameter_inner"]
+                for dn in DN_set
+            )
+
+        model.add_component(
+            f"{name}_diameter",
+            pyo.Constraint(rule=diameter_rule)
+        )
+
+        # (3) Isolierung (ähnlich)
+        if self.pipe_cfg.insulation_options:
+            select_insul = getattr(model, f"{name}_select_insul")
+            ins_set = getattr(model, f"{name}_insul_set")
+
+            def insul_selection_rule(model):
+                return sum(select_insul[ins] for ins in ins_set) == build
+
+            model.add_component(
+                f"{name}_insul_selection",
+                pyo.Constraint(rule=insul_selection_rule)
+            )
+
+            def u_value_rule(model):
+                return U == sum(
+                    select_insul[ins] * self.catalog["insulation"][ins]["U_value"]
+                    for ins in ins_set
+                )
+
+            model.add_component(
+                f"{name}_u_value",
+                pyo.Constraint(rule=u_value_rule)
+            )
+
+    else:
+        # Fixe Komponente ohne Investment (wie bisher)
+        D = getattr(model, f"{name}_D")
+        U = getattr(model, f"{name}_U")
+
+        DN_fixed = self.pipe_cfg.DN_fixed
+        ins_fixed = self.pipe_cfg.insulation_fixed
+
+        D_value = self.catalog["pipes"][DN_fixed]["diameter_inner"]
+        U_value = self.catalog["insulation"][ins_fixed]["U_value"]
+
+        D.fix(D_value)
+        U.fix(U_value)
+```
+
+**Erweiterte Kosten-Berechnung:**
+```python
+def get_capex(self, model) -> float:
+    """Berechne CAPEX für Rohr"""
+    name = self.pipe_cfg.name
+
+    # BROWNFIELD: Kein CAPEX
+    if self.pipe_cfg.existing:
+        return 0.0
+
+    # GREENFIELD: Investment-Kosten
+    if self.pipe_cfg.invest:
+        build = getattr(model, f"{name}_build")
+        DN_set = getattr(model, f"{name}_DN_set")
+        select_DN = getattr(model, f"{name}_select_DN")
+
+        # CAPEX = build * (Σ select_DN[dn] * cost[dn])
+        capex = 0.0
+        for dn in DN_set:
+            if pyo.value(select_DN[dn]) > 0.5:  # Gewählt
+                pipe_catalog = self.catalog["pipes"][dn]
+                capex = (
+                    pipe_catalog.get("fixed_cost", 0) +
+                    self.pipe_cfg.length * pipe_catalog["cost_per_m"]
+                )
+                break
+
+        # Isolierungs-Kosten
+        if self.pipe_cfg.insulation_options:
+            ins_set = getattr(model, f"{name}_insul_set")
+            select_insul = getattr(model, f"{name}_select_insul")
+
+            for ins in ins_set:
+                if pyo.value(select_insul[ins]) > 0.5:  # Gewählt
+                    insul_catalog = self.catalog["insulation"][ins]
+                    capex += self.pipe_cfg.length * insul_catalog["cost_per_m"]
+                    break
+
+        return capex * pyo.value(build)
+
+    else:
+        # Fixiert, kein Investment
+        return 0.0
+
+def get_opex(self, model, time_set, config) -> float:
+    """Berechne OPEX für Rohr"""
+    name = self.pipe_cfg.name
+    Q_loss = getattr(model, f"{name}_Q_loss")
+
+    # OPEX = Wärmeverluste * Wärmekosten
+    # Gilt für ALLE Rohre (bestehend + neu)
+    heat_cost = config.get("heat_cost", 50)  # EUR/MWh
+
+    total_opex = 0.0
+    for t in time_set:
+        total_opex += pyo.value(Q_loss[t]) * heat_cost
+
+    return total_opex
+```
+
+**Erweiterte Tests:**
+```python
+# tests/unit/network/test_pipe_brownfield.py
+
+def test_pipe_existing_brownfield():
+    """Test bestehendes Rohr (Brownfield)"""
+    config = {
+        "name": "pipe_existing_1",
+        "from_node": "node_a",
+        "to_node": "node_b",
+        "network": "dh_ht",
+        "pipe_type": "supply",
+        "length": 1000.0,
+
+        # Brownfield-Config
+        "existing": True,
+        "invest": False,
+        "DN_fixed": "DN150",
+        "insulation_fixed": "standard",
+        "installation_year": 2010,
+        "condition": "good"
+    }
+
+    model = pyo.ConcreteModel()
+    model.T = pyo.RangeSet(1, 24)
+
+    pipe = PipeBlock(config)
+    vars_dict = pipe.attach(model, model.T, test_config, {})
+
+    # Check: D und U sind fixiert
+    D = getattr(model, "pipe_existing_1_D")
+    U = getattr(model, "pipe_existing_1_U")
+
+    assert D.fixed
+    assert U.fixed
+    assert abs(pyo.value(D) - 0.15) < 0.001  # DN150 → 0.15m
+
+    # Check: Betriebsvariablen sind NICHT fixiert
+    m_flow = getattr(model, "pipe_existing_1_m_flow")
+    assert not m_flow[1].fixed  # Variable!
+
+    # Check: CAPEX = 0
+    capex = pipe.get_capex(model)
+    assert capex == 0.0
+
+def test_pipe_brownfield_poor_condition():
+    """Test bestehendes Rohr mit schlechtem Zustand"""
+    config = {
+        "name": "pipe_old",
+        "existing": True,
+        "DN_fixed": "DN150",
+        "insulation_fixed": "standard",
+        "condition": "poor",  # Schlechter Zustand
+        # ... (rest of config)
+    }
+
+    model = pyo.ConcreteModel()
+    model.T = pyo.RangeSet(1, 24)
+
+    pipe = PipeBlock(config)
+    pipe.attach(model, model.T, test_config, {})
+
+    # Check: U-Wert erhöht (schlechtere Isolierung)
+    U = getattr(model, "pipe_old_U")
+    U_catalog = 0.4  # Standard U-Wert
+    U_expected = U_catalog * 1.2  # 20% Erhöhung
+
+    assert abs(pyo.value(U) - U_expected) < 0.01
+
+def test_pipe_mixed_greenfield_brownfield():
+    """Test gemischtes Szenario: Bestehende + neue Rohre"""
+    # Topologie: existing_pipe → new_pipe
+
+    # 1. Bestehendes Rohr
+    config_existing = {
+        "name": "pipe_existing",
+        "existing": True,
+        "DN_fixed": "DN150",
+        # ...
+    }
+
+    # 2. Neues Rohr (Investment)
+    config_new = {
+        "name": "pipe_new",
+        "existing": False,
+        "invest": True,
+        "DN_options": ["DN100", "DN150", "DN200"],
+        # ...
+    }
+
+    model = pyo.ConcreteModel()
+    model.T = pyo.RangeSet(1, 24)
+
+    pipe_existing = PipeBlock(config_existing)
+    pipe_new = PipeBlock(config_new)
+
+    pipe_existing.attach(model, model.T, test_config, {})
+    pipe_new.attach(model, model.T, test_config, {})
+
+    # ... (Setze Randbedingungen, löse)
+
+    solver = pyo.SolverFactory('gurobi')
+    results = solver.solve(model)
+
+    # Check: Bestehendes Rohr hat D=0.15 (fix)
+    assert pyo.value(getattr(model, "pipe_existing_D")) == 0.15
+
+    # Check: Neues Rohr hat optimiertes D
+    D_new = pyo.value(getattr(model, "pipe_new_D"))
+    assert D_new in [0.1, 0.15, 0.2]  # DN100, DN150, DN200
+
+    # Check: CAPEX nur für neues Rohr
+    capex_existing = pipe_existing.get_capex(model)
+    capex_new = pipe_new.get_capex(model)
+
+    assert capex_existing == 0.0
+    assert capex_new > 0.0
+
+def test_brownfield_validation():
+    """Test Validierung: existing UND invest nicht erlaubt"""
+    config_invalid = {
+        "name": "pipe_invalid",
+        "existing": True,   # ❌
+        "invest": True,     # ❌ Konflikt!
+        # ...
+    }
+
+    with pytest.raises(ValueError, match="existing=True und invest=True"):
+        pipe = PipeBlock(config_invalid)
+        # Validierung sollte fehlschlagen
+
+def test_brownfield_missing_DN_fixed():
+    """Test Validierung: existing=True benötigt DN_fixed"""
+    config_invalid = {
+        "name": "pipe_invalid",
+        "existing": True,
+        "DN_fixed": None,  # ❌ Fehlt!
+        # ...
+    }
+
+    model = pyo.ConcreteModel()
+    model.T = pyo.RangeSet(1, 24)
+
+    pipe = PipeBlock(config_invalid)
+
+    with pytest.raises(ValueError, match="benötigt DN_fixed"):
+        pipe.attach(model, model.T, test_config, {})
+```
+
+**Aufwand:** +1 Tag (zusätzlich zu Basis-Pipe-Implementierung)
 
 ---
 

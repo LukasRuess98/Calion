@@ -917,6 +917,377 @@ NPV = sum(
 
 ---
 
+### 7.4 Brownfield vs. Greenfield: Bestehende Netze erweitern ✅ ERFORDERLICH
+
+**Motivation:** In der Praxis existieren oft bereits Wärmenetze, die erweitert oder optimiert werden sollen.
+
+**Unterschied:**
+- **Greenfield**: Neues Netz von Grund auf planen → Alle Komponenten sind Investitionsvariablen
+- **Brownfield**: Bestehendes Netz erweitern → Mix aus existierenden (fixen) und neuen (optimierten) Komponenten
+
+#### 7.4.1 Konzept
+
+```
+Greenfield (Neuplanung):
+═══════════════════════════════════════════════════════════
+Alle Rohre, Pumpen, Speicher sind Investitionsentscheidungen
+→ Optimierer wählt DN, Isolierung, Größen, etc.
+→ CAPEX für alle Komponenten
+
+Brownfield (Netzerweiterung):
+═══════════════════════════════════════════════════════════
+Bestandsnetz:          Erweiterung:
+- CHP (existiert)      - Neue Wärmepumpe    → INVEST
+- Rohre DN150 (fix)    - Neue Rohre         → INVEST
+- Pumpe 50kW (fix)     - Neuer Speicher     → INVEST
+→ CAPEX = 0            → CAPEX für neue Komponenten
+
+Optimierung:
+- Betrieb ALLER Komponenten (bestehend + neu)
+- Investition nur für NEUE Komponenten
+```
+
+#### 7.4.2 Implementierung: Bestehende Komponenten
+
+**Erweiterte Pipe-Konfiguration:**
+```python
+@dataclass
+class PipeConfig:
+    name: str
+    from_node: str
+    to_node: str
+    network: str
+    pipe_type: str
+    length: float
+
+    # NEU: Brownfield-Support
+    existing: bool = False           # Rohr existiert bereits?
+    invest: bool = False             # Investment möglich?
+
+    # Für Brownfield (wenn existing=True):
+    DN_fixed: Optional[str] = None   # z.B. "DN150"
+    insulation_fixed: Optional[str] = None  # z.B. "standard"
+    installation_year: Optional[int] = None
+    condition: str = "good"          # "good" | "fair" | "poor"
+
+    # Für Greenfield (wenn invest=True):
+    DN_options: Optional[List[str]] = None
+    insulation_options: Optional[List[str]] = None
+```
+
+**Logik:**
+```python
+if pipe.existing:
+    # Bestehendes Rohr: Geometrie FEST
+    D.fix(catalog[pipe.DN_fixed]["diameter_inner"])
+    U.fix(catalog[pipe.insulation_fixed]["U_value"])
+    build_pipe.fix(1)  # Existiert bereits
+
+    # Betrieb wird OPTIMIERT
+    m_flow[t] = pyo.Var(...)  # Variable!
+    p_in[t] = pyo.Var(...)
+    T_in[t] = pyo.Var(...)
+
+    # Kosten
+    CAPEX = 0  # Schon gebaut
+    OPEX = sum(Q_loss[t] * heat_cost[t] for t in time)  # Verluste zählen
+
+elif pipe.invest:
+    # Neues Rohr: Geometrie OPTIMIERT
+    D = pyo.Var(...)  # Variable!
+    U = pyo.Var(...)  # Variable!
+    build_pipe = pyo.Var(domain=Binary)
+    select_DN = pyo.Var(DN_options, domain=Binary)
+
+    # Betrieb wird OPTIMIERT
+    m_flow[t] = pyo.Var(...)
+
+    # Kosten
+    CAPEX = build_pipe * (fixed_cost + length * var_cost)
+    OPEX = sum(Q_loss[t] * heat_cost[t] for t in time)
+
+else:
+    # Fixe Komponente ohne Investment
+    D.fix(catalog[pipe.DN_fixed]["diameter_inner"])
+    U.fix(catalog[pipe.insulation_fixed]["U_value"])
+    # Betrieb optimiert
+```
+
+#### 7.4.3 Variablen vs. Parameter bei Brownfield
+
+**Übersicht: Was ist Variable, was ist Parameter?**
+
+| **Aspekt** | **Greenfield (Neuplanung)** | **Brownfield Bestand** | **Brownfield Erweiterung** |
+|------------|----------------------------|------------------------|----------------------------|
+| **Rohr bauen?** | Variable `build_pipe` | Parameter `build_pipe=1` | Variable `build_pipe` |
+| **Durchmesser D** | Variable (aus DN-Auswahl) | Parameter (bekannt) | Variable (aus DN-Auswahl) |
+| **U-Wert** | Variable (aus Isolierung) | Parameter (bekannt) | Variable (aus Isolierung) |
+| **Massenstrom m[t]** | Variable | Variable | Variable |
+| **Temperatur T[t]** | Variable | Variable | Variable |
+| **Druck p[t]** | Variable | Variable | Variable |
+| **CAPEX** | Variable | Parameter `= 0` | Variable |
+| **OPEX** | Variable | Variable | Variable |
+
+**Wichtig:** Auch bei bestehenden Komponenten sind die **Betriebsvariablen** (m_flow, T, p) immer noch **Variablen**! Der Solver optimiert den Betrieb des Gesamtsystems (alt + neu).
+
+#### 7.4.4 YAML-Konfiguration: Brownfield-Beispiel
+
+**Beispiel: Stadterweiterung**
+```yaml
+# Bestandsnetz (Altstadt)
+pipes:
+  - id: "pipe_existing_001"
+    from: "CHP_01"
+    to: "Junction_Altstadt"
+    network: "dh_ht"
+    pipe_type: "supply"
+
+    existing: true          # BROWNFIELD: Existiert bereits
+    invest: false
+    DN_fixed: "DN150"
+    insulation_fixed: "standard"
+    installation_year: 2010
+    condition: "good"
+
+  - id: "pipe_existing_001_return"
+    from: "Junction_Altstadt"
+    to: "CHP_01"
+    network: "dh_ht"
+    pipe_type: "return"
+
+    existing: true
+    invest: false
+    DN_fixed: "DN150"
+    insulation_fixed: "standard"
+
+# Erweiterung (Neubaugebiet)
+  - id: "pipe_new_001"
+    from: "Junction_Altstadt"
+    to: "New_District_A"
+    network: "dh_ht"
+    pipe_type: "supply"
+
+    existing: false         # GREENFIELD: Neu zu bauen
+    invest: true
+    DN_options: ["DN100", "DN150", "DN200"]
+    insulation_options: ["standard", "good", "excellent"]
+
+  - id: "pipe_new_001_return"
+    from: "New_District_A"
+    to: "Junction_Altstadt"
+    network: "dh_ht"
+    pipe_type: "return"
+
+    existing: false
+    invest: true
+    DN_options: ["DN100", "DN150", "DN200"]
+    insulation_options: ["standard", "good", "excellent"]
+
+# Komponenten
+components:
+  heat_producers:
+    - id: "CHP_01"
+      type: "CHP"
+      existing: true        # BROWNFIELD: Existiert
+      Q_th_max: 10          # MW (fix)
+
+    - id: "HP_01"
+      type: "HeatPump"
+      existing: false       # GREENFIELD: Neu investieren
+      invest: true
+      Q_th_options: [2, 5, 8]  # MW (zu wählen)
+
+  storage:
+    - id: "TES_01"
+      type: "ThermalStorage"
+      existing: true        # BROWNFIELD: Existiert
+      capacity: 50          # MWh (fix)
+
+    - id: "PTES_01"
+      type: "PTES"
+      existing: false       # GREENFIELD: Neu investieren
+      invest: true
+      V_options: [50000, 100000, 200000]  # m³
+```
+
+#### 7.4.5 Constraints für Brownfield
+
+**Zusätzliche Validierung:**
+```python
+def validate_brownfield_config(config):
+    """Validiere Brownfield-Konfiguration"""
+    errors = []
+
+    for pipe in config["pipes"]:
+        # Check 1: existing XOR invest
+        if pipe.get("existing") and pipe.get("invest"):
+            errors.append(f"{pipe['id']}: existing=True und invest=True nicht erlaubt")
+
+        # Check 2: Wenn existing, dann DN_fixed erforderlich
+        if pipe.get("existing") and not pipe.get("DN_fixed"):
+            errors.append(f"{pipe['id']}: existing=True benötigt DN_fixed")
+
+        # Check 3: Wenn invest, dann DN_options erforderlich
+        if pipe.get("invest") and not pipe.get("DN_options"):
+            errors.append(f"{pipe['id']}: invest=True benötigt DN_options")
+
+    return errors
+```
+
+**Betriebsrestriktionen für alte Komponenten:**
+```python
+# Optional: Drosselung alter Rohre (Alterung)
+if pipe.existing and pipe.condition == "fair":
+    # Reduziere max. Durchfluss um 10%
+    m_flow_max_adjusted = pipe.m_flow_max * 0.9
+
+elif pipe.existing and pipe.condition == "poor":
+    # Reduziere max. Durchfluss um 20%
+    m_flow_max_adjusted = pipe.m_flow_max * 0.8
+
+    # Optional: Erhöhte Verluste (schlechtere Isolierung)
+    U_adjusted = pipe.U * 1.2
+
+# Constraint
+m_flow[pipe, t] ≤ m_flow_max_adjusted
+```
+
+#### 7.4.6 Kosten-Berechnung: Brownfield
+
+```python
+# Gesamtkosten
+CAPEX_total = (
+    # Nur neue Komponenten
+    sum(CAPEX[comp] for comp in components if not comp.existing)
+)
+
+OPEX_total = (
+    # ALLE Komponenten (alt + neu)
+    sum(OPEX[comp] for comp in components)
+)
+
+NPV = CAPEX_total + sum(OPEX_total[year] * discount_factor[year] for year in years)
+```
+
+**Beispiel-Ergebnis:**
+```
+Optimierungsergebnis: Stadterweiterung
+═══════════════════════════════════════════════════════════
+
+BESTANDSNETZ:
+- CHP_01 (10 MW):        CAPEX = 0 EUR
+- Pipe DN150 (2 km):     CAPEX = 0 EUR
+- TES_01 (50 MWh):       CAPEX = 0 EUR
+
+ERWEITERUNG:
+- HP_01 (5 MW):          CAPEX = 800,000 EUR
+- Pipe DN150 (3 km):     CAPEX = 660,000 EUR (DN150 gewählt)
+- PTES_01 (100k m³):     CAPEX = 7,250,000 EUR
+
+TOTAL CAPEX:             8,710,000 EUR
+
+OPEX (Jahr 1):
+- Bestehend:             150,000 EUR (Wärmeverluste, Strom)
+- Neu:                   200,000 EUR
+- TOTAL:                 350,000 EUR
+
+NPV (20 Jahre, 4%):      15,200,000 EUR
+```
+
+#### 7.4.7 Praktisches Beispiel: Wärmepumpe + Speicher nachrüsten
+
+**Szenario:** Bestehendes gasbetriebenes Fernwärmenetz soll mit Wärmepumpe + Speicher erweitert werden.
+
+**Konfiguration:**
+```yaml
+components:
+  # BESTAND
+  gas_boiler:
+    - id: "boiler_01"
+      existing: true
+      Q_max: 15  # MW (fix)
+      efficiency: 0.9
+      fuel: "natural_gas"
+
+  # ERWEITERUNG
+  heat_pump:
+    - id: "hp_new_01"
+      existing: false
+      invest: true
+      Q_options: [5, 10, 15]  # MW
+      COP: 3.5
+      electricity_bus: "grid"
+
+  storage:
+    - id: "tes_new_01"
+      existing: false
+      invest: true
+      capacity_options: [20, 50, 100]  # MWh
+
+networks:
+  pipes:
+    # Bestehende Verteilung (fix)
+    - existing: true
+      DN_fixed: "DN200"
+    # Neue Anbindung WP → Netz (optimieren)
+    - existing: false
+      invest: true
+      DN_options: ["DN100", "DN150", "DN200"]
+```
+
+**Optimierungsziel:**
+```python
+minimize:
+    CAPEX_new_components +
+    NPV(OPEX_gas + OPEX_electricity + OPEX_losses)
+
+subject to:
+    # Wärmenachfrage decken
+    Q_demand[t] ≤ Q_boiler[t] + Q_hp[t] + Q_tes_discharge[t]
+
+    # Bestandskessel: Betrieb optimiert, aber Größe fix
+    0 ≤ Q_boiler[t] ≤ 15  # MW (fix)
+
+    # Neue WP: Größe + Betrieb optimiert
+    0 ≤ Q_hp[t] ≤ Q_hp_invest  # Q_hp_invest ∈ {5, 10, 15}
+
+    # Hydraulik: Bestehende Rohre (DN fix), neue Rohre (DN optimiert)
+    # ...
+```
+
+**Erwartetes Ergebnis:**
+- WP-Größe: 10 MW (optimal für Grundlast)
+- Speicher: 50 MWh (Überbrückung Spitzenlast)
+- Neue Rohre: DN150 (ausreichend für WP-Leistung)
+- Gas-Nutzung: -60% (nur noch Spitzenlast)
+- CAPEX: ~4 Mio EUR
+- Amortisation: 8-10 Jahre (bei CO2-Preis 100 EUR/t)
+
+#### 7.4.8 Anwendbarkeit auf alle Komponenten
+
+**Brownfield-Support für alle 12 Komponenten:**
+
+| **Komponente** | **Brownfield möglich?** | **Fixe Parameter** | **Optimierte Variablen** |
+|----------------|------------------------|-------------------|-------------------------|
+| Pipes | ✅ Ja | D, U, L | m_flow[t], p[t], T[t] |
+| Pumps | ✅ Ja | Δp_max, m_flow_max | Δp[t], P_el[t], is_on[t] |
+| Thermal Nodes | ⚠️ Immer vorhanden | - | p[t], T[t], m_in/out[t] |
+| Heat Exchangers | ✅ Ja | Q_max, A_hex | Q_transfer[t], T_hot/cold[t] |
+| Point Load | ⚠️ Immer vorhanden | Q_demand[t] | m_extract[t], T_return[t] |
+| Distributed Load | ⚠️ Immer vorhanden | Q_total[t] | T_profile[x,t] |
+| CHP/Boiler | ✅ Ja | Q_max, P_el_max | Q[t], P_el[t], is_on[t] |
+| Heat Pump | ✅ Ja | Q_max | Q[t], P_el[t], COP[t] |
+| Thermal Storage | ✅ Ja | Capacity | SOC[t], Q_charge/discharge[t] |
+| Chiller | ✅ Ja | Q_cold_max | Q_cold[t], P_el[t], COP[t] |
+| PTES | ✅ Ja | V_max | SOC[month], Q_charge/discharge[month] |
+| ATES | ✅ Ja | num_well_pairs | E_stored[month], Q_charge/discharge[month] |
+
+**Hinweise:**
+- ⚠️ **Thermal Nodes, Point Load, Distributed Load**: Keine Investitionsentscheidung (immer vorhanden), aber Parameter können fix oder variabel sein
+- ✅ Alle anderen: Können sowohl existing (fix) als auch invest (neu) sein
+
+---
+
 ## 8. Solver-Anforderungen ✅
 
 ### 8.1 MILP-Formulierung
@@ -1871,6 +2242,7 @@ Subject to:
 | Verteilte Verbraucher | ✅ JA | 🟡 MITTEL |
 | Dampf-Komponenten | ✅ JA | 🟢 NIEDRIG |
 | Investitionsoptimierung | ✅ JA | 🔴 HOCH |
+| Brownfield vs. Greenfield | ✅ JA | 🔴 HOCH |
 | Validierung & Tests | ✅ JA | 🔴 HOCH |
 | **ERWEITERUNG:** Kältenetze | ✅ JA | 🟡 MITTEL |
 | Chiller (Kältemaschine) | ✅ JA | 🟡 MITTEL |
