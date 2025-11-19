@@ -73,6 +73,9 @@ def run_mpc(
         _solve_scenario,
         _load_cost_plan,
         _extract_design_data,
+        _accumulate_costs,
+        _extend_series,
+        _next_soc,
     )
 
     n = len(historical_data)
@@ -170,29 +173,22 @@ def run_mpc(
         windows.append(window_res)
 
         # 6. Aggregate committed portion
-        for i, idx in enumerate(committed_indices):
-            aggregated_indices.append(idx)
-            for key, values in window_result.series.items():
-                if i < len(values):
-                    aggregated_series.setdefault(key, []).append(values[i])
+        _extend_series(aggregated_series, window_result.series, commit_steps)
+        aggregated_indices.extend(committed_indices)
 
-        # 7. Aggregate costs (scale by committed fraction)
+        # 7. Aggregate costs (using RH cost aggregation logic)
         commit_fraction = commit_steps / len(forecast_table) if len(forecast_table) > 0 else 1.0
-
-        for cost_key, cost_val in window_result.costs.items():
-            # Investment costs: amortize once
-            if cost_key in cost_plan.once_keys and cost_key not in once_costs:
-                aggregated_costs[cost_key] = aggregated_costs.get(cost_key, 0.0) + cost_val
-                once_costs.add(cost_key)
-            # Operational costs: scale by commit fraction
-            elif cost_key not in cost_plan.once_keys:
-                aggregated_costs[cost_key] = aggregated_costs.get(cost_key, 0.0) + cost_val * commit_fraction
+        _accumulate_costs(
+            aggregated_costs,
+            window_result.costs,
+            cost_plan,
+            commit_fraction,
+            window_idx,
+            once_costs,
+        )
 
         # 8. Extract final SOC for next window
-        if base_storage_enabled and "TES_E" in window_result.series:
-            soc_values = window_result.series["TES_E"]
-            if commit_steps > 0 and commit_steps <= len(soc_values):
-                soc_next = soc_values[commit_steps - 1]
+        soc_next = _next_soc(window_result.series, commit_steps, soc_next)
 
         # 9. Advance to next update
         current_index += commit_steps
