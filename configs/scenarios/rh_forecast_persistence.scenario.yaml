@@ -1,0 +1,16 @@
+scenario:
+  title: Rolling Horizon with Persistence Forecast
+  run_mode: MPC_ONLY
+  workflow:
+    - MPC
+  fix_design: false
+  mpc:
+    forecast_method: "persistence"
+    forecast_horizon_hours: 168.0
+    update_frequency_hours: 24.0
+  tag: RH_FORECAST-Persistence
+  description: "Rolling Horizon mit Persistence-Vorhersage (morgen = heute). Realistische Alternative zu perfekter Vorausschau."
+  horizon:
+    type: full_year
+    year: 2023
+    enforce: true

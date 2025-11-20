@@ -1,0 +1,18 @@
+scenario:
+  title: Rolling Horizon with Noisy Forecast
+  run_mode: MPC_ONLY
+  workflow:
+    - MPC
+  fix_design: false
+  mpc:
+    forecast_method: "perfect_noise"
+    forecast_horizon_hours: 168.0
+    update_frequency_hours: 24.0
+    noise_std_dev: 0.10
+    random_seed: 42
+  tag: RH_FORECAST-Noisy
+  description: "Rolling Horizon mit verrauschter Vorhersage (Perfect + 10% Rauschen). Simuliert realistische Forecast-Fehler."
+  horizon:
+    type: full_year
+    year: 2023
+    enforce: true

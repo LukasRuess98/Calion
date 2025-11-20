@@ -1,0 +1,16 @@
+scenario:
+  title: PF Design with MPC Operation
+  run_mode: PF_THEN_MPC
+  workflow:
+    - PF
+    - MPC
+  fix_design: true
+
+  mpc:
+    forecast_method: "persistence"
+    forecast_horizon_hours: 168.0  # 1 week forecast horizon
+    update_frequency_hours: 24.0   # Daily forecast updates
+
+  horizon:
+    type: full_year
+    year: 2023

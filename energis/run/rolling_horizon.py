@@ -128,6 +128,7 @@ class WorkflowContext:
     plan: WorkflowPlan
     pf_result: Optional[ScenarioResult] = None
     rh_result: Optional[RollingHorizonResult] = None
+    mpc_result: Optional[RollingHorizonResult] = None
     design: Optional[DesignData] = None
 
 
@@ -460,6 +461,7 @@ class WorkflowResult:
     config: Dict[str, Any]
     pf_result: Optional[ScenarioResult]
     rh_result: Optional[RollingHorizonResult]
+    mpc_result: Optional[RollingHorizonResult]
     design: Optional[DesignData]
     plan: WorkflowPlan
 
@@ -494,7 +496,7 @@ def _build_workflow_inputs(
 
 
 def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> WorkflowResult:
-    """Execute the configured workflow (PF, RH or PF→RH).
+    """Execute the configured workflow (PF, RH, MPC or combinations).
 
     Parameters
     ----------
@@ -518,7 +520,7 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
             raise ValueError(f"Unsupported workflow step: {step}")
         handler(context)
 
-    return WorkflowResult(inputs.cfg, context.pf_result, context.rh_result, context.design, inputs.plan)
+    return WorkflowResult(inputs.cfg, context.pf_result, context.rh_result, context.mpc_result, context.design, inputs.plan)
 
 
 def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
@@ -537,6 +539,8 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
             "RH_ONLY": ["RH"],
             "PF_THEN_RH": ["PF", "RH"],
             "PF_AND_RH": ["PF", "RH"],
+            "MPC_ONLY": ["MPC"],
+            "PF_THEN_MPC": ["PF", "MPC"],
         }
         steps_upper = mapping.get(run_mode, ["PF"])
 
@@ -577,6 +581,54 @@ def _rh_step(context: WorkflowContext) -> None:
     )
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
+
+
+def _mpc_step(context: WorkflowContext) -> None:
+    """Model Predictive Control with forecast updates."""
+
+    from energis.forecasting.persistence import PersistenceForecast
+    from energis.forecasting.perfect_noise import PerfectNoiseForecast
+    from energis.run.mpc import run_mpc
+
+    # Load MPC configuration
+    mpc_cfg = context.cfg.get("scenario", {}).get("mpc", {})
+    forecast_method = str(mpc_cfg.get("forecast_method", "persistence")).lower()
+    forecast_horizon_hours = float(mpc_cfg.get("forecast_horizon_hours", 168.0))
+    update_frequency_hours = float(mpc_cfg.get("update_frequency_hours", 24.0))
+
+    # Create forecast generator
+    if forecast_method == "persistence":
+        forecast_gen = PersistenceForecast(context.cfg)
+    elif forecast_method in ("perfect_noise", "perfect_with_noise"):
+        forecast_gen = PerfectNoiseForecast(context.cfg)
+    else:
+        raise ValueError(f"Unknown MPC forecast method: {forecast_method}")
+
+    logger.info(f"MPC using forecast method: {forecast_gen.get_method_name()}")
+
+    # Check design fixation
+    fix_design = context.plan.fix_design and context.design is not None
+    if context.plan.fix_design and context.design is None:
+        logger.warning(
+            "Design fixation requested but no PF design data available – proceeding without fixation."
+        )
+
+    # Run MPC
+    context.mpc_result = run_mpc(
+        base_cfg=context.cfg,
+        historical_data=context.table,
+        dt_h=context.dt_h,
+        solver_name=context.solver_name,
+        forecast_gen=forecast_gen,
+        forecast_horizon_hours=forecast_horizon_hours,
+        update_frequency_hours=update_frequency_hours,
+        design=context.design,
+        fix_design=fix_design,
+    )
+
+    # Propagate design if MPC found one
+    if context.mpc_result.design is not None:
+        context.design = context.design or context.mpc_result.design
 
 
 def _run_rolling_horizon(
@@ -1022,6 +1074,7 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
 def _register_default_steps() -> None:
     register_workflow_step("PF", _pf_step)
     register_workflow_step("RH", _rh_step)
+    register_workflow_step("MPC", _mpc_step)
 
 
 _register_default_steps()
