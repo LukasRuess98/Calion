@@ -1,0 +1,16 @@
+scenario:
+  title: MPC with Perfect + Noise Forecast
+  run_mode: MPC_ONLY
+  workflow:
+    - MPC
+
+  mpc:
+    forecast_method: "perfect_noise"
+    forecast_horizon_hours: 168.0  # 1 week forecast horizon
+    update_frequency_hours: 24.0   # Daily forecast updates
+    noise_std_dev: 0.10            # 10% forecast error
+    random_seed: 42                # For reproducibility
+
+  horizon:
+    type: full_year
+    year: 2023
