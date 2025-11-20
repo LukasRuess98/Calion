@@ -22,6 +22,7 @@ from energis.utils.timeseries import TimeSeriesTable
 from energis.utils.config_utils import apply_heat_pump_defaults
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
+from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
 
@@ -533,30 +534,90 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             if power_energy_coupling <= 0:
                 raise ValueError("storage.power_energy_coupling must be positive when provided")
 
-        block = StorageBlock(
-            "TES",
-            e_min=sto_cfg.get("min_energy_mwh", 0.0),
-            e_max=sto_cfg.get("max_energy_mwh", 50000.0),
-            p_max=sto_cfg.get("max_power_mw", 50.0),
-            eff_c=eff_charge_default,
-            eff_d=eff_discharge_default,
-            hourly_loss=loss_default,
-            dt_h=dt_h,
-            soc0=soc_init,
-            investable=invest_enabled,
-            e_cap_min=e_cap_min,
-            e_cap_max=e_cap_max,
-            p_cap_min=p_cap_min,
-            p_cap_max=p_cap_max,
-            e_cap_init=e_cap_init,
-            p_cap_init=p_cap_init,
-            terminal_target=None,
-            loss_series=loss_series,
-            eff_charge_series=eff_charge_series,
-            eff_discharge_series=eff_discharge_series,
-            capacity_active_series=capacity_active_series,
-            power_energy_coupling=power_energy_coupling,
-        )
+        # Determine storage type: "simple" (default) or "stratified"
+        storage_type = str(sto_cfg.get("type", "simple")).lower()
+
+        if storage_type == "stratified":
+            # Use advanced stratified storage with thermal zones
+            print(f"[BUILD] Using stratified storage (2-zone thermocline model)")
+
+            # Stratified storage specific parameters
+            T_hot_C = float(sto_cfg.get("T_hot_C", 90.0))
+            T_cold_C = float(sto_cfg.get("T_cold_C", 40.0))
+            T_ambient_C = float(sto_cfg.get("T_ambient_C", 15.0))
+            T_ground_C = float(sto_cfg.get("T_ground_C", 10.0))
+
+            # Geometry
+            aspect_ratio = float(sto_cfg.get("aspect_ratio", 1.5))
+            geometry_type = str(sto_cfg.get("geometry_type", "tank"))
+
+            # Heat transfer coefficients [W/(m²·K)]
+            U_top = float(sto_cfg.get("U_top", 0.3))
+            U_side = float(sto_cfg.get("U_side", 0.2))
+            U_bottom = float(sto_cfg.get("U_bottom", 0.15))
+
+            # Initial hot zone fraction
+            V_hot_init_fraction = float(sto_cfg.get("V_hot_init_fraction", 0.5))
+
+            block = StratifiedStorageBlock(
+                "TES",
+                # Thermal parameters
+                T_hot_C=T_hot_C,
+                T_cold_C=T_cold_C,
+                T_ambient_C=T_ambient_C,
+                T_ground_C=T_ground_C,
+                # Geometry
+                aspect_ratio=aspect_ratio,
+                geometry_type=geometry_type,
+                # Heat transfer coefficients
+                U_top=U_top,
+                U_side=U_side,
+                U_bottom=U_bottom,
+                # Efficiency
+                eff_c=eff_charge_default,
+                eff_d=eff_discharge_default,
+                # Time step
+                dt_h=dt_h,
+                # Initial state
+                soc0=soc_init,
+                V_hot_init_fraction=V_hot_init_fraction,
+                # Investment
+                investable=invest_enabled,
+                e_cap_min=e_cap_min,
+                e_cap_max=e_cap_max,
+                p_cap_min=p_cap_min,
+                p_cap_max=p_cap_max,
+                e_cap_init=e_cap_init,
+                p_cap_init=p_cap_init,
+            )
+        else:
+            # Use simple storage (existing code)
+            print(f"[BUILD] Using simple storage (single-zone model)")
+
+            block = StorageBlock(
+                "TES",
+                e_min=sto_cfg.get("min_energy_mwh", 0.0),
+                e_max=sto_cfg.get("max_energy_mwh", 50000.0),
+                p_max=sto_cfg.get("max_power_mw", 50.0),
+                eff_c=eff_charge_default,
+                eff_d=eff_discharge_default,
+                hourly_loss=loss_default,
+                dt_h=dt_h,
+                soc0=soc_init,
+                investable=invest_enabled,
+                e_cap_min=e_cap_min,
+                e_cap_max=e_cap_max,
+                p_cap_min=p_cap_min,
+                p_cap_max=p_cap_max,
+                e_cap_init=e_cap_init,
+                p_cap_init=p_cap_init,
+                terminal_target=None,
+                loss_series=loss_series,
+                eff_charge_series=eff_charge_series,
+                eff_discharge_series=eff_discharge_series,
+                capacity_active_series=capacity_active_series,
+                power_energy_coupling=power_energy_coupling,
+            )
         fs = block.attach(m, m.t, cfg, {})
         ht_out.append(fs["Q_th_out"])
         ht_in.append(fs["Q_th_in"])

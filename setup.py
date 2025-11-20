@@ -63,7 +63,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "energis-run=energis.run.rolling_horizon:main",
+            "energis=energis.run.__main__:main",
         ],
     },
 )
