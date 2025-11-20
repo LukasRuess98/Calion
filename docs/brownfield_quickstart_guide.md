@@ -8,6 +8,170 @@ Diese Anleitung zeigt, wie Sie ein **Brownfield-Szenario** (Erweiterung eines be
 
 ---
 
+## Workflow-Optionen
+
+Es gibt **zwei Wege**, um ein Brownfield-Szenario zu erstellen:
+
+### Option 1: Excel-Import (⭐ Empfohlen)
+
+**Vorteile:**
+- ✓ Schneller Einstieg (zentrale Excel-Datei statt 500+ Zeilen YAML)
+- ✓ Übersichtliche Tabellenstruktur in Excel
+- ✓ Automatische Generierung von Rücklaufrohren
+- ✓ Automatische Extraktion von Netzknoten
+- ✓ Eingebaute Validierung vor YAML-Generierung
+- ✓ Alle Zeitreihen in einem Sheet (8760 Zeilen)
+
+**Workflow:**
+1. Excel-Template erstellen: `python scripts/create_thermal_network_template.py`
+2. Daten in Excel eintragen (6 Sheets: Netzwerk, Erzeuger, Speicher, Rohre, Verbraucher, Zeitreihen)
+3. Mit `ThermalNetworkExcelParser` zu YAML konvertieren
+4. Validierung läuft automatisch
+5. YAML-Dateien werden in `configs/scenarios/` erstellt
+
+**Beispiel:**
+```python
+from energis.utils.thermal_network_excel_parser import ThermalNetworkExcelParser
+
+parser = ThermalNetworkExcelParser("data/musterhausen.xlsx")
+errors = parser.validate()
+if not errors:
+    parser.save_yaml("configs/scenarios/musterhausen.scenario.yaml")
+```
+
+**➡️ Siehe Notebook:** `notebooks/thermal_network_excel_import.ipynb`
+
+### Option 2: Manuelle YAML-Erstellung
+
+**Vorteile:**
+- ✓ Volle Kontrolle über alle Parameter
+- ✓ Kein Excel erforderlich
+- ✓ Versionskontrolle-freundlich (Text-Format)
+
+**Nachteil:**
+- Zeitaufwendig (4-6 Stunden für mittelgroßes Netz)
+- Fehleranfällig (Tippfehler, vergessene Rücklaufrohre)
+
+**Workflow:** Siehe Schritte 1-8 unten (manuelles Vorgehen)
+
+---
+
+## ⭐ EXCEL-WORKFLOW (Option 1)
+
+### Schritt A: Template erstellen
+
+```bash
+# Template mit allen Sheets erstellen
+python scripts/create_thermal_network_template.py --output data/my_network.xlsx
+
+# Für Multi-Sheet-Support: openpyxl installieren
+pip install openpyxl
+```
+
+### Schritt B: Excel ausfüllen
+
+Öffnen Sie die Datei in Excel und füllen Sie die 6 Sheets aus:
+
+**1. Netzwerk-Sheet:** Netzwerkparameter
+```
+Parameter           Wert    Einheit  Beschreibung
+Name                Musterhausen     Name des Wärmenetzes
+T_Vorlauf_nom       90      °C       Nominale Vorlauftemperatur
+T_Ruecklauf_nom     50      °C       Nominale Rücklauftemperatur
+p_nominal           6       bar      Nominaler Netzdruck
+```
+
+**2. Erzeuger-Sheet:** Wärmeerzeuger (Bestand & Investition)
+```
+ID          Typ         Bestand?  Investition?  Q_nom_MW  Q_options_MW    CAPEX_€_kW  ...
+Kessel_1    boiler      ja        nein          15.0                      300
+CHP_1       chp         ja        nein          8.0                       1200
+WP_1        heat_pump   nein      ja                      5.0,10.0,15.0   800
+```
+
+**3. Speicher-Sheet:** Thermische Speicher
+```
+ID          Typ             Bestand?  Investition?  Kapazitaet_MWh  Kapazitaet_options_MWh  ...
+Speicher_1  hot_water_tank  ja        nein          30.0
+PTES_1      ptes            nein      ja                            50,100,200
+```
+
+**4. Rohre-Sheet:** NUR Vorlaufrohre (Rücklauf wird automatisch generiert!)
+```
+ID   Von_Knoten    Zu_Knoten       Laenge_m  Bestand?  Investition?  DN_fix  DN_options
+P1   gaskessel_01  junction_ctr    100       ja        nein          DN200
+P2   chp_01        junction_ctr    150       ja        nein          DN150
+P3   junction_ctr  altstadt        5000      ja        nein          DN200
+P4   wp_neu        junction_ctr    500       nein      ja                    DN150,DN200,DN250
+```
+
+**5. Verbraucher-Sheet:** Wärmeverbraucher
+```
+ID              Knoten          Lastgang                Spitzenlast_MW  Jahresbedarf_MWh
+Altstadt        altstadt        heat_demand_altstadt    12.0            45000
+```
+
+**6. Zeitreihen-Sheet:** Alle Lastgänge (8760 Zeilen für Gesamtjahr)
+```
+Zeitstempel             heat_demand_altstadt  Strompreis_€_MWh  Gaspreis_€_MWh  Aussentemperatur_C
+2023-01-01 00:00:00     8.5                   65.2              35.0            -2.5
+2023-01-01 01:00:00     8.2                   62.1              35.0            -3.1
+...                     ...                   ...               ...             ...
+(8760 Zeilen insgesamt)
+```
+
+### Schritt C: Konvertieren & Validieren
+
+```python
+from energis.utils.thermal_network_excel_parser import ThermalNetworkExcelParser
+
+# Excel einlesen
+parser = ThermalNetworkExcelParser("data/musterhausen.xlsx")
+
+# Zusammenfassung anzeigen
+print(parser.get_summary())
+
+# Validierung
+errors = parser.validate()
+if errors:
+    for error in errors:
+        print(f"ERROR: {error}")
+else:
+    print("✓ Konfiguration ist valide!")
+
+    # YAML speichern
+    parser.save_yaml("configs/scenarios/musterhausen.scenario.yaml")
+    # Erzeugt auch: musterhausen_timeseries.csv
+```
+
+**Ausgabe:** YAML-Datei in `configs/scenarios/` mit:
+- Netzwerk-Konfiguration
+- Alle Komponenten (Bestand + Investition)
+- Automatisch generierte Rücklaufrohre
+- Automatisch extrahierte Netzknoten
+- Referenzen zu Zeitreihendaten
+
+### Schritt D: Simulation durchführen
+
+Verwenden Sie die generierte YAML-Datei in Ihren bestehenden Workflows:
+
+```python
+# In Notebook oder Skript
+from energis.run import ThermalNetworkOptimizer
+
+optimizer = ThermalNetworkOptimizer("configs/scenarios/musterhausen.scenario.yaml")
+results = optimizer.optimize()
+results.plot_summary()
+```
+
+**➡️ Das war's!** Excel → YAML → Simulation
+
+---
+
+## 📝 MANUELLER WORKFLOW (Option 2)
+
+Falls Sie lieber manuell YAML erstellen (oder Excel-Import nicht verfügbar):
+
 ## Schritt 1: Bestandsaufnahme des existierenden Netzes
 
 ### 1.1 Erfassen Sie alle bestehenden Komponenten
