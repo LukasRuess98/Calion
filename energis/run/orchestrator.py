@@ -336,17 +336,25 @@ def _collect_timeseries_and_summary(
         [
             ("OBJ_value_EUR", 0.0),
             ("P_buy_peak_MW", 0.0),
-            ("Grid_energy_cost_EUR", 0.0),
+            # Detailed electricity cost breakdown
+            ("Grid_energy_cost_EUR", 0.0),  # Total (for backward compatibility)
+            ("Electricity_base_cost_EUR", 0.0),  # Strompreis * Energie
+            ("Electricity_energy_fee_EUR", 0.0),  # Energy fee
+            ("Electricity_grid_fee_EUR", 0.0),  # Netzentgelte (gridcost)
             ("Grid_sell_revenue_EUR", 0.0),
             ("Grid_net_cost_EUR", 0.0),
-            ("Fuel_cost_EUR", 0.0),
+            # Fuel costs (total and by type)
+            ("Fuel_cost_EUR", 0.0),  # Total (for backward compatibility)
             ("Fuel_emissions_t", 0.0),
             ("Dump_cost_EUR", 0.0),
             ("CO2_cost_EUR", 0.0),
             ("CO2_price_EUR_per_t", float(cfg.get("costs", {}).get("co2_price_eur_per_t", 0.0))),
             ("Include_CO2_in_objective", bool(cfg.get("costs", {}).get("include_co2_cost_in_objective", True))),
-            ("Demand_charge_cost_EUR", 0.0),
-            ("Capex_cost_EUR", 0.0),
+            ("Demand_charge_cost_EUR", 0.0),  # Leistungspreis
+            # Investment costs (CAPEX breakdown)
+            ("Capex_cost_EUR", 0.0),  # Total CAPEX
+            ("Capex_heat_pumps_EUR", 0.0),  # CAPEX for heat pumps
+            ("Capex_storage_EUR", 0.0),  # CAPEX for storage
             ("Activation_cost_EUR", 0.0),
             ("Tie_breaker_cost_EUR", 0.0),
             ("Storage_installation_cost_EUR", 0.0),
@@ -480,7 +488,12 @@ def _collect_timeseries_and_summary(
     energy_out = float(sum(psell_series) * dt_h)
     heat_dump = float(sum(qdump_series) * dt_h)
 
+    # Calculate detailed electricity costs
+    base_electricity_cost = float(sum((pbuy_series[i] * price_series[i] * dt_h) for i in range(n))) if n else 0.0
+    energy_fee_cost = float(energy_in * energy_fee)
+    grid_fee_cost = float(energy_in * grid_cost)
     energy_cost = float(sum((pbuy_series[i] * buy_prices[i] * dt_h) for i in range(n))) if n else 0.0
+
     energy_revenue = float(sum((psell_series[i] * sell_prices[i] * dt_h) for i in range(n))) if n else 0.0
     grid_co2_t = float(sum((pbuy_series[i] * grid_co2_series[i] * dt_h) for i in range(n)) / 1000.0) if n else 0.0
 
@@ -488,7 +501,10 @@ def _collect_timeseries_and_summary(
 
     fuel_cost_total = 0.0
     fuel_emissions_t = 0.0
+    fuel_cost_by_type: Dict[str, float] = {}  # Track fuel costs by fuel type (gas, biomass, etc.)
     capex_cost = 0.0
+    capex_heat_pumps = 0.0
+    capex_storage = 0.0
     activation_cost = 0.0
     tie_break_cost = 0.0
     storage_install_cost = 0.0
@@ -518,6 +534,38 @@ def _collect_timeseries_and_summary(
                 storage_install_cost = float(pyo.value(storage_install_expr))
             except Exception:  # pragma: no cover - defensive
                 storage_install_cost = 0.0
+
+        # Calculate CAPEX breakdown by component type
+        # Extract heat pump CAPEX
+        for hp in meta["heat_pumps"]:
+            comp = hp["id"]
+            if hp.get("invest_enabled", False):
+                cap_var = getattr(model, f"{comp}_cap_mw", None)
+                if cap_var is not None:
+                    try:
+                        cap_value = float(pyo.value(cap_var))
+                        inv_cfg = cfg.get("system", {}).get("heat_pumps", [{}])[0].get("investment", {})
+                        capex_rate = float(inv_cfg.get("capex_eur_per_mw", 0.0))
+                        lifetime = float(inv_cfg.get("lifetime_years", 1.0))
+                        annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
+                        capex_heat_pumps += cap_value * capex_rate * annual_factor
+                    except Exception:  # pragma: no cover - defensive
+                        pass
+
+        # Extract storage CAPEX
+        if meta["storage"] and meta["storage"].get("invest_enabled", False):
+            cap_e_var = getattr(model, "TES_cap_energy", None)
+            if cap_e_var is not None:
+                try:
+                    cap_e_value = float(pyo.value(cap_e_var))
+                    sto_cfg = cfg.get("system", {}).get("storage", {})
+                    inv_cfg = sto_cfg.get("investment", {})
+                    e_capex = float(inv_cfg.get("energy_capex_eur_per_mwh", 0.0))
+                    lifetime = float(inv_cfg.get("lifetime_years", 1.0))
+                    annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
+                    capex_storage += cap_e_value * e_capex * annual_factor
+                except Exception:  # pragma: no cover - defensive
+                    pass
 
     for hp in meta["heat_pumps"]:
         comp = hp["id"]
@@ -577,6 +625,13 @@ def _collect_timeseries_and_summary(
         pel_mwh = float(sum(series.get(f"{comp}_Pel_MW", [0.0] * n)) * dt_h) if gen["has_el"] else 0.0
         emission_t = float(fuel_mwh * gen["fuel_emission"] / 1000.0)
         cost_eur = float(fuel_mwh * gen["fuel_price"])
+
+        # Track fuel costs by fuel type
+        fuel_bus = gen["fuel_bus"]
+        if fuel_bus not in fuel_cost_by_type:
+            fuel_cost_by_type[fuel_bus] = 0.0
+        fuel_cost_by_type[fuel_bus] += cost_eur
+
         entry = OrderedDict(
             [
                 ("Heat_output_MWh", heat_mwh),
@@ -669,15 +724,28 @@ def _collect_timeseries_and_summary(
     else:
         objective["P_buy_peak_MW"] = float(max(pbuy_series, default=0.0))
 
+    # Detailed electricity cost breakdown
     objective["Grid_energy_cost_EUR"] = energy_cost
+    objective["Electricity_base_cost_EUR"] = base_electricity_cost
+    objective["Electricity_energy_fee_EUR"] = energy_fee_cost
+    objective["Electricity_grid_fee_EUR"] = grid_fee_cost
     objective["Grid_sell_revenue_EUR"] = energy_revenue
     objective["Grid_net_cost_EUR"] = energy_cost - energy_revenue
+
+    # Total fuel costs and by fuel type
     objective["Fuel_cost_EUR"] = fuel_cost_total
+    for fuel_type, fuel_cost in fuel_cost_by_type.items():
+        objective[f"Fuel_cost_{fuel_type}_EUR"] = fuel_cost
     objective["Fuel_emissions_t"] = fuel_emissions_t
+
     objective["Dump_cost_EUR"] = dump_cost
     objective["CO2_cost_EUR"] = co2_cost
     objective["Demand_charge_cost_EUR"] = demand_cost
+
+    # CAPEX breakdown
     objective["Capex_cost_EUR"] = capex_cost
+    objective["Capex_heat_pumps_EUR"] = capex_heat_pumps
+    objective["Capex_storage_EUR"] = capex_storage
     objective["Activation_cost_EUR"] = activation_cost
     objective["Tie_breaker_cost_EUR"] = tie_break_cost
     objective["Storage_installation_cost_EUR"] = storage_install_cost
