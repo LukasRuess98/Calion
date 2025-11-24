@@ -129,6 +129,11 @@ def export_latex_tables(
     if cost_path:
         generated["cost_breakdown"] = cost_path
 
+    # Generate detailed cost breakdown table
+    detailed_cost_path = _export_detailed_cost_latex_table(outdir, summary_sections, table_style)
+    if detailed_cost_path:
+        generated["cost_breakdown_detailed"] = detailed_cost_path
+
     # Generate design decisions table
     design_path = _export_design_latex_table(outdir, summary_sections, table_style)
     if design_path:
@@ -183,31 +188,31 @@ def _export_kpi_latex_table(
     if total_cost:
         kpis.append(("Total System Cost", format_number(float(total_cost), 0), "EUR"))
 
-    # Energy costs
-    energy_cost = objective.get("Energy_EUR")
-    if energy_cost:
+    # Energy costs (using new field names)
+    energy_cost = objective.get("Grid_energy_cost_EUR")
+    if energy_cost and abs(float(energy_cost)) > 1e-3:
         kpis.append(("Energy Cost", format_number(float(energy_cost), 0), "EUR"))
 
-    # Investment costs
-    invest_cost = objective.get("Invest_EUR")
-    if invest_cost:
+    # Investment costs (using new field names)
+    invest_cost = objective.get("Capex_cost_EUR")
+    if invest_cost and abs(float(invest_cost)) > 1e-3:
         kpis.append(("Investment Cost", format_number(float(invest_cost), 0), "EUR"))
 
-    # CO2 emissions
+    # CO2 emissions (using correct field names)
     if grid:
-        co2_emissions = grid.get("total_co2_emissions_t")
-        if co2_emissions:
+        co2_emissions = grid.get("Total_CO2_emissions_t")
+        if co2_emissions and abs(float(co2_emissions)) > 1e-3:
             kpis.append(("CO$_2$ Emissions", format_number(float(co2_emissions), 1), "t"))
 
-        # Grid import
-        grid_import = grid.get("total_import_MWh")
-        if grid_import:
+        # Grid import (using correct field names)
+        grid_import = grid.get("Energy_from_grid_MWh")
+        if grid_import and abs(float(grid_import)) > 1e-3:
             kpis.append(("Grid Import", format_number(float(grid_import), 1), "MWh"))
 
-        # Peak demand
-        peak_demand = grid.get("peak_import_MW")
-        if peak_demand:
-            kpis.append(("Peak Demand", format_number(float(peak_demand), 2), "MW"))
+    # Peak demand (from objective section)
+    peak_demand = objective.get("P_buy_peak_MW")
+    if peak_demand and abs(float(peak_demand)) > 1e-3:
+        kpis.append(("Peak Demand", format_number(float(peak_demand), 2), "MW"))
 
     if not kpis:
         return None
@@ -260,16 +265,17 @@ def _export_cost_latex_table(
 
     top_rule, mid_rule, bottom_rule = _get_table_rules(table_style)
 
-    # Collect cost components
+    # Collect cost components (using new field names)
     costs = []
     cost_keys = [
-        ("Energy_EUR", "Electricity Cost"),
-        ("Fuel_EUR", "Fuel Cost"),
-        ("Invest_EUR", "Investment Cost"),
-        ("Install_EUR", "Installation Cost"),
-        ("Fixed_OM_EUR", "Fixed O\\&M Cost"),
-        ("CO2_EUR", "CO$_2$ Cost"),
-        ("Demand_charge_EUR", "Demand Charge"),
+        ("Grid_energy_cost_EUR", "Electricity Cost"),
+        ("Fuel_cost_EUR", "Fuel Cost"),
+        ("Capex_cost_EUR", "Investment Cost"),
+        ("Storage_installation_cost_EUR", "Storage Installation"),
+        ("Activation_cost_EUR", "Activation Cost"),
+        ("CO2_cost_EUR", "CO$_2$ Cost"),
+        ("Demand_charge_cost_EUR", "Demand Charge"),
+        ("Dump_cost_EUR", "Heat Dump Cost"),
     ]
 
     total = 0.0
@@ -279,6 +285,12 @@ def _export_cost_latex_table(
             val_float = float(value)
             costs.append((label, val_float))
             total += val_float
+
+    # Also subtract revenue if present
+    revenue = objective.get("Grid_sell_revenue_EUR", 0.0)
+    if revenue and abs(float(revenue)) > 1e-3:
+        costs.append(("Grid Revenue (negative)", -float(revenue)))
+        total -= float(revenue)
 
     if not costs:
         return None
@@ -330,6 +342,136 @@ def _export_cost_latex_table(
                     share_str = format_number(share, 1)
 
                 f.write(f"{label} & {value_str} & {share_str} \\\\\n")
+
+        f.write(f"{bottom_rule}\n")
+        f.write("\\end{tabular}\n")
+        f.write("\\end{table}\n")
+
+    return filepath
+
+
+def _export_detailed_cost_latex_table(
+    outdir: str,
+    summary_sections: Mapping[str, Mapping[str, object]],
+    table_style: str,
+) -> str | None:
+    """Export detailed cost breakdown with subcategories as LaTeX table."""
+    objective = summary_sections.get("objective")
+    if not objective:
+        return None
+
+    top_rule, mid_rule, bottom_rule = _get_table_rules(table_style)
+
+    # Collect detailed cost components
+    cost_items = []
+
+    # Electricity costs (detailed)
+    elec_base = objective.get("Electricity_base_cost_EUR", 0.0)
+    elec_fee = objective.get("Electricity_energy_fee_EUR", 0.0)
+    elec_grid = objective.get("Electricity_grid_fee_EUR", 0.0)
+    demand_charge = objective.get("Demand_charge_cost_EUR", 0.0)
+
+    if abs(float(elec_base)) > 1e-3:
+        cost_items.append(("\\quad Spot Price", float(elec_base)))
+    if abs(float(elec_fee)) > 1e-3:
+        cost_items.append(("\\quad Energy Fee", float(elec_fee)))
+    if abs(float(elec_grid)) > 1e-3:
+        cost_items.append(("\\quad Grid Fee", float(elec_grid)))
+    if abs(float(demand_charge)) > 1e-3:
+        cost_items.append(("\\quad Demand Charge", float(demand_charge)))
+
+    # Fuel costs (by type)
+    fuel_total = objective.get("Fuel_cost_EUR", 0.0)
+    if abs(float(fuel_total)) > 1e-3:
+        cost_items.append(("\\textbf{Fuel Costs}", None))  # Category header
+        # Check for fuel types
+        for key, value in objective.items():
+            if key.startswith("Fuel_cost_") and key != "Fuel_cost_EUR" and key.endswith("_EUR"):
+                fuel_type = key.replace("Fuel_cost_", "").replace("_EUR", "").title()
+                if abs(float(value)) > 1e-3:
+                    cost_items.append((f"\\quad {fuel_type}", float(value)))
+
+    # Investment costs (detailed)
+    capex_hp = objective.get("Capex_heat_pumps_EUR", 0.0)
+    capex_sto = objective.get("Capex_storage_EUR", 0.0)
+    activation = objective.get("Activation_cost_EUR", 0.0)
+    storage_install = objective.get("Storage_installation_cost_EUR", 0.0)
+
+    if abs(float(capex_hp)) > 1e-3 or abs(float(capex_sto)) > 1e-3:
+        cost_items.append(("\\textbf{Investment Costs}", None))  # Category header
+        if abs(float(capex_hp)) > 1e-3:
+            cost_items.append(("\\quad Heat Pumps CAPEX", float(capex_hp)))
+        if abs(float(capex_sto)) > 1e-3:
+            cost_items.append(("\\quad Storage CAPEX", float(capex_sto)))
+        if abs(float(activation)) > 1e-3:
+            cost_items.append(("\\quad Activation", float(activation)))
+        if abs(float(storage_install)) > 1e-3:
+            cost_items.append(("\\quad Storage Installation", float(storage_install)))
+
+    # Other costs
+    co2_cost = objective.get("CO2_cost_EUR", 0.0)
+    dump_cost = objective.get("Dump_cost_EUR", 0.0)
+
+    if abs(float(co2_cost)) > 1e-3:
+        cost_items.append(("CO$_2$ Cost", float(co2_cost)))
+    if abs(float(dump_cost)) > 1e-3:
+        cost_items.append(("Heat Dump Cost", float(dump_cost)))
+
+    # Revenue
+    revenue = objective.get("Grid_sell_revenue_EUR", 0.0)
+    if abs(float(revenue)) > 1e-3:
+        cost_items.append(("Grid Revenue", -float(revenue)))
+
+    if not cost_items:
+        return None
+
+    # Calculate total
+    total = sum(val for _, val in cost_items if val is not None)
+
+    # Generate LaTeX table
+    filepath = os.path.join(outdir, "cost_breakdown_detailed.tex")
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("% Detailed Cost Breakdown Table for Publication\n")
+        f.write("% Compile with: pdflatex\n")
+        f.write(f"{_get_table_preamble(table_style)}\n")
+        f.write("\\begin{table}[htbp]\n")
+        f.write("\\centering\n")
+        f.write("\\caption{Detailed System Cost Breakdown}\n")
+        f.write("\\label{tab:cost_breakdown_detailed}\n")
+
+        if table_style == "booktabs":
+            f.write("\\begin{tabular}{lS[table-format=10.0]S[table-format=3.1]}\n")
+        else:
+            f.write("\\begin{tabular}{lrr}\n")
+
+        f.write(f"{top_rule}\n")
+        f.write("Cost Component & {Value [EUR]} & {Share [\\%]} \\\\\n")
+        f.write(f"{mid_rule}\n")
+
+        for label, value in cost_items:
+            if value is None:
+                # Category header
+                f.write(f"{label} & & \\\\\n")
+            else:
+                share = (value / total * 100) if total > 0 else 0.0
+
+                if table_style == "booktabs":
+                    value_str = format_number(value, 0).replace(",", "")
+                    share_str = format_number(share, 1).replace(",", "")
+                else:
+                    value_str = format_number(value, 0)
+                    share_str = format_number(share, 1)
+
+                f.write(f"{label} & {value_str} & {share_str} \\\\\n")
+
+        # Add total
+        f.write(f"{mid_rule}\n")
+        if table_style == "booktabs":
+            total_str = format_number(total, 0).replace(",", "")
+        else:
+            total_str = format_number(total, 0)
+        f.write(f"\\textbf{{Total}} & {total_str} & 100.0 \\\\\n")
 
         f.write(f"{bottom_rule}\n")
         f.write("\\end{tabular}\n")
