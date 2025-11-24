@@ -170,7 +170,8 @@ def export_publication_plots(
         Which plots to generate. If None, generates all available plots.
         Options: "heat_balance", "electric_balance", "storage", "cost_breakdown",
                  "cop_analysis", "emissions", "load_duration", "monthly_aggregate",
-                 "technology_comparison", "efficiency_metrics"
+                 "technology_comparison", "capex_opex", "electricity_cost_pie",
+                 "fuel_cost_breakdown"
 
     Returns
     -------
@@ -228,6 +229,12 @@ def export_publication_plots(
             outdir, summary_sections, dpi, formats
         ) if summary_sections else [],
         "capex_opex": lambda: _capex_opex_publication(
+            outdir, summary_sections, dpi, formats
+        ) if summary_sections else [],
+        "electricity_cost_pie": lambda: _electricity_cost_pie_publication(
+            outdir, summary_sections, dpi, formats
+        ) if summary_sections else [],
+        "fuel_cost_breakdown": lambda: _fuel_cost_breakdown_publication(
             outdir, summary_sections, dpi, formats
         ) if summary_sections else [],
     }
@@ -527,52 +534,157 @@ def _cost_breakdown_publication(
     dpi: int,
     formats: Sequence[str],
 ) -> list[str]:
-    """Generate publication-quality cost breakdown plot."""
+    """Generate publication-quality cost breakdown plot with grouped categories."""
     objective = summary_sections.get("objective")
     if not isinstance(objective, Mapping):
         return []
 
-    entries: list[tuple[str, float]] = []
-    for key, value in objective.items():
-        if not key.endswith("_EUR") or key == "OBJ_value_EUR":
-            continue
+    # Group costs by category
+    electricity_costs = []
+    fuel_costs = []
+    capex_costs = []
+    other_costs = []
+    revenue = []
+
+    # Electricity costs (detailed breakdown)
+    for key in ["Electricity_base_cost_EUR", "Electricity_energy_fee_EUR",
+                "Electricity_grid_fee_EUR", "Demand_charge_cost_EUR"]:
+        val = objective.get(key, 0.0)
         try:
-            number = float(value)
+            number = float(val)
+            if abs(number) > 1e-3:
+                label = key.replace("Electricity_", "").replace("_EUR", "").replace("_", " ").title()
+                electricity_costs.append((label, number))
         except (TypeError, ValueError):
-            continue
-        if abs(number) < 1e-6:
-            continue
+            pass
 
-        # Clean up label
-        label = key.replace("_EUR", "").replace("_", " ").title()
-        entries.append((label, number))
+    # Fuel costs (total or by type)
+    fuel_total = objective.get("Fuel_cost_EUR", 0.0)
+    if abs(float(fuel_total)) > 1e-3:
+        # Check for detailed fuel breakdown
+        has_detail = False
+        for key, val in objective.items():
+            if key.startswith("Fuel_cost_") and key != "Fuel_cost_EUR" and key.endswith("_EUR"):
+                try:
+                    number = float(val)
+                    if abs(number) > 1e-3:
+                        fuel_type = key.replace("Fuel_cost_", "").replace("_EUR", "").title()
+                        fuel_costs.append((f"{fuel_type} Fuel", number))
+                        has_detail = True
+                except (TypeError, ValueError):
+                    pass
+        if not has_detail:
+            fuel_costs.append(("Fuel Cost", float(fuel_total)))
 
-    if not entries:
+    # Investment costs (detailed breakdown)
+    for key in ["Capex_heat_pumps_EUR", "Capex_storage_EUR", "Activation_cost_EUR",
+                "Storage_installation_cost_EUR"]:
+        val = objective.get(key, 0.0)
+        try:
+            number = float(val)
+            if abs(number) > 1e-3:
+                label = key.replace("Capex_", "").replace("_EUR", "").replace("_", " ").title()
+                capex_costs.append((label, number))
+        except (TypeError, ValueError):
+            pass
+
+    # Other costs
+    for key in ["CO2_cost_EUR", "Dump_cost_EUR", "Tie_breaker_cost_EUR"]:
+        val = objective.get(key, 0.0)
+        try:
+            number = float(val)
+            if abs(number) > 1e-3:
+                label = key.replace("_EUR", "").replace("_", " ").title()
+                other_costs.append((label, number))
+        except (TypeError, ValueError):
+            pass
+
+    # Revenue (negative cost)
+    rev = objective.get("Grid_sell_revenue_EUR", 0.0)
+    if abs(float(rev)) > 1e-3:
+        revenue.append(("Grid Revenue", -float(rev)))
+
+    # Combine all costs
+    all_entries = []
+    if electricity_costs:
+        all_entries.append(("ELECTRICITY COSTS", None))  # Category header
+        all_entries.extend(electricity_costs)
+    if fuel_costs:
+        all_entries.append(("FUEL COSTS", None))
+        all_entries.extend(fuel_costs)
+    if capex_costs:
+        all_entries.append(("INVESTMENT COSTS", None))
+        all_entries.extend(capex_costs)
+    if other_costs:
+        all_entries.append(("OTHER COSTS", None))
+        all_entries.extend(other_costs)
+    if revenue:
+        all_entries.append(("REVENUE", None))
+        all_entries.extend(revenue)
+
+    if not all_entries:
         return []
 
-    # Sort by absolute value
-    entries.sort(key=lambda item: abs(item[1]), reverse=True)
-    labels, values = zip(*entries)
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, max(6, len(all_entries) * 0.35)), constrained_layout=True)
 
-    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN, constrained_layout=True)
+    labels = []
+    values = []
+    colors = []
+    y_positions = []
+    y_pos = 0
 
-    positions = range(len(labels))
-    colors = [PublicationConfig.COLORS_QUALITATIVE[0] if val >= 0
-              else PublicationConfig.COLORS_QUALITATIVE[1] for val in values]
+    for label, value in all_entries:
+        if value is None:
+            # Category header - skip a position
+            y_pos += 0.5
+            continue
+        labels.append(label)
+        values.append(value)
+        y_positions.append(y_pos)
 
-    bars = ax.barh(positions, values, color=colors, alpha=0.8)
-    ax.set_yticks(list(positions), labels)
+        # Color based on category
+        if value < 0:
+            colors.append(PublicationConfig.COLORS_QUALITATIVE[2])  # Green for revenue
+        else:
+            colors.append(PublicationConfig.COLORS_QUALITATIVE[0])  # Blue for costs
+
+        y_pos += 1
+
+    # Draw bars
+    bars = ax.barh(y_positions, values, color=colors, alpha=0.8, height=0.7)
+
+    # Set labels
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(labels, fontsize=9)
     ax.invert_yaxis()
-    ax.set_xlabel("Cost [EUR]")
-    ax.set_title("Total System Cost Breakdown")
+    ax.set_xlabel("Cost [EUR]", fontsize=10)
+    ax.set_title("Detailed System Cost Breakdown", fontsize=12, fontweight='bold')
     ax.grid(True, axis="x", alpha=0.3)
     ax.axvline(0, color="black", linewidth=1.0)
 
-    # Add value labels
-    for i, (bar, val) in enumerate(zip(bars, values)):
+    # Add value labels on bars
+    for bar, val in zip(bars, values):
         if abs(val) > 0:
-            label_x = val + (max(values) - min(values)) * 0.02
-            ax.text(label_x, i, f'{val:,.0f}', va='center', ha='left', fontsize=8)
+            width = bar.get_width()
+            label_x = width + (max(values) - min(values)) * 0.01
+            if width < 0:
+                label_x = width - (max(values) - min(values)) * 0.01
+                ha = 'right'
+            else:
+                ha = 'left'
+            ax.text(label_x, bar.get_y() + bar.get_height()/2,
+                   f'{val:,.0f}', va='center', ha=ha, fontsize=8)
+
+    # Add category headers as text
+    y_pos = 0
+    for label, value in all_entries:
+        if value is None:
+            ax.text(-0.02, y_pos, label, transform=ax.get_yaxis_transform(),
+                   fontsize=10, fontweight='bold', va='center', ha='right')
+            y_pos += 0.5
+        else:
+            y_pos += 1
 
     return _save_figure(fig, outdir, "cost_breakdown_publication", dpi, formats)
 
@@ -641,33 +753,63 @@ def _emissions_publication(
     dpi: int,
     formats: Sequence[str],
 ) -> list[str]:
-    """Generate CO2 emissions analysis plot."""
-    # Try to find emissions data in grid section
+    """Generate CO2 emissions analysis plot with breakdown."""
+    # Try to find emissions data in grid section and objective
     if not summary_sections or "grid" not in summary_sections:
         return []
 
     grid_section = summary_sections["grid"]
-    total_emissions = grid_section.get("total_co2_emissions_t")
+    objective = summary_sections.get("objective", {})
 
-    if not total_emissions:
+    # Use correct field name (new)
+    total_emissions = grid_section.get("Total_CO2_emissions_t")
+    grid_emissions = grid_section.get("Grid_CO2_emissions_t")
+    fuel_emissions = objective.get("Fuel_emissions_t", 0.0)
+
+    if not total_emissions or abs(float(total_emissions)) < 1e-3:
         return []
 
-    # Create a simple bar chart showing emissions breakdown
+    # Create bar chart showing emissions breakdown
     fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_SINGLE_COLUMN, constrained_layout=True)
 
-    categories = ["Total CO₂ Emissions"]
-    values = [float(total_emissions)]
+    # Prepare data
+    categories = []
+    values = []
 
-    bars = ax.bar(categories, values, color=PublicationConfig.COLORS_QUALITATIVE[1], alpha=0.8)
+    if grid_emissions and abs(float(grid_emissions)) > 1e-3:
+        categories.append("Grid\nElectricity")
+        values.append(float(grid_emissions))
+
+    if fuel_emissions and abs(float(fuel_emissions)) > 1e-3:
+        categories.append("Fuel\nCombustion")
+        values.append(float(fuel_emissions))
+
+    if not values:
+        # Fallback to total only
+        categories = ["Total CO₂"]
+        values = [float(total_emissions)]
+
+    colors = [PublicationConfig.COLORS_QUALITATIVE[i % len(PublicationConfig.COLORS_QUALITATIVE)]
+             for i in range(len(values))]
+
+    bars = ax.bar(categories, values, color=colors, alpha=0.8)
     ax.set_ylabel("CO₂ Emissions [t]")
-    ax.set_title("Annual CO₂ Emissions")
+    ax.set_title("CO₂ Emissions Breakdown", fontsize=11, fontweight='bold')
     ax.grid(True, axis="y", alpha=0.3)
 
-    # Add value label on bar
+    # Add value labels on bars
     for bar, val in zip(bars, values):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:,.0f} t', ha='center', va='bottom', fontsize=10)
+                f'{val:,.1f} t', ha='center', va='bottom', fontsize=9)
+
+    # Add total as text if we have breakdown
+    if len(values) > 1:
+        total = sum(values)
+        ax.text(0.98, 0.98, f'Total: {total:,.1f} t',
+               ha='right', va='top', fontsize=9, fontweight='bold',
+               transform=ax.transAxes,
+               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     return _save_figure(fig, outdir, "emissions_publication", dpi, formats)
 
@@ -830,52 +972,72 @@ def _capex_opex_publication(
     dpi: int,
     formats: Sequence[str],
 ) -> list[str]:
-    """Generate CAPEX vs OPEX breakdown."""
+    """Generate CAPEX vs OPEX breakdown with detailed subcategories."""
     objective = summary_sections.get("objective")
     if not isinstance(objective, Mapping):
         return []
 
-    # Identify CAPEX and OPEX components
-    capex_keys = ["Invest_EUR", "Install_EUR", "Fixed_OM_EUR"]
-    opex_keys = ["Energy_EUR", "Fuel_EUR", "CO2_EUR", "Demand_charge_EUR"]
+    # Identify CAPEX components (using new field names)
+    capex_keys = [
+        "Capex_cost_EUR",
+        "Activation_cost_EUR",
+        "Storage_installation_cost_EUR",
+    ]
+
+    # Identify OPEX components (using new field names)
+    opex_keys = [
+        "Grid_energy_cost_EUR",
+        "Fuel_cost_EUR",
+        "CO2_cost_EUR",
+        "Demand_charge_cost_EUR",
+        "Dump_cost_EUR",
+    ]
 
     capex_total = 0.0
     opex_total = 0.0
 
     for key in capex_keys:
-        val = objective.get(key)
-        if val:
-            try:
-                capex_total += float(val)
-            except (TypeError, ValueError):
-                pass
+        val = objective.get(key, 0.0)
+        try:
+            capex_total += float(val)
+        except (TypeError, ValueError):
+            pass
 
     for key in opex_keys:
-        val = objective.get(key)
-        if val:
-            try:
-                opex_total += float(val)
-            except (TypeError, ValueError):
-                pass
+        val = objective.get(key, 0.0)
+        try:
+            opex_total += float(val)
+        except (TypeError, ValueError):
+            pass
+
+    # Subtract revenue from OPEX
+    revenue = objective.get("Grid_sell_revenue_EUR", 0.0)
+    try:
+        opex_total -= float(revenue)
+    except (TypeError, ValueError):
+        pass
 
     if capex_total < 1e-3 and opex_total < 1e-3:
         return []
 
-    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_SINGLE_COLUMN, constrained_layout=True)
+    # Create two subplots: one for totals, one for breakdown
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN,
+                                   constrained_layout=True)
 
+    # Plot 1: CAPEX vs OPEX totals
     categories = ['CAPEX', 'OPEX']
     values = [capex_total, opex_total]
     colors = [PublicationConfig.COLORS_QUALITATIVE[0], PublicationConfig.COLORS_QUALITATIVE[1]]
 
-    bars = ax.bar(categories, values, color=colors, alpha=0.8)
-    ax.set_ylabel("Cost [EUR]")
-    ax.set_title("Capital vs Operational Expenditure")
-    ax.grid(True, axis="y", alpha=0.3)
+    bars = ax1.bar(categories, values, color=colors, alpha=0.8, width=0.6)
+    ax1.set_ylabel("Cost [EUR]")
+    ax1.set_title("CAPEX vs OPEX", fontsize=11, fontweight='bold')
+    ax1.grid(True, axis="y", alpha=0.3)
 
     # Add value labels
     for bar, val in zip(bars, values):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
+        ax1.text(bar.get_x() + bar.get_width()/2., height,
                 f'{val:,.0f}', ha='center', va='bottom', fontsize=9)
 
     # Add percentage labels
@@ -883,8 +1045,172 @@ def _capex_opex_publication(
     if total > 0:
         for bar, val in zip(bars, values):
             pct = (val / total) * 100
-            ax.text(bar.get_x() + bar.get_width()/2., val/2,
+            ax1.text(bar.get_x() + bar.get_width()/2., val/2,
                     f'{pct:.1f}%', ha='center', va='center',
                     fontsize=10, fontweight='bold', color='white')
 
+    # Plot 2: Detailed CAPEX breakdown (if available)
+    capex_hp = objective.get("Capex_heat_pumps_EUR", 0.0)
+    capex_sto = objective.get("Capex_storage_EUR", 0.0)
+    activation = objective.get("Activation_cost_EUR", 0.0)
+    storage_install = objective.get("Storage_installation_cost_EUR", 0.0)
+
+    capex_breakdown = []
+    capex_labels = []
+
+    if abs(float(capex_hp)) > 1e-3:
+        capex_breakdown.append(float(capex_hp))
+        capex_labels.append("Heat Pumps")
+    if abs(float(capex_sto)) > 1e-3:
+        capex_breakdown.append(float(capex_sto))
+        capex_labels.append("Storage")
+    if abs(float(activation)) > 1e-3:
+        capex_breakdown.append(float(activation))
+        capex_labels.append("Activation")
+    if abs(float(storage_install)) > 1e-3:
+        capex_breakdown.append(float(storage_install))
+        capex_labels.append("Installation")
+
+    if capex_breakdown:
+        # Pie chart for CAPEX breakdown
+        wedges, texts, autotexts = ax2.pie(
+            capex_breakdown,
+            labels=capex_labels,
+            autopct='%1.1f%%',
+            colors=PublicationConfig.COLORS_QUALITATIVE[:len(capex_breakdown)],
+            startangle=90,
+            textprops={'fontsize': 9}
+        )
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+        ax2.set_title("CAPEX Breakdown", fontsize=11, fontweight='bold')
+    else:
+        ax2.text(0.5, 0.5, "No CAPEX breakdown\navailable",
+                ha='center', va='center', transform=ax2.transAxes,
+                fontsize=10, color='gray')
+        ax2.axis('off')
+
     return _save_figure(fig, outdir, "capex_opex_publication", dpi, formats)
+
+
+def _electricity_cost_pie_publication(
+    outdir: str,
+    summary_sections: Mapping[str, Mapping[str, object]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """Generate pie chart for detailed electricity cost breakdown."""
+    objective = summary_sections.get("objective")
+    if not isinstance(objective, Mapping):
+        return []
+
+    # Collect electricity cost components
+    elec_components = []
+    elec_labels = []
+
+    cost_mapping = [
+        ("Electricity_base_cost_EUR", "Spot Price"),
+        ("Electricity_energy_fee_EUR", "Energy Fee"),
+        ("Electricity_grid_fee_EUR", "Grid Fee\n(Netzentgelte)"),
+        ("Demand_charge_cost_EUR", "Demand Charge\n(Leistungspreis)"),
+    ]
+
+    for key, label in cost_mapping:
+        val = objective.get(key, 0.0)
+        try:
+            number = float(val)
+            if abs(number) > 1e-3:
+                elec_components.append(number)
+                elec_labels.append(label)
+        except (TypeError, ValueError):
+            pass
+
+    if not elec_components:
+        return []
+
+    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_SINGLE_COLUMN, constrained_layout=True)
+
+    # Create pie chart
+    wedges, texts, autotexts = ax.pie(
+        elec_components,
+        labels=elec_labels,
+        autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '',
+        colors=PublicationConfig.COLORS_QUALITATIVE[:len(elec_components)],
+        startangle=90,
+        textprops={'fontsize': 8}
+    )
+
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontweight('bold')
+        autotext.set_fontsize(9)
+
+    ax.set_title("Electricity Cost Breakdown", fontsize=11, fontweight='bold')
+
+    # Add total as text
+    total = sum(elec_components)
+    ax.text(0, -1.3, f'Total: {total:,.0f} EUR',
+           ha='center', va='top', fontsize=10, fontweight='bold',
+           transform=ax.transData)
+
+    return _save_figure(fig, outdir, "electricity_cost_pie_publication", dpi, formats)
+
+
+def _fuel_cost_breakdown_publication(
+    outdir: str,
+    summary_sections: Mapping[str, Mapping[str, object]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """Generate bar chart for fuel costs by type."""
+    objective = summary_sections.get("objective")
+    if not isinstance(objective, Mapping):
+        return []
+
+    # Collect fuel costs by type
+    fuel_costs = []
+    fuel_labels = []
+
+    for key, value in objective.items():
+        if key.startswith("Fuel_cost_") and key != "Fuel_cost_EUR" and key.endswith("_EUR"):
+            try:
+                number = float(value)
+                if abs(number) > 1e-3:
+                    fuel_type = key.replace("Fuel_cost_", "").replace("_EUR", "").title()
+                    fuel_costs.append(number)
+                    fuel_labels.append(fuel_type)
+            except (TypeError, ValueError):
+                pass
+
+    if not fuel_costs:
+        return []
+
+    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_SINGLE_COLUMN, constrained_layout=True)
+
+    # Create bar chart
+    x_pos = range(len(fuel_labels))
+    bars = ax.bar(x_pos, fuel_costs,
+                  color=PublicationConfig.COLORS_QUALITATIVE[:len(fuel_costs)],
+                  alpha=0.8)
+
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(fuel_labels, rotation=45, ha='right')
+    ax.set_ylabel("Cost [EUR]")
+    ax.set_title("Fuel Costs by Energy Carrier", fontsize=11, fontweight='bold')
+    ax.grid(True, axis="y", alpha=0.3)
+
+    # Add value labels on bars
+    for bar, val in zip(bars, fuel_costs):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+               f'{val:,.0f}', ha='center', va='bottom', fontsize=9)
+
+    # Add total as text
+    total = sum(fuel_costs)
+    ax.text(0.98, 0.98, f'Total: {total:,.0f} EUR',
+           ha='right', va='top', fontsize=9, fontweight='bold',
+           transform=ax.transAxes,
+           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    return _save_figure(fig, outdir, "fuel_cost_breakdown_publication", dpi, formats)
