@@ -31,9 +31,12 @@ except Exception:  # pragma: no cover - the solver stack is optional for tests
 
 from energis.config.merge import deep_merge, load_and_merge
 from energis.io.loader import load_input_excel
+from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
+from energis.io.plotter import export_plots
 from energis.models.system_builder import build_model
 from energis.utils.timeseries import TimeSeriesTable
 from . import orchestrator
+import time
 
 
 @dataclass
@@ -1080,6 +1083,237 @@ def _register_default_steps() -> None:
 _register_default_steps()
 
 
+def export_workflow_results(
+    workflow: "WorkflowResult",
+    outdir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Export workflow results to files (Excel, CSV, plots, JSON).
+
+    This is the unified export function that replaces orchestrator.run_all() exports.
+    It handles PF, RH, and MPC results consistently.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow result from run_workflow()
+    outdir : str, optional
+        Output directory path. If None, creates timestamped directory in exports/
+
+    Returns
+    -------
+    dict
+        Dictionary with export paths and metadata
+    """
+
+    # Create output directory
+    if outdir is None:
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        scenario_cfg = workflow.config.get("scenario", {})
+        title = str(scenario_cfg.get("title", "Workflow"))
+        run_mode = str(scenario_cfg.get("run_mode", "UNKNOWN"))
+        tag = scenario_cfg.get("tag") or f"{run_mode}-{title}"
+        slug = orchestrator._slugify(tag)  # Reuse orchestrator's slug function
+        outdir = os.path.join("exports", f"{stamp}_{slug}")
+
+    os.makedirs(outdir, exist_ok=True)
+
+    # Determine which results we have
+    has_pf = workflow.pf_result is not None
+    has_rh = workflow.rh_result is not None
+    has_mpc = workflow.mpc_result is not None
+
+    # Prepare timeseries sections for Excel export
+    timeseries_sections = []
+    cost_sections: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
+
+    # Get input table from first available result
+    input_table = None
+    if has_pf:
+        input_table = workflow.pf_result.table
+    elif has_rh:
+        input_table = workflow.rh_result.table
+    elif has_mpc:
+        input_table = workflow.mpc_result.table
+
+    # Add PF results
+    if has_pf and workflow.pf_result:
+        pf_input_series: OrderedDict[str, List[float]] = OrderedDict(
+            (col, list(workflow.pf_result.table[col])) for col in workflow.pf_result.table.columns
+        )
+        pf_result_series: OrderedDict[str, List[float]] = OrderedDict(
+            (name, list(values)) for name, values in workflow.pf_result.series.items()
+        )
+
+        timeseries_sections.append({
+            "label": "PF_input",
+            "timestamps": list(workflow.pf_result.table.index),
+            "series": pf_input_series,
+        })
+        timeseries_sections.append({
+            "label": "PF_result",
+            "timestamps": list(workflow.pf_result.table.index),
+            "series": pf_result_series,
+        })
+
+        if workflow.pf_result.costs:
+            cost_sections["PF"] = OrderedDict(
+                (str(key), value) for key, value in workflow.pf_result.costs.items()
+            )
+
+        # Export PF CSV
+        pf_csv = os.path.join(outdir, "pf_timeseries.csv")
+        write_timeseries_csv(pf_csv, workflow.pf_result.table, workflow.pf_result.series)
+
+    # Add RH results
+    if has_rh and workflow.rh_result:
+        rh_result_series: OrderedDict[str, List[float]] = OrderedDict(
+            (name, list(values)) for name, values in workflow.rh_result.series.items()
+        )
+
+        timeseries_sections.append({
+            "label": "RH_result",
+            "timestamps": list(workflow.rh_result.table.index),
+            "series": rh_result_series,
+        })
+
+        if workflow.rh_result.costs:
+            cost_sections["RH"] = OrderedDict(
+                (str(key), value) for key, value in workflow.rh_result.costs.items()
+            )
+
+        # Export RH CSV
+        rh_csv = os.path.join(outdir, "rh_timeseries.csv")
+        write_timeseries_csv(rh_csv, workflow.rh_result.table, workflow.rh_result.series)
+
+    # Add MPC results
+    if has_mpc and workflow.mpc_result:
+        mpc_result_series: OrderedDict[str, List[float]] = OrderedDict(
+            (name, list(values)) for name, values in workflow.mpc_result.series.items()
+        )
+
+        timeseries_sections.append({
+            "label": "MPC_result",
+            "timestamps": list(workflow.mpc_result.table.index),
+            "series": mpc_result_series,
+        })
+
+        if workflow.mpc_result.costs:
+            cost_sections["MPC"] = OrderedDict(
+                (str(key), value) for key, value in workflow.mpc_result.costs.items()
+            )
+
+        # Export MPC CSV
+        mpc_csv = os.path.join(outdir, "mpc_timeseries.csv")
+        write_timeseries_csv(mpc_csv, workflow.mpc_result.table, workflow.mpc_result.series)
+
+    # Prepare design export
+    design_export: Dict[str, Any] = {}
+    if workflow.design:
+        design_export["heat_pumps"] = workflow.design.heat_pumps
+        if workflow.design.storage:
+            design_export["storage"] = workflow.design.storage
+
+        # Export design JSON
+        design_json_path = os.path.join(outdir, "design.json")
+        with open(design_json_path, "w") as f:
+            json.dump(design_export, f, indent=2, default=str)
+
+    # Prepare metadata sections
+    scenario_cfg = workflow.config.get("scenario", {})
+    site_cfg = workflow.config.get("site", {})
+    run_cfg = workflow.config.get("run", {})
+
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    dt_h = float(run_cfg.get("dt_h", 1.0))
+
+    metadata_sections: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
+    metadata_sections["run"] = OrderedDict([
+        ("timestamp", stamp),
+        ("output_directory", outdir),
+        ("dt_h", dt_h),
+        ("workflow_steps", list(workflow.plan.steps)),
+        ("pyomo_available", HAVE_PYOMO),
+    ])
+
+    if isinstance(scenario_cfg, dict):
+        metadata_sections["scenario"] = OrderedDict((key, value) for key, value in scenario_cfg.items())
+
+    if isinstance(site_cfg, dict):
+        metadata_sections["site"] = OrderedDict((key, value) for key, value in site_cfg.items())
+
+    # Prepare manifest
+    title = str(scenario_cfg.get("title", "Workflow"))
+    run_mode = str(scenario_cfg.get("run_mode", "UNKNOWN"))
+    tag = scenario_cfg.get("tag") or f"{run_mode}-{title}"
+
+    flags = OrderedDict([
+        ("has_pf", has_pf),
+        ("has_rh", has_rh),
+        ("has_mpc", has_mpc),
+        ("has_design", bool(design_export)),
+    ])
+
+    manifest_data = OrderedDict([
+        ("scenario_title", title),
+        ("run_mode", run_mode),
+        ("workflow_steps", list(workflow.plan.steps)),
+        ("flags", flags),
+        ("export_timestamp", stamp),
+        ("slug", orchestrator._slugify(tag)),
+        ("output_directory", outdir),
+    ])
+
+    # Export scenario bundle (Excel)
+    bundle_paths = dict(
+        export_scenario_bundle(
+            outdir,
+            meta_sections=metadata_sections,
+            timeseries_sections=timeseries_sections,
+            cost_sections=cost_sections,
+            design=design_export,
+            manifest=manifest_data,
+        )
+    )
+
+    # Export plots
+    plot_files = []
+    try:
+        # Export PF plots if available
+        if has_pf and workflow.pf_result:
+            pf_summary = workflow.pf_result.summary if hasattr(workflow.pf_result, 'summary') else {}
+            pf_plots = export_plots(
+                outdir,
+                workflow.pf_result.table,
+                workflow.pf_result.series,
+                pf_summary,
+            )
+            plot_files.extend(pf_plots)
+    except Exception as exc:
+        print(f"[EXPORT] Plot export skipped: {exc}")
+
+    # Prepare return dictionary
+    result_dict = {
+        "outdir": outdir,
+        "scenario_xlsx": bundle_paths.get("scenario_xlsx"),
+        "costs_json": bundle_paths.get("costs_json"),
+        "design_json": bundle_paths.get("design_json"),
+        "meta_json": bundle_paths.get("meta_json"),
+        "manifest_json": bundle_paths.get("manifest_json"),
+        "plots": plot_files,
+        "costs": {},
+    }
+
+    # Add costs from the final result
+    if has_mpc and workflow.mpc_result and workflow.mpc_result.costs:
+        result_dict["costs"] = workflow.mpc_result.costs
+    elif has_rh and workflow.rh_result and workflow.rh_result.costs:
+        result_dict["costs"] = workflow.rh_result.costs
+    elif has_pf and workflow.pf_result and workflow.pf_result.costs:
+        result_dict["costs"] = workflow.pf_result.costs
+
+    return result_dict
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Simple command line interface for :mod:`energis.run.rolling_horizon`."""
 
@@ -1217,6 +1451,7 @@ __all__ = [
     "WorkflowInputs",
     "WorkflowResult",
     "run_workflow",
+    "export_workflow_results",
     "WorkflowContext",
     "WorkflowPlan",
     "register_workflow_step",

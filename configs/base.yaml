@@ -1,3 +1,11 @@
+# ============================================================================
+# BASE CONFIGURATION
+# ============================================================================
+# Diese Datei enthält NUR technische Defaults und globale Parameter.
+# Scenario-spezifische Einstellungen (run_mode, workflows, etc.) gehören in
+# configs/scenarios/*.scenario.yaml
+# ============================================================================
+
 run:
   dt_h: 1.0
   solver: gurobi
@@ -8,21 +16,6 @@ run:
     MIPFocus: 1  # 1 = fokussiere auf zulässige Lösungen finden
     Presolve: 2  # 2 = aggressive Presolve
     Cuts: 2  # 2 = aggressive Cuts
-
-scenario:
-  run_mode: PF_ONLY
-  fix_design: false
-  rolling_horizon:
-    heat_horizon_hours: 168.0
-    step_hours: 24.0
-    terminal_policy: free
-
-  # Zeitraum begrenzen (für schnelle Tests)
-  horizon:
-    type: "date_range"
-    start: "2023-01-01 00:00"  # Anpassen an deine Import_Data.xlsx
-    end: "2023-01-08 00:00"    # 1 Woche = 7 Tage
-    enforce: false
 
 costs:
   include_gridcost_in_energy: true

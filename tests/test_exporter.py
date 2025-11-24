@@ -101,12 +101,13 @@ def test_extract_pyomo_series_handles_invalid_data(monkeypatch, caplog) -> None:
 
 
 def test_run_all_creates_export_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test legacy orchestrator.run_all() API (deprecated but maintained for compatibility)."""
     monkeypatch.chdir(tmp_path)
 
     config = {
         "site": {"input_xlsx": "dummy.xlsx"},
         "run": {"dt_h": 1.0, "solver": "dummy"},
-        "scenario": {"title": "Demo", "mode": "PF"},
+        "scenario": {"title": "Demo", "mode": "PF", "run_mode": "PF_ONLY"},
         "system": {
             "heat_pumps": [
                 {"id": "HP1", "max_th_mw": 20.0, "min_th_mw": 1.0, "investment": {}},
@@ -144,7 +145,11 @@ def test_run_all_creates_export_bundle(tmp_path: Path, monkeypatch: pytest.Monke
     )
     monkeypatch.setattr(orchestrator, "export_plots", lambda *args, **kwargs: [])
 
-    result = orchestrator.run_all([])
+    # Suppress deprecation warning for this legacy test
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        result = orchestrator.run_all([])
 
     assert result["scenario_xlsx"] is not None
     xlsx_path = Path(result["scenario_xlsx"])
@@ -155,7 +160,7 @@ def test_run_all_creates_export_bundle(tmp_path: Path, monkeypatch: pytest.Monke
     assert manifest["scenario_title"] == "Demo"
     assert manifest["flags"]["has_design"] is True
 
-    design_path = Path(result["pf_design_json"])
+    design_path = Path(result["design_json"])  # Changed from pf_design_json
     design = json.loads(design_path.read_text(encoding="utf-8"))
     assert design["heat_pumps"]["HP1"]["capacity_mw"] == pytest.approx(5.0)
 

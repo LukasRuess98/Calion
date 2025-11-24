@@ -3,7 +3,11 @@ scenario:
   run_mode: MPC_ONLY
   workflow:
     - MPC
-
+  fix_design: false
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
   mpc:
     forecast_method: "perfect_noise"
     forecast_horizon_hours: 168.0  # 1 week forecast horizon
