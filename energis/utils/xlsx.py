@@ -9,7 +9,6 @@ the goal is merely to supply the functionality that used to be covered by the
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 import itertools
 import xml.etree.ElementTree as ET

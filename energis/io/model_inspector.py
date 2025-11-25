@@ -7,11 +7,9 @@ before solver execution.
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List
 import os
 import json
-import math
 
 try:
     import pyomo.environ as pyo
@@ -710,8 +708,6 @@ def create_model_plots(
 
                 # Add statistics
                 mean_val = np.mean(values)
-                min_val = np.min(values)
-                max_val = np.max(values)
                 ax.axhline(mean_val, color='red', linestyle='--', linewidth=1.5, alpha=0.7, label=f'Mean: {mean_val:.2f}')
                 ax.legend(loc='upper right', fontsize=9)
 
@@ -845,9 +841,9 @@ def create_model_plots(
             for j in range(len(metrics)):
                 val = int(data[i, j])
                 if val > 0:
-                    text = ax.text(j, i, f'{val:,}',
-                                  ha="center", va="center", color="black",
-                                  fontsize=9, fontweight='bold')
+                    ax.text(j, i, f'{val:,}',
+                           ha="center", va="center", color="black",
+                           fontsize=9, fontweight='bold')
 
         ax.set_title('Model Complexity Matrix', fontsize=14, fontweight='bold', pad=20)
 

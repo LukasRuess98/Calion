@@ -8,7 +8,7 @@ Inspired by plugin systems in Django, Flask, and other extensible frameworks.
 """
 from __future__ import annotations
 
-from typing import Dict, Type, List, Any, Optional, Callable
+from typing import Dict, Type, List, Any, Callable
 import inspect
 
 from .component import Component

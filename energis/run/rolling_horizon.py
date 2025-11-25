@@ -1126,15 +1126,6 @@ def export_workflow_results(
     timeseries_sections = []
     cost_sections: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
 
-    # Get input table from first available result
-    input_table = None
-    if has_pf:
-        input_table = workflow.pf_result.table
-    elif has_rh:
-        input_table = workflow.rh_result.table
-    elif has_mpc:
-        input_table = workflow.mpc_result.table
-
     # Add PF results
     if has_pf and workflow.pf_result:
         pf_input_series: OrderedDict[str, List[float]] = OrderedDict(

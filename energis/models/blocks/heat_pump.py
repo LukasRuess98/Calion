@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo

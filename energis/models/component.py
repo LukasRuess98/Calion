@@ -9,7 +9,7 @@ Inspired by Oemof.solph and PyPSA design patterns.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, Literal, Protocol, runtime_checkable
 from enum import Enum
 

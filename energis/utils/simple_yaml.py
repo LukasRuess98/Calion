@@ -186,7 +186,6 @@ def _parse_lines(lines: Iterable[Tuple[int, str]]) -> Any:
                     parent.append(_parse_scalar(item_text))
             else:
                 # The list item opens a nested structure.
-                next_indent = iterator[idx][0] if idx < len(iterator) else indent + 2
                 if idx < len(iterator) and iterator[idx][0] > indent:
                     child_indent = iterator[idx][0]
                     if iterator[idx][1].startswith("- "):

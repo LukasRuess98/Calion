@@ -16,7 +16,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     pyo = None
 
-from .component import BaseComponent, BusType, Flow
+from .component import BaseComponent, BusType
 
 
 class Bus(BaseComponent):

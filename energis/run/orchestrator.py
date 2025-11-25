@@ -3,11 +3,15 @@
 .. deprecated:: 2.0
     This module is deprecated. Use :mod:`energis.run.rolling_horizon` instead.
 
+    **MAINTENANCE MODE**: This module is in maintenance-only mode. No new features
+    will be added. It exists solely for backwards compatibility.
+
     - Old: ``from energis.run.orchestrator import run_all``
     - New: ``from energis.run import rolling_horizon as rh``
 
     The :func:`run_all` function is maintained for backwards compatibility but
-    will be removed in version 3.0.
+    will be removed in version 3.0. It now delegates all work to the new
+    workflow-based API.
 
 Migration guide::
 
@@ -19,6 +23,11 @@ Migration guide::
     from energis.run import rolling_horizon as rh
     workflow = rh.run_workflow(config_paths)
     result = rh.export_workflow_results(workflow)
+
+See Also
+--------
+:mod:`energis.run.rolling_horizon` : New unified workflow API
+:doc:`/MIGRATION_V2` : Complete migration guide with examples
 """
 
 from __future__ import annotations
@@ -50,7 +59,7 @@ from energis.io.model_inspector import export_model_structure
 
 # Publication exports (optional)
 try:
-    from energis.io.publication_plotter import export_publication_plots, HAVE_MATPLOTLIB as HAVE_PUBLICATION_MATPLOTLIB
+    from energis.io.publication_plotter import export_publication_plots
     from energis.io.publication_exporter import export_publication_bundle, export_kpi_summary, export_latex_tables
     from energis.io.applied_energies_exporter import export_applied_energies_bundle
     HAVE_PUBLICATION_EXPORTS = True
