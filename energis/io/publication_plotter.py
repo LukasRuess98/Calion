@@ -149,7 +149,7 @@ def export_publication_plots(
     summary_sections: Mapping[str, Mapping[str, object]] | None = None,
     *,
     dpi: int = 300,
-    formats: Sequence[str] = ("png", "pdf"),
+    formats: Sequence[str] = ("pdf", "svg"),
     plot_types: Sequence[str] | None = None,
 ) -> dict[str, list[str]]:
     """
@@ -166,9 +166,13 @@ def export_publication_plots(
     summary_sections : Mapping[str, Mapping[str, object]], optional
         Summary statistics (costs, design decisions, etc.)
     dpi : int, default=300
-        Resolution for raster formats (PNG)
-    formats : Sequence[str], default=("png", "pdf")
-        Export formats: "png", "pdf", "eps", "svg"
+        Resolution for raster formats (PNG, TIFF)
+    formats : Sequence[str], default=("pdf", "svg")
+        Export formats: "pdf", "svg", "eps", "png", "tiff"
+        Recommended combinations:
+        - ("pdf", "svg"): Modern, editable vector formats (default)
+        - ("pdf", "eps"): Classic LaTeX compatibility
+        - ("pdf", "svg", "png"): With raster fallback
     plot_types : Sequence[str], optional
         Which plots to generate. If None, generates all available plots.
         Options: "heat_balance", "electric_balance", "storage", "cost_breakdown",

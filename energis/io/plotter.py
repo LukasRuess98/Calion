@@ -32,7 +32,7 @@ def export_plots(
     summary_sections: Mapping[str, Mapping[str, object]] | None = None,
     *,
     dpi: int = 300,
-    formats: Sequence[str] = ("pdf", "png"),
+    formats: Sequence[str] = ("pdf", "svg"),
 ) -> list[str]:
     """Generate a couple of high-quality figures for the export package.
 
@@ -53,8 +53,10 @@ def export_plots(
         Summary statistics for cost plots
     dpi : int, default=300
         Resolution for raster formats (increased from 200 for publication quality)
-    formats : Sequence[str], default=("pdf", "png")
-        Export formats. PDF is vector format, suitable for publications.
+    formats : Sequence[str], default=("pdf", "svg")
+        Export formats. PDF and SVG are vector formats, ideal for dissertations.
+        PDF: Universal compatibility, SVG: Editable in Inkscape/Illustrator.
+        Use ("pdf", "svg", "png") for raster fallback or ("pdf", "eps") for classic LaTeX.
     """
 
     if not HAVE_MATPLOTLIB:
