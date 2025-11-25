@@ -204,6 +204,12 @@ def export_publication_plots(
 
     # Available plot functions
     plot_functions = {
+        "input_data": lambda: _input_data_publication(
+            outdir, timestamps, table, series, dpi, formats
+        ),
+        "results_combined": lambda: _results_combined_publication(
+            outdir, timestamps, table, series, dpi, formats
+        ),
         "heat_balance": lambda: _heat_balance_publication(
             outdir, timestamps, table, series, dpi, formats
         ),
@@ -296,6 +302,189 @@ _has_content = has_content
 # ============================================================================
 # Publication Plots
 # ============================================================================
+
+def _input_data_publication(
+    outdir: str,
+    timestamps: Sequence[datetime] | Sequence[int],
+    table: TimeSeriesTable,
+    series: Mapping[str, Sequence[float]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """Generate publication-quality input data overview plot.
+
+    Shows key input data: Heat demand, Electricity price, Waste heat recovery
+    temperature and thermal power.
+    """
+    demand = table.data.get("waermebedarf_MWth")
+    if not demand:
+        return []
+
+    # Collect available input data
+    electricity_price = table.data.get("strompreis_eur_per_mwh")
+    wrg_temp = table.data.get("wrg_temperatur_c") or table.data.get("waste_heat_temp_c")
+    wrg_q = table.data.get("wrg_q_mw") or table.data.get("waste_heat_q_mw")
+
+    # Count how many data sources we have
+    n_plots = 1  # Always have demand
+    if electricity_price and _has_content(electricity_price):
+        n_plots += 1
+    if wrg_temp and _has_content(wrg_temp):
+        n_plots += 1
+    if wrg_q and _has_content(wrg_q):
+        n_plots += 1
+
+    if n_plots == 1:
+        # Only demand available, skip this plot
+        return []
+
+    # Create subplots
+    fig, axes = plt.subplots(n_plots, 1,
+                            figsize=(PublicationConfig.FIGSIZE_DOUBLE_COLUMN[0],
+                                    2.5 * n_plots),
+                            constrained_layout=True)
+
+    if n_plots == 1:
+        axes = [axes]
+
+    plot_idx = 0
+
+    # Plot 1: Heat Demand
+    ax = axes[plot_idx]
+    ax.plot(timestamps, demand, color=PublicationConfig.COLORS_QUALITATIVE[0],
+            linewidth=1.5, label='Heat Demand')
+    ax.fill_between(timestamps, 0, demand, alpha=0.3,
+                    color=PublicationConfig.COLORS_QUALITATIVE[0])
+    ax.set_ylabel("Heat Demand [MW]")
+    ax.set_title("Input Data Overview", fontsize=12, fontweight='bold', loc='left')
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend(loc='upper right', frameon=True)
+    plot_idx += 1
+
+    # Plot 2: Electricity Price (if available)
+    if electricity_price and _has_content(electricity_price):
+        ax = axes[plot_idx]
+        ax.plot(timestamps, electricity_price,
+                color=PublicationConfig.COLORS_QUALITATIVE[1],
+                linewidth=1.5, label='Electricity Price')
+        ax.set_ylabel("Price [EUR/MWh]")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(loc='upper right', frameon=True)
+        plot_idx += 1
+
+    # Plot 3: Waste Heat Temperature (if available)
+    if wrg_temp and _has_content(wrg_temp):
+        ax = axes[plot_idx]
+        ax.plot(timestamps, wrg_temp,
+                color=PublicationConfig.COLORS_QUALITATIVE[2],
+                linewidth=1.5, label='Waste Heat Temperature')
+        ax.set_ylabel("Temperature [°C]")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(loc='upper right', frameon=True)
+        plot_idx += 1
+
+    # Plot 4: Waste Heat Power (if available)
+    if wrg_q and _has_content(wrg_q):
+        ax = axes[plot_idx]
+        ax.plot(timestamps, wrg_q,
+                color=PublicationConfig.COLORS_QUALITATIVE[3],
+                linewidth=1.5, label='Waste Heat Recovery')
+        ax.fill_between(timestamps, 0, wrg_q, alpha=0.3,
+                        color=PublicationConfig.COLORS_QUALITATIVE[3])
+        ax.set_ylabel("Thermal Power [MW]")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(loc='upper right', frameon=True)
+
+    # Configure time axis for bottom plot only
+    _configure_time_axis(axes[-1], timestamps)
+
+    # Hide x-axis labels for all but bottom plot
+    for ax in axes[:-1]:
+        ax.set_xlabel("")
+        ax.tick_params(labelbottom=False)
+
+    return _save_figure(fig, outdir, "input_data_overview", dpi, formats)
+
+
+def _results_combined_publication(
+    outdir: str,
+    timestamps: Sequence[datetime] | Sequence[int],
+    table: TimeSeriesTable,
+    series: Mapping[str, Sequence[float]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """Generate combined results plot: Demand, Generation, and Electricity Price.
+
+    Shows the optimization results with heat demand, total heat generation,
+    and electricity prices in one comprehensive view.
+    """
+    demand = table.data.get("waermebedarf_MWth")
+    if not demand:
+        return []
+
+    # Calculate total generation from all thermal sources
+    total_generation = np.zeros(len(timestamps))
+    generation_found = False
+
+    for key, values in series.items():
+        if key == "TES_charge_MW":
+            continue  # Don't count storage charging as generation
+        if key.endswith("_Q_th_MW") or key == "TES_discharge_MW":
+            if _has_content(values):
+                total_generation += np.array(values)
+                generation_found = True
+
+    if not generation_found:
+        return []
+
+    # Get electricity price if available
+    electricity_price = table.data.get("strompreis_eur_per_mwh")
+    has_price = electricity_price and _has_content(electricity_price)
+
+    # Create figure with dual y-axis
+    fig, ax1 = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN_TALL,
+                           constrained_layout=True)
+
+    # Primary axis: Heat demand and generation
+    color_demand = PublicationConfig.COLORS_QUALITATIVE[0]
+    color_generation = PublicationConfig.COLORS_QUALITATIVE[1]
+
+    ax1.plot(timestamps, demand, color=color_demand, linewidth=2.0,
+            label='Heat Demand', linestyle='--', alpha=0.9)
+    ax1.plot(timestamps, total_generation, color=color_generation, linewidth=2.0,
+            label='Total Heat Generation', alpha=0.8)
+    ax1.fill_between(timestamps, 0, total_generation,
+                     alpha=0.2, color=color_generation)
+
+    ax1.set_ylabel("Thermal Power [MW]", fontsize=11)
+    ax1.set_title("System Operation: Heat Balance and Electricity Price",
+                 fontsize=12, fontweight='bold')
+    ax1.grid(True, which="both", alpha=0.3)
+    _configure_time_axis(ax1, timestamps)
+
+    # Secondary axis: Electricity price
+    if has_price:
+        ax2 = ax1.twinx()
+        color_price = PublicationConfig.COLORS_QUALITATIVE[3]
+
+        ax2.plot(timestamps, electricity_price, color=color_price,
+                linewidth=1.5, label='Electricity Price',
+                linestyle=':', alpha=0.7)
+        ax2.set_ylabel("Electricity Price [EUR/MWh]", fontsize=11,
+                      color=color_price)
+        ax2.tick_params(axis='y', labelcolor=color_price)
+
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2,
+                  loc='upper left', frameon=True, fontsize=9)
+    else:
+        ax1.legend(loc='upper left', frameon=True, fontsize=9)
+
+    return _save_figure(fig, outdir, "results_combined", dpi, formats)
+
 
 def _heat_balance_publication(
     outdir: str,

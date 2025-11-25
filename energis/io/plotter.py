@@ -31,7 +31,8 @@ def export_plots(
     series: Mapping[str, Sequence[float]],
     summary_sections: Mapping[str, Mapping[str, object]] | None = None,
     *,
-    dpi: int = 200,
+    dpi: int = 300,
+    formats: Sequence[str] = ("pdf", "png"),
 ) -> list[str]:
     """Generate a couple of high-quality figures for the export package.
 
@@ -39,6 +40,21 @@ def export_plots(
     systems journals (e.g. Applied Energy, Applied Thermal Engineering).
     They are generated on best-effort basis – if required data or matplotlib
     are unavailable, the function degrades gracefully.
+
+    Parameters
+    ----------
+    outdir : str
+        Output directory for plots
+    table : TimeSeriesTable
+        Input time series data
+    series : Mapping[str, Sequence[float]]
+        Result time series
+    summary_sections : Mapping, optional
+        Summary statistics for cost plots
+    dpi : int, default=300
+        Resolution for raster formats (increased from 200 for publication quality)
+    formats : Sequence[str], default=("pdf", "png")
+        Export formats. PDF is vector format, suitable for publications.
     """
 
     if not HAVE_MATPLOTLIB:
@@ -72,17 +88,17 @@ def export_plots(
             ax.set_xlabel("Zeitschritt")
 
     generated.extend(
-        _heat_balance_plot(outdir, timestamps, table, series, dpi, _configure_time_axis)
+        _heat_balance_plot(outdir, timestamps, table, series, dpi, formats, _configure_time_axis)
     )
     generated.extend(
-        _electric_balance_plot(outdir, timestamps, table, series, dpi, _configure_time_axis)
+        _electric_balance_plot(outdir, timestamps, table, series, dpi, formats, _configure_time_axis)
     )
     generated.extend(
-        _storage_plot(outdir, timestamps, series, dpi, _configure_time_axis)
+        _storage_plot(outdir, timestamps, series, dpi, formats, _configure_time_axis)
     )
     if summary_sections:
         generated.extend(
-            _cost_breakdown_plot(outdir, summary_sections, dpi)
+            _cost_breakdown_plot(outdir, summary_sections, dpi, formats)
         )
 
     return generated
@@ -94,6 +110,7 @@ def _heat_balance_plot(
     table: TimeSeriesTable,
     series: Mapping[str, Sequence[float]],
     dpi: int,
+    formats: Sequence[str],
     configure_axis: Callable[[Any], None],
 ) -> Iterable[str]:
     demand = table.data.get("waermebedarf_MWth")
@@ -124,10 +141,13 @@ def _heat_balance_plot(
     configure_axis(ax)
     ax.legend(loc="upper right", frameon=True, ncol=2)
 
-    filename = os.path.join(outdir, "heat_balance.png")
-    fig.savefig(filename, dpi=dpi)
+    files = []
+    for fmt in formats:
+        filename = os.path.join(outdir, f"heat_balance.{fmt}")
+        fig.savefig(filename, dpi=dpi, bbox_inches='tight', format=fmt)
+        files.append(filename)
     plt.close(fig)
-    return [filename]
+    return files
 
 
 def _electric_balance_plot(
@@ -136,6 +156,7 @@ def _electric_balance_plot(
     table: TimeSeriesTable,
     series: Mapping[str, Sequence[float]],
     dpi: int,
+    formats: Sequence[str],
     configure_axis: Callable[[Any], None],
 ) -> Iterable[str]:
     pbuy = series.get("P_buy_MW")
@@ -174,10 +195,13 @@ def _electric_balance_plot(
     configure_axis(ax)
     ax.legend(loc="upper right", frameon=True, ncol=2)
 
-    filename = os.path.join(outdir, "electric_balance.png")
-    fig.savefig(filename, dpi=dpi)
+    files = []
+    for fmt in formats:
+        filename = os.path.join(outdir, f"electric_balance.{fmt}")
+        fig.savefig(filename, dpi=dpi, bbox_inches='tight', format=fmt)
+        files.append(filename)
     plt.close(fig)
-    return [filename]
+    return files
 
 
 def _storage_plot(
@@ -185,6 +209,7 @@ def _storage_plot(
     timestamps: Sequence[datetime] | Sequence[int],
     series: Mapping[str, Sequence[float]],
     dpi: int,
+    formats: Sequence[str],
     configure_axis: Callable[[Any], None],
 ) -> Iterable[str]:
     soc = series.get("TES_SOC_MWh")
@@ -227,16 +252,20 @@ def _storage_plot(
     else:
         ax.legend(loc="upper right", frameon=True)
 
-    filename = os.path.join(outdir, "storage_operation.png")
-    fig.savefig(filename, dpi=dpi)
+    files = []
+    for fmt in formats:
+        filename = os.path.join(outdir, f"storage_operation.{fmt}")
+        fig.savefig(filename, dpi=dpi, bbox_inches='tight', format=fmt)
+        files.append(filename)
     plt.close(fig)
-    return [filename]
+    return files
 
 
 def _cost_breakdown_plot(
     outdir: str,
     summary_sections: Mapping[str, Mapping[str, object]],
     dpi: int,
+    formats: Sequence[str],
 ) -> Iterable[str]:
     objective = summary_sections.get("objective")
     if not isinstance(objective, Mapping):
@@ -271,10 +300,13 @@ def _cost_breakdown_plot(
     ax.grid(True, axis="x", alpha=0.3)
     ax.axvline(0, color="black", linewidth=0.8)
 
-    filename = os.path.join(outdir, "cost_breakdown.png")
-    fig.savefig(filename, dpi=dpi)
+    files = []
+    for fmt in formats:
+        filename = os.path.join(outdir, f"cost_breakdown.{fmt}")
+        fig.savefig(filename, dpi=dpi, bbox_inches='tight', format=fmt)
+        files.append(filename)
     plt.close(fig)
-    return [filename]
+    return files
 
 
 # Backwards compatibility aliases
