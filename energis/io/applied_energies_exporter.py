@@ -16,10 +16,8 @@ Features:
 from __future__ import annotations
 
 import os
-import json
-from typing import Mapping, Sequence, Any
+from typing import Mapping, Any
 from datetime import datetime
-import textwrap
 
 __all__ = [
     "export_applied_energies_bundle",
@@ -68,7 +66,6 @@ def generate_graphical_abstract(
     """
     try:
         import matplotlib.pyplot as plt
-        import matplotlib.patches as mpatches
         from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Circle
     except ImportError:
         print("[GRAPHICAL ABSTRACT] Matplotlib not available")
@@ -306,7 +303,6 @@ def generate_highlights(
     highlights = []
 
     # Extract key results
-    objective = summary_sections.get("objective", {})
     grid_data = summary_sections.get("grid", {})
 
     # Highlight 1: Novel contribution

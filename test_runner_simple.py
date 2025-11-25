@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Simple test to verify the framework structure and model solvability."""
 
-from energis.run.orchestrator import run_all
+from energis.run import rolling_horizon as rh
 
 # Test with minimal configuration
 config_paths = [
@@ -24,7 +24,8 @@ print()
 try:
     print("Running optimization...")
     print()
-    result = run_all(config_paths)
+    workflow = rh.run_workflow(config_paths)
+    result = rh.export_workflow_results(workflow)
 
     print()
     print("=" * 80)

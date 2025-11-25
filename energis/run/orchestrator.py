@@ -1,3 +1,35 @@
+"""Legacy orchestrator module for optimization workflows.
+
+.. deprecated:: 2.0
+    This module is deprecated. Use :mod:`energis.run.rolling_horizon` instead.
+
+    **MAINTENANCE MODE**: This module is in maintenance-only mode. No new features
+    will be added. It exists solely for backwards compatibility.
+
+    - Old: ``from energis.run.orchestrator import run_all``
+    - New: ``from energis.run import rolling_horizon as rh``
+
+    The :func:`run_all` function is maintained for backwards compatibility but
+    will be removed in version 3.0. It now delegates all work to the new
+    workflow-based API.
+
+Migration guide::
+
+    # OLD (deprecated):
+    from energis.run.orchestrator import run_all
+    result = run_all(config_paths)
+
+    # NEW (recommended):
+    from energis.run import rolling_horizon as rh
+    workflow = rh.run_workflow(config_paths)
+    result = rh.export_workflow_results(workflow)
+
+See Also
+--------
+:mod:`energis.run.rolling_horizon` : New unified workflow API
+:doc:`/MIGRATION_V2` : Complete migration guide with examples
+"""
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -27,7 +59,7 @@ from energis.io.model_inspector import export_model_structure
 
 # Publication exports (optional)
 try:
-    from energis.io.publication_plotter import export_publication_plots, HAVE_MATPLOTLIB as HAVE_PUBLICATION_MATPLOTLIB
+    from energis.io.publication_plotter import export_publication_plots
     from energis.io.publication_exporter import export_publication_bundle, export_kpi_summary, export_latex_tables
     from energis.io.applied_energies_exporter import export_applied_energies_bundle
     HAVE_PUBLICATION_EXPORTS = True
@@ -873,6 +905,56 @@ def _apply_horizon(table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: f
 
 
 def run_all(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Legacy entry point for running optimizations.
+
+    .. deprecated:: 2.0
+        Use :func:`energis.run.rolling_horizon.run_workflow` and
+        :func:`energis.run.rolling_horizon.export_workflow_results` instead.
+        This function is maintained for backwards compatibility but will be removed
+        in a future version.
+
+    Parameters
+    ----------
+    config_paths : list of str
+        Configuration file paths to merge
+    overrides : dict, optional
+        Override dictionary to apply on top of merged configuration
+
+    Returns
+    -------
+    dict
+        Export metadata dictionary with paths and costs
+
+    Examples
+    --------
+    >>> # OLD (deprecated):
+    >>> from energis.run.orchestrator import run_all
+    >>> result = run_all(config_paths)
+    >>>
+    >>> # NEW (recommended):
+    >>> from energis.run import rolling_horizon as rh
+    >>> workflow = rh.run_workflow(config_paths)
+    >>> result = rh.export_workflow_results(workflow)
+    """
+    import warnings
+    warnings.warn(
+        "orchestrator.run_all() is deprecated and will be removed in version 3.0. "
+        "Use rolling_horizon.run_workflow() and rolling_horizon.export_workflow_results() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    # Delegate to new workflow-based implementation
+    from energis.run import rolling_horizon as rh
+
+    workflow = rh.run_workflow(config_paths, overrides=overrides)
+    result = rh.export_workflow_results(workflow)
+
+    return result
+
+
+def _run_all_legacy(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Original run_all implementation (kept for reference, not used)."""
     cfg = load_and_merge(config_paths)
     if overrides:
         cfg = deep_merge(cfg, overrides)

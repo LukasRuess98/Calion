@@ -13,10 +13,15 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Mapping, Sequence
 import numpy as np
 
 from energis.utils.timeseries import TimeSeriesTable
+from energis.io.plot_utils import (
+    has_content,
+    prettify_label_en,
+    save_figure as _save_figure_util,
+)
 
 try:  # pragma: no cover - optional dependency
     import matplotlib
@@ -24,8 +29,6 @@ try:  # pragma: no cover - optional dependency
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
-    from matplotlib.patches import Rectangle
-    import matplotlib.patches as mpatches
 
     HAVE_MATPLOTLIB = True
 except Exception:  # pragma: no cover - matplotlib optional
@@ -260,27 +263,17 @@ def export_publication_plots(
 # Helper Functions
 # ============================================================================
 
+# Backwards compatibility: delegate to shared utilities
 def _save_figure(fig, outdir: str, basename: str, dpi: int, formats: Sequence[str]) -> list[str]:
-    """Save figure in multiple formats."""
-    files = []
-    for fmt in formats:
-        filepath = os.path.join(outdir, f"{basename}.{fmt}")
-        if fmt == "png":
-            fig.savefig(filepath, dpi=dpi, format='png')
-        elif fmt == "pdf":
-            fig.savefig(filepath, format='pdf')
-        elif fmt == "eps":
-            fig.savefig(filepath, format='eps')
-        elif fmt == "svg":
-            fig.savefig(filepath, format='svg')
-        files.append(filepath)
+    """Save figure in multiple formats (wrapper with plt.close)."""
+    files = _save_figure_util(fig, outdir, basename, dpi, formats)
     plt.close(fig)
     return files
 
 
 def _configure_time_axis(ax, timestamps: Sequence[datetime] | Sequence[int]) -> None:
     """Configure time axis with proper formatting."""
-    if isinstance(timestamps[0], datetime) and mdates is not None:
+    if timestamps and isinstance(timestamps[0], datetime) and mdates is not None:
         locator = mdates.AutoDateLocator(minticks=3, maxticks=7)
         formatter = mdates.ConciseDateFormatter(locator)
         ax.xaxis.set_major_locator(locator)
@@ -295,58 +288,9 @@ def _configure_time_axis(ax, timestamps: Sequence[datetime] | Sequence[int]) -> 
         label.set_ha('center')
 
 
-def _prettify_label_en(name: str) -> str:
-    """Convert internal variable names to publication-ready English labels."""
-    # Remove common suffixes
-    label = name
-    units = ""
-
-    suffix_map = {
-        "_Q_th_MW": " Heat",
-        "_Pel_MW": " Power",
-        "_fuel_MW": " Fuel",
-        "_MW": "",
-        "_MWh": "",
-        "_EUR": "",
-        "_t": "",
-        "_SOC_MWh": " SOC",
-        "_charge_MW": " Charge",
-        "_discharge_MW": " Discharge",
-    }
-
-    for suffix, replacement in suffix_map.items():
-        if label.endswith(suffix):
-            label = label[:-len(suffix)] + replacement
-            break
-
-    # Replace component names
-    replacements = {
-        "HP1": "Heat Pump 1",
-        "HP2": "Heat Pump 2",
-        "HP3": "Heat Pump 3",
-        "HP4": "Heat Pump 4",
-        "HKW": "Gas Boiler",
-        "GTOST": "Peak Boiler",
-        "P2H": "Power-to-Heat",
-        "BMHKW": "Biomass CHP",
-        "HWS": "Summer Waste Heat",
-        "HWW": "Winter Waste Heat",
-        "AVA": "Waste Incineration",
-        "TES": "Thermal Storage",
-        "P_buy": "Grid Import",
-        "P_sell": "Grid Export",
-        "waermebedarf": "Heat Demand",
-    }
-
-    for old, new in replacements.items():
-        label = label.replace(old, new)
-
-    return label.strip()
-
-
-def _has_content(values: Sequence[float]) -> bool:
-    """Check if a time series has non-zero values."""
-    return any(abs(float(v)) > 1e-9 for v in values)
+# Delegate label and content checks to shared utilities
+_prettify_label_en = prettify_label_en
+_has_content = has_content
 
 
 # ============================================================================
@@ -698,9 +642,6 @@ def _cop_analysis_publication(
     formats: Sequence[str],
 ) -> list[str]:
     """Generate COP (Coefficient of Performance) analysis for heat pumps."""
-    # Get outdoor temperature if available
-    outdoor_temp = table.data.get("Temp_Aussen") or table.data.get("T_outdoor") or table.data.get("temperature")
-
     cop_data = []
     hp_names = []
 
@@ -868,7 +809,6 @@ def _monthly_aggregate_publication(
         return []
 
     # Convert to numpy arrays
-    ts_array = np.array(timestamps)
     demand_array = np.array(demand)
 
     # Extract months

@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import time
-from collections import OrderedDict
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Tuple, Any, Optional
 
@@ -104,8 +103,6 @@ class BenchmarkSuite:
         List of benchmark metrics for all methods and runs
         """
         from energis.run.rolling_horizon import run_workflow
-        import hashlib
-        from datetime import datetime
 
         os.makedirs(output_dir, exist_ok=True)
 

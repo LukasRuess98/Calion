@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator, List, Sequence
+from typing import Dict, Iterator, List, Sequence
 from datetime import datetime, timedelta
 
 

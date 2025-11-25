@@ -2,7 +2,10 @@
 # Verwendung: Merge mit base.yaml und system.yaml
 
 scenario:
-  mode: PF_ONLY
+  run_mode: PF_ONLY
+  workflow:
+    - PF
+  fix_design: false
   title: "Test_1_Week"
   tag: "test-1week-optimized"
 

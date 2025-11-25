@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test publication exporter with new cost fields."""
 
-from energis.run.orchestrator import run_all
+from energis.run import rolling_horizon as rh
 from energis.io.publication_exporter import export_latex_tables
 import os
 
@@ -27,7 +27,8 @@ overrides = {
     }
 }
 
-result = run_all(config_paths, overrides=overrides)
+workflow = rh.run_workflow(config_paths, overrides=overrides)
+result = rh.export_workflow_results(workflow)
 
 print("\n=== RESULT ===")
 print(f"Output directory: {result['outdir']}")

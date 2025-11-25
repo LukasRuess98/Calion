@@ -3,6 +3,27 @@
 This package contains a minimal, runnable skeleton to model industrial energy systems with **explicit fuel buses**.
 It keeps the structure close to oemof/pypsa (configs, components, buses, orchestrator) and your previous monolithic code.
 
+## 🚨 Version 2.0 Update
+
+**EnerGIS v2.0** introduces a unified workflow-based API. If you're using the old `orchestrator.run_all()` API, see **[MIGRATION_V2.md](MIGRATION_V2.md)** for the migration guide.
+
+**Key Changes:**
+- ✅ **New API**: `rh.run_workflow()` + `rh.export_workflow_results()`
+- ✅ **Config cleanup**: `base.yaml` contains only technical defaults; scenarios in `configs/scenarios/*.yaml`
+- ✅ **Backwards compatible**: Old code works with deprecation warnings
+
+**Quick Migration:**
+```python
+# OLD (deprecated):
+from energis.run.orchestrator import run_all
+result = run_all(config_paths)
+
+# NEW (recommended):
+from energis.run import rolling_horizon as rh
+workflow = rh.run_workflow(config_paths)
+result = rh.export_workflow_results(workflow)
+```
+
 ## Motivation & Forschungsfragen
 - EnerGIS digitalisiert eine bestehende Stadtbach-Referenz, um Wartbarkeit, Transparenz und CI-basierte Validierung für Fern- und Nahwärmenetze sicherzustellen.
 - Forschungsfragen und Paper-Skopierung sind in [`docs/paper_outline.md`](docs/paper_outline.md) skizziert: Wie nah kommt die modulare PF→RH-Architektur an die Legacy-Ergebnisse, welche Modellierungsentscheidungen treiben Abweichungen, und wie wird die Validierung automatisiert?

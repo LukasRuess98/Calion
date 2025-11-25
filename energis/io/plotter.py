@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from energis.utils.timeseries import TimeSeriesTable
+from energis.io.plot_utils import has_content, prettify_label_de
 
 try:  # pragma: no cover - optional dependency
     import matplotlib
@@ -276,60 +277,6 @@ def _cost_breakdown_plot(
     return [filename]
 
 
-def _prettify_label(name: str) -> str:
-    suffix_map = {
-        "_Q_th_MW": ("Thermische Leistung", " [MW]"),
-        "_Pel_MW": ("Elektrische Leistung", " [MW]"),
-        "_fuel_MW": ("Brennstoffleistung", " [MW]"),
-        "_MW": ("", " [MW]"),
-        "_MWh": ("", " [MWh]"),
-        "_EUR": ("", " [EUR]"),
-    }
-
-    pretty = name
-    unit = ""
-    for suffix, (alias, unit_label) in suffix_map.items():
-        if pretty.endswith(suffix):
-            pretty = pretty[: -len(suffix)]
-            unit = unit_label
-            if alias:
-                pretty = f"{pretty}_{alias}" if pretty else alias
-            break
-
-    pretty = pretty.replace("_", " ").strip()
-
-    lower = pretty.lower()
-    special_map = {
-        "p buy": "Netzbezug",
-        "p sell": "Netzeinspeisung",
-        "tes": "TES",
-    }
-    if lower in special_map:
-        pretty = special_map[lower]
-
-    replacements = {
-        "charge": "Beladung",
-        "discharge": "Entladung",
-        "storage": "Speicher",
-        "thermische": "Thermische",
-        "elektrische": "Elektrische",
-        "brennstoffleistung": "Brennstoffleistung",
-        "soc": "Füllstand",
-    }
-    words = pretty.split()
-    normalized_words: list[str] = []
-    for word in words:
-        repl = replacements.get(word.lower())
-        if repl:
-            normalized_words.append(repl)
-        elif word.isupper() or any(char.isdigit() for char in word):
-            normalized_words.append(word)
-        else:
-            normalized_words.append(word.capitalize())
-    pretty = " ".join(normalized_words)
-
-    return f"{pretty}{unit}".strip()
-
-
-def _has_content(values: Sequence[float]) -> bool:
-    return any(abs(float(v)) > 1e-9 for v in values)
+# Backwards compatibility aliases
+_prettify_label = prettify_label_de
+_has_content = has_content

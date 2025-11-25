@@ -138,7 +138,7 @@ def plot_cost_vs_pf(
     fig, ax = plt.subplots(figsize=(10, 6))
 
     colors = ['green' if d < 5 else 'orange' if d < 10 else 'red' for d in avg_deviation]
-    bars = ax.bar(method_names, avg_deviation, color=colors, alpha=0.7)
+    ax.bar(method_names, avg_deviation, color=colors, alpha=0.7)
 
     # Add percentage labels
     for i, (name, dev) in enumerate(zip(method_names, avg_deviation)):
@@ -192,7 +192,7 @@ def plot_solve_time_comparison(
     # Create plot
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    bars = ax.bar(method_names, avg_times, color='steelblue', alpha=0.7)
+    ax.bar(method_names, avg_times, color='steelblue', alpha=0.7)
 
     # Add time labels
     for i, (name, time) in enumerate(zip(method_names, avg_times)):
