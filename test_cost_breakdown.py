@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test script to demonstrate the detailed cost breakdown functionality."""
 
-from energis.run.orchestrator import run_all
+from energis.run import rolling_horizon as rh
 import json
 
 # Run with baseline configuration
@@ -17,7 +17,8 @@ print("DETAILLIERTE KOSTENAUFSCHLÜSSELUNG - TEST")
 print("=" * 80)
 print()
 
-result = run_all(config_paths)
+workflow = rh.run_workflow(config_paths)
+result = rh.export_workflow_results(workflow)
 costs = result.get('costs', {})
 
 print("\n=== STROMKOSTEN (Electricity Costs) ===")

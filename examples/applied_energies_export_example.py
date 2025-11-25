@@ -40,7 +40,7 @@ import argparse
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from energis.run import orchestrator
+from energis.run import rolling_horizon as rh
 from energis.config.merge import load_and_merge
 
 
@@ -151,7 +151,8 @@ def main():
 
     try:
         # Run optimization and exports
-        result = orchestrator.run_all([str(config_path)], overrides=overrides)
+        workflow = rh.run_workflow([str(config_path)], overrides=overrides)
+        result = rh.export_workflow_results(workflow)
 
         print()
         print("="*70)
