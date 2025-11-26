@@ -888,6 +888,15 @@ def _solve_scenario(
         except Exception:  # pragma: no cover - solver fallback
             solver_used = "glpk"
             opt = pyo.SolverFactory("glpk")
+
+        # Apply solver options if configured (CRITICAL FIX: prevents infinite runtime)
+        run_cfg = cfg.get("run", {})
+        solver_options = run_cfg.get("solver_options", {})
+        if solver_options:
+            for key, value in solver_options.items():
+                opt.options[key] = value
+            logger.debug(f"Applied solver options: {solver_options}")
+
         solver_result = opt.solve(model, tee=False)
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
