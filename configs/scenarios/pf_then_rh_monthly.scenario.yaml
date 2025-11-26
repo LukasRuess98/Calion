@@ -1,0 +1,26 @@
+# Szenario mit 1 Monat Laufzeit (Januar 2023)
+# Basiert auf PF_THEN_RH Workflow
+
+scenario:
+  title: PF followed by rolling horizon - Monthly (Jan 2023)
+  run_mode: PF_THEN_RH
+  workflow:
+    - PF
+    - RH
+  fix_design: true
+
+  # Zeitraum auf 1 Monat beschränken (Januar 2023)
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-02-01 00:00"  # 31 Tage = 744 Stunden
+    enforce: true
+
+  # Rolling Horizon Einstellungen
+  rolling_horizon:
+    heat_horizon_hours: 168.0  # 7 Tage Vorschau
+    step_hours: 24.0           # 1 Tag Schrittweite
+    terminal_policy: free
+
+  tag: "PF_THEN_RH_monthly_jan2023"
+  description: "PF+RH Workflow für Januar 2023 (1 Monat)"
