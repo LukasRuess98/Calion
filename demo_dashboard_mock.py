@@ -156,5 +156,5 @@ print("   Dann: python demo_dashboard.py")
 
 print("\n" + "="*70)
 
-# Uncomment this line to serve as webapp:
-# dashboard.servable()
+# Enable webapp mode:
+dashboard.servable()
