@@ -1,0 +1,734 @@
+"""
+Helper functions for Jupyter notebooks to streamline workflow management.
+
+This module provides common functionality used across multiple notebooks:
+- Workflow persistence (save/load)
+- Dashboard creation
+- KPI display
+- Notebook environment setup
+
+Usage in notebooks:
+    from energis.io.notebook_helpers import (
+        setup_notebook_environment,
+        save_workflow_run,
+        create_and_display_dashboard
+    )
+"""
+
+from __future__ import annotations
+
+import json
+import pickle
+import sys
+import warnings
+from collections import OrderedDict
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+
+__all__ = [
+    "setup_notebook_environment",
+    "save_workflow_run",
+    "load_workflow_from_saved",
+    "list_saved_workflows",
+    "display_workflow_summary",
+    "display_kpi_summary",
+    "create_and_display_dashboard",
+]
+
+
+def setup_notebook_environment(
+    project_name: str = "Planing-Framework-for-Heat",
+    configure_matplotlib: bool = True,
+    configure_pandas: bool = True,
+    suppress_warnings: bool = True,
+) -> Path:
+    """
+    Setup notebook environment automatically.
+
+    - Finds project root directory
+    - Adds project to sys.path
+    - Configures matplotlib and pandas (optional)
+    - Suppresses warnings (optional)
+
+    Parameters
+    ----------
+    project_name : str
+        Name of the project directory (default: Planing-Framework-for-Heat)
+    configure_matplotlib : bool
+        Configure matplotlib style and inline mode
+    configure_pandas : bool
+        Configure pandas display options
+    suppress_warnings : bool
+        Suppress warnings
+
+    Returns
+    -------
+    Path
+        Project root path
+
+    Examples
+    --------
+    >>> from energis.io.notebook_helpers import setup_notebook_environment
+    >>> PROJECT_ROOT = setup_notebook_environment()
+    ✅ Projekt-Root: /path/to/Planing-Framework-for-Heat
+    """
+
+    # Find project root
+    def find_project_root(start: Path) -> Path:
+        """Find project root by looking for .git and energis directories."""
+        for candidate in [start] + list(start.parents):
+            if (candidate / '.git').exists() and (candidate / 'energis').exists():
+                return candidate
+        # Fallback: look for project name in path
+        for candidate in [start] + list(start.parents):
+            if candidate.name == project_name:
+                return candidate
+        return start
+
+    project_root = find_project_root(Path.cwd())
+
+    # Add to sys.path
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    print(f"✅ Projekt-Root: {project_root}")
+
+    # Configure matplotlib
+    if configure_matplotlib:
+        try:
+            import matplotlib.pyplot as plt
+            plt.style.use('seaborn-v0_8-darkgrid')
+            print("✅ Matplotlib konfiguriert")
+        except ImportError:
+            pass
+
+    # Configure pandas
+    if configure_pandas:
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.max_rows', 100)
+        pd.set_option('display.float_format', '{:.2f}'.format)
+        print("✅ Pandas konfiguriert")
+
+    # Suppress warnings
+    if suppress_warnings:
+        warnings.filterwarnings('ignore')
+        print("✅ Warnings unterdrückt")
+
+    return project_root
+
+
+def save_workflow_run(
+    workflow: Any,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    config_paths: Optional[List[str]] = None,
+    save_dir: str = "saved_workflows",
+    export_first: bool = True,
+) -> Path:
+    """
+    Save workflow with metadata and exports.
+
+    This function:
+    1. Exports results (CSV, PDF, SVG) via export_workflow_results()
+    2. Saves workflow object as pickle
+    3. Creates comprehensive metadata.json
+    4. Optionally moves everything to saved_workflows/
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow result from run_workflow()
+    name : str, optional
+        Human-readable name for this simulation run
+        If None, auto-generates from timestamp
+    description : str, optional
+        Description of the simulation
+    config_paths : list of str, optional
+        List of config files used for this run
+    save_dir : str
+        Target directory (default: saved_workflows)
+    export_first : bool
+        Whether to run export_workflow_results first (default: True)
+
+    Returns
+    -------
+    Path
+        Path to the saved workflow directory
+
+    Examples
+    --------
+    >>> workflow = rh.run_workflow(CONFIG_PATHS)
+    >>> workflow_dir = save_workflow_run(
+    ...     workflow,
+    ...     name="Baseline Simulation",
+    ...     description="Standard configuration with air/ground HP",
+    ...     config_paths=CONFIG_PATHS
+    ... )
+    """
+
+    from energis.run import rolling_horizon as rh
+
+    # Step 1: Export results (this creates the export directory)
+    if export_first:
+        print("📦 Exportiere Ergebnisse (CSV, PDF, SVG)...")
+        export_meta = rh.export_workflow_results(workflow)
+        export_dir = Path(export_meta['outdir'])
+    else:
+        # Create directory manually
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        auto_name = name or f"workflow_{timestamp}"
+        export_dir = Path(save_dir) / f"{timestamp}_{auto_name}"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        export_meta = {'outdir': str(export_dir)}
+
+    print(f"📁 Speicherverzeichnis: {export_dir}")
+
+    # Step 2: Save workflow object as pickle
+    workflow_pkl = export_dir / 'workflow.pkl'
+    print("💾 Speichere Workflow-Objekt...")
+    with open(workflow_pkl, 'wb') as f:
+        pickle.dump(workflow, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"✅ Workflow gespeichert: {workflow_pkl.name}")
+
+    # Step 3: Create comprehensive metadata
+    metadata = _build_metadata(
+        workflow=workflow,
+        name=name,
+        description=description,
+        config_paths=config_paths,
+        export_dir=export_dir,
+    )
+
+    metadata_json = export_dir / 'metadata.json'
+    print("📝 Erstelle Metadaten...")
+    with open(metadata_json, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
+    print(f"✅ Metadaten gespeichert: {metadata_json.name}")
+
+    # Step 4: Move to saved_workflows if export was in exports/
+    if export_first and 'exports' in str(export_dir):
+        # Move from exports/ to saved_workflows/
+        target_dir = Path(save_dir) / export_dir.name
+        if not target_dir.exists():
+            print(f"🔄 Verschiebe nach {save_dir}/...")
+            import shutil
+            shutil.move(str(export_dir), str(target_dir))
+            export_dir = target_dir
+            print(f"✅ Verschoben nach: {export_dir}")
+
+    print("\n" + "="*70)
+    print("✅ WORKFLOW ERFOLGREICH GESPEICHERT")
+    print("="*70)
+    print(f"📂 Verzeichnis: {export_dir}")
+    print(f"📊 Dateien:")
+    print(f"   • workflow.pkl    - Workflow-Objekt")
+    print(f"   • metadata.json   - Metadaten")
+    print(f"   • *.csv           - Zeitreihen")
+    print(f"   • *.pdf, *.svg    - Plots")
+    if (export_dir / 'design.json').exists():
+        print(f"   • design.json     - Anlagen-Design")
+    print("="*70)
+
+    return export_dir
+
+
+def _build_metadata(
+    workflow: Any,
+    name: Optional[str],
+    description: Optional[str],
+    config_paths: Optional[List[str]],
+    export_dir: Path,
+) -> Dict[str, Any]:
+    """Build comprehensive metadata dictionary."""
+
+    # Auto-generate name if not provided
+    if name is None:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        name = f"Workflow {timestamp}"
+
+    # Extract workflow information
+    has_pf = workflow.pf_result is not None
+    has_rh = workflow.rh_result is not None
+    has_mpc = workflow.mpc_result is not None
+
+    # Get scenario info from config
+    scenario_cfg = workflow.config.get('scenario', {})
+    system_cfg = workflow.config.get('system', {})
+    site_cfg = workflow.config.get('site', {})
+    run_cfg = workflow.config.get('run', {})
+
+    # Build metadata
+    metadata = {
+        'saved_at': datetime.now().isoformat(),
+        'name': name,
+        'description': description or "",
+        'scenario': {
+            'name': scenario_cfg.get('name', 'unknown'),
+            'system': system_cfg.get('name', 'unknown'),
+            'site': site_cfg.get('name', 'default'),
+            'run_mode': scenario_cfg.get('run_mode', 'UNKNOWN'),
+            'title': scenario_cfg.get('title', ''),
+        },
+        'config_files': config_paths or [],
+        'workflow': {
+            'steps': list(workflow.plan.steps),
+            'fix_design': workflow.plan.fix_design,
+        },
+        'results_available': {
+            'pf': has_pf,
+            'rh': has_rh,
+            'mpc': has_mpc,
+        },
+        'solver': run_cfg.get('solver', 'unknown'),
+        'dt_h': run_cfg.get('dt_h', 1.0),
+    }
+
+    # Add technologies from design
+    if workflow.design:
+        metadata['technologies'] = {
+            'heat_pumps': {
+                hp_id: {'capacity_mw': hp_data.get('capacity_mw', 0.0), 'type': 'heat_pump'}
+                for hp_id, hp_data in workflow.design.heat_pumps.items()
+            } if workflow.design.heat_pumps else {},
+            'storage': {
+                'capacity_mwh': workflow.design.storage.get('capacity_mwh', 0.0) if workflow.design.storage else 0.0,
+                'type': 'thermal_storage'
+            } if workflow.design.storage else None,
+        }
+
+    # Add statistics
+    primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+    if primary_result:
+        metadata['statistics'] = {
+            'timesteps': len(primary_result.table),
+            'duration_hours': len(primary_result.table) * metadata['dt_h'],
+            'start_date': str(primary_result.table.index[0]) if primary_result.table.index else None,
+            'end_date': str(primary_result.table.index[-1]) if primary_result.table.index else None,
+        }
+
+        # Add costs
+        if primary_result.costs:
+            total_cost = primary_result.costs.get('objective.OBJ_value_EUR', 0.0)
+            capex = primary_result.costs.get('objective.Capex_cost_EUR', 0.0)
+            fuel = primary_result.costs.get('objective.Fuel_cost_EUR', 0.0)
+            elec = primary_result.costs.get('objective.Grid_energy_cost_EUR', 0.0)
+
+            metadata['costs'] = {
+                'total_eur': total_cost,
+                'capex_eur': capex,
+                'opex_eur': total_cost - capex,
+                'fuel_eur': fuel,
+                'electricity_eur': elec,
+            }
+
+    return metadata
+
+
+def list_saved_workflows(
+    save_dir: str = "saved_workflows",
+    sort_by: str = "date",
+) -> List[Dict[str, Any]]:
+    """
+    List all saved workflows with metadata.
+
+    Parameters
+    ----------
+    save_dir : str
+        Directory to search (default: saved_workflows)
+    sort_by : str
+        Sort by: "date", "name", "cost" (default: date)
+
+    Returns
+    -------
+    list of dict
+        List of workflow metadata dictionaries
+
+    Examples
+    --------
+    >>> workflows = list_saved_workflows()
+    >>> for wf in workflows:
+    ...     print(f"{wf['name']}: {wf['costs']:.0f} EUR")
+    """
+
+    save_path = Path(save_dir)
+    if not save_path.exists():
+        print(f"⚠️  Verzeichnis {save_dir} existiert nicht")
+        return []
+
+    workflows = []
+
+    # Scan all subdirectories
+    for workflow_dir in save_path.iterdir():
+        if not workflow_dir.is_dir():
+            continue
+
+        metadata_file = workflow_dir / 'metadata.json'
+
+        # Load metadata if available
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+
+                # Extract key information
+                workflows.append({
+                    'path': workflow_dir,
+                    'name': metadata.get('name', workflow_dir.name),
+                    'description': metadata.get('description', ''),
+                    'date': datetime.fromisoformat(metadata['saved_at']) if 'saved_at' in metadata else None,
+                    'date_str': metadata.get('saved_at', ''),
+                    'costs': metadata.get('costs', {}).get('total_eur', 0.0),
+                    'steps': metadata.get('workflow', {}).get('steps', []),
+                    'timesteps': metadata.get('statistics', {}).get('timesteps', 0),
+                    'scenario': metadata.get('scenario', {}).get('name', 'unknown'),
+                })
+            except Exception as e:
+                print(f"⚠️  Fehler beim Laden von {metadata_file}: {e}")
+        else:
+            # Fallback: use directory name
+            workflows.append({
+                'path': workflow_dir,
+                'name': workflow_dir.name,
+                'description': '',
+                'date': None,
+                'date_str': '',
+                'costs': 0.0,
+                'steps': [],
+                'timesteps': 0,
+                'scenario': 'unknown',
+            })
+
+    # Sort workflows
+    if sort_by == "date":
+        workflows.sort(key=lambda w: w['date'] or datetime.min, reverse=True)
+    elif sort_by == "name":
+        workflows.sort(key=lambda w: w['name'])
+    elif sort_by == "cost":
+        workflows.sort(key=lambda w: w['costs'], reverse=True)
+
+    return workflows
+
+
+def load_workflow_from_saved(
+    workflow_path: str | Path,
+    verbose: bool = True,
+) -> Any:
+    """
+    Load a saved workflow from disk.
+
+    Parameters
+    ----------
+    workflow_path : str or Path
+        Path to workflow directory
+    verbose : bool
+        Print loading information
+
+    Returns
+    -------
+    WorkflowResult
+        The loaded workflow object
+
+    Examples
+    --------
+    >>> workflow = load_workflow_from_saved("saved_workflows/2025-11-28_...")
+    📂 Lade Workflow: saved_workflows/2025-11-28_...
+    ✅ Workflow geladen!
+    """
+
+    workflow_dir = Path(workflow_path)
+
+    if not workflow_dir.exists():
+        raise FileNotFoundError(f"Workflow-Verzeichnis nicht gefunden: {workflow_dir}")
+
+    workflow_pkl = workflow_dir / 'workflow.pkl'
+
+    if not workflow_pkl.exists():
+        raise FileNotFoundError(f"workflow.pkl nicht gefunden in {workflow_dir}")
+
+    if verbose:
+        print(f"📂 Lade Workflow: {workflow_dir.name}")
+
+    # Load workflow
+    with open(workflow_pkl, 'rb') as f:
+        workflow = pickle.load(f)
+
+    if verbose:
+        print("✅ Workflow geladen!")
+        print(f"   Steps: {' → '.join(workflow.plan.steps)}")
+
+        # Show timesteps
+        primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+        if primary_result:
+            print(f"   Zeitschritte: {len(primary_result.table):,}")
+
+    return workflow
+
+
+def display_workflow_summary(
+    workflow: Any,
+    show_costs: bool = True,
+    show_design: bool = True,
+) -> None:
+    """
+    Display formatted workflow summary.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow to summarize
+    show_costs : bool
+        Show detailed cost breakdown
+    show_design : bool
+        Show design/capacities
+
+    Examples
+    --------
+    >>> display_workflow_summary(workflow)
+    """
+
+    print("\n" + "="*70)
+    print("📊 WORKFLOW-ZUSAMMENFASSUNG")
+    print("="*70)
+
+    print(f"\n🔄 Workflow: {' → '.join(workflow.plan.steps)}")
+
+    # Show which results are available
+    has_pf = workflow.pf_result is not None
+    has_rh = workflow.rh_result is not None
+    has_mpc = workflow.mpc_result is not None
+
+    print(f"\n📦 Verfügbare Ergebnisse:")
+    print(f"   {'✅' if has_pf else '❌'} Perfect Forecast (PF)")
+    print(f"   {'✅' if has_rh else '❌'} Rolling Horizon (RH)")
+    print(f"   {'✅' if has_mpc else '❌'} Model Predictive Control (MPC)")
+
+    # Show costs
+    if show_costs:
+        primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+        if primary_result and primary_result.costs:
+            print(f"\n💰 Kosten:")
+
+            total_cost = primary_result.costs.get('objective.OBJ_value_EUR', 0.0)
+            print(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
+
+            # Breakdown
+            elec = primary_result.costs.get('objective.Grid_energy_cost_EUR', 0.0)
+            fuel = primary_result.costs.get('objective.Fuel_cost_EUR', 0.0)
+            capex = primary_result.costs.get('objective.Capex_cost_EUR', 0.0)
+
+            if elec > 1e-3:
+                print(f"   • Strom:       {elec:>15,.0f} EUR  ({elec/total_cost*100:>5.1f}%)")
+            if fuel > 1e-3:
+                print(f"   • Brennstoff:  {fuel:>15,.0f} EUR  ({fuel/total_cost*100:>5.1f}%)")
+            if capex > 1e-3:
+                print(f"   • CAPEX:       {capex:>15,.0f} EUR  ({capex/total_cost*100:>5.1f}%)")
+
+    # Show design
+    if show_design and workflow.design:
+        print(f"\n🏭 Anlagen-Design:")
+
+        if workflow.design.heat_pumps:
+            print(f"   Wärmepumpen:")
+            for hp_id, hp_data in sorted(workflow.design.heat_pumps.items()):
+                capacity = hp_data.get('capacity_mw', 0.0)
+                print(f"      {hp_id}: {capacity:>6.2f} MW")
+
+        if workflow.design.storage:
+            storage_cap = workflow.design.storage.get('capacity_mwh', 0.0)
+            print(f"   Speicher:   {storage_cap:>6.2f} MWh")
+
+    print("\n" + "="*70)
+
+
+def display_kpi_summary(
+    workflow: Any,
+    timeseries_df: Optional[pd.DataFrame] = None,
+) -> None:
+    """
+    Display detailed KPI summary with component analysis.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow to analyze
+    timeseries_df : DataFrame, optional
+        Timeseries dataframe (will be created from workflow if not provided)
+
+    Examples
+    --------
+    >>> display_kpi_summary(workflow)
+    """
+
+    print("\n" + "="*70)
+    print("📊 KEY PERFORMANCE INDICATORS")
+    print("="*70)
+
+    primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+
+    if not primary_result:
+        print("⚠️  Keine Ergebnisse verfügbar")
+        return
+
+    # Create dataframe if not provided
+    if timeseries_df is None:
+        timeseries_df = pd.DataFrame({
+            'timestamp': primary_result.table.index,
+            **{col: primary_result.table.data[col] for col in primary_result.table.columns},
+            **primary_result.series,
+        })
+
+    ts = timeseries_df
+
+    # Costs
+    if primary_result.costs:
+        print(f"\n💰 Wirtschaftlichkeit:")
+
+        total_cost = primary_result.costs.get('objective.OBJ_value_EUR', 0.0)
+        peak_power = primary_result.costs.get('objective.P_buy_peak_MW', 0.0)
+
+        print(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
+        if peak_power > 0:
+            print(f"   Peak-Leistung: {peak_power:>15,.2f} MW")
+
+        # Detailed breakdown (same as in scenario_studio)
+        _display_detailed_cost_breakdown(primary_result.costs)
+
+    # Energy balance
+    print(f"\n⚡ Elektrische Energie:")
+
+    p_buy_col = next((c for c in ['P_buy_MW', 'P_buy'] if c in ts.columns), None)
+    p_sell_col = next((c for c in ['P_sell_MW', 'P_sell'] if c in ts.columns), None)
+
+    if p_buy_col:
+        e_buy = ts[p_buy_col].sum()
+        print(f"   Netzbezug:     {e_buy:>15,.0f} MWh")
+
+    if p_sell_col:
+        e_sell = ts[p_sell_col].sum()
+        print(f"   Einspeisung:   {e_sell:>15,.0f} MWh")
+
+    # Component utilization
+    print(f"\n🏭 Komponenten-Auslastung:")
+
+    # Heat pumps
+    hp_cols = [c for c in ts.columns if c.startswith('HP') and c.endswith('_Q_th_MW')]
+    if hp_cols:
+        print(f"\n   Wärmepumpen:")
+        for col in sorted(hp_cols):
+            hp_id = col.replace('_Q_th_MW', '')
+            avg = ts[col].mean()
+            max_val = ts[col].max()
+            hours_on = (ts[col] > 0.01).sum()
+            print(f"      {hp_id:8s}: Ø {avg:6.2f} MW | Max {max_val:6.2f} MW | {hours_on:5d} h aktiv")
+
+    # Storage
+    tes_soc_col = next((c for c in ['TES_SOC_MWh', 'TES_SOC'] if c in ts.columns), None)
+    if tes_soc_col:
+        print(f"\n   Speicher:")
+        print(f"      Max SOC:       {ts[tes_soc_col].max():>10.2f} MWh")
+        print(f"      Ø SOC:         {ts[tes_soc_col].mean():>10.2f} MWh")
+
+    print("\n" + "="*70)
+
+
+def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
+    """Display detailed cost breakdown (helper for display_kpi_summary)."""
+
+    print(f"\n   💶 Detaillierte Aufschlüsselung:")
+
+    # Electricity costs
+    elec_total = costs.get('objective.Grid_energy_cost_EUR', 0.0)
+    elec_base = costs.get('objective.Electricity_base_cost_EUR', 0.0)
+    elec_fee = costs.get('objective.Electricity_energy_fee_EUR', 0.0)
+    elec_grid = costs.get('objective.Electricity_grid_fee_EUR', 0.0)
+    demand_charge = costs.get('objective.Demand_charge_cost_EUR', 0.0)
+
+    if elec_total > 1e-3:
+        print(f"      Stromkosten:           {elec_total:>15,.0f} EUR")
+        if elec_base > 1e-3:
+            print(f"         • Spotpreis:        {elec_base:>15,.0f} EUR  ({elec_base/elec_total*100:>5.1f}%)")
+        if elec_fee > 1e-3:
+            print(f"         • Energy Fee:       {elec_fee:>15,.0f} EUR  ({elec_fee/elec_total*100:>5.1f}%)")
+        if elec_grid > 1e-3:
+            print(f"         • Netzentgelte:     {elec_grid:>15,.0f} EUR  ({elec_grid/elec_total*100:>5.1f}%)")
+        if demand_charge > 1e-3:
+            print(f"         • Leistungspreis:   {demand_charge:>15,.0f} EUR")
+
+    # Fuel costs
+    fuel_total = costs.get('objective.Fuel_cost_EUR', 0.0)
+    if fuel_total > 1e-3:
+        print(f"      Brennstoffkosten:      {fuel_total:>15,.0f} EUR")
+
+    # Investment costs
+    capex_total = costs.get('objective.Capex_cost_EUR', 0.0)
+    capex_hp = costs.get('objective.Capex_heat_pumps_EUR', 0.0)
+    capex_sto = costs.get('objective.Capex_storage_EUR', 0.0)
+
+    if capex_total > 1e-3:
+        print(f"      Investitionskosten:    {capex_total:>15,.0f} EUR")
+        if capex_hp > 1e-3:
+            print(f"         • Wärmepumpen:      {capex_hp:>15,.0f} EUR  ({capex_hp/capex_total*100:>5.1f}%)")
+        if capex_sto > 1e-3:
+            print(f"         • Speicher:         {capex_sto:>15,.0f} EUR  ({capex_sto/capex_total*100:>5.1f}%)")
+
+
+def create_and_display_dashboard(
+    workflow: Any,
+    title: Optional[str] = None,
+    auto_display: bool = False,
+) -> Any:
+    """
+    Create interactive Panel dashboard for workflow results.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow to visualize
+    title : str, optional
+        Dashboard title (auto-generated if None)
+    auto_display : bool
+        Whether to automatically display the dashboard in Jupyter
+        (default: False, user must evaluate dashboard object)
+
+    Returns
+    -------
+    Panel dashboard object
+
+    Examples
+    --------
+    >>> dashboard = create_and_display_dashboard(workflow)
+    >>> dashboard  # Display in Jupyter
+
+    Or serve as webapp:
+    >>> dashboard.servable()
+    """
+
+    from energis.io.dashboard import create_dashboard, HAVE_PANEL
+
+    if not HAVE_PANEL:
+        print("❌ Panel nicht installiert!")
+        print("   Installation: pip install panel holoviews bokeh plotly")
+        return None
+
+    # Auto-generate title
+    if title is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        title = f"EnerGIS Dashboard - {timestamp}"
+
+    print("🎛️ Erstelle interaktives Dashboard...")
+
+    dashboard = create_dashboard(workflow, title=title)
+
+    print("✅ Dashboard erfolgreich erstellt!")
+    print("\n💡 Verwendung:")
+    print("   • Im Notebook: Evaluiere 'dashboard' in einer Zelle")
+    print("   • Als Webapp: panel serve notebook.ipynb --show")
+    print("   • Features: Tabs, interaktive Plots, Zoom/Pan/Hover")
+
+    if auto_display:
+        return dashboard
+    else:
+        return dashboard
