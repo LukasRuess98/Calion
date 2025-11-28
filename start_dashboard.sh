@@ -52,8 +52,34 @@ fi
 
 echo "🚀 Starte Dashboard auf Port $PORT..."
 echo ""
-echo "📊 Dashboard URL:"
-echo "   http://localhost:$PORT/load_dashboard"
+
+# Detect environment
+if [ -f "/.dockerenv" ]; then
+    ENV_TYPE="Docker Container"
+    ACCESS_INFO="
+💡 Du bist in einem Docker Container!
+
+   Zugriff hängt von deinem Setup ab:
+
+   📌 Lokale Maschine (Docker Desktop):
+      → http://localhost:$PORT/load_dashboard
+
+   📌 Remote-Server:
+      → Port-Forwarding: ssh -L $PORT:localhost:$PORT user@server
+      → Oder öffentlich: panel serve ... --address 0.0.0.0
+
+   📌 VS Code Remote:
+      → Port wird automatisch weitergeleitet
+      → Schaue in 'Ports' Tab"
+else
+    ENV_TYPE="Lokale Maschine"
+    ACCESS_INFO="
+📊 Dashboard URL:
+   → http://localhost:$PORT/load_dashboard"
+fi
+
+echo "🖥️  Umgebung: $ENV_TYPE"
+echo "$ACCESS_INFO"
 echo ""
 echo "💡 Zum Stoppen: Strg+C"
 echo ""
