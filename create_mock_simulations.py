@@ -21,22 +21,10 @@ print("🎨 Erstelle Mock-Simul ationen für Dashboard-Demo")
 print("="*70)
 
 # Import necessary classes
-from energis.run.rolling_horizon import WorkflowContext, WorkflowPlan, ScenarioResult, DesignData
+from energis.run.rolling_horizon import ScenarioResult, DesignData
 from energis.utils.timeseries import TimeSeriesTable
+from energis.mock_workflow import MockWorkflow
 import numpy as np
-
-# Mock workflow class (module level for pickle support)
-class MockWorkflow:
-    """Mock workflow for demonstration purposes."""
-    def __init__(self, pf_result, design, solver_name='glpk', dt_h=1.0):
-        self.plan = WorkflowPlan(steps=['PF', 'RH'], fix_design=False)
-        self.pf_result = pf_result
-        self.rh_result = None
-        self.mpc_result = None
-        self.design = design
-        self.config = {}
-        self.solver_name = solver_name
-        self.dt_h = dt_h
 
 def create_mock_workflow(
     name,
