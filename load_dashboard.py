@@ -24,6 +24,9 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+# Import MockWorkflow before pickle loading (needed for deserialization)
+from energis.mock_workflow import MockWorkflow
+
 print("="*70)
 print("🎛️ EnerGIS Multi-Workflow Dashboard")
 print("="*70)
