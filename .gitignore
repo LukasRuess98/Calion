@@ -28,6 +28,3 @@ artifacts/
 exports/
 *.log
 
-# Saved workflow results (user-generated data)
-saved_workflows/
-workflow_results.pkl

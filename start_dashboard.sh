@@ -88,3 +88,7 @@ echo ""
 
 # Start dashboard
 panel serve load_dashboard.py --port $PORT --show
+
+#cd C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat
+#python -m panel serve load_dashboard.py --port 5006 --show
+

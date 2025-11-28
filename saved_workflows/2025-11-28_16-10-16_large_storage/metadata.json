@@ -1,0 +1,56 @@
+{
+  "saved_at": "2025-11-28T16:10:16.372182",
+  "name": "large_storage",
+  "description": "Erhöhte Speicherkapazität von 35 auf 50 MWh",
+  "scenario": {
+    "name": "pf_then_rh",
+    "system": "baseline",
+    "site": "default"
+  },
+  "config_files": [
+    "configs/base.yaml",
+    "configs/tech_catalog.yaml",
+    "configs/sites/default.site.yaml",
+    "configs/systems/baseline.system.yaml",
+    "configs/scenarios/pf_then_rh.workflow.scenario.yaml"
+  ],
+  "workflow": {
+    "steps": [
+      "PF",
+      "RH"
+    ],
+    "fix_design": false
+  },
+  "results_available": {
+    "pf": true,
+    "rh": false,
+    "mpc": false
+  },
+  "solver": "glpk",
+  "technologies": {
+    "heat_pumps": {
+      "HP_air": {
+        "capacity_mw": 2.5,
+        "type": "heat_pump"
+      },
+      "HP_ground": {
+        "capacity_mw": 1.8,
+        "type": "heat_pump"
+      }
+    },
+    "storage": {
+      "capacity_mwh": 50.0,
+      "type": "thermal_storage"
+    }
+  },
+  "statistics": {
+    "timesteps": 168,
+    "duration_hours": 168.0
+  },
+  "costs": {
+    "total_eur": 228450.23,
+    "capex_eur": 91380.092,
+    "opex_eur": 137070.138,
+    "fuel_eur": 0.0
+  }
+}
