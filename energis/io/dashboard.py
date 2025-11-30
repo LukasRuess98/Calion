@@ -75,8 +75,9 @@ def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard"
             "Panel is required for dashboards. Install with: pip install panel holoviews bokeh"
         )
 
-    # Initialize Panel
-    pn.extension('plotly', sizing_mode='stretch_width')
+    # Initialize Panel with all required extensions
+    # 'plotly' for interactive charts, 'tabulator' for interactive tables
+    pn.extension('plotly', 'tabulator', sizing_mode='stretch_width')
 
     # Create dashboard instance
     dashboard = EnerGISDashboard(workflow, title)
