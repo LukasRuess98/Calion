@@ -1,0 +1,19 @@
+scenario:
+  title: PF followed by rolling horizon
+  run_mode: PF_THEN_RH
+  workflow:
+    - PF
+    - RH
+  fix_design: true
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
+
+  # Zeitraum auf 1 Woche beschränken
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"  # Anpassen an deine Daten
+    end: "2023-01-02 00:00"    # 1 Woche = 7 Tage = 168h * 4 (15-Min) = 672 Zeitschritte
+    enforce: false  # Nicht strikte Prüfung
+

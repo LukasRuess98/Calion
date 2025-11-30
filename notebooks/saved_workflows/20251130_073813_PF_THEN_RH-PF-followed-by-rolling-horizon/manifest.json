@@ -11,9 +11,9 @@
     "has_mpc": false,
     "has_design": true
   },
-  "export_timestamp": "20251128_024040",
+  "export_timestamp": "20251130_073813",
   "slug": "PF_THEN_RH-PF-followed-by-rolling-horizon",
-  "output_directory": "exports\\20251128_024040_PF_THEN_RH-PF-followed-by-rolling-horizon",
+  "output_directory": "exports\\20251130_073813_PF_THEN_RH-PF-followed-by-rolling-horizon",
   "files": {
     "scenario_xlsx": "scenario.xlsx",
     "pf_design_json": "pf_design.json"
