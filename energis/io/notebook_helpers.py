@@ -44,6 +44,7 @@ def setup_notebook_environment(
     configure_matplotlib: bool = True,
     configure_pandas: bool = True,
     suppress_warnings: bool = True,
+    server_mode: bool = False,
 ) -> Path:
     """
     Setup notebook environment automatically.
@@ -52,6 +53,7 @@ def setup_notebook_environment(
     - Adds project to sys.path
     - Configures matplotlib and pandas (optional)
     - Suppresses warnings (optional)
+    - Server-mode for headless environments (optional)
 
     Parameters
     ----------
@@ -63,6 +65,9 @@ def setup_notebook_environment(
         Configure pandas display options
     suppress_warnings : bool
         Suppress warnings
+    server_mode : bool
+        Enable server mode for headless environments (sets 'Agg' backend)
+        Use this when running on a server without display/GUI
 
     Returns
     -------
@@ -74,6 +79,11 @@ def setup_notebook_environment(
     >>> from energis.io.notebook_helpers import setup_notebook_environment
     >>> PROJECT_ROOT = setup_notebook_environment()
     ✅ Projekt-Root: /path/to/Planing-Framework-for-Heat
+
+    On a server:
+    >>> PROJECT_ROOT = setup_notebook_environment(server_mode=True)
+    ✅ Projekt-Root: /path/to/Planing-Framework-for-Heat
+    ✅ Server-Modus aktiviert (Matplotlib: Agg backend)
     """
 
     # Find project root
@@ -99,9 +109,23 @@ def setup_notebook_environment(
     # Configure matplotlib
     if configure_matplotlib:
         try:
+            import matplotlib
             import matplotlib.pyplot as plt
+
+            # Server mode: use Agg backend (no display required)
+            if server_mode:
+                matplotlib.use('Agg')
+                print("✅ Matplotlib konfiguriert (Agg backend für Server)")
+            else:
+                # Try to detect if we're in a headless environment
+                import os
+                if not os.environ.get('DISPLAY') and sys.platform != 'win32':
+                    matplotlib.use('Agg')
+                    print("✅ Matplotlib konfiguriert (Agg backend - kein Display erkannt)")
+                else:
+                    print("✅ Matplotlib konfiguriert (Standard backend)")
+
             plt.style.use('seaborn-v0_8-darkgrid')
-            print("✅ Matplotlib konfiguriert")
         except ImportError:
             pass
 

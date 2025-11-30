@@ -172,6 +172,33 @@ def test_setup_notebook_environment_configures_matplotlib(monkeypatch):
     assert plt.rcParams['figure.dpi'] > 0
 
 
+def test_setup_notebook_environment_server_mode(monkeypatch):
+    """Test that server mode sets Agg backend for matplotlib."""
+    import matplotlib
+
+    # Setup with server mode
+    setup_notebook_environment(configure_matplotlib=True, server_mode=True)
+
+    # Should have set Agg backend
+    backend = matplotlib.get_backend()
+    assert backend == 'agg' or backend == 'Agg'
+
+
+def test_setup_notebook_environment_headless_detection(monkeypatch):
+    """Test that headless environment is auto-detected."""
+    import matplotlib
+    import sys
+
+    # Simulate headless environment (no DISPLAY)
+    monkeypatch.delenv('DISPLAY', raising=False)
+
+    # Should auto-detect and use Agg
+    if sys.platform != 'win32':
+        setup_notebook_environment(configure_matplotlib=True, server_mode=False)
+        backend = matplotlib.get_backend()
+        assert backend == 'agg' or backend == 'Agg'
+
+
 # ============================================================================
 # Tests: save_workflow_run
 # ============================================================================
