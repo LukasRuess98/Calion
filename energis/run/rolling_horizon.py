@@ -1071,7 +1071,9 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
     if storage_cfg and design.storage:
         storage_cfg["enabled"] = bool(design.storage.get("build_binary", 0.0) >= 0.5)
         storage_cfg["max_energy_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
+        storage_cfg["min_energy_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
         storage_cfg["max_power_mw"] = float(design.storage.get("power_mw", 0.0))
+        storage_cfg["min_power_mw"] = float(design.storage.get("power_mw", 0.0))
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):
             invest_cfg["enabled"] = False
