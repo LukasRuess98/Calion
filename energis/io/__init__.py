@@ -29,13 +29,6 @@ try:
         export_latex_tables,
         format_number,
     )
-    from energis.io.applied_energies_exporter import (
-        export_applied_energies_bundle,
-        generate_graphical_abstract,
-        generate_highlights,
-        export_nomenclature,
-        generate_manuscript_template,
-    )
     HAVE_PUBLICATION_EXPORTS = True
 except ImportError:
     HAVE_PUBLICATION_EXPORTS = False
@@ -45,11 +38,6 @@ except ImportError:
     export_latex_tables = None
     PublicationConfig = None
     format_number = None
-    export_applied_energies_bundle = None
-    generate_graphical_abstract = None
-    generate_highlights = None
-    export_nomenclature = None
-    generate_manuscript_template = None
 
 __all__ = [
     # Loader
@@ -70,10 +58,4 @@ __all__ = [
     "PublicationConfig",
     "format_number",
     "HAVE_PUBLICATION_EXPORTS",
-    # Applied Energies exports
-    "export_applied_energies_bundle",
-    "generate_graphical_abstract",
-    "generate_highlights",
-    "export_nomenclature",
-    "generate_manuscript_template",
 ]
