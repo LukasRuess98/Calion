@@ -9,7 +9,7 @@ Usage:
 
 import sys
 from pathlib import Path
-from .orchestrator import run_all
+from energis.run import rolling_horizon as rh
 
 
 def main():
@@ -35,7 +35,8 @@ def main():
     print()
 
     try:
-        result = run_all(config_paths)
+        workflow = rh.run_workflow(config_paths)
+        result = rh.export_workflow_results(workflow)
         print(f"\n✓ Success! Results exported to: {result['outdir']}")
         sys.exit(0)
     except Exception as e:

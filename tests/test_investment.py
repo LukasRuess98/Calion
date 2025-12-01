@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - optional dependency
     HAVE_PYOMO = False
 
 from energis.models.system_builder import build_model
-from energis.run.orchestrator import _collect_timeseries_and_summary
+from energis.run.rolling_horizon import _collect_timeseries_and_summary
 from energis.utils.timeseries import TimeSeriesTable
 
 
