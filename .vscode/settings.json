@@ -44,5 +44,6 @@
     "INCLUDE_DEMAND_CHARGE_IN_RH": "1",
     "INCLUDE_CO2_COST_IN_OBJECTIVE": "1",
     "FIX_DESIGN": "0"
-  }
+  },
+  "claudeCodeChat.permissions.yoloMode": true
 }
