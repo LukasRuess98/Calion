@@ -1,115 +1,112 @@
-# Pyomo Model Export - Dokumentation
+# Pyomo Model Export Feature
 
-## Überblick
+## Schnellstart
 
-Das Heat Planning Framework exportiert nun automatisch die vollständige Struktur des Pyomo-Optimierungsmodells **vor der Solver-Ausführung**. Dies ermöglicht eine detaillierte Kontrolle und Validierung des Modells, bevor die Optimierung gestartet wird.
+Das Framework exportiert jetzt automatisch die vollständige Modellstruktur **vor der Solver-Ausführung** für bessere Kontrolle und Validierung.
 
-## Export-Formate
+### Was wird exportiert?
 
-Der Export erstellt drei Dateien:
+✅ **Parameter** - alle Eingabewerte mit Details
+✅ **Variablen** - Entscheidungsvariablen mit Bounds und Domains
+✅ **Constraints** - alle Nebenbedingungen mit Ausdrücken
+✅ **Zielfunktion** - die zu minimierende/maximierende Funktion
+✅ **Sets** - alle verwendeten Mengen (Zeitschritte, Komponenten, etc.)
 
-1. **Excel (.xlsx)** - Strukturierte Tabellen für einfache Analyse
-2. **Markdown (.md)** - Lesbare Dokumentation mit Formatierung
-3. **JSON (.json)** - Maschinenlesbare Vollständige Daten
+### Export-Formate
 
-## Exportierte Informationen
+Das Modell wird in **3 Formaten** exportiert **plus 6 Visualisierungen**:
 
-### 1. Zusammenfassung (Summary)
-- Modellname
-- Anzahl der Sets
-- Anzahl der Parameter
-- Anzahl der Variablen (gesamt und nach Typ)
-- Anzahl der Constraints (gesamt und nach Typ)
-- Anzahl der Zielfunktionen
+| Format | Datei | Verwendung |
+|--------|-------|------------|
+| **Excel** | `pyomo_model_before_solve.xlsx` | Tabellen für einfache Analyse |
+| **Markdown** | `pyomo_model_before_solve.md` | Lesbare Dokumentation |
+| **JSON** | `pyomo_model_before_solve.json` | Maschinenlesbar für Automatisierung |
+| **Plots (6x)** | `*_01_overview.png` bis `*_06_complexity_matrix.png` | 📊 Visuelle Analysen |
 
-### 2. Sets
-- Set-Namen
-- Set-Größen
-- Set-Elemente (für kleine Sets)
+### Wo finde ich die Exporte?
 
-### 3. Parameter
-- Name
-- Typ (indexiert oder skalar)
-- Größe
-- Domain
-- Werte oder Beispielwerte
+Nach einem Optimierungslauf:
 
-**Beispiele:**
-- `strompreis_EUR_MWh[t]` - Strompreise für jeden Zeitschritt
-- `waermebedarf_MWth[t]` - Wärmebedarf für jeden Zeitschritt
-- `Leistungspreis` - Leistungspreis in EUR/MW
-
-### 4. Variablen
-- Name
-- Typ (indexiert oder skalar)
-- Größe
-- Domain (NonNegativeReals, Binary, Reals, etc.)
-- Unter- und Obergrenzen (Bounds)
-
-**Beispiele:**
-- `P_buy[t]` - Strombezug aus dem Netz (≥ 0)
-- `HP_Q[i,t]` - Wärmeleistung der Wärmepumpe i zum Zeitpunkt t
-- `storage_capacity` - Speicherkapazität in MWh (z.B. 0 bis 50000)
-- `HP_build[i]` - Binäre Investitionsentscheidung für Wärmepumpe i
-
-### 5. Constraints (Nebenbedingungen)
-- Name
-- Typ (indexiert oder skalar)
-- Anzahl der Constraints
-- Beispiel-Ausdrücke (für kleine Constraint-Sets)
-
-**Beispiele:**
-- `el_balance[t]` - Elektrische Leistungsbilanz für jeden Zeitschritt
-- `ht_balance[t]` - Thermische Energiebilanz für jeden Zeitschritt
-- `HP_cap_con[i,t]` - Kapazitätsgrenzen für Wärmepumpen
-- `storage_level_max[t]` - Maximaler Speicherfüllstand
-
-### 6. Zielfunktion (Objective)
-- Name
-- Richtung (minimize/maximize)
-- Ausdruck (vereinfachte Darstellung)
-
-**Beispiel:**
 ```
-minimize: energy_cost + dump_cost + fuel_costs + co2_term + demand_term + capex_total + ...
+exports/
+  └── YYYYMMDD_HHMMSS_<scenario_tag>/
+      ├── model_structure/                                    ← NEU!
+      │   ├── pyomo_model_before_solve.xlsx                  ← Excel-Tabellen
+      │   ├── pyomo_model_before_solve.md                    ← Markdown-Doku
+      │   ├── pyomo_model_before_solve.json                  ← JSON-Daten
+      │   ├── pyomo_model_before_solve_01_overview.png       ← 📊 Modellgröße
+      │   ├── pyomo_model_before_solve_02_variable_types.png ← 📊 Variablentypen
+      │   ├── pyomo_model_before_solve_03_constraint_sizes.png ← 📊 Constraint-Größen
+      │   ├── pyomo_model_before_solve_04_parameter_timeseries.png ← 📊 Parameter-Zeitreihen
+      │   ├── pyomo_model_before_solve_05_variable_bounds.png ← 📊 Variablen-Bounds
+      │   └── pyomo_model_before_solve_06_complexity_matrix.png ← 📊 Komplexitätsmatrix
+      ├── scenario.xlsx
+      ├── costs.json
+      └── ...
 ```
+
+## Beispiel: Excel-Export
+
+Das Excel-File enthält 5 Sheets:
+
+### 1. Summary
+```
+Model Name: EnerGIS_FuelBus
+Sets: 5
+Parameters: 18
+Variables: 52,347
+Constraints: 43,824
+Objectives: 1
+```
+
+### 2. Parameters
+| Name | Type | Size | Domain | Value/Sample |
+|------|------|------|--------|--------------|
+| strompreis | Parameter | 8760 | NonNegativeReals | 1=45.2, 2=48.1, ... |
+| waermebedarf | Parameter | 8760 | NonNegativeReals | 1=12.5, 2=13.2, ... |
+| Leistungspreis | Parameter | 1 | NonNegativeReals | 127240.0 |
+
+### 3. Variables
+| Name | Type | Size | Domain | Bounds |
+|------|------|------|--------|--------|
+| P_buy | Variable | 8760 | NonNegativeReals | [0, +∞] |
+| HP_Q | Variable | 35040 | NonNegativeReals | [0, +∞] |
+| storage_capacity | Variable | 1 | NonNegativeReals | [0, 50000] |
+| HP_build | Variable | 4 | Binary | [0, 1] |
+
+### 4. Constraints
+| Name | Type | Size | Expression/Note |
+|------|------|------|-----------------|
+| el_balance | Constraint | 8760 | P_buy[t] + ... == ... + P_sell[t] |
+| ht_balance | Constraint | 8760 | sum(HP_Q[i,t]) + ... == waermebedarf[t] + ... |
+| HP_cap_con | Constraint | 35040 | HP_Q[i,t] <= HP_cap[i] |
+
+### 5. Objectives
+| Name | Sense | Expression |
+|------|-------|------------|
+| obj | minimize | energy_cost + dump_cost + fuel_costs + co2_term + demand_term + capex_total + ... |
 
 ## Verwendung
 
-### Automatischer Export
-
-Der Export wird automatisch ausgeführt, wenn ein Optimierungslauf gestartet wird:
+### Standard (automatisch aktiviert)
 
 ```python
 from energis.run.orchestrator import run_all
 
-# Der Export wird automatisch vor der Solver-Ausführung erstellt
+# Export wird automatisch erstellt
 results = run_all(config_paths=["configs/base.yaml", "configs/systems/baseline.system.yaml"])
-```
-
-Die exportierten Dateien befinden sich in:
-```
-exports/
-  └── YYYYMMDD_HHMMSS_<scenario_tag>/
-      └── model_structure/
-          ├── pyomo_model_before_solve.xlsx
-          ├── pyomo_model_before_solve.md
-          └── pyomo_model_before_solve.json
 ```
 
 ### Export deaktivieren
 
-Falls gewünscht, kann der Export in der Run-Konfiguration deaktiviert werden:
+In der Config-Datei:
 
 ```yaml
-# In der Config-Datei (z.B. configs/base.yaml)
 run:
-  export_model_structure: false
+  export_model_structure: false  # Export überspringen
 ```
 
 ### Manueller Export
-
-Der Export kann auch manuell für ein beliebiges Pyomo-Modell durchgeführt werden:
 
 ```python
 from energis.io.model_inspector import export_model_structure
@@ -119,137 +116,139 @@ from energis.models.system_builder import build_model
 model = build_model(table, cfg, dt_h=1.0)
 
 # Modell exportieren
-paths = export_model_structure(
-    model,
-    output_dir="custom_export",
-    prefix="my_model"
-)
+paths = export_model_structure(model, output_dir="my_export", prefix="my_model")
 
 print(f"Excel: {paths['excel_path']}")
 print(f"Markdown: {paths['markdown_path']}")
 print(f"JSON: {paths['json_path']}")
 ```
 
-## Excel-Export Details
-
-Das Excel-File enthält folgende Sheets:
-
-1. **Summary** - Modell-Übersicht
-2. **Parameters** - Alle Parameter mit Werten
-3. **Variables** - Alle Variablen mit Bounds
-4. **Constraints** - Alle Constraints mit Ausdrücken
-5. **Objectives** - Zielfunktionen
-
-Spaltenbreiten werden automatisch angepasst für bessere Lesbarkeit.
-
-## Markdown-Export Details
-
-Das Markdown-File ist optimal für:
-- Dokumentation in Git-Repositories
-- Review-Prozesse
-- Schnelle Übersicht über Modellstruktur
-
-Enthält formatierte Tabellen und Code-Blöcke für bessere Lesbarkeit.
-
-## JSON-Export Details
-
-Das JSON-File ist optimal für:
-- Programmatische Weiterverarbeitung
-- Versionskontrolle und Diff-Vergleiche
-- Automatisierte Tests
-
 ## Anwendungsfälle
 
-### 1. Modell-Validierung vor Optimierung
+### ✅ Vor der Optimierung
 
-Vor einem langen Optimierungslauf kann geprüft werden:
-- Sind alle Parameter korrekt gesetzt?
+**Kontrolle der Modellstruktur:**
+- Sind alle erwarteten Parameter gesetzt?
 - Haben Variablen die richtigen Bounds?
-- Sind alle erwarteten Constraints vorhanden?
-- Ist die Zielfunktion korrekt formuliert?
+- Sind alle Constraints vorhanden?
 
-### 2. Debugging
+**Beispiel:**
+```
+# Im Excel-Export prüfen:
+1. Sheet "Parameters" → sind alle Zeitreihen vollständig?
+2. Sheet "Variables" → sind die Kapazitätsgrenzen korrekt?
+3. Sheet "Constraints" → fehlen Constraints?
+```
 
-Bei unerwarteten Solver-Ergebnissen:
+### 🐛 Debugging
+
+**Bei unerwarteten Solver-Ergebnissen:**
 - Welche Constraints wurden tatsächlich erzeugt?
-- Welche Variablen sind im Modell enthalten?
-- Sind die Parameter-Werte plausibel?
+- Welche Bounds haben die Variablen?
+- Ist die Zielfunktion korrekt?
 
-### 3. Dokumentation
+**Beispiel:**
+```
+# Solver meldet "infeasible"
+1. Öffne Excel-Export → Sheet "Constraints"
+2. Prüfe Constraint-Ausdrücke
+3. Finde widersprüchliche Bedingungen
+```
 
-Für Berichte und Präsentationen:
-- Übersichtliche Darstellung der Modellstruktur
+### 📊 Dokumentation
+
+**Für Berichte und Präsentationen:**
+- Modellgröße und Komplexität dokumentieren
 - Transparenz über verwendete Annahmen
 - Nachvollziehbarkeit der Optimierung
 
-### 4. Modellvergleiche
+**Beispiel:**
+```
+# Markdown-Export in Bericht einbinden:
+- Anzahl Variablen: 52.347
+- Anzahl Constraints: 43.824
+- Zeithorizont: 8.760 Stunden (1 Jahr)
+```
 
-Beim Vergleich verschiedener Szenarien:
+### 🔍 Modellvergleiche
+
+**Beim Vergleich verschiedener Szenarien:**
 - Welche Parameter unterscheiden sich?
 - Wurden neue Constraints hinzugefügt?
 - Hat sich die Modellgröße geändert?
 
-## Beispiel: Typische Modellstruktur
+**Beispiel:**
+```bash
+# JSON-Exporte vergleichen
+diff scenario1/model_structure/pyomo_model_before_solve.json \
+     scenario2/model_structure/pyomo_model_before_solve.json
+```
 
-Ein typisches Heat Planning Modell enthält:
+## Typische Modellstruktur
 
-**Sets:**
-- `t` (Zeitschritte): 1...8760 (ein Jahr, stündlich)
-- `HP` (Wärmepumpen): {1, 2, 3, 4}
+Ein Heat Planning Modell für ein Jahr (stündlich) enthält typischerweise:
 
-**Parameter (~10-20):**
-- Zeitreihen: `strompreis[t]`, `waermebedarf[t]`, `grid_co2[t]`
-- Kosten: `Leistungspreis`, `Gaspreis`, `CO2_price`
-- Technische: `COP_series[i,t]`, `storage_eff_charge`
+| Komponente | Anzahl | Beispiele |
+|------------|--------|-----------|
+| **Sets** | 2-5 | `t` (Zeitschritte: 8760), `HP` (Wärmepumpen: 4) |
+| **Parameter** | 10-20 | `strompreis[t]`, `waermebedarf[t]`, `CO2_price` |
+| **Variablen** | 50-100 Typen | `P_buy[t]`, `HP_Q[i,t]`, `storage_capacity` |
+| | **~500k gesamt** | 8760 × (Anzahl Zeitreihen-Variablen) + ... |
+| **Constraints** | 30-50 Typen | `el_balance[t]`, `ht_balance[t]`, `HP_cap_con[i,t]` |
+| | **~100k gesamt** | 8760 × (Anzahl Zeitreihen-Constraints) + ... |
+| **Objective** | 1 | Minimierung: Energie + Invest + CO2 + ... |
 
-**Variablen (~50-100 Typen, ~500k gesamt):**
-- Leistungsflüsse: `P_buy[t]`, `P_sell[t]`, `HP_Q[i,t]`
-- Speicher: `storage_level[t]`, `storage_charge[t]`
-- Investition: `HP_cap[i]`, `storage_capacity`, `HP_build[i]`
+## Vorteile
 
-**Constraints (~30-50 Typen, ~100k gesamt):**
-- Bilanzen: `el_balance[t]`, `ht_balance[t]`
-- Grenzen: `HP_cap_con[i,t]`, `storage_level_max[t]`
-- Dynamik: `storage_dynamics[t]`
+✅ **Transparenz** - vollständige Einsicht in Modellstruktur
+✅ **Qualitätssicherung** - Fehler vor Optimierung erkennen
+✅ **Dokumentation** - automatische Modell-Dokumentation
+✅ **Debugging** - schnellere Fehlersuche
+✅ **Reproduzierbarkeit** - Modell-Versionen nachvollziehbar
 
-**Objective (1):**
-- Minimierung der Gesamtkosten (Energie + Investition + CO2 + ...)
+## Performance
 
-## Tipps
+- **Export-Zeit**: ~5-10 Sekunden für typisches Modell (8760 Zeitschritte)
+- **Dateigröße**:
+  - Excel: ~1-5 MB
+  - Markdown: ~100-500 KB
+  - JSON: ~500 KB - 2 MB
+- **Overhead**: Minimal, da nur vor Solver-Ausführung
 
-1. **Vor großen Optimierungsläufen**: Prüfen Sie den Export, um sicherzustellen, dass das Modell korrekt aufgebaut wurde.
+## 📊 Visualisierungen
 
-2. **Bei Solver-Fehlern**: Schauen Sie sich die Constraint-Ausdrücke an, um Inkonsistenzen zu identifizieren.
+Zusätzlich zu den Daten-Exporten werden **6 professionelle Plots** automatisch erstellt:
 
-3. **Für Dokumentation**: Nutzen Sie die Markdown-Datei als Basis für technische Berichte.
+1. **Model Structure Overview** - Modellgröße auf einen Blick
+2. **Variable Types Distribution** - Verteilung der Variablentypen
+3. **Constraint Sizes** - Top 20 größte Constraint-Gruppen
+4. **Parameter Time Series** - Zeitreihen (Strompreis, Wärmebedarf, CO2)
+5. **Variable Bounds Overview** - Variablengrenzen und Bounded/Unbounded
+6. **Model Complexity Matrix** - Komplexitäts-Heatmap
 
-4. **Versionskontrolle**: Committen Sie die JSON-Datei, um Modelländerungen nachvollziehbar zu machen.
+📖 **Detaillierte Plot-Dokumentation**: [`docs/MODEL_PLOTS.md`](docs/MODEL_PLOTS.md)
 
-## Technische Details
+### Beispiel-Plots
 
-Die Export-Funktion verwendet die Pyomo-API, um:
-- `model.component_objects(pyo.Set)` - Alle Sets zu extrahieren
-- `model.component_objects(pyo.Param)` - Alle Parameter zu extrahieren
-- `model.component_objects(pyo.Var)` - Alle Variablen zu extrahieren
-- `model.component_objects(pyo.Constraint)` - Alle Constraints zu extrahieren
-- `model.component_objects(pyo.Objective)` - Alle Zielfunktionen zu extrahieren
+Die Plots helfen dir:
+- ✅ **Vor Optimierung**: Modell schnell validieren
+- ✅ **Beim Debugging**: Probleme visuell identifizieren
+- ✅ **Für Dokumentation**: Professionelle Präsentationen
+- ✅ **Beim Vergleich**: Szenarien visuell gegenüberstellen
 
-Für große indexierte Komponenten werden Beispielwerte exportiert, um die Dateigröße überschaubar zu halten.
+## Weitere Informationen
 
-## Fehlerbehebung
+📖 **Vollständige Dokumentation**: [`docs/MODEL_EXPORT.md`](docs/MODEL_EXPORT.md)
 
-**Problem**: Export-Dateien werden nicht erstellt
-- **Lösung**: Prüfen Sie, ob Pyomo installiert ist: `pip list | grep pyomo`
+📊 **Plot-Dokumentation**: [`docs/MODEL_PLOTS.md`](docs/MODEL_PLOTS.md)
 
-**Problem**: Excel-Datei zu groß / zu langsam
-- **Lösung**: Die Funktion begrenzt automatisch die Anzahl der exportierten Beispielwerte
+🔧 **Implementierung**: [`energis/io/model_inspector.py`](energis/io/model_inspector.py)
 
-**Problem**: Constraint-Ausdrücke nicht lesbar
-- **Lösung**: Die Ausdrücke werden auf 200 Zeichen gekürzt. Schauen Sie in die JSON-Datei für vollständige Ausdrücke
+🧪 **Test-Skript**: [`test_model_export.py`](test_model_export.py)
 
 ## Support
 
 Bei Fragen oder Problemen:
-1. Prüfen Sie diese Dokumentation
-2. Schauen Sie sich die Beispiel-Exporte an
-3. Kontaktieren Sie das Framework-Team
+1. Lesen Sie die [vollständige Dokumentation](docs/MODEL_EXPORT.md)
+2. Prüfen Sie die [Beispiel-Exporte](test_exports/)
+3. Kontaktieren Sie das Entwicklungsteam
