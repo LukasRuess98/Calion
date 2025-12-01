@@ -279,19 +279,46 @@ git checkout backup-before-cleanup
 
 ---
 
-## 🎯 NÄCHSTE SCHRITTE (optional)
+## 🔍 PHASE 3: CODE-QUALITÄT ANALYSE (Abgeschlossen)
 
-Falls du noch weiter optimieren möchtest:
+Nach dem erfolgreichen Cleanup haben wir Phase 3 analysiert: **Code-Qualität durch Refactoring verbessern**.
 
-### Phase 3 (Code-Qualität):
-1. **orchestrator.py refactoren** (deprecated wrapper entfernen)
-2. **system_builder.py aufteilen** (822 Zeilen → kleinere Module)
-3. **Plotter-Duplikate eliminieren** (plotter.py vs. publication_plotter.py)
+### Analysierte Module:
 
-### Phase 4 (Langfristig):
-1. **MPC-Module optional machen** (wenn nicht genutzt)
-2. **Config-Validation verbessern** (Pydantic-basiert)
-3. **Package-Struktur optimieren** (core/, optional/, io/)
+#### 1. **orchestrator.py** (1.269 Zeilen)
+- ✅ **BEHALTEN** als Legacy-Utilities
+- **Grund:** Wird produktiv genutzt (7 Funktionen von rolling_horizon.py), bereits deprecated markiert
+- **Entscheidung:** Niedriger ROI, kein Wartbarkeitsproblem
+
+#### 2. **system_builder.py** (822 Zeilen)
+- ✅ **BEHALTEN** unverändert
+- **Grund:** Kernfunktionalität, zu riskant zu refactoren, tief verzahnte Pyomo-Logik
+- **Entscheidung:** Würde mehr schaden als nützen
+
+#### 3. **Plotter-"Duplikate"**
+- ✅ **BEHALTEN** - Keine Duplikation
+- **Grund:** Funktionale Spezialisierung (Quick plots vs. Publication plots)
+- **Entscheidung:** Unterschiedliche Use Cases, sinnvolle Trennung
+
+**Siehe [`REFACTORING_DECISIONS.md`](REFACTORING_DECISIONS.md) für Details.**
+
+### Fazit Phase 3:
+> **"If it ain't broke, don't fix it."**
+
+Nach gründlicher Analyse haben wir entschieden, **KEINE weiteren Code-Änderungen** vorzunehmen. Der Code ist bereits in gutem Zustand, und weitere Refactorings würden mehr Risiko als Nutzen bringen.
+
+---
+
+## 🎯 EMPFEHLUNGEN FÜR ZUKUNFT
+
+### Version 3.0 (wenn Breaking Changes erlaubt):
+1. **orchestrator.py entfernen** - Utility-Funktionen vorher in workflow_utils.py extrahieren
+2. **Type Hints erweitern** - mypy --strict für bessere Qualität
+3. **Config-Validation mit Pydantic** - Vollständige Schema-Validation
+
+### Wartung (ohne Breaking Changes):
+- ✅ **Code ist bereits in gutem Zustand**
+- ✅ **Fokus auf neue Features statt Refactoring**
 
 ---
 
@@ -310,6 +337,7 @@ https://github.com/LukasRuess98/Planing-Framework-for-Heat/pull/new/claude/analy
 
 ## ✅ ALLE AUFGABEN ERLEDIGT
 
+### Phase 1 & 2: Cleanup
 1. ✅ Backup-Branch erstellt
 2. ✅ Deprecated Code entfernt
 3. ✅ Redundante Beispiele gelöscht
@@ -320,4 +348,12 @@ https://github.com/LukasRuess98/Planing-Framework-for-Heat/pull/new/claude/analy
 8. ✅ Archive bereinigt
 9. ✅ Änderungen committed & gepusht
 
+### Phase 3: Code-Qualität
+10. ✅ orchestrator.py analysiert → BEHALTEN (Legacy-Utilities)
+11. ✅ system_builder.py analysiert → BEHALTEN (zu riskant)
+12. ✅ Plotter analysiert → BEHALTEN (funktionale Spezialisierung)
+13. ✅ Refactoring-Entscheidungen dokumentiert
+
 **Das Framework ist jetzt schlank, fokussiert und wartbar! 🚀**
+
+**Ergebnis:** ~25.000 Zeilen entfernt, 40% weniger Dateien, keine Breaking Changes.
