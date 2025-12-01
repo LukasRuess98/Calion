@@ -36,6 +36,7 @@ __all__ = [
     "display_workflow_summary",
     "display_kpi_summary",
     "create_and_display_dashboard",
+    "diagnose_dashboard_data",
 ]
 
 
@@ -699,10 +700,69 @@ def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
             print(f"         • Speicher:         {capex_sto:>15,.0f} EUR  ({capex_sto/capex_total*100:>5.1f}%)")
 
 
+def diagnose_dashboard_data(workflow: Any) -> None:
+    """
+    Diagnose workflow data for dashboard display issues.
+
+    This is a convenience wrapper around diagnose_workflow() that
+    prints a formatted report to help troubleshoot dashboard issues.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow to diagnose
+
+    Examples
+    --------
+    >>> from energis.io.notebook_helpers import diagnose_dashboard_data
+    >>> diagnose_dashboard_data(workflow)
+    🔍 Dashboard Data Diagnosis
+    ====================================
+    ✓ Primary result: RH
+    ✓ Timeseries: 150 series
+    ✓ Costs: 12 entries
+    ✗ Design: No data
+    ...
+    """
+    from energis.io.dashboard import diagnose_workflow
+
+    print("\n" + "="*70)
+    print("🔍 DASHBOARD DATA DIAGNOSIS")
+    print("="*70)
+
+    diagnosis = diagnose_workflow(workflow)
+
+    # Status overview
+    print(f"\n📊 Status:")
+    print(f"  Primary Result: {diagnosis['primary_result_type']}")
+    print(f"  {'✓' if diagnosis['has_timeseries'] else '✗'} Timeseries: {diagnosis.get('series_count', 0)} series")
+    print(f"  {'✓' if diagnosis['has_costs'] else '✗'} Costs: {diagnosis.get('cost_entries', 0)} entries")
+    print(f"  {'✓' if diagnosis['has_design'] else '✗'} Design: {diagnosis.get('design_components', 0)} components")
+
+    # Issues
+    if diagnosis['issues']:
+        print(f"\n⚠️  Issues Found ({len(diagnosis['issues'])}):")
+        for i, issue in enumerate(diagnosis['issues'], 1):
+            print(f"  {i}. {issue}")
+
+    # Recommendations
+    if diagnosis['recommendations']:
+        print(f"\n💡 Recommendations ({len(diagnosis['recommendations'])}):")
+        for i, rec in enumerate(diagnosis['recommendations'], 1):
+            print(f"  {i}. {rec}")
+    else:
+        print(f"\n✅ No issues detected - dashboard should display correctly!")
+
+    print("\n" + "="*70)
+
+    return diagnosis
+
+
 def create_and_display_dashboard(
     workflow: Any,
     title: Optional[str] = None,
     auto_display: bool = False,
+    diagnose: bool = True,
 ) -> Any:
     """
     Create interactive Panel dashboard for workflow results.
@@ -716,6 +776,8 @@ def create_and_display_dashboard(
     auto_display : bool
         Whether to automatically display the dashboard in Jupyter
         (default: False, user must evaluate dashboard object)
+    diagnose : bool, optional
+        Run diagnostic check before creating dashboard (default: True)
 
     Returns
     -------
@@ -728,6 +790,9 @@ def create_and_display_dashboard(
 
     Or serve as webapp:
     >>> dashboard.servable()
+
+    If dashboard is not displaying data:
+    >>> diagnose_dashboard_data(workflow)
     """
 
     from energis.io.dashboard import create_dashboard, HAVE_PANEL
@@ -744,13 +809,16 @@ def create_and_display_dashboard(
 
     print("🎛️ Erstelle interaktives Dashboard...")
 
-    dashboard = create_dashboard(workflow, title=title)
+    dashboard = create_dashboard(workflow, title=title, diagnose=diagnose)
 
     print("✅ Dashboard erfolgreich erstellt!")
     print("\n💡 Verwendung:")
     print("   • Im Notebook: Evaluiere 'dashboard' in einer Zelle")
     print("   • Als Webapp: panel serve notebook.ipynb --show")
     print("   • Features: Tabs, interaktive Plots, Zoom/Pan/Hover")
+    print("\n💡 Troubleshooting:")
+    print("   • Wenn Daten nicht angezeigt werden: diagnose_dashboard_data(workflow)")
+    print("   • VS-Code: Panel funktioniert am besten im Browser")
 
     if auto_display:
         return dashboard
