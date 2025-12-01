@@ -118,43 +118,92 @@ class EnerGISDashboard:
 
         result = self.primary_result
 
+        # Find demand column - try multiple common names
+        demand_col_names = ['waermebedarf_MWth', 'Waermebedarf_MWth', 'heat_demand_MW', 'demand_MW', 'Q_demand_MW']
+        demand_values = None
+        demand_col_found = None
+
+        for col_name in demand_col_names:
+            if col_name in result.table.data:
+                demand_values = result.table.data[col_name]
+                demand_col_found = col_name
+                break
+
+        # Fallback: use zeros if no demand column found
+        if demand_values is None:
+            demand_values = [0.0] * len(result.table.index)
+            if len(result.table.index) > 0:
+                import logging
+                logging.warning(
+                    f"Dashboard: No demand column found in table.data. Tried: {demand_col_names}. "
+                    f"Available columns: {list(result.table.data.keys())}"
+                )
+
         # Main timeseries DataFrame
         self.df = pd.DataFrame({
             'timestamp': result.table.index,
-            'demand_MW': result.table.data.get('waermebedarf_MWth', [0] * len(result.table.index)),
+            'demand_MW': demand_values,
         })
 
         # Add all series
-        for key, values in result.series.items():
-            self.df[key] = values
+        if result.series:
+            for key, values in result.series.items():
+                # Ensure values list matches length
+                if len(values) == len(self.df):
+                    self.df[key] = values
+                else:
+                    import logging
+                    logging.warning(
+                        f"Dashboard: Skipping series '{key}' - length mismatch "
+                        f"(expected {len(self.df)}, got {len(values)})"
+                    )
+        else:
+            import logging
+            logging.warning("Dashboard: result.series is empty - no timeseries data to display")
 
         # Identify component types
         self.heat_components = [col for col in self.df.columns if col.endswith('_Q_th_MW')]
         self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
         self.storage_cols = [col for col in self.df.columns if 'TES' in col]
 
+        # Log component detection
+        if not self.heat_components and not self.elec_components:
+            import logging
+            logging.warning(
+                f"Dashboard: No heat or electric components detected. "
+                f"Available columns: {list(self.df.columns)}"
+            )
+
         # Costs DataFrame
         if hasattr(result, 'costs') and result.costs:
-            self.costs_df = pd.DataFrame([
-                {
-                    'Category': key.replace('objective.', '').replace('_EUR', '').replace('_', ' '),
-                    'Value_EUR': float(value) if isinstance(value, (int, float)) else 0.0,
-                    'Original_Key': key
-                }
-                for key, value in result.costs.items()
-                if isinstance(value, (int, float)) and key.endswith('_EUR')
-            ])
+            cost_entries = []
+            for key, value in result.costs.items():
+                if isinstance(value, (int, float)) and key.endswith('_EUR'):
+                    cost_entries.append({
+                        'Category': key.replace('objective.', '').replace('_EUR', '').replace('_', ' '),
+                        'Value_EUR': float(value),
+                        'Original_Key': key
+                    })
 
-            # Calculate percentages
-            total = self.costs_df['Value_EUR'].sum()
-            if total > 0:
-                self.costs_df['Percentage'] = (self.costs_df['Value_EUR'] / total * 100).round(2)
+            if cost_entries:
+                self.costs_df = pd.DataFrame(cost_entries)
+
+                # Calculate percentages
+                total = self.costs_df['Value_EUR'].sum()
+                if total > 0:
+                    self.costs_df['Percentage'] = (self.costs_df['Value_EUR'] / total * 100).round(2)
+                else:
+                    self.costs_df['Percentage'] = 0.0
+
+                self.costs_df = self.costs_df.sort_values('Value_EUR', ascending=False)
             else:
-                self.costs_df['Percentage'] = 0.0
-
-            self.costs_df = self.costs_df.sort_values('Value_EUR', ascending=False)
+                self.costs_df = pd.DataFrame()
+                import logging
+                logging.warning("Dashboard: No valid cost entries found in result.costs")
         else:
             self.costs_df = pd.DataFrame()
+            import logging
+            logging.warning("Dashboard: result.costs is empty or missing")
 
     def create(self) -> pn.Tabs:
         """Create the complete dashboard with all tabs."""
@@ -336,6 +385,29 @@ class EnerGISDashboard:
 
     def _create_timeseries_tab(self) -> pn.Column:
         """Create interactive timeseries tab."""
+
+        # Check if we have any data
+        if len(self.df) == 0:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Zeitreihendaten verfügbar\n\n"
+                    "Das Workflow-Ergebnis enthält keine Zeitreihendaten. Mögliche Ursachen:\n"
+                    "- Die Optimierung ist fehlgeschlagen\n"
+                    "- Das result.series Dictionary ist leer\n"
+                    "- Es gibt ein Datenformat-Problem\n\n"
+                    "Bitte prüfe die Logs für weitere Details."
+                )
+            )
+
+        if not self.heat_components and not self.elec_components:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Komponenten erkannt\n\n"
+                    "Es wurden keine Wärme- oder Elektro-Komponenten in den Ergebnissen gefunden.\n\n"
+                    f"Verfügbare Spalten: `{', '.join(self.df.columns)}`\n\n"
+                    "Das Dashboard erwartet Spalten mit Endungen wie `_Q_th_MW` oder `_Pel_MW`."
+                )
+            )
 
         # Component selection
         heat_selector = pn.widgets.MultiChoice(
@@ -584,7 +656,17 @@ class EnerGISDashboard:
         """Create costs analysis tab."""
 
         if self.costs_df.empty:
-            return pn.Column(pn.pane.Markdown("*Keine Kostendaten verfügbar*"))
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Kostendaten verfügbar\n\n"
+                    "Das Workflow-Ergebnis enthält keine Kostendaten. Mögliche Ursachen:\n"
+                    "- Die Optimierung ist fehlgeschlagen\n"
+                    "- result.costs ist leer oder None\n"
+                    "- Keine Kosteneinträge mit '_EUR' Endung gefunden\n\n"
+                    "Prüfe ob die Optimierung erfolgreich durchgelaufen ist und ob "
+                    "Kostenkomponenten in der Konfiguration aktiviert sind."
+                )
+            )
 
         # Cost breakdown plot
         cost_plot = self._create_cost_breakdown_plot()
@@ -674,7 +756,18 @@ class EnerGISDashboard:
         design = self.workflow.design
 
         if not design:
-            return pn.Column(pn.pane.Markdown("*Kein Design verfügbar*"))
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Kein Anlagen-Design verfügbar\n\n"
+                    "Das Workflow enthält keine Design-Informationen. Mögliche Ursachen:\n"
+                    "- Kein PF-Schritt wurde ausgeführt (Design wird in PF erstellt)\n"
+                    "- Die PF-Optimierung ist fehlgeschlagen\n"
+                    "- RH-Only Modus ohne vorheriges PF\n\n"
+                    "Um Design-Daten zu erhalten:\n"
+                    "- Führe einen PF-Schritt aus (z.B. PF_THEN_RH)\n"
+                    "- Oder lade ein bestehendes Design mit `pf_design_json`"
+                )
+            )
 
         # Heat pump capacities
         hp_data = []
@@ -695,6 +788,19 @@ class EnerGISDashboard:
                 'Kapazität [MW]': storage_cap,
                 'Typ': 'Speicher'
             })
+
+        # Check if we have any design data
+        if not hp_data:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Komponenten im Design gefunden\n\n"
+                    "Das Design-Objekt existiert, aber enthält keine Wärmepumpen oder Speicher.\n\n"
+                    "Dies kann passieren wenn:\n"
+                    "- Alle Komponenten in der Optimierung deaktiviert sind\n"
+                    "- Die Kapazitäten auf 0 gesetzt wurden\n"
+                    "- Es ein Problem beim Extrahieren des Designs gab"
+                )
+            )
 
         design_df = pd.DataFrame(hp_data)
 
