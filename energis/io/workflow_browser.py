@@ -129,13 +129,38 @@ class WorkflowBrowser:
                     with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
 
+                    # Extrahiere Daten mit Fallbacks
+                    name = metadata.get('name', workflow_dir.name)
+                    saved_at = metadata.get('saved_at', '')
+
+                    # Szenario-Name aus verschachtelter Struktur
+                    scenario_data = metadata.get('scenario', {})
+                    if isinstance(scenario_data, dict):
+                        scenario = scenario_data.get('name', scenario_data.get('title', 'unknown'))
+                    else:
+                        scenario = 'unknown'
+
+                    # Kosten aus costs-Dictionary
+                    costs_data = metadata.get('costs', {})
+                    if isinstance(costs_data, dict):
+                        costs = costs_data.get('total_eur', 0.0)
+                    else:
+                        costs = 0.0
+
+                    # Steps aus workflow-Dictionary
+                    workflow_data = metadata.get('workflow', {})
+                    if isinstance(workflow_data, dict):
+                        steps = workflow_data.get('steps', [])
+                    else:
+                        steps = []
+
                     workflows.append({
                         'path': workflow_dir,
-                        'name': metadata.get('name', workflow_dir.name),
-                        'date': metadata.get('saved_at', ''),
-                        'scenario': metadata.get('scenario', {}).get('name', 'unknown'),
-                        'costs': metadata.get('costs', {}).get('total_eur', 0.0),
-                        'steps': metadata.get('workflow', {}).get('steps', []),
+                        'name': name,
+                        'date': saved_at,
+                        'scenario': scenario,
+                        'costs': costs,
+                        'steps': steps,
                         'metadata': metadata
                     })
                 except Exception as e:
