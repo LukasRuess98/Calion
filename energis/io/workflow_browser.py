@@ -294,7 +294,7 @@ class WorkflowBrowser:
         # Layout
         layout = pn.Column(
             header,
-            pn.Divider(),
+            pn.layout.Divider(),
             pn.Row(
                 pn.Column(
                     workflow_selector,
