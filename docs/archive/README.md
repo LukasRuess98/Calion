@@ -1,17 +1,70 @@
 # 📚 Archived Documentation
 
-**Archiviert am:** 2024-11-30
-**Grund:** Beschreiben veraltete Workflows (Mock-Daten, alte Shell-Scripts)
+**Letztes Update:** 2025-12-02
+**Grund:** Beschreiben veraltete Workflows, Prozess-Dokumentation, oder obsolete Features
 
 ---
 
-## ⚠️ Diese Dokumentation ist VERALTET
+## ⚠️ Diese Dokumentation ist VERALTET oder ARCHIVIERT
 
-Die hier archivierten Dokumente beschreiben den **alten Dashboard-Workflow** mit Mock-Daten und Shell-Scripts. Diese Methode wurde durch die **notebook_helpers Integration** ersetzt.
+Dieses Verzeichnis enthält:
+1. **Alte Dashboard-Workflows** (Mock-Daten, alte Shell-Scripts) - überholt durch Standalone Dashboard
+2. **Prozess-Dokumentation** (Merge-Reports, Validierungsberichte) - historisch relevant, aber nicht für Benutzer
+3. **Legacy Features** - Features die entfernt oder ersetzt wurden
 
 ---
 
 ## 📋 Archivierte Dokumente
+
+### 📁 `process_docs/` - Entwicklungs-Prozess-Dokumentation
+
+Diese Dokumente dokumentieren den Entwicklungsprozess, Merges, Refactorings und Validierungen. Sie sind für die Nachvollziehbarkeit archiviert, aber nicht für Endbenutzer relevant.
+
+**Merge & Integration Reports:**
+- `CONFLICT_RESOLUTION_GUIDE.md` - Merge-Konflikt-Dokumentation
+- `MERGE_IMPACT_ANALYSIS.md` - Merge Impact Analyse
+- `MAIN_BRANCH_COMPATIBILITY_REPORT.md` - Kompatibilitätsbericht
+- `FINAL_MAIN_COMPATIBILITY_CHECK.md` - Main Branch Kompatibilitätsprüfung
+- `FINAL_INTEGRATION_REVIEW.md` - Finale Integration Review
+
+**Validation & Test Reports:**
+- `DATATYPE_COMPATIBILITY_REPORT.md` - Datentyp-Kompatibilitätsbericht
+- `DESIGN_AND_COST_VALIDATION.md` - Design- und Kosten-Validierung
+- `ERROR_ANALYSIS_AND_FIXES.md` - Fehleranalyse und Fixes
+- `MPC_TEST_REPORT.md` - MPC Test Report
+- `RUNNER_EXPORT_SENSITIVITY_COMPATIBILITY.md` - Runner Export Kompatibilität
+
+**Refactoring & Migration:**
+- `REFACTORING_DECISIONS.md` - Refactoring Entscheidungen
+- `ANLEITUNG.md` - Alte Framework-Anleitung (überholt durch README.md)
+- `CLEANUP_SUMMARY.md` - Cleanup-Zusammenfassung
+- `NOTEBOOK_UPDATE_GUIDE.md` - Notebook Update Guide
+- `PR_DESCRIPTION.md` - Pull Request Beschreibungen
+
+**Status:** Historisch relevant für Entwickler, aber nicht für Endbenutzer
+
+---
+
+### 📁 `dashboard_legacy/` - Alte Dashboard-Dokumentation
+
+Diese Dokumente beschreiben den alten Dashboard-Workflow und spezifische Bugfixes. Überholt durch `DASHBOARD.md` (Standalone Dashboard) im Projekt-Root.
+
+**Quickstart Guides:**
+- `DASHBOARD_QUICKSTART.md` - Alte Dashboard Schnellanleitung (nutzt create_and_display_dashboard, entfernt)
+
+**Fix Documentation:**
+- `DASHBOARD_FIX_DOCUMENTATION.md` - Dashboard Robustness Fix Dokumentation
+- `DASHBOARD_KERNEL_FIX.md` - Dashboard Kernel Cache Fix
+- `DASHBOARD_VALIDATION_REPORT.md` - Dashboard Validierungsbericht
+
+**Installation:**
+- `DASHBOARD_INSTALL.md` - Alte Dashboard Installation (Mock-Daten basiert)
+
+**Status:** Überholt durch **DASHBOARD.md** im Projekt-Root (Standalone Dashboard mit start_dashboard.py)
+
+---
+
+### 📁 Root Archive Files - Legacy Features
 
 ### DASHBOARD_QUICKSTART.md
 
@@ -56,48 +109,59 @@ Die hier archivierten Dokumente beschreiben den **alten Dashboard-Workflow** mit
 
 ## ✅ Aktuelle Dokumentation
 
-### Für Dashboard-Setup:
+### Haupt-Dokumentation (Projekt-Root)
+- **README.md** - Haupt-Dokumentation & CLI-Nutzung
+- **ARCHITECTURE_V2.md** - Framework-Architektur & Plugin-System
+- **MIGRATION_GUIDE_V2.md** - Migration zu V2
+- **DASHBOARD.md** - Standalone Dashboard Dokumentation (NEU - ersetzt alte Dashboard-Docs)
 
-📖 **docs/SERVER_SETUP.md** (NEU!)
-- Vollständige Server-Anleitung
-- 3 Deployment-Optionen (JupyterLab, Headless, Panel Server)
-- Headless/Server-Betrieb
+### Dashboard-Setup:
+
+📖 **DASHBOARD.md** - Standalone Dashboard Anleitung
+- Starten mit `python start_dashboard.py`
+- Workflow-Auswahl und Visualisierung
 - Troubleshooting
 - Best Practices
 
-### Für Framework-Nutzung:
+📖 **docs/SERVER_SETUP.md**
+- Server Deployment
+- JupyterLab, Headless, Panel Server Optionen
 
-📖 **README.md** - Haupt-Dokumentation
-📖 **ARCHITECTURE_V2.md** - Architektur-Übersicht
-📖 **ROLLING_HORIZON_EXPLANATION.md** - RH Methodologie
+### Benutzer-Guides (docs/)
+- **APPLIED_ENERGIES_GUIDE.md** - Export für Applied Energies Journal
+- **BENCHMARK_RUNNER_GUIDE.md** - Benchmark Runner
+- **MODEL_EXPORT.md** - Model Export Features
+- **MODEL_PLOTS.md** - Plotting Features
+- **MPC_USAGE_EXAMPLES.md** - MPC Verwendungsbeispiele
+- **PUBLICATION_EXPORTS.md** - Publikations-Exports
+- **PUBLICATION_FEATURES_README.md** - Publikations-Features
+- **PUBLICATION_READY_METHODS.md** - Publikationsfertige Methoden
+- **RUN_METHODS_COMPARISON.md** - Vergleich der Run-Methoden
+- **STORAGE_CONFIGURATION_GUIDE.md** - Speicher-Konfiguration
+- **STRATIFIED_STORAGE_INTEGRATION.md** - Stratified Storage Integration
 
-### Für Cleanup/Migration:
+### Notebook-Dokumentation
+- **notebooks/README.md** - Notebook-Übersicht & Entscheidungsbaum
 
-📖 **CLEANUP_STATUS.md** - Cleanup-Report (was ist veraltet?)
+### Technische Dokumentation (docs/)
+- **methodology.md** - MILP-Modell-Methodik
+- **stratified_storage.md** - Stratified Storage Details
+- **data_availability.md** - Datenverfügbarkeit
+- **paper_outline.md** - Paper Outline
 
 ---
 
-## 🚀 Quick Start (Neu)
+## 🚀 Quick Start (Aktuell)
 
-### Dashboard lokal starten:
-
-```bash
-# Option 1: JupyterLab
-jupyter lab notebooks/interactive_dashboard.ipynb
-
-# Option 2: Panel Server
-panel serve notebooks/interactive_dashboard.ipynb --show
-```
-
-### Workflow erstellen und speichern:
+### 1. Simulation ausführen (in Notebooks):
 
 ```python
 # In runner.ipynb oder scenario_studio.ipynb
-from energis.run.rolling_horizon import run_workflow
+from energis.run import rolling_horizon as rh
 from energis.io.notebook_helpers import save_workflow_run
 
 # Optimierung ausführen
-workflow = run_workflow(config_paths)
+workflow = rh.run_workflow(config_paths)
 
 # Automatisch speichern mit Metadaten
 workflow_dir = save_workflow_run(
@@ -107,15 +171,17 @@ workflow_dir = save_workflow_run(
 )
 ```
 
-### Dashboard anzeigen:
+### 2. Dashboard starten (Standalone):
 
-```python
-# Direkt im Notebook
-from energis.io.notebook_helpers import create_and_display_dashboard
+```bash
+# Standalone Dashboard (empfohlen)
+python start_dashboard.py
 
-dashboard = create_and_display_dashboard(workflow, title="Mein Dashboard")
-dashboard  # Zeigt Dashboard an
+# Oder mit Workflow Browser Notebook
+panel serve notebooks/workflow_browser.ipynb --show
 ```
+
+Das Dashboard lädt automatisch alle gespeicherten Workflows aus `saved_workflows/` und bietet eine Dropdown-Auswahl zur Visualisierung.
 
 ---
 
@@ -123,12 +189,15 @@ dashboard  # Zeigt Dashboard an
 
 | Alt (Archiviert) | Neu (Aktuell) | Abschnitt |
 |------------------|---------------|-----------|
-| DASHBOARD_QUICKSTART.md | docs/SERVER_SETUP.md | Quick Start |
-| DASHBOARD_INSTALL.md | docs/SERVER_SETUP.md | Installation & Setup |
+| DASHBOARD_QUICKSTART.md | **DASHBOARD.md** (Root) | Quick Start |
+| DASHBOARD_INSTALL.md | **DASHBOARD.md** (Root) | Installation & Setup |
+| DASHBOARD_FIX_DOCUMENTATION.md | - | Feature integriert |
 | REAL_DATA_GUIDE.md | - | Nicht mehr nötig |
+| ANLEITUNG.md | **README.md** | Framework-Nutzung |
 | install_dashboard.sh | `pip install panel holoviews bokeh plotly` | Installation |
-| start_dashboard.sh | `jupyter lab` oder `panel serve` | Dashboard starten |
+| start_dashboard.sh | `python start_dashboard.py` | Dashboard starten |
 | create_mock_simulations.py | `save_workflow_run()` | Workflows speichern |
+| create_and_display_dashboard() | start_dashboard.py | Dashboard unabhängig von Notebooks |
 
 ---
 
@@ -155,24 +224,26 @@ dashboard  # Zeigt Dashboard an
 
 ### Neuer Workflow (Aktuell)
 
-```python
-# 1. In runner.ipynb: Optimierung ausführen
-workflow = rh.run_workflow(config_paths)
+```bash
+# 1. In runner.ipynb: Optimierung ausführen und speichern
+# workflow = rh.run_workflow(config_paths)
+# save_workflow_run(workflow, name="Baseline")
 
-# 2. Automatisch speichern
-save_workflow_run(workflow, name="Baseline")
+# 2. Dashboard standalone starten
+python start_dashboard.py
 
-# 3. Dashboard im Notebook anzeigen
-dashboard = create_and_display_dashboard(workflow)
-dashboard
+# 3. Im Dashboard: Workflow aus Dropdown auswählen
+# 4. Ergebnisse werden automatisch visualisiert
 ```
 
 **Vorteile:**
 - ✅ Echte Workflow-Ergebnisse
-- ✅ Alles in Notebooks
+- ✅ Saubere Trennung: Simulation vs. Visualisierung
+- ✅ Dashboard läuft unabhängig von Notebooks
 - ✅ Einfacher zu verstehen
 - ✅ Wartbar & erweiterbar
-- ✅ Konsistent mit workflow_manager.ipynb, comparison_dashboard.ipynb
+- ✅ Mehrere Workflows können verglichen werden
+- ✅ Deployment-ready (kann als Web-Service laufen)
 
 ---
 
@@ -213,5 +284,8 @@ In `archive/old_dashboard_scripts/` - aber besser nicht verwenden!
 ---
 
 **Status:** Archiviert, nicht zur Verwendung empfohlen
-**Migration abgeschlossen:** 2024-11-30
-**Ersetzt durch:** notebook_helpers Integration + docs/SERVER_SETUP.md
+**Letzte Archivierung:** 2025-12-02
+**Ersetzt durch:**
+- Dashboard: **DASHBOARD.md** + **start_dashboard.py** (Standalone Dashboard)
+- Framework: **README.md** + **ARCHITECTURE_V2.md**
+- Prozess-Docs: Archiviert für historische Referenz
