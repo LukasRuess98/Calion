@@ -228,11 +228,10 @@ class WorkflowBrowser:
                 )
             )
 
-        # Header
+        # Header - kompakter
         header = pn.pane.Markdown(
-            f"# {self.title}\n\n"
-            f"📦 **{len(self.available_workflows)} gespeicherte Simulationen gefunden**\n\n"
-            f"Wähle eine Simulation aus dem Dropdown, um die Ergebnisse zu analysieren."
+            f"# {self.title}\n"
+            f"📦 **{len(self.available_workflows)} gespeicherte Simulationen gefunden**"
         )
 
         # Workflow selector dropdown
@@ -246,6 +245,44 @@ class WorkflowBrowser:
             options=workflow_options,
             width=600
         )
+
+        # Refresh button
+        refresh_button = pn.widgets.Button(
+            name='🔄 Aktualisieren',
+            button_type='success',
+            width=150
+        )
+
+        # Status indicator for refresh
+        refresh_status = pn.pane.Markdown("", width=200)
+
+        # Refresh callback
+        def on_refresh(event):
+            """Rescan workflows and update dropdown."""
+            refresh_status.object = "🔄 Aktualisiere..."
+
+            # Rescan workflows
+            self.available_workflows = self._scan_workflows()
+
+            # Update dropdown options
+            new_options = {
+                f"{wf['name']} ({wf['date'][:10] if wf['date'] else 'no date'})": i
+                for i, wf in enumerate(self.available_workflows)
+            }
+            workflow_selector.options = new_options
+
+            # Update status
+            refresh_status.object = f"✅ {len(self.available_workflows)} Simulationen gefunden"
+
+            # Clear status after 3 seconds
+            import time
+            import threading
+            def clear_status():
+                time.sleep(3)
+                refresh_status.object = ""
+            threading.Thread(target=clear_status, daemon=True).start()
+
+        refresh_button.on_click(on_refresh)
 
         # Info panel (reactive)
         @pn.depends(workflow_selector.param.value)
@@ -316,13 +353,16 @@ class WorkflowBrowser:
 
             comparison_section.append(pn.Row(comparison_button, comparison_help))
 
-        # Layout
+        # Layout with better spacing
         layout = pn.Column(
             header,
             pn.layout.Divider(),
+            pn.layout.VSpacer(height=20),  # Extra space after header
             pn.Row(
                 pn.Column(
                     workflow_selector,
+                    pn.Row(refresh_button, refresh_status),  # Refresh controls
+                    pn.layout.VSpacer(height=10),  # Small space
                     info_panel,
                     comparison_section,
                     width=400
