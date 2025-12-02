@@ -228,10 +228,37 @@ class WorkflowBrowser:
                 )
             )
 
-        # Header - kompakter
+        # Professional header with Uni Stuttgart branding
         header = pn.pane.Markdown(
-            f"# {self.title}\n"
-            f"📦 **{len(self.available_workflows)} gespeicherte Simulationen gefunden**"
+            f"""
+<div style="background: linear-gradient(135deg, #004191 0%, #0066cc 100%);
+            padding: 20px 30px;
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <h1 style="margin: 0; font-size: 28px; font-weight: 600; color: white;">
+                🔥 {self.title}
+            </h1>
+            <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; color: white;">
+                📦 {len(self.available_workflows)} gespeicherte Simulationen •
+                Institut für Energiewirtschaft und Rationelle Energieanwendung
+            </p>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
+                UNIVERSITÄT
+            </div>
+            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
+                STUTTGART
+            </div>
+        </div>
+    </div>
+</div>
+            """,
+            sizing_mode='stretch_width'
         )
 
         # Helper function to create unique dropdown labels
@@ -310,25 +337,38 @@ class WorkflowBrowser:
 
         refresh_button.on_click(on_refresh)
 
-        # Info panel (reactive)
+        # Info panel (reactive) - more compact styling
         @pn.depends(workflow_selector.param.value)
         def info_panel(selected_idx):
             if selected_idx is None:
-                return pn.pane.Markdown("*Wähle eine Simulation aus*")
+                return pn.pane.Markdown(
+                    "<div style='padding: 15px; background: #f8f9fa; border-radius: 6px; "
+                    "border-left: 4px solid #0066cc;'>"
+                    "<em>👈 Wähle eine Simulation aus dem Dropdown</em></div>"
+                )
 
             wf = self.available_workflows[selected_idx]
 
+            # Format date nicely
+            date_display = wf['date'][:16].replace('T', ' ') if wf['date'] else 'Unbekannt'
+
+            # Format costs
+            costs_display = f"{wf['costs']:,.0f} €" if wf['costs'] else "Keine Daten"
+
+            # Format steps
+            steps_display = ' → '.join(wf['steps']) if wf['steps'] else 'N/A'
+
             info_md = f"""
-### 📊 Simulation Info
-
-**Name:** {wf['name']}
-**Gespeichert:** {wf['date']}
-**Szenario:** {wf['scenario']}
-**Kosten:** {wf['costs']:,.0f} EUR
-**Steps:** {' → '.join(wf['steps']) if wf['steps'] else 'N/A'}
-**Pfad:** `{wf['path']}`
-
----
+<div style="padding: 15px; background: #f8f9fa; border-radius: 6px;
+            border-left: 4px solid #28a745; line-height: 1.6;">
+    <h4 style="margin: 0 0 12px 0; color: #28a745;">📊 Simulation Details</h4>
+    <table style="width: 100%; font-size: 13px;">
+        <tr><td style="padding: 4px 0;"><strong>Gespeichert:</strong></td><td>{date_display}</td></tr>
+        <tr><td style="padding: 4px 0;"><strong>Workflow:</strong></td><td>{steps_display}</td></tr>
+        <tr><td style="padding: 4px 0;"><strong>Gesamtkosten:</strong></td><td>{costs_display}</td></tr>
+        <tr><td style="padding: 4px 0;"><strong>Szenario:</strong></td><td>{wf['scenario']}</td></tr>
+    </table>
+</div>
 """
             return pn.pane.Markdown(info_md)
 
@@ -363,42 +403,59 @@ class WorkflowBrowser:
                     f"```\n{traceback.format_exc()}\n```"
                 )
 
-        # Comparison button (shows when 2+ workflows available)
+        # Comparison button (shows when 2+ workflows available) - compact
         comparison_section = pn.Column()
 
         if len(self.available_workflows) >= 2:
             comparison_button = pn.widgets.Button(
-                name='🔀 Vergleichs-Modus aktivieren',
+                name='🔀 Vergleichs-Modus',
                 button_type='primary',
-                width=200
+                width=180,
+                height=35
             )
 
-            comparison_help = pn.pane.Markdown(
-                "*Vergleiche 2+ Simulationen nebeneinander*"
+            comparison_section.append(
+                pn.Card(
+                    comparison_button,
+                    title="",
+                    header_background="#f8f9fa",
+                    hide_header=True,
+                    margin=(10, 0),
+                    styles={'padding': '8px'}
+                )
             )
 
-            comparison_section.append(pn.Row(comparison_button, comparison_help))
-
-        # Layout with better spacing
+        # Compact, clean layout
         layout = pn.Column(
             header,
-            pn.layout.Divider(),
-            pn.layout.VSpacer(height=20),  # Extra space after header
             pn.Row(
                 pn.Column(
-                    workflow_selector,
-                    pn.Row(refresh_button, refresh_status),  # Refresh controls
-                    pn.layout.VSpacer(height=10),  # Small space
+                    # Control panel with card styling
+                    pn.Card(
+                        workflow_selector,
+                        pn.Row(
+                            refresh_button,
+                            refresh_status,
+                            styles={'padding': '5px 0'}
+                        ),
+                        title="",
+                        hide_header=True,
+                        styles={'background': 'white', 'padding': '15px'},
+                        margin=(0, 10, 10, 0)
+                    ),
                     info_panel,
                     comparison_section,
-                    width=400
+                    width=420,
+                    styles={'padding-right': '15px'}
                 ),
                 pn.Column(
                     dashboard_tabs,
-                    sizing_mode='stretch_width'
+                    sizing_mode='stretch_width',
+                    styles={'padding-left': '15px', 'border-left': '1px solid #dee2e6'}
                 )
             ),
-            sizing_mode='stretch_width'
+            sizing_mode='stretch_width',
+            margin=0
         )
 
         return layout
