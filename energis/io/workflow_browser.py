@@ -235,19 +235,18 @@ class WorkflowBrowser:
             padding: 20px 30px;
             border-radius: 8px;
             color: white;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
     <div style="display: flex; align-items: center; justify-content: space-between;">
-        <div>
+        <div style="flex: 1;">
             <h1 style="margin: 0; font-size: 28px; font-weight: 600; color: white;">
                 🔥 {self.title}
             </h1>
             <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; color: white;">
-                📦 {len(self.available_workflows)} gespeicherte Simulationen •
-                Institut für Energiewirtschaft und Rationelle Energieanwendung
+                📦 {len(self.available_workflows)} gespeicherte Simulationen • EEP - Universität Stuttgart
             </p>
         </div>
-        <div style="text-align: right;">
+        <div style="text-align: right; margin-left: 20px;">
             <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
                 UNIVERSITÄT
             </div>
@@ -299,7 +298,7 @@ class WorkflowBrowser:
         workflow_selector = pn.widgets.Select(
             name='🔍 Simulation auswählen',
             options=workflow_options,
-            width=700  # Wider for longer labels
+            sizing_mode='stretch_width'  # Adapt to container width
         )
 
         # Refresh button
@@ -425,7 +424,7 @@ class WorkflowBrowser:
                 )
             )
 
-        # Compact, clean layout
+        # Compact, clean layout - fixed dropdown overlap
         layout = pn.Column(
             header,
             pn.Row(
@@ -436,26 +435,35 @@ class WorkflowBrowser:
                         pn.Row(
                             refresh_button,
                             refresh_status,
-                            styles={'padding': '5px 0'}
+                            styles={'padding': '8px 0', 'margin': '0'}
                         ),
                         title="",
                         hide_header=True,
-                        styles={'background': 'white', 'padding': '15px'},
-                        margin=(0, 10, 10, 0)
+                        styles={
+                            'background': 'white',
+                            'padding': '20px',
+                            'box-shadow': '0 1px 3px rgba(0,0,0,0.1)'
+                        },
+                        margin=(0, 15, 15, 0)
                     ),
                     info_panel,
                     comparison_section,
-                    width=420,
-                    styles={'padding-right': '15px'}
+                    width=450,  # Increased from 420 for better spacing
+                    styles={'padding-right': '0'},
+                    sizing_mode='fixed'
                 ),
                 pn.Column(
                     dashboard_tabs,
                     sizing_mode='stretch_width',
-                    styles={'padding-left': '15px', 'border-left': '1px solid #dee2e6'}
+                    styles={
+                        'padding-left': '20px',
+                        'border-left': '2px solid #e0e0e0',
+                        'min-width': '600px'
+                    }
                 )
             ),
             sizing_mode='stretch_width',
-            margin=0
+            margin=(0, 20)
         )
 
         return layout
