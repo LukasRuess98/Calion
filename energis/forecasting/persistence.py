@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from energis.forecasting.base import ForecastGenerator
 from energis.utils.timeseries import TimeSeriesTable
-from energis.run import orchestrator
+from energis.run.rolling_horizon import _slice_table
 
 
 class PersistenceForecast(ForecastGenerator):
@@ -74,7 +74,7 @@ class PersistenceForecast(ForecastGenerator):
                 forecast_indices.append(pattern_idx)
 
         # Slice and return forecast
-        return orchestrator._slice_table(historical_data, forecast_indices)
+        return _slice_table(historical_data, forecast_indices)
 
     def get_method_name(self) -> str:
         """Return method name.

@@ -14,7 +14,7 @@ from collections import OrderedDict
 
 from energis.forecasting.base import ForecastGenerator
 from energis.utils.timeseries import TimeSeriesTable
-from energis.run import orchestrator
+from energis.run.rolling_horizon import _slice_table
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ def run_mpc(
     logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
 
     # Build final result
-    result_table = orchestrator._slice_table(historical_data, aggregated_indices)
+    result_table = _slice_table(historical_data, aggregated_indices)
 
     return RollingHorizonResult(
         table=result_table,

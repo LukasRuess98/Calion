@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from energis.forecasting.base import ForecastGenerator
 from energis.utils.timeseries import TimeSeriesTable
-from energis.run import orchestrator
+from energis.run.rolling_horizon import _slice_table
 
 
 class PerfectNoiseForecast(ForecastGenerator):
@@ -69,7 +69,7 @@ class PerfectNoiseForecast(ForecastGenerator):
 
         # Get perfect forecast (true future data)
         indices = list(range(current_index, end_index))
-        forecast = orchestrator._slice_table(historical_data, indices)
+        forecast = _slice_table(historical_data, indices)
 
         # Add noise to demand series
         if "demand_mw" in forecast.series:
