@@ -11,12 +11,18 @@ Das EnerGIS Dashboard ist eine unabhängige Webanwendung zur interaktiven Visual
 - **📁 Automatisches Scannen** aller Simulationen in `saved_workflows/`
 - **🔍 Dropdown-Auswahl** zur Navigation zwischen verschiedenen Workflows
 - **📊 Vollständiges Dashboard** mit interaktiven Tabs:
-  - 📈 **Übersicht**: KPIs, Kosten, System-Summary
-  - 📉 **Zeitreihen**: Interaktive Plots mit Filter und Zoom
+  - 📈 **Übersicht**: Erweiterte KPIs inkl. Autarkie-Metriken
+  - 📉 **Zeitreihen**: Interaktive Plots mit Quick-Filtern
+  - 📊 **Jahresdauerlinie**: Load Duration Curve für Dimensionierung
+  - ⚡ **Effizienz & COP**: Wärmepumpen-Performance-Analyse
+  - 🌊 **Energieflüsse**: Sankey-Diagramm für Energiebilanzen
   - 💰 **Kosten**: Detaillierte Kostenaufschlüsselung
   - 🏭 **Anlagen**: Komponenten-Design und Auslastung
-  - 🔀 **Vergleich**: Vergleich mehrerer Simulationen (coming soon)
+  - 🔀 **Vergleich**: PF vs. RH/MPC Vergleich
 - **📈 Interaktive Plots**: Zoom, Pan, Hover mit Plotly
+- **⚡ Quick-Filter Buttons**: Erste Woche, Winter-Tag, Sommer-Tag, Ganzes Jahr
+- **🎯 Autarkie-Metriken**: Thermische Autarkie, Auslastungsfaktor, Betriebsstunden
+- **🚀 Performance**: Automatisches Downsampling für große Datensätze (>20k Punkte)
 - **💾 Zugriff auf Rohdaten**: CSV-Export und Metadaten
 
 ## 🚀 Quick Start
@@ -118,6 +124,55 @@ python start_dashboard.py
 
 Navigiere durch die verschiedenen Tabs:
 
+#### 📈 Übersicht (NEU: Erweiterte KPIs)
+- **9 KPI-Cards** mit farbcodierten Metriken:
+  - Gesamtkosten, Stromkosten, Brennstoffkosten, CAPEX
+  - Wärmebedarf, Spitzenlast
+  - **NEU: Thermische Autarkie** (Selbstversorgungsgrad in %)
+  - **NEU: Auslastungsfaktor** (Durchschnittslast / Spitzenlast in %)
+  - **NEU: Betriebsstunden** (Gesamtzahl der Zeitschritte)
+- Workflow-Zusammenfassung
+- Mini-Plot für Jahresverlauf
+
+#### 📉 Zeitreihen (NEU: Quick-Filter)
+- **Quick-Filter Buttons** für typische Zeitbereiche:
+  - 🔹 **Erste Woche**: Zeigt die ersten 168 Stunden
+  - 🔹 **Winter-Tag**: Springt zum Tag mit höchstem Wärmebedarf
+  - 🔹 **Sommer-Tag**: Springt zum Tag mit niedrigstem Wärmebedarf
+  - 🔹 **Ganzes Jahr**: Zeigt den kompletten Zeitraum
+- **Aggregation-Optionen**: Stündlich, Täglich, Wöchentlich, Monatlich
+- Komponenten-Multi-Select für thermische Erzeuger
+- Drei Plot-Typen: Stacked Area, Lines, Stacked Bar
+- Interaktive Features: Zoom, Pan, Hover-Details
+
+#### 📊 Jahresdauerlinie (NEU)
+- **Load Duration Curve** für Wärmebedarf und Erzeuger
+- Sortierte Häufigkeitsverteilung der Lasten
+- **Statistiken**:
+  - Spitzenlast, Durchschnittslast
+  - Auslastungsfaktor
+  - Volllast-Stunden (>80% der Spitzenlast)
+  - Gesamt-Betriebsstunden
+- **Nutzen**: Essentiell für Dimensionierung und Identifikation von Grund- vs. Spitzenlast
+
+#### ⚡ Effizienz & COP (NEU)
+- **COP-Zeitverlauf** für alle Wärmepumpen
+- **COP Box-Plot** mit statistischer Verteilung
+- **Statistik-Tabelle** mit:
+  - Durchschnitt, Minimum, Maximum, Median
+  - Pro Wärmepumpe
+- **Hinweis**: Benötigt COP-Daten in den Workflow-Ergebnissen
+
+#### 🌊 Energieflüsse (NEU: Sankey-Diagramm)
+- **Sankey-Diagramm** visualisiert Energieströme
+- Flussbreite proportional zur übertragenen Energiemenge
+- **Energie-Bilanz**:
+  - Gesamt-Wärmebedarf, Gesamt-Erzeugung
+  - Bilanz-Berechnung
+- **Erzeugung nach Quelle** mit prozentualer Aufteilung
+
+### 4. Weitere Tabs
+
 #### 📈 Übersicht
 - Wichtigste KPIs auf einen Blick
 - Kosten-Summary
@@ -162,6 +217,42 @@ python start_dashboard.py --dir /path/to/my/workflows
 ```bash
 python start_dashboard.py --title "Mein Custom Dashboard"
 ```
+
+## 🚀 Performance & Optimierungen
+
+### Automatisches Downsampling
+
+Das Dashboard erkennt automatisch große Datensätze (>20.000 Zeitschritte) und reduziert die Datenpunkte für bessere Performance:
+
+```
+⚠️  Performance-Hinweis:
+   Datensatz wurde von 35,040 auf 17,520 Punkte reduziert (Faktor 2)
+   Dies verbessert die Dashboard-Performance erheblich.
+   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/
+```
+
+**Vorteile:**
+- Schnelleres Rendering der interaktiven Plots
+- Flüssigeres Zoomen und Pan
+- Geringerer Speicherverbrauch
+- Vollständige Daten bleiben in CSV-Exporten verfügbar
+
+### Best Practices
+
+1. **Für große Datensätze (>10k Zeitschritte)**:
+   - Nutze Quick-Filter zum Fokussieren auf interessante Bereiche
+   - Verwende Aggregation (Täglich/Wöchentlich) für Jahresübersicht
+   - CSV-Exports für detaillierte Offline-Analysen
+
+2. **Für Präsentationen**:
+   - Quick-Filter für typische Tage nutzen
+   - Jahresdauerlinie für Dimensionierung zeigen
+   - Sankey-Diagramm für intuitive Energiebilanzen
+
+3. **Für Performance-Analysen**:
+   - COP-Tab für Wärmepumpen-Effizienz
+   - Autarkie-Metriken im Overview
+   - Auslastungsfaktor für Betriebsoptimierung
 
 ## 🐛 Troubleshooting
 

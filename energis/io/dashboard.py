@@ -348,6 +348,29 @@ class EnerGISDashboard:
             'demand_MW': demand_values,
         })
 
+        # Downsampling für sehr große Datensätze (Performance)
+        self.downsampled = False
+        original_length = len(self.df)
+        MAX_POINTS = 20000  # Maximum Datenpunkte für interaktive Plots
+
+        if original_length > MAX_POINTS:
+            import logging
+            logging.info(
+                f"Dashboard: Large dataset detected ({original_length:,} points). "
+                f"Downsampling to {MAX_POINTS:,} points for better performance."
+            )
+
+            # Einfaches Downsampling durch Auswahl jedes n-ten Punktes
+            step = original_length // MAX_POINTS
+            self.df = self.df.iloc[::step].copy()
+            self.downsampled = True
+            self.downsample_factor = step
+
+            print(f"\n⚠️  Performance-Hinweis:")
+            print(f"   Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
+            print(f"   Dies verbessert die Dashboard-Performance erheblich.")
+            print(f"   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
+
         # Add all series
         if result.series:
             for key, values in result.series.items():
@@ -414,6 +437,9 @@ class EnerGISDashboard:
         tabs = pn.Tabs(
             ('📊 Overview', self._create_overview_tab()),
             ('📈 Zeitreihen', self._create_timeseries_tab()),
+            ('📉 Jahresdauerlinie', self._create_duration_curve_tab()),
+            ('⚡ Effizienz & COP', self._create_efficiency_tab()),
+            ('🌊 Energieflüsse', self._create_sankey_tab()),
             ('💰 Kosten', self._create_costs_tab()),
             ('🏭 Anlagen-Design', self._create_design_tab()),
             dynamic=True
@@ -483,7 +509,19 @@ class EnerGISDashboard:
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
             capex = result.costs.get('objective.Capex_cost_EUR', 0)
 
-        # Create cards
+        # Berechne Autarkie-Metriken
+        total_heat_production = 0
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                total_heat_production += self.df[comp].sum()
+
+        thermal_autarky = (total_heat_production / total_demand_MWh * 100) if total_demand_MWh > 0 else 0
+
+        # Durchschnittliche Auslastung
+        avg_demand = self.df['demand_MW'].mean()
+        load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
+
+        # Create cards - erweitert mit Autarkie
         cards = pn.GridBox(
             self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
@@ -491,6 +529,9 @@ class EnerGISDashboard:
             self._create_kpi_card("🏗️ Investition (CAPEX)", f"{capex:,.0f} €", "success"),
             self._create_kpi_card("📊 Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
             self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
+            self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
+            self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
+            self._create_kpi_card("⏱️ Betriebsstunden", f"{len(self.df):,} h", "secondary"),
             ncols=3,
             sizing_mode='stretch_width'
         )
@@ -654,6 +695,57 @@ class EnerGISDashboard:
             sizing_mode='stretch_width'
         )
 
+        # Quick-Filter Buttons
+        total_hours = len(self.df)
+
+        def set_erste_woche():
+            time_slider.value = (0, min(168, total_hours))
+
+        def set_winter_tag():
+            # Finde typischen Wintertag (höchster Wärmebedarf)
+            if 'demand_MW' in self.df.columns:
+                winter_idx = self.df['demand_MW'].idxmax()
+                start = max(0, winter_idx - 12)
+                end = min(total_hours, winter_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_sommer_tag():
+            # Finde typischen Sommertag (niedrigster Wärmebedarf)
+            if 'demand_MW' in self.df.columns:
+                summer_idx = self.df['demand_MW'].idxmin()
+                start = max(0, summer_idx - 12)
+                end = min(total_hours, summer_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_komplettes_jahr():
+            time_slider.value = (0, total_hours)
+
+        btn_erste_woche = pn.widgets.Button(name='Erste Woche', button_type='primary', width=120)
+        btn_winter = pn.widgets.Button(name='Winter-Tag', button_type='default', width=120)
+        btn_sommer = pn.widgets.Button(name='Sommer-Tag', button_type='default', width=120)
+        btn_jahr = pn.widgets.Button(name='Ganzes Jahr', button_type='success', width=120)
+
+        btn_erste_woche.on_click(lambda event: set_erste_woche())
+        btn_winter.on_click(lambda event: set_winter_tag())
+        btn_sommer.on_click(lambda event: set_sommer_tag())
+        btn_jahr.on_click(lambda event: set_komplettes_jahr())
+
+        quick_filters = pn.Row(
+            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            btn_erste_woche,
+            btn_winter,
+            btn_sommer,
+            btn_jahr,
+            sizing_mode='stretch_width'
+        )
+
+        # Aggregation selector
+        aggregation = pn.widgets.Select(
+            name='📊 Aggregation',
+            options=['Stündlich', 'Täglich', 'Wöchentlich', 'Monatlich'],
+            value='Stündlich'
+        )
+
         # Plot type selector
         plot_type = pn.widgets.Select(
             name='Plot-Typ',
@@ -676,7 +768,9 @@ class EnerGISDashboard:
         controls = pn.Card(
             heat_selector,
             time_slider,
-            plot_type,
+            quick_filters,
+            pn.layout.Divider(),
+            pn.Row(aggregation, plot_type),
             title="⚙️ Steuerung",
             collapsed=False,
             sizing_mode='stretch_width'
@@ -1204,6 +1298,312 @@ class EnerGISDashboard:
         )
 
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+    def _create_duration_curve_tab(self) -> pn.Column:
+        """Create load duration curve tab."""
+
+        if len(self.df) == 0:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+
+        # Berechne Jahresdauerlinien
+        demand_sorted = sorted(self.df['demand_MW'].values, reverse=True)
+        hours = list(range(len(demand_sorted)))
+
+        # Wärmeerzeugung pro Komponente
+        heat_production = {}
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                values = sorted(self.df[comp].values, reverse=True)
+                heat_production[comp] = values
+
+        # Plot erstellen
+        fig = go.Figure()
+
+        # Wärmebedarf
+        fig.add_trace(go.Scatter(
+            x=hours,
+            y=demand_sorted,
+            mode='lines',
+            name='Wärmebedarf',
+            line=dict(color='red', width=3),
+        ))
+
+        # Erzeuger
+        for comp, values in heat_production.items():
+            comp_name = comp.replace('_Q_th_MW', '')
+            fig.add_trace(go.Scatter(
+                x=hours,
+                y=values,
+                mode='lines',
+                name=comp_name,
+                line=dict(color=self._get_component_color(comp), width=2),
+            ))
+
+        fig.update_layout(
+            title='Jahresdauerlinie - Wärmeerzeugung',
+            xaxis_title='Betriebsstunden [h]',
+            yaxis_title='Leistung [MW]',
+            height=600,
+            hovermode='x unified',
+            legend=dict(x=0.7, y=0.98)
+        )
+
+        # Statistiken berechnen
+        total_hours = len(demand_sorted)
+        peak_demand = demand_sorted[0] if demand_sorted else 0
+        avg_demand = np.mean(demand_sorted) if demand_sorted else 0
+
+        # Volllast-Stunden berechnen (>80% der Spitzenlast)
+        full_load_threshold = peak_demand * 0.8
+        full_load_hours = sum(1 for d in demand_sorted if d >= full_load_threshold)
+
+        stats_md = f"""
+### 📊 Statistiken
+
+| Kennzahl | Wert |
+|----------|------|
+| **Spitzenlast** | {peak_demand:.2f} MW |
+| **Durchschnittslast** | {avg_demand:.2f} MW |
+| **Auslastungsfaktor** | {(avg_demand/peak_demand*100) if peak_demand > 0 else 0:.1f} % |
+| **Volllast-Stunden (>80%)** | {full_load_hours:,} h |
+| **Gesamt-Betriebsstunden** | {total_hours:,} h |
+
+💡 **Interpretation:**
+- Volllast-Stunden zeigen, wie oft Spitzenlast-Erzeuger benötigt werden
+- Niedriger Auslastungsfaktor deutet auf hohe Lastspitzen hin
+- Jahresdauerlinie hilft bei der Dimensionierung von Grund- vs. Spitzenlast
+"""
+
+        return pn.Column(
+            pn.pane.Markdown("## 📉 Jahresdauerlinie (Load Duration Curve)"),
+            pn.pane.Markdown(
+                "*Die Jahresdauerlinie zeigt die sortierte Häufigkeitsverteilung der Lasten. "
+                "Sie ist essentiell für die Dimensionierung und zeigt, wie oft bestimmte Lastbereiche auftreten.*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
+
+    def _create_efficiency_tab(self) -> pn.Column:
+        """Create efficiency and COP analysis tab."""
+
+        if len(self.df) == 0:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+
+        # Finde COP-Spalten
+        cop_cols = [col for col in self.df.columns if 'COP' in col or 'cop' in col]
+
+        if not cop_cols:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine COP-Daten verfügbar\n\n"
+                    "Es wurden keine COP (Coefficient of Performance) Daten in den Ergebnissen gefunden.\n\n"
+                    "**Verfügbare Spalten:**\n"
+                    f"```\n{', '.join(self.df.columns[:20])}...\n```\n\n"
+                    "**Hinweis:** COP-Daten werden möglicherweise nicht in den series exportiert. "
+                    "Diese könnten in den Notebooks berechnet und hinzugefügt werden."
+                )
+            )
+
+        # COP über Zeit
+        fig_cop_time = go.Figure()
+
+        for cop_col in cop_cols:
+            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+            fig_cop_time.add_trace(go.Scatter(
+                x=list(range(len(self.df))),
+                y=self.df[cop_col],
+                mode='lines',
+                name=comp_name,
+                line=dict(width=2)
+            ))
+
+        fig_cop_time.update_layout(
+            title='COP über Zeit',
+            xaxis_title='Zeitschritt',
+            yaxis_title='COP [-]',
+            height=400,
+            hovermode='x unified'
+        )
+
+        # COP Statistiken
+        cop_stats = []
+        for cop_col in cop_cols:
+            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+            values = self.df[cop_col].dropna()
+            if len(values) > 0:
+                cop_stats.append({
+                    'Komponente': comp_name,
+                    'Durchschnitt': values.mean(),
+                    'Minimum': values.min(),
+                    'Maximum': values.max(),
+                    'Median': values.median()
+                })
+
+        if cop_stats:
+            cop_stats_df = pd.DataFrame(cop_stats)
+
+            # Box-Plot
+            fig_cop_box = go.Figure()
+
+            for cop_col in cop_cols:
+                comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+                values = self.df[cop_col].dropna()
+
+                fig_cop_box.add_trace(go.Box(
+                    y=values,
+                    name=comp_name,
+                    boxmean='sd'
+                ))
+
+            fig_cop_box.update_layout(
+                title='COP Verteilung (Box-Plot)',
+                yaxis_title='COP [-]',
+                height=400,
+                showlegend=True
+            )
+
+            stats_md = f"""
+### 📊 COP Statistiken
+
+Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance:
+"""
+
+            # Tabelle
+            from panel.widgets import Tabulator
+            stats_table = Tabulator(
+                cop_stats_df,
+                formatters={
+                    'Durchschnitt': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Minimum': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Maximum': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Median': {'type': 'money', 'symbol': '', 'precision': 2},
+                },
+                show_index=False,
+                theme='modern',
+                sizing_mode='stretch_width'
+            )
+
+            return pn.Column(
+                pn.pane.Markdown("## ⚡ Effizienz & COP Analyse"),
+                pn.pane.Markdown(stats_md),
+                stats_table,
+                pn.layout.Divider(),
+                pn.pane.Markdown("### COP Zeitverlauf"),
+                pn.pane.Plotly(fig_cop_time, sizing_mode='stretch_width'),
+                pn.layout.Divider(),
+                pn.pane.Markdown("### COP Verteilung"),
+                pn.pane.Plotly(fig_cop_box, sizing_mode='stretch_width'),
+                sizing_mode='stretch_width'
+            )
+
+        return pn.Column(pn.pane.Markdown("## ⚠️ Keine COP-Statistiken verfügbar"))
+
+    def _create_sankey_tab(self) -> pn.Column:
+        """Create Sankey diagram for energy flows."""
+
+        if len(self.df) == 0 or not self.heat_components:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar für Energiefluss-Diagramm"))
+
+        # Aggregiere Energieflüsse über gesamten Zeitraum
+        # Quelle: Komponenten → Ziel: Wärmenetz
+
+        nodes = []
+        links = []
+        node_indices = {}
+
+        # Node 0: Wärmenetz (Ziel)
+        nodes.append("Wärmenetz")
+        node_indices["Wärmenetz"] = 0
+
+        # Wärmeerzeuger als Quellen
+        idx = 1
+        total_production = {}
+
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                total = self.df[comp].sum()
+                if total > 0.01:  # Nur relevante Beiträge
+                    comp_name = comp.replace('_Q_th_MW', '')
+                    nodes.append(comp_name)
+                    node_indices[comp_name] = idx
+                    total_production[comp_name] = total
+                    idx += 1
+
+        # Erstelle Links von Erzeugern zum Wärmenetz
+        for comp_name, total in total_production.items():
+            links.append({
+                'source': node_indices[comp_name],
+                'target': 0,  # Wärmenetz
+                'value': total
+            })
+
+        if not links:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Energieflüsse erkannt\n\n"
+                    "Möglicherweise sind alle Komponenten inaktiv oder die Werte zu gering."
+                )
+            )
+
+        # Sankey-Diagramm erstellen
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=nodes,
+                color=['#EE6677'] + ['#4477AA'] * (len(nodes) - 1)
+            ),
+            link=dict(
+                source=[l['source'] for l in links],
+                target=[l['target'] for l in links],
+                value=[l['value'] for l in links],
+                color='rgba(68, 119, 170, 0.4)'
+            )
+        )])
+
+        fig.update_layout(
+            title='Energiefluss-Diagramm (Sankey)',
+            font=dict(size=12),
+            height=600
+        )
+
+        # Statistiken
+        total_demand = self.df['demand_MW'].sum()
+        total_gen = sum(total_production.values())
+
+        stats_md = f"""
+### 📊 Energie-Bilanz
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-Wärmebedarf** | {total_demand:,.0f} MWh |
+| **Gesamt-Erzeugung** | {total_gen:,.0f} MWh |
+| **Bilanz** | {(total_gen - total_demand):,.0f} MWh ({((total_gen/total_demand - 1)*100) if total_demand > 0 else 0:.1f}%) |
+
+### 🔥 Erzeugung nach Quelle
+"""
+
+        # Sortiere Erzeuger nach Beitrag
+        sorted_prod = sorted(total_production.items(), key=lambda x: x[1], reverse=True)
+        for comp, value in sorted_prod:
+            percentage = (value / total_gen * 100) if total_gen > 0 else 0
+            stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        return pn.Column(
+            pn.pane.Markdown("## 🌊 Energiefluss-Diagramm (Sankey)"),
+            pn.pane.Markdown(
+                "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
+                "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
 
     def _get_component_color(self, component: str) -> str:
         """Get color for component based on type."""
