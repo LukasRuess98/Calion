@@ -150,7 +150,7 @@ def save_workflow_run(
     name: Optional[str] = None,
     description: Optional[str] = None,
     config_paths: Optional[List[str]] = None,
-    save_dir: str = "saved_workflows",
+    save_dir: str = "notebooks/saved_workflows",
     export_first: bool = True,
 ) -> Path:
     """
@@ -174,7 +174,8 @@ def save_workflow_run(
     config_paths : list of str, optional
         List of config files used for this run
     save_dir : str
-        Target directory (default: saved_workflows)
+        Target directory (default: notebooks/saved_workflows)
+        Can be absolute or relative to project root
     export_first : bool
         Whether to run export_workflow_results first (default: True)
 
@@ -196,6 +197,20 @@ def save_workflow_run(
 
     from energis.run import rolling_horizon as rh
 
+    # Convert save_dir to absolute path if it's relative
+    save_path = Path(save_dir)
+    if not save_path.is_absolute():
+        # Find project root
+        project_root = Path.cwd()
+        for candidate in [project_root] + list(project_root.parents):
+            if (candidate / 'energis').exists():
+                project_root = candidate
+                break
+        save_path = project_root / save_dir
+
+    # Ensure directory exists
+    save_path.mkdir(parents=True, exist_ok=True)
+
     # Step 1: Export results (this creates the export directory)
     if export_first:
         print("📦 Exportiere Ergebnisse (CSV, PDF, SVG)...")
@@ -205,7 +220,7 @@ def save_workflow_run(
         # Create directory manually
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         auto_name = name or f"workflow_{timestamp}"
-        export_dir = Path(save_dir) / f"{timestamp}_{auto_name}"
+        export_dir = save_path / f"{timestamp}_{auto_name}"
         export_dir.mkdir(parents=True, exist_ok=True)
         export_meta = {'outdir': str(export_dir)}
 
@@ -236,9 +251,9 @@ def save_workflow_run(
     # Step 4: Move to saved_workflows if export was in exports/
     if export_first and 'exports' in str(export_dir):
         # Move from exports/ to saved_workflows/
-        target_dir = Path(save_dir) / export_dir.name
+        target_dir = save_path / export_dir.name
         if not target_dir.exists():
-            print(f"🔄 Verschiebe nach {save_dir}/...")
+            print(f"🔄 Verschiebe nach {save_path.name}/...")
             import shutil
             shutil.move(str(export_dir), str(target_dir))
             export_dir = target_dir
@@ -353,7 +368,7 @@ def _build_metadata(
 
 
 def list_saved_workflows(
-    save_dir: str = "saved_workflows",
+    save_dir: str = "notebooks/saved_workflows",
     sort_by: str = "date",
 ) -> List[Dict[str, Any]]:
     """
@@ -362,7 +377,7 @@ def list_saved_workflows(
     Parameters
     ----------
     save_dir : str
-        Directory to search (default: saved_workflows)
+        Directory to search (default: notebooks/saved_workflows)
     sort_by : str
         Sort by: "date", "name", "cost" (default: date)
 
@@ -378,7 +393,16 @@ def list_saved_workflows(
     ...     print(f"{wf['name']}: {wf['costs']:.0f} EUR")
     """
 
+    # Convert to absolute path if relative
     save_path = Path(save_dir)
+    if not save_path.is_absolute():
+        # Find project root
+        project_root = Path.cwd()
+        for candidate in [project_root] + list(project_root.parents):
+            if (candidate / 'energis').exists():
+                project_root = candidate
+                break
+        save_path = project_root / save_dir
     if not save_path.exists():
         print(f"⚠️  Verzeichnis {save_dir} existiert nicht")
         return []

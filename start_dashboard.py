@@ -63,8 +63,8 @@ Examples:
     parser.add_argument(
         '--dir',
         type=str,
-        default='saved_workflows',
-        help='Verzeichnis mit gespeicherten Workflows (default: saved_workflows)'
+        default='notebooks/saved_workflows',
+        help='Verzeichnis mit gespeicherten Workflows (default: notebooks/saved_workflows)'
     )
 
     parser.add_argument(
