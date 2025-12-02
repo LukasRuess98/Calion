@@ -234,16 +234,45 @@ class WorkflowBrowser:
             f"📦 **{len(self.available_workflows)} gespeicherte Simulationen gefunden**"
         )
 
+        # Helper function to create unique dropdown labels
+        def create_workflow_options(workflows):
+            """Create unique, informative dropdown labels for workflows."""
+            options = {}
+            for i, wf in enumerate(workflows):
+                # Create unique, informative dropdown label
+                name = wf['name']
+
+                # Use directory name if generic name like "Scenario Studio Run"
+                if name in ["Scenario Studio Run", "Baseline Simulation", "Workflow Run"]:
+                    # Extract meaningful parts from directory name
+                    dir_name = wf['path'].name
+                    # Format: 20251202_050933_PF_FULL_YEAR-Baseline
+                    # -> PF_FULL_YEAR-Baseline
+                    if '_' in dir_name:
+                        parts = dir_name.split('_', 2)  # Split max 2 times
+                        if len(parts) >= 3:
+                            name = parts[2]  # Get the descriptive part
+
+                # Format date with time for uniqueness
+                date_str = wf['date'][:16] if wf['date'] and len(wf['date']) >= 16 else 'no date'
+                date_str = date_str.replace('T', ' ')  # 2025-12-02 05:09
+
+                # Add workflow steps for clarity
+                steps_str = ' → '.join(wf['steps']) if wf['steps'] else 'N/A'
+
+                # Create unique label: "2025-12-02 05:09 | PF_FULL_YEAR-Baseline | PF"
+                label = f"{date_str} | {name} | {steps_str}"
+                options[label] = i
+
+            return options
+
         # Workflow selector dropdown
-        workflow_options = {
-            f"{wf['name']} ({wf['date'][:10] if wf['date'] else 'no date'})": i
-            for i, wf in enumerate(self.available_workflows)
-        }
+        workflow_options = create_workflow_options(self.available_workflows)
 
         workflow_selector = pn.widgets.Select(
             name='🔍 Simulation auswählen',
             options=workflow_options,
-            width=600
+            width=700  # Wider for longer labels
         )
 
         # Refresh button
@@ -264,11 +293,8 @@ class WorkflowBrowser:
             # Rescan workflows
             self.available_workflows = self._scan_workflows()
 
-            # Update dropdown options
-            new_options = {
-                f"{wf['name']} ({wf['date'][:10] if wf['date'] else 'no date'})": i
-                for i, wf in enumerate(self.available_workflows)
-            }
+            # Update dropdown options with unique labels
+            new_options = create_workflow_options(self.available_workflows)
             workflow_selector.options = new_options
 
             # Update status
