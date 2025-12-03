@@ -332,21 +332,56 @@ class EnerGISDashboard:
                 demand_col_found = col_name
                 break
 
-        # Fallback: use zeros if no demand column found
+        # ✅ FIX: Exception werfen statt Nullen bei fehlender Demand-Spalte
         if demand_values is None:
-            demand_values = [0.0] * len(result.table.index)
-            if len(result.table.index) > 0:
-                import logging
-                logging.warning(
-                    f"Dashboard: No demand column found in table.data. Tried: {demand_col_names}. "
-                    f"Available columns: {list(result.table.data.keys())}"
-                )
+            available_cols = list(result.table.data.keys())
+            raise ValueError(
+                f"Dashboard: Keine Wärmebedarf-Spalte gefunden!\n"
+                f"Versuchte Spalten: {demand_col_names}\n"
+                f"Verfügbare Spalten: {available_cols}\n"
+                f"Bitte stelle sicher, dass mindestens eine dieser Spalten in den Daten vorhanden ist."
+            )
 
         # Main timeseries DataFrame
         self.df = pd.DataFrame({
             'timestamp': result.table.index,
             'demand_MW': demand_values,
         })
+
+        # Add all series BEFORE downsampling
+        if result.series:
+            for key, values in result.series.items():
+                # Ensure values list matches original length
+                if len(values) == len(self.df):
+                    self.df[key] = values
+                else:
+                    import logging
+                    logging.warning(
+                        f"Dashboard: Skipping series '{key}' - length mismatch "
+                        f"(expected {len(self.df)}, got {len(values)})"
+                    )
+        else:
+            import logging
+            logging.warning("Dashboard: result.series is empty - no timeseries data to display")
+
+        # Identify component types (before downsampling)
+        self.heat_components = [col for col in self.df.columns if col.endswith('_Q_th_MW')]
+        self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
+        self.storage_cols = [col for col in self.df.columns if 'TES' in col]
+
+        # ✅ FIX: SPEICHERE ORIGINAL-SUMMEN VOR DOWNSAMPLING
+        # Diese Werte sind für KPI-Berechnungen essentiell und dürfen nicht durch Downsampling verfälscht werden
+        self.original_total_demand_MWh = self.df['demand_MW'].sum()
+        self.original_peak_demand_MW = self.df['demand_MW'].max()
+        self.original_timesteps = len(self.df)
+
+        # Berechne Original-Erzeugung pro Komponente
+        self.original_heat_production = {}
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                self.original_heat_production[comp] = self.df[comp].sum()
+
+        self.original_total_heat_production = sum(self.original_heat_production.values())
 
         # Downsampling für sehr große Datensätze (Performance)
         self.downsampled = False
@@ -370,24 +405,13 @@ class EnerGISDashboard:
             print(f"   Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
             print(f"   Dies verbessert die Dashboard-Performance erheblich.")
             print(f"   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
-
-        # Add all series
-        if result.series:
-            for key, values in result.series.items():
-                # Ensure values list matches length
-                if len(values) == len(self.df):
-                    self.df[key] = values
-                else:
-                    import logging
-                    logging.warning(
-                        f"Dashboard: Skipping series '{key}' - length mismatch "
-                        f"(expected {len(self.df)}, got {len(values)})"
-                    )
+            print(f"   ℹ️  KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
         else:
-            import logging
-            logging.warning("Dashboard: result.series is empty - no timeseries data to display")
+            # Keine Downsampling nötig
+            pass
 
-        # Identify component types
+        # Re-identify component types nach Downsampling (für Plots)
+        # Die Original-Komponenten wurden bereits vor Downsampling identifiziert
         self.heat_components = [col for col in self.df.columns if col.endswith('_Q_th_MW')]
         self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
         self.storage_cols = [col for col in self.df.columns if 'TES' in col]
@@ -494,9 +518,10 @@ class EnerGISDashboard:
 
         result = self.primary_result
 
-        # Calculate KPIs
-        total_demand_MWh = self.df['demand_MW'].sum()
-        peak_demand_MW = self.df['demand_MW'].max()
+        # ✅ FIX: Verwende ORIGINAL-SUMMEN für KPIs (nicht downsampled!)
+        total_demand_MWh = self.original_total_demand_MWh
+        peak_demand_MW = self.original_peak_demand_MW
+        total_timesteps = self.original_timesteps
 
         total_cost = 0
         elec_cost = 0
@@ -509,16 +534,12 @@ class EnerGISDashboard:
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
             capex = result.costs.get('objective.Capex_cost_EUR', 0)
 
-        # Berechne Autarkie-Metriken
-        total_heat_production = 0
-        for comp in self.heat_components:
-            if comp in self.df.columns:
-                total_heat_production += self.df[comp].sum()
-
+        # ✅ FIX: Berechne Autarkie-Metriken mit ORIGINAL-Summen
+        total_heat_production = self.original_total_heat_production
         thermal_autarky = (total_heat_production / total_demand_MWh * 100) if total_demand_MWh > 0 else 0
 
-        # Durchschnittliche Auslastung
-        avg_demand = self.df['demand_MW'].mean()
+        # ✅ FIX: Durchschnittliche Auslastung mit ORIGINAL-Daten
+        avg_demand = total_demand_MWh / total_timesteps if total_timesteps > 0 else 0
         load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
 
         # Create cards - erweitert mit Autarkie
@@ -531,7 +552,7 @@ class EnerGISDashboard:
             self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
             self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
             self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
-            self._create_kpi_card("⏱️ Betriebsstunden", f"{len(self.df):,} h", "secondary"),
+            self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
             ncols=3,
             sizing_mode='stretch_width'
         )
@@ -570,20 +591,28 @@ class EnerGISDashboard:
 
         result = self.primary_result
 
-        # Component stats
+        # Component stats (kann mit downsampled Daten arbeiten, da es nur Filter ist)
         active_hp = len([c for c in self.heat_components if 'HP' in c and self.df[c].sum() > 1])
         active_gen = len([c for c in self.heat_components if 'HP' not in c and self.df[c].sum() > 1])
         has_storage = any('TES_SOC' in col for col in self.df.columns)
 
-        # Energy stats
-        total_heat_generated = sum(self.df[col].sum() for col in self.heat_components)
+        # ✅ FIX: Energy stats mit ORIGINAL-Summen
+        total_heat_generated = self.original_total_heat_production
 
-        grid_import = self.df.get('P_buy_MW', pd.Series([0])).sum()
+        # Berechne grid_import aus Original-Daten falls verfügbar
+        if 'P_buy_MW' in self.df.columns:
+            # Hier müssen wir approximieren, da wir P_buy_MW nicht in original_* gespeichert haben
+            # Bei Downsampling ist das eine Näherung
+            grid_import = self.df['P_buy_MW'].sum()
+            if self.downsampled:
+                grid_import = grid_import * self.downsample_factor
+        else:
+            grid_import = 0
 
         summary = f"""
         **Zeitraum:** {self.df['timestamp'].min()} bis {self.df['timestamp'].max()}
 
-        **Anzahl Zeitschritte:** {len(self.df):,}
+        **Anzahl Zeitschritte:** {self.original_timesteps:,}
 
         **Aktive Komponenten:**
         - Wärmepumpen: {active_hp}
@@ -1348,14 +1377,17 @@ class EnerGISDashboard:
             legend=dict(x=0.7, y=0.98)
         )
 
-        # Statistiken berechnen
-        total_hours = len(demand_sorted)
-        peak_demand = demand_sorted[0] if demand_sorted else 0
-        avg_demand = np.mean(demand_sorted) if demand_sorted else 0
+        # ✅ FIX: Statistiken mit ORIGINAL-Daten berechnen
+        total_hours = self.original_timesteps
+        peak_demand = self.original_peak_demand_MW
+        avg_demand = self.original_total_demand_MWh / total_hours if total_hours > 0 else 0
 
         # Volllast-Stunden berechnen (>80% der Spitzenlast)
+        # Hinweis: Dies basiert auf downsampled Daten - eine Approximation
         full_load_threshold = peak_demand * 0.8
         full_load_hours = sum(1 for d in demand_sorted if d >= full_load_threshold)
+        if self.downsampled:
+            full_load_hours = full_load_hours * self.downsample_factor
 
         stats_md = f"""
 ### ■ Statistiken
@@ -1571,9 +1603,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             height=600
         )
 
-        # Statistiken
-        total_demand = self.df['demand_MW'].sum()
-        total_gen = sum(total_production.values())
+        # ✅ FIX: Statistiken mit ORIGINAL-Summen berechnen
+        total_demand = self.original_total_demand_MWh
+        total_gen = self.original_total_heat_production
 
         stats_md = f"""
 ### ■ Energie-Bilanz
@@ -1587,9 +1619,10 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 ### 🔥 Erzeugung nach Quelle
 """
 
-        # Sortiere Erzeuger nach Beitrag
-        sorted_prod = sorted(total_production.items(), key=lambda x: x[1], reverse=True)
-        for comp, value in sorted_prod:
+        # Sortiere Erzeuger nach Beitrag (verwende original_heat_production)
+        sorted_prod = sorted(self.original_heat_production.items(), key=lambda x: x[1], reverse=True)
+        for comp_full, value in sorted_prod:
+            comp = comp_full.replace('_Q_th_MW', '')
             percentage = (value / total_gen * 100) if total_gen > 0 else 0
             stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 

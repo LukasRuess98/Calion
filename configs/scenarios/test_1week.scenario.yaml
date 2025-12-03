@@ -9,11 +9,11 @@ scenario:
   title: "Test_1_Week"
   tag: "test-1week-optimized"
 
-  # Zeitraum auf 1 Woche beschränken
+  # Zeitraum auf 1 Tag beschränken (für schnelles Testing)
   horizon:
     type: "date_range"
-    start: "2023-01-01 00:00"  # Anpassen an deine Daten
-    end: "2023-01-02 00:00"    # 1 Woche = 7 Tage = 168h * 4 (15-Min) = 672 Zeitschritte
+    start: "2023-01-01 00:00"
+    end: "2023-01-02 00:00"    # 1 Tag = 24h (für schnelle Tests)
     enforce: false  # Nicht strikte Prüfung
 
   # Rolling Horizon Einstellungen (falls verwendet)
