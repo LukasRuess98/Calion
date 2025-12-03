@@ -581,11 +581,7 @@ def _collect_timeseries_and_summary(
     # ✅ FIX: Export grid_co2_kg_MWh to series for dashboard timeseries plots
     series["grid_co2_kg_MWh"] = list(grid_co2_series)
 
-    # ✅ FIX: Calculate Grid CO2 emissions timeseries (in tonnes per timestep)
-    series["Grid_CO2_emissions_t_per_step"] = [
-        pbuy_series[i] * grid_co2_series[i] * dt_h / 1000.0 for i in range(n)
-    ] if n else []
-
+    # Note: Grid_CO2_emissions_t_per_step will be calculated after pbuy_series is defined (line ~620)
     # Fuel CO2 timeseries will be calculated below after generator loop
     series["Fuel_CO2_emissions_t_per_step"] = [0.0] * n
 
@@ -606,6 +602,12 @@ def _collect_timeseries_and_summary(
     pbuy_series = series["P_buy_MW"]
     psell_series = series["P_sell_MW"]
     qdump_series = series["Q_dump_MWth"]
+
+    # ✅ FIX: Calculate Grid CO2 emissions timeseries (in tonnes per timestep)
+    # Now that pbuy_series is defined, we can calculate the Grid CO2 timeseries
+    series["Grid_CO2_emissions_t_per_step"] = [
+        pbuy_series[i] * grid_co2_series[i] * dt_h / 1000.0 for i in range(n)
+    ] if n else []
 
     addition = (energy_fee + grid_cost) if include_gridcost else 0.0
 
