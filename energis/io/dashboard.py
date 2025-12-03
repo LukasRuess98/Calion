@@ -435,19 +435,19 @@ class EnerGISDashboard:
         """Create the complete dashboard with all tabs."""
 
         tabs = pn.Tabs(
-            ('📊 Overview', self._create_overview_tab()),
-            ('📈 Zeitreihen', self._create_timeseries_tab()),
-            ('📉 Jahresdauerlinie', self._create_duration_curve_tab()),
-            ('⚡ Effizienz & COP', self._create_efficiency_tab()),
-            ('🌊 Energieflüsse', self._create_sankey_tab()),
-            ('💰 Kosten', self._create_costs_tab()),
-            ('🏭 Anlagen-Design', self._create_design_tab()),
+            ('■ Übersicht', self._create_overview_tab()),
+            ('═ Zeitreihen', self._create_timeseries_tab()),
+            ('▬ Jahresdauerlinie', self._create_duration_curve_tab()),
+            ('η Effizienz & COP', self._create_efficiency_tab()),
+            ('⇄ Energieflüsse', self._create_sankey_tab()),
+            ('€ Kosten', self._create_costs_tab()),
+            ('▦ Anlagen-Design', self._create_design_tab()),
             dynamic=True
         )
 
         # Add comparison tab if multiple results available
         if (self.has_pf and self.has_rh) or (self.has_pf and self.has_mpc):
-            tabs.append(('🔀 Vergleich', self._create_comparison_tab()))
+            tabs.append(('⊞ Vergleich', self._create_comparison_tab()))
 
         # Header
         header = pn.pane.Markdown(
@@ -482,7 +482,7 @@ class EnerGISDashboard:
                     width=400
                 ),
                 pn.Column(
-                    pn.pane.Markdown("## 📊 Wärmebedarf (Jahresverlauf)"),
+                    pn.pane.Markdown("## ■ Wärmebedarf (Jahresverlauf)"),
                     mini_plot,
                 ),
             ),
@@ -780,7 +780,7 @@ class EnerGISDashboard:
             pn.pane.Markdown("### 🔥 Wärmebilanz"),
             create_heat_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("### ⚡ Elektrische Bilanz"),
+            pn.pane.Markdown("### η Elektrische Bilanz"),
             elec_plot,
         )
 
@@ -1036,7 +1036,7 @@ class EnerGISDashboard:
         return pn.Column(
             pn.Row(
                 pn.Column(
-                    pn.pane.Markdown("## 📊 Kostenaufteilung"),
+                    pn.pane.Markdown("## ■ Kostenaufteilung"),
                     cost_plot,
                 ),
                 pn.Column(
@@ -1179,7 +1179,7 @@ class EnerGISDashboard:
         json_pane = pn.pane.JSON(design_json, sizing_mode='stretch_width', depth=2)
 
         return pn.Column(
-            pn.pane.Markdown("## 🏭 Anlagenauslegung"),
+            pn.pane.Markdown("## ▦ Anlagenauslegung"),
             capacity_plot,
             pn.layout.Divider(),
             pn.pane.Markdown("## 📋 Kapazitätstabelle"),
@@ -1265,7 +1265,7 @@ class EnerGISDashboard:
             pn.pane.Markdown(f"## 🔀 PF vs {comp_label} Vergleich"),
             comp_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("## 📊 Kennzahlen"),
+            pn.pane.Markdown("## ■ Kennzahlen"),
             comp_table,
             pn.layout.Divider(),
             pn.pane.Markdown("## 💡 Interpretation"),
@@ -1358,7 +1358,7 @@ class EnerGISDashboard:
         full_load_hours = sum(1 for d in demand_sorted if d >= full_load_threshold)
 
         stats_md = f"""
-### 📊 Statistiken
+### ■ Statistiken
 
 | Kennzahl | Wert |
 |----------|------|
@@ -1375,7 +1375,7 @@ class EnerGISDashboard:
 """
 
         return pn.Column(
-            pn.pane.Markdown("## 📉 Jahresdauerlinie (Load Duration Curve)"),
+            pn.pane.Markdown("## ▬ Jahresdauerlinie (Load Duration Curve)"),
             pn.pane.Markdown(
                 "*Die Jahresdauerlinie zeigt die sortierte Häufigkeitsverteilung der Lasten. "
                 "Sie ist essentiell für die Dimensionierung und zeigt, wie oft bestimmte Lastbereiche auftreten.*"
@@ -1466,7 +1466,7 @@ class EnerGISDashboard:
             )
 
             stats_md = f"""
-### 📊 COP Statistiken
+### ■ COP Statistiken
 
 Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance:
 """
@@ -1487,7 +1487,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             )
 
             return pn.Column(
-                pn.pane.Markdown("## ⚡ Effizienz & COP Analyse"),
+                pn.pane.Markdown("## η Effizienz & COP Analyse"),
                 pn.pane.Markdown(stats_md),
                 stats_table,
                 pn.layout.Divider(),
@@ -1576,7 +1576,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         total_gen = sum(total_production.values())
 
         stats_md = f"""
-### 📊 Energie-Bilanz
+### ■ Energie-Bilanz
 
 | Kennzahl | Wert |
 |----------|------|
@@ -1594,7 +1594,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 
         return pn.Column(
-            pn.pane.Markdown("## 🌊 Energiefluss-Diagramm (Sankey)"),
+            pn.pane.Markdown("## ⇄ Energiefluss-Diagramm (Sankey)"),
             pn.pane.Markdown(
                 "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
                 "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"

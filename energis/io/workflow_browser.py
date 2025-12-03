@@ -228,31 +228,39 @@ class WorkflowBrowser:
                 )
             )
 
-        # Professional header with Uni Stuttgart branding
+        # Professional technical header - Tabellenbuch style
         header = pn.pane.Markdown(
             f"""
-<div style="background: linear-gradient(135deg, #004191 0%, #0066cc 100%);
-            padding: 20px 30px;
-            border-radius: 8px;
+<div style="background: linear-gradient(135deg, #004191 0%, #002855 100%);
+            padding: 25px 35px;
+            border-radius: 0;
             color: white;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            margin-bottom: 0;
+            border-bottom: 4px solid #FFD800;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
     <div style="display: flex; align-items: center; justify-content: space-between;">
         <div style="flex: 1;">
-            <h1 style="margin: 0; font-size: 28px; font-weight: 600; color: white;">
-                🔥 {self.title}
-            </h1>
-            <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; color: white;">
-                📦 {len(self.available_workflows)} gespeicherte Simulationen • EEP - Universität Stuttgart
+            <div style="display: flex; align-items: baseline; gap: 15px;">
+                <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: white; font-family: 'Arial', sans-serif; letter-spacing: 1px;">
+                    eHeat
+                </h1>
+                <span style="font-size: 20px; font-weight: 500; color: rgba(255,255,255,0.9);">Dashboard – Ergebnisse</span>
+            </div>
+            <p style="margin: 8px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.85); font-weight: 400;">
+                {len(self.available_workflows)} gespeicherte Simulationen | Institut für Energieeffizienz in der Produktion EEP
             </p>
         </div>
-        <div style="text-align: right; margin-left: 20px;">
-            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
-                UNIVERSITÄT
-            </div>
-            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
-                STUTTGART
-            </div>
+        <div style="text-align: right; margin-left: 30px; border-left: 2px solid rgba(255,255,255,0.3); padding-left: 30px;">
+            <svg width="80" height="80" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Uni Stuttgart Logo Stilisiert -->
+                <rect x="10" y="10" width="35" height="35" fill="#FFD800"/>
+                <rect x="55" y="10" width="35" height="35" fill="white"/>
+                <rect x="10" y="55" width="35" height="35" fill="white"/>
+                <rect x="55" y="55" width="35" height="35" fill="#FFD800"/>
+                <text x="50" y="105" text-anchor="middle" font-size="12" fill="white" font-weight="700" font-family="Arial">
+                    UNIVERSITÄT STUTTGART
+                </text>
+            </svg>
         </div>
     </div>
 </div>
@@ -296,14 +304,14 @@ class WorkflowBrowser:
         workflow_options = create_workflow_options(self.available_workflows)
 
         workflow_selector = pn.widgets.Select(
-            name='🔍 Simulation auswählen',
+            name='▶ Simulation auswählen',
             options=workflow_options,
             sizing_mode='stretch_width'  # Adapt to container width
         )
 
         # Refresh button
         refresh_button = pn.widgets.Button(
-            name='🔄 Aktualisieren',
+            name='↻ Aktualisieren',
             button_type='success',
             width=150
         )
@@ -314,7 +322,7 @@ class WorkflowBrowser:
         # Refresh callback
         def on_refresh(event):
             """Rescan workflows and update dropdown."""
-            refresh_status.object = "🔄 Aktualisiere..."
+            refresh_status.object = "↻ Aktualisiere..."
 
             # Rescan workflows
             self.available_workflows = self._scan_workflows()
@@ -351,7 +359,7 @@ class WorkflowBrowser:
                 return pn.pane.Markdown(
                     "<div style='padding: 15px; background: #f8f9fa; border-radius: 6px; "
                     "border-left: 4px solid #0066cc;'>"
-                    "<em>👈 Wähle eine Simulation aus dem Dropdown</em></div>"
+                    "<em>◂ Wähle eine Simulation aus dem Dropdown</em></div>"
                 )
 
             wf = self.available_workflows[selected_idx]
@@ -368,7 +376,7 @@ class WorkflowBrowser:
             info_md = f"""
 <div style="padding: 15px; background: #f8f9fa; border-radius: 6px;
             border-left: 4px solid #28a745; line-height: 1.6;">
-    <h4 style="margin: 0 0 12px 0; color: #28a745;">📊 Simulation Details</h4>
+    <h4 style="margin: 0 0 12px 0; color: #28a745;">■ Simulation Details</h4>
     <table style="width: 100%; font-size: 13px;">
         <tr><td style="padding: 4px 0;"><strong>Gespeichert:</strong></td><td>{date_display}</td></tr>
         <tr><td style="padding: 4px 0;"><strong>Workflow:</strong></td><td>{steps_display}</td></tr>
@@ -415,7 +423,7 @@ class WorkflowBrowser:
 
         if len(self.available_workflows) >= 2:
             comparison_button = pn.widgets.Button(
-                name='🔀 Vergleichs-Modus',
+                name='⊞ Vergleichs-Modus',
                 button_type='primary',
                 width=180,
                 height=35
