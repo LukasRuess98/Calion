@@ -578,6 +578,17 @@ def _collect_timeseries_and_summary(
     grid_co2_series = table.data.get("grid_co2_kg_MWh", [0.0] * n)
     demand_series = table.data.get("waermebedarf_MWth", [0.0] * n)
 
+    # ✅ FIX: Export grid_co2_kg_MWh to series for dashboard timeseries plots
+    series["grid_co2_kg_MWh"] = list(grid_co2_series)
+
+    # ✅ FIX: Calculate Grid CO2 emissions timeseries (in tonnes per timestep)
+    series["Grid_CO2_emissions_t_per_step"] = [
+        pbuy_series[i] * grid_co2_series[i] * dt_h / 1000.0 for i in range(n)
+    ] if n else []
+
+    # Fuel CO2 timeseries will be calculated below after generator loop
+    series["Fuel_CO2_emissions_t_per_step"] = [0.0] * n
+
     include_gridcost = bool(cfg.get("costs", {}).get("include_gridcost_in_energy", False))
     energy_fee = float(grid_cfg.get("energy_fee_eur_mwh", 0.0))
     grid_cost = float(grid_cfg.get("gridcost_eur_mwh", 0.0))
@@ -772,6 +783,12 @@ def _collect_timeseries_and_summary(
         fuel_cost_total += cost_eur
         fuel_emissions_t += emission_t
 
+        # ✅ FIX: Add fuel CO2 emissions per timestep (in tonnes)
+        fuel_emission_factor_kg_per_mwh = gen["fuel_emission"]
+        for i in range(n):
+            fuel_co2_t = fuel_series[i] * dt_h * fuel_emission_factor_kg_per_mwh / 1000.0
+            series["Fuel_CO2_emissions_t_per_step"][i] += fuel_co2_t
+
     if meta["p2h"]:
         comp = meta["p2h"]["name"]
         heat_series = series[f"{comp}_Q_th_MW"]
@@ -903,6 +920,12 @@ def _collect_timeseries_and_summary(
         summary_sections[name] = section
     if p2h_section:
         summary_sections["p2h"] = p2h_section
+
+    # ✅ FIX: Calculate total CO2 emissions per timestep (Grid + Fuel)
+    series["Total_CO2_emissions_t_per_step"] = [
+        series["Grid_CO2_emissions_t_per_step"][i] + series["Fuel_CO2_emissions_t_per_step"][i]
+        for i in range(n)
+    ] if n else []
 
     flat = _flatten_summary(summary_sections)
     return series, summary_sections, flat
