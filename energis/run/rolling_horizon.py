@@ -787,9 +787,16 @@ def _collect_timeseries_and_summary(
 
         # ✅ FIX: Add fuel CO2 emissions per timestep (in tonnes)
         fuel_emission_factor_kg_per_mwh = gen["fuel_emission"]
+
+        # Export CO2 timeseries per generator for dashboard visualization
+        co2_series_per_gen = []
         for i in range(n):
             fuel_co2_t = fuel_series[i] * dt_h * fuel_emission_factor_kg_per_mwh / 1000.0
+            co2_series_per_gen.append(fuel_co2_t)
             series["Fuel_CO2_emissions_t_per_step"][i] += fuel_co2_t
+
+        # Store CO2 timeseries for this specific generator
+        series[f"CO2_{comp}_t_per_step"] = co2_series_per_gen
 
     if meta["p2h"]:
         comp = meta["p2h"]["name"]

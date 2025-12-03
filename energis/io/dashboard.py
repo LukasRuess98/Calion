@@ -468,22 +468,32 @@ class EnerGISDashboard:
         self.fuel_co2_t = 0
         self.co2_cost_eur = 0
 
-        if hasattr(result, 'summary') and result.summary:
-            # Versuche CO2 aus summary.grid zu holen
-            if 'grid' in result.summary:
-                self.total_co2_t = result.summary['grid'].get('Total_CO2_emissions_t', 0)
-                self.grid_co2_t = result.summary['grid'].get('Grid_CO2_emissions_t', 0)
+        # Primär: Aus Zeitreihen aggregieren (zuverlässigste Quelle)
+        if 'Grid_CO2_emissions_t_per_step' in self.df.columns:
+            self.grid_co2_t = self.df['Grid_CO2_emissions_t_per_step'].sum()
 
-        if hasattr(result, 'costs') and result.costs:
-            # CO2-Kosten und Fuel-Emissionen aus costs
-            self.co2_cost_eur = result.costs.get('objective.CO2_cost_EUR', 0)
+        if 'Fuel_CO2_emissions_t_per_step' in self.df.columns:
+            self.fuel_co2_t = self.df['Fuel_CO2_emissions_t_per_step'].sum()
+
+        if 'Total_CO2_emissions_t_per_step' in self.df.columns:
+            self.total_co2_t = self.df['Total_CO2_emissions_t_per_step'].sum()
+        else:
+            # Fallback: Berechne Gesamt aus Grid + Fuel
+            self.total_co2_t = self.grid_co2_t + self.fuel_co2_t
+
+        # Sekundär: Falls nicht in Zeitreihen, versuche summary/costs (Legacy)
+        if self.grid_co2_t == 0 and hasattr(result, 'summary') and result.summary:
+            if 'grid' in result.summary:
+                self.grid_co2_t = result.summary['grid'].get('Grid_CO2_emissions_t', 0)
+                if self.total_co2_t == 0:
+                    self.total_co2_t = result.summary['grid'].get('Total_CO2_emissions_t', 0)
+
+        if self.fuel_co2_t == 0 and hasattr(result, 'costs') and result.costs:
             self.fuel_co2_t = result.costs.get('Fuel_emissions_t', 0)
 
-            # Falls Total_CO2 nicht in summary gefunden wurde, versuche es aus costs
-            if self.total_co2_t == 0:
-                # Berechne aus Grid + Fuel falls verfügbar
-                if self.grid_co2_t > 0 or self.fuel_co2_t > 0:
-                    self.total_co2_t = self.grid_co2_t + self.fuel_co2_t
+        # CO2-Kosten immer aus costs holen
+        if hasattr(result, 'costs') and result.costs:
+            self.co2_cost_eur = result.costs.get('objective.CO2_cost_EUR', 0)
 
     def create(self) -> pn.Tabs:
         """Create the complete dashboard with all tabs."""
@@ -1759,6 +1769,28 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         # Aggregierte Emissionstabelle nach Quelle
         emissions_table = self._create_emissions_table()
 
+        # ✅ Finde alle CO2-Quellen (Grid + einzelne Erzeuger)
+        co2_source_columns = []
+
+        # Grid CO2 (Strombezug)
+        if 'Grid_CO2_emissions_t_per_step' in self.df.columns:
+            co2_source_columns.append(('Strombezug (Grid)', 'Grid_CO2_emissions_t_per_step'))
+
+        # Einzelne Erzeuger CO2
+        for col in self.df.columns:
+            if col.startswith('CO2_') and col.endswith('_t_per_step'):
+                # Extrahiere Generator-Namen: CO2_HKW_t_per_step -> HKW
+                gen_name = col.replace('CO2_', '').replace('_t_per_step', '')
+                co2_source_columns.append((gen_name, col))
+
+        # Multiselect für CO2-Quellen
+        co2_source_selector = pn.widgets.MultiChoice(
+            name='🏭 CO₂-Quellen',
+            options=[label for label, _ in co2_source_columns],
+            value=[label for label, _ in co2_source_columns[:5]] if len(co2_source_columns) > 0 else [],  # Default: erste 5
+            sizing_mode='stretch_width'
+        )
+
         # ✅ INTERAKTIVER ZEITBEREICH-SLIDER für Zeitreihen
         total_hours = len(self.df)
         time_slider = pn.widgets.IntRangeSlider(
@@ -1811,15 +1843,16 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         )
 
         # Reaktiver CO2-Zeitreihen-Plot
-        @pn.depends(time_slider)
-        def create_co2_timeseries(time_range):
-            return self._create_co2_timeseries_plot(time_range)
+        @pn.depends(time_slider, co2_source_selector)
+        def create_co2_timeseries(time_range, selected_sources):
+            return self._create_co2_timeseries_plot(time_range, selected_sources, co2_source_columns)
 
         # Controls für Zeitreihen
         controls = pn.Card(
+            co2_source_selector,
             time_slider,
             quick_filters,
-            title="⚙️ Zeitbereich-Filter",
+            title="⚙️ Filter & Auswahl",
             collapsed=False,
             sizing_mode='stretch_width'
         )
@@ -1893,33 +1926,53 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
     def _create_emissions_table(self):
-        """Create aggregated emissions table by source."""
+        """Create detailed emissions table by source (including individual generators)."""
 
         # Erstelle Tabelle mit CO2-Quellen
         emissions_data = []
 
+        # ✅ Strombezug (Grid)
         if self.grid_co2_t > 0:
             emissions_data.append({
-                'Quelle': 'Strombezug (indirekte Emissionen)',
+                'Quelle': 'Strombezug',
                 'CO2eq_t': self.grid_co2_t,
                 'Anteil_%': (self.grid_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
                 'Kategorie': 'Indirekt'
             })
 
-        if self.fuel_co2_t > 0:
+        # ✅ Einzelne Erzeuger (aus Zeitreihen)
+        for col in self.df.columns:
+            if col.startswith('CO2_') and col.endswith('_t_per_step'):
+                # Extrahiere Generator-Namen
+                gen_name = col.replace('CO2_', '').replace('_t_per_step', '')
+                gen_co2_t = self.df[col].sum()
+
+                if gen_co2_t > 0.001:  # Nur anzeigen wenn > 0
+                    emissions_data.append({
+                        'Quelle': gen_name,
+                        'CO2eq_t': gen_co2_t,
+                        'Anteil_%': (gen_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                        'Kategorie': 'Direkt'
+                    })
+
+        # Fallback: Falls keine individuellen Erzeuger-CO2-Daten vorhanden sind
+        if len([e for e in emissions_data if e['Kategorie'] == 'Direkt']) == 0 and self.fuel_co2_t > 0:
             emissions_data.append({
-                'Quelle': 'Wärmeerzeugung (direkte Emissionen)',
+                'Quelle': 'Wärmeerzeugung (Gesamt)',
                 'CO2eq_t': self.fuel_co2_t,
                 'Anteil_%': (self.fuel_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
                 'Kategorie': 'Direkt'
             })
 
+        # Sortiere nach CO2-Menge (absteigend)
+        emissions_data = sorted(emissions_data, key=lambda x: x['CO2eq_t'], reverse=True)
+
         # Gesamt-Zeile hinzufügen
         emissions_data.append({
-            'Quelle': 'GESAMT',
+            'Quelle': '═══ GESAMT ═══',
             'CO2eq_t': self.total_co2_t,
             'Anteil_%': 100.0,
-            'Kategorie': '-'
+            'Kategorie': 'Summe'
         })
 
         if not emissions_data:
@@ -1941,13 +1994,17 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         return table
 
-    def _create_co2_timeseries_plot(self, time_range: tuple = None):
-        """Create CO2 emissions time series plot with optional time filtering.
+    def _create_co2_timeseries_plot(self, time_range: tuple = None, selected_sources: list = None, co2_source_columns: list = None):
+        """Create CO2 emissions time series plot with optional time filtering and source selection.
 
         Parameters
         ----------
         time_range : tuple, optional
             (start_idx, end_idx) for filtering, by default None (use all data)
+        selected_sources : list, optional
+            List of source names to display, by default None (show all)
+        co2_source_columns : list, optional
+            List of (label, column) tuples for available CO2 sources
         """
 
         if not HAVE_PLOTLY:
@@ -1960,29 +2017,39 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         else:
             df_subset = self.df
 
-        # ✅ FIX: Use the new exported CO2 timeseries
+        # ✅ Verwende ausgewählte Quellen mit individuellen Zeitreihen
         co2_series = []
 
-        # Check for new CO2 timeseries columns (exported from rolling_horizon.py)
-        if 'Grid_CO2_emissions_t_per_step' in df_subset.columns:
-            co2_series.append(('CO₂-Äq. aus Strombezug', df_subset['Grid_CO2_emissions_t_per_step']))
+        if co2_source_columns and selected_sources:
+            # Erstelle Mapping von Label zu Column
+            source_map = {label: col for label, col in co2_source_columns}
 
-        if 'Fuel_CO2_emissions_t_per_step' in df_subset.columns:
-            fuel_co2 = df_subset['Fuel_CO2_emissions_t_per_step']
-            if fuel_co2.sum() > 0.001:  # Only show if there are fuel emissions
-                co2_series.append(('CO₂-Äq. aus Wärmeerzeugung', fuel_co2))
+            # Füge ausgewählte Quellen hinzu
+            for source_label in selected_sources:
+                if source_label in source_map:
+                    col_name = source_map[source_label]
+                    if col_name in df_subset.columns:
+                        series = df_subset[col_name]
+                        if series.sum() > 0.001:  # Nur anzeigen wenn > 0
+                            display_name = source_label if source_label != 'Strombezug (Grid)' else 'Strombezug'
+                            co2_series.append((display_name, series))
 
-        # Fallback: Calculate from raw data if new series not available
+        # Fallback: Legacy-Modus (wenn keine individuellen Quellen verfügbar)
         if not co2_series:
-            if 'P_buy_MW' in df_subset.columns and 'grid_co2_kg_MWh' in df_subset.columns:
-                grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * df_subset['grid_co2_kg_MWh'] / 1000.0
-                co2_series.append(('CO₂-Äq. aus Strombezug', grid_co2_series))
-            elif 'P_buy_MW' in df_subset.columns and self.grid_co2_t > 0:
-                total_energy_bought = self.df['P_buy_MW'].sum() * self.dt_h
-                if total_energy_bought > 0:
-                    avg_grid_intensity = self.grid_co2_t * 1000 / total_energy_bought
-                    grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * avg_grid_intensity / 1000.0
-                    co2_series.append(('CO₂-Äq. aus Strombezug (approx)', grid_co2_series))
+            # Check for aggregated CO2 timeseries columns
+            if 'Grid_CO2_emissions_t_per_step' in df_subset.columns:
+                co2_series.append(('CO₂-Äq. aus Strombezug', df_subset['Grid_CO2_emissions_t_per_step']))
+
+            if 'Fuel_CO2_emissions_t_per_step' in df_subset.columns:
+                fuel_co2 = df_subset['Fuel_CO2_emissions_t_per_step']
+                if fuel_co2.sum() > 0.001:
+                    co2_series.append(('CO₂-Äq. aus Wärmeerzeugung', fuel_co2))
+
+            # Fallback: Calculate from raw data if new series not available
+            if not co2_series:
+                if 'P_buy_MW' in df_subset.columns and 'grid_co2_kg_MWh' in df_subset.columns:
+                    grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * df_subset['grid_co2_kg_MWh'] / 1000.0
+                    co2_series.append(('CO₂-Äq. aus Strombezug', grid_co2_series))
 
         if not co2_series:
             return pn.pane.Markdown(
@@ -2021,7 +2088,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             hovermode='x unified',
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
             title=dict(
-                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO₂eq',
+                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO₂eq | Quellen: {len(co2_series)}',
                 font=dict(size=12),
                 x=0.5,
                 xanchor='center'
