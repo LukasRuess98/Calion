@@ -36,6 +36,7 @@ __all__ = [
     "display_workflow_summary",
     "display_kpi_summary",
     "create_and_display_dashboard",
+    "diagnose_dashboard_data",
 ]
 
 
@@ -149,7 +150,7 @@ def save_workflow_run(
     name: Optional[str] = None,
     description: Optional[str] = None,
     config_paths: Optional[List[str]] = None,
-    save_dir: str = "saved_workflows",
+    save_dir: str = "notebooks/saved_workflows",
     export_first: bool = True,
 ) -> Path:
     """
@@ -173,7 +174,8 @@ def save_workflow_run(
     config_paths : list of str, optional
         List of config files used for this run
     save_dir : str
-        Target directory (default: saved_workflows)
+        Target directory (default: notebooks/saved_workflows)
+        Can be absolute or relative to project root
     export_first : bool
         Whether to run export_workflow_results first (default: True)
 
@@ -195,6 +197,20 @@ def save_workflow_run(
 
     from energis.run import rolling_horizon as rh
 
+    # Convert save_dir to absolute path if it's relative
+    save_path = Path(save_dir)
+    if not save_path.is_absolute():
+        # Find project root
+        project_root = Path.cwd()
+        for candidate in [project_root] + list(project_root.parents):
+            if (candidate / 'energis').exists():
+                project_root = candidate
+                break
+        save_path = project_root / save_dir
+
+    # Ensure directory exists
+    save_path.mkdir(parents=True, exist_ok=True)
+
     # Step 1: Export results (this creates the export directory)
     if export_first:
         print("📦 Exportiere Ergebnisse (CSV, PDF, SVG)...")
@@ -204,7 +220,7 @@ def save_workflow_run(
         # Create directory manually
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         auto_name = name or f"workflow_{timestamp}"
-        export_dir = Path(save_dir) / f"{timestamp}_{auto_name}"
+        export_dir = save_path / f"{timestamp}_{auto_name}"
         export_dir.mkdir(parents=True, exist_ok=True)
         export_meta = {'outdir': str(export_dir)}
 
@@ -235,9 +251,9 @@ def save_workflow_run(
     # Step 4: Move to saved_workflows if export was in exports/
     if export_first and 'exports' in str(export_dir):
         # Move from exports/ to saved_workflows/
-        target_dir = Path(save_dir) / export_dir.name
+        target_dir = save_path / export_dir.name
         if not target_dir.exists():
-            print(f"🔄 Verschiebe nach {save_dir}/...")
+            print(f"🔄 Verschiebe nach {save_path.name}/...")
             import shutil
             shutil.move(str(export_dir), str(target_dir))
             export_dir = target_dir
@@ -352,7 +368,7 @@ def _build_metadata(
 
 
 def list_saved_workflows(
-    save_dir: str = "saved_workflows",
+    save_dir: str = "notebooks/saved_workflows",
     sort_by: str = "date",
 ) -> List[Dict[str, Any]]:
     """
@@ -361,7 +377,7 @@ def list_saved_workflows(
     Parameters
     ----------
     save_dir : str
-        Directory to search (default: saved_workflows)
+        Directory to search (default: notebooks/saved_workflows)
     sort_by : str
         Sort by: "date", "name", "cost" (default: date)
 
@@ -377,7 +393,16 @@ def list_saved_workflows(
     ...     print(f"{wf['name']}: {wf['costs']:.0f} EUR")
     """
 
+    # Convert to absolute path if relative
     save_path = Path(save_dir)
+    if not save_path.is_absolute():
+        # Find project root
+        project_root = Path.cwd()
+        for candidate in [project_root] + list(project_root.parents):
+            if (candidate / 'energis').exists():
+                project_root = candidate
+                break
+        save_path = project_root / save_dir
     if not save_path.exists():
         print(f"⚠️  Verzeichnis {save_dir} existiert nicht")
         return []
@@ -699,10 +724,69 @@ def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
             print(f"         • Speicher:         {capex_sto:>15,.0f} EUR  ({capex_sto/capex_total*100:>5.1f}%)")
 
 
+def diagnose_dashboard_data(workflow: Any) -> None:
+    """
+    Diagnose workflow data for dashboard display issues.
+
+    This is a convenience wrapper around diagnose_workflow() that
+    prints a formatted report to help troubleshoot dashboard issues.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow to diagnose
+
+    Examples
+    --------
+    >>> from energis.io.notebook_helpers import diagnose_dashboard_data
+    >>> diagnose_dashboard_data(workflow)
+    🔍 Dashboard Data Diagnosis
+    ====================================
+    ✓ Primary result: RH
+    ✓ Timeseries: 150 series
+    ✓ Costs: 12 entries
+    ✗ Design: No data
+    ...
+    """
+    from energis.io.dashboard import diagnose_workflow
+
+    print("\n" + "="*70)
+    print("🔍 DASHBOARD DATA DIAGNOSIS")
+    print("="*70)
+
+    diagnosis = diagnose_workflow(workflow)
+
+    # Status overview
+    print(f"\n📊 Status:")
+    print(f"  Primary Result: {diagnosis['primary_result_type']}")
+    print(f"  {'✓' if diagnosis['has_timeseries'] else '✗'} Timeseries: {diagnosis.get('series_count', 0)} series")
+    print(f"  {'✓' if diagnosis['has_costs'] else '✗'} Costs: {diagnosis.get('cost_entries', 0)} entries")
+    print(f"  {'✓' if diagnosis['has_design'] else '✗'} Design: {diagnosis.get('design_components', 0)} components")
+
+    # Issues
+    if diagnosis['issues']:
+        print(f"\n⚠️  Issues Found ({len(diagnosis['issues'])}):")
+        for i, issue in enumerate(diagnosis['issues'], 1):
+            print(f"  {i}. {issue}")
+
+    # Recommendations
+    if diagnosis['recommendations']:
+        print(f"\n💡 Recommendations ({len(diagnosis['recommendations'])}):")
+        for i, rec in enumerate(diagnosis['recommendations'], 1):
+            print(f"  {i}. {rec}")
+    else:
+        print(f"\n✅ No issues detected - dashboard should display correctly!")
+
+    print("\n" + "="*70)
+
+    return diagnosis
+
+
 def create_and_display_dashboard(
     workflow: Any,
     title: Optional[str] = None,
     auto_display: bool = False,
+    diagnose: bool = True,
 ) -> Any:
     """
     Create interactive Panel dashboard for workflow results.
@@ -716,6 +800,8 @@ def create_and_display_dashboard(
     auto_display : bool
         Whether to automatically display the dashboard in Jupyter
         (default: False, user must evaluate dashboard object)
+    diagnose : bool, optional
+        Run diagnostic check before creating dashboard (default: True)
 
     Returns
     -------
@@ -728,6 +814,9 @@ def create_and_display_dashboard(
 
     Or serve as webapp:
     >>> dashboard.servable()
+
+    If dashboard is not displaying data:
+    >>> diagnose_dashboard_data(workflow)
     """
 
     from energis.io.dashboard import create_dashboard, HAVE_PANEL
@@ -744,13 +833,16 @@ def create_and_display_dashboard(
 
     print("🎛️ Erstelle interaktives Dashboard...")
 
-    dashboard = create_dashboard(workflow, title=title)
+    dashboard = create_dashboard(workflow, title=title, diagnose=diagnose)
 
     print("✅ Dashboard erfolgreich erstellt!")
     print("\n💡 Verwendung:")
     print("   • Im Notebook: Evaluiere 'dashboard' in einer Zelle")
     print("   • Als Webapp: panel serve notebook.ipynb --show")
     print("   • Features: Tabs, interaktive Plots, Zoom/Pan/Hover")
+    print("\n💡 Troubleshooting:")
+    print("   • Wenn Daten nicht angezeigt werden: diagnose_dashboard_data(workflow)")
+    print("   • VS-Code: Panel funktioniert am besten im Browser")
 
     if auto_display:
         return dashboard

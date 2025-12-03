@@ -1,0 +1,70 @@
+{
+  "saved_at": "2025-12-02T04:22:43.916633",
+  "name": "Scenario Studio Run",
+  "description": "Interaktive Szenario-Analyse mit wissenschaftlichen Plots",
+  "scenario": {
+    "name": "unknown",
+    "system": "unknown",
+    "site": "default",
+    "run_mode": "PF_THEN_RH",
+    "title": "PF followed by rolling horizon"
+  },
+  "config_files": [
+    "configs/base.yaml",
+    "configs/tech_catalog.yaml",
+    "configs/sites/default.site.yaml",
+    "configs/systems/baseline.system.yaml",
+    "configs/scenarios/pf_then_rh.workflow.scenario.yaml"
+  ],
+  "workflow": {
+    "steps": [
+      "PF",
+      "RH"
+    ],
+    "fix_design": true
+  },
+  "results_available": {
+    "pf": true,
+    "rh": true,
+    "mpc": false
+  },
+  "solver": "gurobi",
+  "dt_h": 1.0,
+  "technologies": {
+    "heat_pumps": {
+      "HP1": {
+        "capacity_mw": 8.948479033527928,
+        "type": "heat_pump"
+      },
+      "HP2": {
+        "capacity_mw": 5.951520966472078,
+        "type": "heat_pump"
+      },
+      "HP3": {
+        "capacity_mw": 10.601953742775404,
+        "type": "heat_pump"
+      },
+      "HP4": {
+        "capacity_mw": 4.451520966472075,
+        "type": "heat_pump"
+      }
+    },
+    "storage": {
+      "capacity_mwh": 100.0,
+      "type": "thermal_storage"
+    }
+  },
+  "statistics": {
+    "timesteps": 8760,
+    "duration_hours": 8760.0,
+    "start_date": "2023-01-01 00:00:00",
+    "end_date": "2023-12-31 23:00:00"
+  },
+  "costs": {
+    "total_eur": 12158185.249955546,
+    "capex_eur": 0.0,
+    "opex_eur": 12158185.249955546,
+    "fuel_eur": 16491492.806914475,
+    "electricity_eur": 0.0
+  }
+}

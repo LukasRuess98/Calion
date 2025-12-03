@@ -50,10 +50,159 @@ except ImportError:
     go = None
 
 
-__all__ = ["create_dashboard", "HAVE_PANEL", "HAVE_PLOTLY"]
+__all__ = ["create_dashboard", "HAVE_PANEL", "HAVE_PLOTLY", "diagnose_workflow"]
 
 
-def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard") -> Any:
+def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
+    """
+    Diagnose workflow data for dashboard compatibility.
+
+    This helper function checks if the workflow has the necessary data
+    for dashboard display and provides detailed diagnostic information.
+
+    Parameters
+    ----------
+    workflow : WorkflowResult
+        The workflow result from run_workflow()
+
+    Returns
+    -------
+    dict
+        Diagnostic information with keys:
+        - 'has_results': bool - at least one result available
+        - 'has_timeseries': bool - timeseries data available
+        - 'has_costs': bool - cost data available
+        - 'has_design': bool - design data available
+        - 'primary_result_type': str - which result is used (PF/RH/MPC)
+        - 'issues': list of str - detected issues
+        - 'recommendations': list of str - recommended actions
+
+    Examples
+    --------
+    >>> from energis.io.dashboard import diagnose_workflow
+    >>> diagnosis = diagnose_workflow(workflow)
+    >>> if diagnosis['issues']:
+    ...     print("Issues found:", diagnosis['issues'])
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    issues = []
+    recommendations = []
+
+    # Check which results are available
+    has_pf = workflow.pf_result is not None
+    has_rh = workflow.rh_result is not None
+    has_mpc = workflow.mpc_result is not None
+    has_any_result = has_pf or has_rh or has_mpc
+
+    if not has_any_result:
+        issues.append("No workflow results available (pf_result, rh_result, mpc_result all None)")
+        recommendations.append("Run the workflow first with run_workflow()")
+        return {
+            'has_results': False,
+            'has_timeseries': False,
+            'has_costs': False,
+            'has_design': False,
+            'primary_result_type': None,
+            'issues': issues,
+            'recommendations': recommendations,
+        }
+
+    # Determine primary result (same logic as EnerGISDashboard.__init__)
+    if has_rh:
+        primary_result = workflow.rh_result
+        primary_label = "RH"
+    elif has_mpc:
+        primary_result = workflow.mpc_result
+        primary_label = "MPC"
+    elif has_pf:
+        primary_result = workflow.pf_result
+        primary_label = "PF"
+    else:
+        primary_result = None
+        primary_label = None
+
+    # Check timeseries data
+    has_timeseries = False
+    series_count = 0
+    if primary_result and hasattr(primary_result, 'series') and primary_result.series:
+        series_count = len(primary_result.series)
+        has_timeseries = series_count > 0
+
+        if not has_timeseries:
+            issues.append(f"Primary result ({primary_label}) has empty series dictionary")
+            recommendations.append("Check if optimization completed successfully")
+            recommendations.append("Verify that result.series is populated by the solver")
+    else:
+        issues.append(f"Primary result ({primary_label}) has no series attribute or series is None")
+        recommendations.append("Check workflow execution logs for errors")
+
+    # Check cost data
+    has_costs = False
+    cost_entries = 0
+    if primary_result and hasattr(primary_result, 'costs') and primary_result.costs:
+        cost_entries = len([k for k, v in primary_result.costs.items()
+                           if isinstance(v, (int, float)) and k.endswith('_EUR')])
+        has_costs = cost_entries > 0
+
+        if not has_costs:
+            issues.append(f"Primary result ({primary_label}) has no cost entries with '_EUR' suffix")
+            recommendations.append("Enable cost tracking in configuration")
+            recommendations.append("Check if costs.include_* options are enabled")
+    else:
+        issues.append(f"Primary result ({primary_label}) has no costs attribute or costs is None")
+        recommendations.append("Enable objective cost calculation in config")
+
+    # Check design data
+    has_design = False
+    design_components = 0
+    if workflow.design:
+        if workflow.design.heat_pumps:
+            design_components += len(workflow.design.heat_pumps)
+        if workflow.design.storage:
+            design_components += 1
+        has_design = design_components > 0
+
+        if not has_design:
+            issues.append("Design exists but has no components (no heat_pumps or storage)")
+            recommendations.append("Run a PF step to generate design data")
+    else:
+        issues.append("Workflow has no design data")
+        recommendations.append("Include 'PF' in workflow steps to generate design")
+        recommendations.append("Or load existing design with pf_design_json config")
+
+    # VS-Code specific check
+    try:
+        import sys
+        if 'debugpy' in sys.modules or 'IPython' in sys.modules:
+            # Running in Jupyter/VS-Code
+            recommendations.append("⚠️  If running in VS-Code: Panel dashboards work best in browser")
+            recommendations.append("   Alternative: Use 'panel serve notebook.ipynb' to view in browser")
+    except:
+        pass
+
+    logger.info(f"Dashboard diagnosis for {primary_label} result:")
+    logger.info(f"  - Timeseries: {series_count} series")
+    logger.info(f"  - Costs: {cost_entries} entries")
+    logger.info(f"  - Design: {design_components} components")
+
+    return {
+        'has_results': has_any_result,
+        'has_timeseries': has_timeseries,
+        'has_costs': has_costs,
+        'has_design': has_design,
+        'primary_result_type': primary_label,
+        'series_count': series_count,
+        'cost_entries': cost_entries,
+        'design_components': design_components,
+        'issues': issues,
+        'recommendations': recommendations,
+    }
+
+
+def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard",
+                     diagnose: bool = True) -> Any:
     """
     Create an interactive Panel dashboard for EnerGIS workflow results.
 
@@ -63,17 +212,71 @@ def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard"
         The workflow result from run_workflow()
     title : str, optional
         Dashboard title
+    diagnose : bool, optional
+        Run diagnostic check before creating dashboard (default: True)
+        Set to False to skip diagnostic warnings
 
     Returns
     -------
     pn.Tabs
         Panel dashboard with multiple tabs
+
+    Notes
+    -----
+    **VS-Code Users:** Panel dashboards work best when viewed in a browser.
+    If widgets/plots are not displaying correctly in VS-Code, try:
+
+    1. Run: `panel serve notebook.ipynb --show`
+    2. Or save and open the notebook in JupyterLab/Jupyter Notebook
+
+    **Troubleshooting:** If data is not displaying:
+
+    - Use `diagnose_workflow(workflow)` to check for missing data
+    - Verify optimization completed successfully
+    - Check that result.series and result.costs are populated
     """
+    import logging
+    logger = logging.getLogger(__name__)
 
     if not HAVE_PANEL:
         raise ImportError(
             "Panel is required for dashboards. Install with: pip install panel holoviews bokeh"
         )
+
+    # Run diagnostic check
+    if diagnose:
+        diagnosis = diagnose_workflow(workflow)
+
+        # Log diagnostic results
+        if diagnosis['issues']:
+            logger.warning("Dashboard creation: issues detected")
+            for issue in diagnosis['issues']:
+                logger.warning(f"  - {issue}")
+
+        if diagnosis['recommendations']:
+            logger.info("Dashboard recommendations:")
+            for rec in diagnosis['recommendations']:
+                logger.info(f"  - {rec}")
+
+        # Print diagnostic summary
+        print(f"\n🔍 Dashboard Diagnosis (Primary Result: {diagnosis['primary_result_type']}):")
+        print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
+              else f"  ✗ Timeseries: No data")
+        print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
+              else f"  ✗ Costs: No data")
+        print(f"  ✓ Design: {diagnosis['design_components']} components" if diagnosis['has_design']
+              else f"  ✗ Design: No data")
+
+        if diagnosis['issues']:
+            print(f"\n⚠️  Issues found:")
+            for issue in diagnosis['issues']:
+                print(f"     • {issue}")
+
+        if diagnosis['recommendations']:
+            print(f"\n💡 Recommendations:")
+            for rec in diagnosis['recommendations']:
+                print(f"     • {rec}")
+        print()
 
     # Initialize Panel with all required extensions
     # 'plotly' for interactive charts, 'tabulator' for interactive tables
@@ -145,6 +348,29 @@ class EnerGISDashboard:
             'demand_MW': demand_values,
         })
 
+        # Downsampling für sehr große Datensätze (Performance)
+        self.downsampled = False
+        original_length = len(self.df)
+        MAX_POINTS = 20000  # Maximum Datenpunkte für interaktive Plots
+
+        if original_length > MAX_POINTS:
+            import logging
+            logging.info(
+                f"Dashboard: Large dataset detected ({original_length:,} points). "
+                f"Downsampling to {MAX_POINTS:,} points for better performance."
+            )
+
+            # Einfaches Downsampling durch Auswahl jedes n-ten Punktes
+            step = original_length // MAX_POINTS
+            self.df = self.df.iloc[::step].copy()
+            self.downsampled = True
+            self.downsample_factor = step
+
+            print(f"\n⚠️  Performance-Hinweis:")
+            print(f"   Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
+            print(f"   Dies verbessert die Dashboard-Performance erheblich.")
+            print(f"   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
+
         # Add all series
         if result.series:
             for key, values in result.series.items():
@@ -209,16 +435,19 @@ class EnerGISDashboard:
         """Create the complete dashboard with all tabs."""
 
         tabs = pn.Tabs(
-            ('📊 Overview', self._create_overview_tab()),
-            ('📈 Zeitreihen', self._create_timeseries_tab()),
-            ('💰 Kosten', self._create_costs_tab()),
-            ('🏭 Anlagen-Design', self._create_design_tab()),
+            ('■ Übersicht', self._create_overview_tab()),
+            ('═ Zeitreihen', self._create_timeseries_tab()),
+            ('▬ Jahresdauerlinie', self._create_duration_curve_tab()),
+            ('η Effizienz & COP', self._create_efficiency_tab()),
+            ('⇄ Energieflüsse', self._create_sankey_tab()),
+            ('€ Kosten', self._create_costs_tab()),
+            ('▦ Anlagen-Design', self._create_design_tab()),
             dynamic=True
         )
 
         # Add comparison tab if multiple results available
         if (self.has_pf and self.has_rh) or (self.has_pf and self.has_mpc):
-            tabs.append(('🔀 Vergleich', self._create_comparison_tab()))
+            tabs.append(('⊞ Vergleich', self._create_comparison_tab()))
 
         # Header
         header = pn.pane.Markdown(
@@ -253,7 +482,7 @@ class EnerGISDashboard:
                     width=400
                 ),
                 pn.Column(
-                    pn.pane.Markdown("## 📊 Wärmebedarf (Jahresverlauf)"),
+                    pn.pane.Markdown("## ■ Wärmebedarf (Jahresverlauf)"),
                     mini_plot,
                 ),
             ),
@@ -280,7 +509,19 @@ class EnerGISDashboard:
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
             capex = result.costs.get('objective.Capex_cost_EUR', 0)
 
-        # Create cards
+        # Berechne Autarkie-Metriken
+        total_heat_production = 0
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                total_heat_production += self.df[comp].sum()
+
+        thermal_autarky = (total_heat_production / total_demand_MWh * 100) if total_demand_MWh > 0 else 0
+
+        # Durchschnittliche Auslastung
+        avg_demand = self.df['demand_MW'].mean()
+        load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
+
+        # Create cards - erweitert mit Autarkie
         cards = pn.GridBox(
             self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
@@ -288,6 +529,9 @@ class EnerGISDashboard:
             self._create_kpi_card("🏗️ Investition (CAPEX)", f"{capex:,.0f} €", "success"),
             self._create_kpi_card("📊 Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
             self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
+            self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
+            self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
+            self._create_kpi_card("⏱️ Betriebsstunden", f"{len(self.df):,} h", "secondary"),
             ncols=3,
             sizing_mode='stretch_width'
         )
@@ -393,8 +637,19 @@ class EnerGISDashboard:
                     "## ⚠️ Keine Zeitreihendaten verfügbar\n\n"
                     "Das Workflow-Ergebnis enthält keine Zeitreihendaten. Mögliche Ursachen:\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
-                    "- Das result.series Dictionary ist leer\n"
+                    "- Das `result.series` Dictionary ist leer\n"
                     "- Es gibt ein Datenformat-Problem\n\n"
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe die Ergebnisse\n"
+                    "from energis.io.dashboard import diagnose_workflow\n"
+                    "diagnosis = diagnose_workflow(workflow)\n"
+                    "print(diagnosis)\n"
+                    "```\n\n"
+                    "**Häufige Lösungen:**\n"
+                    "- Prüfe ob die Optimierung ohne Fehler durchgelaufen ist\n"
+                    "- Stelle sicher dass Solver korrekt konfiguriert ist\n"
+                    "- Prüfe ob `result.series` im Workflow-Result populiert ist\n\n"
                     "Bitte prüfe die Logs für weitere Details."
                 )
             )
@@ -404,8 +659,21 @@ class EnerGISDashboard:
                 pn.pane.Markdown(
                     "## ⚠️ Keine Komponenten erkannt\n\n"
                     "Es wurden keine Wärme- oder Elektro-Komponenten in den Ergebnissen gefunden.\n\n"
-                    f"Verfügbare Spalten: `{', '.join(self.df.columns)}`\n\n"
-                    "Das Dashboard erwartet Spalten mit Endungen wie `_Q_th_MW` oder `_Pel_MW`."
+                    f"**Verfügbare Spalten ({len(self.df.columns)}):**\n"
+                    f"```\n{', '.join(self.df.columns[:20])}{'...' if len(self.df.columns) > 20 else ''}\n```\n\n"
+                    "**Was erwartet wird:**\n"
+                    "- Thermische Komponenten: Spalten mit Endung `_Q_th_MW`\n"
+                    "- Elektrische Komponenten: Spalten mit Endung `_Pel_MW`\n\n"
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe welche Spalten vorhanden sind\n"
+                    "primary_result = workflow.rh_result or workflow.pf_result\n"
+                    "print('Available series:', list(primary_result.series.keys()))\n"
+                    "```\n\n"
+                    "**Mögliche Ursachen:**\n"
+                    "- Komponenten sind deaktiviert in der Konfiguration\n"
+                    "- Namenskonvention der Komponenten stimmt nicht überein\n"
+                    "- result.series wurde nicht korrekt gefüllt"
                 )
             )
 
@@ -425,6 +693,57 @@ class EnerGISDashboard:
             value=(0, min(168, len(self.df))),
             step=24,
             sizing_mode='stretch_width'
+        )
+
+        # Quick-Filter Buttons
+        total_hours = len(self.df)
+
+        def set_erste_woche():
+            time_slider.value = (0, min(168, total_hours))
+
+        def set_winter_tag():
+            # Finde typischen Wintertag (höchster Wärmebedarf)
+            if 'demand_MW' in self.df.columns:
+                winter_idx = self.df['demand_MW'].idxmax()
+                start = max(0, winter_idx - 12)
+                end = min(total_hours, winter_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_sommer_tag():
+            # Finde typischen Sommertag (niedrigster Wärmebedarf)
+            if 'demand_MW' in self.df.columns:
+                summer_idx = self.df['demand_MW'].idxmin()
+                start = max(0, summer_idx - 12)
+                end = min(total_hours, summer_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_komplettes_jahr():
+            time_slider.value = (0, total_hours)
+
+        btn_erste_woche = pn.widgets.Button(name='Erste Woche', button_type='primary', width=120)
+        btn_winter = pn.widgets.Button(name='Winter-Tag', button_type='default', width=120)
+        btn_sommer = pn.widgets.Button(name='Sommer-Tag', button_type='default', width=120)
+        btn_jahr = pn.widgets.Button(name='Ganzes Jahr', button_type='success', width=120)
+
+        btn_erste_woche.on_click(lambda event: set_erste_woche())
+        btn_winter.on_click(lambda event: set_winter_tag())
+        btn_sommer.on_click(lambda event: set_sommer_tag())
+        btn_jahr.on_click(lambda event: set_komplettes_jahr())
+
+        quick_filters = pn.Row(
+            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            btn_erste_woche,
+            btn_winter,
+            btn_sommer,
+            btn_jahr,
+            sizing_mode='stretch_width'
+        )
+
+        # Aggregation selector
+        aggregation = pn.widgets.Select(
+            name='📊 Aggregation',
+            options=['Stündlich', 'Täglich', 'Wöchentlich', 'Monatlich'],
+            value='Stündlich'
         )
 
         # Plot type selector
@@ -449,7 +768,9 @@ class EnerGISDashboard:
         controls = pn.Card(
             heat_selector,
             time_slider,
-            plot_type,
+            quick_filters,
+            pn.layout.Divider(),
+            pn.Row(aggregation, plot_type),
             title="⚙️ Steuerung",
             collapsed=False,
             sizing_mode='stretch_width'
@@ -459,7 +780,7 @@ class EnerGISDashboard:
             pn.pane.Markdown("### 🔥 Wärmebilanz"),
             create_heat_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("### ⚡ Elektrische Bilanz"),
+            pn.pane.Markdown("### η Elektrische Bilanz"),
             elec_plot,
         )
 
@@ -661,10 +982,24 @@ class EnerGISDashboard:
                     "## ⚠️ Keine Kostendaten verfügbar\n\n"
                     "Das Workflow-Ergebnis enthält keine Kostendaten. Mögliche Ursachen:\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
-                    "- result.costs ist leer oder None\n"
+                    "- `result.costs` ist leer oder None\n"
                     "- Keine Kosteneinträge mit '_EUR' Endung gefunden\n\n"
-                    "Prüfe ob die Optimierung erfolgreich durchgelaufen ist und ob "
-                    "Kostenkomponenten in der Konfiguration aktiviert sind."
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe Kostendaten\n"
+                    "primary_result = workflow.rh_result or workflow.pf_result\n"
+                    "print('Costs available:', primary_result.costs)\n"
+                    "print('EUR entries:', [k for k in primary_result.costs.keys() if '_EUR' in k])\n"
+                    "```\n\n"
+                    "**Häufige Lösungen:**\n"
+                    "- Aktiviere Kostenberechnung in der Konfiguration:\n"
+                    "  ```yaml\n"
+                    "  costs:\n"
+                    "    include_capex_costs: true\n"
+                    "    include_gridcost_in_energy: true\n"
+                    "  ```\n"
+                    "- Prüfe ob die Optimierung erfolgreich durchgelaufen ist\n"
+                    "- Prüfe ob Solver-Optionen korrekt konfiguriert sind"
                 )
             )
 
@@ -701,7 +1036,7 @@ class EnerGISDashboard:
         return pn.Column(
             pn.Row(
                 pn.Column(
-                    pn.pane.Markdown("## 📊 Kostenaufteilung"),
+                    pn.pane.Markdown("## ■ Kostenaufteilung"),
                     cost_plot,
                 ),
                 pn.Column(
@@ -763,9 +1098,26 @@ class EnerGISDashboard:
                     "- Kein PF-Schritt wurde ausgeführt (Design wird in PF erstellt)\n"
                     "- Die PF-Optimierung ist fehlgeschlagen\n"
                     "- RH-Only Modus ohne vorheriges PF\n\n"
-                    "Um Design-Daten zu erhalten:\n"
-                    "- Führe einen PF-Schritt aus (z.B. PF_THEN_RH)\n"
-                    "- Oder lade ein bestehendes Design mit `pf_design_json`"
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe Design-Verfügbarkeit\n"
+                    "print('Workflow plan:', workflow.plan.steps)\n"
+                    "print('Design available:', workflow.design is not None)\n"
+                    "if workflow.design:\n"
+                    "    print('Heat pumps:', workflow.design.heat_pumps)\n"
+                    "    print('Storage:', workflow.design.storage)\n"
+                    "```\n\n"
+                    "**Um Design-Daten zu erhalten:**\n"
+                    "- Führe einen PF-Schritt aus:\n"
+                    "  ```yaml\n"
+                    "  scenario:\n"
+                    "    workflow: ['PF', 'RH']  # oder run_mode: PF_THEN_RH\n"
+                    "  ```\n"
+                    "- Oder lade ein bestehendes Design:\n"
+                    "  ```yaml\n"
+                    "  scenario:\n"
+                    "    pf_design_json: 'path/to/design.json'\n"
+                    "  ```"
                 )
             )
 
@@ -827,7 +1179,7 @@ class EnerGISDashboard:
         json_pane = pn.pane.JSON(design_json, sizing_mode='stretch_width', depth=2)
 
         return pn.Column(
-            pn.pane.Markdown("## 🏭 Anlagenauslegung"),
+            pn.pane.Markdown("## ▦ Anlagenauslegung"),
             capacity_plot,
             pn.layout.Divider(),
             pn.pane.Markdown("## 📋 Kapazitätstabelle"),
@@ -913,7 +1265,7 @@ class EnerGISDashboard:
             pn.pane.Markdown(f"## 🔀 PF vs {comp_label} Vergleich"),
             comp_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("## 📊 Kennzahlen"),
+            pn.pane.Markdown("## ■ Kennzahlen"),
             comp_table,
             pn.layout.Divider(),
             pn.pane.Markdown("## 💡 Interpretation"),
@@ -946,6 +1298,312 @@ class EnerGISDashboard:
         )
 
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+    def _create_duration_curve_tab(self) -> pn.Column:
+        """Create load duration curve tab."""
+
+        if len(self.df) == 0:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+
+        # Berechne Jahresdauerlinien
+        demand_sorted = sorted(self.df['demand_MW'].values, reverse=True)
+        hours = list(range(len(demand_sorted)))
+
+        # Wärmeerzeugung pro Komponente
+        heat_production = {}
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                values = sorted(self.df[comp].values, reverse=True)
+                heat_production[comp] = values
+
+        # Plot erstellen
+        fig = go.Figure()
+
+        # Wärmebedarf
+        fig.add_trace(go.Scatter(
+            x=hours,
+            y=demand_sorted,
+            mode='lines',
+            name='Wärmebedarf',
+            line=dict(color='red', width=3),
+        ))
+
+        # Erzeuger
+        for comp, values in heat_production.items():
+            comp_name = comp.replace('_Q_th_MW', '')
+            fig.add_trace(go.Scatter(
+                x=hours,
+                y=values,
+                mode='lines',
+                name=comp_name,
+                line=dict(color=self._get_component_color(comp), width=2),
+            ))
+
+        fig.update_layout(
+            title='Jahresdauerlinie - Wärmeerzeugung',
+            xaxis_title='Betriebsstunden [h]',
+            yaxis_title='Leistung [MW]',
+            height=600,
+            hovermode='x unified',
+            legend=dict(x=0.7, y=0.98)
+        )
+
+        # Statistiken berechnen
+        total_hours = len(demand_sorted)
+        peak_demand = demand_sorted[0] if demand_sorted else 0
+        avg_demand = np.mean(demand_sorted) if demand_sorted else 0
+
+        # Volllast-Stunden berechnen (>80% der Spitzenlast)
+        full_load_threshold = peak_demand * 0.8
+        full_load_hours = sum(1 for d in demand_sorted if d >= full_load_threshold)
+
+        stats_md = f"""
+### ■ Statistiken
+
+| Kennzahl | Wert |
+|----------|------|
+| **Spitzenlast** | {peak_demand:.2f} MW |
+| **Durchschnittslast** | {avg_demand:.2f} MW |
+| **Auslastungsfaktor** | {(avg_demand/peak_demand*100) if peak_demand > 0 else 0:.1f} % |
+| **Volllast-Stunden (>80%)** | {full_load_hours:,} h |
+| **Gesamt-Betriebsstunden** | {total_hours:,} h |
+
+💡 **Interpretation:**
+- Volllast-Stunden zeigen, wie oft Spitzenlast-Erzeuger benötigt werden
+- Niedriger Auslastungsfaktor deutet auf hohe Lastspitzen hin
+- Jahresdauerlinie hilft bei der Dimensionierung von Grund- vs. Spitzenlast
+"""
+
+        return pn.Column(
+            pn.pane.Markdown("## ▬ Jahresdauerlinie (Load Duration Curve)"),
+            pn.pane.Markdown(
+                "*Die Jahresdauerlinie zeigt die sortierte Häufigkeitsverteilung der Lasten. "
+                "Sie ist essentiell für die Dimensionierung und zeigt, wie oft bestimmte Lastbereiche auftreten.*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
+
+    def _create_efficiency_tab(self) -> pn.Column:
+        """Create efficiency and COP analysis tab."""
+
+        if len(self.df) == 0:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+
+        # Finde COP-Spalten
+        cop_cols = [col for col in self.df.columns if 'COP' in col or 'cop' in col]
+
+        if not cop_cols:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine COP-Daten verfügbar\n\n"
+                    "Es wurden keine COP (Coefficient of Performance) Daten in den Ergebnissen gefunden.\n\n"
+                    "**Verfügbare Spalten:**\n"
+                    f"```\n{', '.join(self.df.columns[:20])}...\n```\n\n"
+                    "**Hinweis:** COP-Daten werden möglicherweise nicht in den series exportiert. "
+                    "Diese könnten in den Notebooks berechnet und hinzugefügt werden."
+                )
+            )
+
+        # COP über Zeit
+        fig_cop_time = go.Figure()
+
+        for cop_col in cop_cols:
+            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+            fig_cop_time.add_trace(go.Scatter(
+                x=list(range(len(self.df))),
+                y=self.df[cop_col],
+                mode='lines',
+                name=comp_name,
+                line=dict(width=2)
+            ))
+
+        fig_cop_time.update_layout(
+            title='COP über Zeit',
+            xaxis_title='Zeitschritt',
+            yaxis_title='COP [-]',
+            height=400,
+            hovermode='x unified'
+        )
+
+        # COP Statistiken
+        cop_stats = []
+        for cop_col in cop_cols:
+            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+            values = self.df[cop_col].dropna()
+            if len(values) > 0:
+                cop_stats.append({
+                    'Komponente': comp_name,
+                    'Durchschnitt': values.mean(),
+                    'Minimum': values.min(),
+                    'Maximum': values.max(),
+                    'Median': values.median()
+                })
+
+        if cop_stats:
+            cop_stats_df = pd.DataFrame(cop_stats)
+
+            # Box-Plot
+            fig_cop_box = go.Figure()
+
+            for cop_col in cop_cols:
+                comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+                values = self.df[cop_col].dropna()
+
+                fig_cop_box.add_trace(go.Box(
+                    y=values,
+                    name=comp_name,
+                    boxmean='sd'
+                ))
+
+            fig_cop_box.update_layout(
+                title='COP Verteilung (Box-Plot)',
+                yaxis_title='COP [-]',
+                height=400,
+                showlegend=True
+            )
+
+            stats_md = f"""
+### ■ COP Statistiken
+
+Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance:
+"""
+
+            # Tabelle
+            from panel.widgets import Tabulator
+            stats_table = Tabulator(
+                cop_stats_df,
+                formatters={
+                    'Durchschnitt': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Minimum': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Maximum': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Median': {'type': 'money', 'symbol': '', 'precision': 2},
+                },
+                show_index=False,
+                theme='modern',
+                sizing_mode='stretch_width'
+            )
+
+            return pn.Column(
+                pn.pane.Markdown("## η Effizienz & COP Analyse"),
+                pn.pane.Markdown(stats_md),
+                stats_table,
+                pn.layout.Divider(),
+                pn.pane.Markdown("### COP Zeitverlauf"),
+                pn.pane.Plotly(fig_cop_time, sizing_mode='stretch_width'),
+                pn.layout.Divider(),
+                pn.pane.Markdown("### COP Verteilung"),
+                pn.pane.Plotly(fig_cop_box, sizing_mode='stretch_width'),
+                sizing_mode='stretch_width'
+            )
+
+        return pn.Column(pn.pane.Markdown("## ⚠️ Keine COP-Statistiken verfügbar"))
+
+    def _create_sankey_tab(self) -> pn.Column:
+        """Create Sankey diagram for energy flows."""
+
+        if len(self.df) == 0 or not self.heat_components:
+            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar für Energiefluss-Diagramm"))
+
+        # Aggregiere Energieflüsse über gesamten Zeitraum
+        # Quelle: Komponenten → Ziel: Wärmenetz
+
+        nodes = []
+        links = []
+        node_indices = {}
+
+        # Node 0: Wärmenetz (Ziel)
+        nodes.append("Wärmenetz")
+        node_indices["Wärmenetz"] = 0
+
+        # Wärmeerzeuger als Quellen
+        idx = 1
+        total_production = {}
+
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                total = self.df[comp].sum()
+                if total > 0.01:  # Nur relevante Beiträge
+                    comp_name = comp.replace('_Q_th_MW', '')
+                    nodes.append(comp_name)
+                    node_indices[comp_name] = idx
+                    total_production[comp_name] = total
+                    idx += 1
+
+        # Erstelle Links von Erzeugern zum Wärmenetz
+        for comp_name, total in total_production.items():
+            links.append({
+                'source': node_indices[comp_name],
+                'target': 0,  # Wärmenetz
+                'value': total
+            })
+
+        if not links:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine Energieflüsse erkannt\n\n"
+                    "Möglicherweise sind alle Komponenten inaktiv oder die Werte zu gering."
+                )
+            )
+
+        # Sankey-Diagramm erstellen
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=nodes,
+                color=['#EE6677'] + ['#4477AA'] * (len(nodes) - 1)
+            ),
+            link=dict(
+                source=[l['source'] for l in links],
+                target=[l['target'] for l in links],
+                value=[l['value'] for l in links],
+                color='rgba(68, 119, 170, 0.4)'
+            )
+        )])
+
+        fig.update_layout(
+            title='Energiefluss-Diagramm (Sankey)',
+            font=dict(size=12),
+            height=600
+        )
+
+        # Statistiken
+        total_demand = self.df['demand_MW'].sum()
+        total_gen = sum(total_production.values())
+
+        stats_md = f"""
+### ■ Energie-Bilanz
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-Wärmebedarf** | {total_demand:,.0f} MWh |
+| **Gesamt-Erzeugung** | {total_gen:,.0f} MWh |
+| **Bilanz** | {(total_gen - total_demand):,.0f} MWh ({((total_gen/total_demand - 1)*100) if total_demand > 0 else 0:.1f}%) |
+
+### 🔥 Erzeugung nach Quelle
+"""
+
+        # Sortiere Erzeuger nach Beitrag
+        sorted_prod = sorted(total_production.items(), key=lambda x: x[1], reverse=True)
+        for comp, value in sorted_prod:
+            percentage = (value / total_gen * 100) if total_gen > 0 else 0
+            stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        return pn.Column(
+            pn.pane.Markdown("## ⇄ Energiefluss-Diagramm (Sankey)"),
+            pn.pane.Markdown(
+                "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
+                "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
 
     def _get_component_color(self, component: str) -> str:
         """Get color for component based on type."""
