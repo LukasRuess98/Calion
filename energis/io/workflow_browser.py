@@ -319,12 +319,20 @@ class WorkflowBrowser:
             # Rescan workflows
             self.available_workflows = self._scan_workflows()
 
+            # Reset selector value first (important for Panel to recognize change)
+            workflow_selector.value = None
+
             # Update dropdown options with unique labels
             new_options = create_workflow_options(self.available_workflows)
             workflow_selector.options = new_options
 
+            # Force Panel to update the widget
+            workflow_selector.param.trigger('options')
+
             # Update status
             refresh_status.object = f"✅ {len(self.available_workflows)} Simulationen gefunden"
+
+            logger.info(f"Refreshed: {len(self.available_workflows)} workflows found, {len(new_options)} options created")
 
             # Clear status after 3 seconds
             import time
