@@ -417,6 +417,12 @@ class EnerGISDashboard:
         self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
         self.storage_cols = [col for col in self.df.columns if 'TES' in col]
 
+        # ✅ Extrahiere dt_h (Zeitschrittdauer in Stunden) für CO2-Berechnungen
+        self.dt_h = 1.0  # Default: 1 Stunde
+        if hasattr(self.workflow, 'config') and self.workflow.config:
+            run_cfg = self.workflow.config.get('run', {})
+            self.dt_h = float(run_cfg.get('dt_h', 1.0))
+
         # Log component detection
         if not self.heat_components and not self.elec_components:
             import logging
@@ -1682,7 +1688,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         )
 
     def _create_emissions_tab(self) -> pn.Column:
-        """Create CO2 emissions analysis tab."""
+        """Create CO2 emissions analysis tab with interactive time filtering."""
 
         # Check if we have any CO2 data
         if self.total_co2_t == 0 and self.co2_cost_eur == 0:
@@ -1752,8 +1758,70 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         # Aggregierte Emissionstabelle nach Quelle
         emissions_table = self._create_emissions_table()
 
-        # Time series plot (falls verfügbar)
-        timeseries_plot = self._create_co2_timeseries_plot()
+        # ✅ INTERAKTIVER ZEITBEREICH-SLIDER für Zeitreihen
+        total_hours = len(self.df)
+        time_slider = pn.widgets.IntRangeSlider(
+            name='📅 Zeitbereich (Stunden)',
+            start=0,
+            end=total_hours,
+            value=(0, min(168, total_hours)),  # Default: erste Woche
+            step=24,
+            sizing_mode='stretch_width'
+        )
+
+        # Quick-Filter Buttons
+        def set_erste_woche():
+            time_slider.value = (0, min(168, total_hours))
+
+        def set_winter_tag():
+            if 'demand_MW' in self.df.columns:
+                winter_idx = self.df['demand_MW'].idxmax()
+                start = max(0, winter_idx - 12)
+                end = min(total_hours, winter_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_sommer_tag():
+            if 'demand_MW' in self.df.columns:
+                summer_idx = self.df['demand_MW'].idxmin()
+                start = max(0, summer_idx - 12)
+                end = min(total_hours, summer_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_komplettes_jahr():
+            time_slider.value = (0, total_hours)
+
+        btn_erste_woche = pn.widgets.Button(name='Erste Woche', button_type='primary', width=120)
+        btn_winter = pn.widgets.Button(name='Winter-Tag', button_type='default', width=120)
+        btn_sommer = pn.widgets.Button(name='Sommer-Tag', button_type='default', width=120)
+        btn_jahr = pn.widgets.Button(name='Ganzes Jahr', button_type='success', width=120)
+
+        btn_erste_woche.on_click(lambda event: set_erste_woche())
+        btn_winter.on_click(lambda event: set_winter_tag())
+        btn_sommer.on_click(lambda event: set_sommer_tag())
+        btn_jahr.on_click(lambda event: set_komplettes_jahr())
+
+        quick_filters = pn.Row(
+            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            btn_erste_woche,
+            btn_winter,
+            btn_sommer,
+            btn_jahr,
+            sizing_mode='stretch_width'
+        )
+
+        # Reaktiver CO2-Zeitreihen-Plot
+        @pn.depends(time_slider)
+        def create_co2_timeseries(time_range):
+            return self._create_co2_timeseries_plot(time_range)
+
+        # Controls für Zeitreihen
+        controls = pn.Card(
+            time_slider,
+            quick_filters,
+            title="⚙️ Zeitbereich-Filter",
+            collapsed=False,
+            sizing_mode='stretch_width'
+        )
 
         return pn.Column(
             pn.pane.Markdown("## 🌍 CO₂-Emissionen Analyse"),
@@ -1774,11 +1842,12 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 ),
             ),
             pn.layout.Divider(),
-            pn.pane.Markdown("### 📋 Emissionen nach Quelle"),
+            pn.pane.Markdown("### 📋 Emissionen nach Quelle (Gesamtzeitraum)"),
             emissions_table,
             pn.layout.Divider(),
             pn.pane.Markdown("### ■ CO₂-Emissionen Zeitverlauf"),
-            timeseries_plot,
+            controls,
+            create_co2_timeseries,
             sizing_mode='stretch_width'
         )
 
@@ -1871,38 +1940,59 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         return table
 
-    def _create_co2_timeseries_plot(self):
-        """Create CO2 emissions time series plot if data available."""
+    def _create_co2_timeseries_plot(self, time_range: tuple = None):
+        """Create CO2 emissions time series plot with optional time filtering.
+
+        Parameters
+        ----------
+        time_range : tuple, optional
+            (start_idx, end_idx) for filtering, by default None (use all data)
+        """
 
         if not HAVE_PLOTLY:
             return pn.pane.Markdown("*Plotly nicht verfügbar*")
+
+        # Wende Zeitfilter an wenn gegeben
+        if time_range:
+            start, end = time_range
+            df_subset = self.df.iloc[start:end]
+        else:
+            df_subset = self.df
 
         # Suche nach CO2-relevanten Zeitreihen in den Daten
         # Mögliche Spalten: Grid CO2, Fuel CO2, component-specific emissions
         co2_series = []
 
-        # Grid CO2 aus P_buy berechnen falls verfügbar
-        if 'P_buy_MW' in self.df.columns and 'grid_co2_kg_MWh' in self.df.columns:
+        # ✅ FIX: Grid CO2 aus P_buy berechnen mit korrektem dt_h
+        if 'P_buy_MW' in df_subset.columns and 'grid_co2_kg_MWh' in df_subset.columns:
             # Berechne stündliche Grid-CO2-Emissionen
-            grid_co2_series = self.df['P_buy_MW'] * self.df['grid_co2_kg_MWh'] / 1000.0  # in Tonnen
+            # P_buy_MW * dt_h = MWh (Energie im Zeitschritt)
+            # MWh * kg/MWh = kg CO2
+            # kg / 1000 = Tonnen CO2
+            grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * df_subset['grid_co2_kg_MWh'] / 1000.0
             co2_series.append(('Grid CO₂', grid_co2_series))
-        elif 'P_buy_MW' in self.df.columns:
+        elif 'P_buy_MW' in df_subset.columns:
             # Falls kein grid_co2_kg_MWh, aber P_buy vorhanden, verwende Durchschnittswert
-            if self.grid_co2_t > 0 and self.df['P_buy_MW'].sum() > 0:
-                avg_grid_intensity = self.grid_co2_t * 1000 / self.df['P_buy_MW'].sum()  # kg/MWh
-                grid_co2_series = self.df['P_buy_MW'] * avg_grid_intensity / 1000.0  # in Tonnen
-                co2_series.append(('Grid CO₂ (approx)', grid_co2_series))
+            if self.grid_co2_t > 0:
+                # Berechne durchschnittliche CO2-Intensität aus aggregierten Daten
+                total_energy_bought = self.df['P_buy_MW'].sum() * self.dt_h  # MWh
+                if total_energy_bought > 0:
+                    avg_grid_intensity = self.grid_co2_t * 1000 / total_energy_bought  # kg/MWh
+                    grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * avg_grid_intensity / 1000.0
+                    co2_series.append(('Grid CO₂ (approx)', grid_co2_series))
 
         # Suche nach direkten CO2-Spalten in series
-        for col in self.df.columns:
+        for col in df_subset.columns:
             if 'co2' in col.lower() or 'emission' in col.lower():
                 if col not in ['grid_co2_kg_MWh']:  # Skip intensity factors
-                    co2_series.append((col, self.df[col]))
+                    co2_series.append((col, df_subset[col]))
 
         if not co2_series:
             return pn.pane.Markdown(
                 "*Keine zeitaufgelösten CO₂-Daten verfügbar für Zeitreihen-Plot.*\n\n"
-                "Die aggregierten Werte (Grid: {:.1f} t, Fuel: {:.1f} t) sind oben zu sehen.".format(
+                "Die aggregierten Werte (Grid: {:.1f} t, Fuel: {:.1f} t) sind oben in der Zusammenfassung zu sehen.\n\n"
+                "**Hinweis:** Für detaillierte CO₂-Zeitreihen müssen die entsprechenden Spalten "
+                "in den Ergebnissen exportiert werden.".format(
                     self.grid_co2_t, self.fuel_co2_t
                 )
             )
@@ -1912,20 +2002,31 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         for name, series in co2_series:
             fig.add_trace(go.Scatter(
-                x=self.df['timestamp'],
+                x=df_subset['timestamp'],
                 y=series,
                 mode='lines',
                 name=name,
                 stackgroup='one' if len(co2_series) > 1 else None,
-                line=dict(width=1)
+                line=dict(width=1),
+                hovertemplate='%{y:.4f} t CO₂<extra></extra>'
             ))
+
+        # Berechne Statistiken für gefilterten Zeitraum
+        total_co2_filtered = sum(series.sum() for _, series in co2_series)
+        time_span_h = len(df_subset) * self.dt_h
 
         fig.update_layout(
             height=400,
             xaxis_title='Zeit',
-            yaxis_title='CO₂-Emissionen [t/h]',
+            yaxis_title=f'CO₂-Emissionen [t / {self.dt_h}h]',
             hovermode='x unified',
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            title=dict(
+                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO₂',
+                font=dict(size=12),
+                x=0.5,
+                xanchor='center'
+            )
         )
 
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
