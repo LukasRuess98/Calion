@@ -250,17 +250,13 @@ class WorkflowBrowser:
                 {len(self.available_workflows)} gespeicherte Simulationen | Institut für Energieeffizienz in der Produktion EEP
             </p>
         </div>
-        <div style="text-align: right; margin-left: 30px; border-left: 2px solid rgba(255,255,255,0.3); padding-left: 30px;">
-            <svg width="80" height="80" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <!-- Uni Stuttgart Logo Stilisiert -->
-                <rect x="10" y="10" width="35" height="35" fill="#FFD800"/>
-                <rect x="55" y="10" width="35" height="35" fill="white"/>
-                <rect x="10" y="55" width="35" height="35" fill="white"/>
-                <rect x="55" y="55" width="35" height="35" fill="#FFD800"/>
-                <text x="50" y="105" text-anchor="middle" font-size="12" fill="white" font-weight="700" font-family="Arial">
-                    UNIVERSITÄT STUTTGART
-                </text>
-            </svg>
+        <div style="text-align: right; margin-left: 30px;">
+            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
+                UNIVERSITÄT
+            </div>
+            <div style="font-size: 24px; font-weight: 700; letter-spacing: 2px; color: white;">
+                STUTTGART
+            </div>
         </div>
     </div>
 </div>
