@@ -1,0 +1,18 @@
+scenario:
+  title: MPC with Persistence Forecast
+  run_mode: MPC_ONLY
+  workflow:
+    - MPC
+  fix_design: false
+  rolling_horizon:
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: free
+  mpc:
+    forecast_method: "persistence"
+    forecast_horizon_hours: 168.0  # 1 week forecast horizon
+    update_frequency_hours: 24.0   # Daily forecast updates
+
+  horizon:
+    type: full_year
+    year: 2023

@@ -1,0 +1,20 @@
+{
+  "scenario_title": "Test_1_Week",
+  "run_mode": "PF_ONLY",
+  "workflow_steps": [
+    "PF"
+  ],
+  "flags": {
+    "has_pf": true,
+    "has_rh": false,
+    "has_mpc": false,
+    "has_design": true
+  },
+  "export_timestamp": "20251202_040242",
+  "slug": "test-1week-optimized",
+  "output_directory": "exports\\20251202_040242_test-1week-optimized",
+  "files": {
+    "scenario_xlsx": "scenario.xlsx",
+    "pf_design_json": "pf_design.json"
+  }
+}
