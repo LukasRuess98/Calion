@@ -5,9 +5,10 @@ This module provides a comprehensive, interactive dashboard for exploring
 optimization results from EnerGIS workflows (PF, RH, MPC).
 
 Features:
-- Multi-tab interface with Overview, Timeseries, Costs, Design, Comparison
+- Multi-tab interface with Overview, Timeseries, Emissions, Costs, Design, Comparison
 - Interactive plots with Plotly/Holoviews
 - Real-time component selection and filtering
+- CO2 emissions tracking and visualization
 - Export functionality
 - Responsive design
 
@@ -455,6 +456,29 @@ class EnerGISDashboard:
             import logging
             logging.warning("Dashboard: result.costs is empty or missing")
 
+        # ✅ CO2-Daten extrahieren
+        self.total_co2_t = 0
+        self.grid_co2_t = 0
+        self.fuel_co2_t = 0
+        self.co2_cost_eur = 0
+
+        if hasattr(result, 'summary') and result.summary:
+            # Versuche CO2 aus summary.grid zu holen
+            if 'grid' in result.summary:
+                self.total_co2_t = result.summary['grid'].get('Total_CO2_emissions_t', 0)
+                self.grid_co2_t = result.summary['grid'].get('Grid_CO2_emissions_t', 0)
+
+        if hasattr(result, 'costs') and result.costs:
+            # CO2-Kosten und Fuel-Emissionen aus costs
+            self.co2_cost_eur = result.costs.get('objective.CO2_cost_EUR', 0)
+            self.fuel_co2_t = result.costs.get('Fuel_emissions_t', 0)
+
+            # Falls Total_CO2 nicht in summary gefunden wurde, versuche es aus costs
+            if self.total_co2_t == 0:
+                # Berechne aus Grid + Fuel falls verfügbar
+                if self.grid_co2_t > 0 or self.fuel_co2_t > 0:
+                    self.total_co2_t = self.grid_co2_t + self.fuel_co2_t
+
     def create(self) -> pn.Tabs:
         """Create the complete dashboard with all tabs."""
 
@@ -464,6 +488,7 @@ class EnerGISDashboard:
             ('▬ Jahresdauerlinie', self._create_duration_curve_tab()),
             ('η Effizienz & COP', self._create_efficiency_tab()),
             ('⇄ Energieflüsse', self._create_sankey_tab()),
+            ('🌍 Emissionen', self._create_emissions_tab()),
             ('€ Kosten', self._create_costs_tab()),
             ('▦ Anlagen-Design', self._create_design_tab()),
             dynamic=True
@@ -559,7 +584,7 @@ class EnerGISDashboard:
         avg_demand = total_demand_MWh / total_timesteps if total_timesteps > 0 else 0
         load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
 
-        # Create cards - erweitert mit Autarkie
+        # Create cards - erweitert mit Autarkie und CO2
         cards = pn.GridBox(
             self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
@@ -570,7 +595,8 @@ class EnerGISDashboard:
             self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
             self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
             self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
-            ncols=3,
+            self._create_kpi_card("🌍 CO₂-Emissionen", f"{self.total_co2_t:,.1f} t", "warning"),
+            ncols=5,
             sizing_mode='stretch_width'
         )
 
@@ -1654,6 +1680,255 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             pn.pane.Markdown(stats_md),
             sizing_mode='stretch_width'
         )
+
+    def _create_emissions_tab(self) -> pn.Column:
+        """Create CO2 emissions analysis tab."""
+
+        # Check if we have any CO2 data
+        if self.total_co2_t == 0 and self.co2_cost_eur == 0:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine CO₂-Emissionsdaten verfügbar\n\n"
+                    "Das Workflow-Ergebnis enthält keine CO₂-Daten. Mögliche Ursachen:\n"
+                    "- CO₂-Berechnung ist in der Konfiguration deaktiviert\n"
+                    "- Die Optimierung ist fehlgeschlagen\n"
+                    "- CO₂-Daten wurden nicht exportiert\n\n"
+                    "**Um CO₂-Tracking zu aktivieren:**\n"
+                    "```yaml\n"
+                    "costs:\n"
+                    "  include_co2_cost_in_objective: true\n"
+                    "  co2_price_eur_per_t: 100.0  # EUR pro Tonne CO₂\n"
+                    "```\n\n"
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe CO₂-Daten\n"
+                    "primary_result = workflow.rh_result or workflow.pf_result\n"
+                    "print('Summary:', primary_result.summary.get('grid', {}))\n"
+                    "print('CO2 costs:', primary_result.costs.get('objective.CO2_cost_EUR', 0))\n"
+                    "```"
+                )
+            )
+
+        # KPI-Karten für CO2-Übersicht
+        co2_kpis = pn.GridBox(
+            self._create_kpi_card("🌍 Gesamt-CO₂", f"{self.total_co2_t:,.1f} t", "warning"),
+            self._create_kpi_card("⚡ CO₂ (Strom)", f"{self.grid_co2_t:,.1f} t", "info"),
+            self._create_kpi_card("🔥 CO₂ (Brennstoff)", f"{self.fuel_co2_t:,.1f} t", "danger"),
+            self._create_kpi_card("💰 CO₂-Kosten", f"{self.co2_cost_eur:,.0f} €", "primary"),
+            ncols=4,
+            sizing_mode='stretch_width'
+        )
+
+        # Berechne CO2-Intensität (kg CO2 pro MWh Wärme)
+        co2_intensity = (self.total_co2_t * 1000 / self.original_total_demand_MWh) if self.original_total_demand_MWh > 0 else 0
+
+        # Berechne CO2-Kosten als Anteil der Gesamtkosten
+        result = self.primary_result
+        total_cost = result.costs.get('objective.OBJ_value_EUR', 0) if hasattr(result, 'costs') else 0
+        co2_cost_percentage = (self.co2_cost_eur / total_cost * 100) if total_cost > 0 else 0
+
+        # Zusammenfassungs-Statistiken
+        summary_md = f"""
+### ■ CO₂-Bilanz Zusammenfassung
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-CO₂-Emissionen** | {self.total_co2_t:,.1f} t CO₂eq |
+| **CO₂ aus Strombezug** | {self.grid_co2_t:,.1f} t ({(self.grid_co2_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO₂ aus Brennstoffen** | {self.fuel_co2_t:,.1f} t ({(self.fuel_co2_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO₂-Intensität** | {co2_intensity:.1f} kg CO₂/MWh_th |
+| **CO₂-Kosten** | {self.co2_cost_eur:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
+| **Wärmeerzeugung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |
+
+💡 **Interpretation:**
+- CO₂-Intensität zeigt die Emissionen pro MWh bereitgestellter Wärme
+- Niedrige Intensität deutet auf effiziente, CO₂-arme Wärmeerzeugung hin
+- Typische Vergleichswerte: Gaskessel ~200 kg/MWh, Wärmepumpe (Strom-Mix) ~50-150 kg/MWh
+"""
+
+        # CO2-Breakdown Pie Chart
+        breakdown_plot = self._create_co2_breakdown_plot()
+
+        # Aggregierte Emissionstabelle nach Quelle
+        emissions_table = self._create_emissions_table()
+
+        # Time series plot (falls verfügbar)
+        timeseries_plot = self._create_co2_timeseries_plot()
+
+        return pn.Column(
+            pn.pane.Markdown("## 🌍 CO₂-Emissionen Analyse"),
+            pn.pane.Markdown(
+                "*Dieses Tab zeigt die CO₂-Emissionen des Energiesystems. "
+                "CO₂-Emissionen entstehen durch Strombezug (Grid-CO₂) und direkten Brennstoffeinsatz.*"
+            ),
+            co2_kpis,
+            pn.layout.Divider(),
+            pn.Row(
+                pn.Column(
+                    pn.pane.Markdown(summary_md),
+                    width=500
+                ),
+                pn.Column(
+                    pn.pane.Markdown("### 📊 CO₂-Quellen Breakdown"),
+                    breakdown_plot,
+                ),
+            ),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### 📋 Emissionen nach Quelle"),
+            emissions_table,
+            pn.layout.Divider(),
+            pn.pane.Markdown("### ■ CO₂-Emissionen Zeitverlauf"),
+            timeseries_plot,
+            sizing_mode='stretch_width'
+        )
+
+    def _create_co2_breakdown_plot(self):
+        """Create CO2 breakdown pie chart (Grid vs. Fuel)."""
+
+        if not HAVE_PLOTLY:
+            return pn.pane.Markdown("*Plotly nicht verfügbar*")
+
+        # Daten vorbereiten
+        labels = []
+        values = []
+
+        if self.grid_co2_t > 0.01:
+            labels.append('Strombezug')
+            values.append(self.grid_co2_t)
+
+        if self.fuel_co2_t > 0.01:
+            labels.append('Brennstoffe')
+            values.append(self.fuel_co2_t)
+
+        if not values:
+            return pn.pane.Markdown("*Keine CO₂-Daten für Breakdown verfügbar*")
+
+        # Pie Chart erstellen
+        fig = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.4,  # Donut chart
+            marker=dict(colors=['#0dcaf0', '#dc3545']),
+            textinfo='label+percent',
+            textfont_size=14,
+            hovertemplate='<b>%{label}</b><br>%{value:.1f} t CO₂<br>%{percent}<extra></extra>'
+        )])
+
+        fig.update_layout(
+            height=400,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5)
+        )
+
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+    def _create_emissions_table(self):
+        """Create aggregated emissions table by source."""
+
+        # Erstelle Tabelle mit CO2-Quellen
+        emissions_data = []
+
+        if self.grid_co2_t > 0:
+            emissions_data.append({
+                'Quelle': 'Strombezug (Grid)',
+                'CO2_t': self.grid_co2_t,
+                'Anteil_%': (self.grid_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Typ': 'Elektrisch'
+            })
+
+        if self.fuel_co2_t > 0:
+            emissions_data.append({
+                'Quelle': 'Brennstoffe',
+                'CO2_t': self.fuel_co2_t,
+                'Anteil_%': (self.fuel_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Typ': 'Thermisch'
+            })
+
+        # Gesamt-Zeile hinzufügen
+        emissions_data.append({
+            'Quelle': 'GESAMT',
+            'CO2_t': self.total_co2_t,
+            'Anteil_%': 100.0,
+            'Typ': '-'
+        })
+
+        if not emissions_data:
+            return pn.pane.Markdown("*Keine Emissionsdaten verfügbar*")
+
+        emissions_df = pd.DataFrame(emissions_data)
+
+        # Formatierte Tabelle
+        table = pn.widgets.Tabulator(
+            emissions_df,
+            sizing_mode='stretch_width',
+            theme='modern',
+            show_index=False,
+            formatters={
+                'CO2_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'Anteil_%': {'type': 'progress', 'max': 100, 'legend': True}
+            }
+        )
+
+        return table
+
+    def _create_co2_timeseries_plot(self):
+        """Create CO2 emissions time series plot if data available."""
+
+        if not HAVE_PLOTLY:
+            return pn.pane.Markdown("*Plotly nicht verfügbar*")
+
+        # Suche nach CO2-relevanten Zeitreihen in den Daten
+        # Mögliche Spalten: Grid CO2, Fuel CO2, component-specific emissions
+        co2_series = []
+
+        # Grid CO2 aus P_buy berechnen falls verfügbar
+        if 'P_buy_MW' in self.df.columns and 'grid_co2_kg_MWh' in self.df.columns:
+            # Berechne stündliche Grid-CO2-Emissionen
+            grid_co2_series = self.df['P_buy_MW'] * self.df['grid_co2_kg_MWh'] / 1000.0  # in Tonnen
+            co2_series.append(('Grid CO₂', grid_co2_series))
+        elif 'P_buy_MW' in self.df.columns:
+            # Falls kein grid_co2_kg_MWh, aber P_buy vorhanden, verwende Durchschnittswert
+            if self.grid_co2_t > 0 and self.df['P_buy_MW'].sum() > 0:
+                avg_grid_intensity = self.grid_co2_t * 1000 / self.df['P_buy_MW'].sum()  # kg/MWh
+                grid_co2_series = self.df['P_buy_MW'] * avg_grid_intensity / 1000.0  # in Tonnen
+                co2_series.append(('Grid CO₂ (approx)', grid_co2_series))
+
+        # Suche nach direkten CO2-Spalten in series
+        for col in self.df.columns:
+            if 'co2' in col.lower() or 'emission' in col.lower():
+                if col not in ['grid_co2_kg_MWh']:  # Skip intensity factors
+                    co2_series.append((col, self.df[col]))
+
+        if not co2_series:
+            return pn.pane.Markdown(
+                "*Keine zeitaufgelösten CO₂-Daten verfügbar für Zeitreihen-Plot.*\n\n"
+                "Die aggregierten Werte (Grid: {:.1f} t, Fuel: {:.1f} t) sind oben zu sehen.".format(
+                    self.grid_co2_t, self.fuel_co2_t
+                )
+            )
+
+        # Plot erstellen
+        fig = go.Figure()
+
+        for name, series in co2_series:
+            fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=series,
+                mode='lines',
+                name=name,
+                stackgroup='one' if len(co2_series) > 1 else None,
+                line=dict(width=1)
+            ))
+
+        fig.update_layout(
+            height=400,
+            xaxis_title='Zeit',
+            yaxis_title='CO₂-Emissionen [t/h]',
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+        )
+
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
     def _get_component_color(self, component: str) -> str:
         """Get color for component based on type."""
