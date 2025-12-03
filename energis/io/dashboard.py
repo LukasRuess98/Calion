@@ -534,6 +534,23 @@ class EnerGISDashboard:
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
             capex = result.costs.get('objective.Capex_cost_EUR', 0)
 
+            # ✅ FALLBACK: Bei fehlendem CAPEX in RH/MPC, nutze PF-CAPEX
+            # Dies ist ein Fallback für den Fall, dass der Backend-Fix noch nicht angewendet wurde
+            # oder bei älteren gespeicherten Workflows
+            if capex == 0 and self.primary_label in ("RH", "MPC") and self.has_pf and self.workflow.pf_result:
+                pf_capex = self.workflow.pf_result.costs.get('objective.Capex_cost_EUR', 0)
+                if pf_capex > 0:
+                    import logging
+                    logging.info(
+                        f"Dashboard: Using PF CAPEX ({pf_capex:,.0f} EUR) as fallback "
+                        f"({self.primary_label} result has no CAPEX)"
+                    )
+                    capex = pf_capex
+                    # Addiere zu Gesamtkosten wenn noch nicht enthalten
+                    # (Prüfen ob CAPEX bereits in total_cost eingerechnet ist)
+                    if 'Capex_cost_EUR' not in result.costs or result.costs['Capex_cost_EUR'] == 0:
+                        total_cost += pf_capex
+
         # ✅ FIX: Berechne Autarkie-Metriken mit ORIGINAL-Summen
         total_heat_production = self.original_total_heat_production
         thermal_autarky = (total_heat_production / total_demand_MWh * 100) if total_demand_MWh > 0 else 0

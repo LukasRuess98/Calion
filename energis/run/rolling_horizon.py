@@ -1466,6 +1466,30 @@ def _rh_step(context: WorkflowContext) -> None:
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
 
+    # ✅ FIX: Bei PF→RH mit fix_design, übertrage Investment-Kosten aus PF
+    # Problem: RH berechnet keine CAPEX bei fix_design=True, aber Dashboard zeigt RH als primary
+    # Lösung: Kopiere alle Investment-Kosten aus PF in RH-aggregierte Kosten
+    if context.pf_result and context.rh_result and context.plan.fix_design:
+        pf_costs = context.pf_result.costs
+        rh_costs = context.rh_result.costs
+
+        # Übertrage alle Investment-Kosten aus PF
+        investment_transferred = False
+        for inv_key in _INVESTMENT_KEYS:
+            if inv_key in pf_costs:
+                pf_value = pf_costs[inv_key]
+                if isinstance(pf_value, (int, float)) and pf_value > 0:
+                    rh_costs[inv_key] = float(pf_value)
+                    investment_transferred = True
+
+        # Recompute total objective wenn Investment übertragen wurde
+        if investment_transferred:
+            _recompute_objective_costs(rh_costs)
+            logger.info(
+                f"Transferred investment costs from PF to RH result "
+                f"(CAPEX: {rh_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+            )
+
 
 def _mpc_step(context: WorkflowContext) -> None:
     """Model Predictive Control with forecast updates."""
@@ -1513,6 +1537,29 @@ def _mpc_step(context: WorkflowContext) -> None:
     # Propagate design if MPC found one
     if context.mpc_result.design is not None:
         context.design = context.design or context.mpc_result.design
+
+    # ✅ FIX: Bei PF→MPC mit fix_design, übertrage Investment-Kosten aus PF
+    # Analoges Problem wie bei PF→RH
+    if context.pf_result and context.mpc_result and context.plan.fix_design:
+        pf_costs = context.pf_result.costs
+        mpc_costs = context.mpc_result.costs
+
+        # Übertrage alle Investment-Kosten aus PF
+        investment_transferred = False
+        for inv_key in _INVESTMENT_KEYS:
+            if inv_key in pf_costs:
+                pf_value = pf_costs[inv_key]
+                if isinstance(pf_value, (int, float)) and pf_value > 0:
+                    mpc_costs[inv_key] = float(pf_value)
+                    investment_transferred = True
+
+        # Recompute total objective wenn Investment übertragen wurde
+        if investment_transferred:
+            _recompute_objective_costs(mpc_costs)
+            logger.info(
+                f"Transferred investment costs from PF to MPC result "
+                f"(CAPEX: {mpc_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+            )
 
 
 def _run_rolling_horizon(
