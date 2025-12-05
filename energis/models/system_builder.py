@@ -821,7 +821,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 'total_eur': co2_heat_cost,
                 'type': 'thermal_generator',
                 'th_eff': float(gpar.get("th_eff", 0.9)),
-                'el_eff': None
+                'el_eff': None,
+                'fuel_bus': fuel_bus
             }
 
             co2_kg_heat_terms.append(co2_heat_kg)
@@ -857,7 +858,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 'total_eur': (m.co2_price / 1000.0) * fuel_co2_kg,
                 'type': 'chp',
                 'th_eff': th_eff,
-                'el_eff': el_eff
+                'el_eff': el_eff,
+                'fuel_bus': fuel_bus
             }
 
             co2_kg_heat_terms.append(co2_heat_kg)
@@ -922,10 +924,16 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     co2_cost_elec_total = sum(co2_cost_elec_terms) if co2_cost_elec_terms else 0
     co2_cost_total = co2_cost_heat_total + co2_cost_elec_total
 
+    # ✅ CO₂-Mengen in kg: Summen aus Komponenten (Wärme/Strom-Aufteilung)
+    co2_kg_heat_total = sum(co2_kg_heat_terms) if co2_kg_heat_terms else 0
+    co2_kg_elec_total = sum(co2_kg_elec_terms) if co2_kg_elec_terms else 0
+
     # Speichere Gesamt-Expressions am Modell für Export
     m.co2_cost_heat_expr = co2_cost_heat_total
     m.co2_cost_elec_expr = co2_cost_elec_total
     m.co2_cost_total_expr = co2_cost_total
+    m.co2_kg_heat_expr = co2_kg_heat_total
+    m.co2_kg_elec_expr = co2_kg_elec_total
 
     # Legacy-Kompatibilität: Gesamt-CO₂ in kg (für alte Reports)
     co2_grid = sum(m.P_buy[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h for t in m.t)
