@@ -1954,7 +1954,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         co2_kpis = pn.GridBox(
             self._create_kpi_card("Gesamt-CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
             self._create_kpi_card("CO₂-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
-            self._create_kpi_card("CO₂-Äq. Stromerzeugung (CHP)", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
+            self._create_kpi_card("CO₂-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
             self._create_kpi_card("CO₂-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
             self._create_kpi_card("CO₂-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
             self._create_kpi_card("CO₂-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
@@ -1979,25 +1979,39 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 |----------|------|
 | **Gesamt-CO₂-Äquivalente** | {self.total_co2_t:,.1f} t CO₂eq |
 | **CO₂-Äq. Wärmeerzeugung** | {self.fuel_co2_heat_t:,.1f} t ({(self.fuel_co2_heat_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
-| **CO₂-Äq. Stromerzeugung (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO₂-Äq. Strom-Eigenverbrauch (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
 | **CO₂-Äq. Strombezug (Netz)** | {self.grid_co2_elec_t:,.1f} t ({(self.grid_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
 | **CO₂-Intensität** | {co2_intensity:.1f} kg CO₂eq/MWh_th |
 | **CO₂-Kosten Gesamt** | {co2_total_cost:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
 | **Wärmebereitstellung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |"""
 
-        # ✅ Stromeinspeisung hinzufügen (falls vorhanden)
+        # ✅ Stromeinspeisung und Eigenverbrauch-Info hinzufügen
         if 'P_sell_MW' in self.df.columns:
             p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
-            if p_sell_mwh > 0.01:
-                summary_md += f"\n| **⚡ Stromeinspeisung ins Netz** | {p_sell_mwh:,.0f} MWh (keine CO₂-Gutschrift) |"
+
+            # Berechne CHP-Stromerzeugung aus Summary
+            chp_elec_mwh = 0
+            if hasattr(result, 'summary') and result.summary:
+                for key, data in result.summary.items():
+                    if key.startswith('generator_'):
+                        chp_elec_mwh += data.get('Power_output_MWh', 0)
+
+            if chp_elec_mwh > 0 or p_sell_mwh > 0.01:
+                selfuse_mwh = max(0, chp_elec_mwh - p_sell_mwh)
+                selfuse_pct = (selfuse_mwh / chp_elec_mwh * 100) if chp_elec_mwh > 0 else 0
+
+                summary_md += f"""
+| **⚡ CHP-Stromerzeugung (Brutto)** | {chp_elec_mwh:,.0f} MWh (100%) |
+| **↳ Eigenverbrauch** | {selfuse_mwh:,.0f} MWh ({selfuse_pct:.1f}%) → **CO₂ angerechnet** |
+| **↳ Netzeinspeisung** | {p_sell_mwh:,.0f} MWh ({(p_sell_mwh/chp_elec_mwh*100) if chp_elec_mwh > 0 else 0:.1f}%) → keine CO₂-Anrechnung |"""
 
         summary_md += """
 
 **Interpretation:**
 - CO₂-Intensität: Emissionen pro MWh bereitgestellter Wärme
 - Wärmeerzeugung: CO₂ aus Brennstoffverbrennung für Wärme
-- Stromerzeugung (CHP): CO₂ aus Brennstoffverbrennung für Strom (bei KWK)
-- Strombezug (Netz): Indirekte Emissionen durch Stromeinkauf (Grid-Mix)
+- Stromerzeugung (CHP): CO₂ nur für **Eigenverbrauch** (Netzeinspeisung ohne CO₂-Anrechnung)
+- Strombezug (Netz): Indirekte Emissionen durch Stromeinkauf (Grid-Mix für WP/P2H)
 - Vergleichswerte: Gaskessel ~200 kg/MWh, Wärmepumpe ~50-150 kg/MWh
 """
 
@@ -2146,9 +2160,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             values.append(self.fuel_co2_heat_t)
             colors.append('#dc3545')  # danger (rot)
 
-        # Stromerzeugung (CHP)
+        # Stromerzeugung (CHP) - nur Eigenverbrauch
         if self.fuel_co2_elec_t > 0.01:
-            labels.append('Stromerzeugung (CHP)')
+            labels.append('Strom-Eigenverbrauch (CHP)')
             values.append(self.fuel_co2_elec_t)
             colors.append('#198754')  # success (grün)
 
