@@ -1951,20 +1951,46 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         co2_elec_cost = result.costs.get('CO2_elec_total_cost_EUR', 0) if hasattr(result, 'costs') else 0
         co2_total_cost = result.costs.get('CO2_total_cost_EUR', self.co2_cost_eur) if hasattr(result, 'costs') else self.co2_cost_eur
 
+        # ✅ Berechne Stromeinspeisung und zugehörige CO₂
+        p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h if 'P_sell_MW' in self.df.columns else 0
+
+        # Berechne CO₂ für eingespeisten Strom (Brutto-Wert)
+        co2_grid_export_t = 0
+        if p_sell_mwh > 0.01:
+            # Hole Brutto-CO₂ (vor selfuse-Korrektur)
+            co2_fuel_elec_gross = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) / 1000.0 if hasattr(result, 'costs') else 0
+            selfuse_fraction = result.costs.get('CO2_fuel_to_elec_selfuse_fraction', 1.0) if hasattr(result, 'costs') else 1.0
+
+            # CO₂ für Einspeisung = Brutto - Eigenverbrauch
+            co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
+
         co2_kpis = pn.GridBox(
+            # Reihe 1: CO₂-Mengen (5 Karten)
             self._create_kpi_card("Gesamt-CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
             self._create_kpi_card("CO₂-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
             self._create_kpi_card("CO₂-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
+            self._create_kpi_card("⚡ Stromeinspeisung", f"{p_sell_mwh:,.0f} MWh ({co2_grid_export_t:,.1f} t*)", "light"),
             self._create_kpi_card("CO₂-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
+            # Reihe 2: CO₂-Kosten (3 Karten)
             self._create_kpi_card("CO₂-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
             self._create_kpi_card("CO₂-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
             self._create_kpi_card("CO₂-Kosten Gesamt", f"{co2_total_cost:,.0f} €", "primary"),
-            ncols=4,  # 2 Zeilen: 4 Karten oben (CO₂-Mengen), 3 Karten unten (Kosten)
+            ncols=5,  # 2 Zeilen: 5 Karten oben (CO₂-Mengen), 3 Karten unten (Kosten + leere Zellen)
             sizing_mode='stretch_width'
         )
 
         # Berechne CO2-Intensität (kg CO2 pro MWh Wärme)
         co2_intensity = (self.total_co2_t * 1000 / self.original_total_demand_MWh) if self.original_total_demand_MWh > 0 else 0
+
+        # ✅ Hinweis zur Stromeinspeisung
+        grid_export_note = ""
+        if co2_grid_export_t > 0.01:
+            grid_export_note = f"""
+**Hinweis zur Stromeinspeisung (*)**:
+- {co2_grid_export_t:,.1f} t CO₂ entstanden durch eingespeisten Strom
+- Diese werden **NICHT** in der Bilanz angerechnet (neutraler Ansatz)
+- Gesamt-Bilanz enthält nur Eigenverbrauch + Wärmeerzeugung + Strombezug
+"""
 
         # Berechne CO2-Kosten als Anteil der Gesamtkosten
         result = self.primary_result
@@ -2116,6 +2142,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 "Emissionen entstehen durch Strombezug (indirekt) und direkten Brennstoffeinsatz (direkt).*"
             ),
             co2_kpis,
+            pn.pane.Markdown(grid_export_note) if grid_export_note else pn.Spacer(height=0),
             pn.layout.Divider(),
             pn.Row(
                 pn.Column(
