@@ -499,6 +499,13 @@ class EnerGISDashboard:
             self.fuel_co2_heat_t = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
             self.fuel_co2_elec_t = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
 
+        # ✅ Fallback: Wenn neue Daten nicht verfügbar, verwende Legacy-Werte
+        # (z.B. bei alten Simulationen ohne Wärme/Strom-Aufteilung)
+        if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.fuel_co2_t > 0:
+            # Alle Brennstoff-CO₂ → Wärme (konservative Annahme)
+            self.fuel_co2_heat_t = self.fuel_co2_t
+            self.fuel_co2_elec_t = 0
+
         # CO2-Kosten immer aus costs holen
         if hasattr(result, 'costs') and result.costs:
             self.co2_cost_eur = result.costs.get('objective.CO2_cost_EUR', 0)
@@ -1912,22 +1919,33 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         )
 
     def _create_co2_breakdown_plot(self):
-        """Create CO2 breakdown pie chart (Grid vs. Fuel)."""
+        """Create CO2 breakdown pie chart (Wärme/Strom/Netz)."""
 
         if not HAVE_PLOTLY:
             return pn.pane.Markdown("*Plotly nicht verfügbar*")
 
-        # Daten vorbereiten
+        # Daten vorbereiten (3 Kategorien)
         labels = []
         values = []
+        colors = []
 
-        if self.grid_co2_t > 0.01:
-            labels.append('Strombezug')
-            values.append(self.grid_co2_t)
-
-        if self.fuel_co2_t > 0.01:
+        # Wärmeerzeugung (aus Brennstoffen)
+        if self.fuel_co2_heat_t > 0.01:
             labels.append('Wärmeerzeugung')
-            values.append(self.fuel_co2_t)
+            values.append(self.fuel_co2_heat_t)
+            colors.append('#dc3545')  # danger (rot)
+
+        # Stromerzeugung (CHP)
+        if self.fuel_co2_elec_t > 0.01:
+            labels.append('Stromerzeugung (CHP)')
+            values.append(self.fuel_co2_elec_t)
+            colors.append('#198754')  # success (grün)
+
+        # Strombezug (Netz)
+        if self.grid_co2_t > 0.01:
+            labels.append('Strombezug (Netz)')
+            values.append(self.grid_co2_t)
+            colors.append('#0dcaf0')  # info (blau)
 
         if not values:
             return pn.pane.Markdown("*Keine CO₂-Äquivalent-Daten für Breakdown verfügbar*")
@@ -1937,7 +1955,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             labels=labels,
             values=values,
             hole=0.4,  # Donut chart
-            marker=dict(colors=['#0dcaf0', '#dc3545']),
+            marker=dict(colors=colors),
             textinfo='label+percent',
             textfont_size=14,
             hovertemplate='<b>%{label}</b><br>%{value:.1f} t CO₂eq<br>%{percent}<extra></extra>'
@@ -1946,7 +1964,13 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         fig.update_layout(
             height=400,
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5)
+            legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5),
+            title=dict(
+                text=f'CO₂-Aufteilung: {len(values)} Kategorien | Gesamt: {sum(values):.1f} t',
+                font=dict(size=12),
+                x=0.5,
+                xanchor='center'
+            )
         )
 
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -2100,7 +2124,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         return table
 
     def _create_co2_fuel_type_table(self):
-        """Create CO₂ breakdown by fuel type (Gas, Biomasse, Abfall)."""
+        """Create CO₂ breakdown by fuel type (Gas, Biomasse, Abfall) - ähnlich wie 'Emissionen nach Quelle'."""
 
         result = self.primary_result
         if not hasattr(result, 'costs'):
@@ -2122,43 +2146,37 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             heat_kg = costs.get(f'CO2_fuel_{fuel_key}_heat_kg', 0)
             elec_kg = costs.get(f'CO2_fuel_{fuel_key}_elec_kg', 0)
             total_cost = costs.get(f'CO2_fuel_{fuel_key}_total_cost_EUR', 0)
-            heat_cost = costs.get(f'CO2_fuel_{fuel_key}_heat_cost_EUR', 0)
-            elec_cost = costs.get(f'CO2_fuel_{fuel_key}_elec_cost_EUR', 0)
 
             # Nur hinzufügen wenn CO₂-Emissionen > 0
-            if total_kg > 0:
+            if total_kg > 0.001:
                 fuel_data.append({
-                    'Brennstofftyp': fuel_name,
-                    'CO2_Wärme_t': heat_kg / 1000.0,
-                    'CO2_Strom_t': elec_kg / 1000.0,
-                    'CO2_Gesamt_t': total_kg / 1000.0,
-                    'Kosten_Wärme_EUR': heat_cost,
-                    'Kosten_Strom_EUR': elec_cost,
-                    'Kosten_Gesamt_EUR': total_cost
+                    'Brennstoff': fuel_name,
+                    'CO₂_Wärme_t': heat_kg / 1000.0,
+                    'CO₂_Strom_t': elec_kg / 1000.0,
+                    'CO₂_Gesamt_t': total_kg / 1000.0,
+                    'Kosten_EUR': total_cost,
+                    'Anteil_%': (total_kg / 1000.0 / self.fuel_co2_t * 100) if self.fuel_co2_t > 0 else 0
                 })
 
         if not fuel_data:
             return pn.pane.Markdown("*Keine Brennstoff-CO₂-Emissionen verfügbar*")
 
         # Sortiere nach Gesamt-Emissionen
-        fuel_data = sorted(fuel_data, key=lambda x: x['CO2_Gesamt_t'], reverse=True)
+        fuel_data = sorted(fuel_data, key=lambda x: x['CO₂_Gesamt_t'], reverse=True)
 
         # Summen-Zeile
-        total_heat_t = sum(d['CO2_Wärme_t'] for d in fuel_data)
-        total_elec_t = sum(d['CO2_Strom_t'] for d in fuel_data)
-        total_total_t = sum(d['CO2_Gesamt_t'] for d in fuel_data)
-        total_heat_cost = sum(d['Kosten_Wärme_EUR'] for d in fuel_data)
-        total_elec_cost = sum(d['Kosten_Strom_EUR'] for d in fuel_data)
-        total_total_cost = sum(d['Kosten_Gesamt_EUR'] for d in fuel_data)
+        total_heat_t = sum(d['CO₂_Wärme_t'] for d in fuel_data)
+        total_elec_t = sum(d['CO₂_Strom_t'] for d in fuel_data)
+        total_total_t = sum(d['CO₂_Gesamt_t'] for d in fuel_data)
+        total_cost = sum(d['Kosten_EUR'] for d in fuel_data)
 
         fuel_data.append({
-            'Brennstofftyp': '═══ SUMME ═══',
-            'CO2_Wärme_t': total_heat_t,
-            'CO2_Strom_t': total_elec_t,
-            'CO2_Gesamt_t': total_total_t,
-            'Kosten_Wärme_EUR': total_heat_cost,
-            'Kosten_Strom_EUR': total_elec_cost,
-            'Kosten_Gesamt_EUR': total_total_cost
+            'Brennstoff': '═══ SUMME ═══',
+            'CO₂_Wärme_t': total_heat_t,
+            'CO₂_Strom_t': total_elec_t,
+            'CO₂_Gesamt_t': total_total_t,
+            'Kosten_EUR': total_cost,
+            'Anteil_%': 100.0
         })
 
         df = pd.DataFrame(fuel_data)
@@ -2169,12 +2187,11 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             theme='modern',
             show_index=False,
             formatters={
-                'CO2_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
-                'CO2_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
-                'CO2_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
-                'Kosten_Wärme_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
-                'Kosten_Strom_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
-                'Kosten_Gesamt_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'}
+                'CO₂_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO₂_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO₂_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'Kosten_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
+                'Anteil_%': {'type': 'progress', 'max': 100, 'legend': True}
             }
         )
 
