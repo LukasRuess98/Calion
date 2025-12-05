@@ -505,11 +505,53 @@ class EnerGISDashboard:
         if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.grid_co2_elec_t == 0:
             # Legacy 2-Kategorien-Modus (vor 3-Kategorien-Update)
             if hasattr(result, 'costs') and result.costs:
-                self.fuel_co2_heat_t = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
-                self.fuel_co2_elec_t = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
+                legacy_heat = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
+                legacy_elec = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
 
-            # Grid-Emissionen separat (Legacy)
-            if self.grid_co2_elec_t == 0:
+                # ⚠️ Problem: legacy_elec mischt CHP-Erzeugung + WP/P2H-Verbrauch
+                # Wir müssen aufteilen. Heuristik: Suche nach CHP in Summary
+                if hasattr(result, 'summary') and result.summary:
+                    # Schätze CHP-Anteil aus Stromerzeugung
+                    chp_elec_mwh = 0
+                    wp_p2h_elec_mwh = 0
+
+                    # Durchsuche Generatoren
+                    for key, data in result.summary.items():
+                        if key.startswith('generator_'):
+                            pel_mwh = data.get('Power_output_MWh', 0)
+                            if pel_mwh > 0:
+                                chp_elec_mwh += pel_mwh
+
+                    # Durchsuche WP
+                    for key, data in result.summary.items():
+                        if key.startswith('hp_'):
+                            pel_mwh = data.get('Electricity_input_MWh', 0)
+                            wp_p2h_elec_mwh += pel_mwh
+
+                    # P2H
+                    if 'p2h' in result.summary:
+                        pel_mwh = result.summary['p2h'].get('Electricity_input_MWh', 0)
+                        wp_p2h_elec_mwh += pel_mwh
+
+                    # Teile legacy_elec proportional auf
+                    total_elec = chp_elec_mwh + wp_p2h_elec_mwh
+                    if total_elec > 0 and legacy_elec > 0:
+                        self.fuel_co2_elec_t = legacy_elec * (chp_elec_mwh / total_elec)
+                        self.grid_co2_elec_t = legacy_elec * (wp_p2h_elec_mwh / total_elec)
+                    else:
+                        # Kann nicht aufteilen → alles als Grid
+                        self.grid_co2_elec_t = legacy_elec
+                        self.fuel_co2_elec_t = 0
+
+                    self.fuel_co2_heat_t = legacy_heat
+                else:
+                    # Keine Summary → konservativ: alles Wärme, Strom nur Grid
+                    self.fuel_co2_heat_t = legacy_heat
+                    self.grid_co2_elec_t = legacy_elec
+                    self.fuel_co2_elec_t = 0
+
+            # Grid-Emissionen Fallback (wenn auch Legacy nicht vorhanden)
+            if self.grid_co2_elec_t == 0 and self.fuel_co2_elec_t == 0:
                 self.grid_co2_elec_t = self.grid_co2_t
 
             # Ganz alter Fallback
@@ -1749,30 +1791,23 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             if p_buy_mwh > 0.01:
                 sources['Netz (Bezug)'] = p_buy_mwh
 
-        # CHP/Generator Stromerzeugung (P_el_out)
+        # ✅ Sammle alle _Pel_MW Spalten und kategorisiere korrekt
         for col in self.df.columns:
-            if '_Pel_MW' in col and not col.startswith('P_'):
-                # z.B. HKW_Pel_MW, GTOST_Pel_MW
-                gen_name = col.replace('_Pel_MW', '')
+            if '_Pel_MW' in col:
+                component_name = col.replace('_Pel_MW', '')
                 pel_mwh = self.df[col].sum() * self.dt_h
-                if pel_mwh > 0.01:
-                    sources[gen_name] = pel_mwh
 
-        # Wärmepumpen (Stromverbrauch)
-        for col in self.df.columns:
-            if col.startswith('HP') and '_Pel_MW' in col:
-                hp_name = col.replace('_Pel_MW', '')
-                hp_pel_mwh = self.df[col].sum() * self.dt_h
-                if hp_pel_mwh > 0.01:
-                    consumers[hp_name] = hp_pel_mwh
+                if pel_mwh < 0.01:
+                    continue  # Ignoriere sehr kleine Werte
 
-        # P2H Stromverbrauch
-        if 'P2H_Pel_MW' in self.df.columns:
-            p2h_pel_mwh = self.df['P2H_Pel_MW'].sum() * self.dt_h
-            if p2h_pel_mwh > 0.01:
-                consumers['P2H'] = p2h_pel_mwh
+                # ✅ VERBRAUCHER: HP* und P2H verbrauchen Strom
+                if component_name.startswith('HP') or component_name == 'P2H':
+                    consumers[component_name] = pel_mwh
+                # ✅ ERZEUGER: Alle anderen (HKW, GTOST, etc.) erzeugen Strom
+                else:
+                    sources[component_name] = pel_mwh
 
-        # Netzeinspeisung
+        # Netzeinspeisung (Verbraucher im Sinne von: Strom fließt aus System raus)
         if 'P_sell_MW' in self.df.columns:
             p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
             if p_sell_mwh > 0.01:
