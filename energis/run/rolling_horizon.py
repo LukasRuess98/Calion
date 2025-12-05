@@ -569,6 +569,30 @@ def _collect_timeseries_and_summary(
 
         objective["OBJ_value_EUR"] = float(pyo.value(model.obj)) if hasattr(model, "obj") else 0.0
         objective["P_buy_peak_MW"] = float(pyo.value(model.P_buy_peak)) if hasattr(model, "P_buy_peak") else 0.0
+
+        # ✅ Extrahiere CO₂-Kosten pro Komponente aus Pyomo-Modell
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                # CO₂ in kg
+                objective[f"CO2_{comp_name}_heat_kg"] = float(pyo.value(co2_data['heat_kg']))
+                objective[f"CO2_{comp_name}_elec_kg"] = float(pyo.value(co2_data['elec_kg']))
+                objective[f"CO2_{comp_name}_total_kg"] = float(pyo.value(co2_data['total_kg']))
+
+                # CO₂-Kosten in EUR
+                objective[f"CO2_{comp_name}_heat_cost_EUR"] = float(pyo.value(co2_data['heat_eur']))
+                objective[f"CO2_{comp_name}_elec_cost_EUR"] = float(pyo.value(co2_data['elec_eur']))
+                objective[f"CO2_{comp_name}_total_cost_EUR"] = float(pyo.value(co2_data['total_eur']))
+
+        # Gesamt-Summen (Wärme/Strom)
+        if hasattr(model, 'co2_cost_heat_expr'):
+            objective["CO2_heat_total_cost_EUR"] = float(pyo.value(model.co2_cost_heat_expr))
+
+        if hasattr(model, 'co2_cost_elec_expr'):
+            objective["CO2_elec_total_cost_EUR"] = float(pyo.value(model.co2_cost_elec_expr))
+
+        if hasattr(model, 'co2_cost_total_expr'):
+            objective["CO2_total_cost_EUR"] = float(pyo.value(model.co2_cost_total_expr))
+
     else:
         times = list(range(1, n + 1))
         objective["OBJ_value_EUR"] = 0.0
@@ -735,7 +759,7 @@ def _collect_timeseries_and_summary(
                     build_value = 1.0 if cap_value > 0 else 0.0
         full_load = float((heat_mwh / cap_value) if cap_value > 1e-9 else 0.0)
         avg_cop = float((heat_mwh / pel_mwh) if pel_mwh > 1e-9 else 0.0)
-        heat_pump_sections[f"heat_pump_{comp}"] = OrderedDict(
+        hp_section = OrderedDict(
             [
                 ("Heat_output_MWh", heat_mwh),
                 ("Electricity_input_MWh", pel_mwh),
@@ -751,6 +775,15 @@ def _collect_timeseries_and_summary(
                 ("Average_COP", avg_cop),
             ]
         )
+
+        # ✅ Füge CO₂-Daten hinzu (aus objective)
+        if f"CO2_{comp}_elec_kg" in objective:
+            hp_section["CO2_elec_kg"] = objective[f"CO2_{comp}_elec_kg"]
+            hp_section["CO2_elec_cost_EUR"] = objective[f"CO2_{comp}_elec_cost_EUR"]
+            hp_section["CO2_total_kg"] = objective[f"CO2_{comp}_total_kg"]
+            hp_section["CO2_total_cost_EUR"] = objective[f"CO2_{comp}_total_cost_EUR"]
+
+        heat_pump_sections[f"heat_pump_{comp}"] = hp_section
 
     for gen in meta["generators"]:
         comp = gen["name"]
@@ -781,6 +814,16 @@ def _collect_timeseries_and_summary(
         )
         if gen["has_el"]:
             entry["Power_output_MWh"] = float(pel_mwh)
+
+        # ✅ Füge CO₂-Daten hinzu (aus objective)
+        if f"CO2_{comp}_heat_kg" in objective:
+            entry["CO2_heat_kg"] = objective[f"CO2_{comp}_heat_kg"]
+            entry["CO2_elec_kg"] = objective[f"CO2_{comp}_elec_kg"]
+            entry["CO2_total_kg"] = objective[f"CO2_{comp}_total_kg"]
+            entry["CO2_heat_cost_EUR"] = objective[f"CO2_{comp}_heat_cost_EUR"]
+            entry["CO2_elec_cost_EUR"] = objective[f"CO2_{comp}_elec_cost_EUR"]
+            entry["CO2_total_cost_EUR"] = objective[f"CO2_{comp}_total_cost_EUR"]
+
         generator_sections[f"generator_{comp}"] = entry
         fuel_cost_total += cost_eur
         fuel_emissions_t += emission_t
@@ -813,6 +856,13 @@ def _collect_timeseries_and_summary(
         )
         if meta["p2h"]["eff"]:
             p2h_section["Configured_efficiency"] = meta["p2h"]["eff"]
+
+        # ✅ Füge CO₂-Daten hinzu (aus objective)
+        if "CO2_P2H_elec_kg" in objective:
+            p2h_section["CO2_elec_kg"] = objective["CO2_P2H_elec_kg"]
+            p2h_section["CO2_elec_cost_EUR"] = objective["CO2_P2H_elec_cost_EUR"]
+            p2h_section["CO2_total_kg"] = objective["CO2_P2H_total_kg"]
+            p2h_section["CO2_total_cost_EUR"] = objective["CO2_P2H_total_cost_EUR"]
 
     if storage_section and meta["storage"]:
         charge_series = series["TES_charge_MW"]

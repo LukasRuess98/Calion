@@ -364,6 +364,15 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     tie_breaker_terms: List = []
     storage_install_terms: List = []
 
+    # ✅ CO₂-Kosten pro Komponente (Wärme/Strom-Aufteilung)
+    co2_cost_heat_terms: List = []  # CO₂-Kosten für Wärmeerzeugung [EUR]
+    co2_cost_elec_terms: List = []  # CO₂-Kosten für Stromerzeugung [EUR]
+    co2_kg_heat_terms: List = []    # CO₂-Emissionen für Wärme [kg]
+    co2_kg_elec_terms: List = []    # CO₂-Emissionen für Strom [kg]
+
+    # Dictionary für Export (Komponenten-spezifisch)
+    m.co2_component_costs = {}
+
     for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):
             continue
@@ -436,6 +445,30 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 activation_terms.append(build_var * activation * annual_factor)
             if tie_breaker and include_tie_breaker_costs:
                 tie_breaker_terms.append(cap_var * tie_breaker)
+
+        # ✅ Berechne CO₂-Kosten für Wärmepumpe
+        # WP verbraucht Strom → indirekte Emissionen aus Grid
+        hp_p_el = fs["P_el_in"]
+        hp_co2_kg = sum(
+            hp_p_el[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h
+            for t in m.t
+        )
+        hp_co2_cost_eur = (m.co2_price / 1000.0) * hp_co2_kg
+
+        # Speichere für Export
+        m.co2_component_costs[name] = {
+            'heat_kg': 0,  # WP erzeugt Wärme, aber CO₂ kommt vom Strom
+            'elec_kg': hp_co2_kg,  # Stromverbrauch → Grid-Emissionen
+            'heat_eur': 0,
+            'elec_eur': hp_co2_cost_eur,
+            'total_kg': hp_co2_kg,
+            'total_eur': hp_co2_cost_eur,
+            'type': 'heat_pump'
+        }
+
+        # Füge zu Summen hinzu
+        co2_kg_elec_terms.append(hp_co2_kg)
+        co2_cost_elec_terms.append(hp_co2_cost_eur)
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
     if sto_cfg.get("enabled", False):
@@ -709,6 +742,29 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             fs = block.attach(m, m.t, cfg, {})
             el_in.append(fs["P_el_in"])
             ht_out.append(fs["Q_th_out"])
+
+            # ✅ Berechne CO₂-Kosten für P2H
+            # P2H verbraucht Strom → indirekte Emissionen aus Grid
+            p2h_p_el = fs["P_el_in"]
+            p2h_co2_kg = sum(
+                p2h_p_el[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h
+                for t in m.t
+            )
+            p2h_co2_cost_eur = (m.co2_price / 1000.0) * p2h_co2_kg
+
+            m.co2_component_costs["P2H"] = {
+                'heat_kg': 0,  # Wärme aus Strom, CO₂ dem Strom zugeordnet
+                'elec_kg': p2h_co2_kg,
+                'heat_eur': 0,
+                'elec_eur': p2h_co2_cost_eur,
+                'total_kg': p2h_co2_kg,
+                'total_eur': p2h_co2_cost_eur,
+                'type': 'p2h'
+            }
+
+            co2_kg_elec_terms.append(p2h_co2_kg)
+            co2_cost_elec_terms.append(p2h_co2_cost_eur)
+
             continue
 
         block = ThermalGeneratorBlock(
@@ -737,8 +793,80 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             price = 0.0
             ef = 0.0
         bus_list.append(fs["fuel_in"])
-        fuel_cost_terms.append(sum(fs["fuel_in"][t] * price * dt_h for t in m.t))
-        fuel_co2_terms.append(sum(fs["fuel_in"][t] * ef * dt_h for t in m.t))
+
+        # Fuel-Kosten (wie bisher)
+        fuel_cost_expr = sum(fs["fuel_in"][t] * price * dt_h for t in m.t)
+        fuel_cost_terms.append(fuel_cost_expr)
+
+        # ✅ CO₂ aus Brennstoff mit Wärme/Strom-Aufteilung
+        comp_name = key.upper()
+        fuel_co2_kg = sum(fs["fuel_in"][t] * ef * dt_h for t in m.t)
+
+        # Prüfe ob CHP (hat elektrischen Ausgang)
+        is_chp = fs.get("P_el_out") is not None
+
+        if not is_chp:
+            # Reiner Wärmeerzeuger → Alles CO₂ → Wärme
+            co2_heat_kg = fuel_co2_kg
+            co2_elec_kg = 0
+            co2_heat_cost = (m.co2_price / 1000.0) * co2_heat_kg
+            co2_elec_cost = 0
+
+            m.co2_component_costs[comp_name] = {
+                'heat_kg': co2_heat_kg,
+                'elec_kg': 0,
+                'heat_eur': co2_heat_cost,
+                'elec_eur': 0,
+                'total_kg': fuel_co2_kg,
+                'total_eur': co2_heat_cost,
+                'type': 'thermal_generator',
+                'th_eff': float(gpar.get("th_eff", 0.9)),
+                'el_eff': None
+            }
+
+            co2_kg_heat_terms.append(co2_heat_kg)
+            co2_cost_heat_terms.append(co2_heat_cost)
+        else:
+            # CHP → Energetische Aufteilung nach Wirkungsgrad
+            th_eff = float(gpar.get("th_eff", 0.9))
+            el_eff = float(gpar.get("el_eff", 0.0))
+            total_eff = th_eff + el_eff
+
+            if total_eff > 0:
+                # Aufteilung: CO₂ proportional zum Wirkungsgrad
+                heat_fraction = th_eff / total_eff
+                elec_fraction = el_eff / total_eff
+            else:
+                heat_fraction = 1.0
+                elec_fraction = 0.0
+
+            # CO₂ aufteilen [kg]
+            co2_heat_kg = fuel_co2_kg * heat_fraction
+            co2_elec_kg = fuel_co2_kg * elec_fraction
+
+            # CO₂-Kosten aufteilen [EUR]
+            co2_heat_cost = (m.co2_price / 1000.0) * co2_heat_kg
+            co2_elec_cost = (m.co2_price / 1000.0) * co2_elec_kg
+
+            m.co2_component_costs[comp_name] = {
+                'heat_kg': co2_heat_kg,
+                'elec_kg': co2_elec_kg,
+                'heat_eur': co2_heat_cost,
+                'elec_eur': co2_elec_cost,
+                'total_kg': fuel_co2_kg,
+                'total_eur': (m.co2_price / 1000.0) * fuel_co2_kg,
+                'type': 'chp',
+                'th_eff': th_eff,
+                'el_eff': el_eff
+            }
+
+            co2_kg_heat_terms.append(co2_heat_kg)
+            co2_kg_elec_terms.append(co2_elec_kg)
+            co2_cost_heat_terms.append(co2_heat_cost)
+            co2_cost_elec_terms.append(co2_elec_cost)
+
+        # Für Legacy-Kompatibilität: Gesamt-CO₂ in kg
+        fuel_co2_terms.append(fuel_co2_kg)
 
     if not ht_out:
         raise RuntimeError(
@@ -788,9 +916,23 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     )
     dump_cost = m.dump_cost * sum(m.Q_dump[t] * dt_h for t in m.t)
     fuel_costs = sum(fuel_cost_terms) if fuel_cost_terms else 0
+
+    # ✅ Neue CO₂-Kosten: Summen aus Komponenten (Wärme/Strom-Aufteilung)
+    co2_cost_heat_total = sum(co2_cost_heat_terms) if co2_cost_heat_terms else 0
+    co2_cost_elec_total = sum(co2_cost_elec_terms) if co2_cost_elec_terms else 0
+    co2_cost_total = co2_cost_heat_total + co2_cost_elec_total
+
+    # Speichere Gesamt-Expressions am Modell für Export
+    m.co2_cost_heat_expr = co2_cost_heat_total
+    m.co2_cost_elec_expr = co2_cost_elec_total
+    m.co2_cost_total_expr = co2_cost_total
+
+    # Legacy-Kompatibilität: Gesamt-CO₂ in kg (für alte Reports)
     co2_grid = sum(m.P_buy[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h for t in m.t)
     co2_fuel = sum(fuel_co2_terms) if fuel_co2_terms else 0
-    co2_term = (m.co2_price / 1000.0) * (co2_grid + co2_fuel) if include_co2 else 0
+
+    # Zielfunktion: Verwende neue CO₂-Kosten-Summe
+    co2_term = co2_cost_total if include_co2 else 0
 
     m.P_buy_peak = pyo.Var(domain=pyo.NonNegativeReals)
     m.peak_con = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy_peak >= mm.P_buy[t])
