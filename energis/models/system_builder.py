@@ -370,6 +370,11 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     co2_kg_heat_terms: List = []    # CO₂-Emissionen für Wärme [kg]
     co2_kg_elec_terms: List = []    # CO₂-Emissionen für Strom [kg]
 
+    # ✅ Separate Tracking für Dashboard-Kategorien
+    co2_kg_fuel_to_heat: List = []   # Brennstoff → Wärme
+    co2_kg_fuel_to_elec: List = []   # Brennstoff → Strom (CHP)
+    co2_kg_grid_to_elec: List = []   # Grid → Strom (WP, P2H)
+
     # Dictionary für Export (Komponenten-spezifisch)
     m.co2_component_costs = {}
 
@@ -469,6 +474,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         # Füge zu Summen hinzu
         co2_kg_elec_terms.append(hp_co2_kg)
         co2_cost_elec_terms.append(hp_co2_cost_eur)
+        co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
     if sto_cfg.get("enabled", False):
@@ -764,6 +770,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
             co2_kg_elec_terms.append(p2h_co2_kg)
             co2_cost_elec_terms.append(p2h_co2_cost_eur)
+            co2_kg_grid_to_elec.append(p2h_co2_kg)  # P2H verbraucht Grid-Strom
 
             continue
 
@@ -827,6 +834,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
             co2_kg_heat_terms.append(co2_heat_kg)
             co2_cost_heat_terms.append(co2_heat_cost)
+            co2_kg_fuel_to_heat.append(co2_heat_kg)  # Brennstoff → Wärme
         else:
             # CHP → Energetische Aufteilung nach Wirkungsgrad
             th_eff = float(gpar.get("th_eff", 0.9))
@@ -866,6 +874,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             co2_kg_elec_terms.append(co2_elec_kg)
             co2_cost_heat_terms.append(co2_heat_cost)
             co2_cost_elec_terms.append(co2_elec_cost)
+            co2_kg_fuel_to_heat.append(co2_heat_kg)  # Brennstoff → Wärme (CHP-Anteil)
+            co2_kg_fuel_to_elec.append(co2_elec_kg)  # Brennstoff → Strom (CHP-Anteil)
 
         # Für Legacy-Kompatibilität: Gesamt-CO₂ in kg
         fuel_co2_terms.append(fuel_co2_kg)
@@ -928,12 +938,21 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     co2_kg_heat_total = sum(co2_kg_heat_terms) if co2_kg_heat_terms else 0
     co2_kg_elec_total = sum(co2_kg_elec_terms) if co2_kg_elec_terms else 0
 
+    # ✅ Dashboard-Kategorien (3 separate Emissionsquellen)
+    co2_kg_fuel_heat = sum(co2_kg_fuel_to_heat) if co2_kg_fuel_to_heat else 0  # Brennstoff → Wärme
+    co2_kg_fuel_elec = sum(co2_kg_fuel_to_elec) if co2_kg_fuel_to_elec else 0  # Brennstoff → Strom (CHP)
+    co2_kg_grid_elec = sum(co2_kg_grid_to_elec) if co2_kg_grid_to_elec else 0  # Grid → Strom (WP, P2H)
+
     # Speichere Gesamt-Expressions am Modell für Export
     m.co2_cost_heat_expr = co2_cost_heat_total
     m.co2_cost_elec_expr = co2_cost_elec_total
     m.co2_cost_total_expr = co2_cost_total
     m.co2_kg_heat_expr = co2_kg_heat_total
     m.co2_kg_elec_expr = co2_kg_elec_total
+    # Dashboard-Kategorien
+    m.co2_kg_fuel_to_heat_expr = co2_kg_fuel_heat
+    m.co2_kg_fuel_to_elec_expr = co2_kg_fuel_elec
+    m.co2_kg_grid_to_elec_expr = co2_kg_grid_elec
 
     # Legacy-Kompatibilität: Gesamt-CO₂ in kg (für alte Reports)
     co2_grid = sum(m.P_buy[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h for t in m.t)

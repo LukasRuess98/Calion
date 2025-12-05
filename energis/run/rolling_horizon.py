@@ -626,6 +626,16 @@ def _collect_timeseries_and_summary(
         if hasattr(model, 'co2_kg_elec_expr'):
             objective["CO2_elec_total_kg"] = float(pyo.value(model.co2_kg_elec_expr))
 
+        # ✅ Dashboard-Kategorien (3 separate Emissionsquellen)
+        if hasattr(model, 'co2_kg_fuel_to_heat_expr'):
+            objective["CO2_fuel_to_heat_kg"] = float(pyo.value(model.co2_kg_fuel_to_heat_expr))
+
+        if hasattr(model, 'co2_kg_fuel_to_elec_expr'):
+            objective["CO2_fuel_to_elec_kg"] = float(pyo.value(model.co2_kg_fuel_to_elec_expr))
+
+        if hasattr(model, 'co2_kg_grid_to_elec_expr'):
+            objective["CO2_grid_to_elec_kg"] = float(pyo.value(model.co2_kg_grid_to_elec_expr))
+
     else:
         times = list(range(1, n + 1))
         objective["OBJ_value_EUR"] = 0.0

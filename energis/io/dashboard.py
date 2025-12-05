@@ -466,8 +466,9 @@ class EnerGISDashboard:
         self.total_co2_t = 0
         self.grid_co2_t = 0
         self.fuel_co2_t = 0
-        self.fuel_co2_heat_t = 0  # CO₂ für Wärmeerzeugung
-        self.fuel_co2_elec_t = 0  # CO₂ für Stromerzeugung (aus CHP)
+        self.fuel_co2_heat_t = 0  # CO₂ für Wärmeerzeugung (Brennstoff → Wärme)
+        self.fuel_co2_elec_t = 0  # CO₂ für Stromerzeugung (Brennstoff → Strom, nur CHP)
+        self.grid_co2_elec_t = 0  # CO₂ für Stromverbrauch (Grid → Strom, WP/P2H)
         self.co2_cost_eur = 0
 
         # Primär: Aus Zeitreihen aggregieren (zuverlässigste Quelle)
@@ -493,18 +494,33 @@ class EnerGISDashboard:
         if self.fuel_co2_t == 0 and hasattr(result, 'costs') and result.costs:
             self.fuel_co2_t = result.costs.get('Fuel_emissions_t', 0)
 
-        # ✅ Extrahiere Wärme/Strom-Aufteilung aus costs
+        # ✅ Extrahiere 3-Kategorien-CO₂ (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
         if hasattr(result, 'costs') and result.costs:
-            # CO₂ in kg → t
-            self.fuel_co2_heat_t = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
-            self.fuel_co2_elec_t = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
+            # Neue 3-Kategorien-Werte (kg → t)
+            self.fuel_co2_heat_t = result.costs.get('CO2_fuel_to_heat_kg', 0) / 1000.0      # Brennstoff → Wärme
+            self.fuel_co2_elec_t = result.costs.get('CO2_fuel_to_elec_kg', 0) / 1000.0      # Brennstoff → Strom (CHP)
+            self.grid_co2_elec_t = result.costs.get('CO2_grid_to_elec_kg', 0) / 1000.0      # Grid → Strom (WP/P2H)
 
-        # ✅ Fallback: Wenn neue Daten nicht verfügbar, verwende Legacy-Werte
-        # (z.B. bei alten Simulationen ohne Wärme/Strom-Aufteilung)
-        if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.fuel_co2_t > 0:
-            # Alle Brennstoff-CO₂ → Wärme (konservative Annahme)
-            self.fuel_co2_heat_t = self.fuel_co2_t
-            self.fuel_co2_elec_t = 0
+        # ✅ Fallback: Wenn neue 3-Kategorien nicht verfügbar, verwende Legacy-Werte
+        if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.grid_co2_elec_t == 0:
+            # Legacy 2-Kategorien-Modus (vor 3-Kategorien-Update)
+            if hasattr(result, 'costs') and result.costs:
+                self.fuel_co2_heat_t = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
+                self.fuel_co2_elec_t = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
+
+            # Grid-Emissionen separat (Legacy)
+            if self.grid_co2_elec_t == 0:
+                self.grid_co2_elec_t = self.grid_co2_t
+
+            # Ganz alter Fallback
+            if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.fuel_co2_t > 0:
+                self.fuel_co2_heat_t = self.fuel_co2_t  # Alle Brennstoff → Wärme
+                self.fuel_co2_elec_t = 0
+
+        # ✅ Berechne Gesamt-CO₂ aus 3 Kategorien (korrekt ohne Doppelzählung)
+        calculated_total = self.fuel_co2_heat_t + self.fuel_co2_elec_t + self.grid_co2_elec_t
+        if calculated_total > 0:
+            self.total_co2_t = calculated_total
 
         # CO2-Kosten immer aus costs holen
         if hasattr(result, 'costs') and result.costs:
@@ -1700,11 +1716,163 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             percentage = (value / total_gen * 100) if total_gen > 0 else 0
             stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 
+        # ✅ Erstelle Strom-Sankey-Diagramm
+        electricity_sankey = self._create_electricity_sankey()
+
         return pn.Column(
-            pn.pane.Markdown("## ⇄ Energiefluss-Diagramm (Sankey)"),
+            pn.pane.Markdown("## ⇄ Wärme-Energiefluss (Sankey)"),
             pn.pane.Markdown(
                 "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
                 "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            pn.layout.Divider(),
+            electricity_sankey,
+            sizing_mode='stretch_width'
+        )
+
+    def _create_electricity_sankey(self):
+        """Create Sankey diagram for electricity flows (Sources → Consumers)."""
+
+        if len(self.df) == 0:
+            return pn.pane.Markdown("*Keine Stromdaten verfügbar*")
+
+        # ✅ Sammle Stromquellen (Links) und -verbraucher (Rechts)
+        sources = {}  # Quellen: Netz, Generatoren mit P_el_out
+        consumers = {}  # Verbraucher: P2H, HP, Netzeinspeisung
+
+        # Strombezug aus Netz
+        if 'P_buy_MW' in self.df.columns:
+            p_buy_mwh = self.df['P_buy_MW'].sum() * self.dt_h
+            if p_buy_mwh > 0.01:
+                sources['Netz (Bezug)'] = p_buy_mwh
+
+        # CHP/Generator Stromerzeugung (P_el_out)
+        for col in self.df.columns:
+            if '_Pel_MW' in col and not col.startswith('P_'):
+                # z.B. HKW_Pel_MW, GTOST_Pel_MW
+                gen_name = col.replace('_Pel_MW', '')
+                pel_mwh = self.df[col].sum() * self.dt_h
+                if pel_mwh > 0.01:
+                    sources[gen_name] = pel_mwh
+
+        # Wärmepumpen (Stromverbrauch)
+        for col in self.df.columns:
+            if col.startswith('HP') and '_Pel_MW' in col:
+                hp_name = col.replace('_Pel_MW', '')
+                hp_pel_mwh = self.df[col].sum() * self.dt_h
+                if hp_pel_mwh > 0.01:
+                    consumers[hp_name] = hp_pel_mwh
+
+        # P2H Stromverbrauch
+        if 'P2H_Pel_MW' in self.df.columns:
+            p2h_pel_mwh = self.df['P2H_Pel_MW'].sum() * self.dt_h
+            if p2h_pel_mwh > 0.01:
+                consumers['P2H'] = p2h_pel_mwh
+
+        # Netzeinspeisung
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+            if p_sell_mwh > 0.01:
+                consumers['Netz (Einspeisung)'] = p_sell_mwh
+
+        if not sources and not consumers:
+            return pn.pane.Markdown("*Keine relevanten Stromflüsse erkannt*")
+
+        # ✅ Erstelle Sankey-Struktur
+        nodes = []
+        links = []
+        node_indices = {}
+        idx = 0
+
+        # Quellen (links)
+        for source_name in sources.keys():
+            nodes.append(source_name)
+            node_indices[source_name] = idx
+            idx += 1
+
+        # Verbraucher (rechts)
+        for consumer_name in consumers.keys():
+            nodes.append(consumer_name)
+            node_indices[consumer_name] = idx
+            idx += 1
+
+        # ✅ Erstelle Links: Quellen → Verbraucher (vereinfacht: proportional)
+        total_sources = sum(sources.values())
+        total_consumers = sum(consumers.values())
+
+        # Für jede Quelle: verteile proportional auf Verbraucher
+        for source_name, source_value in sources.items():
+            for consumer_name, consumer_value in consumers.items():
+                # Proportional: Quelle liefert an Verbraucher basierend auf Verhältnis
+                if total_consumers > 0:
+                    flow_value = source_value * (consumer_value / total_consumers)
+                    if flow_value > 0.01:
+                        links.append({
+                            'source': node_indices[source_name],
+                            'target': node_indices[consumer_name],
+                            'value': flow_value
+                        })
+
+        if not links:
+            return pn.pane.Markdown("*Keine Stromflüsse erkannt*")
+
+        # ✅ Sankey-Diagramm erstellen
+        num_sources = len(sources)
+        source_colors = ['#4477AA'] * num_sources  # Blau für Quellen
+        consumer_colors = ['#EE6677'] * len(consumers)  # Rot für Verbraucher
+        node_colors = source_colors + consumer_colors
+
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=nodes,
+                color=node_colors
+            ),
+            link=dict(
+                source=[l['source'] for l in links],
+                target=[l['target'] for l in links],
+                value=[l['value'] for l in links],
+                color='rgba(68, 119, 170, 0.3)'
+            )
+        )])
+
+        fig.update_layout(
+            title='Strom-Energiefluss (Quellen → Verbraucher)',
+            font=dict(size=12),
+            height=600
+        )
+
+        # Statistiken
+        stats_md = f"""
+### ⚡ Strom-Bilanz
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-Strombezug** | {sum(sources.values()):,.0f} MWh |
+| **Gesamt-Stromverbrauch** | {sum(consumers.values()):,.0f} MWh |
+| **Bilanz** | {(sum(sources.values()) - sum(consumers.values())):,.0f} MWh |
+
+### 🔌 Stromquellen
+"""
+        for source, value in sorted(sources.items(), key=lambda x: x[1], reverse=True):
+            percentage = (value / sum(sources.values()) * 100) if sum(sources.values()) > 0 else 0
+            stats_md += f"- **{source}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        stats_md += "\n### 🔋 Stromverbraucher\n"
+        for consumer, value in sorted(consumers.items(), key=lambda x: x[1], reverse=True):
+            percentage = (value / sum(consumers.values()) * 100) if sum(consumers.values()) > 0 else 0
+            stats_md += f"- **{consumer}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        return pn.Column(
+            pn.pane.Markdown("## ⇄ Strom-Energiefluss (Sankey)"),
+            pn.pane.Markdown(
+                "*Das Sankey-Diagramm visualisiert die Stromflüsse von den Quellen (Netz, Generatoren) "
+                "zu den Verbrauchern (Wärmepumpen, P2H, Netzeinspeisung).*"
             ),
             pn.pane.Plotly(fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
@@ -1752,7 +1920,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             self._create_kpi_card("Gesamt-CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
             self._create_kpi_card("CO₂-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
             self._create_kpi_card("CO₂-Äq. Stromerzeugung (CHP)", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
-            self._create_kpi_card("CO₂-Äq. Strombezug (Netz)", f"{self.grid_co2_t:,.1f} t", "info"),
+            self._create_kpi_card("CO₂-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
             self._create_kpi_card("CO₂-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
             self._create_kpi_card("CO₂-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
             self._create_kpi_card("CO₂-Kosten Gesamt", f"{co2_total_cost:,.0f} €", "primary"),
@@ -1777,10 +1945,18 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 | **Gesamt-CO₂-Äquivalente** | {self.total_co2_t:,.1f} t CO₂eq |
 | **CO₂-Äq. Wärmeerzeugung** | {self.fuel_co2_heat_t:,.1f} t ({(self.fuel_co2_heat_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
 | **CO₂-Äq. Stromerzeugung (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
-| **CO₂-Äq. Strombezug (Netz)** | {self.grid_co2_t:,.1f} t ({(self.grid_co2_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO₂-Äq. Strombezug (Netz)** | {self.grid_co2_elec_t:,.1f} t ({(self.grid_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
 | **CO₂-Intensität** | {co2_intensity:.1f} kg CO₂eq/MWh_th |
 | **CO₂-Kosten Gesamt** | {co2_total_cost:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
-| **Wärmebereitstellung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |
+| **Wärmebereitstellung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |"""
+
+        # ✅ Stromeinspeisung hinzufügen (falls vorhanden)
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+            if p_sell_mwh > 0.01:
+                summary_md += f"\n| **⚡ Stromeinspeisung ins Netz** | {p_sell_mwh:,.0f} MWh (keine CO₂-Gutschrift) |"
+
+        summary_md += """
 
 **Interpretation:**
 - CO₂-Intensität: Emissionen pro MWh bereitgestellter Wärme
@@ -1941,10 +2117,10 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             values.append(self.fuel_co2_elec_t)
             colors.append('#198754')  # success (grün)
 
-        # Strombezug (Netz)
-        if self.grid_co2_t > 0.01:
+        # Strombezug (Netz) - nur Stromverbrauch (WP, P2H)
+        if self.grid_co2_elec_t > 0.01:
             labels.append('Strombezug (Netz)')
-            values.append(self.grid_co2_t)
+            values.append(self.grid_co2_elec_t)
             colors.append('#0dcaf0')  # info (blau)
 
         if not values:
