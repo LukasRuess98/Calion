@@ -1954,15 +1954,22 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         # ✅ Berechne Stromeinspeisung und zugehörige CO₂
         p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h if 'P_sell_MW' in self.df.columns else 0
 
-        # Berechne CO₂ für eingespeisten Strom (Brutto-Wert)
+        # Berechne CO₂ für eingespeisten Strom
         co2_grid_export_t = 0
         if p_sell_mwh > 0.01:
-            # Hole Brutto-CO₂ (vor selfuse-Korrektur)
+            # Versuch 1: Hole Brutto-CO₂ aus CHP (präzise, wenn verfügbar)
             co2_fuel_elec_gross = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) / 1000.0 if hasattr(result, 'costs') else 0
             selfuse_fraction = result.costs.get('CO2_fuel_to_elec_selfuse_fraction', 1.0) if hasattr(result, 'costs') else 1.0
 
-            # CO₂ für Einspeisung = Brutto - Eigenverbrauch
-            co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
+            if co2_fuel_elec_gross > 0.01:
+                # CO₂ für Einspeisung = Brutto - Eigenverbrauch (aus CHP)
+                co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
+            elif 'grid_co2_kg_MWh' in self.df.columns:
+                # Fallback: Verwende Grid-Emissionsfaktor als Schätzung
+                # Berechne durchschnittlichen Grid-CO₂-Faktor [kg/MWh]
+                avg_grid_co2_kg_mwh = self.df['grid_co2_kg_MWh'].mean()
+                # CO₂-Äquivalent für Einspeisung [t]
+                co2_grid_export_t = (p_sell_mwh * avg_grid_co2_kg_mwh) / 1000.0
 
         co2_kpis = pn.GridBox(
             # Reihe 1: CO₂-Mengen (5 Karten)
