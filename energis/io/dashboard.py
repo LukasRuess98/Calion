@@ -2046,6 +2046,76 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 - Stromerzeugung (CHP): CO₂ nur für **Eigenverbrauch** (Netzeinspeisung ohne CO₂-Anrechnung)
 - Strombezug (Netz): Indirekte Emissionen durch Stromeinkauf (Grid-Mix für WP/P2H)
 - Vergleichswerte: Gaskessel ~200 kg/MWh, Wärmepumpe ~50-150 kg/MWh
+
+---
+
+### 📊 CO₂-Emissionen nach Komponenten
+
+"""
+
+        # ✅ Erstelle Tabelle mit CO₂-Aufschlüsselung nach Komponenten
+        if hasattr(result, 'costs'):
+            component_data = []
+
+            # Sammle alle Komponenten
+            for key in result.costs.keys():
+                if key.startswith('CO2_') and key.endswith('_type'):
+                    comp_name = key.replace('CO2_', '').replace('_type', '')
+                    comp_type = result.costs.get(key, 'unknown')
+
+                    # Hole CO₂-Werte [kg]
+                    co2_total_kg = result.costs.get(f'CO2_{comp_name}_total_kg', 0)
+                    co2_heat_kg = result.costs.get(f'CO2_{comp_name}_heat_kg', 0)
+                    co2_elec_kg = result.costs.get(f'CO2_{comp_name}_elec_kg', 0)
+
+                    # Konvertiere zu Tonnen
+                    co2_total_t = co2_total_kg / 1000.0
+                    co2_heat_t = co2_heat_kg / 1000.0
+                    co2_elec_t = co2_elec_kg / 1000.0
+
+                    # Nur Komponenten mit CO₂ > 0.01 t
+                    if co2_total_t > 0.01:
+                        component_data.append({
+                            'name': comp_name,
+                            'type': comp_type,
+                            'total': co2_total_t,
+                            'heat': co2_heat_t,
+                            'elec': co2_elec_t
+                        })
+
+            # Sortiere nach Gesamt-CO₂ (absteigend)
+            component_data.sort(key=lambda x: x['total'], reverse=True)
+
+            if component_data:
+                summary_md += """
+| Komponente | Typ | Gesamt-CO₂ [t] | Wärme-CO₂ [t] | Strom-CO₂ [t] |
+|------------|-----|----------------|---------------|---------------|
+"""
+
+                for comp in component_data:
+                    # Typ übersetzen
+                    type_map = {
+                        'chp': 'CHP',
+                        'thermal_generator': 'Kessel',
+                        'heat_pump': 'Wärmepumpe',
+                        'p2h': 'Power-to-Heat'
+                    }
+                    type_label = type_map.get(comp['type'], comp['type'])
+
+                    # Prozentanteile berechnen
+                    heat_pct = (comp['heat'] / comp['total'] * 100) if comp['total'] > 0 else 0
+                    elec_pct = (comp['elec'] / comp['total'] * 100) if comp['total'] > 0 else 0
+
+                    summary_md += f"| **{comp['name']}** | {type_label} | {comp['total']:.1f} | {comp['heat']:.1f} ({heat_pct:.0f}%) | {comp['elec']:.1f} ({elec_pct:.0f}%) |\n"
+
+                summary_md += f"""
+| **GESAMT** | | **{sum(c['total'] for c in component_data):.1f}** | **{sum(c['heat'] for c in component_data):.1f}** | **{sum(c['elec'] for c in component_data):.1f}** |
+
+**Hinweise:**
+- Bei CHP-Anlagen wird nur der Strom-CO₂-Anteil für **Eigenverbrauch** angerechnet
+- Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
+- Wärmepumpen: CO₂ unter "Strom" = indirekter CO₂ aus Grid-Strombezug
+"""
 """
 
         # CO2-Breakdown Pie Chart

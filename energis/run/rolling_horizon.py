@@ -580,15 +580,18 @@ def _collect_timeseries_and_summary(
 
         if hasattr(model, 'co2_component_costs'):
             for comp_name, co2_data in model.co2_component_costs.items():
-                # CO₂ in kg
+                # CO₂ in kg (Brutto-Werte)
                 objective[f"CO2_{comp_name}_heat_kg"] = float(pyo.value(co2_data['heat_kg']))
-                objective[f"CO2_{comp_name}_elec_kg"] = float(pyo.value(co2_data['elec_kg']))
-                objective[f"CO2_{comp_name}_total_kg"] = float(pyo.value(co2_data['total_kg']))
+                objective[f"CO2_{comp_name}_elec_kg_gross"] = float(pyo.value(co2_data['elec_kg']))
+                objective[f"CO2_{comp_name}_total_kg_gross"] = float(pyo.value(co2_data['total_kg']))
 
-                # CO₂-Kosten in EUR
+                # CO₂-Kosten in EUR (Brutto)
                 objective[f"CO2_{comp_name}_heat_cost_EUR"] = float(pyo.value(co2_data['heat_eur']))
-                objective[f"CO2_{comp_name}_elec_cost_EUR"] = float(pyo.value(co2_data['elec_eur']))
-                objective[f"CO2_{comp_name}_total_cost_EUR"] = float(pyo.value(co2_data['total_eur']))
+                objective[f"CO2_{comp_name}_elec_cost_EUR_gross"] = float(pyo.value(co2_data['elec_eur']))
+                objective[f"CO2_{comp_name}_total_cost_EUR_gross"] = float(pyo.value(co2_data['total_eur']))
+
+                # Speichere Typ für spätere selfuse-Korrektur
+                objective[f"CO2_{comp_name}_type"] = co2_data.get('type', 'unknown')
 
                 # Aggregiere nach Brennstofftyp (nur für Komponenten mit fuel_bus)
                 if 'fuel_bus' in co2_data:
@@ -660,6 +663,44 @@ def _collect_timeseries_and_summary(
             co2_fuel_to_elec_net = co2_fuel_to_elec_total * selfuse_fraction
             objective["CO2_fuel_to_elec_kg"] = co2_fuel_to_elec_net  # Netto (nach Einspeisung)
             objective["CO2_fuel_to_elec_selfuse_fraction"] = selfuse_fraction
+
+            # ✅ Korrigiere auch komponenten-spezifische CO₂-Werte für CHP
+            if hasattr(model, 'co2_component_costs'):
+                for comp_name, co2_data in model.co2_component_costs.items():
+                    if co2_data.get('type') == 'chp':
+                        # Brutto-Werte wurden bereits exportiert
+                        co2_elec_gross = objective.get(f"CO2_{comp_name}_elec_kg_gross", 0)
+                        co2_total_gross = objective.get(f"CO2_{comp_name}_total_kg_gross", 0)
+                        co2_heat = objective.get(f"CO2_{comp_name}_heat_kg", 0)
+
+                        # Netto-Werte (nur Eigenverbrauch)
+                        co2_elec_net = co2_elec_gross * selfuse_fraction
+                        co2_total_net = co2_heat + co2_elec_net
+
+                        # Exportiere Netto-Werte
+                        objective[f"CO2_{comp_name}_elec_kg"] = co2_elec_net
+                        objective[f"CO2_{comp_name}_total_kg"] = co2_total_net
+
+                        # Kosten auch korrigieren
+                        co2_elec_cost_gross = objective.get(f"CO2_{comp_name}_elec_cost_EUR_gross", 0)
+                        co2_total_cost_gross = objective.get(f"CO2_{comp_name}_total_cost_EUR_gross", 0)
+                        co2_heat_cost = objective.get(f"CO2_{comp_name}_heat_cost_EUR", 0)
+
+                        co2_elec_cost_net = co2_elec_cost_gross * selfuse_fraction
+                        co2_total_cost_net = co2_heat_cost + co2_elec_cost_net
+
+                        objective[f"CO2_{comp_name}_elec_cost_EUR"] = co2_elec_cost_net
+                        objective[f"CO2_{comp_name}_total_cost_EUR"] = co2_total_cost_net
+                    else:
+                        # Nicht-CHP: Brutto = Netto (keine Korrektur nötig)
+                        if f"CO2_{comp_name}_elec_kg_gross" in objective:
+                            objective[f"CO2_{comp_name}_elec_kg"] = objective[f"CO2_{comp_name}_elec_kg_gross"]
+                        if f"CO2_{comp_name}_total_kg_gross" in objective:
+                            objective[f"CO2_{comp_name}_total_kg"] = objective[f"CO2_{comp_name}_total_kg_gross"]
+                        if f"CO2_{comp_name}_elec_cost_EUR_gross" in objective:
+                            objective[f"CO2_{comp_name}_elec_cost_EUR"] = objective[f"CO2_{comp_name}_elec_cost_EUR_gross"]
+                        if f"CO2_{comp_name}_total_cost_EUR_gross" in objective:
+                            objective[f"CO2_{comp_name}_total_cost_EUR"] = objective[f"CO2_{comp_name}_total_cost_EUR_gross"]
 
             # ✅ Korrigiere auch Gesamt-Strom-CO₂ (elec_total_kg)
             if "CO2_elec_total_kg_gross" in objective:
