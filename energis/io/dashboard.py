@@ -2053,9 +2053,15 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
 """
 
-        # ✅ Erstelle Tabelle mit CO₂-Aufschlüsselung nach Komponenten
+        # ✅ Erstelle Tabelle mit CO₂- und Kosten-Aufschlüsselung nach Komponenten
         if hasattr(result, 'costs'):
             component_data = []
+
+            # ✅ Debug: Zeige verfügbare CO₂-Keys
+            co2_keys = [k for k in result.costs.keys() if k.startswith('CO2_')]
+            print(f"\n[DEBUG] Verfügbare CO₂-Keys in result.costs: {len(co2_keys)} Keys")
+            type_keys = [k for k in co2_keys if k.endswith('_type')]
+            print(f"[DEBUG] Komponenten-Typ-Keys: {type_keys}")
 
             # Sammle alle Komponenten
             for key in result.costs.keys():
@@ -2073,23 +2079,40 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     co2_heat_t = co2_heat_kg / 1000.0
                     co2_elec_t = co2_elec_kg / 1000.0
 
-                    # Nur Komponenten mit CO₂ > 0.01 t
-                    if co2_total_t > 0.01:
+                    # Hole Kosten-Werte [EUR]
+                    cost_total_eur = result.costs.get(f'CO2_{comp_name}_total_cost_EUR', 0)
+                    cost_heat_eur = result.costs.get(f'CO2_{comp_name}_heat_cost_EUR', 0)
+                    cost_elec_eur = result.costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
+
+                    # ✅ Debug: Zeige geladene Werte für diese Komponente
+                    print(f"[DEBUG] {comp_name} ({comp_type}): CO₂_total={co2_total_kg}kg, CO₂_heat={co2_heat_kg}kg, CO₂_elec={co2_elec_kg}kg, Cost_total={cost_total_eur}€, Cost_heat={cost_heat_eur}€, Cost_elec={cost_elec_eur}€")
+
+                    # Nur Komponenten mit CO₂ > 0.01 t ODER Kosten > 1 EUR
+                    if co2_total_t > 0.01 or cost_total_eur > 1.0:
                         component_data.append({
                             'name': comp_name,
                             'type': comp_type,
-                            'total': co2_total_t,
-                            'heat': co2_heat_t,
-                            'elec': co2_elec_t
+                            'co2_total': co2_total_t,
+                            'co2_heat': co2_heat_t,
+                            'co2_elec': co2_elec_t,
+                            'cost_total': cost_total_eur,
+                            'cost_heat': cost_heat_eur,
+                            'cost_elec': cost_elec_eur
                         })
 
             # Sortiere nach Gesamt-CO₂ (absteigend)
-            component_data.sort(key=lambda x: x['total'], reverse=True)
+            component_data.sort(key=lambda x: x['co2_total'], reverse=True)
+
+            # ✅ Debug: Ausgabe der geladenen Komponenten-Daten
+            if component_data:
+                print(f"\n[DEBUG] CO₂-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
+                for comp in component_data:
+                    print(f"  - {comp['name']} ({comp['type']}): CO₂={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
 
             if component_data:
                 summary_md += """
-| Komponente | Typ | Gesamt-CO₂ [t] | Wärme-CO₂ [t] | Strom-CO₂ [t] |
-|------------|-----|----------------|---------------|---------------|
+| Komponente | Typ | Gesamt-CO₂ [t] | Wärme-CO₂ [t] | Strom-CO₂ [t] | Gesamt-Kosten [€] | Wärme-Kosten [€] | Strom-Kosten [€] |
+|------------|-----|----------------|---------------|---------------|-------------------|------------------|------------------|
 """
 
                 for comp in component_data:
@@ -2102,19 +2125,31 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     }
                     type_label = type_map.get(comp['type'], comp['type'])
 
-                    # Prozentanteile berechnen
-                    heat_pct = (comp['heat'] / comp['total'] * 100) if comp['total'] > 0 else 0
-                    elec_pct = (comp['elec'] / comp['total'] * 100) if comp['total'] > 0 else 0
+                    # Prozentanteile berechnen (CO₂)
+                    co2_heat_pct = (comp['co2_heat'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
+                    co2_elec_pct = (comp['co2_elec'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
 
-                    summary_md += f"| **{comp['name']}** | {type_label} | {comp['total']:.1f} | {comp['heat']:.1f} ({heat_pct:.0f}%) | {comp['elec']:.1f} ({elec_pct:.0f}%) |\n"
+                    # Prozentanteile berechnen (Kosten)
+                    cost_heat_pct = (comp['cost_heat'] / comp['cost_total'] * 100) if comp['cost_total'] > 0 else 0
+                    cost_elec_pct = (comp['cost_elec'] / comp['cost_total'] * 100) if comp['cost_total'] > 0 else 0
 
-                summary_md += f"""
-| **GESAMT** | | **{sum(c['total'] for c in component_data):.1f}** | **{sum(c['heat'] for c in component_data):.1f}** | **{sum(c['elec'] for c in component_data):.1f}** |
+                    summary_md += f"| **{comp['name']}** | {type_label} | {comp['co2_total']:.1f} | {comp['co2_heat']:.1f} ({co2_heat_pct:.0f}%) | {comp['co2_elec']:.1f} ({co2_elec_pct:.0f}%) | {comp['cost_total']:,.0f} | {comp['cost_heat']:,.0f} ({cost_heat_pct:.0f}%) | {comp['cost_elec']:,.0f} ({cost_elec_pct:.0f}%) |\n"
+
+                # Summen-Zeile
+                total_co2 = sum(c['co2_total'] for c in component_data)
+                total_co2_heat = sum(c['co2_heat'] for c in component_data)
+                total_co2_elec = sum(c['co2_elec'] for c in component_data)
+                total_cost = sum(c['cost_total'] for c in component_data)
+                total_cost_heat = sum(c['cost_heat'] for c in component_data)
+                total_cost_elec = sum(c['cost_elec'] for c in component_data)
+
+                summary_md += f"""| **GESAMT** | | **{total_co2:.1f}** | **{total_co2_heat:.1f}** | **{total_co2_elec:.1f}** | **{total_cost:,.0f}** | **{total_cost_heat:,.0f}** | **{total_cost_elec:,.0f}** |
 
 **Hinweise:**
 - Bei CHP-Anlagen wird nur der Strom-CO₂-Anteil für **Eigenverbrauch** angerechnet
 - Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
 - Wärmepumpen: CO₂ unter "Strom" = indirekter CO₂ aus Grid-Strombezug
+- Kosten basieren auf CO₂-Preis × CO₂-Emissionen (nach selfuse-Korrektur bei CHP)
 """
 """
 
