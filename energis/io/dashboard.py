@@ -466,9 +466,9 @@ class EnerGISDashboard:
         self.total_co2_t = 0
         self.grid_co2_t = 0
         self.fuel_co2_t = 0
-        self.fuel_co2_heat_t = 0  # CO₂ für Wärmeerzeugung (Brennstoff → Wärme)
-        self.fuel_co2_elec_t = 0  # CO₂ für Stromerzeugung (Brennstoff → Strom, nur CHP)
-        self.grid_co2_elec_t = 0  # CO₂ für Stromverbrauch (Grid → Strom, WP/P2H)
+        self.fuel_co2_heat_t = 0  # CO2 für Wärmeerzeugung (Brennstoff → Wärme)
+        self.fuel_co2_elec_t = 0  # CO2 für Stromerzeugung (Brennstoff → Strom, nur CHP)
+        self.grid_co2_elec_t = 0  # CO2 für Stromverbrauch (Grid → Strom, WP/P2H)
         self.co2_cost_eur = 0
 
         # Primär: Aus Zeitreihen aggregieren (zuverlässigste Quelle)
@@ -494,7 +494,7 @@ class EnerGISDashboard:
         if self.fuel_co2_t == 0 and hasattr(result, 'costs') and result.costs:
             self.fuel_co2_t = result.costs.get('Fuel_emissions_t', 0)
 
-        # ✅ Extrahiere 3-Kategorien-CO₂ (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
+        # ✅ Extrahiere 3-Kategorien-CO2 (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
         if hasattr(result, 'costs') and result.costs:
             # Neue 3-Kategorien-Werte (kg → t)
             self.fuel_co2_heat_t = result.costs.get('CO2_fuel_to_heat_kg', 0) / 1000.0      # Brennstoff → Wärme
@@ -559,7 +559,7 @@ class EnerGISDashboard:
                 self.fuel_co2_heat_t = self.fuel_co2_t  # Alle Brennstoff → Wärme
                 self.fuel_co2_elec_t = 0
 
-        # ✅ Berechne Gesamt-CO₂ aus 3 Kategorien (korrekt ohne Doppelzählung)
+        # ✅ Berechne Gesamt-CO2 aus 3 Kategorien (korrekt ohne Doppelzählung)
         calculated_total = self.fuel_co2_heat_t + self.fuel_co2_elec_t + self.grid_co2_elec_t
         if calculated_total > 0:
             self.total_co2_t = calculated_total
@@ -577,7 +577,7 @@ class EnerGISDashboard:
             ('Jahresdauerlinie', self._create_duration_curve_tab()),
             ('Effizienz & COP', self._create_efficiency_tab()),
             ('Energieflüsse', self._create_sankey_tab()),
-            ('CO₂-Emissionen', self._create_emissions_tab()),
+            ('CO2-Emissionen', self._create_emissions_tab()),
             ('Kosten', self._create_costs_tab()),
             ('Anlagen-Design', self._create_design_tab()),
             dynamic=True
@@ -684,7 +684,7 @@ class EnerGISDashboard:
             self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
             self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
             self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
-            self._create_kpi_card("🌍 CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
+            self._create_kpi_card("🌍 CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
             ncols=5,
             sizing_mode='stretch_width'
         )
@@ -1922,20 +1922,20 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         if self.total_co2_t == 0 and self.co2_cost_eur == 0:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine CO₂-Emissionsdaten verfügbar\n\n"
-                    "Das Workflow-Ergebnis enthält keine CO₂-Daten. Mögliche Ursachen:\n"
-                    "- CO₂-Berechnung ist in der Konfiguration deaktiviert\n"
+                    "## ⚠️ Keine CO2-Emissionsdaten verfügbar\n\n"
+                    "Das Workflow-Ergebnis enthält keine CO2-Daten. Mögliche Ursachen:\n"
+                    "- CO2-Berechnung ist in der Konfiguration deaktiviert\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
-                    "- CO₂-Daten wurden nicht exportiert\n\n"
-                    "**Um CO₂-Tracking zu aktivieren:**\n"
+                    "- CO2-Daten wurden nicht exportiert\n\n"
+                    "**Um CO2-Tracking zu aktivieren:**\n"
                     "```yaml\n"
                     "costs:\n"
                     "  include_co2_cost_in_objective: true\n"
-                    "  co2_price_eur_per_t: 100.0  # EUR pro Tonne CO₂\n"
+                    "  co2_price_eur_per_t: 100.0  # EUR pro Tonne CO2\n"
                     "```\n\n"
                     "**Troubleshooting:**\n"
                     "```python\n"
-                    "# Prüfe CO₂-Daten\n"
+                    "# Prüfe CO2-Daten\n"
                     "primary_result = workflow.rh_result or workflow.pf_result\n"
                     "print('Summary:', primary_result.summary.get('grid', {}))\n"
                     "print('CO2 costs:', primary_result.costs.get('objective.CO2_cost_EUR', 0))\n"
@@ -1946,43 +1946,43 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         # KPI-Karten für CO2-Übersicht (erweitert mit Wärme/Strom-Kosten)
         result = self.primary_result
 
-        # Extrahiere CO₂-Kosten (Wärme/Strom-Aufteilung)
+        # Extrahiere CO2-Kosten (Wärme/Strom-Aufteilung)
         co2_heat_cost = result.costs.get('CO2_heat_total_cost_EUR', 0) if hasattr(result, 'costs') else 0
         co2_elec_cost = result.costs.get('CO2_elec_total_cost_EUR', 0) if hasattr(result, 'costs') else 0
         co2_total_cost = result.costs.get('CO2_total_cost_EUR', self.co2_cost_eur) if hasattr(result, 'costs') else self.co2_cost_eur
 
-        # ✅ Berechne Stromeinspeisung und zugehörige CO₂
+        # ✅ Berechne Stromeinspeisung und zugehörige CO2
         p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h if 'P_sell_MW' in self.df.columns else 0
 
-        # Berechne CO₂ für eingespeisten Strom
+        # Berechne CO2 für eingespeisten Strom
         co2_grid_export_t = 0
         if p_sell_mwh > 0.01:
-            # Versuch 1: Hole Brutto-CO₂ aus CHP (präzise, wenn verfügbar)
+            # Versuch 1: Hole Brutto-CO2 aus CHP (präzise, wenn verfügbar)
             co2_fuel_elec_gross = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) / 1000.0 if hasattr(result, 'costs') else 0
             selfuse_fraction = result.costs.get('CO2_fuel_to_elec_selfuse_fraction', 1.0) if hasattr(result, 'costs') else 1.0
 
             if co2_fuel_elec_gross > 0.01:
-                # CO₂ für Einspeisung = Brutto - Eigenverbrauch (aus CHP)
+                # CO2 für Einspeisung = Brutto - Eigenverbrauch (aus CHP)
                 co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
             elif 'grid_co2_kg_MWh' in self.df.columns:
                 # Fallback: Verwende Grid-Emissionsfaktor als Schätzung
-                # Berechne durchschnittlichen Grid-CO₂-Faktor [kg/MWh]
+                # Berechne durchschnittlichen Grid-CO2-Faktor [kg/MWh]
                 avg_grid_co2_kg_mwh = self.df['grid_co2_kg_MWh'].mean()
-                # CO₂-Äquivalent für Einspeisung [t]
+                # CO2-Äquivalent für Einspeisung [t]
                 co2_grid_export_t = (p_sell_mwh * avg_grid_co2_kg_mwh) / 1000.0
 
         co2_kpis = pn.GridBox(
-            # Reihe 1: CO₂-Mengen (5 Karten)
-            self._create_kpi_card("Gesamt-CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
-            self._create_kpi_card("CO₂-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
-            self._create_kpi_card("CO₂-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
+            # Reihe 1: CO2-Mengen (5 Karten)
+            self._create_kpi_card("Gesamt-CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
+            self._create_kpi_card("CO2-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
+            self._create_kpi_card("CO2-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
             self._create_kpi_card("⚡ Stromeinspeisung", f"{p_sell_mwh:,.0f} MWh ({co2_grid_export_t:,.1f} t*)", "light"),
-            self._create_kpi_card("CO₂-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
-            # Reihe 2: CO₂-Kosten (3 Karten)
-            self._create_kpi_card("CO₂-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
-            self._create_kpi_card("CO₂-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
-            self._create_kpi_card("CO₂-Kosten Gesamt", f"{co2_total_cost:,.0f} €", "primary"),
-            ncols=5,  # 2 Zeilen: 5 Karten oben (CO₂-Mengen), 3 Karten unten (Kosten + leere Zellen)
+            self._create_kpi_card("CO2-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
+            # Reihe 2: CO2-Kosten (3 Karten)
+            self._create_kpi_card("CO2-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
+            self._create_kpi_card("CO2-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
+            self._create_kpi_card("CO2-Kosten Gesamt", f"{co2_total_cost:,.0f} €", "primary"),
+            ncols=5,  # 2 Zeilen: 5 Karten oben (CO2-Mengen), 3 Karten unten (Kosten + leere Zellen)
             sizing_mode='stretch_width'
         )
 
@@ -1994,7 +1994,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         if co2_grid_export_t > 0.01:
             grid_export_note = f"""
 **Hinweis zur Stromeinspeisung (*)**:
-- {co2_grid_export_t:,.1f} t CO₂ entstanden durch eingespeisten Strom
+- {co2_grid_export_t:,.1f} t CO2 entstanden durch eingespeisten Strom
 - Diese werden **NICHT** in der Bilanz angerechnet (neutraler Ansatz)
 - Gesamt-Bilanz enthält nur Eigenverbrauch + Wärmeerzeugung + Strombezug
 """
@@ -2006,16 +2006,16 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         # Zusammenfassungs-Statistiken
         summary_md = f"""
-### CO₂-Äquivalente Bilanz
+### CO2-Äquivalente Bilanz
 
 | Kennzahl | Wert |
 |----------|------|
-| **Gesamt-CO₂-Äquivalente** | {self.total_co2_t:,.1f} t CO₂eq |
-| **CO₂-Äq. Wärmeerzeugung** | {self.fuel_co2_heat_t:,.1f} t ({(self.fuel_co2_heat_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
-| **CO₂-Äq. Strom-Eigenverbrauch (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
-| **CO₂-Äq. Strombezug (Netz)** | {self.grid_co2_elec_t:,.1f} t ({(self.grid_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
-| **CO₂-Intensität** | {co2_intensity:.1f} kg CO₂eq/MWh_th |
-| **CO₂-Kosten Gesamt** | {co2_total_cost:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
+| **Gesamt-CO2-Äquivalente** | {self.total_co2_t:,.1f} t CO2eq |
+| **CO2-Äq. Wärmeerzeugung** | {self.fuel_co2_heat_t:,.1f} t ({(self.fuel_co2_heat_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Äq. Strom-Eigenverbrauch (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Äq. Strombezug (Netz)** | {self.grid_co2_elec_t:,.1f} t ({(self.grid_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Intensität** | {co2_intensity:.1f} kg CO2eq/MWh_th |
+| **CO2-Kosten Gesamt** | {co2_total_cost:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
 | **Wärmebereitstellung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |"""
 
         # ✅ Stromeinspeisung und Eigenverbrauch-Info hinzufügen
@@ -2035,31 +2035,31 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
                 summary_md += f"""
 | **⚡ CHP-Stromerzeugung (Brutto)** | {chp_elec_mwh:,.0f} MWh (100%) |
-| **↳ Eigenverbrauch** | {selfuse_mwh:,.0f} MWh ({selfuse_pct:.1f}%) → **CO₂ angerechnet** |
-| **↳ Netzeinspeisung** | {p_sell_mwh:,.0f} MWh ({(p_sell_mwh/chp_elec_mwh*100) if chp_elec_mwh > 0 else 0:.1f}%) → keine CO₂-Anrechnung |"""
+| **↳ Eigenverbrauch** | {selfuse_mwh:,.0f} MWh ({selfuse_pct:.1f}%) → **CO2 angerechnet** |
+| **↳ Netzeinspeisung** | {p_sell_mwh:,.0f} MWh ({(p_sell_mwh/chp_elec_mwh*100) if chp_elec_mwh > 0 else 0:.1f}%) → keine CO2-Anrechnung |"""
 
         summary_md += """
 
 **Interpretation:**
-- CO₂-Intensität: Emissionen pro MWh bereitgestellter Wärme
-- Wärmeerzeugung: CO₂ aus Brennstoffverbrennung für Wärme
-- Stromerzeugung (CHP): CO₂ nur für **Eigenverbrauch** (Netzeinspeisung ohne CO₂-Anrechnung)
+- CO2-Intensität: Emissionen pro MWh bereitgestellter Wärme
+- Wärmeerzeugung: CO2 aus Brennstoffverbrennung für Wärme
+- Stromerzeugung (CHP): CO2 nur für **Eigenverbrauch** (Netzeinspeisung ohne CO2-Anrechnung)
 - Strombezug (Netz): Indirekte Emissionen durch Stromeinkauf (Grid-Mix für WP/P2H)
 - Vergleichswerte: Gaskessel ~200 kg/MWh, Wärmepumpe ~50-150 kg/MWh
 
 ---
 
-### 📊 CO₂-Emissionen nach Komponenten
+### 📊 CO2-Emissionen nach Komponenten
 
 """
 
-        # ✅ Erstelle Tabelle mit CO₂- und Kosten-Aufschlüsselung nach Komponenten
+        # ✅ Erstelle Tabelle mit CO2- und Kosten-Aufschlüsselung nach Komponenten
         if hasattr(result, 'costs'):
             component_data = []
 
-            # ✅ Debug: Zeige verfügbare CO₂-Keys
+            # ✅ Debug: Zeige verfügbare CO2-Keys
             co2_keys = [k for k in result.costs.keys() if k.startswith('CO2_')]
-            print(f"\n[DEBUG] Verfügbare CO₂-Keys in result.costs: {len(co2_keys)} Keys")
+            print(f"\n[DEBUG] Verfügbare CO2-Keys in result.costs: {len(co2_keys)} Keys")
             type_keys = [k for k in co2_keys if k.endswith('_type')]
             print(f"[DEBUG] Komponenten-Typ-Keys: {type_keys}")
 
@@ -2069,7 +2069,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     comp_name = key.replace('CO2_', '').replace('_type', '')
                     comp_type = result.costs.get(key, 'unknown')
 
-                    # Hole CO₂-Werte [kg]
+                    # Hole CO2-Werte [kg]
                     co2_total_kg = result.costs.get(f'CO2_{comp_name}_total_kg', 0)
                     co2_heat_kg = result.costs.get(f'CO2_{comp_name}_heat_kg', 0)
                     co2_elec_kg = result.costs.get(f'CO2_{comp_name}_elec_kg', 0)
@@ -2085,9 +2085,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     cost_elec_eur = result.costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
 
                     # ✅ Debug: Zeige geladene Werte für diese Komponente
-                    print(f"[DEBUG] {comp_name} ({comp_type}): CO₂_total={co2_total_kg}kg, CO₂_heat={co2_heat_kg}kg, CO₂_elec={co2_elec_kg}kg, Cost_total={cost_total_eur}€, Cost_heat={cost_heat_eur}€, Cost_elec={cost_elec_eur}€")
+                    print(f"[DEBUG] {comp_name} ({comp_type}): CO2_total={co2_total_kg}kg, CO2_heat={co2_heat_kg}kg, CO2_elec={co2_elec_kg}kg, Cost_total={cost_total_eur}€, Cost_heat={cost_heat_eur}€, Cost_elec={cost_elec_eur}€")
 
-                    # Nur Komponenten mit CO₂ > 0.01 t ODER Kosten > 1 EUR
+                    # Nur Komponenten mit CO2 > 0.01 t ODER Kosten > 1 EUR
                     if co2_total_t > 0.01 or cost_total_eur > 1.0:
                         component_data.append({
                             'name': comp_name,
@@ -2100,20 +2100,20 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                             'cost_elec': cost_elec_eur
                         })
 
-            # Sortiere nach Gesamt-CO₂ (absteigend)
+            # Sortiere nach Gesamt-CO2 (absteigend)
             component_data.sort(key=lambda x: x['co2_total'], reverse=True)
 
             # ✅ Debug: Ausgabe der geladenen Komponenten-Daten
             if component_data:
-                print(f"\n[DEBUG] CO₂-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
+                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
                 for comp in component_data:
-                    print(f"  - {comp['name']} ({comp['type']}): CO₂={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
+                    print(f"  - {comp['name']} ({comp['type']}): CO2={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
             else:
-                print(f"\n[DEBUG] CO₂-Komponenten-Tabelle: Keine Komponenten gefunden (alte Simulation?)")
+                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: Keine Komponenten gefunden (alte Simulation?)")
 
             if component_data:
                 summary_md += """
-| Komponente | Typ | Gesamt-CO₂ [t] | Wärme-CO₂ [t] | Strom-CO₂ [t] | Gesamt-Kosten [€] | Wärme-Kosten [€] | Strom-Kosten [€] |
+| Komponente | Typ | Gesamt-CO2 [t] | Wärme-CO2 [t] | Strom-CO2 [t] | Gesamt-Kosten [€] | Wärme-Kosten [€] | Strom-Kosten [€] |
 |------------|-----|----------------|---------------|---------------|-------------------|------------------|------------------|
 """
 
@@ -2127,7 +2127,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     }
                     type_label = type_map.get(comp['type'], comp['type'])
 
-                    # Prozentanteile berechnen (CO₂)
+                    # Prozentanteile berechnen (CO2)
                     co2_heat_pct = (comp['co2_heat'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
                     co2_elec_pct = (comp['co2_elec'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
 
@@ -2148,25 +2148,24 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 summary_md += f"""| **GESAMT** | | **{total_co2:.1f}** | **{total_co2_heat:.1f}** | **{total_co2_elec:.1f}** | **{total_cost:,.0f}** | **{total_cost_heat:,.0f}** | **{total_cost_elec:,.0f}** |
 
 **Hinweise:**
-- Bei CHP-Anlagen wird nur der Strom-CO₂-Anteil für **Eigenverbrauch** angerechnet
+- Bei CHP-Anlagen wird nur der Strom-CO2-Anteil für **Eigenverbrauch** angerechnet
 - Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
-- Wärmepumpen: CO₂ unter "Strom" = indirekter CO₂ aus Grid-Strombezug
-- Kosten basieren auf CO₂-Preis × CO₂-Emissionen (nach selfuse-Korrektur bei CHP)
+- Wärmepumpen: CO2 unter "Strom" = indirekter CO2 aus Grid-Strombezug
+- Kosten basieren auf CO2-Preis × CO2-Emissionen (nach selfuse-Korrektur bei CHP)
 """
             else:
                 # Fallback wenn keine Komponenten-Daten verfügbar
                 summary_md += """
 *Keine detaillierte Komponenten-Aufschlüsselung verfügbar.*
 
-**Grund:** Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine komponenten-spezifischen CO₂-Daten exportiert.
+**Grund:** Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine komponenten-spezifischen CO2-Daten exportiert.
 
-**Lösung:** Führen Sie eine neue Simulation mit dem aktuellen Code durch, um die detaillierte CO₂-Aufschlüsselung nach Komponenten (Gesamt/Wärme/Strom/Kosten) zu erhalten.
+**Lösung:** Führen Sie eine neue Simulation mit dem aktuellen Code durch, um die detaillierte CO2-Aufschlüsselung nach Komponenten (Gesamt/Wärme/Strom/Kosten) zu erhalten.
 
 **Was Sie trotzdem sehen können:**
-- Gesamt-CO₂-Bilanz (siehe KPI-Karten oben)
-- CO₂-Kategorien (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
-- CO₂-Zeitverläufe und Sankey-Diagramme
-"""
+- Gesamt-CO2-Bilanz (siehe KPI-Karten oben)
+- CO2-Kategorien (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
+- CO2-Zeitverläufe und Sankey-Diagramme
 """
 
         # CO2-Breakdown Pie Chart
@@ -2191,7 +2190,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         # Multiselect für CO2-Quellen
         co2_source_selector = pn.widgets.MultiChoice(
-            name='🏭 CO₂-Quellen',
+            name='🏭 CO2-Quellen',
             options=[label for label, _ in co2_source_columns],
             value=[label for label, _ in co2_source_columns[:5]] if len(co2_source_columns) > 0 else [],  # Default: erste 5
             sizing_mode='stretch_width'
@@ -2264,9 +2263,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         )
 
         return pn.Column(
-            pn.pane.Markdown("## Emissionsanalyse in CO₂-Äquivalenten"),
+            pn.pane.Markdown("## Emissionsanalyse in CO2-Äquivalenten"),
             pn.pane.Markdown(
-                "*Dieses Tab zeigt die Treibhausgasemissionen des Energiesystems in CO₂-Äquivalenten. "
+                "*Dieses Tab zeigt die Treibhausgasemissionen des Energiesystems in CO2-Äquivalenten. "
                 "Emissionen entstehen durch Strombezug (indirekt) und direkten Brennstoffeinsatz (direkt).*"
             ),
             co2_kpis,
@@ -2286,13 +2285,13 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             pn.pane.Markdown("### Emissionen nach Quelle (Gesamtzeitraum)"),
             emissions_table,
             pn.layout.Divider(),
-            pn.pane.Markdown("### CO₂-Kosten pro Komponente (Wärme/Strom-Aufteilung)"),
+            pn.pane.Markdown("### CO2-Kosten pro Komponente (Wärme/Strom-Aufteilung)"),
             self._create_co2_costs_table(),
             pn.layout.Divider(),
-            pn.pane.Markdown("### CO₂-Emissionen nach Brennstofftyp"),
+            pn.pane.Markdown("### CO2-Emissionen nach Brennstofftyp"),
             self._create_co2_fuel_type_table(),
             pn.layout.Divider(),
-            pn.pane.Markdown("### CO₂-Äquivalente Zeitverlauf"),
+            pn.pane.Markdown("### CO2-Äquivalente Zeitverlauf"),
             controls,
             create_co2_timeseries,
             sizing_mode='stretch_width'
@@ -2328,7 +2327,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             colors.append('#0dcaf0')  # info (blau)
 
         if not values:
-            return pn.pane.Markdown("*Keine CO₂-Äquivalent-Daten für Breakdown verfügbar*")
+            return pn.pane.Markdown("*Keine CO2-Äquivalent-Daten für Breakdown verfügbar*")
 
         # Pie Chart erstellen
         fig = go.Figure(data=[go.Pie(
@@ -2338,7 +2337,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             marker=dict(colors=colors),
             textinfo='label+percent',
             textfont_size=14,
-            hovertemplate='<b>%{label}</b><br>%{value:.1f} t CO₂eq<br>%{percent}<extra></extra>'
+            hovertemplate='<b>%{label}</b><br>%{value:.1f} t CO2eq<br>%{percent}<extra></extra>'
         )])
 
         fig.update_layout(
@@ -2346,7 +2345,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5),
             title=dict(
-                text=f'CO₂-Aufteilung: {len(values)} Kategorien | Gesamt: {sum(values):.1f} t',
+                text=f'CO2-Aufteilung: {len(values)} Kategorien | Gesamt: {sum(values):.1f} t',
                 font=dict(size=12),
                 x=0.5,
                 xanchor='center'
@@ -2429,12 +2428,12 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         result = self.primary_result
         if not hasattr(result, 'costs'):
-            return pn.pane.Markdown("*Keine CO₂-Kosten verfügbar*")
+            return pn.pane.Markdown("*Keine CO2-Kosten verfügbar*")
 
         costs = result.costs
         co2_data = []
 
-        # Finde alle CO₂-Kosten-Einträge
+        # Finde alle CO2-Kosten-Einträge
         for key, value in costs.items():
             if key.startswith('CO2_') and key.endswith('_total_cost_EUR'):
                 # Extrahiere Komponenten-Namen
@@ -2443,7 +2442,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 if comp_name in ['heat_total', 'elec_total', 'total']:
                     continue  # Überspringen (Summen)
 
-                # Hole Wärme/Strom-Kosten und CO₂-Mengen
+                # Hole Wärme/Strom-Kosten und CO2-Mengen
                 heat_cost = costs.get(f'CO2_{comp_name}_heat_cost_EUR', 0)
                 elec_cost = costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
                 total_cost = costs.get(f'CO2_{comp_name}_total_cost_EUR', 0)
@@ -2482,7 +2481,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             })
 
         if not co2_data:
-            return pn.pane.Markdown("*Keine CO₂-Kosten verfügbar*")
+            return pn.pane.Markdown("*Keine CO2-Kosten verfügbar*")
 
         df = pd.DataFrame(co2_data)
 
@@ -2508,7 +2507,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         result = self.primary_result
         if not hasattr(result, 'costs'):
-            return pn.pane.Markdown("*Keine CO₂-Daten verfügbar*")
+            return pn.pane.Markdown("*Keine CO2-Daten verfügbar*")
 
         costs = result.costs
         fuel_data = []
@@ -2520,41 +2519,41 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             'waste': 'Abfall'
         }
 
-        # Extrahiere CO₂-Daten pro Brennstofftyp
+        # Extrahiere CO2-Daten pro Brennstofftyp
         for fuel_key, fuel_name in fuel_type_names.items():
             total_kg = costs.get(f'CO2_fuel_{fuel_key}_total_kg', 0)
             heat_kg = costs.get(f'CO2_fuel_{fuel_key}_heat_kg', 0)
             elec_kg = costs.get(f'CO2_fuel_{fuel_key}_elec_kg', 0)
             total_cost = costs.get(f'CO2_fuel_{fuel_key}_total_cost_EUR', 0)
 
-            # Nur hinzufügen wenn CO₂-Emissionen > 0
+            # Nur hinzufügen wenn CO2-Emissionen > 0
             if total_kg > 0.001:
                 fuel_data.append({
                     'Brennstoff': fuel_name,
-                    'CO₂_Wärme_t': heat_kg / 1000.0,
-                    'CO₂_Strom_t': elec_kg / 1000.0,
-                    'CO₂_Gesamt_t': total_kg / 1000.0,
+                    'CO2_Wärme_t': heat_kg / 1000.0,
+                    'CO2_Strom_t': elec_kg / 1000.0,
+                    'CO2_Gesamt_t': total_kg / 1000.0,
                     'Kosten_EUR': total_cost,
                     'Anteil_%': (total_kg / 1000.0 / self.fuel_co2_t * 100) if self.fuel_co2_t > 0 else 0
                 })
 
         if not fuel_data:
-            return pn.pane.Markdown("*Keine Brennstoff-CO₂-Emissionen verfügbar*")
+            return pn.pane.Markdown("*Keine Brennstoff-CO2-Emissionen verfügbar*")
 
         # Sortiere nach Gesamt-Emissionen
-        fuel_data = sorted(fuel_data, key=lambda x: x['CO₂_Gesamt_t'], reverse=True)
+        fuel_data = sorted(fuel_data, key=lambda x: x['CO2_Gesamt_t'], reverse=True)
 
         # Summen-Zeile
-        total_heat_t = sum(d['CO₂_Wärme_t'] for d in fuel_data)
-        total_elec_t = sum(d['CO₂_Strom_t'] for d in fuel_data)
-        total_total_t = sum(d['CO₂_Gesamt_t'] for d in fuel_data)
+        total_heat_t = sum(d['CO2_Wärme_t'] for d in fuel_data)
+        total_elec_t = sum(d['CO2_Strom_t'] for d in fuel_data)
+        total_total_t = sum(d['CO2_Gesamt_t'] for d in fuel_data)
         total_cost = sum(d['Kosten_EUR'] for d in fuel_data)
 
         fuel_data.append({
             'Brennstoff': '═══ SUMME ═══',
-            'CO₂_Wärme_t': total_heat_t,
-            'CO₂_Strom_t': total_elec_t,
-            'CO₂_Gesamt_t': total_total_t,
+            'CO2_Wärme_t': total_heat_t,
+            'CO2_Strom_t': total_elec_t,
+            'CO2_Gesamt_t': total_total_t,
             'Kosten_EUR': total_cost,
             'Anteil_%': 100.0
         })
@@ -2567,9 +2566,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             theme='modern',
             show_index=False,
             formatters={
-                'CO₂_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
-                'CO₂_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
-                'CO₂_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO2_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO2_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO2_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
                 'Kosten_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
                 'Anteil_%': {'type': 'progress', 'max': 100, 'legend': True}
             }
@@ -2621,25 +2620,25 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         if not co2_series:
             # Check for aggregated CO2 timeseries columns
             if 'Grid_CO2_emissions_t_per_step' in df_subset.columns:
-                co2_series.append(('CO₂-Äq. aus Strombezug', df_subset['Grid_CO2_emissions_t_per_step']))
+                co2_series.append(('CO2-Äq. aus Strombezug', df_subset['Grid_CO2_emissions_t_per_step']))
 
             if 'Fuel_CO2_emissions_t_per_step' in df_subset.columns:
                 fuel_co2 = df_subset['Fuel_CO2_emissions_t_per_step']
                 if fuel_co2.sum() > 0.001:
-                    co2_series.append(('CO₂-Äq. aus Wärmeerzeugung', fuel_co2))
+                    co2_series.append(('CO2-Äq. aus Wärmeerzeugung', fuel_co2))
 
             # Fallback: Calculate from raw data if new series not available
             if not co2_series:
                 if 'P_buy_MW' in df_subset.columns and 'grid_co2_kg_MWh' in df_subset.columns:
                     grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * df_subset['grid_co2_kg_MWh'] / 1000.0
-                    co2_series.append(('CO₂-Äq. aus Strombezug', grid_co2_series))
+                    co2_series.append(('CO2-Äq. aus Strombezug', grid_co2_series))
 
         if not co2_series:
             return pn.pane.Markdown(
-                "*Keine zeitaufgelösten CO₂-Äquivalent-Daten verfügbar für Zeitreihen-Plot.*\n\n"
+                "*Keine zeitaufgelösten CO2-Äquivalent-Daten verfügbar für Zeitreihen-Plot.*\n\n"
                 "**Aggregierte Werte (Gesamtzeitraum):**\n"
-                "- Strombezug: {:.1f} t CO₂eq\n"
-                "- Wärmeerzeugung: {:.1f} t CO₂eq\n\n"
+                "- Strombezug: {:.1f} t CO2eq\n"
+                "- Wärmeerzeugung: {:.1f} t CO2eq\n\n"
                 "**Hinweis:** Zeitreihen werden automatisch aus den Simulationsergebnissen generiert. "
                 "Falls keine Daten angezeigt werden, überprüfen Sie die Workflow-Konfiguration.".format(
                     self.grid_co2_t, self.fuel_co2_t
@@ -2649,7 +2648,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         # Plot erstellen
         fig = go.Figure()
 
-        # ✅ Berechne Gesamt-CO₂-Linie (Summe aller Quellen pro Zeitschritt)
+        # ✅ Berechne Gesamt-CO2-Linie (Summe aller Quellen pro Zeitschritt)
         total_series = sum(series for _, series in co2_series)
 
         # Füge gestackte Flächen für einzelne Quellen hinzu
@@ -2661,10 +2660,10 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 name=name,
                 stackgroup='one' if len(co2_series) > 1 else None,
                 line=dict(width=1),
-                hovertemplate='<b>%{fullData.name}</b>: %{y:.4f} t CO₂eq<extra></extra>'
+                hovertemplate='<b>%{fullData.name}</b>: %{y:.4f} t CO2eq<extra></extra>'
             ))
 
-        # ✅ Füge Gesamt-CO₂-Linie hinzu (nicht gestackt)
+        # ✅ Füge Gesamt-CO2-Linie hinzu (nicht gestackt)
         if len(co2_series) > 1:
             fig.add_trace(go.Scatter(
                 x=df_subset['timestamp'],
@@ -2672,7 +2671,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 mode='lines',
                 name='═══ GESAMT ═══',
                 line=dict(color='black', width=2, dash='dash'),
-                hovertemplate='<b>Gesamt-CO₂</b>: %{y:.4f} t CO₂eq<extra></extra>'
+                hovertemplate='<b>Gesamt-CO2</b>: %{y:.4f} t CO2eq<extra></extra>'
             ))
 
         # Berechne Statistiken für gefilterten Zeitraum
@@ -2682,11 +2681,11 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         fig.update_layout(
             height=400,
             xaxis_title='Zeit',
-            yaxis_title=f'CO₂-Äquivalente [t / {self.dt_h}h]',
+            yaxis_title=f'CO2-Äquivalente [t / {self.dt_h}h]',
             hovermode='x unified',
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
             title=dict(
-                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO₂eq | Quellen: {len(co2_series)}',
+                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO2eq | Quellen: {len(co2_series)}',
                 font=dict(size=12),
                 x=0.5,
                 xanchor='center'
