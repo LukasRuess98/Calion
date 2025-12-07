@@ -635,72 +635,71 @@ def _collect_timeseries_and_summary(
         if hasattr(model, 'co2_kg_fuel_to_heat_expr'):
             objective["CO2_fuel_to_heat_kg"] = float(pyo.value(model.co2_kg_fuel_to_heat_expr))
 
+        # ✅ Berechne selfuse_fraction (für CHP-Korrektur)
+        selfuse_fraction = 1.0  # Default: alles Eigenverbrauch
+        chp_elec_total_mwh = 0
+        p_sell_total_mwh = sum(series["P_sell_MW"]) * dt_h if "P_sell_MW" in series else 0
+
+        # Summiere alle CHP-Generatoren
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                if co2_data.get('type') == 'chp' and co2_data.get('el_eff', 0) > 0:
+                    # Finde P_el_out für diese Komponente
+                    pel_col = f"{comp_name}_Pel_MW"
+                    if pel_col in series:
+                        chp_elec_total_mwh += sum(series[pel_col]) * dt_h
+
+        # Berechne Eigenverbrauch-Anteil
+        if chp_elec_total_mwh > 0:
+            selfuse_fraction = max(0, (chp_elec_total_mwh - p_sell_total_mwh) / chp_elec_total_mwh)
+
+        # ✅ Exportiere komponenten-spezifische Netto-Werte (IMMER, nicht nur wenn CHP vorhanden)
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                if co2_data.get('type') == 'chp':
+                    # CHP: Brutto-Werte wurden bereits exportiert, wende selfuse-Korrektur an
+                    co2_elec_gross = objective.get(f"CO2_{comp_name}_elec_kg_gross", 0)
+                    co2_total_gross = objective.get(f"CO2_{comp_name}_total_kg_gross", 0)
+                    co2_heat = objective.get(f"CO2_{comp_name}_heat_kg", 0)
+
+                    # Netto-Werte (nur Eigenverbrauch)
+                    co2_elec_net = co2_elec_gross * selfuse_fraction
+                    co2_total_net = co2_heat + co2_elec_net
+
+                    # Exportiere Netto-Werte
+                    objective[f"CO2_{comp_name}_elec_kg"] = co2_elec_net
+                    objective[f"CO2_{comp_name}_total_kg"] = co2_total_net
+
+                    # Kosten auch korrigieren
+                    co2_elec_cost_gross = objective.get(f"CO2_{comp_name}_elec_cost_EUR_gross", 0)
+                    co2_total_cost_gross = objective.get(f"CO2_{comp_name}_total_cost_EUR_gross", 0)
+                    co2_heat_cost = objective.get(f"CO2_{comp_name}_heat_cost_EUR", 0)
+
+                    co2_elec_cost_net = co2_elec_cost_gross * selfuse_fraction
+                    co2_total_cost_net = co2_heat_cost + co2_elec_cost_net
+
+                    objective[f"CO2_{comp_name}_elec_cost_EUR"] = co2_elec_cost_net
+                    objective[f"CO2_{comp_name}_total_cost_EUR"] = co2_total_cost_net
+                else:
+                    # Nicht-CHP: Brutto = Netto (keine Korrektur nötig)
+                    if f"CO2_{comp_name}_elec_kg_gross" in objective:
+                        objective[f"CO2_{comp_name}_elec_kg"] = objective[f"CO2_{comp_name}_elec_kg_gross"]
+                    if f"CO2_{comp_name}_total_kg_gross" in objective:
+                        objective[f"CO2_{comp_name}_total_kg"] = objective[f"CO2_{comp_name}_total_kg_gross"]
+                    if f"CO2_{comp_name}_elec_cost_EUR_gross" in objective:
+                        objective[f"CO2_{comp_name}_elec_cost_EUR"] = objective[f"CO2_{comp_name}_elec_cost_EUR_gross"]
+                    if f"CO2_{comp_name}_total_cost_EUR_gross" in objective:
+                        objective[f"CO2_{comp_name}_total_cost_EUR"] = objective[f"CO2_{comp_name}_total_cost_EUR_gross"]
+
+        # ✅ Gesamt-CO₂ Korrektur (nur wenn CHP vorhanden)
         if hasattr(model, 'co2_kg_fuel_to_elec_expr'):
             co2_fuel_to_elec_total = float(pyo.value(model.co2_kg_fuel_to_elec_expr))
             objective["CO2_fuel_to_elec_kg_gross"] = co2_fuel_to_elec_total  # Brutto (vor Einspeisung)
-
-            # ✅ Korrektur: CO₂ nur für Eigenverbrauch, nicht für Netzeinspeisung
-            # Berechne CHP-Stromerzeugung und Netzeinspeisung
-            chp_elec_total_mwh = 0
-            p_sell_total_mwh = sum(series["P_sell_MW"]) * dt_h if "P_sell_MW" in series else 0
-
-            # Summiere alle CHP-Generatoren
-            if hasattr(model, 'co2_component_costs'):
-                for comp_name, co2_data in model.co2_component_costs.items():
-                    if co2_data.get('type') == 'chp' and co2_data.get('el_eff', 0) > 0:
-                        # Finde P_el_out für diese Komponente
-                        pel_col = f"{comp_name}_Pel_MW"
-                        if pel_col in series:
-                            chp_elec_total_mwh += sum(series[pel_col]) * dt_h
-
-            # Berechne Eigenverbrauch-Anteil
-            if chp_elec_total_mwh > 0:
-                selfuse_fraction = max(0, (chp_elec_total_mwh - p_sell_total_mwh) / chp_elec_total_mwh)
-            else:
-                selfuse_fraction = 1.0  # Fallback: kein CHP → alles Eigenverbrauch
 
             # Korrigiere CO₂ für Eigenverbrauch
             co2_fuel_to_elec_net = co2_fuel_to_elec_total * selfuse_fraction
             objective["CO2_fuel_to_elec_kg"] = co2_fuel_to_elec_net  # Netto (nach Einspeisung)
             objective["CO2_fuel_to_elec_selfuse_fraction"] = selfuse_fraction
-
-            # ✅ Korrigiere auch komponenten-spezifische CO₂-Werte für CHP
-            if hasattr(model, 'co2_component_costs'):
-                for comp_name, co2_data in model.co2_component_costs.items():
-                    if co2_data.get('type') == 'chp':
-                        # Brutto-Werte wurden bereits exportiert
-                        co2_elec_gross = objective.get(f"CO2_{comp_name}_elec_kg_gross", 0)
-                        co2_total_gross = objective.get(f"CO2_{comp_name}_total_kg_gross", 0)
-                        co2_heat = objective.get(f"CO2_{comp_name}_heat_kg", 0)
-
-                        # Netto-Werte (nur Eigenverbrauch)
-                        co2_elec_net = co2_elec_gross * selfuse_fraction
-                        co2_total_net = co2_heat + co2_elec_net
-
-                        # Exportiere Netto-Werte
-                        objective[f"CO2_{comp_name}_elec_kg"] = co2_elec_net
-                        objective[f"CO2_{comp_name}_total_kg"] = co2_total_net
-
-                        # Kosten auch korrigieren
-                        co2_elec_cost_gross = objective.get(f"CO2_{comp_name}_elec_cost_EUR_gross", 0)
-                        co2_total_cost_gross = objective.get(f"CO2_{comp_name}_total_cost_EUR_gross", 0)
-                        co2_heat_cost = objective.get(f"CO2_{comp_name}_heat_cost_EUR", 0)
-
-                        co2_elec_cost_net = co2_elec_cost_gross * selfuse_fraction
-                        co2_total_cost_net = co2_heat_cost + co2_elec_cost_net
-
-                        objective[f"CO2_{comp_name}_elec_cost_EUR"] = co2_elec_cost_net
-                        objective[f"CO2_{comp_name}_total_cost_EUR"] = co2_total_cost_net
-                    else:
-                        # Nicht-CHP: Brutto = Netto (keine Korrektur nötig)
-                        if f"CO2_{comp_name}_elec_kg_gross" in objective:
-                            objective[f"CO2_{comp_name}_elec_kg"] = objective[f"CO2_{comp_name}_elec_kg_gross"]
-                        if f"CO2_{comp_name}_total_kg_gross" in objective:
-                            objective[f"CO2_{comp_name}_total_kg"] = objective[f"CO2_{comp_name}_total_kg_gross"]
-                        if f"CO2_{comp_name}_elec_cost_EUR_gross" in objective:
-                            objective[f"CO2_{comp_name}_elec_cost_EUR"] = objective[f"CO2_{comp_name}_elec_cost_EUR_gross"]
-                        if f"CO2_{comp_name}_total_cost_EUR_gross" in objective:
-                            objective[f"CO2_{comp_name}_total_cost_EUR"] = objective[f"CO2_{comp_name}_total_cost_EUR_gross"]
 
             # ✅ Korrigiere auch Gesamt-Strom-CO₂ (elec_total_kg)
             if "CO2_elec_total_kg_gross" in objective:

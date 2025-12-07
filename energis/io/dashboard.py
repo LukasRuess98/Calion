@@ -2108,6 +2108,8 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 print(f"\n[DEBUG] CO₂-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
                 for comp in component_data:
                     print(f"  - {comp['name']} ({comp['type']}): CO₂={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
+            else:
+                print(f"\n[DEBUG] CO₂-Komponenten-Tabelle: Keine Komponenten gefunden (alte Simulation?)")
 
             if component_data:
                 summary_md += """
@@ -2150,6 +2152,20 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 - Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
 - Wärmepumpen: CO₂ unter "Strom" = indirekter CO₂ aus Grid-Strombezug
 - Kosten basieren auf CO₂-Preis × CO₂-Emissionen (nach selfuse-Korrektur bei CHP)
+"""
+            else:
+                # Fallback wenn keine Komponenten-Daten verfügbar
+                summary_md += """
+*Keine detaillierte Komponenten-Aufschlüsselung verfügbar.*
+
+**Grund:** Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine komponenten-spezifischen CO₂-Daten exportiert.
+
+**Lösung:** Führen Sie eine neue Simulation mit dem aktuellen Code durch, um die detaillierte CO₂-Aufschlüsselung nach Komponenten (Gesamt/Wärme/Strom/Kosten) zu erhalten.
+
+**Was Sie trotzdem sehen können:**
+- Gesamt-CO₂-Bilanz (siehe KPI-Karten oben)
+- CO₂-Kategorien (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
+- CO₂-Zeitverläufe und Sankey-Diagramme
 """
 """
 
