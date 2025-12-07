@@ -673,19 +673,47 @@ class EnerGISDashboard:
         avg_demand = total_demand_MWh / total_timesteps if total_timesteps > 0 else 0
         load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
 
-        # Create cards - erweitert mit Autarkie und CO2
+        # ✅ Berechne Strom-Metriken (CHP-Erzeugung, Netzeinspeisung, Eigenverbrauch)
+        chp_elec_mwh = 0
+        p_sell_mwh = 0
+
+        # Hole CHP-Stromerzeugung aus Summary (präzise)
+        if hasattr(result, 'summary') and result.summary:
+            for key, data in result.summary.items():
+                if key.startswith('generator_'):
+                    chp_elec_mwh += data.get('Power_output_MWh', 0)
+
+        # Hole Netzeinspeisung aus Zeitreihen (ORIGINAL, nicht downsampled!)
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+
+        # Berechne Eigenverbrauch
+        chp_selfuse_mwh = max(0, chp_elec_mwh - p_sell_mwh)
+
+        # Berechne Eigenverbrauch-Quote
+        selfuse_percentage = (chp_selfuse_mwh / chp_elec_mwh * 100) if chp_elec_mwh > 0 else 0
+
+        # Create cards - erweitert mit Autarkie, CO2 und Strom-Metriken
         cards = pn.GridBox(
+            # Reihe 1: Kosten (4 Karten)
             self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
             self._create_kpi_card("🔥 Brennstoffkosten", f"{fuel_cost:,.0f} €", "warning"),
             self._create_kpi_card("🏗️ Investition (CAPEX)", f"{capex:,.0f} €", "success"),
+
+            # Reihe 2: Wärme-Metriken (4 Karten)
             self._create_kpi_card("📊 Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
             self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
             self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
-            self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
             self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
-            self._create_kpi_card("🌍 CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
-            ncols=5,
+
+            # Reihe 3: Strom-Metriken (4 Karten)
+            self._create_kpi_card("⚡ Strom-Erzeugung (CHP)", f"{chp_elec_mwh:,.0f} MWh", "info"),
+            self._create_kpi_card("📤 Netzeinspeisung", f"{p_sell_mwh:,.0f} MWh", "warning"),
+            self._create_kpi_card("🏠 Strom-Eigenverbrauch", f"{chp_selfuse_mwh:,.0f} MWh ({selfuse_percentage:.1f}%)", "success"),
+            self._create_kpi_card("🌍 CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "danger"),
+
+            ncols=4,  # 4 Spalten × 3 Zeilen = 12 Karten
             sizing_mode='stretch_width'
         )
 
