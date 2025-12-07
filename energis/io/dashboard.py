@@ -1956,20 +1956,66 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         # Berechne CO2 für eingespeisten Strom
         co2_grid_export_t = 0
+
+        # ⚠️ WARNUNG für alte Simulationen
+        is_old_simulation = False
+        if hasattr(result, 'costs'):
+            has_new_data = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) > 0
+            is_old_simulation = not has_new_data and self.fuel_co2_elec_t == 0 and p_sell_mwh > 0.01
+
         if p_sell_mwh > 0.01:
             # Versuch 1: Hole Brutto-CO2 aus CHP (präzise, wenn verfügbar)
             co2_fuel_elec_gross = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) / 1000.0 if hasattr(result, 'costs') else 0
             selfuse_fraction = result.costs.get('CO2_fuel_to_elec_selfuse_fraction', 1.0) if hasattr(result, 'costs') else 1.0
 
             if co2_fuel_elec_gross > 0.01:
-                # CO2 für Einspeisung = Brutto - Eigenverbrauch (aus CHP)
+                # NEUE Simulation: Verwende exportierte Brutto-Werte
                 co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
-            elif 'grid_co2_kg_MWh' in self.df.columns:
-                # Fallback: Verwende Grid-Emissionsfaktor als Schätzung
-                # Berechne durchschnittlichen Grid-CO2-Faktor [kg/MWh]
-                avg_grid_co2_kg_mwh = self.df['grid_co2_kg_MWh'].mean()
-                # CO2-Äquivalent für Einspeisung [t]
-                co2_grid_export_t = (p_sell_mwh * avg_grid_co2_kg_mwh) / 1000.0
+            else:
+                # ALTE Simulation: Versuche nachträgliche Berechnung
+                # Hole CHP-Stromerzeugung aus Summary
+                chp_elec_mwh = 0
+                chp_heat_mwh = 0
+                if hasattr(result, 'summary') and result.summary:
+                    for key, data in result.summary.items():
+                        if key.startswith('generator_'):
+                            chp_elec_mwh += data.get('Power_output_MWh', 0)
+                            chp_heat_mwh += data.get('Heat_output_MWh', 0)
+
+                if chp_elec_mwh > 0.01 and chp_heat_mwh > 0.01:
+                    # ✅ Nachträgliche Berechnung mit energetischer Aufteilung
+                    # Annahme: Gas-CHP mit ca. 200 kg CO2/MWh Brennstoff
+                    # Gesamter Brennstoff-Verbrauch (abgeschätzt aus Wirkungsgraden)
+                    # Typische CHP: th_eff=0.55, el_eff=0.35, total_eff=0.90
+                    assumed_total_eff = 0.90
+                    fuel_mwh = (chp_heat_mwh + chp_elec_mwh) / assumed_total_eff
+
+                    # Gas-Emissionsfaktor: ~200 kg CO2/MWh
+                    gas_co2_factor = 200.0  # kg/MWh
+                    total_chp_co2_kg = fuel_mwh * gas_co2_factor
+
+                    # Energetische Aufteilung
+                    total_energy = chp_heat_mwh + chp_elec_mwh
+                    elec_fraction = chp_elec_mwh / total_energy if total_energy > 0 else 0
+
+                    chp_elec_co2_gross_t = (total_chp_co2_kg * elec_fraction) / 1000.0
+                    chp_heat_co2_t = (total_chp_co2_kg * (1 - elec_fraction)) / 1000.0
+
+                    # Selfuse-Korrektur
+                    selfuse_frac = max(0, (chp_elec_mwh - p_sell_mwh) / chp_elec_mwh) if chp_elec_mwh > 0 else 1.0
+                    chp_elec_co2_net_t = chp_elec_co2_gross_t * selfuse_frac
+                    co2_grid_export_t = chp_elec_co2_gross_t * (1 - selfuse_frac)
+
+                    # ✅ KORRIGIERE die Werte für alte Simulation
+                    self.fuel_co2_heat_t = chp_heat_co2_t
+                    self.fuel_co2_elec_t = chp_elec_co2_net_t
+                    # grid_co2_elec_t bleibt (WP/P2H Verbrauch)
+                    self.total_co2_t = self.fuel_co2_heat_t + self.fuel_co2_elec_t + self.grid_co2_elec_t
+                else:
+                    # Kann CHP nicht identifizieren → Fallback Grid-Faktor (ungenau!)
+                    if 'grid_co2_kg_MWh' in self.df.columns:
+                        avg_grid_co2_kg_mwh = self.df['grid_co2_kg_MWh'].mean()
+                        co2_grid_export_t = (p_sell_mwh * avg_grid_co2_kg_mwh) / 1000.0
 
         co2_kpis = pn.GridBox(
             # Reihe 1: CO2-Mengen (5 Karten)
@@ -1997,6 +2043,22 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 - {co2_grid_export_t:,.1f} t CO2 entstanden durch eingespeisten Strom
 - Diese werden **NICHT** in der Bilanz angerechnet (neutraler Ansatz)
 - Gesamt-Bilanz enthält nur Eigenverbrauch + Wärmeerzeugung + Strombezug
+"""
+
+        # ⚠️ WARNUNG für alte Simulationen
+        if is_old_simulation:
+            grid_export_note += f"""
+
+⚠️ **WICHTIG - Alte Simulation erkannt:**
+Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine korrekte Wärme/Strom-CO2-Aufteilung hatte.
+
+**Was wurde korrigiert:**
+- Die Werte wurden nachträglich mit energetischer Aufteilung (Wirkungsgrad-basiert) neu berechnet
+- Annahme: Gas-CHP mit ~200 kg CO2/MWh Brennstoff, Gesamtwirkungsgrad 90%
+- Aufteilung basierend auf: Strom-Anteil = Strom-MWh / (Strom-MWh + Wärme-MWh)
+
+**Für präzise Werte:**
+Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet die CO2-Aufteilung direkt während der Optimierung basierend auf den tatsächlichen Wirkungsgraden und Brennstoff-Emissionsfaktoren.
 """
 
         # Berechne CO2-Kosten als Anteil der Gesamtkosten
