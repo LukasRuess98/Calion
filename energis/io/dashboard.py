@@ -2425,7 +2425,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         return table
 
     def _create_co2_costs_table(self):
-        """Create detailed CO₂ costs table per component (Heat/Elec split)."""
+        """Create detailed CO2 costs table per component (Heat/Elec split)."""
 
         result = self.primary_result
         if not hasattr(result, 'costs'):
@@ -2504,7 +2504,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         return table
 
     def _create_co2_fuel_type_table(self):
-        """Create CO₂ breakdown by fuel type (Gas, Biomasse, Abfall) - ähnlich wie 'Emissionen nach Quelle'."""
+        """Create CO2 breakdown by fuel type (Gas, Biomasse, Abfall) - similar to 'Emissions by Source'."""
 
         result = self.primary_result
         if not hasattr(result, 'costs'):
