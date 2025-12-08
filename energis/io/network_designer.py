@@ -690,17 +690,97 @@ class ThermalNetworkDesigner(param.Parameterized):
         return isolated
 
     def export_to_yaml(self, output_path: str | Path) -> Dict[str, Any]:
-        """Export network to YAML configuration."""
+        """Export network to YAML configuration.
+
+        Exports in format compatible with system_builder.py and rolling_horizon.py.
+        Creates a complete, self-contained configuration with sensible defaults.
+        """
+        # Generate system config in format expected by system_builder
+        system_config = self._generate_system_config()
+
+        # Complete config structure with all required sections
         config = {
+            # Metadata (for Network Designer only)
+            '_network_designer': {
+                'version': '1.0',
+                'created': 'Network Designer',
+                'components': [comp.to_dict() for comp in self.components],
+                'connections': [conn.to_dict() for conn in self.connections],
+            },
+
+            # Run configuration
+            'run': {
+                'dt_h': 1.0,
+                'solver': 'gurobi',
+                'solver_options': {
+                    'MIPGap': 0.02,
+                    'TimeLimit': 3600,
+                    'Threads': 0,
+                },
+            },
+
+            # Cost parameters
+            'costs': {
+                'include_gridcost_in_energy': True,
+                'include_demand_charge_in_rh': True,
+                'include_co2_cost_in_objective': True,
+                'co2_price_eur_per_t': 100.0,
+                'dump_cost_eur_per_mwh_th': 1.0,
+            },
+
+            # Grid parameters
+            'grid': {
+                'energy_fee_eur_mwh': 0.0,
+                'demand_charge_eur_per_mw_y': 120000.0,
+                'gridcost_eur_mwh': 0.0,
+                'year_fraction': 1.0,
+                'big_m_grid_mw': 200.0,
+                'max_import_mw': 200.0,
+                'max_export_mw': 100.0,
+            },
+
+            # Fuel prices (defaults)
+            'fuels': {
+                'gas': {
+                    'price_eur_mwh': 50.0,
+                    'ef_kg_per_mwh_fuel': 200.0,
+                },
+                'biomass': {
+                    'price_eur_mwh': 40.0,
+                    'ef_kg_per_mwh_fuel': 0.0,
+                },
+            },
+
+            # Heat pump configuration
+            'heat_pumps': {
+                'cop': {
+                    'cop_fallback': 3.5,
+                    'T_feed_K': 353.15,  # 80°C
+                    'dT_pinch_K': 5.0,
+                },
+                'types': {
+                    'standard': {
+                        'COPdefault': 3.5,
+                    },
+                },
+            },
+
+            # Storage configuration defaults
+            'storage': {
+                'eff_charge': 0.98,
+                'eff_discharge': 0.98,
+                'loss_hour': 0.9999,
+            },
+
+            # Scenario metadata
             'scenario': {
                 'name': 'network_designer_scenario',
                 'description': 'Created with Network Designer',
-                'network': {
-                    'components': [comp.to_dict() for comp in self.components],
-                    'connections': [conn.to_dict() for conn in self.connections],
-                },
-                'system': self._generate_system_config(),
-            }
+                'run_mode': 'PF_ONLY',  # Default to Perfect Forecast
+            },
+
+            # System configuration (required by system_builder.py)
+            'system': system_config,
         }
 
         with open(output_path, 'w') as f:
@@ -710,62 +790,236 @@ class ThermalNetworkDesigner(param.Parameterized):
         return config
 
     def _generate_system_config(self) -> Dict[str, Any]:
-        """Generate system configuration from components."""
-        system_config = {
-            'heat_pumps': [],
-            'boilers': [],
-            'storage': [],
-            'consumers': [],
-        }
+        """Generate system configuration compatible with system_builder.py.
 
-        for comp in self.components:
-            if comp.component_type == 'heat_pump':
-                system_config['heat_pumps'].append({
+        Creates config structure matching baseline.system.yaml format:
+        - system.heat_pumps: list of heat pump definitions
+        - system.storage: single storage config with enabled flag
+        - system.generators: dict of generator configs (for boilers)
+        """
+        system_config = {}
+
+        # Extract heat pumps
+        heat_pumps = [comp for comp in self.components if comp.component_type == 'heat_pump']
+        if heat_pumps:
+            # Add heat pump defaults
+            system_config['heat_pump_defaults'] = {
+                'enabled': True,
+                'type': 'standard',
+                'max_th_mw': 100.0,
+                'min_th_mw': 0.0,
+            }
+
+            # Check if any heat pump is investment (not existing)
+            has_investment = any(comp.status != 'existing' for comp in heat_pumps)
+            if has_investment:
+                system_config['heat_pump_defaults']['investment'] = {
+                    'enabled': True,
+                    'capacity_min_mw': 1.0,
+                    'capacity_max_mw': 100.0,
+                }
+
+            # Add individual heat pumps
+            system_config['heat_pumps'] = []
+            for comp in heat_pumps:
+                hp_config = {
                     'id': comp.component_id,
-                    'existing': comp.status == 'existing',
-                    **comp.properties,
-                })
-            elif comp.component_type == 'boiler':
-                system_config['boilers'].append({
+                }
+
+                # Add capacity if existing
+                if comp.status == 'existing':
+                    capacity = comp.properties.get('capacity_mw', 10.0)
+                    hp_config['max_th_mw'] = capacity
+                    hp_config['min_th_mw'] = 0.0
+
+                # Add COP if specified
+                if 'cop' in comp.properties:
+                    hp_config['cop_override'] = comp.properties['cop']
+
+                # Add coordinates (for future use)
+                hp_config['_x'] = comp.x
+                hp_config['_y'] = comp.y
+
+                system_config['heat_pumps'].append(hp_config)
+
+        # Extract storage
+        storage_comps = [comp for comp in self.components if comp.component_type == 'storage']
+        if storage_comps:
+            # For now, support only single storage
+            # TODO: Multiple storage support in future
+            storage_comp = storage_comps[0]
+
+            storage_config = {
+                'enabled': True,
+                'soc0_mwh': 0.0,
+                'eff_charge': storage_comp.properties.get('efficiency', 0.98),
+                'eff_discharge': storage_comp.properties.get('efficiency', 0.98),
+                'loss_hour': 0.9999,  # Default: minimal losses
+                '_x': storage_comp.x,
+                '_y': storage_comp.y,
+            }
+
+            if storage_comp.status == 'existing':
+                # Fixed capacity
+                capacity = storage_comp.properties.get('capacity_mwh', 50.0)
+                storage_config['min_energy_mwh'] = capacity
+                storage_config['max_energy_mwh'] = capacity
+                storage_config['max_power_mw'] = capacity * 0.5  # Default: 2h discharge
+                storage_config['investment'] = {'enabled': False}
+            else:
+                # Investment
+                capacity = storage_comp.properties.get('capacity_mwh', 50.0)
+                storage_config['min_energy_mwh'] = 0.0
+                storage_config['max_energy_mwh'] = capacity * 2  # Allow optimization up to 2x
+                storage_config['max_power_mw'] = capacity
+                storage_config['investment'] = {
+                    'enabled': True,
+                    'energy_capacity_min_mwh': 10.0,
+                    'energy_capacity_max_mwh': capacity * 2,
+                    'power_capacity_min_mw': 5.0,
+                    'power_capacity_max_mw': capacity,
+                }
+
+            system_config['storage'] = storage_config
+
+            if len(storage_comps) > 1:
+                logger.warning(
+                    f"Multiple storage components found ({len(storage_comps)}). "
+                    f"Only first storage '{storage_comp.component_id}' will be used. "
+                    f"Multiple storage support coming in future version."
+                )
+
+        # Extract boilers and map to generators
+        boilers = [comp for comp in self.components if comp.component_type == 'boiler']
+        if boilers:
+            system_config['generators'] = {}
+
+            for comp in boilers:
+                capacity = comp.properties.get('capacity_mw', 15.0)
+                efficiency = comp.properties.get('efficiency', 0.95)
+
+                # Map to generic generator (HKW = Heizkraftwerk)
+                gen_id = comp.component_id.lower().replace('boi_', 'hkw_')
+
+                system_config['generators'][gen_id] = {
+                    'enabled': True,
+                    'cap_th_mw': capacity,
+                    'efficiency': efficiency,
+                    '_x': comp.x,
+                    '_y': comp.y,
+                    '_original_id': comp.component_id,
+                }
+
+        # Consumers are handled via demand time series, not in system config
+        # Store consumer info in metadata for reference
+        consumers = [comp for comp in self.components if comp.component_type == 'consumer']
+        if consumers:
+            system_config['_consumers'] = [
+                {
                     'id': comp.component_id,
-                    'existing': comp.status == 'existing',
+                    'x': comp.x,
+                    'y': comp.y,
                     **comp.properties,
-                })
-            elif comp.component_type == 'storage':
-                system_config['storage'].append({
-                    'id': comp.component_id,
-                    'existing': comp.status == 'existing',
-                    **comp.properties,
-                })
-            elif comp.component_type == 'consumer':
-                system_config['consumers'].append({
-                    'id': comp.component_id,
-                    **comp.properties,
-                })
+                }
+                for comp in consumers
+            ]
 
         return system_config
 
     def import_from_yaml(self, yaml_path: str | Path):
-        """Import network from YAML configuration."""
+        """Import network from YAML configuration.
+
+        Supports two formats:
+        1. Network Designer format (with _network_designer metadata)
+        2. Standard system config (converts to components)
+        """
         with open(yaml_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        network = config.get('scenario', {}).get('network', {})
+        # Check if this is a Network Designer export
+        if '_network_designer' in config:
+            # Import from Network Designer format
+            network = config['_network_designer']
 
-        # Import components
-        self.components = []
-        for comp_data in network.get('components', []):
-            comp = NetworkComponent.from_dict(comp_data)
-            self.components.append(comp)
+            # Import components
+            self.components = []
+            for comp_data in network.get('components', []):
+                comp = NetworkComponent.from_dict(comp_data)
+                self.components.append(comp)
 
-        # Import connections
-        self.connections = []
-        for conn_data in network.get('connections', []):
-            conn = NetworkConnection.from_dict(conn_data)
-            self.connections.append(conn)
+            # Import connections
+            self.connections = []
+            for conn_data in network.get('connections', []):
+                conn = NetworkConnection.from_dict(conn_data)
+                self.connections.append(conn)
+
+        else:
+            # Import from standard system config
+            self._import_from_system_config(config)
 
         self._update_canvas()
         logger.info(f"✅ Imported network from {yaml_path}")
+
+    def _import_from_system_config(self, config: Dict[str, Any]):
+        """Import components from standard system config format."""
+        self.components = []
+        self.connections = []
+
+        system = config.get('system', {})
+
+        # Import heat pumps
+        heat_pumps = system.get('heat_pumps', [])
+        for i, hp in enumerate(heat_pumps):
+            comp = NetworkComponent(
+                component_id=hp.get('id', f'HP{i+1}'),
+                component_type='heat_pump',
+                x=hp.get('_x', 100 + i * 150),  # Auto-position if no coords
+                y=hp.get('_y', 300),
+                status='existing' if hp.get('max_th_mw') else 'investment',
+                properties={
+                    'capacity_mw': hp.get('max_th_mw', 10.0),
+                    'cop': hp.get('cop_override', 3.5),
+                }
+            )
+            self.components.append(comp)
+
+        # Import storage
+        storage = system.get('storage', {})
+        if storage.get('enabled'):
+            capacity = storage.get('max_energy_mwh', 50.0)
+            is_investment = storage.get('investment', {}).get('enabled', False)
+
+            comp = NetworkComponent(
+                component_id='STORAGE1',
+                component_type='storage',
+                x=storage.get('_x', 400),
+                y=storage.get('_y', 300),
+                status='investment' if is_investment else 'existing',
+                properties={
+                    'capacity_mwh': capacity,
+                    'efficiency': storage.get('eff_charge', 0.98),
+                }
+            )
+            self.components.append(comp)
+
+        # Import generators (boilers)
+        generators = system.get('generators', {})
+        for i, (gen_id, gen_cfg) in enumerate(generators.items()):
+            if gen_cfg.get('enabled'):
+                comp = NetworkComponent(
+                    component_id=gen_cfg.get('_original_id', gen_id.upper()),
+                    component_type='boiler',
+                    x=gen_cfg.get('_x', 100 + i * 150),
+                    y=gen_cfg.get('_y', 500),
+                    status='existing',
+                    properties={
+                        'capacity_mw': gen_cfg.get('cap_th_mw', 15.0),
+                        'efficiency': gen_cfg.get('efficiency', 0.95),
+                    }
+                )
+                self.components.append(comp)
+
+        logger.info(f"Imported {len(self.components)} components from system config")
 
     def _export_yaml(self, event):
         """Callback for export button."""
