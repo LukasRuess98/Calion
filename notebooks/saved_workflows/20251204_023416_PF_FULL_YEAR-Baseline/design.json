@@ -1,0 +1,26 @@
+{
+  "heat_pumps": {
+    "HP1": {
+      "capacity_mw": 9.357009475367452,
+      "build_binary": 1.0
+    },
+    "HP2": {
+      "capacity_mw": 7.269122478060751,
+      "build_binary": 1.0
+    },
+    "HP3": {
+      "capacity_mw": 7.255478054440451,
+      "build_binary": 1.0
+    },
+    "HP4": {
+      "capacity_mw": 9.640362225097029,
+      "build_binary": 1.0
+    }
+  },
+  "storage": {
+    "name": "TES",
+    "capacity_mwh": 1000.0,
+    "power_mw": 30.0,
+    "build_binary": 1.0
+  }
+}

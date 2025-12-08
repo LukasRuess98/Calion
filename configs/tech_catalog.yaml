@@ -64,12 +64,12 @@ heat_pumps:
 storage:
   investment_defaults:
     enabled: true
-    energy_capacity_min_mwh: 1.0
+    energy_capacity_min_mwh: 10.0
     energy_capacity_max_mwh: 10000.0
-    power_capacity_min_mw: 0.0
-    power_capacity_max_mw: 0.0
-    energy_capex_eur_per_mwh: 0.0
-    power_capex_eur_per_mw: 0.0
-    activation_cost_eur: 0.0
+    power_capacity_min_mw: 1.0
+    power_capacity_max_mw: 1000.0
+    energy_capex_eur_per_mwh: 10000.0
+    power_capex_eur_per_mw: 50.0
+    activation_cost_eur: 5.0
     lifetime_years: 20.0
     tie_breaker_eur_per_mwh: 0.000000005

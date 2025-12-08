@@ -16,6 +16,13 @@ notebooks/exports/
 !Import_Data.xlsx
 *.png
 
+# Experiment outputs (should not be tracked in version control)
+notebooks/saved_workflows/
+*.xlsx
+!Import_Data.xlsx
+*.png
+*.pdf
+
 # IDE settings (personal configurations)
 .vscode/
 .idea/

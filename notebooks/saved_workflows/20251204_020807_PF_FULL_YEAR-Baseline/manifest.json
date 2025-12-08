@@ -1,0 +1,19 @@
+{
+  "scenario_title": "Perfect Forecast Baseline",
+  "run_mode": "PF_ONLY",
+  "workflow_steps": [
+    "PF"
+  ],
+  "flags": {
+    "has_pf": true,
+    "has_rh": false,
+    "has_mpc": false,
+    "has_design": true
+  },
+  "export_timestamp": "20251204_020809",
+  "slug": "PF_FULL_YEAR-Baseline",
+  "output_directory": "exports\\20251204_020807_PF_FULL_YEAR-Baseline",
+  "files": {
+    "scenario_xlsx": "scenario.xlsx"
+  }
+}

@@ -1,6 +1,6 @@
 system:
   heat_pump_defaults:
-    enabled: true
+    enabled: false
     type: standard
     max_th_mw: 40.0
     min_th_mw: 5.0
@@ -23,13 +23,13 @@ system:
       wrg_capacity_column: WRG4_Q_cap
 
   storage:
-    enabled: true
+    enabled: false
     min_energy_mwh: 0.0
     max_energy_mwh: 100.0
     max_power_mw: 30.0
     soc0_mwh: 0.0
     investment:
-      enabled: false
+      enabled: true
       energy_capacity_min_mwh: 100.0
       energy_capacity_max_mwh: 100.0
       power_capacity_min_mw: 30.0

@@ -1,0 +1,69 @@
+{
+  "saved_at": "2025-12-04T02:34:27.589523",
+  "name": "Scenario Studio Run",
+  "description": "Interaktive Szenario-Analyse mit wissenschaftlichen Plots",
+  "scenario": {
+    "name": "unknown",
+    "system": "unknown",
+    "site": "default",
+    "run_mode": "PF_ONLY",
+    "title": "Perfect Forecast Baseline"
+  },
+  "config_files": [
+    "configs/base.yaml",
+    "configs/tech_catalog.yaml",
+    "configs/sites/default.site.yaml",
+    "configs/systems/stadtbach.system.yaml",
+    "configs/scenarios/perfect_forecast_full_year.scenario.yaml"
+  ],
+  "workflow": {
+    "steps": [
+      "PF"
+    ],
+    "fix_design": false
+  },
+  "results_available": {
+    "pf": true,
+    "rh": false,
+    "mpc": false
+  },
+  "solver": "gurobi",
+  "dt_h": 1.0,
+  "technologies": {
+    "heat_pumps": {
+      "HP1": {
+        "capacity_mw": 9.357009475367452,
+        "type": "heat_pump"
+      },
+      "HP2": {
+        "capacity_mw": 7.269122478060751,
+        "type": "heat_pump"
+      },
+      "HP3": {
+        "capacity_mw": 7.255478054440451,
+        "type": "heat_pump"
+      },
+      "HP4": {
+        "capacity_mw": 9.640362225097029,
+        "type": "heat_pump"
+      }
+    },
+    "storage": {
+      "capacity_mwh": 1000.0,
+      "type": "thermal_storage"
+    }
+  },
+  "statistics": {
+    "timesteps": 8760,
+    "duration_hours": 8760.0,
+    "start_date": "2023-01-01 00:00:00",
+    "end_date": "2023-12-31 23:00:00"
+  },
+  "costs": {
+    "total_eur": 6354535.797111293,
+    "capex_eur": 1005659.1669889705,
+    "opex_eur": 5348876.630122323,
+    "fuel_eur": 9130776.949835546,
+    "electricity_eur": 0.0
+  }
+}
