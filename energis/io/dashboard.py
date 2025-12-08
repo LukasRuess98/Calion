@@ -2445,51 +2445,48 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
     def _create_emissions_table(self):
-        """Create detailed emissions table by source (including individual generators)."""
+        """Create detailed emissions table by source (3-category system: Fuel→Heat, Fuel→Elec, Grid→Elec)."""
 
-        # Erstelle Tabelle mit CO2-Quellen
+        # ✅ Verwende 3-Kategorien-System für korrekte 100%-Summe
         emissions_data = []
 
-        # ✅ Strombezug (Grid)
-        if self.grid_co2_t > 0:
+        # Kategorie 1: Brennstoff → Wärme
+        if self.fuel_co2_heat_t > 0.001:
             emissions_data.append({
-                'Quelle': 'Strombezug',
-                'CO2eq_t': self.grid_co2_t,
-                'Anteil_%': (self.grid_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
-                'Kategorie': 'Indirekt'
+                'Quelle': 'Wärmeerzeugung (Brennstoff)',
+                'CO2eq_t': self.fuel_co2_heat_t,
+                'Anteil_%': (self.fuel_co2_heat_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Direkt - Wärme'
             })
 
-        # ✅ Einzelne Erzeuger (aus Zeitreihen)
-        for col in self.df.columns:
-            if col.startswith('CO2_') and col.endswith('_t_per_step'):
-                # Extrahiere Generator-Namen
-                gen_name = col.replace('CO2_', '').replace('_t_per_step', '')
-                gen_co2_t = self.df[col].sum()
-
-                if gen_co2_t > 0.001:  # Nur anzeigen wenn > 0
-                    emissions_data.append({
-                        'Quelle': gen_name,
-                        'CO2eq_t': gen_co2_t,
-                        'Anteil_%': (gen_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
-                        'Kategorie': 'Direkt'
-                    })
-
-        # Fallback: Falls keine individuellen Erzeuger-CO2-Daten vorhanden sind
-        if len([e for e in emissions_data if e['Kategorie'] == 'Direkt']) == 0 and self.fuel_co2_t > 0:
+        # Kategorie 2: Brennstoff → Strom (CHP) - nur Eigenverbrauch
+        if self.fuel_co2_elec_t > 0.001:
             emissions_data.append({
-                'Quelle': 'Wärmeerzeugung (Gesamt)',
-                'CO2eq_t': self.fuel_co2_t,
-                'Anteil_%': (self.fuel_co2_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
-                'Kategorie': 'Direkt'
+                'Quelle': 'Strom-Eigenverbrauch (CHP)',
+                'CO2eq_t': self.fuel_co2_elec_t,
+                'Anteil_%': (self.fuel_co2_elec_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Direkt - Strom'
+            })
+
+        # Kategorie 3: Grid → Strom (WP, P2H)
+        if self.grid_co2_elec_t > 0.001:
+            emissions_data.append({
+                'Quelle': 'Strombezug (Netz für WP/P2H)',
+                'CO2eq_t': self.grid_co2_elec_t,
+                'Anteil_%': (self.grid_co2_elec_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Indirekt - Grid'
             })
 
         # Sortiere nach CO2-Menge (absteigend)
         emissions_data = sorted(emissions_data, key=lambda x: x['CO2eq_t'], reverse=True)
 
+        # Berechne Summe zur Verifizierung
+        sum_co2 = sum(e['CO2eq_t'] for e in emissions_data)
+
         # Gesamt-Zeile hinzufügen
         emissions_data.append({
             'Quelle': '═══ GESAMT ═══',
-            'CO2eq_t': self.total_co2_t,
+            'CO2eq_t': sum_co2,  # Verwende berechnete Summe
             'Anteil_%': 100.0,
             'Kategorie': 'Summe'
         })
