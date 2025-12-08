@@ -49,10 +49,10 @@ heat_pumps:
       Tsink_in_K: 343.15
   investment_defaults:
     enabled: true
-    capacity_min_mw: 1.0
+    capacity_min_mw: 5.0  # Erhöht von 1.0 auf 5.0 MW - Mindestgröße für wirtschaftliche Wärmepumpen-Installation
     capacity_max_mw: 100.0
     capex_eur_per_mw: 600000.0
-    activation_cost_eur: 50.0
+    activation_cost_eur: 250000.0  # Erhöht von 50.0 auf 250k € - Realistische Kosten für Planung, Installation, Anschluss
     lifetime_years: 20.0
     tie_breaker_eur_per_mw: 0.00005
   types:
