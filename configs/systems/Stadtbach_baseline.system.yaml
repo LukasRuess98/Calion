@@ -1,0 +1,24 @@
+system:
+ 
+  generators:
+    hkw:
+      enabled: true
+      cap_th_mw: 75.0
+    gtost:
+      enabled: true
+      cap_th_mw: 41.3
+    p2h:
+      enabled: true
+      cap_th_mw: 10.0
+    bmhkw:
+      enabled: true
+      cap_th_mw: 15.0
+    hws:
+      enabled: true
+      cap_th_mw: 45.0
+    hww:
+      enabled: true
+      cap_th_mw: 45.0
+    ava:
+      enabled: true
+      cap_th_mw: 45.0

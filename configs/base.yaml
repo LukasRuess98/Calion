@@ -26,14 +26,15 @@ costs:
 
 grid:
   energy_fee_eur_mwh: 0.0
-  demand_charge_eur_per_mw_y: 120000.0
-  gridcost_eur_mwh: 0.0
-  sell_floor_eur_mwh: 0.0
-  sell_haircut_fraction: 0.0
-  sell_spread_eur_mwh: 0.0
-  sell_fee_eur_mwh: 0.0
+  demand_charge_eur_per_mw_y: 127240.0
+  gridcost_eur_mwh: 61.6
+  sell_floor_eur_mwh: 0.0 #sollte der Preis sein aus dem Day-Ahead
+  sell_haircut_fraction: 0.05
+  sell_spread_eur_mwh: 5.0
+  sell_fee_eur_mwh: 5.0
   sell_premium_eur_mwh: 0.0
   year_fraction: 1.0
   big_m_grid_mw: 200.0  # OPTIMIERT: Reduziert von 10000 auf 200 MW (realistische Obergrenze)
   max_import_mw: 200.0  # Explizites Limit für Grid-Import
   max_export_mw: 100.0  # Explizites Limit für Grid-Export
+

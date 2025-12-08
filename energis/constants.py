@@ -13,13 +13,13 @@ to improve maintainability and configurability.
 COP_MIN = 1.01
 
 # Maximum reasonable COP for heat pumps (sanity check)
-COP_MAX_HEATPUMP = 20.0
+COP_MAX_HEATPUMP = 10.0
 
 # Maximum COP for system builder interpolation
 COP_MAX_SYSTEM_BUILDER = 12.0
 
 # Default/fallback COP when calculation fails or data is missing
-COP_DEFAULT = 3.0
+COP_DEFAULT = 1.0
 
 # Default temperature difference for COP calculation (Kelvin)
 COP_DELTA_T_K = 20.0
