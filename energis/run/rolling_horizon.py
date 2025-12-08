@@ -569,6 +569,159 @@ def _collect_timeseries_and_summary(
 
         objective["OBJ_value_EUR"] = float(pyo.value(model.obj)) if hasattr(model, "obj") else 0.0
         objective["P_buy_peak_MW"] = float(pyo.value(model.P_buy_peak)) if hasattr(model, "P_buy_peak") else 0.0
+
+        # ✅ Extrahiere CO2-Kosten pro Komponente aus Pyomo-Modell
+        # Initialisiere Fuel-Type-Aggregation
+        co2_by_fuel_type = {
+            'gas': {'heat_kg': 0, 'elec_kg': 0, 'total_kg': 0, 'heat_eur': 0, 'elec_eur': 0, 'total_eur': 0},
+            'biomass': {'heat_kg': 0, 'elec_kg': 0, 'total_kg': 0, 'heat_eur': 0, 'elec_eur': 0, 'total_eur': 0},
+            'waste': {'heat_kg': 0, 'elec_kg': 0, 'total_kg': 0, 'heat_eur': 0, 'elec_eur': 0, 'total_eur': 0}
+        }
+
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                # CO2 in kg (Brutto-Werte)
+                objective[f"CO2_{comp_name}_heat_kg"] = float(pyo.value(co2_data['heat_kg']))
+                objective[f"CO2_{comp_name}_elec_kg_gross"] = float(pyo.value(co2_data['elec_kg']))
+                objective[f"CO2_{comp_name}_total_kg_gross"] = float(pyo.value(co2_data['total_kg']))
+
+                # CO2-Kosten in EUR (Brutto)
+                objective[f"CO2_{comp_name}_heat_cost_EUR"] = float(pyo.value(co2_data['heat_eur']))
+                objective[f"CO2_{comp_name}_elec_cost_EUR_gross"] = float(pyo.value(co2_data['elec_eur']))
+                objective[f"CO2_{comp_name}_total_cost_EUR_gross"] = float(pyo.value(co2_data['total_eur']))
+
+                # Speichere Typ für spätere selfuse-Korrektur
+                objective[f"CO2_{comp_name}_type"] = co2_data.get('type', 'unknown')
+
+                # Aggregiere nach Brennstofftyp (nur für Komponenten mit fuel_bus)
+                if 'fuel_bus' in co2_data:
+                    fuel_type = co2_data['fuel_bus']
+                    if fuel_type in co2_by_fuel_type:
+                        co2_by_fuel_type[fuel_type]['heat_kg'] += float(pyo.value(co2_data['heat_kg']))
+                        co2_by_fuel_type[fuel_type]['elec_kg'] += float(pyo.value(co2_data['elec_kg']))
+                        co2_by_fuel_type[fuel_type]['total_kg'] += float(pyo.value(co2_data['total_kg']))
+                        co2_by_fuel_type[fuel_type]['heat_eur'] += float(pyo.value(co2_data['heat_eur']))
+                        co2_by_fuel_type[fuel_type]['elec_eur'] += float(pyo.value(co2_data['elec_eur']))
+                        co2_by_fuel_type[fuel_type]['total_eur'] += float(pyo.value(co2_data['total_eur']))
+
+        # Export CO2 nach Brennstofftyp
+        for fuel_type, fuel_co2_data in co2_by_fuel_type.items():
+            objective[f"CO2_fuel_{fuel_type}_heat_kg"] = fuel_co2_data['heat_kg']
+            objective[f"CO2_fuel_{fuel_type}_elec_kg"] = fuel_co2_data['elec_kg']
+            objective[f"CO2_fuel_{fuel_type}_total_kg"] = fuel_co2_data['total_kg']
+            objective[f"CO2_fuel_{fuel_type}_heat_cost_EUR"] = fuel_co2_data['heat_eur']
+            objective[f"CO2_fuel_{fuel_type}_elec_cost_EUR"] = fuel_co2_data['elec_eur']
+            objective[f"CO2_fuel_{fuel_type}_total_cost_EUR"] = fuel_co2_data['total_eur']
+
+        # Gesamt-Summen (Wärme/Strom) - Kosten und kg
+        if hasattr(model, 'co2_cost_heat_expr'):
+            objective["CO2_heat_total_cost_EUR"] = float(pyo.value(model.co2_cost_heat_expr))
+
+        if hasattr(model, 'co2_cost_elec_expr'):
+            objective["CO2_elec_total_cost_EUR"] = float(pyo.value(model.co2_cost_elec_expr))
+
+        if hasattr(model, 'co2_cost_total_expr'):
+            objective["CO2_total_cost_EUR"] = float(pyo.value(model.co2_cost_total_expr))
+
+        if hasattr(model, 'co2_kg_heat_expr'):
+            objective["CO2_heat_total_kg"] = float(pyo.value(model.co2_kg_heat_expr))
+
+        if hasattr(model, 'co2_kg_elec_expr'):
+            co2_elec_total_kg_gross = float(pyo.value(model.co2_kg_elec_expr))
+            objective["CO2_elec_total_kg_gross"] = co2_elec_total_kg_gross
+            # Wird später korrigiert nach selfuse_fraction
+
+        # ✅ Dashboard-Kategorien (3 separate Emissionsquellen)
+        if hasattr(model, 'co2_kg_fuel_to_heat_expr'):
+            objective["CO2_fuel_to_heat_kg"] = float(pyo.value(model.co2_kg_fuel_to_heat_expr))
+
+        # ✅ Berechne selfuse_fraction (für CHP-Korrektur)
+        selfuse_fraction = 1.0  # Default: alles Eigenverbrauch
+        chp_elec_total_mwh = 0
+        p_sell_total_mwh = sum(series["P_sell_MW"]) * dt_h if "P_sell_MW" in series else 0
+
+        # Summiere alle CHP-Generatoren
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                if co2_data.get('type') == 'chp' and co2_data.get('el_eff', 0) > 0:
+                    # Finde P_el_out für diese Komponente
+                    pel_col = f"{comp_name}_Pel_MW"
+                    if pel_col in series:
+                        chp_elec_total_mwh += sum(series[pel_col]) * dt_h
+
+        # Berechne Eigenverbrauch-Anteil
+        if chp_elec_total_mwh > 0:
+            selfuse_fraction = max(0, (chp_elec_total_mwh - p_sell_total_mwh) / chp_elec_total_mwh)
+
+        # ✅ Exportiere komponenten-spezifische Netto-Werte (IMMER, nicht nur wenn CHP vorhanden)
+        if hasattr(model, 'co2_component_costs'):
+            for comp_name, co2_data in model.co2_component_costs.items():
+                if co2_data.get('type') == 'chp':
+                    # CHP: Brutto-Werte wurden bereits exportiert, wende selfuse-Korrektur an
+                    co2_elec_gross = objective.get(f"CO2_{comp_name}_elec_kg_gross", 0)
+                    co2_total_gross = objective.get(f"CO2_{comp_name}_total_kg_gross", 0)
+                    co2_heat = objective.get(f"CO2_{comp_name}_heat_kg", 0)
+
+                    # Netto-Werte (nur Eigenverbrauch)
+                    co2_elec_net = co2_elec_gross * selfuse_fraction
+                    co2_total_net = co2_heat + co2_elec_net
+
+                    # Exportiere Netto-Werte
+                    objective[f"CO2_{comp_name}_elec_kg"] = co2_elec_net
+                    objective[f"CO2_{comp_name}_total_kg"] = co2_total_net
+
+                    # Kosten auch korrigieren
+                    co2_elec_cost_gross = objective.get(f"CO2_{comp_name}_elec_cost_EUR_gross", 0)
+                    co2_total_cost_gross = objective.get(f"CO2_{comp_name}_total_cost_EUR_gross", 0)
+                    co2_heat_cost = objective.get(f"CO2_{comp_name}_heat_cost_EUR", 0)
+
+                    co2_elec_cost_net = co2_elec_cost_gross * selfuse_fraction
+                    co2_total_cost_net = co2_heat_cost + co2_elec_cost_net
+
+                    objective[f"CO2_{comp_name}_elec_cost_EUR"] = co2_elec_cost_net
+                    objective[f"CO2_{comp_name}_total_cost_EUR"] = co2_total_cost_net
+                else:
+                    # Nicht-CHP: Brutto = Netto (keine Korrektur nötig)
+                    if f"CO2_{comp_name}_elec_kg_gross" in objective:
+                        objective[f"CO2_{comp_name}_elec_kg"] = objective[f"CO2_{comp_name}_elec_kg_gross"]
+                    if f"CO2_{comp_name}_total_kg_gross" in objective:
+                        objective[f"CO2_{comp_name}_total_kg"] = objective[f"CO2_{comp_name}_total_kg_gross"]
+                    if f"CO2_{comp_name}_elec_cost_EUR_gross" in objective:
+                        objective[f"CO2_{comp_name}_elec_cost_EUR"] = objective[f"CO2_{comp_name}_elec_cost_EUR_gross"]
+                    if f"CO2_{comp_name}_total_cost_EUR_gross" in objective:
+                        objective[f"CO2_{comp_name}_total_cost_EUR"] = objective[f"CO2_{comp_name}_total_cost_EUR_gross"]
+
+        # ✅ Gesamt-CO2 Korrektur (nur wenn CHP vorhanden)
+        if hasattr(model, 'co2_kg_fuel_to_elec_expr'):
+            co2_fuel_to_elec_total = float(pyo.value(model.co2_kg_fuel_to_elec_expr))
+            objective["CO2_fuel_to_elec_kg_gross"] = co2_fuel_to_elec_total  # Brutto (vor Einspeisung)
+
+            # Korrigiere CO2 für Eigenverbrauch
+            co2_fuel_to_elec_net = co2_fuel_to_elec_total * selfuse_fraction
+            objective["CO2_fuel_to_elec_kg"] = co2_fuel_to_elec_net  # Netto (nach Einspeisung)
+            objective["CO2_fuel_to_elec_selfuse_fraction"] = selfuse_fraction
+
+            # ✅ Korrigiere auch Gesamt-Strom-CO2 (elec_total_kg)
+            if "CO2_elec_total_kg_gross" in objective:
+                co2_elec_net = objective["CO2_elec_total_kg_gross"] - co2_fuel_to_elec_total + co2_fuel_to_elec_net
+                objective["CO2_elec_total_kg"] = co2_elec_net
+
+            # ✅ Korrigiere CO2-Kosten für Stromerzeugung
+            if hasattr(model, 'co2_cost_elec_expr'):
+                co2_elec_cost_gross = float(pyo.value(model.co2_cost_elec_expr))
+                co2_elec_cost_net = co2_elec_cost_gross * selfuse_fraction
+                objective["CO2_elec_total_cost_EUR"] = co2_elec_cost_net
+
+            # ✅ Korrigiere Gesamt-CO2-Kosten
+            if hasattr(model, 'co2_cost_total_expr') and hasattr(model, 'co2_cost_elec_expr'):
+                co2_total_cost_gross = float(pyo.value(model.co2_cost_total_expr))
+                co2_heat_cost = float(pyo.value(model.co2_cost_heat_expr)) if hasattr(model, 'co2_cost_heat_expr') else 0
+                co2_total_cost_net = co2_heat_cost + co2_elec_cost_net
+                objective["CO2_total_cost_EUR"] = co2_total_cost_net
+
+        if hasattr(model, 'co2_kg_grid_to_elec_expr'):
+            objective["CO2_grid_to_elec_kg"] = float(pyo.value(model.co2_kg_grid_to_elec_expr))
+
     else:
         times = list(range(1, n + 1))
         objective["OBJ_value_EUR"] = 0.0
@@ -577,6 +730,13 @@ def _collect_timeseries_and_summary(
     price_series = table.data.get("strompreis_EUR_MWh", [0.0] * n)
     grid_co2_series = table.data.get("grid_co2_kg_MWh", [0.0] * n)
     demand_series = table.data.get("waermebedarf_MWth", [0.0] * n)
+
+    # ✅ FIX: Export grid_co2_kg_MWh to series for dashboard timeseries plots
+    series["grid_co2_kg_MWh"] = list(grid_co2_series)
+
+    # Note: Grid_CO2_emissions_t_per_step will be calculated after pbuy_series is defined (line ~620)
+    # Fuel CO2 timeseries will be calculated below after generator loop
+    series["Fuel_CO2_emissions_t_per_step"] = [0.0] * n
 
     include_gridcost = bool(cfg.get("costs", {}).get("include_gridcost_in_energy", False))
     energy_fee = float(grid_cfg.get("energy_fee_eur_mwh", 0.0))
@@ -595,6 +755,12 @@ def _collect_timeseries_and_summary(
     pbuy_series = series["P_buy_MW"]
     psell_series = series["P_sell_MW"]
     qdump_series = series["Q_dump_MWth"]
+
+    # ✅ FIX: Calculate Grid CO2 emissions timeseries (in tonnes per timestep)
+    # Now that pbuy_series is defined, we can calculate the Grid CO2 timeseries
+    series["Grid_CO2_emissions_t_per_step"] = [
+        pbuy_series[i] * grid_co2_series[i] * dt_h / 1000.0 for i in range(n)
+    ] if n else []
 
     addition = (energy_fee + grid_cost) if include_gridcost else 0.0
 
@@ -722,7 +888,7 @@ def _collect_timeseries_and_summary(
                     build_value = 1.0 if cap_value > 0 else 0.0
         full_load = float((heat_mwh / cap_value) if cap_value > 1e-9 else 0.0)
         avg_cop = float((heat_mwh / pel_mwh) if pel_mwh > 1e-9 else 0.0)
-        heat_pump_sections[f"heat_pump_{comp}"] = OrderedDict(
+        hp_section = OrderedDict(
             [
                 ("Heat_output_MWh", heat_mwh),
                 ("Electricity_input_MWh", pel_mwh),
@@ -738,6 +904,15 @@ def _collect_timeseries_and_summary(
                 ("Average_COP", avg_cop),
             ]
         )
+
+        # ✅ Füge CO2-Daten hinzu (aus objective)
+        if f"CO2_{comp}_elec_kg" in objective:
+            hp_section["CO2_elec_kg"] = objective[f"CO2_{comp}_elec_kg"]
+            hp_section["CO2_elec_cost_EUR"] = objective[f"CO2_{comp}_elec_cost_EUR"]
+            hp_section["CO2_total_kg"] = objective[f"CO2_{comp}_total_kg"]
+            hp_section["CO2_total_cost_EUR"] = objective[f"CO2_{comp}_total_cost_EUR"]
+
+        heat_pump_sections[f"heat_pump_{comp}"] = hp_section
 
     for gen in meta["generators"]:
         comp = gen["name"]
@@ -768,9 +943,32 @@ def _collect_timeseries_and_summary(
         )
         if gen["has_el"]:
             entry["Power_output_MWh"] = float(pel_mwh)
+
+        # ✅ Füge CO2-Daten hinzu (aus objective)
+        if f"CO2_{comp}_heat_kg" in objective:
+            entry["CO2_heat_kg"] = objective[f"CO2_{comp}_heat_kg"]
+            entry["CO2_elec_kg"] = objective[f"CO2_{comp}_elec_kg"]
+            entry["CO2_total_kg"] = objective[f"CO2_{comp}_total_kg"]
+            entry["CO2_heat_cost_EUR"] = objective[f"CO2_{comp}_heat_cost_EUR"]
+            entry["CO2_elec_cost_EUR"] = objective[f"CO2_{comp}_elec_cost_EUR"]
+            entry["CO2_total_cost_EUR"] = objective[f"CO2_{comp}_total_cost_EUR"]
+
         generator_sections[f"generator_{comp}"] = entry
         fuel_cost_total += cost_eur
         fuel_emissions_t += emission_t
+
+        # ✅ FIX: Add fuel CO2 emissions per timestep (in tonnes)
+        fuel_emission_factor_kg_per_mwh = gen["fuel_emission"]
+
+        # Export CO2 timeseries per generator for dashboard visualization
+        co2_series_per_gen = []
+        for i in range(n):
+            fuel_co2_t = fuel_series[i] * dt_h * fuel_emission_factor_kg_per_mwh / 1000.0
+            co2_series_per_gen.append(fuel_co2_t)
+            series["Fuel_CO2_emissions_t_per_step"][i] += fuel_co2_t
+
+        # Store CO2 timeseries for this specific generator
+        series[f"CO2_{comp}_t_per_step"] = co2_series_per_gen
 
     if meta["p2h"]:
         comp = meta["p2h"]["name"]
@@ -787,6 +985,13 @@ def _collect_timeseries_and_summary(
         )
         if meta["p2h"]["eff"]:
             p2h_section["Configured_efficiency"] = meta["p2h"]["eff"]
+
+        # ✅ Füge CO2-Daten hinzu (aus objective)
+        if "CO2_P2H_elec_kg" in objective:
+            p2h_section["CO2_elec_kg"] = objective["CO2_P2H_elec_kg"]
+            p2h_section["CO2_elec_cost_EUR"] = objective["CO2_P2H_elec_cost_EUR"]
+            p2h_section["CO2_total_kg"] = objective["CO2_P2H_total_kg"]
+            p2h_section["CO2_total_cost_EUR"] = objective["CO2_P2H_total_cost_EUR"]
 
     if storage_section and meta["storage"]:
         charge_series = series["TES_charge_MW"]
@@ -903,6 +1108,12 @@ def _collect_timeseries_and_summary(
         summary_sections[name] = section
     if p2h_section:
         summary_sections["p2h"] = p2h_section
+
+    # ✅ FIX: Calculate total CO2 emissions per timestep (Grid + Fuel)
+    series["Total_CO2_emissions_t_per_step"] = [
+        series["Grid_CO2_emissions_t_per_step"][i] + series["Fuel_CO2_emissions_t_per_step"][i]
+        for i in range(n)
+    ] if n else []
 
     flat = _flatten_summary(summary_sections)
     return series, summary_sections, flat
@@ -1466,6 +1677,30 @@ def _rh_step(context: WorkflowContext) -> None:
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
 
+    # ✅ FIX: Bei PF→RH mit fix_design, übertrage Investment-Kosten aus PF
+    # Problem: RH berechnet keine CAPEX bei fix_design=True, aber Dashboard zeigt RH als primary
+    # Lösung: Kopiere alle Investment-Kosten aus PF in RH-aggregierte Kosten
+    if context.pf_result and context.rh_result and context.plan.fix_design:
+        pf_costs = context.pf_result.costs
+        rh_costs = context.rh_result.costs
+
+        # Übertrage alle Investment-Kosten aus PF
+        investment_transferred = False
+        for inv_key in _INVESTMENT_KEYS:
+            if inv_key in pf_costs:
+                pf_value = pf_costs[inv_key]
+                if isinstance(pf_value, (int, float)) and pf_value > 0:
+                    rh_costs[inv_key] = float(pf_value)
+                    investment_transferred = True
+
+        # Recompute total objective wenn Investment übertragen wurde
+        if investment_transferred:
+            _recompute_objective_costs(rh_costs)
+            logger.info(
+                f"Transferred investment costs from PF to RH result "
+                f"(CAPEX: {rh_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+            )
+
 
 def _mpc_step(context: WorkflowContext) -> None:
     """Model Predictive Control with forecast updates."""
@@ -1513,6 +1748,29 @@ def _mpc_step(context: WorkflowContext) -> None:
     # Propagate design if MPC found one
     if context.mpc_result.design is not None:
         context.design = context.design or context.mpc_result.design
+
+    # ✅ FIX: Bei PF→MPC mit fix_design, übertrage Investment-Kosten aus PF
+    # Analoges Problem wie bei PF→RH
+    if context.pf_result and context.mpc_result and context.plan.fix_design:
+        pf_costs = context.pf_result.costs
+        mpc_costs = context.mpc_result.costs
+
+        # Übertrage alle Investment-Kosten aus PF
+        investment_transferred = False
+        for inv_key in _INVESTMENT_KEYS:
+            if inv_key in pf_costs:
+                pf_value = pf_costs[inv_key]
+                if isinstance(pf_value, (int, float)) and pf_value > 0:
+                    mpc_costs[inv_key] = float(pf_value)
+                    investment_transferred = True
+
+        # Recompute total objective wenn Investment übertragen wurde
+        if investment_transferred:
+            _recompute_objective_costs(mpc_costs)
+            logger.info(
+                f"Transferred investment costs from PF to MPC result "
+                f"(CAPEX: {mpc_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+            )
 
 
 def _run_rolling_horizon(
