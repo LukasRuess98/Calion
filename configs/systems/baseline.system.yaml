@@ -1,12 +1,12 @@
 system:
   heat_pump_defaults:
-    enabled: false
+    enabled: true
     type: standard
     max_th_mw: 40.0
     min_th_mw: 5.0
     investment:
       enabled: true
-      capacity_min_mw: 5.0  # Angepasst an tech_catalog.yaml - verhindert Installation vieler kleiner WPs
+      capacity_min_mw: 1.0
       capacity_max_mw: 100.0
   heat_pumps:
     - id: HP1
@@ -23,13 +23,13 @@ system:
       wrg_capacity_column: WRG4_Q_cap
 
   storage:
-    enabled: false
+    enabled: true
     min_energy_mwh: 0.0
     max_energy_mwh: 100.0
     max_power_mw: 30.0
     soc0_mwh: 0.0
     investment:
-      enabled: true
+      enabled: false
       energy_capacity_min_mwh: 100.0
       energy_capacity_max_mwh: 100.0
       power_capacity_min_mw: 30.0

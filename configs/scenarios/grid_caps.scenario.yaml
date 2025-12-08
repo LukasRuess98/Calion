@@ -1,0 +1,7 @@
+scenario:
+  title: Grid caps demo
+  run_mode: PF_ONLY
+
+grid:
+  max_import_mw: 5.0
+  max_export_mw: 2.0
