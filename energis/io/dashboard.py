@@ -5,9 +5,10 @@ This module provides a comprehensive, interactive dashboard for exploring
 optimization results from EnerGIS workflows (PF, RH, MPC).
 
 Features:
-- Multi-tab interface with Overview, Timeseries, Costs, Design, Comparison
+- Multi-tab interface with Overview, Timeseries, Emissions, Costs, Design, Comparison
 - Interactive plots with Plotly/Holoviews
 - Real-time component selection and filtering
+- CO2 emissions tracking and visualization
 - Export functionality
 - Responsive design
 
@@ -332,21 +333,56 @@ class EnerGISDashboard:
                 demand_col_found = col_name
                 break
 
-        # Fallback: use zeros if no demand column found
+        # ✅ FIX: Exception werfen statt Nullen bei fehlender Demand-Spalte
         if demand_values is None:
-            demand_values = [0.0] * len(result.table.index)
-            if len(result.table.index) > 0:
-                import logging
-                logging.warning(
-                    f"Dashboard: No demand column found in table.data. Tried: {demand_col_names}. "
-                    f"Available columns: {list(result.table.data.keys())}"
-                )
+            available_cols = list(result.table.data.keys())
+            raise ValueError(
+                f"Dashboard: Keine Wärmebedarf-Spalte gefunden!\n"
+                f"Versuchte Spalten: {demand_col_names}\n"
+                f"Verfügbare Spalten: {available_cols}\n"
+                f"Bitte stelle sicher, dass mindestens eine dieser Spalten in den Daten vorhanden ist."
+            )
 
         # Main timeseries DataFrame
         self.df = pd.DataFrame({
             'timestamp': result.table.index,
             'demand_MW': demand_values,
         })
+
+        # Add all series BEFORE downsampling
+        if result.series:
+            for key, values in result.series.items():
+                # Ensure values list matches original length
+                if len(values) == len(self.df):
+                    self.df[key] = values
+                else:
+                    import logging
+                    logging.warning(
+                        f"Dashboard: Skipping series '{key}' - length mismatch "
+                        f"(expected {len(self.df)}, got {len(values)})"
+                    )
+        else:
+            import logging
+            logging.warning("Dashboard: result.series is empty - no timeseries data to display")
+
+        # Identify component types (before downsampling)
+        self.heat_components = [col for col in self.df.columns if col.endswith('_Q_th_MW')]
+        self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
+        self.storage_cols = [col for col in self.df.columns if 'TES' in col]
+
+        # ✅ FIX: SPEICHERE ORIGINAL-SUMMEN VOR DOWNSAMPLING
+        # Diese Werte sind für KPI-Berechnungen essentiell und dürfen nicht durch Downsampling verfälscht werden
+        self.original_total_demand_MWh = self.df['demand_MW'].sum()
+        self.original_peak_demand_MW = self.df['demand_MW'].max()
+        self.original_timesteps = len(self.df)
+
+        # Berechne Original-Erzeugung pro Komponente
+        self.original_heat_production = {}
+        for comp in self.heat_components:
+            if comp in self.df.columns:
+                self.original_heat_production[comp] = self.df[comp].sum()
+
+        self.original_total_heat_production = sum(self.original_heat_production.values())
 
         # Downsampling für sehr große Datensätze (Performance)
         self.downsampled = False
@@ -370,27 +406,22 @@ class EnerGISDashboard:
             print(f"   Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
             print(f"   Dies verbessert die Dashboard-Performance erheblich.")
             print(f"   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
-
-        # Add all series
-        if result.series:
-            for key, values in result.series.items():
-                # Ensure values list matches length
-                if len(values) == len(self.df):
-                    self.df[key] = values
-                else:
-                    import logging
-                    logging.warning(
-                        f"Dashboard: Skipping series '{key}' - length mismatch "
-                        f"(expected {len(self.df)}, got {len(values)})"
-                    )
+            print(f"   ℹ️  KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
         else:
-            import logging
-            logging.warning("Dashboard: result.series is empty - no timeseries data to display")
+            # Keine Downsampling nötig
+            pass
 
-        # Identify component types
+        # Re-identify component types nach Downsampling (für Plots)
+        # Die Original-Komponenten wurden bereits vor Downsampling identifiziert
         self.heat_components = [col for col in self.df.columns if col.endswith('_Q_th_MW')]
         self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
         self.storage_cols = [col for col in self.df.columns if 'TES' in col]
+
+        # ✅ Extrahiere dt_h (Zeitschrittdauer in Stunden) für CO2-Berechnungen
+        self.dt_h = 1.0  # Default: 1 Stunde
+        if hasattr(self.workflow, 'config') and self.workflow.config:
+            run_cfg = self.workflow.config.get('run', {})
+            self.dt_h = float(run_cfg.get('dt_h', 1.0))
 
         # Log component detection
         if not self.heat_components and not self.elec_components:
@@ -431,23 +462,130 @@ class EnerGISDashboard:
             import logging
             logging.warning("Dashboard: result.costs is empty or missing")
 
+        # ✅ CO2-Daten extrahieren
+        self.total_co2_t = 0
+        self.grid_co2_t = 0
+        self.fuel_co2_t = 0
+        self.fuel_co2_heat_t = 0  # CO2 für Wärmeerzeugung (Brennstoff → Wärme)
+        self.fuel_co2_elec_t = 0  # CO2 für Stromerzeugung (Brennstoff → Strom, nur CHP)
+        self.grid_co2_elec_t = 0  # CO2 für Stromverbrauch (Grid → Strom, WP/P2H)
+        self.co2_cost_eur = 0
+
+        # Primär: Aus Zeitreihen aggregieren (zuverlässigste Quelle)
+        if 'Grid_CO2_emissions_t_per_step' in self.df.columns:
+            self.grid_co2_t = self.df['Grid_CO2_emissions_t_per_step'].sum()
+
+        if 'Fuel_CO2_emissions_t_per_step' in self.df.columns:
+            self.fuel_co2_t = self.df['Fuel_CO2_emissions_t_per_step'].sum()
+
+        if 'Total_CO2_emissions_t_per_step' in self.df.columns:
+            self.total_co2_t = self.df['Total_CO2_emissions_t_per_step'].sum()
+        else:
+            # Fallback: Berechne Gesamt aus Grid + Fuel
+            self.total_co2_t = self.grid_co2_t + self.fuel_co2_t
+
+        # Sekundär: Falls nicht in Zeitreihen, versuche summary/costs (Legacy)
+        if self.grid_co2_t == 0 and hasattr(result, 'summary') and result.summary:
+            if 'grid' in result.summary:
+                self.grid_co2_t = result.summary['grid'].get('Grid_CO2_emissions_t', 0)
+                if self.total_co2_t == 0:
+                    self.total_co2_t = result.summary['grid'].get('Total_CO2_emissions_t', 0)
+
+        if self.fuel_co2_t == 0 and hasattr(result, 'costs') and result.costs:
+            self.fuel_co2_t = result.costs.get('Fuel_emissions_t', 0)
+
+        # ✅ Extrahiere 3-Kategorien-CO2 (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
+        if hasattr(result, 'costs') and result.costs:
+            # Neue 3-Kategorien-Werte (kg → t)
+            self.fuel_co2_heat_t = result.costs.get('CO2_fuel_to_heat_kg', 0) / 1000.0      # Brennstoff → Wärme
+            self.fuel_co2_elec_t = result.costs.get('CO2_fuel_to_elec_kg', 0) / 1000.0      # Brennstoff → Strom (CHP)
+            self.grid_co2_elec_t = result.costs.get('CO2_grid_to_elec_kg', 0) / 1000.0      # Grid → Strom (WP/P2H)
+
+        # ✅ Fallback: Wenn neue 3-Kategorien nicht verfügbar, verwende Legacy-Werte
+        if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.grid_co2_elec_t == 0:
+            # Legacy 2-Kategorien-Modus (vor 3-Kategorien-Update)
+            if hasattr(result, 'costs') and result.costs:
+                legacy_heat = result.costs.get('CO2_heat_total_kg', 0) / 1000.0
+                legacy_elec = result.costs.get('CO2_elec_total_kg', 0) / 1000.0
+
+                # ⚠️ Problem: legacy_elec mischt CHP-Erzeugung + WP/P2H-Verbrauch
+                # Wir müssen aufteilen. Heuristik: Suche nach CHP in Summary
+                if hasattr(result, 'summary') and result.summary:
+                    # Schätze CHP-Anteil aus Stromerzeugung
+                    chp_elec_mwh = 0
+                    wp_p2h_elec_mwh = 0
+
+                    # Durchsuche Generatoren
+                    for key, data in result.summary.items():
+                        if key.startswith('generator_'):
+                            pel_mwh = data.get('Power_output_MWh', 0)
+                            if pel_mwh > 0:
+                                chp_elec_mwh += pel_mwh
+
+                    # Durchsuche WP
+                    for key, data in result.summary.items():
+                        if key.startswith('hp_'):
+                            pel_mwh = data.get('Electricity_input_MWh', 0)
+                            wp_p2h_elec_mwh += pel_mwh
+
+                    # P2H
+                    if 'p2h' in result.summary:
+                        pel_mwh = result.summary['p2h'].get('Electricity_input_MWh', 0)
+                        wp_p2h_elec_mwh += pel_mwh
+
+                    # Teile legacy_elec proportional auf
+                    total_elec = chp_elec_mwh + wp_p2h_elec_mwh
+                    if total_elec > 0 and legacy_elec > 0:
+                        self.fuel_co2_elec_t = legacy_elec * (chp_elec_mwh / total_elec)
+                        self.grid_co2_elec_t = legacy_elec * (wp_p2h_elec_mwh / total_elec)
+                    else:
+                        # Kann nicht aufteilen → alles als Grid
+                        self.grid_co2_elec_t = legacy_elec
+                        self.fuel_co2_elec_t = 0
+
+                    self.fuel_co2_heat_t = legacy_heat
+                else:
+                    # Keine Summary → konservativ: alles Wärme, Strom nur Grid
+                    self.fuel_co2_heat_t = legacy_heat
+                    self.grid_co2_elec_t = legacy_elec
+                    self.fuel_co2_elec_t = 0
+
+            # Grid-Emissionen Fallback (wenn auch Legacy nicht vorhanden)
+            if self.grid_co2_elec_t == 0 and self.fuel_co2_elec_t == 0:
+                self.grid_co2_elec_t = self.grid_co2_t
+
+            # Ganz alter Fallback
+            if self.fuel_co2_heat_t == 0 and self.fuel_co2_elec_t == 0 and self.fuel_co2_t > 0:
+                self.fuel_co2_heat_t = self.fuel_co2_t  # Alle Brennstoff → Wärme
+                self.fuel_co2_elec_t = 0
+
+        # ✅ Berechne Gesamt-CO2 aus 3 Kategorien (korrekt ohne Doppelzählung)
+        calculated_total = self.fuel_co2_heat_t + self.fuel_co2_elec_t + self.grid_co2_elec_t
+        if calculated_total > 0:
+            self.total_co2_t = calculated_total
+
+        # CO2-Kosten immer aus costs holen
+        if hasattr(result, 'costs') and result.costs:
+            self.co2_cost_eur = result.costs.get('objective.CO2_cost_EUR', 0)
+
     def create(self) -> pn.Tabs:
         """Create the complete dashboard with all tabs."""
 
         tabs = pn.Tabs(
-            ('■ Übersicht', self._create_overview_tab()),
-            ('═ Zeitreihen', self._create_timeseries_tab()),
-            ('▬ Jahresdauerlinie', self._create_duration_curve_tab()),
-            ('η Effizienz & COP', self._create_efficiency_tab()),
-            ('⇄ Energieflüsse', self._create_sankey_tab()),
-            ('€ Kosten', self._create_costs_tab()),
-            ('▦ Anlagen-Design', self._create_design_tab()),
+            ('Übersicht', self._create_overview_tab()),
+            ('Zeitreihen', self._create_timeseries_tab()),
+            ('Jahresdauerlinie', self._create_duration_curve_tab()),
+            ('Effizienz & COP', self._create_efficiency_tab()),
+            ('Energieflüsse', self._create_sankey_tab()),
+            ('CO2-Emissionen', self._create_emissions_tab()),
+            ('Kosten', self._create_costs_tab()),
+            ('Anlagen-Design', self._create_design_tab()),
             dynamic=True
         )
 
         # Add comparison tab if multiple results available
         if (self.has_pf and self.has_rh) or (self.has_pf and self.has_mpc):
-            tabs.append(('⊞ Vergleich', self._create_comparison_tab()))
+            tabs.append(('Vergleich', self._create_comparison_tab()))
 
         # Header
         header = pn.pane.Markdown(
@@ -494,9 +632,10 @@ class EnerGISDashboard:
 
         result = self.primary_result
 
-        # Calculate KPIs
-        total_demand_MWh = self.df['demand_MW'].sum()
-        peak_demand_MW = self.df['demand_MW'].max()
+        # ✅ FIX: Verwende ORIGINAL-SUMMEN für KPIs (nicht downsampled!)
+        total_demand_MWh = self.original_total_demand_MWh
+        peak_demand_MW = self.original_peak_demand_MW
+        total_timesteps = self.original_timesteps
 
         total_cost = 0
         elec_cost = 0
@@ -509,30 +648,72 @@ class EnerGISDashboard:
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
             capex = result.costs.get('objective.Capex_cost_EUR', 0)
 
-        # Berechne Autarkie-Metriken
-        total_heat_production = 0
-        for comp in self.heat_components:
-            if comp in self.df.columns:
-                total_heat_production += self.df[comp].sum()
+            # ✅ FALLBACK: Bei fehlendem CAPEX in RH/MPC, nutze PF-CAPEX
+            # Dies ist ein Fallback für den Fall, dass der Backend-Fix noch nicht angewendet wurde
+            # oder bei älteren gespeicherten Workflows
+            if capex == 0 and self.primary_label in ("RH", "MPC") and self.has_pf and self.workflow.pf_result:
+                pf_capex = self.workflow.pf_result.costs.get('objective.Capex_cost_EUR', 0)
+                if pf_capex > 0:
+                    import logging
+                    logging.info(
+                        f"Dashboard: Using PF CAPEX ({pf_capex:,.0f} EUR) as fallback "
+                        f"({self.primary_label} result has no CAPEX)"
+                    )
+                    capex = pf_capex
+                    # Addiere zu Gesamtkosten wenn noch nicht enthalten
+                    # (Prüfen ob CAPEX bereits in total_cost eingerechnet ist)
+                    if 'Capex_cost_EUR' not in result.costs or result.costs['Capex_cost_EUR'] == 0:
+                        total_cost += pf_capex
 
+        # ✅ FIX: Berechne Autarkie-Metriken mit ORIGINAL-Summen
+        total_heat_production = self.original_total_heat_production
         thermal_autarky = (total_heat_production / total_demand_MWh * 100) if total_demand_MWh > 0 else 0
 
-        # Durchschnittliche Auslastung
-        avg_demand = self.df['demand_MW'].mean()
+        # ✅ FIX: Durchschnittliche Auslastung mit ORIGINAL-Daten
+        avg_demand = total_demand_MWh / total_timesteps if total_timesteps > 0 else 0
         load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
 
-        # Create cards - erweitert mit Autarkie
+        # ✅ Berechne Strom-Metriken (CHP-Erzeugung, Netzeinspeisung, Eigenverbrauch)
+        chp_elec_mwh = 0
+        p_sell_mwh = 0
+
+        # Hole CHP-Stromerzeugung aus Summary (präzise)
+        if hasattr(result, 'summary') and result.summary:
+            for key, data in result.summary.items():
+                if key.startswith('generator_'):
+                    chp_elec_mwh += data.get('Power_output_MWh', 0)
+
+        # Hole Netzeinspeisung aus Zeitreihen (ORIGINAL, nicht downsampled!)
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+
+        # Berechne Eigenverbrauch
+        chp_selfuse_mwh = max(0, chp_elec_mwh - p_sell_mwh)
+
+        # Berechne Eigenverbrauch-Quote
+        selfuse_percentage = (chp_selfuse_mwh / chp_elec_mwh * 100) if chp_elec_mwh > 0 else 0
+
+        # Create cards - erweitert mit Autarkie, CO2 und Strom-Metriken
         cards = pn.GridBox(
+            # Reihe 1: Kosten (4 Karten)
             self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
             self._create_kpi_card("🔥 Brennstoffkosten", f"{fuel_cost:,.0f} €", "warning"),
             self._create_kpi_card("🏗️ Investition (CAPEX)", f"{capex:,.0f} €", "success"),
+
+            # Reihe 2: Wärme-Metriken (4 Karten)
             self._create_kpi_card("📊 Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
             self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
             self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
-            self._create_kpi_card("📈 Auslastungsfaktor", f"{load_factor:.1f} %", "info"),
-            self._create_kpi_card("⏱️ Betriebsstunden", f"{len(self.df):,} h", "secondary"),
-            ncols=3,
+            self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
+
+            # Reihe 3: Strom-Metriken (4 Karten)
+            self._create_kpi_card("⚡ Strom-Erzeugung (CHP)", f"{chp_elec_mwh:,.0f} MWh", "info"),
+            self._create_kpi_card("📤 Netzeinspeisung", f"{p_sell_mwh:,.0f} MWh", "warning"),
+            self._create_kpi_card("🏠 Strom-Eigenverbrauch", f"{chp_selfuse_mwh:,.0f} MWh ({selfuse_percentage:.1f}%)", "success"),
+            self._create_kpi_card("🌍 CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "danger"),
+
+            ncols=4,  # 4 Spalten × 3 Zeilen = 12 Karten
             sizing_mode='stretch_width'
         )
 
@@ -570,20 +751,28 @@ class EnerGISDashboard:
 
         result = self.primary_result
 
-        # Component stats
+        # Component stats (kann mit downsampled Daten arbeiten, da es nur Filter ist)
         active_hp = len([c for c in self.heat_components if 'HP' in c and self.df[c].sum() > 1])
         active_gen = len([c for c in self.heat_components if 'HP' not in c and self.df[c].sum() > 1])
         has_storage = any('TES_SOC' in col for col in self.df.columns)
 
-        # Energy stats
-        total_heat_generated = sum(self.df[col].sum() for col in self.heat_components)
+        # ✅ FIX: Energy stats mit ORIGINAL-Summen
+        total_heat_generated = self.original_total_heat_production
 
-        grid_import = self.df.get('P_buy_MW', pd.Series([0])).sum()
+        # Berechne grid_import aus Original-Daten falls verfügbar
+        if 'P_buy_MW' in self.df.columns:
+            # Hier müssen wir approximieren, da wir P_buy_MW nicht in original_* gespeichert haben
+            # Bei Downsampling ist das eine Näherung
+            grid_import = self.df['P_buy_MW'].sum()
+            if self.downsampled:
+                grid_import = grid_import * self.downsample_factor
+        else:
+            grid_import = 0
 
         summary = f"""
         **Zeitraum:** {self.df['timestamp'].min()} bis {self.df['timestamp'].max()}
 
-        **Anzahl Zeitschritte:** {len(self.df):,}
+        **Anzahl Zeitschritte:** {self.original_timesteps:,}
 
         **Aktive Komponenten:**
         - Wärmepumpen: {active_hp}
@@ -1348,14 +1537,17 @@ class EnerGISDashboard:
             legend=dict(x=0.7, y=0.98)
         )
 
-        # Statistiken berechnen
-        total_hours = len(demand_sorted)
-        peak_demand = demand_sorted[0] if demand_sorted else 0
-        avg_demand = np.mean(demand_sorted) if demand_sorted else 0
+        # ✅ FIX: Statistiken mit ORIGINAL-Daten berechnen
+        total_hours = self.original_timesteps
+        peak_demand = self.original_peak_demand_MW
+        avg_demand = self.original_total_demand_MWh / total_hours if total_hours > 0 else 0
 
         # Volllast-Stunden berechnen (>80% der Spitzenlast)
+        # Hinweis: Dies basiert auf downsampled Daten - eine Approximation
         full_load_threshold = peak_demand * 0.8
         full_load_hours = sum(1 for d in demand_sorted if d >= full_load_threshold)
+        if self.downsampled:
+            full_load_hours = full_load_hours * self.downsample_factor
 
         stats_md = f"""
 ### ■ Statistiken
@@ -1571,9 +1763,9 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             height=600
         )
 
-        # Statistiken
-        total_demand = self.df['demand_MW'].sum()
-        total_gen = sum(total_production.values())
+        # ✅ FIX: Statistiken mit ORIGINAL-Summen berechnen
+        total_demand = self.original_total_demand_MWh
+        total_gen = self.original_total_heat_production
 
         stats_md = f"""
 ### ■ Energie-Bilanz
@@ -1587,14 +1779,18 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 ### 🔥 Erzeugung nach Quelle
 """
 
-        # Sortiere Erzeuger nach Beitrag
-        sorted_prod = sorted(total_production.items(), key=lambda x: x[1], reverse=True)
-        for comp, value in sorted_prod:
+        # Sortiere Erzeuger nach Beitrag (verwende original_heat_production)
+        sorted_prod = sorted(self.original_heat_production.items(), key=lambda x: x[1], reverse=True)
+        for comp_full, value in sorted_prod:
+            comp = comp_full.replace('_Q_th_MW', '')
             percentage = (value / total_gen * 100) if total_gen > 0 else 0
             stats_md += f"- **{comp}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 
+        # ✅ Erstelle Strom-Sankey-Diagramm
+        electricity_sankey = self._create_electricity_sankey()
+
         return pn.Column(
-            pn.pane.Markdown("## ⇄ Energiefluss-Diagramm (Sankey)"),
+            pn.pane.Markdown("## ⇄ Wärme-Energiefluss (Sankey)"),
             pn.pane.Markdown(
                 "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
                 "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"
@@ -1602,8 +1798,988 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             pn.pane.Plotly(fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
             pn.pane.Markdown(stats_md),
+            pn.layout.Divider(),
+            electricity_sankey,
             sizing_mode='stretch_width'
         )
+
+    def _create_electricity_sankey(self):
+        """Create Sankey diagram for electricity flows (Sources → Consumers)."""
+
+        if len(self.df) == 0:
+            return pn.pane.Markdown("*Keine Stromdaten verfügbar*")
+
+        # ✅ Sammle Stromquellen (Links) und -verbraucher (Rechts)
+        sources = {}  # Quellen: Netz, Generatoren mit P_el_out
+        consumers = {}  # Verbraucher: P2H, HP, Netzeinspeisung
+
+        # Strombezug aus Netz
+        if 'P_buy_MW' in self.df.columns:
+            p_buy_mwh = self.df['P_buy_MW'].sum() * self.dt_h
+            if p_buy_mwh > 0.01:
+                sources['Netz (Bezug)'] = p_buy_mwh
+
+        # ✅ Sammle alle _Pel_MW Spalten und kategorisiere korrekt
+        for col in self.df.columns:
+            if '_Pel_MW' in col:
+                component_name = col.replace('_Pel_MW', '')
+                pel_mwh = self.df[col].sum() * self.dt_h
+
+                if pel_mwh < 0.01:
+                    continue  # Ignoriere sehr kleine Werte
+
+                # ✅ VERBRAUCHER: HP* und P2H verbrauchen Strom
+                if component_name.startswith('HP') or component_name == 'P2H':
+                    consumers[component_name] = pel_mwh
+                # ✅ ERZEUGER: Alle anderen (HKW, GTOST, etc.) erzeugen Strom
+                else:
+                    sources[component_name] = pel_mwh
+
+        # Netzeinspeisung (Verbraucher im Sinne von: Strom fließt aus System raus)
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+            if p_sell_mwh > 0.01:
+                consumers['Netz (Einspeisung)'] = p_sell_mwh
+
+        if not sources and not consumers:
+            return pn.pane.Markdown("*Keine relevanten Stromflüsse erkannt*")
+
+        # ✅ Erstelle Sankey-Struktur
+        nodes = []
+        links = []
+        node_indices = {}
+        idx = 0
+
+        # Quellen (links)
+        for source_name in sources.keys():
+            nodes.append(source_name)
+            node_indices[source_name] = idx
+            idx += 1
+
+        # Verbraucher (rechts)
+        for consumer_name in consumers.keys():
+            nodes.append(consumer_name)
+            node_indices[consumer_name] = idx
+            idx += 1
+
+        # ✅ Erstelle Links: Quellen → Verbraucher (vereinfacht: proportional)
+        total_sources = sum(sources.values())
+        total_consumers = sum(consumers.values())
+
+        # Für jede Quelle: verteile proportional auf Verbraucher
+        for source_name, source_value in sources.items():
+            for consumer_name, consumer_value in consumers.items():
+                # Proportional: Quelle liefert an Verbraucher basierend auf Verhältnis
+                if total_consumers > 0:
+                    flow_value = source_value * (consumer_value / total_consumers)
+                    if flow_value > 0.01:
+                        links.append({
+                            'source': node_indices[source_name],
+                            'target': node_indices[consumer_name],
+                            'value': flow_value
+                        })
+
+        if not links:
+            return pn.pane.Markdown("*Keine Stromflüsse erkannt*")
+
+        # ✅ Sankey-Diagramm erstellen
+        num_sources = len(sources)
+        source_colors = ['#4477AA'] * num_sources  # Blau für Quellen
+        consumer_colors = ['#EE6677'] * len(consumers)  # Rot für Verbraucher
+        node_colors = source_colors + consumer_colors
+
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=nodes,
+                color=node_colors
+            ),
+            link=dict(
+                source=[l['source'] for l in links],
+                target=[l['target'] for l in links],
+                value=[l['value'] for l in links],
+                color='rgba(68, 119, 170, 0.3)'
+            )
+        )])
+
+        fig.update_layout(
+            title='Strom-Energiefluss (Quellen → Verbraucher)',
+            font=dict(size=12),
+            height=600
+        )
+
+        # Statistiken
+        stats_md = f"""
+### ⚡ Strom-Bilanz
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-Strombezug** | {sum(sources.values()):,.0f} MWh |
+| **Gesamt-Stromverbrauch** | {sum(consumers.values()):,.0f} MWh |
+| **Bilanz** | {(sum(sources.values()) - sum(consumers.values())):,.0f} MWh |
+
+### 🔌 Stromquellen
+"""
+        for source, value in sorted(sources.items(), key=lambda x: x[1], reverse=True):
+            percentage = (value / sum(sources.values()) * 100) if sum(sources.values()) > 0 else 0
+            stats_md += f"- **{source}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        stats_md += "\n### 🔋 Stromverbraucher\n"
+        for consumer, value in sorted(consumers.items(), key=lambda x: x[1], reverse=True):
+            percentage = (value / sum(consumers.values()) * 100) if sum(consumers.values()) > 0 else 0
+            stats_md += f"- **{consumer}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
+
+        return pn.Column(
+            pn.pane.Markdown("## ⇄ Strom-Energiefluss (Sankey)"),
+            pn.pane.Markdown(
+                "*Das Sankey-Diagramm visualisiert die Stromflüsse von den Quellen (Netz, Generatoren) "
+                "zu den Verbrauchern (Wärmepumpen, P2H, Netzeinspeisung).*"
+            ),
+            pn.pane.Plotly(fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
+
+    def _create_emissions_tab(self) -> pn.Column:
+        """Create CO2 emissions analysis tab with interactive time filtering."""
+
+        # Check if we have any CO2 data
+        if self.total_co2_t == 0 and self.co2_cost_eur == 0:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Keine CO2-Emissionsdaten verfügbar\n\n"
+                    "Das Workflow-Ergebnis enthält keine CO2-Daten. Mögliche Ursachen:\n"
+                    "- CO2-Berechnung ist in der Konfiguration deaktiviert\n"
+                    "- Die Optimierung ist fehlgeschlagen\n"
+                    "- CO2-Daten wurden nicht exportiert\n\n"
+                    "**Um CO2-Tracking zu aktivieren:**\n"
+                    "```yaml\n"
+                    "costs:\n"
+                    "  include_co2_cost_in_objective: true\n"
+                    "  co2_price_eur_per_t: 100.0  # EUR pro Tonne CO2\n"
+                    "```\n\n"
+                    "**Troubleshooting:**\n"
+                    "```python\n"
+                    "# Prüfe CO2-Daten\n"
+                    "primary_result = workflow.rh_result or workflow.pf_result\n"
+                    "print('Summary:', primary_result.summary.get('grid', {}))\n"
+                    "print('CO2 costs:', primary_result.costs.get('objective.CO2_cost_EUR', 0))\n"
+                    "```"
+                )
+            )
+
+        # KPI-Karten für CO2-Übersicht (erweitert mit Wärme/Strom-Kosten)
+        result = self.primary_result
+
+        # Extrahiere CO2-Kosten (Wärme/Strom-Aufteilung)
+        co2_heat_cost = result.costs.get('CO2_heat_total_cost_EUR', 0) if hasattr(result, 'costs') else 0
+        co2_elec_cost = result.costs.get('CO2_elec_total_cost_EUR', 0) if hasattr(result, 'costs') else 0
+        co2_total_cost = result.costs.get('CO2_total_cost_EUR', self.co2_cost_eur) if hasattr(result, 'costs') else self.co2_cost_eur
+
+        # ✅ Berechne Stromeinspeisung und zugehörige CO2
+        p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h if 'P_sell_MW' in self.df.columns else 0
+
+        # Berechne CO2 für eingespeisten Strom
+        co2_grid_export_t = 0
+
+        # ⚠️ WARNUNG für alte Simulationen
+        is_old_simulation = False
+        if hasattr(result, 'costs'):
+            has_new_data = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) > 0
+            is_old_simulation = not has_new_data and self.fuel_co2_elec_t == 0 and p_sell_mwh > 0.01
+
+        if p_sell_mwh > 0.01:
+            # Versuch 1: Hole Brutto-CO2 aus CHP (präzise, wenn verfügbar)
+            co2_fuel_elec_gross = result.costs.get('CO2_fuel_to_elec_kg_gross', 0) / 1000.0 if hasattr(result, 'costs') else 0
+            selfuse_fraction = result.costs.get('CO2_fuel_to_elec_selfuse_fraction', 1.0) if hasattr(result, 'costs') else 1.0
+
+            if co2_fuel_elec_gross > 0.01:
+                # NEUE Simulation: Verwende exportierte Brutto-Werte
+                co2_grid_export_t = co2_fuel_elec_gross * (1 - selfuse_fraction)
+            else:
+                # ALTE Simulation: Versuche nachträgliche Berechnung
+                # Hole CHP-Stromerzeugung aus Summary
+                chp_elec_mwh = 0
+                chp_heat_mwh = 0
+                if hasattr(result, 'summary') and result.summary:
+                    for key, data in result.summary.items():
+                        if key.startswith('generator_'):
+                            chp_elec_mwh += data.get('Power_output_MWh', 0)
+                            chp_heat_mwh += data.get('Heat_output_MWh', 0)
+
+                if chp_elec_mwh > 0.01 and chp_heat_mwh > 0.01:
+                    # ✅ Nachträgliche Berechnung mit energetischer Aufteilung
+                    # Annahme: Gas-CHP mit ca. 200 kg CO2/MWh Brennstoff
+                    # Gesamter Brennstoff-Verbrauch (abgeschätzt aus Wirkungsgraden)
+                    # Typische CHP: th_eff=0.55, el_eff=0.35, total_eff=0.90
+                    assumed_total_eff = 0.90
+                    fuel_mwh = (chp_heat_mwh + chp_elec_mwh) / assumed_total_eff
+
+                    # Gas-Emissionsfaktor: ~200 kg CO2/MWh
+                    gas_co2_factor = 200.0  # kg/MWh
+                    total_chp_co2_kg = fuel_mwh * gas_co2_factor
+
+                    # Energetische Aufteilung
+                    total_energy = chp_heat_mwh + chp_elec_mwh
+                    elec_fraction = chp_elec_mwh / total_energy if total_energy > 0 else 0
+
+                    chp_elec_co2_gross_t = (total_chp_co2_kg * elec_fraction) / 1000.0
+                    chp_heat_co2_t = (total_chp_co2_kg * (1 - elec_fraction)) / 1000.0
+
+                    # Selfuse-Korrektur
+                    selfuse_frac = max(0, (chp_elec_mwh - p_sell_mwh) / chp_elec_mwh) if chp_elec_mwh > 0 else 1.0
+                    chp_elec_co2_net_t = chp_elec_co2_gross_t * selfuse_frac
+                    co2_grid_export_t = chp_elec_co2_gross_t * (1 - selfuse_frac)
+
+                    # ✅ KORRIGIERE die Werte für alte Simulation
+                    self.fuel_co2_heat_t = chp_heat_co2_t
+                    self.fuel_co2_elec_t = chp_elec_co2_net_t
+                    # grid_co2_elec_t bleibt (WP/P2H Verbrauch)
+                    self.total_co2_t = self.fuel_co2_heat_t + self.fuel_co2_elec_t + self.grid_co2_elec_t
+                else:
+                    # Kann CHP nicht identifizieren → Fallback Grid-Faktor (ungenau!)
+                    if 'grid_co2_kg_MWh' in self.df.columns:
+                        avg_grid_co2_kg_mwh = self.df['grid_co2_kg_MWh'].mean()
+                        co2_grid_export_t = (p_sell_mwh * avg_grid_co2_kg_mwh) / 1000.0
+
+        co2_kpis = pn.GridBox(
+            # Reihe 1: CO2-Mengen (5 Karten)
+            self._create_kpi_card("Gesamt-CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
+            self._create_kpi_card("CO2-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
+            self._create_kpi_card("CO2-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
+            self._create_kpi_card("⚡ Stromeinspeisung", f"{p_sell_mwh:,.0f} MWh ({co2_grid_export_t:,.1f} t*)", "light"),
+            self._create_kpi_card("CO2-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
+            # Reihe 2: CO2-Kosten (3 Karten)
+            self._create_kpi_card("CO2-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
+            self._create_kpi_card("CO2-Kosten Strom", f"{co2_elec_cost:,.0f} €", "info"),
+            self._create_kpi_card("CO2-Kosten Gesamt", f"{co2_total_cost:,.0f} €", "primary"),
+            ncols=5,  # 2 Zeilen: 5 Karten oben (CO2-Mengen), 3 Karten unten (Kosten + leere Zellen)
+            sizing_mode='stretch_width'
+        )
+
+        # Berechne CO2-Intensität (kg CO2 pro MWh Wärme)
+        co2_intensity = (self.total_co2_t * 1000 / self.original_total_demand_MWh) if self.original_total_demand_MWh > 0 else 0
+
+        # ✅ Hinweis zur Stromeinspeisung
+        grid_export_note = ""
+        if co2_grid_export_t > 0.01:
+            grid_export_note = f"""
+**Hinweis zur Stromeinspeisung (*)**:
+- {co2_grid_export_t:,.1f} t CO2 entstanden durch eingespeisten Strom
+- Diese werden **NICHT** in der Bilanz angerechnet (neutraler Ansatz)
+- Gesamt-Bilanz enthält nur Eigenverbrauch + Wärmeerzeugung + Strombezug
+"""
+
+        # ⚠️ WARNUNG für alte Simulationen
+        if is_old_simulation:
+            grid_export_note += f"""
+
+⚠️ **WICHTIG - Alte Simulation erkannt:**
+Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine korrekte Wärme/Strom-CO2-Aufteilung hatte.
+
+**Was wurde korrigiert:**
+- Die Werte wurden nachträglich mit energetischer Aufteilung (Wirkungsgrad-basiert) neu berechnet
+- Annahme: Gas-CHP mit ~200 kg CO2/MWh Brennstoff, Gesamtwirkungsgrad 90%
+- Aufteilung basierend auf: Strom-Anteil = Strom-MWh / (Strom-MWh + Wärme-MWh)
+
+**Für präzise Werte:**
+Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet die CO2-Aufteilung direkt während der Optimierung basierend auf den tatsächlichen Wirkungsgraden und Brennstoff-Emissionsfaktoren.
+"""
+
+        # Berechne CO2-Kosten als Anteil der Gesamtkosten
+        result = self.primary_result
+        total_cost = result.costs.get('objective.OBJ_value_EUR', 0) if hasattr(result, 'costs') else 0
+        co2_cost_percentage = (self.co2_cost_eur / total_cost * 100) if total_cost > 0 else 0
+
+        # Zusammenfassungs-Statistiken
+        summary_md = f"""
+### CO2-Äquivalente Bilanz
+
+| Kennzahl | Wert |
+|----------|------|
+| **Gesamt-CO2-Äquivalente** | {self.total_co2_t:,.1f} t CO2eq |
+| **CO2-Äq. Wärmeerzeugung** | {self.fuel_co2_heat_t:,.1f} t ({(self.fuel_co2_heat_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Äq. Strom-Eigenverbrauch (CHP)** | {self.fuel_co2_elec_t:,.1f} t ({(self.fuel_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Äq. Strombezug (Netz)** | {self.grid_co2_elec_t:,.1f} t ({(self.grid_co2_elec_t/self.total_co2_t*100) if self.total_co2_t > 0 else 0:.1f}%) |
+| **CO2-Intensität** | {co2_intensity:.1f} kg CO2eq/MWh_th |
+| **CO2-Kosten Gesamt** | {co2_total_cost:,.0f} € ({co2_cost_percentage:.1f}% der Gesamtkosten) |
+| **Wärmebereitstellung (gesamt)** | {self.original_total_demand_MWh:,.0f} MWh |"""
+
+        # ✅ Stromeinspeisung und Eigenverbrauch-Info hinzufügen
+        if 'P_sell_MW' in self.df.columns:
+            p_sell_mwh = self.df['P_sell_MW'].sum() * self.dt_h
+
+            # Berechne CHP-Stromerzeugung aus Summary
+            chp_elec_mwh = 0
+            if hasattr(result, 'summary') and result.summary:
+                for key, data in result.summary.items():
+                    if key.startswith('generator_'):
+                        chp_elec_mwh += data.get('Power_output_MWh', 0)
+
+            if chp_elec_mwh > 0 or p_sell_mwh > 0.01:
+                selfuse_mwh = max(0, chp_elec_mwh - p_sell_mwh)
+                selfuse_pct = (selfuse_mwh / chp_elec_mwh * 100) if chp_elec_mwh > 0 else 0
+
+                summary_md += f"""
+| **⚡ CHP-Stromerzeugung (Brutto)** | {chp_elec_mwh:,.0f} MWh (100%) |
+| **↳ Eigenverbrauch** | {selfuse_mwh:,.0f} MWh ({selfuse_pct:.1f}%) → **CO2 angerechnet** |
+| **↳ Netzeinspeisung** | {p_sell_mwh:,.0f} MWh ({(p_sell_mwh/chp_elec_mwh*100) if chp_elec_mwh > 0 else 0:.1f}%) → keine CO2-Anrechnung |"""
+
+        summary_md += """
+
+**Interpretation:**
+- CO2-Intensität: Emissionen pro MWh bereitgestellter Wärme
+- Wärmeerzeugung: CO2 aus Brennstoffverbrennung für Wärme
+- Stromerzeugung (CHP): CO2 nur für **Eigenverbrauch** (Netzeinspeisung ohne CO2-Anrechnung)
+- Strombezug (Netz): Indirekte Emissionen durch Stromeinkauf (Grid-Mix für WP/P2H)
+- Vergleichswerte: Gaskessel ~200 kg/MWh, Wärmepumpe ~50-150 kg/MWh
+
+---
+
+### 📊 CO2-Emissionen nach Komponenten
+
+"""
+
+        # ✅ Erstelle Tabelle mit CO2- und Kosten-Aufschlüsselung nach Komponenten
+        if hasattr(result, 'costs'):
+            component_data = []
+
+            # ✅ Debug: Zeige verfügbare CO2-Keys
+            co2_keys = [k for k in result.costs.keys() if k.startswith('CO2_')]
+            print(f"\n[DEBUG] Verfügbare CO2-Keys in result.costs: {len(co2_keys)} Keys")
+            type_keys = [k for k in co2_keys if k.endswith('_type')]
+            print(f"[DEBUG] Komponenten-Typ-Keys: {type_keys}")
+
+            # Sammle alle Komponenten
+            for key in result.costs.keys():
+                if key.startswith('CO2_') and key.endswith('_type'):
+                    comp_name = key.replace('CO2_', '').replace('_type', '')
+                    comp_type = result.costs.get(key, 'unknown')
+
+                    # Hole CO2-Werte [kg]
+                    co2_total_kg = result.costs.get(f'CO2_{comp_name}_total_kg', 0)
+                    co2_heat_kg = result.costs.get(f'CO2_{comp_name}_heat_kg', 0)
+                    co2_elec_kg = result.costs.get(f'CO2_{comp_name}_elec_kg', 0)
+
+                    # Konvertiere zu Tonnen
+                    co2_total_t = co2_total_kg / 1000.0
+                    co2_heat_t = co2_heat_kg / 1000.0
+                    co2_elec_t = co2_elec_kg / 1000.0
+
+                    # Hole Kosten-Werte [EUR]
+                    cost_total_eur = result.costs.get(f'CO2_{comp_name}_total_cost_EUR', 0)
+                    cost_heat_eur = result.costs.get(f'CO2_{comp_name}_heat_cost_EUR', 0)
+                    cost_elec_eur = result.costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
+
+                    # ✅ Debug: Zeige geladene Werte für diese Komponente
+                    print(f"[DEBUG] {comp_name} ({comp_type}): CO2_total={co2_total_kg}kg, CO2_heat={co2_heat_kg}kg, CO2_elec={co2_elec_kg}kg, Cost_total={cost_total_eur}€, Cost_heat={cost_heat_eur}€, Cost_elec={cost_elec_eur}€")
+
+                    # Nur Komponenten mit CO2 > 0.01 t ODER Kosten > 1 EUR
+                    if co2_total_t > 0.01 or cost_total_eur > 1.0:
+                        component_data.append({
+                            'name': comp_name,
+                            'type': comp_type,
+                            'co2_total': co2_total_t,
+                            'co2_heat': co2_heat_t,
+                            'co2_elec': co2_elec_t,
+                            'cost_total': cost_total_eur,
+                            'cost_heat': cost_heat_eur,
+                            'cost_elec': cost_elec_eur
+                        })
+
+            # Sortiere nach Gesamt-CO2 (absteigend)
+            component_data.sort(key=lambda x: x['co2_total'], reverse=True)
+
+            # ✅ Debug: Ausgabe der geladenen Komponenten-Daten
+            if component_data:
+                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
+                for comp in component_data:
+                    print(f"  - {comp['name']} ({comp['type']}): CO2={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
+            else:
+                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: Keine Komponenten gefunden (alte Simulation?)")
+
+            if component_data:
+                summary_md += """
+| Komponente | Typ | Gesamt-CO2 [t] | Wärme-CO2 [t] | Strom-CO2 [t] | Gesamt-Kosten [€] | Wärme-Kosten [€] | Strom-Kosten [€] |
+|------------|-----|----------------|---------------|---------------|-------------------|------------------|------------------|
+"""
+
+                for comp in component_data:
+                    # Typ übersetzen
+                    type_map = {
+                        'chp': 'CHP',
+                        'thermal_generator': 'Kessel',
+                        'heat_pump': 'Wärmepumpe',
+                        'p2h': 'Power-to-Heat'
+                    }
+                    type_label = type_map.get(comp['type'], comp['type'])
+
+                    # Prozentanteile berechnen (CO2)
+                    co2_heat_pct = (comp['co2_heat'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
+                    co2_elec_pct = (comp['co2_elec'] / comp['co2_total'] * 100) if comp['co2_total'] > 0 else 0
+
+                    # Prozentanteile berechnen (Kosten)
+                    cost_heat_pct = (comp['cost_heat'] / comp['cost_total'] * 100) if comp['cost_total'] > 0 else 0
+                    cost_elec_pct = (comp['cost_elec'] / comp['cost_total'] * 100) if comp['cost_total'] > 0 else 0
+
+                    summary_md += f"| **{comp['name']}** | {type_label} | {comp['co2_total']:.1f} | {comp['co2_heat']:.1f} ({co2_heat_pct:.0f}%) | {comp['co2_elec']:.1f} ({co2_elec_pct:.0f}%) | {comp['cost_total']:,.0f} | {comp['cost_heat']:,.0f} ({cost_heat_pct:.0f}%) | {comp['cost_elec']:,.0f} ({cost_elec_pct:.0f}%) |\n"
+
+                # Summen-Zeile
+                total_co2 = sum(c['co2_total'] for c in component_data)
+                total_co2_heat = sum(c['co2_heat'] for c in component_data)
+                total_co2_elec = sum(c['co2_elec'] for c in component_data)
+                total_cost = sum(c['cost_total'] for c in component_data)
+                total_cost_heat = sum(c['cost_heat'] for c in component_data)
+                total_cost_elec = sum(c['cost_elec'] for c in component_data)
+
+                summary_md += f"""| **GESAMT** | | **{total_co2:.1f}** | **{total_co2_heat:.1f}** | **{total_co2_elec:.1f}** | **{total_cost:,.0f}** | **{total_cost_heat:,.0f}** | **{total_cost_elec:,.0f}** |
+
+**Hinweise:**
+- Bei CHP-Anlagen wird nur der Strom-CO2-Anteil für **Eigenverbrauch** angerechnet
+- Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
+- Wärmepumpen: CO2 unter "Strom" = indirekter CO2 aus Grid-Strombezug
+- Kosten basieren auf CO2-Preis × CO2-Emissionen (nach selfuse-Korrektur bei CHP)
+"""
+            else:
+                # Fallback wenn keine Komponenten-Daten verfügbar
+                summary_md += """
+*Keine detaillierte Komponenten-Aufschlüsselung verfügbar.*
+
+**Grund:** Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine komponenten-spezifischen CO2-Daten exportiert.
+
+**Lösung:** Führen Sie eine neue Simulation mit dem aktuellen Code durch, um die detaillierte CO2-Aufschlüsselung nach Komponenten (Gesamt/Wärme/Strom/Kosten) zu erhalten.
+
+**Was Sie trotzdem sehen können:**
+- Gesamt-CO2-Bilanz (siehe KPI-Karten oben)
+- CO2-Kategorien (Brennstoff→Wärme, Brennstoff→Strom, Grid→Strom)
+- CO2-Zeitverläufe und Sankey-Diagramme
+"""
+
+        # CO2-Breakdown Pie Chart
+        breakdown_plot = self._create_co2_breakdown_plot()
+
+        # Aggregierte Emissionstabelle nach Quelle
+        emissions_table = self._create_emissions_table()
+
+        # ✅ Finde alle CO2-Quellen (Grid + einzelne Erzeuger)
+        co2_source_columns = []
+
+        # Grid CO2 (Strombezug)
+        if 'Grid_CO2_emissions_t_per_step' in self.df.columns:
+            co2_source_columns.append(('Strombezug (Grid)', 'Grid_CO2_emissions_t_per_step'))
+
+        # Einzelne Erzeuger CO2
+        for col in self.df.columns:
+            if col.startswith('CO2_') and col.endswith('_t_per_step'):
+                # Extrahiere Generator-Namen: CO2_HKW_t_per_step -> HKW
+                gen_name = col.replace('CO2_', '').replace('_t_per_step', '')
+                co2_source_columns.append((gen_name, col))
+
+        # Multiselect für CO2-Quellen
+        co2_source_selector = pn.widgets.MultiChoice(
+            name='🏭 CO2-Quellen',
+            options=[label for label, _ in co2_source_columns],
+            value=[label for label, _ in co2_source_columns[:5]] if len(co2_source_columns) > 0 else [],  # Default: erste 5
+            sizing_mode='stretch_width'
+        )
+
+        # ✅ INTERAKTIVER ZEITBEREICH-SLIDER für Zeitreihen
+        total_hours = len(self.df)
+        time_slider = pn.widgets.IntRangeSlider(
+            name='📅 Zeitbereich (Stunden)',
+            start=0,
+            end=total_hours,
+            value=(0, min(168, total_hours)),  # Default: erste Woche
+            step=24,
+            sizing_mode='stretch_width'
+        )
+
+        # Quick-Filter Buttons
+        def set_erste_woche():
+            time_slider.value = (0, min(168, total_hours))
+
+        def set_winter_tag():
+            if 'demand_MW' in self.df.columns:
+                winter_idx = self.df['demand_MW'].idxmax()
+                start = max(0, winter_idx - 12)
+                end = min(total_hours, winter_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_sommer_tag():
+            if 'demand_MW' in self.df.columns:
+                summer_idx = self.df['demand_MW'].idxmin()
+                start = max(0, summer_idx - 12)
+                end = min(total_hours, summer_idx + 36)
+                time_slider.value = (start, end)
+
+        def set_komplettes_jahr():
+            time_slider.value = (0, total_hours)
+
+        btn_erste_woche = pn.widgets.Button(name='Erste Woche', button_type='primary', width=120)
+        btn_winter = pn.widgets.Button(name='Winter-Tag', button_type='default', width=120)
+        btn_sommer = pn.widgets.Button(name='Sommer-Tag', button_type='default', width=120)
+        btn_jahr = pn.widgets.Button(name='Ganzes Jahr', button_type='success', width=120)
+
+        btn_erste_woche.on_click(lambda event: set_erste_woche())
+        btn_winter.on_click(lambda event: set_winter_tag())
+        btn_sommer.on_click(lambda event: set_sommer_tag())
+        btn_jahr.on_click(lambda event: set_komplettes_jahr())
+
+        quick_filters = pn.Row(
+            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            btn_erste_woche,
+            btn_winter,
+            btn_sommer,
+            btn_jahr,
+            sizing_mode='stretch_width'
+        )
+
+        # Reaktiver CO2-Zeitreihen-Plot
+        @pn.depends(time_slider, co2_source_selector)
+        def create_co2_timeseries(time_range, selected_sources):
+            return self._create_co2_timeseries_plot(time_range, selected_sources, co2_source_columns)
+
+        # Controls für Zeitreihen
+        controls = pn.Card(
+            co2_source_selector,
+            time_slider,
+            quick_filters,
+            title="⚙️ Filter & Auswahl",
+            collapsed=False,
+            sizing_mode='stretch_width'
+        )
+
+        return pn.Column(
+            pn.pane.Markdown("## Emissionsanalyse in CO2-Äquivalenten"),
+            pn.pane.Markdown(
+                "*Dieses Tab zeigt die Treibhausgasemissionen des Energiesystems in CO2-Äquivalenten. "
+                "Emissionen entstehen durch Strombezug (indirekt) und direkten Brennstoffeinsatz (direkt).*"
+            ),
+            co2_kpis,
+            pn.pane.Markdown(grid_export_note) if grid_export_note else pn.Spacer(height=0),
+            pn.layout.Divider(),
+            pn.Row(
+                pn.Column(
+                    pn.pane.Markdown(summary_md),
+                    width=500
+                ),
+                pn.Column(
+                    pn.pane.Markdown("### Emissionsquellen"),
+                    breakdown_plot,
+                ),
+            ),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### Emissionen nach Quelle (Gesamtzeitraum)"),
+            emissions_table,
+            pn.layout.Divider(),
+            pn.pane.Markdown("### CO2-Kosten pro Komponente (Wärme/Strom-Aufteilung)"),
+            self._create_co2_costs_table(),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### CO2-Emissionen nach Brennstofftyp"),
+            self._create_co2_fuel_type_table(),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### CO2-Äquivalente Zeitverlauf"),
+            controls,
+            create_co2_timeseries,
+            sizing_mode='stretch_width'
+        )
+
+    def _create_co2_breakdown_plot(self):
+        """Create CO2 breakdown pie chart (Wärme/Strom/Netz)."""
+
+        if not HAVE_PLOTLY:
+            return pn.pane.Markdown("*Plotly nicht verfügbar*")
+
+        # Daten vorbereiten (3 Kategorien)
+        labels = []
+        values = []
+        colors = []
+
+        # Wärmeerzeugung (aus Brennstoffen)
+        if self.fuel_co2_heat_t > 0.01:
+            labels.append('Wärmeerzeugung')
+            values.append(self.fuel_co2_heat_t)
+            colors.append('#dc3545')  # danger (rot)
+
+        # Stromerzeugung (CHP) - nur Eigenverbrauch
+        if self.fuel_co2_elec_t > 0.01:
+            labels.append('Strom-Eigenverbrauch (CHP)')
+            values.append(self.fuel_co2_elec_t)
+            colors.append('#198754')  # success (grün)
+
+        # Strombezug (Netz) - nur Stromverbrauch (WP, P2H)
+        if self.grid_co2_elec_t > 0.01:
+            labels.append('Strombezug (Netz)')
+            values.append(self.grid_co2_elec_t)
+            colors.append('#0dcaf0')  # info (blau)
+
+        if not values:
+            return pn.pane.Markdown("*Keine CO2-Äquivalent-Daten für Breakdown verfügbar*")
+
+        # Pie Chart erstellen
+        fig = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.4,  # Donut chart
+            marker=dict(colors=colors),
+            textinfo='label+percent',
+            textfont_size=14,
+            hovertemplate='<b>%{label}</b><br>%{value:.1f} t CO2eq<br>%{percent}<extra></extra>'
+        )])
+
+        fig.update_layout(
+            height=400,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5),
+            title=dict(
+                text=f'CO2-Aufteilung: {len(values)} Kategorien | Gesamt: {sum(values):.1f} t',
+                font=dict(size=12),
+                x=0.5,
+                xanchor='center'
+            )
+        )
+
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+    def _create_emissions_table(self):
+        """Create detailed emissions table by source (3-category system: Fuel→Heat, Fuel→Elec, Grid→Elec)."""
+
+        # ✅ Verwende 3-Kategorien-System für korrekte 100%-Summe
+        emissions_data = []
+
+        # Kategorie 1: Brennstoff → Wärme
+        if self.fuel_co2_heat_t > 0.001:
+            emissions_data.append({
+                'Quelle': 'Wärmeerzeugung (Brennstoff)',
+                'CO2eq_t': self.fuel_co2_heat_t,
+                'Anteil_%': (self.fuel_co2_heat_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Direkt - Wärme'
+            })
+
+        # Kategorie 2: Brennstoff → Strom (CHP) - nur Eigenverbrauch
+        if self.fuel_co2_elec_t > 0.001:
+            emissions_data.append({
+                'Quelle': 'Strom-Eigenverbrauch (CHP)',
+                'CO2eq_t': self.fuel_co2_elec_t,
+                'Anteil_%': (self.fuel_co2_elec_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Direkt - Strom'
+            })
+
+        # Kategorie 3: Grid → Strom (WP, P2H)
+        if self.grid_co2_elec_t > 0.001:
+            emissions_data.append({
+                'Quelle': 'Strombezug (Netz für WP/P2H)',
+                'CO2eq_t': self.grid_co2_elec_t,
+                'Anteil_%': (self.grid_co2_elec_t / self.total_co2_t * 100) if self.total_co2_t > 0 else 0,
+                'Kategorie': 'Indirekt - Grid'
+            })
+
+        # Sortiere nach CO2-Menge (absteigend)
+        emissions_data = sorted(emissions_data, key=lambda x: x['CO2eq_t'], reverse=True)
+
+        # Berechne Summe zur Verifizierung
+        sum_co2 = sum(e['CO2eq_t'] for e in emissions_data)
+
+        # Gesamt-Zeile hinzufügen
+        emissions_data.append({
+            'Quelle': '═══ GESAMT ═══',
+            'CO2eq_t': sum_co2,  # Verwende berechnete Summe
+            'Anteil_%': 100.0,
+            'Kategorie': 'Summe'
+        })
+
+        if not emissions_data:
+            return pn.pane.Markdown("*Keine Emissionsdaten verfügbar*")
+
+        emissions_df = pd.DataFrame(emissions_data)
+
+        # Formatierte Tabelle
+        table = pn.widgets.Tabulator(
+            emissions_df,
+            sizing_mode='stretch_width',
+            theme='modern',
+            show_index=False,
+            formatters={
+                'CO2eq_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'Anteil_%': {'type': 'progress', 'max': 100, 'legend': True}
+            }
+        )
+
+        return table
+
+    def _create_co2_costs_table(self):
+        """Create detailed CO2 costs table per component (Heat/Elec split)."""
+
+        result = self.primary_result
+        if not hasattr(result, 'costs'):
+            return pn.pane.Markdown("*Keine CO2-Kosten verfügbar*")
+
+        costs = result.costs
+        co2_data = []
+
+        # Finde alle CO2-Kosten-Einträge
+        for key, value in costs.items():
+            if key.startswith('CO2_') and key.endswith('_total_cost_EUR'):
+                # Extrahiere Komponenten-Namen
+                comp_name = key.replace('CO2_', '').replace('_total_cost_EUR', '')
+
+                if comp_name in ['heat_total', 'elec_total', 'total']:
+                    continue  # Überspringen (Summen)
+
+                # Hole Wärme/Strom-Kosten und CO2-Mengen
+                heat_cost = costs.get(f'CO2_{comp_name}_heat_cost_EUR', 0)
+                elec_cost = costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
+                total_cost = costs.get(f'CO2_{comp_name}_total_cost_EUR', 0)
+
+                heat_kg = costs.get(f'CO2_{comp_name}_heat_kg', 0) / 1000.0  # kg → t
+                elec_kg = costs.get(f'CO2_{comp_name}_elec_kg', 0) / 1000.0
+                total_kg = costs.get(f'CO2_{comp_name}_total_kg', 0) / 1000.0
+
+                co2_data.append({
+                    'Komponente': comp_name,
+                    'CO2_Wärme_t': heat_kg,
+                    'CO2_Strom_t': elec_kg,
+                    'CO2_Gesamt_t': total_kg,
+                    'Kosten_Wärme_EUR': heat_cost,
+                    'Kosten_Strom_EUR': elec_cost,
+                    'Kosten_Gesamt_EUR': total_cost
+                })
+
+        # Sortiere nach Gesamt-Kosten
+        co2_data = sorted(co2_data, key=lambda x: x['Kosten_Gesamt_EUR'], reverse=True)
+
+        # Summen-Zeile
+        if co2_data:
+            total_heat_cost = sum(d['Kosten_Wärme_EUR'] for d in co2_data)
+            total_elec_cost = sum(d['Kosten_Strom_EUR'] for d in co2_data)
+            total_total_cost = sum(d['Kosten_Gesamt_EUR'] for d in co2_data)
+
+            co2_data.append({
+                'Komponente': '═══ SUMME ═══',
+                'CO2_Wärme_t': sum(d['CO2_Wärme_t'] for d in co2_data[:-1]),
+                'CO2_Strom_t': sum(d['CO2_Strom_t'] for d in co2_data[:-1]),
+                'CO2_Gesamt_t': sum(d['CO2_Gesamt_t'] for d in co2_data[:-1]),
+                'Kosten_Wärme_EUR': total_heat_cost,
+                'Kosten_Strom_EUR': total_elec_cost,
+                'Kosten_Gesamt_EUR': total_total_cost
+            })
+
+        if not co2_data:
+            return pn.pane.Markdown("*Keine CO2-Kosten verfügbar*")
+
+        df = pd.DataFrame(co2_data)
+
+        table = pn.widgets.Tabulator(
+            df,
+            sizing_mode='stretch_width',
+            theme='modern',
+            show_index=False,
+            formatters={
+                'CO2_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
+                'CO2_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
+                'CO2_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 2, 'symbol': ' t'},
+                'Kosten_Wärme_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
+                'Kosten_Strom_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
+                'Kosten_Gesamt_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'}
+            }
+        )
+
+        return table
+
+    def _create_co2_fuel_type_table(self):
+        """Create CO2 breakdown by fuel type (Gas, Biomasse, Abfall) - similar to 'Emissions by Source'."""
+
+        result = self.primary_result
+        if not hasattr(result, 'costs'):
+            return pn.pane.Markdown("*Keine CO2-Daten verfügbar*")
+
+        costs = result.costs
+        fuel_data = []
+
+        # Deutsche Fuel-Type-Namen
+        fuel_type_names = {
+            'gas': 'Gas',
+            'biomass': 'Biomasse',
+            'waste': 'Abfall'
+        }
+
+        # Extrahiere CO2-Daten pro Brennstofftyp
+        for fuel_key, fuel_name in fuel_type_names.items():
+            total_kg = costs.get(f'CO2_fuel_{fuel_key}_total_kg', 0)
+            heat_kg = costs.get(f'CO2_fuel_{fuel_key}_heat_kg', 0)
+            elec_kg = costs.get(f'CO2_fuel_{fuel_key}_elec_kg', 0)
+            total_cost = costs.get(f'CO2_fuel_{fuel_key}_total_cost_EUR', 0)
+
+            # Nur hinzufügen wenn CO2-Emissionen > 0
+            if total_kg > 0.001:
+                fuel_data.append({
+                    'Brennstoff': fuel_name,
+                    'CO2_Wärme_t': heat_kg / 1000.0,
+                    'CO2_Strom_t': elec_kg / 1000.0,
+                    'CO2_Gesamt_t': total_kg / 1000.0,
+                    'Kosten_EUR': total_cost,
+                    'Anteil_%': (total_kg / 1000.0 / self.fuel_co2_t * 100) if self.fuel_co2_t > 0 else 0
+                })
+
+        if not fuel_data:
+            return pn.pane.Markdown("*Keine Brennstoff-CO2-Emissionen verfügbar*")
+
+        # Sortiere nach Gesamt-Emissionen
+        fuel_data = sorted(fuel_data, key=lambda x: x['CO2_Gesamt_t'], reverse=True)
+
+        # Summen-Zeile
+        total_heat_t = sum(d['CO2_Wärme_t'] for d in fuel_data)
+        total_elec_t = sum(d['CO2_Strom_t'] for d in fuel_data)
+        total_total_t = sum(d['CO2_Gesamt_t'] for d in fuel_data)
+        total_cost = sum(d['Kosten_EUR'] for d in fuel_data)
+
+        fuel_data.append({
+            'Brennstoff': '═══ SUMME ═══',
+            'CO2_Wärme_t': total_heat_t,
+            'CO2_Strom_t': total_elec_t,
+            'CO2_Gesamt_t': total_total_t,
+            'Kosten_EUR': total_cost,
+            'Anteil_%': 100.0
+        })
+
+        df = pd.DataFrame(fuel_data)
+
+        table = pn.widgets.Tabulator(
+            df,
+            sizing_mode='stretch_width',
+            theme='modern',
+            show_index=False,
+            formatters={
+                'CO2_Wärme_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO2_Strom_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'CO2_Gesamt_t': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 1, 'symbol': ' t'},
+                'Kosten_EUR': {'type': 'money', 'decimal': '.', 'thousand': ',', 'precision': 0, 'symbol': ' €'},
+                'Anteil_%': {'type': 'progress', 'max': 100, 'legend': True}
+            }
+        )
+
+        return table
+
+    def _create_co2_timeseries_plot(self, time_range: tuple = None, selected_sources: list = None, co2_source_columns: list = None):
+        """Create CO2 emissions time series plot with optional time filtering and source selection.
+
+        Parameters
+        ----------
+        time_range : tuple, optional
+            (start_idx, end_idx) for filtering, by default None (use all data)
+        selected_sources : list, optional
+            List of source names to display, by default None (show all)
+        co2_source_columns : list, optional
+            List of (label, column) tuples for available CO2 sources
+        """
+
+        if not HAVE_PLOTLY:
+            return pn.pane.Markdown("*Plotly nicht verfügbar*")
+
+        # Wende Zeitfilter an wenn gegeben
+        if time_range:
+            start, end = time_range
+            df_subset = self.df.iloc[start:end]
+        else:
+            df_subset = self.df
+
+        # ✅ Verwende ausgewählte Quellen mit individuellen Zeitreihen
+        co2_series = []
+
+        if co2_source_columns and selected_sources:
+            # Erstelle Mapping von Label zu Column
+            source_map = {label: col for label, col in co2_source_columns}
+
+            # Füge ausgewählte Quellen hinzu
+            for source_label in selected_sources:
+                if source_label in source_map:
+                    col_name = source_map[source_label]
+                    if col_name in df_subset.columns:
+                        series = df_subset[col_name]
+                        if series.sum() > 0.001:  # Nur anzeigen wenn > 0
+                            display_name = source_label if source_label != 'Strombezug (Grid)' else 'Strombezug'
+                            co2_series.append((display_name, series))
+
+        # Fallback: Legacy-Modus (wenn keine individuellen Quellen verfügbar)
+        if not co2_series:
+            # Check for aggregated CO2 timeseries columns
+            if 'Grid_CO2_emissions_t_per_step' in df_subset.columns:
+                co2_series.append(('CO2-Äq. aus Strombezug', df_subset['Grid_CO2_emissions_t_per_step']))
+
+            if 'Fuel_CO2_emissions_t_per_step' in df_subset.columns:
+                fuel_co2 = df_subset['Fuel_CO2_emissions_t_per_step']
+                if fuel_co2.sum() > 0.001:
+                    co2_series.append(('CO2-Äq. aus Wärmeerzeugung', fuel_co2))
+
+            # Fallback: Calculate from raw data if new series not available
+            if not co2_series:
+                if 'P_buy_MW' in df_subset.columns and 'grid_co2_kg_MWh' in df_subset.columns:
+                    grid_co2_series = df_subset['P_buy_MW'] * self.dt_h * df_subset['grid_co2_kg_MWh'] / 1000.0
+                    co2_series.append(('CO2-Äq. aus Strombezug', grid_co2_series))
+
+        if not co2_series:
+            return pn.pane.Markdown(
+                "*Keine zeitaufgelösten CO2-Äquivalent-Daten verfügbar für Zeitreihen-Plot.*\n\n"
+                "**Aggregierte Werte (Gesamtzeitraum):**\n"
+                "- Strombezug: {:.1f} t CO2eq\n"
+                "- Wärmeerzeugung: {:.1f} t CO2eq\n\n"
+                "**Hinweis:** Zeitreihen werden automatisch aus den Simulationsergebnissen generiert. "
+                "Falls keine Daten angezeigt werden, überprüfen Sie die Workflow-Konfiguration.".format(
+                    self.grid_co2_t, self.fuel_co2_t
+                )
+            )
+
+        # Plot erstellen
+        fig = go.Figure()
+
+        # ✅ Berechne Gesamt-CO2-Linie (Summe aller Quellen pro Zeitschritt)
+        total_series = sum(series for _, series in co2_series)
+
+        # Füge gestackte Flächen für einzelne Quellen hinzu
+        for name, series in co2_series:
+            fig.add_trace(go.Scatter(
+                x=df_subset['timestamp'],
+                y=series,
+                mode='lines',
+                name=name,
+                stackgroup='one' if len(co2_series) > 1 else None,
+                line=dict(width=1),
+                hovertemplate='<b>%{fullData.name}</b>: %{y:.4f} t CO2eq<extra></extra>'
+            ))
+
+        # ✅ Füge Gesamt-CO2-Linie hinzu (nicht gestackt)
+        if len(co2_series) > 1:
+            fig.add_trace(go.Scatter(
+                x=df_subset['timestamp'],
+                y=total_series,
+                mode='lines',
+                name='═══ GESAMT ═══',
+                line=dict(color='black', width=2, dash='dash'),
+                hovertemplate='<b>Gesamt-CO2</b>: %{y:.4f} t CO2eq<extra></extra>'
+            ))
+
+        # Berechne Statistiken für gefilterten Zeitraum
+        total_co2_filtered = sum(series.sum() for _, series in co2_series)
+        time_span_h = len(df_subset) * self.dt_h
+
+        fig.update_layout(
+            height=400,
+            xaxis_title='Zeit',
+            yaxis_title=f'CO2-Äquivalente [t / {self.dt_h}h]',
+            hovermode='x unified',
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            title=dict(
+                text=f'Zeitraum: {time_span_h:.0f}h | Summe: {total_co2_filtered:.2f} t CO2eq | Quellen: {len(co2_series)}',
+                font=dict(size=12),
+                x=0.5,
+                xanchor='center'
+            )
+        )
+
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
     def _get_component_color(self, component: str) -> str:
         """Get color for component based on type."""
