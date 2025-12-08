@@ -6,7 +6,7 @@ system:
     min_th_mw: 5.0
     investment:
       enabled: true
-      capacity_min_mw: 1.0
+      capacity_min_mw: 5.0  # Angepasst an tech_catalog.yaml - verhindert Installation vieler kleiner WPs
       capacity_max_mw: 100.0
   heat_pumps:
     - id: HP1
