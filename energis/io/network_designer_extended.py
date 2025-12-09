@@ -81,14 +81,14 @@ class ThermalNetworkDesignerExtended(ThermalNetworkDesigner):
         # Export options
         self.export_png_button = pn.widgets.Button(
             name='🖼️ PNG exportieren',
-            button_type='info',
+            button_type='primary',
             width=150,
         )
         self.export_png_button.on_click(self._export_png)
 
         self.export_svg_button = pn.widgets.Button(
             name='📐 SVG exportieren',
-            button_type='info',
+            button_type='primary',
             width=150,
         )
         self.export_svg_button.on_click(self._export_svg)

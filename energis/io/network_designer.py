@@ -240,6 +240,10 @@ class ThermalNetworkDesigner(param.Parameterized):
             sizing_mode='stretch_both',
         )
 
+        # CRITICAL: Connect canvas click events
+        # We need to watch the Plotly figure's click data
+        self.canvas.param.watch(self._on_canvas_click, 'click_data')
+
         # Properties panel (will be updated dynamically)
         self.properties_panel = pn.Column(
             "### Eigenschaften",
@@ -389,6 +393,29 @@ class ThermalNetworkDesigner(param.Parameterized):
             self.connection_start_id = None
 
         logger.info(f"Tool selected: {tool}")
+
+    def _on_canvas_click(self, event):
+        """Wrapper for Plotly click events - converts click_data to coordinates."""
+        if not event.new:
+            return
+
+        click_data = event.new
+
+        # Extract click coordinates from Plotly click_data
+        # click_data format: {'points': [{'x': ..., 'y': ..., 'customdata': ...}]}
+        try:
+            if 'points' in click_data and len(click_data['points']) > 0:
+                point = click_data['points'][0]
+                x = point.get('x', 0)
+                y = point.get('y', 0)
+
+                # Check if we clicked on a component (has customdata)
+                clicked_id = point.get('customdata', None)
+
+                # Call the main click handler
+                self.handle_canvas_click(x, y, clicked_id)
+        except Exception as e:
+            logger.error(f"Error processing canvas click: {e}")
 
     def handle_canvas_click(self, x: float, y: float, clicked_id: Optional[str] = None):
         """Handle click events on canvas."""

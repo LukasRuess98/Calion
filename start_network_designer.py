@@ -8,13 +8,13 @@ Then open browser at http://localhost:5006
 """
 
 import panel as pn
-from energis.io.network_designer import create_network_designer
+from energis.io.network_designer_extended import ThermalNetworkDesignerExtended
 
 # Enable Panel extensions
 pn.extension('plotly')
 
-# Create designer instance
-designer = create_network_designer()
+# Create designer instance (Extended version with templates & auto-layout)
+designer = ThermalNetworkDesignerExtended()
 
 # Create dashboard
 dashboard = designer.create_dashboard()
