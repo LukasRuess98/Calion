@@ -253,7 +253,7 @@ class ThermalNetworkDesigner(param.Parameterized):
         # Action buttons
         self.action_buttons = pn.Row(
             pn.widgets.Button(name='💾 YAML exportieren', button_type='success', width=150),
-            pn.widgets.Button(name='📂 YAML importieren', button_type='info', width=150),
+            pn.widgets.Button(name='📂 YAML importieren', button_type='primary', width=150),
             pn.widgets.Button(name='▶ Simulation starten', button_type='primary', width=150),
             pn.widgets.Button(name='🔄 Zurücksetzen', button_type='warning', width=150),
         )
