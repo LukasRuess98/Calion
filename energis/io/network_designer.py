@@ -522,6 +522,33 @@ class ThermalNetworkDesigner(param.Parameterized):
                 property_widgets.append(efficiency_input)
 
         elif comp.component_type == 'storage':
+            # Storage type selector
+            storage_type_select = pn.widgets.Select(
+                name='Speicher-Typ',
+                options=['simple', 'stratified'],
+                value=comp.properties.get('storage_type', 'simple'),
+                width=200,
+            )
+
+            def update_storage_type(event):
+                comp.properties['storage_type'] = event.new
+                self._update_canvas()
+
+            storage_type_select.param.watch(update_storage_type, 'value')
+            property_widgets.append(storage_type_select)
+
+            # Type info
+            type_info = {
+                'simple': '⚡ Einfacher Speicher (single-zone)',
+                'stratified': '🌡️ Geschichteter Speicher (2-zone thermocline)'
+            }
+            type_desc = pn.pane.Markdown(
+                f"_{type_info.get(storage_type_select.value, '')}_",
+                width=200,
+                styles={'font-size': '0.9em', 'color': '#666'}
+            )
+            property_widgets.append(type_desc)
+
             capacity_input = pn.widgets.FloatInput(
                 name='Kapazität (MWh)',
                 value=comp.properties.get('capacity_mwh', 50.0),
@@ -553,6 +580,19 @@ class ThermalNetworkDesigner(param.Parameterized):
 
             efficiency_input.param.watch(update_storage_efficiency, 'value')
             property_widgets.append(efficiency_input)
+
+            # Show additional parameters for stratified storage
+            if comp.properties.get('storage_type', 'simple') == 'stratified':
+                stratified_params = pn.pane.Markdown(
+                    """**Geschichteter Speicher Parameter:**
+                    - Heiße Zone: 90°C (oben)
+                    - Kalte Zone: 40°C (unten)
+                    - Geometrie: Automatisch berechnet
+                    - Verluste: Geometrie-basiert""",
+                    width=200,
+                    styles={'font-size': '0.85em', 'background': '#f0f8ff', 'padding': '10px', 'border-radius': '5px'}
+                )
+                property_widgets.append(stratified_params)
 
         elif comp.component_type == 'consumer':
             demand_input = pn.widgets.FloatInput(
@@ -851,6 +891,7 @@ class ThermalNetworkDesigner(param.Parameterized):
 
             storage_config = {
                 'enabled': True,
+                'type': storage_comp.properties.get('storage_type', 'simple'),  # 'simple' or 'stratified'
                 'soc0_mwh': 0.0,
                 'eff_charge': storage_comp.properties.get('efficiency', 0.98),
                 'eff_discharge': storage_comp.properties.get('efficiency', 0.98),
@@ -858,6 +899,21 @@ class ThermalNetworkDesigner(param.Parameterized):
                 '_x': storage_comp.x,
                 '_y': storage_comp.y,
             }
+
+            # Add stratified-specific parameters if needed
+            if storage_config['type'] == 'stratified':
+                storage_config.update({
+                    'T_hot_C': 90.0,
+                    'T_cold_C': 40.0,
+                    'T_ambient_C': 15.0,
+                    'T_ground_C': 10.0,
+                    'aspect_ratio': 1.5,
+                    'geometry_type': 'tank',
+                    'U_top': 0.3,
+                    'U_side': 0.2,
+                    'U_bottom': 0.15,
+                    'V_hot_init_fraction': 0.5,
+                })
 
             if storage_comp.status == 'existing':
                 # Fixed capacity
