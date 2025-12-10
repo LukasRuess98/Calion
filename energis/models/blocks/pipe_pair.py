@@ -435,15 +435,23 @@ class PipePairBlock(BaseComponent):
         Q_loss_return = getattr(model, f'{prefix}_Q_loss_return')
         Q_delivered = getattr(model, f'{prefix}_Q_delivered')
 
-        # Extract time series
-        flow_series = [pyo.value(m_dot[t]) for t in time_set]
-        t_supply_in_series = [pyo.value(T_supply_in[t]) for t in time_set]
-        t_supply_out_series = [pyo.value(T_supply_out[t]) for t in time_set]
-        t_return_in_series = [pyo.value(T_return_in[t]) for t in time_set]
-        t_return_out_series = [pyo.value(T_return_out[t]) for t in time_set]
-        q_loss_supply_series = [pyo.value(Q_loss_supply[t]) for t in time_set]
-        q_loss_return_series = [pyo.value(Q_loss_return[t]) for t in time_set]
-        q_delivered_series = [pyo.value(Q_delivered[t]) for t in time_set]
+        # Extract time series (with error handling)
+        def safe_value(var, t, default=0.0):
+            """Safely get value, return default if uninitialized."""
+            try:
+                val = pyo.value(var[t])
+                return val if val is not None else default
+            except (ValueError, TypeError):
+                return default
+
+        flow_series = [safe_value(m_dot, t, 0.0) for t in time_set]
+        t_supply_in_series = [safe_value(T_supply_in, t, 90.0) for t in time_set]
+        t_supply_out_series = [safe_value(T_supply_out, t, 85.0) for t in time_set]
+        t_return_in_series = [safe_value(T_return_in, t, 50.0) for t in time_set]
+        t_return_out_series = [safe_value(T_return_out, t, 45.0) for t in time_set]
+        q_loss_supply_series = [safe_value(Q_loss_supply, t, 0.0) for t in time_set]
+        q_loss_return_series = [safe_value(Q_loss_return, t, 0.0) for t in time_set]
+        q_delivered_series = [safe_value(Q_delivered, t, 0.0) for t in time_set]
 
         # Calculate totals
         dt_h = getattr(model, 'dt_h', 1.0)

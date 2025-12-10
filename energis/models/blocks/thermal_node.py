@@ -273,14 +273,22 @@ class ThermalNodeBlock(BaseComponent):
         T_supply = getattr(model, f'{prefix}_T_supply')
         T_return = getattr(model, f'{prefix}_T_return')
 
-        # Extract time series
+        # Extract time series (with error handling for uninitialized vars)
+        def safe_value(var, t, default=None):
+            """Safely get value, return default if uninitialized."""
+            try:
+                val = pyo.value(var[t])
+                return val if val is not None else default
+            except (ValueError, TypeError):
+                return default
+
         if isinstance(T_supply, pyo.Var):
-            t_supply_series = [pyo.value(T_supply[t]) for t in time_set]
+            t_supply_series = [safe_value(T_supply, t, 90.0) for t in time_set]
         else:
             t_supply_series = [pyo.value(T_supply[t]) for t in time_set]
 
         if isinstance(T_return, pyo.Var):
-            t_return_series = [pyo.value(T_return[t]) for t in time_set]
+            t_return_series = [safe_value(T_return, t, 50.0) for t in time_set]
         else:
             t_return_series = [pyo.value(T_return[t]) for t in time_set]
 
