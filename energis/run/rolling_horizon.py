@@ -1118,74 +1118,56 @@ def _collect_timeseries_and_summary(
     # ========================================
     # THERMAL NETWORK RESULTS EXTRACTION
     # ========================================
-    if model and hasattr(model, 'network_manager'):
+    if model and hasattr(model, 'network_manager') and hasattr(model, 't'):
         try:
-            network_results = model.network_manager.get_results(model, dt_h=dt_h)
+            # Extract network results (nodes and pipes are dicts)
+            network_results = model.network_manager.get_results(model, model.t)
 
             # Add node results to series
             if 'nodes' in network_results:
-                for node_data in network_results['nodes']:
-                    node_id = node_data.get('node_id', '')
-                    if 'T_supply_C' in node_data:
-                        series[f"NET_{node_id}_T_supply_C"] = node_data['T_supply_C']
-                    if 'T_return_C' in node_data:
-                        series[f"NET_{node_id}_T_return_C"] = node_data['T_return_C']
-                    if 'Q_demand_MW' in node_data:
-                        series[f"NET_{node_id}_Q_demand_MW"] = node_data['Q_demand_MW']
+                for node_id, node_data in network_results['nodes'].items():
+                    if 'T_supply_c' in node_data and isinstance(node_data['T_supply_c'], list):
+                        series[f"NET_{node_id}_T_supply_C"] = node_data['T_supply_c']
+                    if 'T_return_c' in node_data and isinstance(node_data['T_return_c'], list):
+                        series[f"NET_{node_id}_T_return_C"] = node_data['T_return_c']
+                    if 'Q_demand_mw' in node_data and isinstance(node_data['Q_demand_mw'], list):
+                        series[f"NET_{node_id}_Q_demand_MW"] = node_data['Q_demand_mw']
 
             # Add pipe results to series
             if 'pipes' in network_results:
-                for pipe_data in network_results['pipes']:
-                    pipe_id = pipe_data.get('pipe_id', '')
-                    if 'flow_kg_s' in pipe_data:
+                for pipe_id, pipe_data in network_results['pipes'].items():
+                    if 'flow_kg_s' in pipe_data and isinstance(pipe_data['flow_kg_s'], list):
                         series[f"NET_{pipe_id}_flow_kg_s"] = pipe_data['flow_kg_s']
-                    if 'T_supply_in_C' in pipe_data:
-                        series[f"NET_{pipe_id}_T_supply_in_C"] = pipe_data['T_supply_in_C']
-                    if 'T_supply_out_C' in pipe_data:
-                        series[f"NET_{pipe_id}_T_supply_out_C"] = pipe_data['T_supply_out_C']
-                    if 'Q_loss_supply_kW' in pipe_data:
-                        series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kW']
-                    if 'Q_loss_return_kW' in pipe_data:
-                        series[f"NET_{pipe_id}_Q_loss_return_kW"] = pipe_data['Q_loss_return_kW']
+                    if 'T_supply_in_c' in pipe_data and isinstance(pipe_data['T_supply_in_c'], list):
+                        series[f"NET_{pipe_id}_T_supply_in_C"] = pipe_data['T_supply_in_c']
+                    if 'T_supply_out_c' in pipe_data and isinstance(pipe_data['T_supply_out_c'], list):
+                        series[f"NET_{pipe_id}_T_supply_out_C"] = pipe_data['T_supply_out_c']
+                    if 'Q_loss_supply_kw' in pipe_data and isinstance(pipe_data['Q_loss_supply_kw'], list):
+                        series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kw']
+                    if 'Q_loss_return_kw' in pipe_data and isinstance(pipe_data['Q_loss_return_kw'], list):
+                        series[f"NET_{pipe_id}_Q_loss_return_kW"] = pipe_data['Q_loss_return_kw']
 
-            # Add network summary statistics
-            network_summary = OrderedDict()
+            # Add network summary statistics from network_results['summary']
+            if 'summary' in network_results:
+                network_summary = OrderedDict()
+                summary_data = network_results['summary']
 
-            # Total heat losses
-            if 'pipes' in network_results:
-                total_loss_supply_mwh = 0.0
-                total_loss_return_mwh = 0.0
-                for pipe_data in network_results['pipes']:
-                    if 'total_loss_supply_MWh' in pipe_data:
-                        total_loss_supply_mwh += pipe_data['total_loss_supply_MWh']
-                    if 'total_loss_return_MWh' in pipe_data:
-                        total_loss_return_mwh += pipe_data['total_loss_return_MWh']
+                # Use summary data from NetworkManager.get_results
+                if 'total_heat_delivered_mwh' in summary_data:
+                    network_summary["Total_heat_delivered_MWh"] = summary_data['total_heat_delivered_mwh']
+                if 'total_heat_loss_mwh' in summary_data:
+                    network_summary["Total_heat_loss_MWh"] = summary_data['total_heat_loss_mwh']
+                if 'loss_percentage' in summary_data:
+                    network_summary["Heat_loss_percentage"] = summary_data['loss_percentage']
+                if 'total_pipe_length_m' in summary_data:
+                    network_summary["Total_pipe_length_m"] = summary_data['total_pipe_length_m']
 
-                network_summary["Total_heat_loss_supply_MWh"] = total_loss_supply_mwh
-                network_summary["Total_heat_loss_return_MWh"] = total_loss_return_mwh
-                network_summary["Total_heat_loss_MWh"] = total_loss_supply_mwh + total_loss_return_mwh
+                # Network configuration
+                network_summary["Number_of_nodes"] = len(network_results.get('nodes', {}))
+                network_summary["Number_of_pipes"] = len(network_results.get('pipes', {}))
 
-            # Total heat delivered
-            if 'nodes' in network_results:
-                total_delivered_mwh = 0.0
-                for node_data in network_results['nodes']:
-                    if 'total_heat_delivered_MWh' in node_data:
-                        total_delivered_mwh += node_data['total_heat_delivered_MWh']
-                network_summary["Total_heat_delivered_MWh"] = total_delivered_mwh
-
-                # Loss percentage
-                total_loss_mwh = network_summary.get("Total_heat_loss_MWh", 0.0)
-                if total_delivered_mwh > 0:
-                    network_summary["Heat_loss_percentage"] = (total_loss_mwh / total_delivered_mwh) * 100
-                else:
-                    network_summary["Heat_loss_percentage"] = 0.0
-
-            # Network configuration
-            network_summary["Number_of_nodes"] = len(network_results.get('nodes', []))
-            network_summary["Number_of_pipes"] = len(network_results.get('pipes', []))
-
-            if network_summary:
-                summary_sections["thermal_network"] = network_summary
+                if network_summary:
+                    summary_sections["thermal_network"] = network_summary
 
         except Exception as e:
             logger.warning(f"Failed to extract thermal network results: {e}")
@@ -2464,6 +2446,21 @@ def export_workflow_results(
 
     if has_mpc and workflow.mpc_result:
         export_network_results(workflow.mpc_result, outdir, "mpc")
+
+    # ========================================
+    # Export Dashboard JSON (if network enabled)
+    # ========================================
+    # Check if any result has network data
+    def export_dashboard_json(result_obj, model_ref, outdir: str, prefix: str):
+        """Export dashboard-ready JSON for network visualization."""
+        # This requires access to the model which has network_manager
+        # For now, we'll create a simplified dashboard JSON from the CSV results
+        # Full implementation will need model access or separate dashboard export step
+        pass
+
+    # Note: Full dashboard export with network topology requires model reference
+    # This will be implemented in the dashboard preparation phase
+    # For now, CSV exports contain all network data in accessible format
 
     # Prepare design export
     design_export: Dict[str, Any] = {}
