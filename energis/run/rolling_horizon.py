@@ -1115,6 +1115,83 @@ def _collect_timeseries_and_summary(
         for i in range(n)
     ] if n else []
 
+    # ========================================
+    # THERMAL NETWORK RESULTS EXTRACTION
+    # ========================================
+    if model and hasattr(model, 'network_manager'):
+        try:
+            network_results = model.network_manager.get_results(model, dt_h=dt_h)
+
+            # Add node results to series
+            if 'nodes' in network_results:
+                for node_data in network_results['nodes']:
+                    node_id = node_data.get('node_id', '')
+                    if 'T_supply_C' in node_data:
+                        series[f"NET_{node_id}_T_supply_C"] = node_data['T_supply_C']
+                    if 'T_return_C' in node_data:
+                        series[f"NET_{node_id}_T_return_C"] = node_data['T_return_C']
+                    if 'Q_demand_MW' in node_data:
+                        series[f"NET_{node_id}_Q_demand_MW"] = node_data['Q_demand_MW']
+
+            # Add pipe results to series
+            if 'pipes' in network_results:
+                for pipe_data in network_results['pipes']:
+                    pipe_id = pipe_data.get('pipe_id', '')
+                    if 'flow_kg_s' in pipe_data:
+                        series[f"NET_{pipe_id}_flow_kg_s"] = pipe_data['flow_kg_s']
+                    if 'T_supply_in_C' in pipe_data:
+                        series[f"NET_{pipe_id}_T_supply_in_C"] = pipe_data['T_supply_in_C']
+                    if 'T_supply_out_C' in pipe_data:
+                        series[f"NET_{pipe_id}_T_supply_out_C"] = pipe_data['T_supply_out_C']
+                    if 'Q_loss_supply_kW' in pipe_data:
+                        series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kW']
+                    if 'Q_loss_return_kW' in pipe_data:
+                        series[f"NET_{pipe_id}_Q_loss_return_kW"] = pipe_data['Q_loss_return_kW']
+
+            # Add network summary statistics
+            network_summary = OrderedDict()
+
+            # Total heat losses
+            if 'pipes' in network_results:
+                total_loss_supply_mwh = 0.0
+                total_loss_return_mwh = 0.0
+                for pipe_data in network_results['pipes']:
+                    if 'total_loss_supply_MWh' in pipe_data:
+                        total_loss_supply_mwh += pipe_data['total_loss_supply_MWh']
+                    if 'total_loss_return_MWh' in pipe_data:
+                        total_loss_return_mwh += pipe_data['total_loss_return_MWh']
+
+                network_summary["Total_heat_loss_supply_MWh"] = total_loss_supply_mwh
+                network_summary["Total_heat_loss_return_MWh"] = total_loss_return_mwh
+                network_summary["Total_heat_loss_MWh"] = total_loss_supply_mwh + total_loss_return_mwh
+
+            # Total heat delivered
+            if 'nodes' in network_results:
+                total_delivered_mwh = 0.0
+                for node_data in network_results['nodes']:
+                    if 'total_heat_delivered_MWh' in node_data:
+                        total_delivered_mwh += node_data['total_heat_delivered_MWh']
+                network_summary["Total_heat_delivered_MWh"] = total_delivered_mwh
+
+                # Loss percentage
+                total_loss_mwh = network_summary.get("Total_heat_loss_MWh", 0.0)
+                if total_delivered_mwh > 0:
+                    network_summary["Heat_loss_percentage"] = (total_loss_mwh / total_delivered_mwh) * 100
+                else:
+                    network_summary["Heat_loss_percentage"] = 0.0
+
+            # Network configuration
+            network_summary["Number_of_nodes"] = len(network_results.get('nodes', []))
+            network_summary["Number_of_pipes"] = len(network_results.get('pipes', []))
+
+            if network_summary:
+                summary_sections["thermal_network"] = network_summary
+
+        except Exception as e:
+            logger.warning(f"Failed to extract thermal network results: {e}")
+            import traceback
+            traceback.print_exc()
+
     flat = _flatten_summary(summary_sections)
     return series, summary_sections, flat
 
@@ -2346,6 +2423,47 @@ def export_workflow_results(
         # Export MPC CSV
         mpc_csv = os.path.join(outdir, "mpc_timeseries.csv")
         write_timeseries_csv(mpc_csv, workflow.mpc_result.table, workflow.mpc_result.series)
+
+    # ========================================
+    # Export Thermal Network Results
+    # ========================================
+    def export_network_results(result_obj, outdir: str, prefix: str):
+        """Export network-specific time series and summary to CSV."""
+        if not result_obj or not result_obj.series:
+            return
+
+        # Filter network time series (all series starting with "NET_")
+        network_series = OrderedDict(
+            (key, values) for key, values in result_obj.series.items()
+            if key.startswith("NET_")
+        )
+
+        if network_series:
+            # Export network time series CSV
+            network_csv = os.path.join(outdir, f"{prefix}_network_timeseries.csv")
+            write_timeseries_csv(network_csv, result_obj.table, network_series)
+            logger.info(f"✓ Exported thermal network timeseries: {network_csv}")
+
+        # Export network summary if available
+        if hasattr(result_obj, 'summary') and 'thermal_network' in result_obj.summary:
+            network_summary_csv = os.path.join(outdir, f"{prefix}_network_summary.csv")
+            with open(network_summary_csv, 'w', newline='', encoding='utf-8') as f:
+                import csv
+                writer = csv.writer(f)
+                writer.writerow(['Metric', 'Value'])
+                for key, value in result_obj.summary['thermal_network'].items():
+                    writer.writerow([key, value])
+            logger.info(f"✓ Exported thermal network summary: {network_summary_csv}")
+
+    # Export network results for each workflow type
+    if has_pf and workflow.pf_result:
+        export_network_results(workflow.pf_result, outdir, "pf")
+
+    if has_rh and workflow.rh_result:
+        export_network_results(workflow.rh_result, outdir, "rh")
+
+    if has_mpc and workflow.mpc_result:
+        export_network_results(workflow.mpc_result, outdir, "mpc")
 
     # Prepare design export
     design_export: Dict[str, Any] = {}
