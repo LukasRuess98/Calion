@@ -148,7 +148,7 @@ class SystemConceptChecker:
         # Check tech_catalog.yaml
         tech_catalog_path = self.base_path / 'configs/tech_catalog.yaml'
         if tech_catalog_path.exists():
-            with open(tech_catalog_path) as f:
+            with open(tech_catalog_path, encoding='utf-8') as f:
                 tech_catalog = yaml.safe_load(f)
 
             # Check cop_fallback exists
@@ -171,7 +171,7 @@ class SystemConceptChecker:
         # Check test system config
         test_system_path = self.base_path / 'configs/systems/test_simple_with_network.system.yaml'
         if test_system_path.exists():
-            with open(test_system_path) as f:
+            with open(test_system_path, encoding='utf-8') as f:
                 test_system = yaml.safe_load(f)
 
             # Check structure
@@ -204,7 +204,7 @@ class SystemConceptChecker:
         # Check Stadtbach network
         stadtbach_path = self.base_path / 'configs/networks/stadtbach_network.yaml'
         if stadtbach_path.exists():
-            with open(stadtbach_path) as f:
+            with open(stadtbach_path, encoding='utf-8') as f:
                 stadtbach = yaml.safe_load(f)
 
             # Check structure
@@ -260,7 +260,7 @@ class SystemConceptChecker:
         # Check system_builder.py integration
         system_builder_path = self.base_path / 'energis/models/system_builder.py'
         if system_builder_path.exists():
-            with open(system_builder_path) as f:
+            with open(system_builder_path, encoding='utf-8') as f:
                 content = f.read()
 
             # Check imports
@@ -310,7 +310,7 @@ class SystemConceptChecker:
         for runner_file in runner_files:
             runner_path = self.base_path / runner_file
             if runner_path.exists():
-                with open(runner_path) as f:
+                with open(runner_path, encoding='utf-8') as f:
                     content = f.read()
 
                 # Runners should use build_model, which handles network automatically
@@ -334,7 +334,7 @@ class SystemConceptChecker:
         # Check PipePairBlock
         pipe_pair_path = self.base_path / 'energis/models/blocks/pipe_pair.py'
         if pipe_pair_path.exists():
-            with open(pipe_pair_path) as f:
+            with open(pipe_pair_path, encoding='utf-8') as f:
                 content = f.read()
 
             self.check(
@@ -372,7 +372,7 @@ class SystemConceptChecker:
         # Check ThermalNodeBlock
         thermal_node_path = self.base_path / 'energis/models/blocks/thermal_node.py'
         if thermal_node_path.exists():
-            with open(thermal_node_path) as f:
+            with open(thermal_node_path, encoding='utf-8') as f:
                 content = f.read()
 
             self.check(
@@ -394,7 +394,7 @@ class SystemConceptChecker:
         # Check NetworkManager
         network_mgr_path = self.base_path / 'energis/models/network_manager.py'
         if network_mgr_path.exists():
-            with open(network_mgr_path) as f:
+            with open(network_mgr_path, encoding='utf-8') as f:
                 content = f.read()
 
             key_methods = [
@@ -425,7 +425,7 @@ class SystemConceptChecker:
         # Check temperature ranges are consistent
         stadtbach_path = self.base_path / 'configs/networks/stadtbach_network.yaml'
         if stadtbach_path.exists():
-            with open(stadtbach_path) as f:
+            with open(stadtbach_path, encoding='utf-8') as f:
                 stadtbach = yaml.safe_load(f)
 
             params = stadtbach.get('parameters', {})
@@ -448,7 +448,7 @@ class SystemConceptChecker:
         # Check pipe catalog consistency
         test_network_path = self.base_path / 'configs/networks/test_simple_network.yaml'
         if test_network_path.exists():
-            with open(test_network_path) as f:
+            with open(test_network_path, encoding='utf-8') as f:
                 test_network = yaml.safe_load(f)
 
             pipe_catalog = test_network.get('pipe_catalog', {})
@@ -503,7 +503,7 @@ class SystemConceptChecker:
 
         for feature, (file_path, keyword) in features.items():
             if file_path.exists():
-                with open(file_path) as f:
+                with open(file_path, encoding='utf-8') as f:
                     content = f.read()
                 self.check(
                     f"Feature implemented: {feature}",

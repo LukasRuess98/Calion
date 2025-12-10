@@ -1,0 +1,71 @@
+# Stadtbach 1-Week Scenario with Thermal Network
+# Testing thermal network optimization with real network topology
+# Usage: python -m energis.run stadtbach_1week
+
+scenario:
+  run_mode: PF_ONLY
+  workflow:
+    - PF
+  fix_design: false
+  title: "Stadtbach_1_Week_Network"
+  tag: "stadtbach-1week-thermal-network"
+
+  # 1 Woche für Performance-Testing
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-01-08 00:00"    # 7 Tage = 168h
+    enforce: false
+
+  # Rolling Horizon Einstellungen (falls verwendet)
+  rolling_horizon:
+    heat_horizon_hours: 48.0   # 2 Tage Vorschau
+    step_hours: 24.0           # 1 Tag Schrittweite
+    terminal_policy: geq       # >= SOC_init am Ende
+
+# System-Konfiguration
+system_file: stadtbach.system.yaml
+
+# Thermal Network aktivieren
+thermal_network:
+  enabled: true
+  topology_file: stadtbach_network.yaml
+  use_outdoor_temperature: false  # Nicht verfügbar laut Netzwerkdefinition
+
+  # Optimization Optionen
+  optimize_pipe_diameters: false   # Phase 1: Existierendes Netz
+  optimize_insulation: false       # Phase 1: Keine Upgrades
+  calculate_pressure_drop: false   # Phase 1: Nur Temperatur/Flow
+
+# Optimierte Run-Parameter für MIQP
+run:
+  dt_h: 1.0  # 1 Stunde für 1-Wochen-Test (168 Timesteps)
+  solver: gurobi
+  solver_options:
+    # Performance-optimiert für Thermal Network MIQP
+    Threads: 8              # 8 CPU-Kerne nutzen
+    ConcurrentMIP: 2        # 2 parallele MIP-Strategien
+    MIPGap: 0.01           # 1% Gap
+    TimeLimit: 3600         # 1 Stunde Zeitlimit
+    MIPFocus: 1             # Fokus auf zulässige Lösungen
+    Method: 2               # Barrier (schnellster für große LP)
+    NodeMethod: 2           # Barrier für nodes
+    Presolve: 2             # Aggressive Presolve
+    Cuts: 2                 # Aggressive Cuts
+    Heuristics: 0.1         # 10% Zeit für Heuristics
+    NumericFocus: 1         # Numerische Stabilität für MIQP
+    ScaleFlag: 2            # Aggressive scaling
+    LogToConsole: 1         # Zeige Fortschritt
+
+# Grid settings
+grid:
+  max_import_mw: 150
+  max_export_mw: 50
+  big_m_grid_mw: 200
+
+# Cost settings
+costs:
+  dump_cost_eur_per_mwh_th: 10.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true
+  include_capex_costs: true

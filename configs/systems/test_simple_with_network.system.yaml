@@ -5,12 +5,12 @@ system:
   heat_pump_defaults:
     enabled: true
     type: standard
-    max_th_mw: 20.0
+    max_th_mw: 50.0
     min_th_mw: 1.0
     investment:
-      enabled: false
+      enabled: true
       capacity_min_mw: 1.0
-      capacity_max_mw: 20.0
+      capacity_max_mw: 100.0
 
   heat_pumps:
     - id: HP1
