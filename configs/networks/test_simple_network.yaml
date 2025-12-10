@@ -58,7 +58,7 @@ pipes:
     u_value_return_w_per_m_k: 0.30
 
     upgrade_options:
-      enabled: true
+      enabled: false
       diameter_options: [200, 250, 300]
       insulation_options: [standard, enhanced]
       enhanced_u_value: 0.17

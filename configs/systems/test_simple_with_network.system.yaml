@@ -8,7 +8,7 @@ system:
     max_th_mw: 20.0
     min_th_mw: 1.0
     investment:
-      enabled: true
+      enabled: false
       capacity_min_mw: 1.0
       capacity_max_mw: 20.0
 

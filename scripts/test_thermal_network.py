@@ -111,7 +111,7 @@ def run_test(hours=24, solver='cbc'):
     cfg = load_and_merge(config_files)
 
     # Add config directory for relative path resolution
-    cfg['config_dir'] = str(Path.cwd())
+    cfg['config_dir'] = str(Path.cwd() / 'configs')
 
     logger.info(f"  Thermal network enabled: {cfg.get('thermal_network', {}).get('enabled')}")
     logger.info(f"  Topology file: {cfg.get('thermal_network', {}).get('topology_file')}")
