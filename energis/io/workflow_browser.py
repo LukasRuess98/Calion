@@ -219,7 +219,7 @@ class WorkflowBrowser:
             return pn.Column(
                 pn.pane.Markdown(f"# {self.title}"),
                 pn.pane.Markdown(
-                    f"## ⚠️ Keine gespeicherten Workflows gefunden\n\n"
+                    f"## WARNUNG: Keine gespeicherten Workflows gefunden\n\n"
                     f"Verzeichnis: `{self.saved_workflows_dir}`\n\n"
                     f"**Erstelle Workflows mit:**\n"
                     f"- `notebooks/scenario_studio.ipynb`\n"
@@ -300,14 +300,14 @@ class WorkflowBrowser:
         workflow_options = create_workflow_options(self.available_workflows)
 
         workflow_selector = pn.widgets.Select(
-            name='▶ Simulation auswählen',
+            name='Simulation auswählen',
             options=workflow_options,
             sizing_mode='stretch_width'  # Adapt to container width
         )
 
         # Refresh button
         refresh_button = pn.widgets.Button(
-            name='↻ Aktualisieren',
+            name='Aktualisieren',
             button_type='success',
             width=150
         )
@@ -318,7 +318,7 @@ class WorkflowBrowser:
         # Refresh callback
         def on_refresh(event):
             """Rescan workflows and update dropdown."""
-            refresh_status.object = "↻ Aktualisiere..."
+            refresh_status.object = "Aktualisiere..."
 
             # Rescan workflows
             self.available_workflows = self._scan_workflows()
@@ -334,7 +334,7 @@ class WorkflowBrowser:
             workflow_selector.param.trigger('options')
 
             # Update status
-            refresh_status.object = f"✅ {len(self.available_workflows)} Simulationen gefunden"
+            refresh_status.object = f"{len(self.available_workflows)} Simulationen gefunden"
 
             logger.info(f"Refreshed: {len(self.available_workflows)} workflows found, {len(new_options)} options created")
 
@@ -396,7 +396,7 @@ class WorkflowBrowser:
 
             if workflow is None:
                 return pn.pane.Markdown(
-                    f"## ❌ Fehler beim Laden\n\n"
+                    f"## FEHLER: Fehler beim Laden\n\n"
                     f"Workflow konnte nicht geladen werden: `{wf_info['path']}`"
                 )
 
@@ -410,7 +410,7 @@ class WorkflowBrowser:
                 logger.error(f"Failed to create dashboard: {e}")
                 import traceback
                 return pn.pane.Markdown(
-                    f"## ❌ Dashboard-Fehler\n\n"
+                    f"## FEHLER: Dashboard-Fehler\n\n"
                     f"```\n{traceback.format_exc()}\n```"
                 )
 
@@ -419,7 +419,7 @@ class WorkflowBrowser:
 
         if len(self.available_workflows) >= 2:
             comparison_button = pn.widgets.Button(
-                name='⊞ Vergleichs-Modus',
+                name='Vergleichs-Modus',
                 button_type='primary',
                 width=180,
                 height=35

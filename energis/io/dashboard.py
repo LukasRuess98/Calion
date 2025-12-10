@@ -178,8 +178,8 @@ def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
         import sys
         if 'debugpy' in sys.modules or 'IPython' in sys.modules:
             # Running in Jupyter/VS-Code
-            recommendations.append("⚠️  If running in VS-Code: Panel dashboards work best in browser")
-            recommendations.append("   Alternative: Use 'panel serve notebook.ipynb' to view in browser")
+            recommendations.append("HINWEIS: If running in VS-Code: Panel dashboards work best in browser")
+            recommendations.append("         Alternative: Use 'panel serve notebook.ipynb' to view in browser")
     except:
         pass
 
@@ -260,7 +260,7 @@ def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard"
                 logger.info(f"  - {rec}")
 
         # Print diagnostic summary
-        print(f"\n🔍 Dashboard Diagnosis (Primary Result: {diagnosis['primary_result_type']}):")
+        print(f"\nDashboard Diagnosis (Primary Result: {diagnosis['primary_result_type']}):")
         print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
               else f"  ✗ Timeseries: No data")
         print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
@@ -269,14 +269,14 @@ def create_dashboard(workflow: Any, title: str = "EnerGIS Interactive Dashboard"
               else f"  ✗ Design: No data")
 
         if diagnosis['issues']:
-            print(f"\n⚠️  Issues found:")
+            print(f"\nWARNUNG: Issues found:")
             for issue in diagnosis['issues']:
-                print(f"     • {issue}")
+                print(f"         • {issue}")
 
         if diagnosis['recommendations']:
-            print(f"\n💡 Recommendations:")
+            print(f"\nHINWEIS: Recommendations:")
             for rec in diagnosis['recommendations']:
-                print(f"     • {rec}")
+                print(f"         • {rec}")
         print()
 
     # Initialize Panel with all required extensions
@@ -402,11 +402,11 @@ class EnerGISDashboard:
             self.downsampled = True
             self.downsample_factor = step
 
-            print(f"\n⚠️  Performance-Hinweis:")
-            print(f"   Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
-            print(f"   Dies verbessert die Dashboard-Performance erheblich.")
-            print(f"   Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
-            print(f"   ℹ️  KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
+            print(f"\nHINWEIS: Performance-Optimierung:")
+            print(f"         Datensatz wurde von {original_length:,} auf {len(self.df):,} Punkte reduziert (Faktor {step})")
+            print(f"         Dies verbessert die Dashboard-Performance erheblich.")
+            print(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/\n")
+            print(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
         else:
             # Keine Downsampling nötig
             pass
@@ -610,17 +610,17 @@ class EnerGISDashboard:
         mini_plot = self._create_mini_demand_plot()
 
         return pn.Column(
-            pn.pane.Markdown("## 🎯 Key Performance Indicators"),
+            pn.pane.Markdown("## Key Performance Indicators"),
             kpis,
             pn.layout.Divider(),
             pn.Row(
                 pn.Column(
-                    pn.pane.Markdown("## 📋 Zusammenfassung"),
+                    pn.pane.Markdown("## Zusammenfassung"),
                     stats_text,
                     width=400
                 ),
                 pn.Column(
-                    pn.pane.Markdown("## ■ Wärmebedarf (Jahresverlauf)"),
+                    pn.pane.Markdown("## Wärmebedarf (Jahresverlauf)"),
                     mini_plot,
                 ),
             ),
@@ -696,22 +696,22 @@ class EnerGISDashboard:
         # Create cards - erweitert mit Autarkie, CO2 und Strom-Metriken
         cards = pn.GridBox(
             # Reihe 1: Kosten (4 Karten)
-            self._create_kpi_card("💰 Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
-            self._create_kpi_card("⚡ Stromkosten", f"{elec_cost:,.0f} €", "info"),
-            self._create_kpi_card("🔥 Brennstoffkosten", f"{fuel_cost:,.0f} €", "warning"),
-            self._create_kpi_card("🏗️ Investition (CAPEX)", f"{capex:,.0f} €", "success"),
+            self._create_kpi_card("Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
+            self._create_kpi_card("Stromkosten", f"{elec_cost:,.0f} €", "info"),
+            self._create_kpi_card("Brennstoffkosten", f"{fuel_cost:,.0f} €", "warning"),
+            self._create_kpi_card("Investition (CAPEX)", f"{capex:,.0f} €", "success"),
 
             # Reihe 2: Wärme-Metriken (4 Karten)
-            self._create_kpi_card("📊 Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
-            self._create_kpi_card("🔝 Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
-            self._create_kpi_card("🌱 Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
-            self._create_kpi_card("⏱️ Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
+            self._create_kpi_card("Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),
+            self._create_kpi_card("Spitzenlast", f"{peak_demand_MW:.1f} MW", "danger"),
+            self._create_kpi_card("Thermische Autarkie", f"{thermal_autarky:.1f} %", "success"),
+            self._create_kpi_card("Betriebsstunden", f"{total_timesteps:,} h", "secondary"),
 
             # Reihe 3: Strom-Metriken (4 Karten)
-            self._create_kpi_card("⚡ Strom-Erzeugung (CHP)", f"{chp_elec_mwh:,.0f} MWh", "info"),
-            self._create_kpi_card("📤 Netzeinspeisung", f"{p_sell_mwh:,.0f} MWh", "warning"),
-            self._create_kpi_card("🏠 Strom-Eigenverbrauch", f"{chp_selfuse_mwh:,.0f} MWh ({selfuse_percentage:.1f}%)", "success"),
-            self._create_kpi_card("🌍 CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "danger"),
+            self._create_kpi_card("Strom-Erzeugung (CHP)", f"{chp_elec_mwh:,.0f} MWh", "info"),
+            self._create_kpi_card("Netzeinspeisung", f"{p_sell_mwh:,.0f} MWh", "warning"),
+            self._create_kpi_card("Strom-Eigenverbrauch", f"{chp_selfuse_mwh:,.0f} MWh ({selfuse_percentage:.1f}%)", "success"),
+            self._create_kpi_card("CO₂-Äquivalente", f"{self.total_co2_t:,.1f} t", "danger"),
 
             ncols=4,  # 4 Spalten × 3 Zeilen = 12 Karten
             sizing_mode='stretch_width'
@@ -720,15 +720,17 @@ class EnerGISDashboard:
         return cards
 
     def _create_kpi_card(self, title: str, value: str, card_type: str) -> pn.Card:
-        """Create a single KPI card."""
+        """Create a single KPI card with professional technical color scheme."""
 
+        # Professional technical color palette (DIN-inspired, subdued, scientific)
         color_map = {
-            'primary': '#0d6efd',
-            'secondary': '#6c757d',
-            'success': '#198754',
-            'danger': '#dc3545',
-            'warning': '#ffc107',
-            'info': '#0dcaf0'
+            'primary': '#004191',    # Universitätsblau (Hauptfarbe)
+            'secondary': '#6c757d',  # Neutralgrau (Sekundärinformation)
+            'success': '#2E7D32',    # Dunkelgrün (Erfolg, positiv)
+            'danger': '#C62828',     # Dunkelrot (Warnung, kritisch)
+            'warning': '#F57C00',    # Orange (Aufmerksamkeit)
+            'info': '#0277BD',       # Dunkelblau (Information)
+            'light': '#E0E0E0'       # Hellgrau (neutral)
         }
 
         color = color_map.get(card_type, '#6c757d')
@@ -823,7 +825,7 @@ class EnerGISDashboard:
         if len(self.df) == 0:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine Zeitreihendaten verfügbar\n\n"
+                    "## WARNUNG: Keine Zeitreihendaten verfügbar\n\n"
                     "Das Workflow-Ergebnis enthält keine Zeitreihendaten. Mögliche Ursachen:\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
                     "- Das `result.series` Dictionary ist leer\n"
@@ -846,7 +848,7 @@ class EnerGISDashboard:
         if not self.heat_components and not self.elec_components:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine Komponenten erkannt\n\n"
+                    "## WARNUNG: Keine Komponenten erkannt\n\n"
                     "Es wurden keine Wärme- oder Elektro-Komponenten in den Ergebnissen gefunden.\n\n"
                     f"**Verfügbare Spalten ({len(self.df.columns)}):**\n"
                     f"```\n{', '.join(self.df.columns[:20])}{'...' if len(self.df.columns) > 20 else ''}\n```\n\n"
@@ -868,7 +870,7 @@ class EnerGISDashboard:
 
         # Component selection
         heat_selector = pn.widgets.MultiChoice(
-            name='🔥 Thermische Komponenten',
+            name='Thermische Komponenten',
             options=self.heat_components,
             value=self.heat_components[:3] if len(self.heat_components) > 0 else [],
             sizing_mode='stretch_width'
@@ -876,7 +878,7 @@ class EnerGISDashboard:
 
         # Time range slider
         time_slider = pn.widgets.IntRangeSlider(
-            name='📅 Zeitbereich (Stunden)',
+            name='Zeitbereich (Stunden)',
             start=0,
             end=len(self.df),
             value=(0, min(168, len(self.df))),
@@ -920,7 +922,7 @@ class EnerGISDashboard:
         btn_jahr.on_click(lambda event: set_komplettes_jahr())
 
         quick_filters = pn.Row(
-            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            pn.pane.Markdown("**Schnellfilter:**"),
             btn_erste_woche,
             btn_winter,
             btn_sommer,
@@ -930,7 +932,7 @@ class EnerGISDashboard:
 
         # Aggregation selector
         aggregation = pn.widgets.Select(
-            name='📊 Aggregation',
+            name='Aggregation',
             options=['Stündlich', 'Täglich', 'Wöchentlich', 'Monatlich'],
             value='Stündlich'
         )
@@ -960,22 +962,22 @@ class EnerGISDashboard:
             quick_filters,
             pn.layout.Divider(),
             pn.Row(aggregation, plot_type),
-            title="⚙️ Steuerung",
+            title="Steuerung",
             collapsed=False,
             sizing_mode='stretch_width'
         )
 
         plots = pn.Column(
-            pn.pane.Markdown("### 🔥 Wärmebilanz"),
+            pn.pane.Markdown("### Wärmebilanz"),
             create_heat_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("### η Elektrische Bilanz"),
+            pn.pane.Markdown("### Elektrische Bilanz"),
             elec_plot,
         )
 
         if storage_plot:
             plots.append(pn.layout.Divider())
-            plots.append(pn.pane.Markdown("### 🔋 Thermischer Speicher"))
+            plots.append(pn.pane.Markdown("### Thermischer Speicher"))
             plots.append(storage_plot)
 
         return pn.Column(
@@ -1168,7 +1170,7 @@ class EnerGISDashboard:
         if self.costs_df.empty:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine Kostendaten verfügbar\n\n"
+                    "## WARNUNG: Keine Kostendaten verfügbar\n\n"
                     "Das Workflow-Ergebnis enthält keine Kostendaten. Mögliche Ursachen:\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
                     "- `result.costs` ist leer oder None\n"
@@ -1225,17 +1227,17 @@ class EnerGISDashboard:
         return pn.Column(
             pn.Row(
                 pn.Column(
-                    pn.pane.Markdown("## ■ Kostenaufteilung"),
+                    pn.pane.Markdown("## Kostenaufteilung"),
                     cost_plot,
                 ),
                 pn.Column(
-                    pn.pane.Markdown("## 📋 Zusammenfassung"),
+                    pn.pane.Markdown("## Zusammenfassung"),
                     pn.pane.Markdown(summary),
                     width=300
                 ),
             ),
             pn.layout.Divider(),
-            pn.pane.Markdown("## 📄 Detaillierte Kostentabelle"),
+            pn.pane.Markdown("## Detaillierte Kostentabelle"),
             cost_table,
             sizing_mode='stretch_width'
         )
@@ -1282,7 +1284,7 @@ class EnerGISDashboard:
         if not design:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Kein Anlagen-Design verfügbar\n\n"
+                    "## WARNUNG: Kein Anlagen-Design verfügbar\n\n"
                     "Das Workflow enthält keine Design-Informationen. Mögliche Ursachen:\n"
                     "- Kein PF-Schritt wurde ausgeführt (Design wird in PF erstellt)\n"
                     "- Die PF-Optimierung ist fehlgeschlagen\n"
@@ -1334,7 +1336,7 @@ class EnerGISDashboard:
         if not hp_data:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine Komponenten im Design gefunden\n\n"
+                    "## WARNUNG: Keine Komponenten im Design gefunden\n\n"
                     "Das Design-Objekt existiert, aber enthält keine Wärmepumpen oder Speicher.\n\n"
                     "Dies kann passieren wenn:\n"
                     "- Alle Komponenten in der Optimierung deaktiviert sind\n"
@@ -1368,13 +1370,13 @@ class EnerGISDashboard:
         json_pane = pn.pane.JSON(design_json, sizing_mode='stretch_width', depth=2)
 
         return pn.Column(
-            pn.pane.Markdown("## ▦ Anlagenauslegung"),
+            pn.pane.Markdown("## Anlagenauslegung"),
             capacity_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("## 📋 Kapazitätstabelle"),
+            pn.pane.Markdown("## Kapazitätstabelle"),
             design_table,
             pn.layout.Divider(),
-            pn.pane.Markdown("## 📄 Design-Details (JSON)"),
+            pn.pane.Markdown("## Design-Details (JSON)"),
             json_pane,
             sizing_mode='stretch_width'
         )
@@ -1442,22 +1444,22 @@ class EnerGISDashboard:
 
         # Interpretation
         if gap < 1:
-            interpretation = "✅ **Exzellent:** Gap < 1% - sehr gute operative Planung"
+            interpretation = "**Exzellent:** Gap < 1% - sehr gute operative Planung"
         elif gap < 5:
-            interpretation = "✅ **Gut:** Gap < 5% - akzeptable operative Planung"
+            interpretation = "**Gut:** Gap < 5% - akzeptable operative Planung"
         elif gap < 10:
-            interpretation = "⚠️ **Akzeptabel:** Gap < 10% - Horizont könnte verlängert werden"
+            interpretation = "**Akzeptabel:** Gap < 10% - Horizont könnte verlängert werden"
         else:
-            interpretation = "⚠️ **Hoch:** Gap > 10% - Horizont zu kurz oder zu viel Unsicherheit"
+            interpretation = "**WARNUNG - Hoch:** Gap > 10% - Horizont zu kurz oder zu viel Unsicherheit"
 
         return pn.Column(
-            pn.pane.Markdown(f"## 🔀 PF vs {comp_label} Vergleich"),
+            pn.pane.Markdown(f"## PF vs {comp_label} Vergleich"),
             comp_plot,
             pn.layout.Divider(),
-            pn.pane.Markdown("## ■ Kennzahlen"),
+            pn.pane.Markdown("## Kennzahlen"),
             comp_table,
             pn.layout.Divider(),
-            pn.pane.Markdown("## 💡 Interpretation"),
+            pn.pane.Markdown("## Interpretation"),
             pn.pane.Markdown(interpretation),
             sizing_mode='stretch_width'
         )
@@ -1492,7 +1494,7 @@ class EnerGISDashboard:
         """Create load duration curve tab."""
 
         if len(self.df) == 0:
-            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+            return pn.Column(pn.pane.Markdown("## WARNUNG: Keine Daten verfügbar"))
 
         # Berechne Jahresdauerlinien
         demand_sorted = sorted(self.df['demand_MW'].values, reverse=True)
@@ -1560,14 +1562,14 @@ class EnerGISDashboard:
 | **Volllast-Stunden (>80%)** | {full_load_hours:,} h |
 | **Gesamt-Betriebsstunden** | {total_hours:,} h |
 
-💡 **Interpretation:**
+**Interpretation:**
 - Volllast-Stunden zeigen, wie oft Spitzenlast-Erzeuger benötigt werden
 - Niedriger Auslastungsfaktor deutet auf hohe Lastspitzen hin
 - Jahresdauerlinie hilft bei der Dimensionierung von Grund- vs. Spitzenlast
 """
 
         return pn.Column(
-            pn.pane.Markdown("## ▬ Jahresdauerlinie (Load Duration Curve)"),
+            pn.pane.Markdown("## Jahresdauerlinie (Load Duration Curve)"),
             pn.pane.Markdown(
                 "*Die Jahresdauerlinie zeigt die sortierte Häufigkeitsverteilung der Lasten. "
                 "Sie ist essentiell für die Dimensionierung und zeigt, wie oft bestimmte Lastbereiche auftreten.*"
@@ -1582,7 +1584,7 @@ class EnerGISDashboard:
         """Create efficiency and COP analysis tab."""
 
         if len(self.df) == 0:
-            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar"))
+            return pn.Column(pn.pane.Markdown("## WARNUNG: Keine Daten verfügbar"))
 
         # Finde COP-Spalten
         cop_cols = [col for col in self.df.columns if 'COP' in col or 'cop' in col]
@@ -1590,7 +1592,7 @@ class EnerGISDashboard:
         if not cop_cols:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine COP-Daten verfügbar\n\n"
+                    "## WARNUNG: Keine COP-Daten verfügbar\n\n"
                     "Es wurden keine COP (Coefficient of Performance) Daten in den Ergebnissen gefunden.\n\n"
                     "**Verfügbare Spalten:**\n"
                     f"```\n{', '.join(self.df.columns[:20])}...\n```\n\n"
@@ -1658,7 +1660,7 @@ class EnerGISDashboard:
             )
 
             stats_md = f"""
-### ■ COP Statistiken
+### COP Statistiken
 
 Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance:
 """
@@ -1691,13 +1693,13 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                 sizing_mode='stretch_width'
             )
 
-        return pn.Column(pn.pane.Markdown("## ⚠️ Keine COP-Statistiken verfügbar"))
+        return pn.Column(pn.pane.Markdown("## WARNUNG: Keine COP-Statistiken verfügbar"))
 
     def _create_sankey_tab(self) -> pn.Column:
         """Create Sankey diagram for energy flows."""
 
         if len(self.df) == 0 or not self.heat_components:
-            return pn.Column(pn.pane.Markdown("## ⚠️ Keine Daten verfügbar für Energiefluss-Diagramm"))
+            return pn.Column(pn.pane.Markdown("## WARNUNG: Keine Daten verfügbar für Energiefluss-Diagramm"))
 
         # Aggregiere Energieflüsse über gesamten Zeitraum
         # Quelle: Komponenten → Ziel: Wärmenetz
@@ -1735,7 +1737,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         if not links:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine Energieflüsse erkannt\n\n"
+                    "## WARNUNG: Keine Energieflüsse erkannt\n\n"
                     "Möglicherweise sind alle Komponenten inaktiv oder die Werte zu gering."
                 )
             )
@@ -1768,7 +1770,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         total_gen = self.original_total_heat_production
 
         stats_md = f"""
-### ■ Energie-Bilanz
+### Energie-Bilanz
 
 | Kennzahl | Wert |
 |----------|------|
@@ -1776,7 +1778,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 | **Gesamt-Erzeugung** | {total_gen:,.0f} MWh |
 | **Bilanz** | {(total_gen - total_demand):,.0f} MWh ({((total_gen/total_demand - 1)*100) if total_demand > 0 else 0:.1f}%) |
 
-### 🔥 Erzeugung nach Quelle
+### Erzeugung nach Quelle
 """
 
         # Sortiere Erzeuger nach Beitrag (verwende original_heat_production)
@@ -1790,7 +1792,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         electricity_sankey = self._create_electricity_sankey()
 
         return pn.Column(
-            pn.pane.Markdown("## ⇄ Wärme-Energiefluss (Sankey)"),
+            pn.pane.Markdown("## Wärme-Energiefluss (Sankey)"),
             pn.pane.Markdown(
                 "*Das Sankey-Diagramm visualisiert die Energieströme von den Erzeugern zum Wärmenetz. "
                 "Die Breite der Flüsse entspricht der übertragenen Energiemenge.*"
@@ -1912,7 +1914,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
         # Statistiken
         stats_md = f"""
-### ⚡ Strom-Bilanz
+### Strom-Bilanz
 
 | Kennzahl | Wert |
 |----------|------|
@@ -1920,19 +1922,19 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 | **Gesamt-Stromverbrauch** | {sum(consumers.values()):,.0f} MWh |
 | **Bilanz** | {(sum(sources.values()) - sum(consumers.values())):,.0f} MWh |
 
-### 🔌 Stromquellen
+### Stromquellen
 """
         for source, value in sorted(sources.items(), key=lambda x: x[1], reverse=True):
             percentage = (value / sum(sources.values()) * 100) if sum(sources.values()) > 0 else 0
             stats_md += f"- **{source}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 
-        stats_md += "\n### 🔋 Stromverbraucher\n"
+        stats_md += "\n### Stromverbraucher\n"
         for consumer, value in sorted(consumers.items(), key=lambda x: x[1], reverse=True):
             percentage = (value / sum(consumers.values()) * 100) if sum(consumers.values()) > 0 else 0
             stats_md += f"- **{consumer}**: {value:,.0f} MWh ({percentage:.1f}%)\n"
 
         return pn.Column(
-            pn.pane.Markdown("## ⇄ Strom-Energiefluss (Sankey)"),
+            pn.pane.Markdown("## Strom-Energiefluss (Sankey)"),
             pn.pane.Markdown(
                 "*Das Sankey-Diagramm visualisiert die Stromflüsse von den Quellen (Netz, Generatoren) "
                 "zu den Verbrauchern (Wärmepumpen, P2H, Netzeinspeisung).*"
@@ -1950,7 +1952,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
         if self.total_co2_t == 0 and self.co2_cost_eur == 0:
             return pn.Column(
                 pn.pane.Markdown(
-                    "## ⚠️ Keine CO2-Emissionsdaten verfügbar\n\n"
+                    "## WARNUNG: Keine CO2-Emissionsdaten verfügbar\n\n"
                     "Das Workflow-Ergebnis enthält keine CO2-Daten. Mögliche Ursachen:\n"
                     "- CO2-Berechnung ist in der Konfiguration deaktiviert\n"
                     "- Die Optimierung ist fehlgeschlagen\n"
@@ -2050,7 +2052,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
             self._create_kpi_card("Gesamt-CO2-Äquivalente", f"{self.total_co2_t:,.1f} t", "warning"),
             self._create_kpi_card("CO2-Äq. Wärmeerzeugung", f"{self.fuel_co2_heat_t:,.1f} t", "danger"),
             self._create_kpi_card("CO2-Äq. Strom-Eigenverbrauch", f"{self.fuel_co2_elec_t:,.1f} t", "success"),
-            self._create_kpi_card("⚡ Stromeinspeisung", f"{p_sell_mwh:,.0f} MWh ({co2_grid_export_t:,.1f} t*)", "light"),
+            self._create_kpi_card("Stromeinspeisung", f"{p_sell_mwh:,.0f} MWh ({co2_grid_export_t:,.1f} t*)", "light"),
             self._create_kpi_card("CO2-Äq. Strombezug (Netz)", f"{self.grid_co2_elec_t:,.1f} t", "info"),
             # Reihe 2: CO2-Kosten (3 Karten)
             self._create_kpi_card("CO2-Kosten Wärme", f"{co2_heat_cost:,.0f} €", "danger"),
@@ -2073,11 +2075,11 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 - Gesamt-Bilanz enthält nur Eigenverbrauch + Wärmeerzeugung + Strombezug
 """
 
-        # ⚠️ WARNUNG für alte Simulationen
+        # WARNUNG für alte Simulationen
         if is_old_simulation:
             grid_export_note += f"""
 
-⚠️ **WICHTIG - Alte Simulation erkannt:**
+**WARNUNG - Alte Simulation erkannt:**
 Diese Simulation wurde mit einer älteren Version durchgeführt, die noch keine korrekte Wärme/Strom-CO2-Aufteilung hatte.
 
 **Was wurde korrigiert:**
@@ -2124,7 +2126,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 selfuse_pct = (selfuse_mwh / chp_elec_mwh * 100) if chp_elec_mwh > 0 else 0
 
                 summary_md += f"""
-| **⚡ CHP-Stromerzeugung (Brutto)** | {chp_elec_mwh:,.0f} MWh (100%) |
+| **CHP-Stromerzeugung (Brutto)** | {chp_elec_mwh:,.0f} MWh (100%) |
 | **↳ Eigenverbrauch** | {selfuse_mwh:,.0f} MWh ({selfuse_pct:.1f}%) → **CO2 angerechnet** |
 | **↳ Netzeinspeisung** | {p_sell_mwh:,.0f} MWh ({(p_sell_mwh/chp_elec_mwh*100) if chp_elec_mwh > 0 else 0:.1f}%) → keine CO2-Anrechnung |"""
 
@@ -2139,7 +2141,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
 ---
 
-### 📊 CO2-Emissionen nach Komponenten
+### CO2-Emissionen nach Komponenten
 
 """
 
@@ -2239,7 +2241,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
 **Hinweise:**
 - Bei CHP-Anlagen wird nur der Strom-CO2-Anteil für **Eigenverbrauch** angerechnet
-- Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte ⚡ Stromeinspeisung)
+- Netzeinspeisung wird separat ausgewiesen (siehe KPI-Karte Stromeinspeisung)
 - Wärmepumpen: CO2 unter "Strom" = indirekter CO2 aus Grid-Strombezug
 - Kosten basieren auf CO2-Preis × CO2-Emissionen (nach selfuse-Korrektur bei CHP)
 """
@@ -2280,7 +2282,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
         # Multiselect für CO2-Quellen
         co2_source_selector = pn.widgets.MultiChoice(
-            name='🏭 CO2-Quellen',
+            name='CO2-Quellen',
             options=[label for label, _ in co2_source_columns],
             value=[label for label, _ in co2_source_columns[:5]] if len(co2_source_columns) > 0 else [],  # Default: erste 5
             sizing_mode='stretch_width'
@@ -2329,7 +2331,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
         btn_jahr.on_click(lambda event: set_komplettes_jahr())
 
         quick_filters = pn.Row(
-            pn.pane.Markdown("**⚡ Schnellfilter:**"),
+            pn.pane.Markdown("**Schnellfilter:**"),
             btn_erste_woche,
             btn_winter,
             btn_sommer,
@@ -2347,7 +2349,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             co2_source_selector,
             time_slider,
             quick_filters,
-            title="⚙️ Filter & Auswahl",
+            title="Filter & Auswahl",
             collapsed=False,
             sizing_mode='stretch_width'
         )
@@ -2782,21 +2784,25 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
     def _get_component_color(self, component: str) -> str:
-        """Get color for component based on type."""
+        """Get color for component based on type using professional technical palette.
 
+        Colors follow DIN/ISO technical documentation standards.
+        """
+
+        # Professional technical color palette (subdued, scientific)
         color_map = {
-            'HP1': '#4477AA',
-            'HP2': '#66CCEE',
-            'HP3': '#228833',
-            'HP4': '#CCBB44',
-            'HKW': '#EE6677',
-            'GTOST': '#AA3377',
-            'BMHKW': '#228833',
-            'TES_discharge': '#BBBBBB',
+            'HP1': '#1976D2',     # Technisches Blau (Wärmepumpe 1)
+            'HP2': '#0288D1',     # Technisches Hellblau (Wärmepumpe 2)
+            'HP3': '#0277BD',     # Technisches Mittelblau (Wärmepumpe 3)
+            'HP4': '#01579B',     # Technisches Dunkelblau (Wärmepumpe 4)
+            'HKW': '#D32F2F',     # Technisches Rot (Heizkraftwerk)
+            'GTOST': '#C62828',   # Technisches Dunkelrot (GuD-Kraftwerk)
+            'BMHKW': '#388E3C',   # Technisches Grün (Biomasse-Heizkraftwerk)
+            'TES_discharge': '#757575',  # Technisches Grau (Speicherentladung)
         }
 
         for key, color in color_map.items():
             if key in component:
                 return color
 
-        return '#999999'
+        return '#616161'  # Neutrales Technisches Grau (Standard)
