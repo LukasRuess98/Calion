@@ -1,24 +1,26 @@
 # Simple Test System with Thermal Network
 # Minimal configuration for testing network integration
 
-# Single heat pump
-heat_pumps:
-  - id: HP1
-    location_node: plant_test
-    cop: 3.5  # Fixed COP for simplicity
+system:
+  heat_pump_defaults:
+    enabled: true
+    type: standard
+    max_th_mw: 20.0
+    min_th_mw: 1.0
     investment:
       enabled: true
       capacity_min_mw: 1.0
       capacity_max_mw: 20.0
-      capex_eur_per_mw: 400000.0
-      lifetime_years: 15
 
-# No storage for simple test
-storage:
-  enabled: false
+  heat_pumps:
+    - id: HP1
+      location_node: plant_test
+      cop: 3.5  # Fixed COP for simplicity
 
-# No generators for simple test
-generators: {}
+  storage:
+    enabled: false
+
+  generators: {}
 
 # Enable thermal network
 thermal_network:
