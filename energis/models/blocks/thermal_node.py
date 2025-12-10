@@ -265,7 +265,7 @@ class ThermalNodeBlock(BaseComponent):
     @staticmethod
     def get_results(model, time_set, config: Dict[str, Any]) -> Dict[str, Any]:
         """Extract results from solved model."""
-        node_id = config['id']
+        node_id = config.get('id') or config.get('node_id')
         prefix = node_id.upper().replace('-', '_')
         node_type = config['type']
 

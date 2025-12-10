@@ -422,7 +422,7 @@ class PipePairBlock(BaseComponent):
     @staticmethod
     def get_results(model, time_set, config: Dict[str, Any]) -> Dict[str, Any]:
         """Extract results from solved model."""
-        pipe_id = config['id']
+        pipe_id = config.get('id') or config.get('pipe_id')
         prefix = pipe_id.upper().replace('-', '_')
 
         # Retrieve variables
