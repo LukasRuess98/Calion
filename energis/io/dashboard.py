@@ -417,6 +417,16 @@ class EnerGISDashboard:
         self.elec_components = [col for col in self.df.columns if col.endswith('_Pel_MW')]
         self.storage_cols = [col for col in self.df.columns if 'TES' in col]
 
+        # ✅ Identify thermal network components
+        self.network_node_cols = [col for col in self.df.columns if col.startswith('NET_') and '_T_supply' in col]
+        self.network_pipe_cols = [col for col in self.df.columns if col.startswith('NET_') and '_flow_kg_s' in col]
+        self.has_thermal_network = len(self.network_node_cols) > 0 or len(self.network_pipe_cols) > 0
+
+        # Extract thermal network summary if available
+        self.network_summary = {}
+        if hasattr(result, 'summary') and result.summary and 'thermal_network' in result.summary:
+            self.network_summary = result.summary['thermal_network']
+
         # ✅ Extrahiere dt_h (Zeitschrittdauer in Stunden) für CO2-Berechnungen
         self.dt_h = 1.0  # Default: 1 Stunde
         if hasattr(self.workflow, 'config') and self.workflow.config:
@@ -582,6 +592,10 @@ class EnerGISDashboard:
             ('Anlagen-Design', self._create_design_tab()),
             dynamic=True
         )
+
+        # Add thermal network tab if available
+        if self.has_thermal_network:
+            tabs.append(('🌡️ Thermisches Netzwerk', self._create_thermal_network_tab()))
 
         # Add comparison tab if multiple results available
         if (self.has_pf and self.has_rh) or (self.has_pf and self.has_mpc):
@@ -2780,6 +2794,258 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
         )
 
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+    def _create_thermal_network_tab(self) -> pn.Column:
+        """Create thermal network analysis tab with temperatures, flows, and heat losses."""
+
+        if not self.has_thermal_network:
+            return pn.Column(
+                pn.pane.Markdown(
+                    "## ⚠️ Thermisches Netzwerk nicht aktiviert\n\n"
+                    "Das Workflow-Ergebnis enthält keine Netzwerkdaten.\n\n"
+                    "**Um das thermische Netzwerk zu aktivieren:**\n"
+                    "```yaml\n"
+                    "thermal_network:\n"
+                    "  enabled: true\n"
+                    "  topology_file: stadtbach_network.yaml\n"
+                    "```\n\n"
+                    "**Weitere Informationen:**\n"
+                    "- `docs/THERMAL_NETWORK_QUICKSTART.md`\n"
+                    "- `notebooks/thermal_network_analysis.ipynb`"
+                )
+            )
+
+        # === NETWORK KPI SUMMARY ===
+        kpi_cards = []
+
+        if self.network_summary:
+            # Total heat delivered
+            heat_delivered = self.network_summary.get('Total_heat_delivered_MWh', 0)
+            kpi_cards.append(
+                pn.Card(
+                    pn.pane.Markdown(
+                        f"## {heat_delivered:,.1f} MWh\n"
+                        f"**Wärme geliefert**",
+                        styles={'text-align': 'center'}
+                    ),
+                    styles={'background': '#e8f5e9', 'padding': '15px'},
+                    margin=5
+                )
+            )
+
+            # Total heat losses
+            heat_losses = self.network_summary.get('Total_heat_losses_MWh', 0)
+            loss_percent = self.network_summary.get('Loss_percentage', 0)
+
+            # Efficiency rating
+            if loss_percent < 0.5:
+                rating = "🟢 Exzellent"
+                color = '#c8e6c9'
+            elif loss_percent < 1.5:
+                rating = "🟡 Gut"
+                color = '#fff9c4'
+            else:
+                rating = "🔴 Optimierung empfohlen"
+                color = '#ffcdd2'
+
+            kpi_cards.append(
+                pn.Card(
+                    pn.pane.Markdown(
+                        f"## {heat_losses:,.2f} MWh\n"
+                        f"**Wärmeverluste** ({loss_percent:.2f}%)\n\n"
+                        f"{rating}",
+                        styles={'text-align': 'center'}
+                    ),
+                    styles={'background': color, 'padding': '15px'},
+                    margin=5
+                )
+            )
+
+            # Network efficiency
+            efficiency = 100 - loss_percent
+            kpi_cards.append(
+                pn.Card(
+                    pn.pane.Markdown(
+                        f"## {efficiency:.2f}%\n"
+                        f"**Netzeffizienz**",
+                        styles={'text-align': 'center'}
+                    ),
+                    styles={'background': '#e3f2fd', 'padding': '15px'},
+                    margin=5
+                )
+            )
+
+            # Number of nodes and pipes
+            num_nodes = self.network_summary.get('Number_of_nodes', len([c for c in self.df.columns if 'NET_' in c and '_T_supply' in c]))
+            num_pipes = self.network_summary.get('Number_of_pipes', len([c for c in self.df.columns if 'NET_' in c and '_flow_kg_s' in c]))
+
+            kpi_cards.append(
+                pn.Card(
+                    pn.pane.Markdown(
+                        f"## {num_nodes} Knoten\n"
+                        f"## {num_pipes} Rohrleitungen\n"
+                        f"**Netzwerk-Topologie**",
+                        styles={'text-align': 'center'}
+                    ),
+                    styles={'background': '#f3e5f5', 'padding': '15px'},
+                    margin=5
+                )
+            )
+
+        # === TEMPERATURE PROFILES ===
+        temp_fig = go.Figure()
+
+        # Extract node IDs and create temperature traces
+        node_temps_supply = {}
+        node_temps_return = {}
+
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_T_supply_C' in col:
+                node_id = col.replace('NET_', '').replace('_T_supply_C', '')
+                node_temps_supply[node_id] = self.df[col]
+            elif col.startswith('NET_') and '_T_return_C' in col:
+                node_id = col.replace('NET_', '').replace('_T_return_C', '')
+                node_temps_return[node_id] = self.df[col]
+
+        # Add supply temperature traces
+        for node_id, temps in node_temps_supply.items():
+            temp_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=temps,
+                mode='lines',
+                name=f'{node_id} Vorlauf',
+                line=dict(width=2),
+                hovertemplate=f'<b>{node_id} Vorlauf</b>: %{{y:.1f}}°C<extra></extra>'
+            ))
+
+        # Add return temperature traces (dashed)
+        for node_id, temps in node_temps_return.items():
+            temp_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=temps,
+                mode='lines',
+                name=f'{node_id} Rücklauf',
+                line=dict(width=1, dash='dash'),
+                hovertemplate=f'<b>{node_id} Rücklauf</b>: %{{y:.1f}}°C<extra></extra>'
+            ))
+
+        temp_fig.update_layout(
+            height=450,
+            xaxis_title='Zeit',
+            yaxis_title='Temperatur [°C]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Temperaturprofile aller Netzknoten'
+        )
+
+        # === HEAT LOSSES PER PIPE ===
+        loss_fig = go.Figure()
+
+        pipe_losses = {}
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_Q_loss_kW' in col:
+                pipe_id = col.replace('NET_', '').replace('_Q_loss_kW', '')
+                pipe_losses[pipe_id] = self.df[col]
+
+        for pipe_id, losses in pipe_losses.items():
+            loss_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=losses,
+                mode='lines',
+                name=pipe_id,
+                stackgroup='one',
+                hovertemplate=f'<b>{pipe_id}</b>: %{{y:.2f}} kW<extra></extra>'
+            ))
+
+        loss_fig.update_layout(
+            height=400,
+            xaxis_title='Zeit',
+            yaxis_title='Wärmeverluste [kW]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Wärmeverluste pro Rohrleitung (gestackt)'
+        )
+
+        # === FLOW RATES ===
+        flow_fig = go.Figure()
+
+        pipe_flows = {}
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_flow_kg_s' in col:
+                pipe_id = col.replace('NET_', '').replace('_flow_kg_s', '')
+                pipe_flows[pipe_id] = self.df[col]
+
+        for pipe_id, flows in pipe_flows.items():
+            flow_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=flows,
+                mode='lines',
+                name=pipe_id,
+                hovertemplate=f'<b>{pipe_id}</b>: %{{y:.2f}} kg/s<extra></extra>'
+            ))
+
+        flow_fig.update_layout(
+            height=400,
+            xaxis_title='Zeit',
+            yaxis_title='Massenstrom [kg/s]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Massenströme in allen Rohrleitungen'
+        )
+
+        # === STATISTICS SUMMARY ===
+        stats_md = "## 📊 Netzwerk-Statistiken\n\n"
+
+        if self.network_summary:
+            stats_md += "### Gesamt-KPIs\n\n"
+            stats_md += f"- **Wärme geliefert**: {self.network_summary.get('Total_heat_delivered_MWh', 0):,.2f} MWh\n"
+            stats_md += f"- **Wärmeverluste**: {self.network_summary.get('Total_heat_losses_MWh', 0):,.2f} MWh ({self.network_summary.get('Loss_percentage', 0):.2f}%)\n"
+            stats_md += f"- **Netzeffizienz**: {100 - self.network_summary.get('Loss_percentage', 0):.2f}%\n"
+            stats_md += f"- **Durchschn. Vorlauftemperatur**: {self.network_summary.get('Avg_supply_temp_C', 0):.1f}°C\n"
+            stats_md += f"- **Durchschn. Rücklauftemperatur**: {self.network_summary.get('Avg_return_temp_C', 0):.1f}°C\n"
+            stats_md += f"- **Durchschn. Temperaturspreizung**: {self.network_summary.get('Avg_supply_temp_C', 0) - self.network_summary.get('Avg_return_temp_C', 0):.1f}K\n\n"
+
+        # Temperature statistics
+        if node_temps_supply:
+            stats_md += "### Temperatur-Statistiken\n\n"
+            for node_id, temps in list(node_temps_supply.items())[:5]:  # Show first 5 nodes
+                stats_md += f"**{node_id}**\n"
+                stats_md += f"  - Vorlauf: {temps.mean():.1f}°C (min: {temps.min():.1f}°C, max: {temps.max():.1f}°C)\n"
+                if node_id in node_temps_return:
+                    ret_temps = node_temps_return[node_id]
+                    stats_md += f"  - Rücklauf: {ret_temps.mean():.1f}°C (min: {ret_temps.min():.1f}°C, max: {ret_temps.max():.1f}°C)\n"
+                stats_md += "\n"
+
+        # Loss statistics
+        if pipe_losses:
+            stats_md += "### Verlust-Statistiken (Top 5 Rohre)\n\n"
+            # Calculate total losses per pipe
+            total_losses = {pipe_id: losses.sum() * self.dt_h / 1000 for pipe_id, losses in pipe_losses.items()}  # kW -> MWh
+            sorted_losses = sorted(total_losses.items(), key=lambda x: x[1], reverse=True)
+
+            for pipe_id, loss_mwh in sorted_losses[:5]:
+                loss_percent = (loss_mwh / self.network_summary.get('Total_heat_losses_MWh', 1)) * 100 if self.network_summary.get('Total_heat_losses_MWh', 0) > 0 else 0
+                stats_md += f"- **{pipe_id}**: {loss_mwh:.2f} MWh ({loss_percent:.1f}% der Gesamtverluste)\n"
+
+        return pn.Column(
+            pn.pane.Markdown("# 🌡️ Thermisches Netzwerk – Analyse"),
+            pn.pane.Markdown(
+                "*Dieses Dashboard zeigt die thermischen Netzwerk-Ergebnisse inklusive Temperaturprofilen, "
+                "Wärmeverlusten und Massenströmen für alle Knoten und Rohrleitungen.*"
+            ),
+            pn.layout.Divider(),
+            pn.pane.Markdown("## 🎯 Key Performance Indicators"),
+            pn.Row(*kpi_cards, sizing_mode='stretch_width') if kpi_cards else pn.pane.Markdown("*Keine KPIs verfügbar*"),
+            pn.layout.Divider(),
+            pn.pane.Plotly(temp_fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Plotly(loss_fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Plotly(flow_fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(stats_md),
+            sizing_mode='stretch_width'
+        )
 
     def _get_component_color(self, component: str) -> str:
         """Get color for component based on type."""
