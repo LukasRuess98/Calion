@@ -103,6 +103,7 @@ def run_test(hours=24, solver='cbc'):
     # Load configuration
     config_files = [
         'configs/base.yaml',
+        'configs/tech_catalog.yaml',
         'configs/systems/test_simple_with_network.system.yaml'
     ]
 
