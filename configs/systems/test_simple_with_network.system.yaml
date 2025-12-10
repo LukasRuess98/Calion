@@ -1,0 +1,40 @@
+# Simple Test System with Thermal Network
+# Minimal configuration for testing network integration
+
+# Single heat pump
+heat_pumps:
+  - id: HP1
+    location_node: plant_test
+    cop: 3.5  # Fixed COP for simplicity
+    investment:
+      enabled: true
+      capacity_min_mw: 1.0
+      capacity_max_mw: 20.0
+      capex_eur_per_mw: 400000.0
+      lifetime_years: 15
+
+# No storage for simple test
+storage:
+  enabled: false
+
+# No generators for simple test
+generators: {}
+
+# Enable thermal network
+thermal_network:
+  enabled: true
+  topology_file: networks/test_simple_network.yaml
+  use_outdoor_temperature: false
+
+# Grid settings (minimal)
+grid:
+  max_import_mw: 50
+  max_export_mw: 0
+  big_m_grid_mw: 100
+
+# Cost settings
+costs:
+  dump_cost_eur_per_mwh_th: 10.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true
+  include_capex_costs: true

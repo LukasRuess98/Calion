@@ -1,0 +1,100 @@
+# Simple 3-Node Test Network
+# For validating thermal network implementation
+
+metadata:
+  name: Simple Test Network
+  description: Minimal test case - 1 plant, 1 pipe, 1 consumer
+  purpose: Validation and testing
+
+parameters:
+  supply_temp_nominal_c: 90
+  return_temp_nominal_c: 50
+  supply_temp_optimization: false
+
+  ground_temp_model: simple
+  ground_temp_default_c: 10
+
+  min_pressure_bar: 2.0
+  max_pressure_bar: 10.0
+
+# Single production plant
+production_plants:
+  - node_id: plant_test
+    name: "Test Plant"
+    type: plant
+    elevation_nn_m: 450
+    coordinates: {x: 0, y: 0}
+
+    components:
+      heat_pumps: [HP1]  # Reference to HP1 from system config
+
+    supply_temp_c: 90
+    supply_pressure_bar: 6.0
+
+# Single consumer zone
+consumer_zones:
+  - node_id: consumer_test
+    name: "Test Consumer"
+    type: consumer
+    elevation_nn_m: 455
+    coordinates: {x: 1000, y: 0}
+    demand_fraction: 1.0  # 100% of total demand
+    return_temp_c: 50
+
+# Single pipe connection
+pipes:
+  - id: pipe_test
+    from_node: plant_test
+    to_node: consumer_test
+    length_m: 1000  # 1 km
+    elevation_change_m: 5
+
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    installation_year: 2015
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [200, 250, 300]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.17
+      upgrade_cost_eur_per_m: 180
+
+# Pipe catalog
+pipe_catalog:
+  DN200:
+    diameter_mm: 200
+    diameter_inner_mm: 187
+    capex_eur_per_m: 1100
+    u_value_standard: 0.28
+    u_value_enhanced: 0.17
+    max_pressure_bar: 16
+    roughness_mm: 0.05
+
+  DN250:
+    diameter_mm: 250
+    diameter_inner_mm: 235
+    capex_eur_per_m: 1400
+    u_value_standard: 0.27
+    u_value_enhanced: 0.16
+    max_pressure_bar: 16
+    roughness_mm: 0.05
+
+  DN300:
+    diameter_mm: 300
+    diameter_inner_mm: 282
+    capex_eur_per_m: 1750
+    u_value_standard: 0.26
+    u_value_enhanced: 0.16
+    max_pressure_bar: 16
+    roughness_mm: 0.05
+
+network_summary:
+  total_nodes: 2
+  total_pipes: 1
+  total_length_m: 1000
+  purpose: Simple validation test

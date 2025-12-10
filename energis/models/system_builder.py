@@ -22,7 +22,7 @@ from energis.utils.timeseries import TimeSeriesTable
 from energis.utils.config_utils import apply_heat_pump_defaults
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
-from .stratified_storage import StratifiedStorageBlock
+from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
 from .network_manager import NetworkManager
