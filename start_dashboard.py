@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🎛️ EnerGIS Standalone Dashboard
+EnerGIS Standalone Dashboard
 
 Startet ein interaktives Dashboard zur Visualisierung gespeicherter Simulationen.
 
@@ -8,11 +8,11 @@ Das Dashboard ist vollständig unabhängig von laufenden Simulationen und lädt
 gespeicherte Workflows aus dem 'saved_workflows/' Verzeichnis.
 
 Features:
-- 📁 Automatisches Scannen aller gespeicherten Simulationen
-- 🔍 Dropdown-Auswahl zur Navigation zwischen Simulationen
-- 📊 Vollständiges Dashboard mit allen Tabs (Übersicht, Zeitreihen, Kosten, Anlagen)
-- 📈 Zugriff auf CSV-Daten und exportierte Plots
-- 🔀 Vergleichs-Modus für multiple Simulationen
+- Automatisches Scannen aller gespeicherten Simulationen
+- Dropdown-Auswahl zur Navigation zwischen Simulationen
+- Vollständiges Dashboard mit allen Tabs (Übersicht, Zeitreihen, Kosten, Anlagen)
+- Zugriff auf CSV-Daten und exportierte Plots
+- Vergleichs-Modus für multiple Simulationen
 
 Usage:
     # Standard-Start (öffnet Browser automatisch)
@@ -103,32 +103,32 @@ Examples:
     try:
         import panel as pn
     except ImportError:
-        logger.error("❌ Panel nicht installiert!")
-        logger.error("   Installation: pip install panel holoviews bokeh plotly")
+        logger.error("FEHLER: Panel nicht installiert!")
+        logger.error("        Installation: pip install panel holoviews bokeh plotly")
         sys.exit(1)
 
     # Import dashboard
     try:
         from energis.io.workflow_browser import create_workflow_browser
     except ImportError as e:
-        logger.error(f"❌ Fehler beim Import: {e}")
-        logger.error("   Stelle sicher, dass das Skript im Projekt-Root ausgeführt wird")
+        logger.error(f"FEHLER: Import fehlgeschlagen: {e}")
+        logger.error("        Stelle sicher, dass das Skript im Projekt-Root ausgeführt wird")
         sys.exit(1)
 
     # Check workflows directory
     workflows_dir = Path(args.dir)
     if not workflows_dir.exists():
-        logger.warning(f"⚠️ Verzeichnis existiert nicht: {workflows_dir}")
-        logger.warning("   Dashboard wird trotzdem gestartet (zeigt Hinweis)")
+        logger.warning(f"WARNUNG: Verzeichnis existiert nicht: {workflows_dir}")
+        logger.warning("         Dashboard wird trotzdem gestartet (zeigt Hinweis)")
 
     # Print header
     print("\n" + "="*70)
-    print("🎛️  EnerGIS Standalone Dashboard")
+    print("EnerGIS Standalone Dashboard")
     print("="*70)
-    print(f"📁 Workflow-Verzeichnis: {workflows_dir.absolute()}")
-    print(f"🌐 Port: {args.port}")
-    print(f"🔍 Auto-open Browser: {not args.no_show}")
-    print(f"📝 Debug-Modus: {args.debug}")
+    print(f"Workflow-Verzeichnis: {workflows_dir.absolute()}")
+    print(f"Port:                 {args.port}")
+    print(f"Auto-open Browser:    {not args.no_show}")
+    print(f"Debug-Modus:          {args.debug}")
     print("="*70 + "\n")
 
     # Create dashboard
@@ -139,10 +139,10 @@ Examples:
     )
 
     # Print instructions
-    print("\n💡 Dashboard-Steuerung:")
-    print("   • Ctrl+C zum Beenden")
-    print(f"   • URL: http://localhost:{args.port}")
-    print("   • Wähle eine Simulation im Dropdown zur Visualisierung\n")
+    print("\nDashboard-Steuerung:")
+    print("  • Ctrl+C zum Beenden")
+    print(f"  • URL: http://localhost:{args.port}")
+    print("  • Wähle eine Simulation im Dropdown zur Visualisierung\n")
 
     # Serve dashboard
     logger.info(f"Starte Webserver auf Port {args.port}...")
@@ -158,10 +158,10 @@ Examples:
             autoreload=args.debug
         )
     except KeyboardInterrupt:
-        print("\n\n👋 Dashboard beendet")
+        print("\n\nDashboard beendet")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Fehler beim Starten des Dashboards: {e}")
+        logger.error(f"FEHLER: Fehler beim Starten des Dashboards: {e}")
         if args.debug:
             raise
         sys.exit(1)
