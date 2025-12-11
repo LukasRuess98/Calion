@@ -13,7 +13,7 @@ parameters:
   # Temperature settings
   supply_temp_nominal_c: 120
   supply_temp_summer_c: 90
-  return_temp_nominal_c: 70
+  return_temp_nominal_c: 55
 
   # Environmental
   ground_temp_model: simple
