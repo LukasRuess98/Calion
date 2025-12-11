@@ -1,0 +1,66 @@
+# Stadtbach 1-DAY Test Scenario - Quick validation
+# Testing thermal network optimization with reduced timeframe
+# ⚠️  Uses SYNTHETIC data for testing
+
+# Data file
+data_file: stadtbach_synthetic_2023_1week.csv
+
+scenario:
+  run_mode: PF_ONLY
+  workflow:
+    - PF
+  fix_design: false
+  title: "Stadtbach_1_Day_Network_Test"
+  tag: "stadtbach-1day-thermal-network-test"
+
+  # 1 TAG für schnelles Testing (24 Zeitschritte)
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-01-02 00:00"    # Nur 24 Stunden!
+    enforce: false
+
+  rolling_horizon:
+    heat_horizon_hours: 24.0
+    step_hours: 12.0
+    terminal_policy: geq
+
+# System-Konfiguration
+system_file: configs/systems/stadtbach.system.yaml
+
+# Thermal Network aktivieren
+thermal_network:
+  enabled: true
+  topology_file: configs/networks/stadtbach_network.yaml
+  use_outdoor_temperature: false
+
+  # Optimization Optionen
+  optimize_pipe_diameters: false
+  optimize_insulation: false
+  calculate_pressure_drop: false
+
+# RELAXED Run-Parameter für schnelles Testing
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    Threads: 8
+    MIPGap: 0.05              # ✅ 5% statt 1% (schneller!)
+    TimeLimit: 1800           # ✅ 30 Minuten (kürzer)
+    MIPFocus: 1
+    Method: 2
+    Heuristics: 0.2           # ✅ Mehr Heuristiken (schneller zu feasible solution)
+    LogToConsole: 1
+
+# Grid settings
+grid:
+  max_import_mw: 150
+  max_export_mw: 50
+  big_m_grid_mw: 200
+
+# Cost settings
+costs:
+  dump_cost_eur_per_mwh_th: 10.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true
+  include_capex_costs: true
