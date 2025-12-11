@@ -2835,9 +2835,11 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 )
             )
 
-            # Total heat losses
-            heat_losses = self.network_summary.get('Total_heat_losses_MWh', 0)
-            loss_percent = self.network_summary.get('Loss_percentage', 0)
+            # Total heat losses (support both key variants for compatibility)
+            heat_losses = self.network_summary.get('Total_heat_loss_MWh',
+                          self.network_summary.get('Total_heat_losses_MWh', 0))
+            loss_percent = self.network_summary.get('Heat_loss_percentage',
+                           self.network_summary.get('Loss_percentage', 0))
 
             # Efficiency rating
             if loss_percent < 0.5:
@@ -2945,9 +2947,15 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
         pipe_losses = {}
         for col in self.df.columns:
-            if col.startswith('NET_') and '_Q_loss_kW' in col:
-                pipe_id = col.replace('NET_', '').replace('_Q_loss_kW', '')
-                pipe_losses[pipe_id] = self.df[col]
+            # Support both formats: _Q_loss_kW (old) and _Q_loss_supply_kW/_Q_loss_return_kW (new)
+            if col.startswith('NET_') and '_Q_loss' in col and '_kW' in col:
+                # Extract pipe_id by removing prefix and all suffixes
+                pipe_id = col.replace('NET_', '').replace('_Q_loss_supply_kW', '').replace('_Q_loss_return_kW', '').replace('_Q_loss_kW', '')
+                if pipe_id not in pipe_losses:
+                    pipe_losses[pipe_id] = self.df[col].copy()
+                else:
+                    # Sum supply and return losses
+                    pipe_losses[pipe_id] = pipe_losses[pipe_id] + self.df[col]
 
         for pipe_id, losses in pipe_losses.items():
             loss_fig.add_trace(go.Scatter(
@@ -3000,12 +3008,20 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
         if self.network_summary:
             stats_md += "### Gesamt-KPIs\n\n"
+            # Support both key formats for compatibility
+            heat_loss_mwh = self.network_summary.get('Total_heat_loss_MWh',
+                            self.network_summary.get('Total_heat_losses_MWh', 0))
+            loss_pct = self.network_summary.get('Heat_loss_percentage',
+                       self.network_summary.get('Loss_percentage', 0))
+            avg_supply = self.network_summary.get('Avg_supply_temp_C', 90.0)
+            avg_return = self.network_summary.get('Avg_return_temp_C', 50.0)
+
             stats_md += f"- **Wärme geliefert**: {self.network_summary.get('Total_heat_delivered_MWh', 0):,.2f} MWh\n"
-            stats_md += f"- **Wärmeverluste**: {self.network_summary.get('Total_heat_losses_MWh', 0):,.2f} MWh ({self.network_summary.get('Loss_percentage', 0):.2f}%)\n"
-            stats_md += f"- **Netzeffizienz**: {100 - self.network_summary.get('Loss_percentage', 0):.2f}%\n"
-            stats_md += f"- **Durchschn. Vorlauftemperatur**: {self.network_summary.get('Avg_supply_temp_C', 0):.1f}°C\n"
-            stats_md += f"- **Durchschn. Rücklauftemperatur**: {self.network_summary.get('Avg_return_temp_C', 0):.1f}°C\n"
-            stats_md += f"- **Durchschn. Temperaturspreizung**: {self.network_summary.get('Avg_supply_temp_C', 0) - self.network_summary.get('Avg_return_temp_C', 0):.1f}K\n\n"
+            stats_md += f"- **Wärmeverluste**: {heat_loss_mwh:,.2f} MWh ({loss_pct:.2f}%)\n"
+            stats_md += f"- **Netzeffizienz**: {100 - loss_pct:.2f}%\n"
+            stats_md += f"- **Durchschn. Vorlauftemperatur**: {avg_supply:.1f}°C\n"
+            stats_md += f"- **Durchschn. Rücklauftemperatur**: {avg_return:.1f}°C\n"
+            stats_md += f"- **Durchschn. Temperaturspreizung**: {avg_supply - avg_return:.1f}K\n\n"
 
         # Temperature statistics
         if node_temps_supply:
@@ -3025,8 +3041,12 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             total_losses = {pipe_id: losses.sum() * self.dt_h / 1000 for pipe_id, losses in pipe_losses.items()}  # kW -> MWh
             sorted_losses = sorted(total_losses.items(), key=lambda x: x[1], reverse=True)
 
+            # Get total losses with key compatibility
+            total_loss_mwh = self.network_summary.get('Total_heat_loss_MWh',
+                             self.network_summary.get('Total_heat_losses_MWh', 1)) if self.network_summary else 1
+
             for pipe_id, loss_mwh in sorted_losses[:5]:
-                loss_percent = (loss_mwh / self.network_summary.get('Total_heat_losses_MWh', 1)) * 100 if self.network_summary.get('Total_heat_losses_MWh', 0) > 0 else 0
+                loss_percent = (loss_mwh / total_loss_mwh) * 100 if total_loss_mwh > 0 else 0
                 stats_md += f"- **{pipe_id}**: {loss_mwh:.2f} MWh ({loss_percent:.1f}% der Gesamtverluste)\n"
 
         return pn.Column(
