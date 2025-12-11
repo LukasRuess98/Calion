@@ -321,6 +321,70 @@ class PipePairBlock(BaseComponent):
         # Skip for now - handle in Phase 2 with better logic
 
         # ============================================================
+        # HYDRAULIC CONSTRAINTS
+        # ============================================================
+
+        # Get hydraulic parameters
+        max_velocity = config.get('max_velocity_m_s', 2.5)  # Default 2.5 m/s
+        max_pressure = config.get('max_pressure_bar', 16.0)  # Default PN16
+
+        # Pipe-specific max flow limit (if defined)
+        pipe_max_flow = config.get('max_flow_kg_s', None)
+
+        # (8) Maximum flow constraint based on pipe diameter and velocity
+        # V_dot_max = A * v_max = π * (D/2)² * v_max
+        # m_dot_max = V_dot_max * ρ = π * (D/2)² * v_max * ρ
+
+        import math
+        pi = math.pi
+
+        # Calculate max flow based on current diameter
+        if current_diam_supply:
+            # Inner diameter (assuming outer diameter given, subtract wall thickness)
+            # For DN pipes, inner diameter is typically ~94% of nominal
+            d_inner_m = current_diam_supply / 1000.0 * 0.94  # Convert mm to m
+
+            # Max flow for given velocity
+            area_m2 = pi * (d_inner_m / 2.0) ** 2
+            v_max_calculated = area_m2 * max_velocity * density_water  # kg/s
+
+            # Use either calculated or specified limit
+            if pipe_max_flow:
+                effective_max_flow = min(pipe_max_flow, v_max_calculated)
+            else:
+                effective_max_flow = v_max_calculated
+        else:
+            # No diameter specified, use pipe-specific or global limit
+            effective_max_flow = pipe_max_flow if pipe_max_flow else 500.0
+
+        # Update variable bounds with pipe-specific limit
+        for t in time_set:
+            m_dot[t].setub(effective_max_flow)
+
+        logger.info(f"Pipe {pipe_id}: max flow = {effective_max_flow:.2f} kg/s (v_max={max_velocity} m/s, D={current_diam_supply or 'unspec'} mm)")
+
+        # (9) Pressure drop constraint (simplified Darcy-Weisbach)
+        # Δp = λ * (L/D) * (ρ * v²/2)
+        # where λ is the friction factor (typically 0.02-0.03 for district heating)
+
+        # For now, we store pressure parameters but don't add hard constraints
+        # (pressure optimization requires pump modeling which is more complex)
+
+        # Store pressure parameters for reporting
+        pressure_params = {
+            'max_pressure_bar': max_pressure,
+            'max_velocity_m_s': max_velocity,
+            'effective_max_flow_kg_s': effective_max_flow,
+            'pipe_diameter_mm': current_diam_supply,
+        }
+
+        # (10) Optional: Explicit pressure drop calculation for reporting
+        # This can be used for post-optimization analysis
+
+        # Store for results extraction
+        setattr(model, f'{prefix}_pressure_params', pressure_params)
+
+        # ============================================================
         # COST CALCULATION
         # ============================================================
 

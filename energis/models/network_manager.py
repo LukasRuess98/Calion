@@ -53,18 +53,42 @@ class NetworkManager:
             self._load_network_topology()
 
     def _load_network_topology(self):
-        """Load network topology from YAML file or inline config."""
+        """Load network topology from YAML file, Excel file, or inline config."""
         network_config = self.config.get('thermal_network', {})
 
-        # Check for external topology file
+        # Check for external topology file (YAML)
         topology_file = network_config.get('topology_file')
 
-        if topology_file:
+        # Check for Excel-based topology
+        topology_excel = network_config.get('topology_excel')
+
+        if topology_excel:
+            # Load from Excel file
+            excel_path = Path(topology_excel)
+            if not excel_path.is_absolute():
+                excel_path = self.config_dir / topology_excel
+
+            logger.info(f"Loading network topology from Excel: {excel_path}")
+
+            from energis.io.network_loader import load_network_from_excel
+            topology_data = load_network_from_excel(
+                str(excel_path),
+                nodes_sheet=network_config.get('nodes_sheet', 'Network_Nodes'),
+                pipes_sheet=network_config.get('pipes_sheet', 'Network_Pipes'),
+                params_sheet=network_config.get('params_sheet', 'Network_Parameters'),
+            )
+
+            if topology_data is None:
+                logger.warning("No network data found in Excel, disabling network")
+                self.network_enabled = False
+                return
+
+        elif topology_file:
             topology_path = Path(topology_file)
             if not topology_path.is_absolute():
                 topology_path = self.config_dir / topology_path
 
-            logger.info(f"Loading network topology from: {topology_path}")
+            logger.info(f"Loading network topology from YAML: {topology_path}")
 
             with open(topology_path, 'r') as f:
                 topology_data = yaml.safe_load(f)

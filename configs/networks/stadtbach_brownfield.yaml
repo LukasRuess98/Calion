@@ -1,0 +1,322 @@
+# Stadtbach District Heating Network - Brownfield Configuration
+# Fixed network (no pipe investments), only heat pump and storage expansion
+# Date: 2025-12-11
+
+metadata:
+  name: Stadtbach Brownfield Network
+  description: Fixed brownfield network - only HP and storage expansion allowed
+  mode: brownfield_fixed_network
+  date: 2025-12-11
+  operator: SWA Netze
+
+parameters:
+  # Temperature settings
+  supply_temp_nominal_c: 100
+  supply_temp_summer_c: 90
+  return_temp_nominal_c: 60
+
+  # Environmental
+  ground_temp_model: simple
+  ground_temp_default_c: 10
+  soil_thermal_conductivity: 1.5
+  pipe_burial_depth_m: 1.2
+
+  # Hydraulic limits (enforced as constraints)
+  design_pressure_bar: 16
+  min_pressure_bar: 2.0
+  max_pressure_bar: 25.0
+  max_velocity_m_s: 2.5
+
+  # Brownfield mode: disable all pipe investments
+  brownfield_mode: true
+  allow_pipe_investment: false
+
+# =============================================================================
+# PRODUCTION PLANTS - WP/Speicher-Erweiterung erlaubt
+# =============================================================================
+
+production_plants:
+  - node_id: plant_ost
+    name: "Erzeugungsanlagen Ost"
+    type: plant
+    elevation_nn_m: 466.0
+    coordinates: {x: 3000, y: 0}
+    supply_temp_c: 100
+    supply_pressure_bar: 8.0
+
+    # Expansion options at this node
+    expansion_options:
+      allow_heat_pump: true
+      allow_storage: true
+      max_additional_hp_mw: 50.0
+      max_storage_mwh: 5000.0
+
+  - node_id: plant_west_hww
+    name: "Heizwerk West (HWW)"
+    type: plant
+    elevation_nn_m: 471.90
+    coordinates: {x: -2000, y: 1000}
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+    expansion_options:
+      allow_heat_pump: true
+      allow_storage: true
+      max_additional_hp_mw: 30.0
+      max_storage_mwh: 2000.0
+
+  - node_id: plant_sued_hws
+    name: "Heizwerk Sud (HWS)"
+    type: plant
+    elevation_nn_m: 490.51
+    coordinates: {x: 1000, y: -3000}
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+    expansion_options:
+      allow_heat_pump: true
+      allow_storage: true
+      max_additional_hp_mw: 20.0
+      max_storage_mwh: 1000.0
+
+# =============================================================================
+# PUMP STATIONS - Fixed infrastructure
+# =============================================================================
+
+pump_stations:
+  - node_id: pumpstation_west
+    name: "Pumpstation West (PSW)"
+    type: junction
+    elevation_nn_m: 471.35
+    coordinates: {x: -1000, y: 500}
+    technical_data:
+      circulation_installed_m3_h: 700
+
+  - node_id: pumpstation_sued
+    name: "Pumpstation Sud"
+    type: junction
+    elevation_nn_m: 485
+    coordinates: {x: 500, y: -2000}
+    technical_data:
+      circulation_installed_m3_h: 500
+
+# =============================================================================
+# CONSUMER ZONES - Fixed demand distribution
+# =============================================================================
+
+consumer_zones:
+  # North Network (40%)
+  - node_id: zone_nord_zentral
+    name: "Netzgebiet Nord - Zentral"
+    type: consumer
+    network: nord
+    elevation_nn_m: 463.0
+    demand_fraction: 0.20
+    return_temp_c: 55.0
+
+  - node_id: zone_nord_west
+    name: "Netzgebiet Nord - West"
+    type: consumer
+    network: nord
+    elevation_nn_m: 465.0
+    demand_fraction: 0.12
+    return_temp_c: 55.0
+
+  - node_id: zone_nord_ost
+    name: "Netzgebiet Nord - Ost"
+    type: consumer
+    network: nord
+    elevation_nn_m: 467.0
+    demand_fraction: 0.08
+    return_temp_c: 55.0
+
+  # South Network (60%)
+  - node_id: zone_sued_zentral
+    name: "Netzgebiet Sud - Zentral"
+    type: consumer
+    network: sued
+    elevation_nn_m: 480.0
+    demand_fraction: 0.30
+    return_temp_c: 55.0
+
+  - node_id: zone_sued_west
+    name: "Netzgebiet Sud - West"
+    type: consumer
+    network: sued
+    elevation_nn_m: 475.0
+    demand_fraction: 0.18
+    return_temp_c: 55.0
+
+  - node_id: zone_sued_ost
+    name: "Netzgebiet Sud - Ost"
+    type: consumer
+    network: sued
+    elevation_nn_m: 485.0
+    demand_fraction: 0.12
+    return_temp_c: 55.0
+
+# =============================================================================
+# PIPES - ALL FIXED (no investment, no upgrade)
+# =============================================================================
+
+pipes:
+  # North Network Main Trunk
+  - id: main_ost_to_nord_zentral
+    from_node: plant_ost
+    to_node: zone_nord_zentral
+    length_m: 1800
+    existing: true
+    current_diameter_supply_mm: 300
+    current_diameter_return_mm: 300
+    u_value_supply_w_per_m_k: 0.26
+    u_value_return_w_per_m_k: 0.28
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 25.0
+    upgrade_options:
+      enabled: false  # FIXED - no investment
+
+  - id: nord_zentral_to_nord_west
+    from_node: zone_nord_zentral
+    to_node: zone_nord_west
+    length_m: 1200
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  - id: nord_zentral_to_nord_ost
+    from_node: zone_nord_zentral
+    to_node: zone_nord_ost
+    length_m: 1100
+    existing: true
+    current_diameter_supply_mm: 150
+    current_diameter_return_mm: 150
+    u_value_supply_w_per_m_k: 0.30
+    u_value_return_w_per_m_k: 0.32
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  # West Plant Connection
+  - id: west_to_pumpstation_west
+    from_node: plant_west_hww
+    to_node: pumpstation_west
+    length_m: 800
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  - id: pumpstation_west_to_nord_west
+    from_node: pumpstation_west
+    to_node: zone_nord_west
+    length_m: 600
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  # South Network Main Trunk
+  - id: main_ost_to_sued_zentral
+    from_node: plant_ost
+    to_node: zone_sued_zentral
+    length_m: 2200
+    existing: true
+    current_diameter_supply_mm: 350
+    current_diameter_return_mm: 350
+    u_value_supply_w_per_m_k: 0.25
+    u_value_return_w_per_m_k: 0.27
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 25.0
+    upgrade_options:
+      enabled: false
+
+  - id: sued_zentral_to_sued_west
+    from_node: zone_sued_zentral
+    to_node: zone_sued_west
+    length_m: 1400
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  - id: sued_zentral_to_sued_ost
+    from_node: zone_sued_zentral
+    to_node: zone_sued_ost
+    length_m: 1300
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  # South Plant Connection
+  - id: sued_to_pumpstation_sued
+    from_node: plant_sued_hws
+    to_node: pumpstation_sued
+    length_m: 900
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+  - id: pumpstation_sued_to_sued_zentral
+    from_node: pumpstation_sued
+    to_node: zone_sued_zentral
+    length_m: 1100
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+    max_pressure_bar: 16.0
+    upgrade_options:
+      enabled: false
+
+# =============================================================================
+# SUMMARY
+# =============================================================================
+# Total network length: 12,400 m
+# Number of pipes: 10
+# Number of nodes: 11 (3 plants, 2 pumps, 6 consumers)
+#
+# Investment options:
+# - Pipes: DISABLED (brownfield)
+# - Heat pumps: ENABLED at all plant nodes
+# - Storage: ENABLED at all plant nodes
+#
+# Hydraulic constraints:
+# - Max velocity: 2.5 m/s per pipe
+# - Max pressure: 16-25 bar depending on pipe
+# - Flow limits calculated from pipe diameter

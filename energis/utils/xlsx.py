@@ -132,18 +132,55 @@ def _cell_value(cell: ET.Element, shared_strings: Sequence[str], date_styles: se
         return raw
 
 
+def _get_sheet_names(zf: zipfile.ZipFile) -> Dict[str, str]:
+    """Get mapping of sheet names to their XML file paths."""
+    sheet_map = {}
+    try:
+        workbook_xml = zf.read("xl/workbook.xml")
+        workbook_root = ET.fromstring(workbook_xml)
+        # Find all sheets
+        sheets_elem = workbook_root.find(f"{NS}sheets")
+        if sheets_elem is not None:
+            for idx, sheet in enumerate(sheets_elem.findall(f"{NS}sheet"), start=1):
+                name = sheet.attrib.get("name", f"sheet{idx}")
+                sheet_map[name] = f"xl/worksheets/sheet{idx}.xml"
+    except Exception:
+        # Fallback to sheet1
+        sheet_map["sheet1"] = "xl/worksheets/sheet1.xml"
+    return sheet_map
+
+
+def list_sheet_names(path: str) -> List[str]:
+    """List all sheet names in an XLSX file."""
+    with zipfile.ZipFile(path, "r") as zf:
+        return list(_get_sheet_names(zf).keys())
+
+
 def read_xlsx(path: str, sheet_name: str | None = None) -> tuple[list[str], list[list[Any]]]:
-    """Read ``path`` and return ``(header, rows)`` from the first sheet."""
+    """Read ``path`` and return ``(header, rows)`` from specified sheet or first sheet."""
 
     with zipfile.ZipFile(path, "r") as zf:
         shared_strings = _load_shared_strings(zf)
         date_styles = _load_date_styles(zf)
-        sheet_xml = "xl/worksheets/sheet1.xml"
+
+        # Get sheet mapping
+        sheet_map = _get_sheet_names(zf)
+
         if sheet_name:
-            # Only a single sheet is used throughout the project; the parameter
-            # exists solely for API compatibility.
-            sheet_xml = f"xl/worksheets/{sheet_name}.xml"
-        sheet_root = ET.fromstring(zf.read(sheet_xml))
+            if sheet_name in sheet_map:
+                sheet_xml = sheet_map[sheet_name]
+            else:
+                # Try as direct sheet number
+                sheet_xml = f"xl/worksheets/{sheet_name}.xml"
+        else:
+            # Use first sheet
+            sheet_xml = next(iter(sheet_map.values())) if sheet_map else "xl/worksheets/sheet1.xml"
+
+        try:
+            sheet_root = ET.fromstring(zf.read(sheet_xml))
+        except KeyError:
+            return [], []
+
         rows_iter = list(_iter_rows(sheet_root))
         if not rows_iter:
             return [], []
@@ -175,6 +212,60 @@ def read_xlsx(path: str, sheet_name: str | None = None) -> tuple[list[str], list
                 row = row[: len(header)]
             data_rows.append(row)
         return header, data_rows
+
+
+def read_all_sheets(path: str) -> Dict[str, tuple[list[str], list[list[Any]]]]:
+    """Read all sheets from an XLSX file.
+
+    Returns:
+        Dict mapping sheet names to (header, rows) tuples
+    """
+    result = {}
+    with zipfile.ZipFile(path, "r") as zf:
+        shared_strings = _load_shared_strings(zf)
+        date_styles = _load_date_styles(zf)
+        sheet_map = _get_sheet_names(zf)
+
+        for sheet_name, sheet_xml in sheet_map.items():
+            try:
+                sheet_root = ET.fromstring(zf.read(sheet_xml))
+            except KeyError:
+                continue
+
+            rows_iter = list(_iter_rows(sheet_root))
+            if not rows_iter:
+                result[sheet_name] = ([], [])
+                continue
+
+            header_cells = rows_iter[0]
+            header: List[str] = []
+            for cell in header_cells:
+                value = _cell_value(cell, shared_strings, date_styles)
+                header.append(str(value))
+
+            data_rows: List[List[Any]] = []
+            for r_idx, cells in enumerate(rows_iter[1:], start=2):
+                row_values: Dict[int, Any] = {}
+                max_index = -1
+                for cell in cells:
+                    ref = cell.attrib.get("r", "")
+                    col_letters = "".join(itertools.takewhile(str.isalpha, ref))
+                    if not col_letters:
+                        continue
+                    col_index = column_letter_to_index(col_letters)
+                    value = _cell_value(cell, shared_strings, date_styles)
+                    row_values[col_index] = value
+                    max_index = max(max_index, col_index)
+                if max_index == -1:
+                    continue
+                row = [row_values.get(i, "") for i in range(max_index + 1)]
+                if len(row) < len(header):
+                    row.extend([""] * (len(header) - len(row)))
+                elif len(row) > len(header):
+                    row = row[: len(header)]
+                data_rows.append(row)
+            result[sheet_name] = (header, data_rows)
+    return result
 
 
 # --- Writing -----------------------------------------------------------------
