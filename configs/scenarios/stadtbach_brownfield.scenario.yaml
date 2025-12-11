@@ -68,7 +68,8 @@ site:
 # =============================================================================
 
 thermal_network:
-  enabled: true
+  enabled: false  # Temporarily disabled to test base model
+  # enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
   brownfield_mode: true
   allow_pipe_investment: false
