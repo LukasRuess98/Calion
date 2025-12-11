@@ -10,17 +10,40 @@ metadata:
 # RUN SETTINGS
 # =============================================================================
 
+# Optimierte Run-Parameter für MIQP
 run:
-  dt_h: 1.0
+  dt_h: 1.0  # 1 Stunde für 1-Wochen-Test (168 Timesteps)
   solver: gurobi
   solver_options:
-    TimeLimit: 3600
-    MIPGap: 0.01
-    Threads: 8
-
+    # Performance-optimiert für Thermal Network MIQP
+    Threads: 64              # 8 CPU-Kerne nutzen
+    ConcurrentMIP: 2        # 2 parallele MIP-Strategien
+    MIPGap: 0.01           # 1% Gap
+    TimeLimit: 6400         # 1 Stunde Zeitlimit
+    MIPFocus: 1             # Fokus auf zulässige Lösungen
+    Method: 2               # Barrier (schnellster für große LP)
+    NodeMethod: 2           # Barrier für nodes
+    Presolve: 2             # Aggressive Presolve
+    Cuts: 2                 # Aggressive Cuts
+    Heuristics: 0.1         # 10% Zeit für Heuristics
+    NumericFocus: 1         # Numerische Stabilität für MIQP
+    ScaleFlag: 2            # Aggressive scaling
+    LogToConsole: 1         # Zeige Fortschritt
+    
 scenario:
   run_mode: PF_ONLY
-  horizon_days: 7
+  workflow:
+    - PF
+  fix_design: false
+  title: "Stadtbach_1_Week_Network"
+  tag: "stadtbach-1week-thermal-network"
+
+  # 1 Woche für Performance-Testing
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-01-08 00:00"    # 7 Tage = 168h
+    enforce: false
 
 # =============================================================================
 # SITE - Data from Import_Data.xlsx
