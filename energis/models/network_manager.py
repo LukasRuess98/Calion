@@ -264,6 +264,14 @@ class NetworkManager:
                 setattr(model, constraint_name, pyo.Constraint(time_set, rule=return_link_rule))
                 logger.info(f"    Linked {pipe_id} return ← {to_node} return temp")
 
+            # Track return pipes for each plant node (for later mixing constraint)
+            if from_node in node_components:
+                from_node_comp = node_components[from_node]
+                if from_node_comp['type'] == 'plant':
+                    if 'return_pipes' not in from_node_comp:
+                        from_node_comp['return_pipes'] = []
+                    from_node_comp['return_pipes'].append(pipe_id)
+
         # ========================================
         # PHASE 4: Connect demands to pipes
         # ========================================
@@ -315,7 +323,58 @@ class NetworkManager:
                     logger.warning(f"  ⚠ {node_id} has no incoming pipes!")
 
         # ========================================
-        # PHASE 5: Calculate total network costs
+        # PHASE 5: Plant return temperature mixing
+        # ========================================
+
+        logger.info(f"\nSetting up plant return temperature constraints...")
+
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] == 'plant':
+                return_pipes = node_comp.get('return_pipes', [])
+                node_T_return = node_comp['T_return']
+
+                if len(return_pipes) == 0:
+                    logger.warning(f"  ⚠ Plant {node_id} has no return pipes!")
+                elif len(return_pipes) == 1:
+                    # Simple case: single return stream
+                    pipe_id = return_pipes[0]
+                    pipe_comp = pipe_components[pipe_id]
+                    pipe_T_return_out = pipe_comp['T_return_out']
+                    pipe_m_dot = pipe_comp['m_dot']
+
+                    constraint_name = f"plant_{node_id}_return_temp_single"
+
+                    def single_return_rule(m, t):
+                        return node_T_return[t] == pipe_T_return_out[t]
+
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=single_return_rule))
+                    logger.info(f"  ✓ {node_id} return temp ← pipe {pipe_id}")
+
+                else:
+                    # Multiple return streams: weighted average by mass flow
+                    # T_return * sum(m_dot_i) = sum(T_return_out_i * m_dot_i)
+                    constraint_name = f"plant_{node_id}_return_temp_mixing"
+
+                    def multi_return_rule(m, t):
+                        total_return_flow = 0
+                        weighted_temp = 0
+
+                        for pipe_id in return_pipes:
+                            pipe_comp = pipe_components[pipe_id]
+                            pipe_m_dot = pipe_comp['m_dot']
+                            pipe_T_return_out = pipe_comp['T_return_out']
+
+                            total_return_flow += pipe_m_dot[t]
+                            weighted_temp += pipe_T_return_out[t] * pipe_m_dot[t]
+
+                        # Weighted average: T_node * sum(m_dot) = sum(T_pipe * m_dot)
+                        return node_T_return[t] * total_return_flow == weighted_temp
+
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=multi_return_rule))
+                    logger.info(f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes")
+
+        # ========================================
+        # PHASE 6: Calculate total network costs
         # ========================================
 
         logger.info(f"\nCalculating network costs...")
