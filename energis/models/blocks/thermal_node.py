@@ -111,6 +111,12 @@ class ThermalNodeBlock(BaseComponent):
         # VARIABLES
         # ============================================================
 
+        # Temperature bounds based on network parameters
+        supply_temp_min = min(60, supply_temp_nominal_c - 30)
+        supply_temp_max = max(130, supply_temp_nominal_c + 10)
+        return_temp_min = 30
+        return_temp_max = max(90, return_temp_c + 20)
+
         # Supply temperature at node (°C)
         # For plant: fixed or decision variable
         # For consumers/junctions: mixed from incoming pipes
@@ -123,7 +129,7 @@ class ThermalNodeBlock(BaseComponent):
             # Consumer and junction nodes: temperature from pipes
             setattr(model, f'{prefix}_T_supply',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                           bounds=(70, 100)))
+                           bounds=(supply_temp_min, supply_temp_max)))
             T_supply = getattr(model, f'{prefix}_T_supply')
 
         # Return temperature at node (°C)
@@ -136,7 +142,7 @@ class ThermalNodeBlock(BaseComponent):
             # Plant and junction nodes: return temperature from pipes
             setattr(model, f'{prefix}_T_return',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                           bounds=(30, 70)))
+                           bounds=(return_temp_min, return_temp_max)))
             T_return = getattr(model, f'{prefix}_T_return')
 
         # Heat demand at consumer nodes (MW)

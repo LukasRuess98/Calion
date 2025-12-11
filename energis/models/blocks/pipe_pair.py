@@ -141,21 +141,29 @@ class PipePairBlock(BaseComponent):
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
                        bounds=(0, 500)))  # Max 500 kg/s = 180 m³/h
 
+        # Temperature bounds based on network parameters
+        # Supply: from (nominal - 30) to (nominal + 10), at least 60-130°C range
+        supply_temp_min = min(60, supply_temp_nominal_c - 30)
+        supply_temp_max = max(130, supply_temp_nominal_c + 10)
+        # Return: from 30°C to (nominal + 20), at least 30-90°C range
+        return_temp_min = 30
+        return_temp_max = max(90, return_temp_nominal_c + 20)
+
         # Supply pipe temperatures (°C)
         setattr(model, f'{prefix}_T_supply_in',
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(70, 100)))
+                       bounds=(supply_temp_min, supply_temp_max)))
         setattr(model, f'{prefix}_T_supply_out',
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(70, 100)))
+                       bounds=(supply_temp_min, supply_temp_max)))
 
         # Return pipe temperatures (°C)
         setattr(model, f'{prefix}_T_return_in',
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(30, 70)))
+                       bounds=(return_temp_min, return_temp_max)))
         setattr(model, f'{prefix}_T_return_out',
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(30, 70)))
+                       bounds=(return_temp_min, return_temp_max)))
 
         # Heat losses (MW)
         setattr(model, f'{prefix}_Q_loss_supply',
