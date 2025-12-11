@@ -10,12 +10,39 @@ run:
   dt_h: 1.0
   solver: gurobi
   solver_options:
-    MIPGap: 0.02  # 2% MIP Gap (Standard: 0.0001) - Akzeptiere 2% Suboptimalität für schnellere Lösung
-    TimeLimit: 3600  # 1 Stunde Zeitlimit
-    Threads: 0  # 0 = nutze alle CPU-Kerne
-    MIPFocus: 1  # 1 = fokussiere auf zulässige Lösungen finden
-    Presolve: 2  # 2 = aggressive Presolve
-    Cuts: 2  # 2 = aggressive Cuts
+    # === PERFORMANCE OPTIMIZATION (Thermal Networks MIQP) ===
+    # Parallelisierung
+    Threads: 8              # Nutze 8 CPU-Kerne (0 = alle, aber 8 ist oft optimal)
+    ConcurrentMIP: 2        # 2 parallele MIP-Strategien
+
+    # Termination
+    MIPGap: 0.01           # 1% Gap (war 2%, jetzt schärfer aber noch schnell)
+    TimeLimit: 3600         # 1 Stunde Zeitlimit
+
+    # Strategie
+    MIPFocus: 1             # 1 = fokussiere auf zulässige Lösungen finden
+    Method: 2               # 2 = Barrier (schnellster für große LP)
+    NodeMethod: 2           # 2 = Barrier für nodes
+
+    # Preprocessing
+    Presolve: 2             # 2 = aggressive Presolve
+    PreCrush: 1             # Presolve crushing aktiviert
+
+    # Cuts
+    Cuts: 2                 # 2 = aggressive Cuts
+
+    # Heuristics
+    Heuristics: 0.1         # 10% Zeit für Heuristics (gute Lösungen schnell)
+    RINS: 10                # RINS Heuristic alle 10 nodes
+
+    # Numerik
+    NumericFocus: 1         # Verbessere numerische Stabilität für MIQP
+    ScaleFlag: 2            # Aggressive scaling
+
+    # Output
+    LogToConsole: 1         # Zeige Fortschritt
+
+    # Erwarteter Speedup: 5-10× für thermische Netze!
 
 costs:
   include_gridcost_in_energy: true

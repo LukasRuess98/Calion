@@ -9,11 +9,14 @@ scenario:
   title: "Test_1_Week"
   tag: "test-1week-optimized"
 
-  # Zeitraum auf 1 Tag beschränken (für schnelles Testing)
+# System configuration
+system_file: test_simple_with_network.system.yaml
+
+  # Zeitraum auf 1 Woche beschränken (für schnelles Testing)
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-02 00:00"    # 1 Tag = 24h (für schnelle Tests)
+    end: "2023-01-08 00:00"    # 1 Woche = 168h (7 Tage)
     enforce: false  # Nicht strikte Prüfung
 
   # Rolling Horizon Einstellungen (falls verwendet)
@@ -24,14 +27,16 @@ scenario:
 
 # Optimierte Run-Parameter
 run:
-  dt_h: 0.25  # 15 Minuten
+  dt_h: 1.0  # 1 Stunde (168 Timesteps für 1 Woche)
   solver: gurobi
   solver_options:
-    MIPGap: 0.05        # 5% MIP Gap für schnellere Lösung beim Testen
+    MIPGap: 0.02        # 2% MIP Gap für schnellere Lösung beim Testen
     TimeLimit: 1800     # 30 Minuten Zeitlimit
-    Threads: 0          # Alle Kerne nutzen
+    Threads: 8          # 8 Kerne nutzen
+    ConcurrentMIP: 2    # 2 parallele MIP-Strategien
     MIPFocus: 1         # Fokus auf zulässige Lösungen
     Presolve: 2         # Aggressive Presolve
     Cuts: 2             # Aggressive Cuts
     Heuristics: 0.1     # 10% Zeit für Heuristiken
     NodeMethod: 2       # 2 = Barrier für LP-Subprobleme
+    NumericFocus: 1     # Numerische Stabilität

@@ -25,6 +25,7 @@ from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
+from .network_manager import NetworkManager
 
 
 def _cop_series_from_table(
@@ -289,6 +290,10 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.t = pyo.RangeSet(1, T)
     period_frac = float(T * dt_h / HOURS_PER_YEAR)
 
+    # Store model parameters for components
+    m.dt_h = dt_h
+    m.period_years = period_frac
+
     def series_dict(name: str) -> Dict[int, float]:
         values = table[name]
         return {i + 1: float(values[i]) for i in range(T)}
@@ -301,6 +306,13 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.price = pyo.Param(m.t, initialize=series_dict("strompreis_EUR_MWh"), mutable=True)
     m.heatd = pyo.Param(m.t, initialize=series_dict("waermebedarf_MWth"), mutable=True)
     m.grid_co2 = pyo.Param(m.t, initialize=series_dict("grid_co2_kg_MWh"), mutable=True)
+
+    # Outdoor temperature (for thermal network heat losses)
+    if "T_outdoor" in table.columns:
+        m.outdoor_temp = {i + 1: float(table["T_outdoor"][i]) for i in range(T)}
+    else:
+        # Default: no outdoor temperature data available yet
+        m.outdoor_temp = {i + 1: 10.0 for i in range(T)}
 
     costs = cfg.get("costs", {})
     grid = cfg.get("grid", {})
@@ -970,6 +982,36 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     tie_break_total = sum(tie_breaker_terms) if tie_breaker_terms else 0
     storage_install_total = sum(storage_install_terms) if storage_install_terms else 0
 
+    # ========================================
+    # THERMAL NETWORK INTEGRATION
+    # ========================================
+    network_capex_total = 0
+    network_heat_loss_cost = 0
+
+    if cfg.get('thermal_network', {}).get('enabled', False):
+        from pathlib import Path
+        config_dir = Path(cfg.get('config_dir', '.'))
+
+        # Initialize network manager
+        network_mgr = NetworkManager(cfg, config_dir=config_dir)
+
+        # Attach network to model
+        buses = {}  # Bus references (if needed)
+        network_results = network_mgr.attach_to_model(m, m.t, buses)
+
+        # Add network CAPEX to objective
+        if hasattr(m, 'network_total_pipe_capex'):
+            network_capex_total = m.network_total_pipe_capex
+
+        # Add heat loss penalty to objective
+        # Value heat losses at average marginal generation cost
+        # For simplicity, use dump cost as proxy
+        if hasattr(m, 'network_heat_loss_expr'):
+            network_heat_loss_cost = m.network_heat_loss_expr * dt_h * m.dump_cost
+
+        # Store network manager for results extraction
+        m.network_manager = network_mgr
+
     m.capex_cost_expr = capex_total
     m.activation_cost_expr = activation_total
     m.tie_break_cost_expr = tie_break_total
@@ -984,7 +1026,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         + capex_total
         + activation_total
         + tie_break_total
-        + storage_install_total,
+        + storage_install_total
+        + network_capex_total
+        + network_heat_loss_cost,
         sense=pyo.minimize,
     )
     return m

@@ -1,0 +1,510 @@
+# Stadtbach District Heating Network Configuration
+# Based on network diagram provided
+# Date: 2025-12-10
+
+metadata:
+  name: Stadtbach District Heating Network
+  description: Real brownfield network with existing plants and distribution
+  source: Network diagram WV 640 B13
+  date: 14.06.2023
+  operator: SWA Netze
+  coordinate_system: Local (NN heights provided)
+
+parameters:
+  # Temperature settings (from diagram)
+  supply_temp_nominal_c: 100  # From HWW specs: 100°C
+  supply_temp_summer_c: 90
+  return_temp_nominal_c: 60   # From HWW specs: 60°C
+  supply_temp_optimization: false  # Fixed for Phase 1
+
+  # Environmental (outdoor temp not yet available)
+  ground_temp_model: simple
+  ground_temp_default_c: 10
+  soil_thermal_conductivity: 1.5  # W/(m·K)
+  pipe_burial_depth_m: 1.2
+
+  # Hydraulic (from diagram)
+  design_pressure_bar: 16  # PN 16 and PN 25
+  min_pressure_bar: 2.0
+  max_pressure_bar: 25.0
+  max_velocity_m_s: 2.5
+
+# =============================================================================
+# PRODUCTION PLANTS
+# =============================================================================
+
+production_plants:
+  # Eastern Generation Plants (Main Hub)
+  - node_id: plant_ost
+    name: "Erzeugungsanlagen Ost"
+    type: plant
+    elevation_nn_m: 466.0  # From diagram
+    coordinates: {x: 3000, y: 0}  # Estimated from map
+
+    components:
+      heat_pumps: []  # HPs configured in main system file
+      generators:
+        - biomasse_hkw  # Biomasse HKW
+        - ava           # AVA-Übernahme
+        - gt_ost        # GT-Ost
+        - hkw_main      # Heizkraftwerk (HKW)
+
+    supply_temp_c: 100
+    supply_pressure_bar: 8.0
+
+    # Technical data from diagram boxes
+    plants_data:
+      biomasse_hkw:
+        max_power_mw: 60  # Estimated from diagram
+        supply_temp_c: 100
+        return_temp_c: 60
+
+      ava:
+        max_power_mw: 45  # From existing config
+        supply_temp_c: 100
+
+      gt_ost:
+        internal_pressure_drop_bar: 1.3  # Δp intern from diagram
+        elevation_nn_m: 467.98
+
+      hkw_main:
+        max_power_mw: 127  # From diagram: 127 MW
+        internal_pressure_drop_bar: 1.1  # Δp intern
+        elevation_nn_m: 473.77
+        supply_temp_c: 100
+
+  # Western Heating Plant
+  - node_id: plant_west_hww
+    name: "Heizwerk West (HWW)"
+    type: plant
+    elevation_nn_m: 471.90  # From diagram
+    coordinates: {x: -2000, y: 1000}  # Estimated
+
+    components:
+      generators:
+        - hww_kessel_1
+        - hww_kessel_2
+
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+    technical_data:
+      # 2 Kessel + 2 Wärmetauscher (PRM-Einspeisung)
+      max_power_kessel_mw: 60  # 60 MW / 650 l/h
+      max_power_prm_mw: 65     # 65 MW / 780 l/h
+      supply_temp_range: [100, 100]  # °C
+      return_temp_range: [60, 65]    # °C
+
+  # Southern Heating Plant
+  - node_id: plant_sued_hws
+    name: "Heizwerk Süd (HWS)"
+    type: plant
+    elevation_nn_m: 490.51  # From diagram
+    coordinates: {x: 1000, y: -3000}  # Estimated
+
+    components:
+      generators:
+        - hws_anlage
+
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+    technical_data:
+      internal_pressure_drop_bar: 0.8  # Δp intern
+      max_power_mw: 40  # Estimated
+
+# =============================================================================
+# PUMP STATIONS
+# =============================================================================
+
+pump_stations:
+  - node_id: pumpstation_west
+    name: "Pumpstation West (PSW)"
+    type: junction
+    elevation_nn_m: 471.35  # From diagram
+    coordinates: {x: -1000, y: 500}
+
+    technical_data:
+      circulation_installed_m3_h: 700  # Umwälzung installiert
+      pressure_differential_bar: 0.2   # Estimated
+
+  - node_id: pumpstation_sued
+    name: "Pumpstation Süd"
+    type: junction
+    elevation_nn_m: 485  # Estimated
+    coordinates: {x: 500, y: -2000}
+
+    technical_data:
+      circulation_installed_m3_h: 500  # Estimated
+      pressure_differential_bar: 0.2
+
+# =============================================================================
+# CONSUMER ZONES (Split: Nord 40%, Süd 60%)
+# =============================================================================
+
+consumer_zones:
+  # NORTH NETWORK (40% of total demand)
+  - node_id: zone_nord_zentral
+    name: "Netzgebiet Nord - Zentral"
+    type: consumer
+    network: nord
+    elevation_nn_m: 470
+    coordinates: {x: 500, y: 1500}
+    demand_fraction: 0.20  # 20% of total = 50% of Nord
+    return_temp_c: 60
+    network_designation: PN_25  # From diagram (blue area)
+
+  - node_id: zone_nord_west
+    name: "Netzgebiet Nord - West"
+    type: consumer
+    network: nord
+    elevation_nn_m: 465
+    coordinates: {x: -500, y: 1000}
+    demand_fraction: 0.12  # 12% of total = 30% of Nord
+    return_temp_c: 60
+    network_designation: PN_25
+
+  - node_id: zone_nord_ost
+    name: "Netzgebiet Nord - Ost"
+    type: consumer
+    network: nord
+    elevation_nn_m: 472
+    coordinates: {x: 1500, y: 800}
+    demand_fraction: 0.08  # 8% of total = 20% of Nord
+    return_temp_c: 60
+    network_designation: PN_25
+
+  # SOUTH NETWORK (60% of total demand)
+  - node_id: zone_sued_zentral
+    name: "Netzgebiet Süd - Zentral"
+    type: consumer
+    network: sued
+    elevation_nn_m: 480
+    coordinates: {x: 800, y: -1000}
+    demand_fraction: 0.30  # 30% of total = 50% of Süd
+    return_temp_c: 60
+    network_designation: PN_16  # From diagram (pink area)
+
+  - node_id: zone_sued_west
+    name: "Netzgebiet Süd - West"
+    type: consumer
+    network: sued
+    elevation_nn_m: 475
+    coordinates: {x: -200, y: -1500}
+    demand_fraction: 0.18  # 18% of total = 30% of Süd
+    return_temp_c: 60
+    network_designation: PN_16
+
+  - node_id: zone_sued_ost
+    name: "Netzgebiet Süd - Ost"
+    type: consumer
+    network: sued
+    elevation_nn_m: 485
+    coordinates: {x: 1800, y: -800}
+    demand_fraction: 0.12  # 12% of total = 20% of Süd
+    return_temp_c: 60
+    network_designation: PN_16
+
+# =============================================================================
+# PIPE NETWORK (Estimated from diagram topology)
+# =============================================================================
+
+pipes:
+  # ========================================
+  # NORTH NETWORK - From Plant Ost
+  # ========================================
+
+  - id: main_ost_to_nord_zentral
+    from_node: plant_ost
+    to_node: zone_nord_zentral
+    length_m: 1800  # Estimated from map scale
+    elevation_change_m: 4  # 470 - 466
+
+    existing: true
+    current_diameter_supply_mm: 300  # Estimated for main trunk
+    current_diameter_return_mm: 300
+    installation_year: 2010
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.26
+    u_value_return_w_per_m_k: 0.28
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [300, 350, 400]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.16
+      upgrade_cost_eur_per_m: 220
+
+  - id: nord_zentral_to_nord_west
+    from_node: zone_nord_zentral
+    to_node: zone_nord_west
+    length_m: 1200
+    elevation_change_m: -5
+
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [200, 250]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.17
+      upgrade_cost_eur_per_m: 180
+
+  - id: nord_zentral_to_nord_ost
+    from_node: zone_nord_zentral
+    to_node: zone_nord_ost
+    length_m: 1100
+    elevation_change_m: 2
+
+    existing: true
+    current_diameter_supply_mm: 150
+    current_diameter_return_mm: 150
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.30
+    u_value_return_w_per_m_k: 0.32
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [150, 200]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.18
+      upgrade_cost_eur_per_m: 160
+
+  # Connection from West plant to North network
+  - id: west_to_pumpstation_west
+    from_node: plant_west_hww
+    to_node: pumpstation_west
+    length_m: 800
+    elevation_change_m: -0.55  # 471.35 - 471.90
+
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+
+    upgrade_options:
+      enabled: false  # Keep as-is
+
+  - id: pumpstation_west_to_nord_west
+    from_node: pumpstation_west
+    to_node: zone_nord_west
+    length_m: 600
+    elevation_change_m: -6  # 465 - 471
+
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [200, 250]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.17
+      upgrade_cost_eur_per_m: 180
+
+  # ========================================
+  # SOUTH NETWORK - From Plant Ost
+  # ========================================
+
+  - id: main_ost_to_sued_zentral
+    from_node: plant_ost
+    to_node: zone_sued_zentral
+    length_m: 2200  # Estimated
+    elevation_change_m: 14  # 480 - 466
+
+    existing: true
+    current_diameter_supply_mm: 350  # Larger for 60% of demand
+    current_diameter_return_mm: 350
+    installation_year: 2008
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.25
+    u_value_return_w_per_m_k: 0.27
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [350, 400, 450]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.15
+      upgrade_cost_eur_per_m: 250
+
+  - id: sued_zentral_to_sued_west
+    from_node: zone_sued_zentral
+    to_node: zone_sued_west
+    length_m: 1400
+    elevation_change_m: -5
+
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 200
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [250, 300]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.16
+      upgrade_cost_eur_per_m: 190
+
+  - id: sued_zentral_to_sued_ost
+    from_node: zone_sued_zentral
+    to_node: zone_sued_ost
+    length_m: 1300
+    elevation_change_m: 5
+
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [200, 250]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.17
+      upgrade_cost_eur_per_m: 180
+
+  # Connection from South plant
+  - id: sued_to_pumpstation_sued
+    from_node: plant_sued_hws
+    to_node: pumpstation_sued
+    length_m: 900
+    elevation_change_m: -5  # 485 - 490
+
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+
+    upgrade_options:
+      enabled: false
+
+  - id: pumpstation_sued_to_sued_zentral
+    from_node: pumpstation_sued
+    to_node: zone_sued_zentral
+    length_m: 1100
+    elevation_change_m: -5
+
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    insulation_type: standard
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+
+    upgrade_options:
+      enabled: true
+      diameter_options: [200, 250, 300]
+      insulation_options: [standard, enhanced]
+      enhanced_u_value: 0.17
+      upgrade_cost_eur_per_m: 180
+
+# =============================================================================
+# PIPE CATALOG (Standard German DH pipes)
+# =============================================================================
+
+pipe_catalog:
+  DN150:
+    diameter_mm: 150
+    diameter_inner_mm: 140
+    capex_eur_per_m: 850
+    u_value_standard: 0.30
+    u_value_enhanced: 0.18
+    max_pressure_bar: 16
+    roughness_mm: 0.05
+
+  DN200:
+    diameter_mm: 200
+    diameter_inner_mm: 187
+    capex_eur_per_m: 1100
+    u_value_standard: 0.28
+    u_value_enhanced: 0.17
+    max_pressure_bar: 16
+    roughness_mm: 0.05
+
+  DN250:
+    diameter_mm: 250
+    diameter_inner_mm: 235
+    capex_eur_per_m: 1400
+    u_value_standard: 0.27
+    u_value_enhanced: 0.16
+    max_pressure_bar: 25
+    roughness_mm: 0.05
+
+  DN300:
+    diameter_mm: 300
+    diameter_inner_mm: 282
+    capex_eur_per_m: 1750
+    u_value_standard: 0.26
+    u_value_enhanced: 0.16
+    max_pressure_bar: 25
+    roughness_mm: 0.05
+
+  DN350:
+    diameter_mm: 350
+    diameter_inner_mm: 330
+    capex_eur_per_m: 2100
+    u_value_standard: 0.25
+    u_value_enhanced: 0.15
+    max_pressure_bar: 25
+    roughness_mm: 0.05
+
+  DN400:
+    diameter_mm: 400
+    diameter_inner_mm: 376
+    capex_eur_per_m: 2500
+    u_value_standard: 0.24
+    u_value_enhanced: 0.15
+    max_pressure_bar: 25
+    roughness_mm: 0.05
+
+  DN450:
+    diameter_mm: 450
+    diameter_inner_mm: 424
+    capex_eur_per_m: 2900
+    u_value_standard: 0.23
+    u_value_enhanced: 0.14
+    max_pressure_bar: 25
+    roughness_mm: 0.05
+
+# =============================================================================
+# NETWORK SUMMARY
+# =============================================================================
+
+network_summary:
+  total_nodes: 12
+  total_pipes: 11
+  total_length_m: 13400  # Estimated
+
+  networks:
+    nord:
+      demand_fraction: 0.40
+      main_plants: [plant_ost, plant_west_hww]
+      consumer_zones: 3
+      network_designation: PN_25
+
+    sued:
+      demand_fraction: 0.60
+      main_plants: [plant_ost, plant_sued_hws]
+      consumer_zones: 3
+      network_designation: PN_16
+
+  estimated_data_note: |
+    Pipe lengths, coordinates, and some technical parameters estimated from network diagram.
+    Actual GIS data should replace estimates when available.
+    Demand split: Nord 40%, Süd 60% as requested.
