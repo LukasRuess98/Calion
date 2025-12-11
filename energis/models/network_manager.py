@@ -472,6 +472,58 @@ class NetworkManager:
                     logger.info(f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes")
 
         # ========================================
+        # PHASE 5b: Plant-to-Network Heat Linkage
+        # ========================================
+        # This is the critical constraint connecting heat production to network distribution
+        # Total heat entering network from plants = total heat demand (heatd)
+
+        logger.info(f"\nSetting up plant-to-network heat linkage...")
+
+        # Collect all pipes leaving plant nodes
+        plant_outgoing_pipes = []
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] == 'plant':
+                outgoing = node_comp.get('outgoing_pipes', [])
+                plant_outgoing_pipes.extend(outgoing)
+                logger.info(f"  Plant {node_id}: {len(outgoing)} outgoing pipes")
+
+        if plant_outgoing_pipes and hasattr(model, 'heatd'):
+            # Network temperature differential (for heat-to-flow conversion)
+            network_delta_t = supply_temp - return_temp  # K
+            cp_water = 4.186  # kJ/(kg·K)
+
+            logger.info(f"  Network ΔT: {network_delta_t}K, {len(plant_outgoing_pipes)} plant pipes total")
+
+            # Constraint: Total heat entering network = total demand
+            # sum(m_dot * cp * delta_T) / 1000 = heatd (converting kW to MW)
+            def plant_network_balance_rule(m, t):
+                total_heat_input = sum(
+                    pipe_components[pid]['m_dot'][t] * cp_water * network_delta_t / 1000
+                    for pid in plant_outgoing_pipes
+                )
+                # Allow for network heat losses (up to 15% tolerance)
+                return total_heat_input >= m.heatd[t] * 1.0
+
+            setattr(model, 'plant_network_heat_balance',
+                    pyo.Constraint(time_set, rule=plant_network_balance_rule))
+
+            # Also add upper bound to prevent unbounded flows
+            def plant_network_upper_rule(m, t):
+                total_heat_input = sum(
+                    pipe_components[pid]['m_dot'][t] * cp_water * network_delta_t / 1000
+                    for pid in plant_outgoing_pipes
+                )
+                # Allow 20% extra for losses and operational margin
+                return total_heat_input <= m.heatd[t] * 1.20
+
+            setattr(model, 'plant_network_heat_upper',
+                    pyo.Constraint(time_set, rule=plant_network_upper_rule))
+
+            logger.info(f"  ✓ Plant-network balance constraint added")
+        else:
+            logger.warning("  ⚠ No plant outgoing pipes or heatd not found - skipping linkage")
+
+        # ========================================
         # PHASE 6: Calculate total network costs
         # ========================================
 
