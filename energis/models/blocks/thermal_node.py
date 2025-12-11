@@ -177,28 +177,28 @@ class ThermalNodeBlock(BaseComponent):
         # ============================================================
 
         # (1) Temperature mixing at node (for non-plant nodes)
-        # Weighted average of incoming pipe temperatures
+        # Note: Full bilinear temperature mixing (T * m_dot) causes non-convex QP issues
+        # For brownfield scenarios, we simplify by fixing supply temp or using first pipe
+        brownfield_mode = config.get('brownfield_mode', False)
+
         if node_type != 'plant' and incoming_pipes:
-            def temp_mixing_rule(m, t):
-                # T_supply[node] * sum(m_dot_in) = sum(T_supply_out[pipe] * m_dot[pipe])
-                total_inflow = 0
-                weighted_temp = 0
+            if len(incoming_pipes) == 1 and not brownfield_mode:
+                # Single pipe: simple temperature link
+                pipe_id = incoming_pipes[0]
+                pipe_prefix = pipe_id.upper().replace('-', '_')
 
-                for pipe_id in incoming_pipes:
-                    pipe_prefix = pipe_id.upper().replace('-', '_')
-                    pipe_m_dot = getattr(m, f'{pipe_prefix}_m_dot')
-                    pipe_T_supply_out = getattr(m, f'{pipe_prefix}_T_supply_out')
+                def single_temp_rule(m, t, _prefix=pipe_prefix):
+                    pipe_T_out = getattr(m, f'{_prefix}_T_supply_out')
+                    return T_supply[t] == pipe_T_out[t]
 
-                    total_inflow += pipe_m_dot[t]
-                    weighted_temp += pipe_T_supply_out[t] * pipe_m_dot[t]
-
-                # Avoid division by zero: if no inflow, T_supply is unconstrained
-                # For robustness, add small epsilon or use indicator constraints
-                # Simplified: assume there's always flow
-                return T_supply[t] * total_inflow == weighted_temp
-
-            setattr(model, f'{prefix}_temp_mixing',
-                    pyo.Constraint(time_set, rule=temp_mixing_rule))
+                setattr(model, f'{prefix}_temp_mixing',
+                        pyo.Constraint(time_set, rule=single_temp_rule))
+            else:
+                # Multiple pipes or brownfield: fix temperature at nominal value
+                # This avoids bilinear T*m_dot constraints that cause solver issues
+                logger.info(f"    Node {node_id}: fixing supply temp to {supply_temp_nominal_c}°C (brownfield/multi-pipe)")
+                for t in time_set:
+                    T_supply[t].fix(supply_temp_nominal_c)
 
         # (2) Mass flow balance at node
         # sum(inflows) = sum(outflows) + local_demand

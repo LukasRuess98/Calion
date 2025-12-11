@@ -188,6 +188,11 @@ class NetworkManager:
 
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
+        # Check brownfield mode (moved earlier for pipe config)
+        brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', False)
+        if brownfield_mode:
+            logger.info("  [Brownfield mode: temperatures fixed at design values]")
+
         for pipe_id, pipe_config in self.pipes.items():
             # Enrich pipe config with global parameters
             enriched_config = {
@@ -196,6 +201,7 @@ class NetworkManager:
                 'return_temp_nominal_c': return_temp,
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
+                'brownfield_mode': brownfield_mode,
                 **self.parameters
             }
 
@@ -221,6 +227,7 @@ class NetworkManager:
                 'id': node_id,
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
+                'brownfield_mode': brownfield_mode,
             }
 
             # Validate and attach
@@ -340,11 +347,78 @@ class NetworkManager:
                     logger.info(f"  ✓ {node_id} demand ← pipe {pipe_id}")
 
                 elif len(incoming_pipes) > 1:
-                    # Multiple pipes feed this consumer - need flow balance
-                    logger.warning(f"  ⚠ {node_id} has {len(incoming_pipes)} incoming pipes - "
-                                  f"complex flow balance needed (Phase 2 feature)")
+                    # Multiple pipes feed this consumer - sum of flows = demand
+                    logger.info(f"  ✓ {node_id} has {len(incoming_pipes)} incoming pipes - "
+                               f"creating multi-pipe flow balance")
+
+                    node_m_dot = node_comp['m_dot_demand']
+                    node_Q_demand = node_comp['Q_demand']
+
+                    # Flow balance: sum of pipe flows = consumer demand flow
+                    constraint_name_flow = f"link_demand_{node_id}_multi_pipe_flow"
+
+                    def multi_pipe_flow_rule(m, t, _incoming=incoming_pipes):
+                        total_inflow = sum(
+                            pipe_components[pid]['m_dot'][t]
+                            for pid in _incoming
+                        )
+                        return total_inflow == node_m_dot[t]
+
+                    setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_pipe_flow_rule))
+
+                    # Heat balance: sum of heat delivered = consumer heat demand
+                    # Note: This constraint ensures thermal consistency at multi-pipe junctions
+                    constraint_name_heat = f"link_demand_{node_id}_multi_pipe_heat"
+
+                    def multi_pipe_heat_rule(m, t, _incoming=incoming_pipes, _Q=node_Q_demand):
+                        total_heat = sum(
+                            pipe_components[pid]['Q_delivered'][t]
+                            for pid in _incoming
+                        )
+                        if isinstance(_Q, pyo.Param):
+                            return total_heat >= pyo.value(_Q[t]) * 0.99  # Allow 1% tolerance
+                        else:
+                            return total_heat >= _Q[t] * 0.99
+
+                    setattr(model, constraint_name_heat, pyo.Constraint(time_set, rule=multi_pipe_heat_rule))
+
+                    logger.info(f"    ← pipes: {', '.join(incoming_pipes)}")
+
                 else:
                     logger.warning(f"  ⚠ {node_id} has no incoming pipes!")
+
+        # ========================================
+        # PHASE 4b: Junction flow balance
+        # ========================================
+
+        logger.info(f"\nSetting up junction flow balance constraints...")
+
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] == 'junction':
+                incoming_pipes = node_comp.get('incoming_pipes', [])
+                outgoing_pipes = node_comp.get('outgoing_pipes', [])
+
+                if not incoming_pipes or not outgoing_pipes:
+                    logger.warning(f"  ⚠ Junction {node_id} incomplete: "
+                                  f"{len(incoming_pipes)} in, {len(outgoing_pipes)} out")
+                    continue
+
+                # Flow balance: sum(incoming) = sum(outgoing)
+                constraint_name = f"junction_{node_id}_flow_balance"
+
+                def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
+                    total_in = sum(
+                        pipe_components[pid]['m_dot'][t]
+                        for pid in _in
+                    )
+                    total_out = sum(
+                        pipe_components[pid]['m_dot'][t]
+                        for pid in _out
+                    )
+                    return total_in == total_out
+
+                setattr(model, constraint_name, pyo.Constraint(time_set, rule=junction_flow_rule))
+                logger.info(f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out")
 
         # ========================================
         # PHASE 5: Plant return temperature mixing
