@@ -29,12 +29,12 @@ scenario:
     terminal_policy: geq       # >= SOC_init am Ende
 
 # System-Konfiguration
-system_file: stadtbach.system.yaml
+system_file: configs/systems/stadtbach.system.yaml
 
 # Thermal Network aktivieren
 thermal_network:
   enabled: true
-  topology_file: stadtbach_network.yaml
+  topology_file: configs/networks/stadtbach_network.yaml
   use_outdoor_temperature: false  # Nicht verfügbar laut Netzwerkdefinition
 
   # Optimization Optionen
