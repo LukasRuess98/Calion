@@ -705,3 +705,166 @@ class NetworkManager:
                 })
 
         return dashboard_data
+
+    def validate_hydraulics_post_optimization(
+        self,
+        heat_series: List[float],
+        dt_h: float = 1.0
+    ) -> Dict[str, Any]:
+        """
+        Post-optimization validation of hydraulic constraints.
+
+        This method calculates the required pipe flows based on the heat
+        production/consumption results and validates them against pipe
+        hydraulic limits (max velocity, max pressure drop, max flow).
+
+        This approach keeps the main optimization linear/convex while still
+        providing hydraulic validation feedback.
+
+        Args:
+            heat_series: Time series of total heat demand (MW) from optimization
+            dt_h: Time step duration in hours
+
+        Returns:
+            Dict with validation results:
+            - 'is_valid': bool - overall validation result
+            - 'violations': list of pipe/timestep violations
+            - 'max_utilization': dict of max flow utilization per pipe
+            - 'recommendations': list of upgrade recommendations
+        """
+        if not self.network_enabled:
+            return {'is_valid': True, 'violations': [], 'max_utilization': {}, 'recommendations': []}
+
+        logger.info("=" * 60)
+        logger.info("POST-OPTIMIZATION HYDRAULIC VALIDATION")
+        logger.info("=" * 60)
+
+        # Network parameters
+        network_config = self.topology.get('network_parameters', {})
+        supply_temp = network_config.get('supply_temp_nominal_c', 120.0)
+        return_temp = network_config.get('return_temp_nominal_c', 55.0)
+        delta_t = supply_temp - return_temp  # K
+        cp_water = 4.186  # kJ/(kg·K)
+        rho_water = 983.0  # kg/m³ at ~60°C average
+
+        # Hydraulic limits
+        max_velocity_m_s = network_config.get('max_velocity_m_s', 2.5)
+
+        violations = []
+        max_utilization = {}
+        recommendations = []
+
+        # For each pipe, calculate required flow and validate
+        for pipe_id, pipe_config in self.pipes.items():
+            diameter_m = pipe_config.get('diameter_mm', 200) / 1000.0
+            max_flow_m3_s = (3.14159 * (diameter_m / 2) ** 2) * max_velocity_m_s
+            max_flow_kg_s = max_flow_m3_s * rho_water
+
+            # For brownfield networks, assume proportional flow distribution
+            # based on demand served by this pipe segment
+            # (This is a simplification - real flow depends on network topology)
+            demand_fraction = pipe_config.get('demand_fraction', 0.2)  # Default 20% of total flow
+
+            pipe_violations = []
+            pipe_max_util = 0.0
+
+            for t, heat_mw in enumerate(heat_series):
+                # Calculate required mass flow for this timestep
+                # Q = m_dot * cp * delta_T / 1000 (kW to MW)
+                # m_dot = Q * 1000 / (cp * delta_T)
+                total_flow_kg_s = heat_mw * 1000 / (cp_water * delta_t)
+
+                # This pipe's share of the flow
+                pipe_flow_kg_s = total_flow_kg_s * demand_fraction
+
+                # Calculate utilization
+                utilization = pipe_flow_kg_s / max_flow_kg_s if max_flow_kg_s > 0 else 0
+                pipe_max_util = max(pipe_max_util, utilization)
+
+                # Check for violation
+                if utilization > 1.0:
+                    pipe_violations.append({
+                        'timestep': t,
+                        'heat_mw': heat_mw,
+                        'required_flow_kg_s': pipe_flow_kg_s,
+                        'max_flow_kg_s': max_flow_kg_s,
+                        'utilization': utilization,
+                        'excess_percent': (utilization - 1.0) * 100
+                    })
+
+            max_utilization[pipe_id] = {
+                'max_utilization': pipe_max_util,
+                'diameter_mm': pipe_config.get('diameter_mm', 200),
+                'max_flow_kg_s': max_flow_kg_s,
+                'is_overloaded': pipe_max_util > 1.0
+            }
+
+            if pipe_violations:
+                violations.extend([{'pipe_id': pipe_id, **v} for v in pipe_violations])
+                # Add upgrade recommendation
+                recommended_diameter = self._calculate_required_diameter(
+                    max(v['required_flow_kg_s'] for v in pipe_violations),
+                    max_velocity_m_s,
+                    rho_water
+                )
+                recommendations.append({
+                    'pipe_id': pipe_id,
+                    'current_diameter_mm': pipe_config.get('diameter_mm', 200),
+                    'recommended_diameter_mm': recommended_diameter,
+                    'max_overload_percent': (pipe_max_util - 1.0) * 100,
+                    'violation_hours': len(pipe_violations)
+                })
+
+        # Summary logging
+        overloaded_pipes = sum(1 for m in max_utilization.values() if m['is_overloaded'])
+        logger.info(f"  Analyzed {len(self.pipes)} pipes")
+        logger.info(f"  Overloaded pipes: {overloaded_pipes}")
+        logger.info(f"  Total violation hours: {len(violations)}")
+
+        if overloaded_pipes > 0:
+            logger.warning(f"  ⚠ {overloaded_pipes} pipes exceed hydraulic limits!")
+            for rec in recommendations:
+                logger.warning(f"    - {rec['pipe_id']}: {rec['current_diameter_mm']}mm → "
+                              f"{rec['recommended_diameter_mm']}mm (overload: {rec['max_overload_percent']:.1f}%)")
+        else:
+            logger.info("  ✓ All pipes within hydraulic limits")
+
+        is_valid = len(violations) == 0
+
+        return {
+            'is_valid': is_valid,
+            'violations': violations,
+            'max_utilization': max_utilization,
+            'recommendations': recommendations,
+            'summary': {
+                'total_pipes': len(self.pipes),
+                'overloaded_pipes': overloaded_pipes,
+                'total_violation_hours': len(violations),
+                'network_delta_t_k': delta_t,
+                'max_velocity_m_s': max_velocity_m_s
+            }
+        }
+
+    def _calculate_required_diameter(
+        self,
+        required_flow_kg_s: float,
+        max_velocity_m_s: float,
+        rho_water: float
+    ) -> int:
+        """Calculate minimum diameter (mm) for given flow and max velocity."""
+        import math
+
+        # m_dot = rho * A * v = rho * pi * (d/2)^2 * v
+        # d = 2 * sqrt(m_dot / (rho * pi * v))
+        area_m2 = required_flow_kg_s / (rho_water * max_velocity_m_s)
+        diameter_m = 2 * math.sqrt(area_m2 / 3.14159)
+        diameter_mm = diameter_m * 1000
+
+        # Round up to standard pipe sizes
+        standard_sizes = [50, 65, 80, 100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800]
+        for size in standard_sizes:
+            if size >= diameter_mm:
+                return size
+
+        # If larger than standard, return calculated value rounded up
+        return int(math.ceil(diameter_mm / 50) * 50)

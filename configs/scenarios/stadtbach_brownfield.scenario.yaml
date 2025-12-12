@@ -1,54 +1,31 @@
 # Stadtbach Brownfield Optimization Scenario
 # Fixed network, only heat pump and storage expansion
-# Date: 2025-12-11
+# Date: 2025-12-12
+# Usage: python -m energis.run configs/base.yaml configs/scenarios/stadtbach_brownfield.scenario.yaml
 
 metadata:
   name: Stadtbach Brownfield Optimization
   description: Brownfield optimization - fixed network, only HP and storage expansion
 
-# =============================================================================
-# RUN SETTINGS
-# =============================================================================
-
-# Optimierte Run-Parameter für MIQP
-run:
-  dt_h: 1.0  # 1 Stunde für 1-Wochen-Test (168 Timesteps)
-  solver: gurobi
-  solver_options:
-    # Performance-optimiert für Thermal Network MIQP
-    Threads: 64              # 8 CPU-Kerne nutzen
-    ConcurrentMIP: 2        # 2 parallele MIP-Strategien
-    MIPGap: 0.01           # 1% Gap
-    TimeLimit: 6400         # 1 Stunde Zeitlimit
-    MIPFocus: 1             # Fokus auf zulässige Lösungen
-    Method: 2               # Barrier (schnellster für große LP)
-    NodeMethod: 2           # Barrier für nodes
-    Presolve: 2             # Aggressive Presolve
-    Cuts: 2                 # Aggressive Cuts
-    Heuristics: 0.1         # 10% Zeit für Heuristics
-    NumericFocus: 1         # Numerische Stabilität für MIQP
-    ScaleFlag: 2            # Aggressive scaling
-    LogToConsole: 1         # Zeige Fortschritt
-    
 scenario:
   run_mode: PF_ONLY
   workflow:
     - PF
   fix_design: false
-  title: "Stadtbach_1_Week_Network"
-  tag: "stadtbach-1week-thermal-network"
+  title: "Stadtbach_Brownfield_Optimization"
+  tag: "stadtbach-brownfield"
 
-  # 1 Woche für Performance-Testing
+  # 1 week for testing
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-08 00:00"    # 7 Tage = 168h
+    end: "2023-01-08 00:00"    # 7 days = 168h
     enforce: false
 
-# =============================================================================
-# SITE - Data from Import_Data.xlsx
-# =============================================================================
+# Reference system configuration
+system_file: configs/systems/stadtbach_brownfield.system.yaml
 
+# Site - Data from Import_Data.xlsx
 site:
   input_file: Import_Data.xlsx
   year_target: 2023
@@ -63,90 +40,35 @@ site:
       - CO2_consumption_based
       - co2
 
-# =============================================================================
-# THERMAL NETWORK - Brownfield Configuration
-# =============================================================================
-
+# Thermal Network Configuration
+# Strategy: Optimization runs WITHOUT network constraints (keeps LP/MILP tractable)
+# Post-optimization: use NetworkManager.validate_hydraulics_post_optimization()
+# to check pipe limits after solving
 thermal_network:
-  enabled: true
+  enabled: false  # Set to false for optimization, use post-processing validation
   topology_file: configs/networks/stadtbach_brownfield.yaml
   brownfield_mode: true
   allow_pipe_investment: false
+  # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
+  validation:
+    max_velocity_m_s: 2.5
+    max_pressure_drop_bar: 2.0
 
-# =============================================================================
-# COMPONENTS - Individual investable/brownfield settings
-# =============================================================================
+# Run parameters (override base.yaml gurobi options)
+run:
+  dt_h: 1.0
+  solver: glpk
+  solver_options: {}
 
-# Heat Pumps - each can be individually set as investable or brownfield
-heat_pumps:
-  HP1:
-    enabled: true
-    investable: false
-    capacity_init_mw: 10.0
-    wrg_source: WRG1
+# Grid settings
+grid:
+  max_import_mw: 150
+  max_export_mw: 50
+  big_m_grid_mw: 200
 
-  HP2:
-    enabled: true
-    investable: false
-    capacity_init_mw: 8.0
-    wrg_source: WRG2
-
-  HP3:
-    enabled: true
-    investable: false
-    capacity_init_mw: 6.0
-    wrg_source: WRG3
-
-  HP4:
-    enabled: true
-    investable: false
-    capacity_init_mw: 5.0
-    wrg_source: WRG4
-
-  HP_new_ost:
-    enabled: true
-    investable: true
-    capacity_min_mw: 5.0
-    capacity_max_mw: 50.0
-    capex_eur_per_mw: 400000
-    activation_cost_eur: 250000
-    node: plant_ost
-
-# Thermal Generators - each individually configurable
-generators:
-  HKW:
-    enabled: true
-    investable: false
-    capacity_th_mw: 75.0
-
-  GTOST:
-    enabled: true
-    investable: false
-    capacity_th_mw: 41.3
-
-  BMHKW:
-    enabled: true
-    investable: false
-    capacity_th_mw: 15.0
-
-  HWS:
-    enabled: true
-    investable: false
-    capacity_th_mw: 40.0
-
-  HWW:
-    enabled: true
-    investable: false
-    capacity_th_mw: 60.0
-
-# Storage - investable
-storage:
-  TES_main:
-    enabled: true
-    investable: true
-    e_cap_min_mwh: 100
-    e_cap_max_mwh: 5000
-    p_cap_min_mw: 10
-    p_cap_max_mw: 100
-    capex_eur_per_mwh: 5000
-    activation_cost_eur: 50000
+# Cost settings
+costs:
+  dump_cost_eur_per_mwh_th: 10.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true
+  include_capex_costs: true
