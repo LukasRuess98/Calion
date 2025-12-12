@@ -54,11 +54,13 @@ thermal_network:
     max_velocity_m_s: 2.5
     max_pressure_drop_bar: 2.0
 
-# Run parameters (override base.yaml gurobi options)
+# Run parameters - use Gurobi (base.yaml options are compatible)
 run:
   dt_h: 1.0
-  solver: glpk
-  solver_options: {}
+  solver: gurobi
+  # Gurobi options inherited from base.yaml, override specific ones here:
+  solver_options:
+    TimeLimit: 600  # 10 min for brownfield (simpler problem)
 
 # Grid settings
 grid:
