@@ -1,5 +1,5 @@
 # Test-Szenario mit 1 Woche für schnelles Performance-Testing
-# Verwendung: Merge mit base.yaml und system.yaml
+# Verwendung: python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/test_simple_with_network.system.yaml configs/scenarios/test_1week.scenario.yaml
 
 scenario:
   run_mode: PF_ONLY
@@ -8,9 +8,6 @@ scenario:
   fix_design: false
   title: "Test_1_Week"
   tag: "test-1week-optimized"
-
-# System configuration
-system_file: test_simple_with_network.system.yaml
 
   # Zeitraum auf 1 Woche beschränken (für schnelles Testing)
   horizon:
