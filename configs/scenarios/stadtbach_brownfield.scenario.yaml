@@ -1,7 +1,11 @@
 # Stadtbach Brownfield Optimization Scenario
 # Fixed network, only heat pump and storage expansion
 # Date: 2025-12-12
-# Usage: python -m energis.run configs/base.yaml configs/scenarios/stadtbach_brownfield.scenario.yaml
+#
+# WICHTIG: Verwende stadtbach_brownfield.system.yaml, NICHT stadtbach.system.yaml!
+#
+# Usage:
+#   python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/stadtbach_brownfield.system.yaml configs/scenarios/stadtbach_brownfield.scenario.yaml
 
 metadata:
   name: Stadtbach Brownfield Optimization

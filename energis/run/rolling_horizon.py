@@ -2101,6 +2101,19 @@ def _solve_scenario(
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+
+        # Check if solver found a valid solution
+        from pyomo.opt import TerminationCondition, SolutionStatus
+        term_cond = getattr(solver_result.solver, "termination_condition", None)
+        if term_cond not in (TerminationCondition.optimal, TerminationCondition.feasible,
+                             TerminationCondition.locallyOptimal, TerminationCondition.globallyOptimal):
+            # Solver failed - provide clear error message
+            status = solver_meta.get("status", "unknown")
+            term = solver_meta.get("termination_condition", "unknown")
+            raise RuntimeError(
+                f"Solver failed! Status: {status}, Termination: {term}. "
+                f"Check model feasibility, solver installation, and configuration."
+            )
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
