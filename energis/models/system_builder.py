@@ -903,10 +903,29 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         m.t,
         rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
     )
-    m.ht_balance = pyo.Constraint(
-        m.t,
-        rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) == mm.heatd[t] + mm.Q_dump[t],
-    )
+
+    # Heat balance: When thermal network is enabled, use relaxed constraints
+    # The network handles heat distribution via pipe flow constraints
+    thermal_network_enabled = cfg.get('thermal_network', {}).get('enabled', False)
+
+    if thermal_network_enabled:
+        print(f"[BUILD] Thermal network enabled - using relaxed heat balance (network handles distribution)")
+        # Relaxed constraint: production must cover demand (network handles distribution)
+        m.ht_balance = pyo.Constraint(
+            m.t,
+            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) >= mm.heatd[t],
+        )
+        # Upper bound with dump capacity for excess heat
+        m.ht_upper = pyo.Constraint(
+            m.t,
+            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) <= mm.heatd[t] * 1.3 + mm.Q_dump[t],
+        )
+    else:
+        # Standard strict heat balance without thermal network
+        m.ht_balance = pyo.Constraint(
+            m.t,
+            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) == mm.heatd[t] + mm.Q_dump[t],
+        )
 
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)

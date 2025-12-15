@@ -206,30 +206,9 @@ class ThermalNodeBlock(BaseComponent):
                 for t in time_set:
                     T_supply[t].fix(supply_temp_nominal_c)
 
-        # (2) Mass flow balance at node
-        # sum(inflows) = sum(outflows) + local_demand
-        def mass_balance_rule(m, t):
-            total_inflow = sum(
-                pyo.value(getattr(m, f"{pipe_id.upper().replace('-', '_')}_m_dot")[t])
-                if hasattr(m, f"{pipe_id.upper().replace('-', '_')}_m_dot")
-                else 0
-                for pipe_id in incoming_pipes
-            )
-
-            total_outflow = sum(
-                pyo.value(getattr(m, f"{pipe_id.upper().replace('-', '_')}_m_dot")[t])
-                if hasattr(m, f"{pipe_id.upper().replace('-', '_')}_m_dot")
-                else 0
-                for pipe_id in outgoing_pipes
-            )
-
-            if node_type == 'consumer':
-                return total_inflow == total_outflow + m_dot_demand[t]
-            else:
-                return total_inflow == total_outflow
-
-        # Note: This constraint needs refinement - we need to properly reference pipe flows
-        # For now, skip and handle in network manager level
+        # (2) Mass flow balance at node - handled by network manager
+        # Note: Node-level flow balance is now managed in network_manager.py
+        # to ensure proper pipe references and avoid issues with pyo.value() on uninitialized vars
 
         # (3) Heat demand satisfaction (consumer nodes)
         if node_type == 'consumer':
