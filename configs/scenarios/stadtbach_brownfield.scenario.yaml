@@ -23,7 +23,6 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-02-15 00:00"    # 7 days = 168h
     end: "2023-12-30 00:00"    # 7 days = 168h
     enforce: false
 
