@@ -24,6 +24,7 @@ scenario:
     type: "date_range"
     start: "2023-01-01 00:00"
     end: "2023-02-15 00:00"    # 7 days = 168h
+    end: "2023-12-30 00:00"    # 7 days = 168h
     enforce: false
 
 # Reference system configuration
@@ -49,7 +50,7 @@ site:
 # Post-optimization: use NetworkManager.validate_hydraulics_post_optimization()
 # to check pipe limits after solving
 thermal_network:
-  enabled: true  # Set to false for optimization, use post-processing validation
+  enabled: false  # Set to false for optimization, use post-processing validation
   topology_file: configs/networks/stadtbach_brownfield.yaml
   brownfield_mode: true
   allow_pipe_investment: false
