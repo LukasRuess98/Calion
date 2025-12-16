@@ -12,7 +12,6 @@ run:
   solver_options:
     # === PERFORMANCE OPTIMIZATION (Thermal Networks MIQP) ===
     # Parallelisierung
-    Threads: 8              # Nutze 8 CPU-Kerne (0 = alle, aber 8 ist oft optimal)
     Threads: 0              # Nutze 8 CPU-Kerne (0 = alle, aber 8 ist oft optimal)
     ConcurrentMIP: 2        # 2 parallele MIP-Strategien
 
