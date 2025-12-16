@@ -347,31 +347,35 @@ class PipePairBlock(BaseComponent):
         # Skip for now - handle in Phase 2 with better logic
 
         # ============================================================
-        # HYDRAULIC CONSTRAINTS
+        # HYDRAULIC CONSTRAINTS - PRESSURE DROP MODELING
         # ============================================================
+        # Implements Darcy-Weisbach pressure drop calculation for
+        # realistic hydraulic analysis required by grid operators
 
         # Get hydraulic parameters
         max_velocity = config.get('max_velocity_m_s', 2.5)  # Default 2.5 m/s
-        max_pressure = config.get('max_pressure_bar', 16.0)  # Default PN16
+        max_pressure_drop = config.get('max_pressure_drop_bar', 2.0)  # Max ΔP per pipe
+        pipe_roughness = config.get('pipe_roughness_mm', 0.05)  # Surface roughness (steel: 0.05mm)
+
+        # Fluid properties
+        mu_water = 0.0004  # Dynamic viscosity at 80°C [Pa·s]
 
         # Pipe-specific max flow limit (if defined)
         pipe_max_flow = config.get('max_flow_kg_s', None)
 
-        # (8) Maximum flow constraint based on pipe diameter and velocity
-        # V_dot_max = A * v_max = π * (D/2)² * v_max
-        # m_dot_max = V_dot_max * ρ = π * (D/2)² * v_max * ρ
-
         import math
         pi = math.pi
 
-        # Calculate max flow based on current diameter
+        # Calculate pipe geometry
         if current_diam_supply:
-            # Inner diameter (assuming outer diameter given, subtract wall thickness)
-            # For DN pipes, inner diameter is typically ~94% of nominal
+            # Inner diameter (DN pipes: inner ≈ 94% of nominal)
             d_inner_m = current_diam_supply / 1000.0 * 0.94  # Convert mm to m
+            d_inner_mm = current_diam_supply * 0.94
+
+            # Cross-sectional area
+            area_m2 = pi * (d_inner_m / 2.0) ** 2
 
             # Max flow for given velocity
-            area_m2 = pi * (d_inner_m / 2.0) ** 2
             v_max_calculated = area_m2 * max_velocity * density_water  # kg/s
 
             # Use either calculated or specified limit
@@ -380,32 +384,124 @@ class PipePairBlock(BaseComponent):
             else:
                 effective_max_flow = v_max_calculated
         else:
-            # No diameter specified, use pipe-specific or global limit
+            # No diameter specified
+            d_inner_m = 0.2  # Default 200mm
+            d_inner_mm = 200.0
+            area_m2 = pi * (d_inner_m / 2.0) ** 2
             effective_max_flow = pipe_max_flow if pipe_max_flow else 500.0
 
         # Update variable bounds with pipe-specific limit
         for t in time_set:
             m_dot[t].setub(effective_max_flow)
 
-        logger.info(f"Pipe {pipe_id}: max flow = {effective_max_flow:.2f} kg/s (v_max={max_velocity} m/s, D={current_diam_supply or 'unspec'} mm)")
+        logger.info(f"Pipe {pipe_id}: max flow = {effective_max_flow:.2f} kg/s "
+                   f"(v_max={max_velocity} m/s, D={current_diam_supply or 'unspec'} mm)")
 
-        # (9) Pressure drop constraint (simplified Darcy-Weisbach)
-        # Δp = λ * (L/D) * (ρ * v²/2)
-        # where λ is the friction factor (typically 0.02-0.03 for district heating)
+        # ============================================================
+        # PRESSURE DROP VARIABLES
+        # ============================================================
 
-        # For now, we store pressure parameters but don't add hard constraints
-        # (pressure optimization requires pump modeling which is more complex)
+        # Velocity in pipe [m/s]
+        velocity = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_velocity * 1.5))
+        setattr(model, f'{prefix}_velocity', velocity)
+
+        # Pressure drop in supply pipe [bar]
+        delta_p_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 2))
+        setattr(model, f'{prefix}_delta_p_supply', delta_p_supply)
+
+        # Pressure drop in return pipe [bar]
+        delta_p_return = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 2))
+        setattr(model, f'{prefix}_delta_p_return', delta_p_return)
+
+        # Total pressure drop for this pipe pair [bar]
+        delta_p_total = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 4))
+        setattr(model, f'{prefix}_delta_p_total', delta_p_total)
+
+        # ============================================================
+        # PRESSURE DROP CONSTRAINTS
+        # ============================================================
+
+        # (8) Velocity calculation: v = m_dot / (ρ * A)
+        def velocity_rule(m, t):
+            # v = m_dot / (density * area)
+            # To avoid division, use: v * density * area = m_dot
+            return velocity[t] * density_water * area_m2 == m_dot[t]
+
+        setattr(model, f'{prefix}_velocity_calc',
+                pyo.Constraint(time_set, rule=velocity_rule))
+
+        # (9) Pressure drop calculation (Darcy-Weisbach with linearized friction)
+        # ΔP = f * (L/D) * (ρ * v² / 2)
+        #
+        # For district heating (turbulent flow, Re > 4000):
+        # Using Swamee-Jain approximation for friction factor:
+        # f ≈ 0.25 / [log10(ε/3.7D + 5.74/Re^0.9)]²
+        #
+        # For typical DH conditions (Re ≈ 50000-500000), f ≈ 0.015-0.025
+        # We use a linearized approximation for MILP compatibility:
+        # ΔP ≈ k * L * v^1.85  (empirical Hazen-Williams style)
+        #
+        # For pure quadratic (more accurate but requires QP solver):
+        # ΔP = f * (L/D) * (ρ/2) * v² / 100000 [bar]
+
+        # Friction coefficient (typical for DH steel pipes)
+        f_friction = config.get('friction_factor', 0.02)
+
+        # Pressure drop coefficient: k = f * (L/D) * (ρ/2) / 100000
+        # Units: [bar] when v in [m/s]
+        k_pressure = f_friction * (length_m / d_inner_m) * (density_water / 2.0) / 100000.0
+
+        # Linearized pressure drop (piecewise or conservative linear bound)
+        # For MILP, we use: ΔP ≤ k * v_max * v (linear upper bound)
+        # This is conservative but MILP-compatible
+
+        brownfield_mode = config.get('brownfield_mode', False)
+
+        if brownfield_mode:
+            # In brownfield mode, use simplified linear approximation
+            # ΔP ≈ k_linear * m_dot where k_linear is calibrated
+            k_linear = k_pressure * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
+
+            def pressure_drop_supply_rule(m, t):
+                # Linear approximation: ΔP = k * m_dot
+                return delta_p_supply[t] == k_linear * m_dot[t] * max_velocity
+
+            def pressure_drop_return_rule(m, t):
+                return delta_p_return[t] == k_linear * m_dot[t] * max_velocity
+        else:
+            # Quadratic pressure drop (requires QP/MIQP solver like Gurobi)
+            def pressure_drop_supply_rule(m, t):
+                # Darcy-Weisbach: ΔP = k * v²
+                return delta_p_supply[t] == k_pressure * velocity[t] * velocity[t]
+
+            def pressure_drop_return_rule(m, t):
+                return delta_p_return[t] == k_pressure * velocity[t] * velocity[t]
+
+        setattr(model, f'{prefix}_pressure_drop_supply',
+                pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
+
+        setattr(model, f'{prefix}_pressure_drop_return',
+                pyo.Constraint(time_set, rule=pressure_drop_return_rule))
+
+        # (10) Total pressure drop = supply + return
+        def total_pressure_drop_rule(m, t):
+            return delta_p_total[t] == delta_p_supply[t] + delta_p_return[t]
+
+        setattr(model, f'{prefix}_pressure_drop_total',
+                pyo.Constraint(time_set, rule=total_pressure_drop_rule))
 
         # Store pressure parameters for reporting
         pressure_params = {
-            'max_pressure_bar': max_pressure,
+            'max_pressure_drop_bar': max_pressure_drop,
             'max_velocity_m_s': max_velocity,
             'effective_max_flow_kg_s': effective_max_flow,
             'pipe_diameter_mm': current_diam_supply,
+            'pipe_diameter_inner_mm': d_inner_mm,
+            'pipe_length_m': length_m,
+            'friction_factor': f_friction,
+            'k_pressure': k_pressure,
+            'pipe_roughness_mm': pipe_roughness,
         }
-
-        # (10) Optional: Explicit pressure drop calculation for reporting
-        # This can be used for post-optimization analysis
 
         # Store for results extraction
         setattr(model, f'{prefix}_pressure_params', pressure_params)
@@ -544,6 +640,20 @@ class PipePairBlock(BaseComponent):
         q_loss_return_series_kw = [safe_value(Q_loss_return, t, 0.0) * 1000 for t in time_set]
         q_delivered_series = [safe_value(Q_delivered, t, 0.0) for t in time_set]
 
+        # Extract hydraulic results (pressure drop, velocity)
+        velocity_var = getattr(model, f'{prefix}_velocity', None)
+        delta_p_supply_var = getattr(model, f'{prefix}_delta_p_supply', None)
+        delta_p_return_var = getattr(model, f'{prefix}_delta_p_return', None)
+        delta_p_total_var = getattr(model, f'{prefix}_delta_p_total', None)
+
+        velocity_series = [safe_value(velocity_var, t, 0.0) for t in time_set] if velocity_var else []
+        delta_p_supply_series = [safe_value(delta_p_supply_var, t, 0.0) for t in time_set] if delta_p_supply_var else []
+        delta_p_return_series = [safe_value(delta_p_return_var, t, 0.0) for t in time_set] if delta_p_return_var else []
+        delta_p_total_series = [safe_value(delta_p_total_var, t, 0.0) for t in time_set] if delta_p_total_var else []
+
+        # Get pressure parameters
+        pressure_params = getattr(model, f'{prefix}_pressure_params', {})
+
         # Calculate totals
         dt_h = getattr(model, 'dt_h', 1.0)
         total_heat_delivered_mwh = sum(q_delivered_series) * dt_h
@@ -588,7 +698,7 @@ class PipePairBlock(BaseComponent):
             'to_node': config['to_node'],
             'length_m': config['length_m'],
 
-            # Time series
+            # Time series - thermal
             'flow_kg_s': flow_series,
             'T_supply_in_c': t_supply_in_series,
             'T_supply_out_c': t_supply_out_series,
@@ -598,17 +708,34 @@ class PipePairBlock(BaseComponent):
             'Q_loss_return_kw': q_loss_return_series_kw,  # kW for dashboard
             'Q_delivered_mw': q_delivered_series,
 
-            # Aggregates
+            # Time series - hydraulic
+            'velocity_m_s': velocity_series,
+            'delta_p_supply_bar': delta_p_supply_series,
+            'delta_p_return_bar': delta_p_return_series,
+            'delta_p_total_bar': delta_p_total_series,
+
+            # Aggregates - thermal
             'total_heat_delivered_mwh': total_heat_delivered_mwh,
             'total_heat_loss_mwh': total_heat_loss_mwh,
             'total_heat_loss_supply_mwh': total_heat_loss_supply_mwh,
             'total_heat_loss_return_mwh': total_heat_loss_return_mwh,
             'loss_percentage': loss_percentage,
 
-            # Averages
+            # Aggregates - hydraulic
+            'max_velocity_m_s': max(velocity_series) if velocity_series else 0,
+            'avg_velocity_m_s': sum(velocity_series) / len(velocity_series) if velocity_series else 0,
+            'max_delta_p_total_bar': max(delta_p_total_series) if delta_p_total_series else 0,
+            'avg_delta_p_total_bar': sum(delta_p_total_series) / len(delta_p_total_series) if delta_p_total_series else 0,
+
+            # Averages - thermal
             'avg_flow_kg_s': sum(flow_series) / len(flow_series) if flow_series else 0,
             'avg_supply_temp_in_c': sum(t_supply_in_series) / len(t_supply_in_series) if t_supply_in_series else 0,
             'avg_return_temp_out_c': sum(t_return_out_series) / len(t_return_out_series) if t_return_out_series else 0,
+
+            # Pipe parameters
+            'pipe_diameter_mm': pressure_params.get('pipe_diameter_mm'),
+            'pipe_diameter_inner_mm': pressure_params.get('pipe_diameter_inner_mm'),
+            'friction_factor': pressure_params.get('friction_factor'),
 
             # Investment results
             'selected_diameter_mm': selected_diameter,

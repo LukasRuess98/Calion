@@ -28,7 +28,7 @@ system:
       wrg_source_column: WRG2_T_K
       wrg_capacity_column: WRG2_Q_cap
       investment:
-        enabled: ture
+        enabled: true
 
     - id: HP3
       enabled: true
