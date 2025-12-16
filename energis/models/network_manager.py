@@ -610,15 +610,61 @@ class NetworkManager:
 
         loss_percentage = (total_heat_loss / total_heat_delivered * 100) if total_heat_delivered > 0 else 0
 
+        # Hydraulic summary - aggregate from pipe results
+        max_velocity = max(
+            (pipe_res.get('max_velocity_m_s', 0) for pipe_res in results['pipes'].values()),
+            default=0
+        )
+
+        # Critical path pressure drop (sum of max pressure drops per pipe)
+        # In a real network, you'd trace the actual critical path
+        total_pressure_drop = sum(
+            pipe_res.get('max_delta_p_total_bar', 0)
+            for pipe_res in results['pipes'].values()
+        )
+
+        # Pump power estimation
+        # P_pump = (V_dot * ΔP) / η = (m_dot / ρ) * ΔP * 100000 / η [W]
+        # For simplicity, use average flow and total pressure drop
+        avg_total_flow = sum(
+            pipe_res.get('avg_flow_kg_s', 0)
+            for pipe_res in results['pipes'].values()
+        ) / max(len(results['pipes']), 1)
+
+        # Pump efficiency (typical for variable speed pumps)
+        pump_efficiency = 0.75
+        density_water = 1000  # kg/m³
+
+        # P_pump [kW] = (m_dot [kg/s] / ρ [kg/m³]) * ΔP [bar] * 100000 [Pa/bar] / (η * 1000 [W/kW])
+        # Simplified: P_pump [kW] = m_dot * ΔP * 100 / (ρ * η)
+        pump_power_kw = (avg_total_flow * total_pressure_drop * 100000) / (density_water * pump_efficiency * 1000)
+
+        # Annual pump energy [MWh] = P_pump [kW] * hours / 1000
+        dt_h = getattr(model, 'dt_h', 1.0)
+        n_timesteps = len(list(time_set))
+        operating_hours = n_timesteps * dt_h
+        pump_energy_mwh = pump_power_kw * operating_hours / 1000
+
         results['summary'] = {
+            # Thermal
             'total_heat_delivered_mwh': total_heat_delivered,
             'total_heat_loss_mwh': total_heat_loss,
             'loss_percentage': loss_percentage,
             'total_pipe_length_m': sum(p['length_m'] for p in self.pipes.values()),
+
+            # Hydraulic
+            'max_velocity_m_s': max_velocity,
+            'total_pressure_drop_bar': total_pressure_drop,
+            'pump_power_kw': pump_power_kw,
+            'pump_energy_mwh': pump_energy_mwh,
+            'pump_efficiency': pump_efficiency,
         }
 
         logger.info(f"  Total heat delivered: {total_heat_delivered:.1f} MWh")
         logger.info(f"  Total heat losses: {total_heat_loss:.1f} MWh ({loss_percentage:.2f}%)")
+        logger.info(f"  Max velocity: {max_velocity:.2f} m/s")
+        logger.info(f"  Total pressure drop: {total_pressure_drop:.2f} bar")
+        logger.info(f"  Pump power: {pump_power_kw:.1f} kW ({pump_energy_mwh:.1f} MWh/period)")
 
         return results
 

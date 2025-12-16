@@ -3003,8 +3003,89 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             title='Massenströme in allen Rohrleitungen'
         )
 
+        # === VELOCITY PLOT ===
+        velocity_fig = go.Figure()
+
+        pipe_velocities = {}
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_velocity_m_s' in col:
+                pipe_id = col.replace('NET_', '').replace('_velocity_m_s', '')
+                pipe_velocities[pipe_id] = self.df[col]
+
+        for pipe_id, velocities in pipe_velocities.items():
+            velocity_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=velocities,
+                mode='lines',
+                name=pipe_id,
+                hovertemplate=f'<b>{pipe_id}</b>: %{{y:.2f}} m/s<extra></extra>'
+            ))
+
+        # Add recommended velocity limits
+        if pipe_velocities:
+            velocity_fig.add_hline(y=2.5, line_dash="dash", line_color="orange",
+                                   annotation_text="Empfohlen max. (2.5 m/s)")
+            velocity_fig.add_hline(y=4.0, line_dash="dash", line_color="red",
+                                   annotation_text="Absolut max. (4.0 m/s)")
+
+        velocity_fig.update_layout(
+            height=350,
+            xaxis_title='Zeit',
+            yaxis_title='Strömungsgeschwindigkeit [m/s]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Strömungsgeschwindigkeiten in allen Rohrleitungen'
+        )
+
+        # === PRESSURE DROP PLOT ===
+        pressure_fig = go.Figure()
+
+        pipe_pressures = {}
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_delta_p_bar' in col:
+                pipe_id = col.replace('NET_', '').replace('_delta_p_bar', '')
+                pipe_pressures[pipe_id] = self.df[col]
+
+        for pipe_id, pressures in pipe_pressures.items():
+            pressure_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=pressures,
+                mode='lines',
+                name=pipe_id,
+                stackgroup='one',
+                hovertemplate=f'<b>{pipe_id}</b>: %{{y:.3f}} bar<extra></extra>'
+            ))
+
+        pressure_fig.update_layout(
+            height=350,
+            xaxis_title='Zeit',
+            yaxis_title='Druckverlust [bar]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Druckverluste pro Rohrleitung (gestackt = Gesamtdruckverlust)'
+        )
+
         # === FLOW STATISTICS & HYDRAULIC KPIs ===
         flow_stats_md = "## 🔧 Hydraulik-Analyse\n\n"
+
+        # Add hydraulic KPIs from network summary
+        if self.network_summary:
+            max_vel = self.network_summary.get('Max_velocity_m_s', 0)
+            total_dp = self.network_summary.get('Total_pressure_drop_bar', 0)
+            pump_power = self.network_summary.get('Pump_power_kW', 0)
+
+            # Velocity rating
+            if max_vel < 2.0:
+                vel_rating = "🟢 Optimal"
+            elif max_vel < 3.0:
+                vel_rating = "🟡 Akzeptabel"
+            else:
+                vel_rating = "🔴 Zu hoch"
+
+            flow_stats_md += "### Hydraulische KPIs\n\n"
+            flow_stats_md += f"- **Max. Strömungsgeschwindigkeit**: {max_vel:.2f} m/s {vel_rating}\n"
+            flow_stats_md += f"- **Gesamtdruckverlust**: {total_dp:.2f} bar\n"
+            flow_stats_md += f"- **Geschätzte Pumpenleistung**: {pump_power:.1f} kW\n\n"
 
         if pipe_flows:
             flow_stats_md += "### Durchfluss-Statistiken pro Rohr\n\n"
@@ -3019,12 +3100,31 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
             flow_stats_md += "\n"
 
-            # Add velocity estimates (assuming typical pipe diameters)
-            flow_stats_md += "### Hinweis zur Hydraulik\n\n"
-            flow_stats_md += "Die Strömungsgeschwindigkeit sollte für Fernwärmeleitungen typischerweise:\n"
-            flow_stats_md += "- **Vorlauf**: 1.0 - 3.0 m/s (max. 4.0 m/s)\n"
-            flow_stats_md += "- **Rücklauf**: 1.0 - 2.5 m/s (max. 3.5 m/s)\n\n"
-            flow_stats_md += "Druckverlust sollte unter 5 bar liegen.\n\n"
+        # Add velocity and pressure statistics
+        if pipe_velocities:
+            flow_stats_md += "### Geschwindigkeits-Statistiken pro Rohr\n\n"
+            flow_stats_md += "| Rohrleitung | v_mittel [m/s] | v_max [m/s] | Bewertung |\n"
+            flow_stats_md += "|-------------|----------------|-------------|----------|\n"
+
+            for pipe_id, velocities in sorted(pipe_velocities.items()):
+                mean_vel = velocities.mean()
+                max_vel = velocities.max()
+                if max_vel < 2.0:
+                    rating = "🟢"
+                elif max_vel < 3.0:
+                    rating = "🟡"
+                else:
+                    rating = "🔴"
+                flow_stats_md += f"| {pipe_id} | {mean_vel:.2f} | {max_vel:.2f} | {rating} |\n"
+
+            flow_stats_md += "\n"
+
+        flow_stats_md += "### Auslegungshinweise\n\n"
+        flow_stats_md += "Die Strömungsgeschwindigkeit sollte für Fernwärmeleitungen typischerweise:\n"
+        flow_stats_md += "- 🟢 **Optimal**: < 2.0 m/s (geringer Druckverlust, lange Lebensdauer)\n"
+        flow_stats_md += "- 🟡 **Akzeptabel**: 2.0 - 3.0 m/s (Standard-Betrieb)\n"
+        flow_stats_md += "- 🔴 **Zu hoch**: > 3.0 m/s (erhöhte Erosion, Druckverluste)\n\n"
+        flow_stats_md += "Maximaler Druckverlust im Netz sollte unter **5 bar** liegen.\n\n"
 
         # === STATISTICS SUMMARY ===
         stats_md = "## 📊 Netzwerk-Statistiken\n\n"
@@ -3076,17 +3176,23 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             pn.pane.Markdown("# 🌡️ Thermisches Netzwerk – Analyse"),
             pn.pane.Markdown(
                 "*Dieses Dashboard zeigt die thermischen Netzwerk-Ergebnisse inklusive Temperaturprofilen, "
-                "Wärmeverlusten und Massenströmen für alle Knoten und Rohrleitungen.*"
+                "Wärmeverlusten, Massenströmen und hydraulischer Analyse für alle Knoten und Rohrleitungen.*"
             ),
             pn.layout.Divider(),
             pn.pane.Markdown("## 🎯 Key Performance Indicators"),
             pn.Row(*kpi_cards, sizing_mode='stretch_width') if kpi_cards else pn.pane.Markdown("*Keine KPIs verfügbar*"),
             pn.layout.Divider(),
+            pn.pane.Markdown("## 🌡️ Thermische Analyse"),
             pn.pane.Plotly(temp_fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
             pn.pane.Plotly(loss_fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
+            pn.pane.Markdown("## 💧 Hydraulische Analyse"),
             pn.pane.Plotly(flow_fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Plotly(velocity_fig, sizing_mode='stretch_width') if pipe_velocities else pn.pane.Markdown("*Keine Geschwindigkeitsdaten verfügbar*"),
+            pn.layout.Divider(),
+            pn.pane.Plotly(pressure_fig, sizing_mode='stretch_width') if pipe_pressures else pn.pane.Markdown("*Keine Druckverlustdaten verfügbar*"),
             pn.layout.Divider(),
             pn.pane.Markdown(flow_stats_md),
             pn.layout.Divider(),

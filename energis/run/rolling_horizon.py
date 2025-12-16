@@ -1136,6 +1136,7 @@ def _collect_timeseries_and_summary(
             # Add pipe results to series
             if 'pipes' in network_results:
                 for pipe_id, pipe_data in network_results['pipes'].items():
+                    # Thermal series
                     if 'flow_kg_s' in pipe_data and isinstance(pipe_data['flow_kg_s'], list):
                         series[f"NET_{pipe_id}_flow_kg_s"] = pipe_data['flow_kg_s']
                     if 'T_supply_in_c' in pipe_data and isinstance(pipe_data['T_supply_in_c'], list):
@@ -1146,6 +1147,12 @@ def _collect_timeseries_and_summary(
                         series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kw']
                     if 'Q_loss_return_kw' in pipe_data and isinstance(pipe_data['Q_loss_return_kw'], list):
                         series[f"NET_{pipe_id}_Q_loss_return_kW"] = pipe_data['Q_loss_return_kw']
+
+                    # Hydraulic series (velocity, pressure drop)
+                    if 'velocity_m_s' in pipe_data and isinstance(pipe_data['velocity_m_s'], list):
+                        series[f"NET_{pipe_id}_velocity_m_s"] = pipe_data['velocity_m_s']
+                    if 'delta_p_total_bar' in pipe_data and isinstance(pipe_data['delta_p_total_bar'], list):
+                        series[f"NET_{pipe_id}_delta_p_bar"] = pipe_data['delta_p_total_bar']
 
             # Add network summary statistics from network_results['summary']
             if 'summary' in network_results:
@@ -1161,6 +1168,14 @@ def _collect_timeseries_and_summary(
                     network_summary["Heat_loss_percentage"] = summary_data['loss_percentage']
                 if 'total_pipe_length_m' in summary_data:
                     network_summary["Total_pipe_length_m"] = summary_data['total_pipe_length_m']
+
+                # Hydraulic summary
+                if 'max_velocity_m_s' in summary_data:
+                    network_summary["Max_velocity_m_s"] = summary_data['max_velocity_m_s']
+                if 'total_pressure_drop_bar' in summary_data:
+                    network_summary["Total_pressure_drop_bar"] = summary_data['total_pressure_drop_bar']
+                if 'pump_power_kw' in summary_data:
+                    network_summary["Pump_power_kW"] = summary_data['pump_power_kw']
 
                 # Network configuration
                 network_summary["Number_of_nodes"] = len(network_results.get('nodes', {}))
