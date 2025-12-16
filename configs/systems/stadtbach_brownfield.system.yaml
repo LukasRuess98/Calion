@@ -60,9 +60,9 @@ system:
   # Thermal Storage - fixed for now (no investment with GLPK)
   storage:
     enabled: true
-    min_energy_mwh: 500.0
-    max_energy_mwh: 500.0
-    max_power_mw: 50.0
+    min_energy_mwh: 50.0
+    max_energy_mwh: 50000.0
+    max_power_mw: 500.0
     soc0_mwh: 0.0
     investment:
       enabled: true
