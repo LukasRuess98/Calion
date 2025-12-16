@@ -44,7 +44,7 @@ heat_pumps:
   cop:
     deltaT_K: 20.0
     deltaTpp_K: 5.0
-    cop_fallback: 3.5  # Default COP when no time-series available
+    cop_fallback: 1.67  # Default COP when no time-series available
     sink_defaults:
       Tsink_out_K: 363.15
       Tsink_in_K: 343.15

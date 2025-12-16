@@ -25,7 +25,7 @@ parameters:
   design_pressure_bar: 7
   min_pressure_bar: 2.0
   max_pressure_bar: 10.0
-  max_velocity_m_s: 2.5
+  max_velocity_m_s: 5
 
   # Brownfield mode: disable all pipe investments
   brownfield_mode: true
@@ -46,10 +46,10 @@ production_plants:
 
     # Expansion options at this node
     expansion_options:
-      allow_heat_pump: true
-      allow_storage: true
-      max_additional_hp_mw: 50.0
-      max_storage_mwh: 5000.0
+      allow_heat_pump: false
+      allow_storage: false
+      max_additional_hp_mw: 500.0
+      max_storage_mwh: 50000.0
 
   - node_id: plant_west_hww
     name: "Heizwerk West (HWW)"
@@ -60,8 +60,8 @@ production_plants:
     supply_pressure_bar: 6.0
 
     expansion_options:
-      allow_heat_pump: true
-      allow_storage: true
+      allow_heat_pump: false
+      allow_storage: false
       max_additional_hp_mw: 300.0
       max_storage_mwh: 20000.0
 
@@ -90,7 +90,7 @@ pump_stations:
     elevation_nn_m: 471.35
     coordinates: {x: -1000, y: 500}
     technical_data:
-      circulation_installed_m3_h: 700
+      circulation_installed_m3_h: 2000
 
   - node_id: pumpstation_sued
     name: "Pumpstation Sud"
@@ -98,7 +98,7 @@ pump_stations:
     elevation_nn_m: 485
     coordinates: {x: 500, y: -2000}
     technical_data:
-      circulation_installed_m3_h: 500
+      circulation_installed_m3_h: 2000
 
 # =============================================================================
 # CONSUMER ZONES - Fixed demand distribution
