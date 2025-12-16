@@ -93,13 +93,27 @@ class HeatPumpBlock(BaseComponent):
         setattr(m, f"{comp}_cap_min", pyo.Param(initialize=self.capacity_min_mw))
         setattr(m, f"{comp}_cap_max", pyo.Param(initialize=self.capacity_max_mw))
 
-        # Constraints
-        def cap_rule(mm, t):
-            return Q[t] <= cap * onv[t]
-        setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
+        # Big-M for linearization of bilinear terms (cap * onv)
+        M_cap = self.capacity_max_mw
 
+        # Constraints - linearized for MILP compatibility
+        # Original: Q[t] <= cap * onv[t]  (bilinear when cap is variable)
+        # Linearized using Big-M:
+        #   Q[t] <= cap           (heat bounded by capacity)
+        #   Q[t] <= M * onv[t]    (when off, heat is zero)
+        def cap_rule_1(mm, t):
+            return Q[t] <= cap
+        setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule_1))
+
+        def cap_rule_2(mm, t):
+            return Q[t] <= M_cap * onv[t]
+        setattr(m, f"{comp}_cap_on", pyo.Constraint(Tset, rule=cap_rule_2))
+
+        # Original: Q[t] >= minload * cap * onv[t]  (bilinear)
+        # Linearized: Q[t] >= minload * cap - M * (1 - onv[t])
         def min_rule(mm, t):
-            return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap * onv[t]
+            minload = mm.__getattribute__(f"{comp}_minload")
+            return Q[t] >= minload * cap - M_cap * (1 - onv[t])
         setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
 
         def split_balance(mm, t):
