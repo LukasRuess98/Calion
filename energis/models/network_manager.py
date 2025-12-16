@@ -732,7 +732,7 @@ class NetworkManager:
 
             # Add time series
             dashboard_data['time_series']['pipe_flows'][pipe_id] = pipe_result['flow_kg_s']
-            dashboard_data['time_series']['heat_losses'][pipe_id] = pipe_result['Q_loss_supply_mw']
+            dashboard_data['time_series']['heat_losses'][pipe_id] = pipe_result['Q_loss_supply_kw']
 
         # Format node temperatures
         for node_id, node_result in results['nodes'].items():

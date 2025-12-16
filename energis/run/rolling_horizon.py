@@ -2110,12 +2110,17 @@ def _solve_scenario(
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
 
+        import time as _time
+        _solve_start = _time.time()
         solver_result = opt.solve(model, tee=False)
+        _solve_time = _time.time() - _solve_start
+
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+        solver_meta["solve_time_seconds"] = _solve_time
 
         # Check if solver found a valid solution
         from pyomo.opt import TerminationCondition, SolutionStatus
@@ -2129,6 +2134,65 @@ def _solve_scenario(
                 f"Solver failed! Status: {status}, Termination: {term}. "
                 f"Check model feasibility, solver installation, and configuration."
             )
+
+        # ========================================
+        # SOLVER RESULT OUTPUT
+        # ========================================
+        # Print comprehensive solver results
+        print("\n" + "=" * 70)
+        print("OPTIMIZATION RESULTS")
+        print("=" * 70)
+        print(f"Solver: {solver_used}")
+        print(f"Status: {solver_meta['status']}")
+        print(f"Termination: {solver_meta['termination_condition']}")
+        print(f"Solve time: {_solve_time:.2f} seconds")
+
+        # Extract objective value
+        if hasattr(model, 'objective'):
+            try:
+                obj_value = pyo.value(model.objective)
+                solver_meta["objective_value"] = obj_value
+                print(f"Objective value: {obj_value:,.2f} EUR")
+            except Exception:
+                pass
+
+        # Extract key decision variables for summary
+        print("\n--- Key Results ---")
+
+        # Heat pumps
+        hp_results = []
+        for hp_idx in range(1, 10):  # Check HP1 to HP9
+            hp_id = f"HP{hp_idx}"
+            q_var_name = f"{hp_id}_Q_th"
+            if hasattr(model, q_var_name):
+                q_var = getattr(model, q_var_name)
+                total_heat = sum(pyo.value(q_var[t]) for t in model.t) * dt_h
+                if total_heat > 0.1:
+                    hp_results.append((hp_id, total_heat))
+
+        if hp_results:
+            print("\nHeat Pumps:")
+            for hp_id, heat in hp_results:
+                print(f"  {hp_id}: {heat:,.1f} MWh")
+
+        # Storage
+        if hasattr(model, 'TES_soc'):
+            soc_final = pyo.value(model.TES_soc[max(model.t)])
+            print(f"\nStorage SOC (final): {soc_final:,.1f} MWh")
+
+        # Grid
+        if hasattr(model, 'P_buy'):
+            grid_buy = sum(pyo.value(model.P_buy[t]) for t in model.t) * dt_h
+            print(f"\nGrid purchase: {grid_buy:,.1f} MWh")
+        if hasattr(model, 'P_sell'):
+            grid_sell = sum(pyo.value(model.P_sell[t]) for t in model.t) * dt_h
+            print(f"Grid feed-in: {grid_sell:,.1f} MWh")
+
+        # Thermal network summary
+        if hasattr(model, 'network_manager') and model.network_manager.network_enabled:
+            print("\nThermal Network: ACTIVE")
+
+        print("=" * 70 + "\n")
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"

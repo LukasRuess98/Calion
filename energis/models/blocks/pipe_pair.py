@@ -459,15 +459,21 @@ class PipePairBlock(BaseComponent):
 
         if brownfield_mode:
             # In brownfield mode, use simplified linear approximation
-            # ΔP ≈ k_linear * m_dot where k_linear is calibrated
-            k_linear = k_pressure * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
+            # ΔP ≈ k_linear * m_dot where k_linear is calibrated to match
+            # quadratic behavior at typical operating point
+            # k_linear = k_pressure * v_typical / m_dot_typical
+            # For m_dot = m_dot_max, v = v_max: ΔP = k_pressure * v_max²
+            # Linear approx: ΔP = k_linear * m_dot
+            # At m_dot_max: k_linear * m_dot_max = k_pressure * v_max²
+            # k_linear = k_pressure * v_max² / m_dot_max
+            k_linear = k_pressure * max_velocity * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
 
             def pressure_drop_supply_rule(m, t):
-                # Linear approximation: ΔP = k * m_dot
-                return delta_p_supply[t] == k_linear * m_dot[t] * max_velocity
+                # Linear approximation: ΔP = k_linear * m_dot
+                return delta_p_supply[t] == k_linear * m_dot[t]
 
             def pressure_drop_return_rule(m, t):
-                return delta_p_return[t] == k_linear * m_dot[t] * max_velocity
+                return delta_p_return[t] == k_linear * m_dot[t]
         else:
             # Quadratic pressure drop (requires QP/MIQP solver like Gurobi)
             def pressure_drop_supply_rule(m, t):
