@@ -539,15 +539,17 @@ class PipePairBlock(BaseComponent):
         t_supply_out_series = [safe_value(T_supply_out, t, 85.0) for t in time_set]
         t_return_in_series = [safe_value(T_return_in, t, 50.0) for t in time_set]
         t_return_out_series = [safe_value(T_return_out, t, 45.0) for t in time_set]
-        q_loss_supply_series = [safe_value(Q_loss_supply, t, 0.0) for t in time_set]
-        q_loss_return_series = [safe_value(Q_loss_return, t, 0.0) for t in time_set]
+        # Q_loss is stored in MW internally, convert to kW for dashboard/export
+        q_loss_supply_series_kw = [safe_value(Q_loss_supply, t, 0.0) * 1000 for t in time_set]
+        q_loss_return_series_kw = [safe_value(Q_loss_return, t, 0.0) * 1000 for t in time_set]
         q_delivered_series = [safe_value(Q_delivered, t, 0.0) for t in time_set]
 
         # Calculate totals
         dt_h = getattr(model, 'dt_h', 1.0)
         total_heat_delivered_mwh = sum(q_delivered_series) * dt_h
-        total_heat_loss_supply_mwh = sum(q_loss_supply_series) * dt_h
-        total_heat_loss_return_mwh = sum(q_loss_return_series) * dt_h
+        # Convert kW to MWh: kW * h / 1000 = MWh
+        total_heat_loss_supply_mwh = sum(q_loss_supply_series_kw) * dt_h / 1000
+        total_heat_loss_return_mwh = sum(q_loss_return_series_kw) * dt_h / 1000
         total_heat_loss_mwh = total_heat_loss_supply_mwh + total_heat_loss_return_mwh
 
         # Loss percentage
@@ -592,8 +594,8 @@ class PipePairBlock(BaseComponent):
             'T_supply_out_c': t_supply_out_series,
             'T_return_in_c': t_return_in_series,
             'T_return_out_c': t_return_out_series,
-            'Q_loss_supply_mw': q_loss_supply_series,
-            'Q_loss_return_mw': q_loss_return_series,
+            'Q_loss_supply_kw': q_loss_supply_series_kw,  # kW for dashboard
+            'Q_loss_return_kw': q_loss_return_series_kw,  # kW for dashboard
             'Q_delivered_mw': q_delivered_series,
 
             # Aggregates

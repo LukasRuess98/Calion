@@ -3003,6 +3003,29 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             title='Massenströme in allen Rohrleitungen'
         )
 
+        # === FLOW STATISTICS & HYDRAULIC KPIs ===
+        flow_stats_md = "## 🔧 Hydraulik-Analyse\n\n"
+
+        if pipe_flows:
+            flow_stats_md += "### Durchfluss-Statistiken pro Rohr\n\n"
+            flow_stats_md += "| Rohrleitung | Mittelwert [kg/s] | Maximum [kg/s] | Minimum [kg/s] |\n"
+            flow_stats_md += "|-------------|-------------------|----------------|----------------|\n"
+
+            for pipe_id, flows in sorted(pipe_flows.items()):
+                mean_flow = flows.mean()
+                max_flow = flows.max()
+                min_flow = flows.min()
+                flow_stats_md += f"| {pipe_id} | {mean_flow:.2f} | {max_flow:.2f} | {min_flow:.2f} |\n"
+
+            flow_stats_md += "\n"
+
+            # Add velocity estimates (assuming typical pipe diameters)
+            flow_stats_md += "### Hinweis zur Hydraulik\n\n"
+            flow_stats_md += "Die Strömungsgeschwindigkeit sollte für Fernwärmeleitungen typischerweise:\n"
+            flow_stats_md += "- **Vorlauf**: 1.0 - 3.0 m/s (max. 4.0 m/s)\n"
+            flow_stats_md += "- **Rücklauf**: 1.0 - 2.5 m/s (max. 3.5 m/s)\n\n"
+            flow_stats_md += "Druckverlust sollte unter 5 bar liegen.\n\n"
+
         # === STATISTICS SUMMARY ===
         stats_md = "## 📊 Netzwerk-Statistiken\n\n"
 
@@ -3064,6 +3087,8 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             pn.pane.Plotly(loss_fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
             pn.pane.Plotly(flow_fig, sizing_mode='stretch_width'),
+            pn.layout.Divider(),
+            pn.pane.Markdown(flow_stats_md),
             pn.layout.Divider(),
             pn.pane.Markdown(stats_md),
             sizing_mode='stretch_width'
