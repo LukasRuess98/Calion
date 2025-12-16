@@ -2942,6 +2942,92 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             title='Temperaturprofile aller Netzknoten'
         )
 
+        # === PIPE TEMPERATURE PROFILES ===
+        pipe_temp_fig = go.Figure()
+
+        pipe_temps_supply_in = {}
+        pipe_temps_supply_out = {}
+        pipe_temps_return_in = {}
+        pipe_temps_return_out = {}
+
+        for col in self.df.columns:
+            if col.startswith('NET_') and '_T_supply_in_C' in col:
+                pipe_id = col.replace('NET_', '').replace('_T_supply_in_C', '')
+                pipe_temps_supply_in[pipe_id] = self.df[col]
+            elif col.startswith('NET_') and '_T_supply_out_C' in col:
+                pipe_id = col.replace('NET_', '').replace('_T_supply_out_C', '')
+                pipe_temps_supply_out[pipe_id] = self.df[col]
+            elif col.startswith('NET_') and '_T_return_in_C' in col:
+                pipe_id = col.replace('NET_', '').replace('_T_return_in_C', '')
+                pipe_temps_return_in[pipe_id] = self.df[col]
+            elif col.startswith('NET_') and '_T_return_out_C' in col:
+                pipe_id = col.replace('NET_', '').replace('_T_return_out_C', '')
+                pipe_temps_return_out[pipe_id] = self.df[col]
+
+        # Add supply temperature drop (in → out)
+        colors = ['#E63946', '#F4A261', '#2A9D8F', '#264653', '#E9C46A', '#457B9D']
+        for i, (pipe_id, temps_in) in enumerate(pipe_temps_supply_in.items()):
+            color = colors[i % len(colors)]
+            temps_out = pipe_temps_supply_out.get(pipe_id)
+
+            pipe_temp_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=temps_in,
+                mode='lines',
+                name=f'{pipe_id} VL ein',
+                line=dict(width=2, color=color),
+                legendgroup=pipe_id,
+                hovertemplate=f'<b>{pipe_id} Vorlauf Eintritt</b>: %{{y:.1f}}°C<extra></extra>'
+            ))
+            if temps_out is not None:
+                pipe_temp_fig.add_trace(go.Scatter(
+                    x=self.df['timestamp'],
+                    y=temps_out,
+                    mode='lines',
+                    name=f'{pipe_id} VL aus',
+                    line=dict(width=1, dash='dot', color=color),
+                    legendgroup=pipe_id,
+                    hovertemplate=f'<b>{pipe_id} Vorlauf Austritt</b>: %{{y:.1f}}°C<extra></extra>'
+                ))
+
+        # Add return temperatures (lighter, dashed)
+        for i, (pipe_id, temps_in) in enumerate(pipe_temps_return_in.items()):
+            color = colors[i % len(colors)]
+            temps_out = pipe_temps_return_out.get(pipe_id)
+
+            pipe_temp_fig.add_trace(go.Scatter(
+                x=self.df['timestamp'],
+                y=temps_in,
+                mode='lines',
+                name=f'{pipe_id} RL ein',
+                line=dict(width=1, dash='dash', color=color),
+                legendgroup=pipe_id,
+                opacity=0.6,
+                hovertemplate=f'<b>{pipe_id} Rücklauf Eintritt</b>: %{{y:.1f}}°C<extra></extra>'
+            ))
+            if temps_out is not None:
+                pipe_temp_fig.add_trace(go.Scatter(
+                    x=self.df['timestamp'],
+                    y=temps_out,
+                    mode='lines',
+                    name=f'{pipe_id} RL aus',
+                    line=dict(width=1, dash='dashdot', color=color),
+                    legendgroup=pipe_id,
+                    opacity=0.6,
+                    hovertemplate=f'<b>{pipe_id} Rücklauf Austritt</b>: %{{y:.1f}}°C<extra></extra>'
+                ))
+
+        pipe_temp_fig.update_layout(
+            height=400,
+            xaxis_title='Zeit',
+            yaxis_title='Temperatur [°C]',
+            hovermode='x unified',
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            title='Temperaturprofile pro Rohrleitung (Vor- und Rücklauf)'
+        )
+
+        has_pipe_temps = len(pipe_temps_supply_in) > 0 or len(pipe_temps_return_in) > 0
+
         # === HEAT LOSSES PER PIPE ===
         loss_fig = go.Figure()
 
@@ -3183,8 +3269,12 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             pn.Row(*kpi_cards, sizing_mode='stretch_width') if kpi_cards else pn.pane.Markdown("*Keine KPIs verfügbar*"),
             pn.layout.Divider(),
             pn.pane.Markdown("## 🌡️ Thermische Analyse"),
+            pn.pane.Markdown("### Knotentemperaturen"),
             pn.pane.Plotly(temp_fig, sizing_mode='stretch_width'),
+            pn.pane.Markdown("### Rohrtemperaturen (Ein-/Austritt)") if has_pipe_temps else pn.pane.Markdown(""),
+            pn.pane.Plotly(pipe_temp_fig, sizing_mode='stretch_width') if has_pipe_temps else pn.pane.Markdown("*Keine Rohr-Temperaturprofile verfügbar*"),
             pn.layout.Divider(),
+            pn.pane.Markdown("### Wärmeverluste"),
             pn.pane.Plotly(loss_fig, sizing_mode='stretch_width'),
             pn.layout.Divider(),
             pn.pane.Markdown("## 💧 Hydraulische Analyse"),

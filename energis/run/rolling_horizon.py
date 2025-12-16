@@ -1143,6 +1143,11 @@ def _collect_timeseries_and_summary(
                         series[f"NET_{pipe_id}_T_supply_in_C"] = pipe_data['T_supply_in_c']
                     if 'T_supply_out_c' in pipe_data and isinstance(pipe_data['T_supply_out_c'], list):
                         series[f"NET_{pipe_id}_T_supply_out_C"] = pipe_data['T_supply_out_c']
+                    # Return pipe temperatures (complete thermal profile)
+                    if 'T_return_in_c' in pipe_data and isinstance(pipe_data['T_return_in_c'], list):
+                        series[f"NET_{pipe_id}_T_return_in_C"] = pipe_data['T_return_in_c']
+                    if 'T_return_out_c' in pipe_data and isinstance(pipe_data['T_return_out_c'], list):
+                        series[f"NET_{pipe_id}_T_return_out_C"] = pipe_data['T_return_out_c']
                     if 'Q_loss_supply_kw' in pipe_data and isinstance(pipe_data['Q_loss_supply_kw'], list):
                         series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kw']
                     if 'Q_loss_return_kw' in pipe_data and isinstance(pipe_data['Q_loss_return_kw'], list):
