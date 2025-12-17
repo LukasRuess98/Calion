@@ -26,6 +26,7 @@ system_file: configs/systems/stadtbach.system.yaml
 thermal_network:
   enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
+  brownfield_mode: true
   
 # Run-Parameter mit Timeout
 run:
@@ -40,9 +41,9 @@ run:
 
 # Grid settings
 grid:
-  max_import_mw: 150
-  max_export_mw: 50
-  big_m_grid_mw: 200
+  max_import_mw: 1500
+  max_export_mw: 500
+  big_m_grid_mw: 2000
 
 # Cost settings
 costs:
