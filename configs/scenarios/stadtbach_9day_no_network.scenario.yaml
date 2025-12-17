@@ -32,6 +32,8 @@ thermal_network:
   brownfield_mode: true  # KRITISCH! Linearisiert bilineare Constraints für MILP-Solver
 >>>>>>> 12dd54754ddc117978579598c94f97d9117fd3cb
   
+  brownfield_mode: false
+
 # Run-Parameter mit Timeout
 run:
   dt_h: 1.0
