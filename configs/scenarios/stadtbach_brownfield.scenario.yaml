@@ -49,25 +49,24 @@ site:
 # Post-optimization: use NetworkManager.validate_hydraulics_post_optimization()
 # to check pipe limits after solving
 thermal_network:
+  enabled: false  # Enable for full thermal network modeling
   topology_file: configs/networks/stadtbach_brownfield.yaml
+  brownfield_mode: false
   allow_pipe_investment: false
   # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
   validation:
     max_velocity_m_s: 5
+    max_pressure_drop_bar: 10.0
 
 # Run parameters - use Gurobi (commercial, supports MILP)
 run:
   dt_h: 1.0
   solver: gurobi
   solver_options:
-    TimeLimit: 300  # 5 min timeout (Gurobi parameter)
     TimeLimit: 30000  # 5 min timeout (Gurobi parameter)
 
 # Grid settings
 grid:
-  max_import_mw: 15000
-  max_export_mw: 500
-  big_m_grid_mw: 20000
   max_import_mw: 150000
   max_export_mw: 5000
   big_m_grid_mw: 200000

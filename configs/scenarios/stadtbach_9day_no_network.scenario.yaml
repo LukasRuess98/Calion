@@ -16,7 +16,6 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-10 00:00"    # 9 Tage = 216h
     end: "2023-01-03 00:00"    # 9 Tage = 216h
     enforce: false
 
@@ -25,8 +24,6 @@ system_file: configs/systems/stadtbach.system.yaml
 
 # THERMAL NETWORK DEAKTIVIERT!
 thermal_network:
-  enabled: false
-
   enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
   
@@ -36,8 +33,6 @@ run:
   solver: gurobi
   solver_options:
     Threads: 8
-    MIPGap: 0.01
-    TimeLimit: 300           # 5 min Timeout
     MIPGap: 0.05
     TimeLimit: 30000           # 5 min Timeout
     MIPFocus: 1
