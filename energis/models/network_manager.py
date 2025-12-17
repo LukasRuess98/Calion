@@ -504,32 +504,20 @@ class NetworkManager:
 
             logger.info(f"  Network ΔT: {network_delta_t}K, {len(plant_outgoing_pipes)} plant pipes total")
 
-            # Constraint: Total heat entering network = total demand
-            # sum(m_dot * cp * delta_T) / 1000 = heatd (converting kW to MW)
-            def plant_network_balance_rule(m, t):
-                total_heat_input = sum(
-                    pipe_components[pid]['m_dot'][t] * cp_water * network_delta_t / 1000
-                    for pid in plant_outgoing_pipes
-                )
-                # Allow for network heat losses (up to 15% tolerance)
-                return total_heat_input >= m.heatd[t] * 1.0
+            # NOTE: Heat balance is handled by the main system_builder.py
+            # Adding a second heat balance here causes INFEASIBILITY due to:
+            # 1. Different measurement methods (component output vs pipe flow)
+            # 2. Heat losses not accounted for consistently
+            # 3. Conflicting upper/lower bounds
+            #
+            # The network flow constraints (mass balance, pipe physics) are sufficient
+            # to ensure physical consistency. The system-level heat balance ensures
+            # economic dispatch optimization.
+            #
+            # REMOVED: plant_network_heat_balance and plant_network_heat_upper constraints
+            # These were causing infeasibility conflicts with system_builder.py heat balance
 
-            setattr(model, 'plant_network_heat_balance',
-                    pyo.Constraint(time_set, rule=plant_network_balance_rule))
-
-            # Also add upper bound to prevent unbounded flows
-            def plant_network_upper_rule(m, t):
-                total_heat_input = sum(
-                    pipe_components[pid]['m_dot'][t] * cp_water * network_delta_t / 1000
-                    for pid in plant_outgoing_pipes
-                )
-                # Allow 20% extra for losses and operational margin
-                return total_heat_input <= m.heatd[t] * 1.20
-
-            setattr(model, 'plant_network_heat_upper',
-                    pyo.Constraint(time_set, rule=plant_network_upper_rule))
-
-            logger.info(f"  ✓ Plant-network balance constraint added")
+            logger.info(f"  ℹ Network heat linkage: relying on system-level heat balance (no redundant constraint)")
         else:
             logger.warning("  ⚠ No plant outgoing pipes or heatd not found - skipping linkage")
 

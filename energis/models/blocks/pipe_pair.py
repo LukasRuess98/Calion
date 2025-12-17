@@ -165,15 +165,26 @@ class PipePairBlock(BaseComponent):
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
                        bounds=(return_temp_min, return_temp_max)))
 
-        # Heat losses (MW)
+        # Heat losses (MW) - bounded to prevent unbounded solutions
+        # Max heat loss estimate: U × L × ΔT_max / 1e6
+        # Conservative bound: 5 MW per pipe (even for longest pipes)
+        max_heat_loss_mw = 5.0
         setattr(model, f'{prefix}_Q_loss_supply',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                       bounds=(0, max_heat_loss_mw)))
         setattr(model, f'{prefix}_Q_loss_return',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                       bounds=(0, max_heat_loss_mw)))
 
-        # Heat delivered (MW)
+        # Heat delivered (MW) - bounded by max pipe capacity
+        # Max heat: max_flow × cp × ΔT / 1000
+        cp_water = 4.186  # kJ/(kg·K)
+        delta_t_max = supply_temp_nominal_c - return_temp_nominal_c
+        max_heat_delivered_mw = max_flow * cp_water * delta_t_max / 1000 * 1.2  # 20% margin
+        max_heat_delivered_mw = max(max_heat_delivered_mw, 100.0)  # At least 100 MW
         setattr(model, f'{prefix}_Q_delivered',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                       bounds=(0, max_heat_delivered_mw)))
 
         # Investment variables (if upgrade enabled)
         if upgrade_enabled:
