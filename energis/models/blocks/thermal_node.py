@@ -199,10 +199,17 @@ class ThermalNodeBlock(BaseComponent):
 
                 setattr(model, f'{prefix}_temp_mixing',
                         pyo.Constraint(time_set, rule=single_temp_rule))
+            elif brownfield_mode:
+                # Brownfield: fix temperature at pipe outlet value (nominal - drop)
+                # For consumer nodes, this is the pipe supply out temperature (after losses)
+                # Using supply_temp - 1°C to match pipe_pair brownfield assumption
+                consumer_supply_temp = supply_temp_nominal_c - 1.0  # Match pipe T_supply_out
+                logger.info(f"    Node {node_id}: fixing supply temp to {consumer_supply_temp}°C (brownfield - matches pipe outlet)")
+                for t in time_set:
+                    T_supply[t].fix(consumer_supply_temp)
             else:
-                # Multiple pipes or brownfield: fix temperature at nominal value
-                # This avoids bilinear T*m_dot constraints that cause solver issues
-                logger.info(f"    Node {node_id}: fixing supply temp to {supply_temp_nominal_c}°C (brownfield/multi-pipe)")
+                # Multiple pipes, greenfield: fix at nominal (this creates bilinear constraints)
+                logger.info(f"    Node {node_id}: fixing supply temp to {supply_temp_nominal_c}°C (multi-pipe)")
                 for t in time_set:
                     T_supply[t].fix(supply_temp_nominal_c)
 
