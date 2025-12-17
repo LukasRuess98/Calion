@@ -22,7 +22,6 @@ scenario:
 # System-Konfiguration (standard ohne Netzwerk)
 system_file: configs/systems/stadtbach.system.yaml
 
-# THERMAL NETWORK DEAKTIVIERT!
 # THERMAL NETWORK AKTIVIERT mit Brownfield-Mode für MILP-Kompatibilität
 thermal_network:
   enabled: true
