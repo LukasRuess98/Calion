@@ -450,26 +450,36 @@ class NetworkManager:
 
                 else:
                     # Multiple return streams: weighted average by mass flow
-                    # T_return * sum(m_dot_i) = sum(T_return_out_i * m_dot_i)
-                    constraint_name = f"plant_{node_id}_return_temp_mixing"
+                    # Original: T_return * sum(m_dot_i) = sum(T_return_out_i * m_dot_i)
+                    # This is BILINEAR (T × m_dot) and causes MILP solver issues!
 
-                    def multi_return_rule(m, t):
-                        total_return_flow = 0
-                        weighted_temp = 0
+                    if brownfield_mode:
+                        # BROWNFIELD: Fix return temperature to nominal value
+                        # This avoids the bilinear constraint entirely
+                        logger.info(f"  ✓ {node_id} return temp fixed to {return_temp}°C (brownfield mode)")
+                        for t in time_set:
+                            node_T_return[t].fix(return_temp)
+                    else:
+                        # GREENFIELD: Use bilinear constraint (requires QP solver like Gurobi)
+                        constraint_name = f"plant_{node_id}_return_temp_mixing"
 
-                        for pipe_id in return_pipes:
-                            pipe_comp = pipe_components[pipe_id]
-                            pipe_m_dot = pipe_comp['m_dot']
-                            pipe_T_return_out = pipe_comp['T_return_out']
+                        def multi_return_rule(m, t):
+                            total_return_flow = 0
+                            weighted_temp = 0
 
-                            total_return_flow += pipe_m_dot[t]
-                            weighted_temp += pipe_T_return_out[t] * pipe_m_dot[t]
+                            for pipe_id in return_pipes:
+                                pipe_comp = pipe_components[pipe_id]
+                                pipe_m_dot = pipe_comp['m_dot']
+                                pipe_T_return_out = pipe_comp['T_return_out']
 
-                        # Weighted average: T_node * sum(m_dot) = sum(T_pipe * m_dot)
-                        return node_T_return[t] * total_return_flow == weighted_temp
+                                total_return_flow += pipe_m_dot[t]
+                                weighted_temp += pipe_T_return_out[t] * pipe_m_dot[t]
 
-                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=multi_return_rule))
-                    logger.info(f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes")
+                            # Weighted average: T_node * sum(m_dot) = sum(T_pipe * m_dot)
+                            return node_T_return[t] * total_return_flow == weighted_temp
+
+                        setattr(model, constraint_name, pyo.Constraint(time_set, rule=multi_return_rule))
+                        logger.info(f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes (BILINEAR - needs QP solver)")
 
         # ========================================
         # PHASE 5b: Plant-to-Network Heat Linkage
