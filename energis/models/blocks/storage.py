@@ -165,8 +165,18 @@ class StorageBlock(BaseComponent):
             cap_e.set_value(self.e_cap_init if self.e_cap_init > 0 else self.e_cap_min)
             cap_p.set_value(self.p_cap_init if self.p_cap_init > 0 else self.p_cap_min)
 
-        def ecap_hi(mm, t):
-            return E[t] <= cap_e * active[t]
+        # Big-M values for linearization of bilinear terms
+        M_energy = self.e_cap_max
+        M_power = self.p_cap_max
+
+        # Linearized energy capacity constraint
+        # Original: E[t] <= cap_e * active[t]  (bilinear when investable)
+        # Linearized: E[t] <= cap_e  AND  E[t] <= M * active[t]
+        def ecap_hi_1(mm, t):
+            return E[t] <= cap_e
+
+        def ecap_hi_2(mm, t):
+            return E[t] <= M_energy * active[t]
 
         def ecap_lo(mm, t):
             return E[t] >= mm.__getattribute__(f"{comp}_Emin") * active[t]
@@ -174,17 +184,31 @@ class StorageBlock(BaseComponent):
         def emax_hi(mm, t):
             return E[t] <= mm.__getattribute__(f"{comp}_Emax") * active[t]
 
-        def pcap_c(mm, t):
-            return Qc[t] <= cap_p * charge_mode[t]
+        # Linearized power capacity constraints
+        # Original: Qc[t] <= cap_p * charge_mode[t]  (bilinear when investable)
+        # Linearized: Qc[t] <= cap_p  AND  Qc[t] <= M * charge_mode[t]
+        def pcap_c_1(mm, t):
+            return Qc[t] <= cap_p
 
-        def pcap_d(mm, t):
-            return Qd[t] <= cap_p * discharge_mode[t]
+        def pcap_c_2(mm, t):
+            return Qc[t] <= M_power * charge_mode[t]
 
-        setattr(m, f"{comp}_ecap_hi", pyo.Constraint(Tset, rule=ecap_hi))
+        # Original: Qd[t] <= cap_p * discharge_mode[t]  (bilinear when investable)
+        # Linearized: Qd[t] <= cap_p  AND  Qd[t] <= M * discharge_mode[t]
+        def pcap_d_1(mm, t):
+            return Qd[t] <= cap_p
+
+        def pcap_d_2(mm, t):
+            return Qd[t] <= M_power * discharge_mode[t]
+
+        setattr(m, f"{comp}_ecap_hi", pyo.Constraint(Tset, rule=ecap_hi_1))
+        setattr(m, f"{comp}_ecap_hi_active", pyo.Constraint(Tset, rule=ecap_hi_2))
         setattr(m, f"{comp}_ecap_lo", pyo.Constraint(Tset, rule=ecap_lo))
         setattr(m, f"{comp}_emax_hi", pyo.Constraint(Tset, rule=emax_hi))
-        setattr(m, f"{comp}_pcap_c", pyo.Constraint(Tset, rule=pcap_c))
-        setattr(m, f"{comp}_pcap_d", pyo.Constraint(Tset, rule=pcap_d))
+        setattr(m, f"{comp}_pcap_c", pyo.Constraint(Tset, rule=pcap_c_1))
+        setattr(m, f"{comp}_pcap_c_mode", pyo.Constraint(Tset, rule=pcap_c_2))
+        setattr(m, f"{comp}_pcap_d", pyo.Constraint(Tset, rule=pcap_d_1))
+        setattr(m, f"{comp}_pcap_d_mode", pyo.Constraint(Tset, rule=pcap_d_2))
 
         def active_build(mm, t):
             return active[t] <= build
