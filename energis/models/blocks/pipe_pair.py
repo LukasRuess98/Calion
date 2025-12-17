@@ -178,9 +178,10 @@ class PipePairBlock(BaseComponent):
 
         # Heat delivered (MW) - bounded by max pipe capacity
         # Max heat: max_flow × cp × ΔT / 1000
-        cp_water = 4.186  # kJ/(kg·K)
+        # Use conservative upper bound (500 kg/s max flow * 40K delta_T)
         delta_t_max = supply_temp_nominal_c - return_temp_nominal_c
-        max_heat_delivered_mw = max_flow * cp_water * delta_t_max / 1000 * 1.2  # 20% margin
+        max_flow_estimate = 500.0  # kg/s - will be refined later based on diameter
+        max_heat_delivered_mw = max_flow_estimate * cp_water * delta_t_max / 1000 * 1.2  # 20% margin
         max_heat_delivered_mw = max(max_heat_delivered_mw, 100.0)  # At least 100 MW
         setattr(model, f'{prefix}_Q_delivered',
                 pyo.Var(time_set, domain=pyo.NonNegativeReals,
@@ -247,69 +248,77 @@ class PipePairBlock(BaseComponent):
         # (2) Heat loss calculation (supply pipe)
         # Q_loss = U * Length * (T_avg - T_ground)
         # where T_avg = (T_in + T_out) / 2
+        #
+        # NOTE: In brownfield mode, we SKIP these constraints!
+        # Reason: With fixed temperatures, both heat_loss and temp_drop constraints
+        # would overdetermine the system (inconsistent m_dot values).
+        # Instead, we let Q_loss be determined by the temp_drop constraints alone.
 
-        def heat_loss_supply_rule(m, t):
-            # Get effective U-value
-            if upgrade_enabled:
-                insulation_choice = getattr(m, f'{prefix}_insulation_choice')
-                u_eff = 0
-                for insul_type in insulation_options:
-                    if insul_type == 'standard':
-                        u_val = u_value_supply
-                    elif insul_type == 'enhanced':
-                        u_val = upgrade_config.get('enhanced_u_value', 0.18)
-                    else:
-                        u_val = u_value_supply
-                    u_eff += insulation_choice[insul_type] * u_val
-            else:
-                u_eff = u_value_supply
+        if not brownfield_mode:
+            def heat_loss_supply_rule(m, t):
+                # Get effective U-value
+                if upgrade_enabled:
+                    insulation_choice = getattr(m, f'{prefix}_insulation_choice')
+                    u_eff = 0
+                    for insul_type in insulation_options:
+                        if insul_type == 'standard':
+                            u_val = u_value_supply
+                        elif insul_type == 'enhanced':
+                            u_val = upgrade_config.get('enhanced_u_value', 0.18)
+                        else:
+                            u_val = u_value_supply
+                        u_eff += insulation_choice[insul_type] * u_val
+                else:
+                    u_eff = u_value_supply
 
-            # Average temperature in pipe
-            T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
+                # Average temperature in pipe
+                T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
 
-            # Temperature difference to ground
-            delta_T = T_avg - T_ground[t]
+                # Temperature difference to ground
+                delta_T = T_avg - T_ground[t]
 
-            # Heat loss in MW: (W/(m·K)) * m * K / 1e6
-            q_loss_mw = (u_eff * length_m * delta_T) / 1e6
+                # Heat loss in MW: (W/(m·K)) * m * K / 1e6
+                q_loss_mw = (u_eff * length_m * delta_T) / 1e6
 
-            return Q_loss_supply[t] == q_loss_mw
+                return Q_loss_supply[t] == q_loss_mw
 
-        setattr(model, f'{prefix}_heat_loss_supply',
-                pyo.Constraint(time_set, rule=heat_loss_supply_rule))
+            setattr(model, f'{prefix}_heat_loss_supply',
+                    pyo.Constraint(time_set, rule=heat_loss_supply_rule))
 
-        # (3) Heat loss calculation (return pipe)
-        def heat_loss_return_rule(m, t):
-            # Get effective U-value
-            if upgrade_enabled:
-                insulation_choice = getattr(m, f'{prefix}_insulation_choice')
-                u_eff = 0
-                for insul_type in insulation_options:
-                    if insul_type == 'standard':
-                        u_val = u_value_return
-                    elif insul_type == 'enhanced':
-                        u_val = upgrade_config.get('enhanced_u_value', 0.20)
-                    else:
-                        u_val = u_value_return
-                    u_eff += insulation_choice[insul_type] * u_val
-            else:
-                u_eff = u_value_return
+            # (3) Heat loss calculation (return pipe)
+            def heat_loss_return_rule(m, t):
+                # Get effective U-value
+                if upgrade_enabled:
+                    insulation_choice = getattr(m, f'{prefix}_insulation_choice')
+                    u_eff = 0
+                    for insul_type in insulation_options:
+                        if insul_type == 'standard':
+                            u_val = u_value_return
+                        elif insul_type == 'enhanced':
+                            u_val = upgrade_config.get('enhanced_u_value', 0.20)
+                        else:
+                            u_val = u_value_return
+                        u_eff += insulation_choice[insul_type] * u_val
+                else:
+                    u_eff = u_value_return
 
-            # Average temperature in return pipe
-            T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
+                # Average temperature in return pipe
+                T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
 
-            # Temperature difference (can be negative if return < ground)
-            delta_T = T_avg - T_ground[t]
+                # Temperature difference (can be negative if return < ground)
+                delta_T = T_avg - T_ground[t]
 
-            # Heat loss/gain in MW
-            # Note: If delta_T < 0, this becomes negative (heat gain)
-            # For simplicity in Phase 1, we assume T_return > T_ground always
-            q_loss_mw = (u_eff * length_m * delta_T) / 1e6
+                # Heat loss/gain in MW
+                # Note: If delta_T < 0, this becomes negative (heat gain)
+                # For simplicity in Phase 1, we assume T_return > T_ground always
+                q_loss_mw = (u_eff * length_m * delta_T) / 1e6
 
-            return Q_loss_return[t] == q_loss_mw
+                return Q_loss_return[t] == q_loss_mw
 
-        setattr(model, f'{prefix}_heat_loss_return',
-                pyo.Constraint(time_set, rule=heat_loss_return_rule))
+            setattr(model, f'{prefix}_heat_loss_return',
+                    pyo.Constraint(time_set, rule=heat_loss_return_rule))
+        else:
+            logger.info(f"    {pipe_id}: Brownfield mode - skipping heat loss calc constraints (using temp drop only)")
 
         # (4) Temperature drop in supply pipe
         # Energy balance: m_dot * c_p * (T_in - T_out) = Q_loss

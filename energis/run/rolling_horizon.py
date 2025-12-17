@@ -2101,16 +2101,52 @@ def _solve_scenario(
     }
     if model is not None and HAVE_PYOMO:
         solver_used = solver_name
+        opt = None
+
+        # Try to create requested solver
         try:
             opt = pyo.SolverFactory(solver_name)
-        except Exception:  # pragma: no cover - solver fallback
+            # Check if solver is actually available (not just factory success)
+            if not opt.available():
+                logger.warning(f"Solver '{solver_name}' factory created but not available. Falling back to GLPK.")
+                opt = None
+        except Exception as e:
+            logger.warning(f"Failed to create solver '{solver_name}': {e}. Falling back to GLPK.")
+            opt = None
+
+        # Fallback to GLPK if needed
+        if opt is None:
             solver_used = "glpk"
             opt = pyo.SolverFactory("glpk")
+            logger.info(f"Using fallback solver: GLPK")
+            print(f"[SOLVER] Using GLPK (fallback) - check if Gurobi is installed and licensed!")
+        else:
+            logger.info(f"Using solver: {solver_used}")
+            print(f"[SOLVER] Using {solver_used}")
 
-        # Apply solver options if configured (CRITICAL FIX: prevents infinite runtime)
+        # Apply solver options based on which solver is being used
         run_cfg = cfg.get("run", {})
         solver_options = run_cfg.get("solver_options", {})
-        if solver_options:
+
+        # Map options to correct parameter names for different solvers
+        if solver_used.lower() in ["glpk"]:
+            # GLPK uses different parameter names
+            glpk_options = {}
+            if "TimeLimit" in solver_options:
+                glpk_options["tmlim"] = solver_options["TimeLimit"]
+            if "MIPGap" in solver_options:
+                glpk_options["mipgap"] = solver_options["MIPGap"]
+            # Apply GLPK-specific options
+            for key, value in glpk_options.items():
+                opt.options[key] = value
+            logger.info(f"Applied GLPK solver options: {glpk_options}")
+        elif solver_used.lower() in ["gurobi", "gurobi_direct"]:
+            # Gurobi uses native option names
+            for key, value in solver_options.items():
+                opt.options[key] = value
+            logger.debug(f"Applied Gurobi solver options: {solver_options}")
+        else:
+            # Other solvers - try to apply options directly
             for key, value in solver_options.items():
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
