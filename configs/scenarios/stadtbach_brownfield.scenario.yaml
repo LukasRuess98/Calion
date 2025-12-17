@@ -58,12 +58,12 @@ thermal_network:
     max_velocity_m_s: 5
     max_pressure_drop_bar: 5.0
 
-# Run parameters - use GLPK (open-source)
+# Run parameters - use Gurobi (commercial, supports MILP)
 run:
   dt_h: 1.0
-  solver: glpk
+  solver: gurobi
   solver_options:
-    tmlim: 300  # 5 min timeout
+    TimeLimit: 300  # 5 min timeout (Gurobi parameter)
 
 # Grid settings
 grid:
