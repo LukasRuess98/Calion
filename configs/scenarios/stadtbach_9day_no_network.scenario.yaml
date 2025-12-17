@@ -23,10 +23,15 @@ scenario:
 system_file: configs/systems/stadtbach.system.yaml
 
 # THERMAL NETWORK DEAKTIVIERT!
+# THERMAL NETWORK AKTIVIERT mit Brownfield-Mode für MILP-Kompatibilität
 thermal_network:
   enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
+<<<<<<< HEAD
   brownfield_mode: true
+=======
+  brownfield_mode: true  # KRITISCH! Linearisiert bilineare Constraints für MILP-Solver
+>>>>>>> 12dd54754ddc117978579598c94f97d9117fd3cb
   
 # Run-Parameter mit Timeout
 run:
