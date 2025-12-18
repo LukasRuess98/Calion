@@ -16,7 +16,7 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-10 00:00"  # 9 days
+    end: "2023-12-31 00:00"  # 9 days
     enforce: false
 
 # System with FIXED capacities
@@ -49,7 +49,7 @@ run:
     # Speed-focused settings
     Threads: 0              # Use all available cores
     MIPGap: 0.02            # 2% gap (faster than 1%)
-    TimeLimit: 300          # 5 min max
+    TimeLimit: 30000          # 5 min max
     MIPFocus: 1             # Focus on feasibility first
     Method: 2               # Barrier method
     Presolve: 2             # Aggressive presolve
@@ -58,8 +58,8 @@ run:
 
 # REALISTIC Grid settings (not 150 GW!)
 grid:
-  max_import_mw: 200        # 200 MW realistic
-  max_export_mw: 50
+  max_import_mw: 2000        # 200 MW realistic
+  max_export_mw: 500
   big_m_grid_mw: 500        # Small Big-M = faster numerics
 
 # Cost settings

@@ -16,7 +16,7 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-03 00:00"    # 9 Tage = 216h
+    end: "2023-07-01 00:00"    # 9 Tage = 216h
     enforce: false
 
 # System-Konfiguration (standard ohne Netzwerk)
