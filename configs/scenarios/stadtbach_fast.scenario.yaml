@@ -9,7 +9,7 @@ scenario:
   run_mode: PF_ONLY
   workflow:
     - PF
-  fix_design: true  # Fixed design = no capacity decisions
+  fix_design: false  # Fixed design = no capacity decisions
   title: "Stadtbach_FAST"
   tag: "stadtbach-fast-operational"
 

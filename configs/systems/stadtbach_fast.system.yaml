@@ -11,7 +11,7 @@ system:
     max_th_mw: 50.0
     min_th_mw: 5.0
     investment:
-      enabled: false  # CRITICAL: Disables Big-M linearization
+      enabled: ture  # CRITICAL: Disables Big-M linearization
 
   # Heat Pumps - all with FIXED capacities
   heat_pumps:
@@ -21,7 +21,7 @@ system:
       wrg_source_column: WRG1_T_K
       wrg_capacity_column: WRG1_Q_cap
       investment:
-        enabled: false  # NO Big-M needed
+        enabled: true  # NO Big-M needed
         initial_capacity_mw: 100.0  # Fixed capacity (correct key name)
 
     - id: HP2
@@ -30,7 +30,7 @@ system:
       wrg_source_column: WRG2_T_K
       wrg_capacity_column: WRG2_Q_cap
       investment:
-        enabled: false
+        enabled: true
         initial_capacity_mw: 100.0
 
     - id: HP3
@@ -39,7 +39,7 @@ system:
       wrg_source_column: WRG3_T_K
       wrg_capacity_column: WRG3_Q_cap
       investment:
-        enabled: false
+        enabled: true
         initial_capacity_mw: 100.0
 
     - id: HP4
@@ -48,7 +48,7 @@ system:
       wrg_source_column: WRG4_T_K
       wrg_capacity_column: WRG4_Q_cap
       investment:
-        enabled: false
+        enabled: true
         initial_capacity_mw: 100.0
 
   # Storage - FIXED capacity (3 constraints/timestep instead of 8)
@@ -59,7 +59,7 @@ system:
     max_power_mw: 100.0
     soc0_mwh: 500.0  # Start at 50%
     investment:
-      enabled: false  # CRITICAL: Reduces constraints by ~60%
+      enabled: true  # CRITICAL: Reduces constraints by ~60%
       initial_energy_capacity_mwh: 1000.0  # Correct key name
       initial_power_capacity_mw: 100.0      # Correct key name
 
