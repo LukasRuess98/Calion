@@ -1,6 +1,5 @@
-# Stadtbach FAST Scenario - Optimized for Speed
-# Uses stadtbach_fast.system.yaml with fixed capacities
-# Expected: 5-10x faster than investment mode
+# Stadtbach Scenario - WITH Investment
+# Uses stadtbach_fast.system.yaml with investment enabled
 # Usage: python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/stadtbach_fast.system.yaml configs/scenarios/stadtbach_fast.scenario.yaml
 
 data_file: Import_Data.xlsx
@@ -9,17 +8,17 @@ scenario:
   run_mode: PF_ONLY
   workflow:
     - PF
-  fix_design: false  # Fixed design = no capacity decisions
-  title: "Stadtbach_FAST"
-  tag: "stadtbach-fast-operational"
+  fix_design: false  # Allow capacity decisions
+  title: "Stadtbach_Investment"
+  tag: "stadtbach-investment"
 
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-12-31 00:00"  # 9 days
+    end: "2023-12-31 00:00"
     enforce: false
 
-# System with FIXED capacities
+# System with Investment enabled
 system_file: configs/systems/stadtbach_fast.system.yaml
 
 # Site config
@@ -37,34 +36,35 @@ site:
       - CO2_consumption_based
       - co2
 
-# THERMAL NETWORK - Disabled for fast testing
+# THERMAL NETWORK - Disabled
 thermal_network:
   enabled: false
 
-# OPTIMIZED Run parameters
+# Run parameters
 run:
   dt_h: 1.0
   solver: gurobi
   solver_options:
-    # Speed-focused settings
-    Threads: 0              # Use all available cores
-    MIPGap: 0.02            # 2% gap (faster than 1%)
-    TimeLimit: 30000          # 5 min max
-    MIPFocus: 1             # Focus on feasibility first
-    Method: 2               # Barrier method
-    Presolve: 2             # Aggressive presolve
-    Heuristics: 0.2         # More heuristics = faster feasible solutions
+    Threads: 0
+    MIPGap: 0.02
+    TimeLimit: 30000
+    MIPFocus: 1
+    Method: 2
+    Presolve: 2
+    Heuristics: 0.2
     LogToConsole: 1
 
-# REALISTIC Grid settings (not 150 GW!)
+# Grid settings
 grid:
-  max_import_mw: 2000        # 200 MW realistic
+  max_import_mw: 2000
   max_export_mw: 500
-  big_m_grid_mw: 500        # Small Big-M = faster numerics
+  big_m_grid_mw: 500
 
-# Cost settings
+# Cost settings - ALL CAPEX ENABLED
 costs:
   dump_cost_eur_per_mwh_th: 10.0
   co2_price_eur_per_t: 100.0
   include_co2_cost_in_objective: true
-  include_capex_costs: false  # No CAPEX when not investing
+  include_capex_costs: true       # Include CAPEX in objective
+  include_activation_costs: true   # Include activation costs
+  include_tie_breaker_costs: true  # Include tie breaker for solver stability
