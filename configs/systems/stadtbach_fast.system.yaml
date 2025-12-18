@@ -1,0 +1,88 @@
+# Stadtbach FAST System Configuration
+# Optimized for SPEED - minimal binary variables, no unnecessary investment
+# Use this for quick tests and operational planning (not capacity expansion)
+# Date: 2025-12-17
+
+system:
+  # Heat pump defaults - FIXED capacities (no investment = faster)
+  heat_pump_defaults:
+    enabled: true
+    type: standard
+    max_th_mw: 50.0
+    min_th_mw: 5.0
+    investment:
+      enabled: false  # CRITICAL: Disables Big-M linearization
+
+  # Heat Pumps - all with FIXED capacities
+  heat_pumps:
+    - id: HP1
+      enabled: true
+      max_th_mw: 100.0
+      init_th_mw: 100.0  # Fixed at max
+      wrg_source_column: WRG1_T_K
+      wrg_capacity_column: WRG1_Q_cap
+      investment:
+        enabled: false  # NO Big-M needed
+
+    - id: HP2
+      enabled: true
+      max_th_mw: 100.0
+      init_th_mw: 100.0
+      wrg_source_column: WRG2_T_K
+      wrg_capacity_column: WRG2_Q_cap
+      investment:
+        enabled: false
+
+    - id: HP3
+      enabled: true
+      max_th_mw: 100.0
+      init_th_mw: 100.0
+      wrg_source_column: WRG3_T_K
+      wrg_capacity_column: WRG3_Q_cap
+      investment:
+        enabled: false
+
+    - id: HP4
+      enabled: true
+      max_th_mw: 100.0
+      init_th_mw: 100.0
+      wrg_source_column: WRG4_T_K
+      wrg_capacity_column: WRG4_Q_cap
+      investment:
+        enabled: false
+
+  # Storage - FIXED capacity (3 constraints/timestep instead of 8)
+  storage:
+    enabled: true
+    min_energy_mwh: 50.0
+    max_energy_mwh: 1000.0  # Realistic
+    max_power_mw: 100.0
+    soc0_mwh: 500.0  # Start at 50%
+    investment:
+      enabled: false  # CRITICAL: Reduces constraints by ~60%
+      energy_capacity_init_mwh: 1000.0
+      power_capacity_init_mw: 100.0
+
+  # Generators - all fixed (brownfield)
+  generators:
+    hkw:
+      enabled: true
+      cap_th_mw: 75.0
+    gtost:
+      enabled: true
+      cap_th_mw: 41.3
+    p2h:
+      enabled: true
+      cap_th_mw: 10.0
+    bmhkw:
+      enabled: true
+      cap_th_mw: 15.0
+    hws:
+      enabled: true
+      cap_th_mw: 45.0
+    hww:
+      enabled: true
+      cap_th_mw: 45.0
+    ava:
+      enabled: true
+      cap_th_mw: 45.0

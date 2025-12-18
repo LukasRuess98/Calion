@@ -65,11 +65,11 @@ run:
   solver_options:
     TimeLimit: 30000  # 5 min timeout (Gurobi parameter)
 
-# Grid settings
+# Grid settings - REALISTIC values for numerical stability
 grid:
-  max_import_mw: 150000
-  max_export_mw: 5000
-  big_m_grid_mw: 200000
+  max_import_mw: 200        # 200 MW (not 150 GW!)
+  max_export_mw: 50
+  big_m_grid_mw: 500        # Small Big-M = better numerics
 
 # Cost settings
 costs:

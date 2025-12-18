@@ -1,0 +1,70 @@
+# Stadtbach FAST Scenario - Optimized for Speed
+# Uses stadtbach_fast.system.yaml with fixed capacities
+# Expected: 5-10x faster than investment mode
+# Usage: python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/stadtbach_fast.system.yaml configs/scenarios/stadtbach_fast.scenario.yaml
+
+data_file: Import_Data.xlsx
+
+scenario:
+  run_mode: PF_ONLY
+  workflow:
+    - PF
+  fix_design: true  # Fixed design = no capacity decisions
+  title: "Stadtbach_FAST"
+  tag: "stadtbach-fast-operational"
+
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-01-10 00:00"  # 9 days
+    enforce: false
+
+# System with FIXED capacities
+system_file: configs/systems/stadtbach_fast.system.yaml
+
+# Site config
+site:
+  input_file: Import_Data.xlsx
+  year_target: 2023
+  columns:
+    price_candidates:
+      - Day_Ahead_Price
+      - strompreis
+    heat_candidates:
+      - Waermebedarf_MW
+      - waermebedarf
+    co2_candidates:
+      - CO2_consumption_based
+      - co2
+
+# THERMAL NETWORK - Disabled for fast testing
+thermal_network:
+  enabled: false
+
+# OPTIMIZED Run parameters
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    # Speed-focused settings
+    Threads: 0              # Use all available cores
+    MIPGap: 0.02            # 2% gap (faster than 1%)
+    TimeLimit: 300          # 5 min max
+    MIPFocus: 1             # Focus on feasibility first
+    Method: 2               # Barrier method
+    Presolve: 2             # Aggressive presolve
+    Heuristics: 0.2         # More heuristics = faster feasible solutions
+    LogToConsole: 1
+
+# REALISTIC Grid settings (not 150 GW!)
+grid:
+  max_import_mw: 200        # 200 MW realistic
+  max_export_mw: 50
+  big_m_grid_mw: 500        # Small Big-M = faster numerics
+
+# Cost settings
+costs:
+  dump_cost_eur_per_mwh_th: 10.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true
+  include_capex_costs: false  # No CAPEX when not investing
