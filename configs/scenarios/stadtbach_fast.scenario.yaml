@@ -8,14 +8,14 @@ scenario:
   run_mode: PF_ONLY
   workflow:
     - PF
-  fix_design: false  # Allow capacity decisions
+  fix_design: true  # Allow capacity decisions
   title: "Stadtbach_Investment"
   tag: "stadtbach-investment"
 
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-12-31 00:00"
+    end: "2023-01-30 00:00"
     enforce: false
 
 # System with Investment enabled
@@ -38,7 +38,14 @@ site:
 
 # THERMAL NETWORK - Disabled
 thermal_network:
-  enabled: false
+  enabled: ture 
+  topology_file: configs/networks/stadtbach_network.yaml
+  brownfield_mode: true
+  allow_pipe_investment: false
+  # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
+  validation:
+    max_velocity_m_s: 5
+    max_pressure_drop_bar: 10.0
 
 # Run parameters
 run:
@@ -65,6 +72,6 @@ costs:
   dump_cost_eur_per_mwh_th: 10.0
   co2_price_eur_per_t: 100.0
   include_co2_cost_in_objective: true
-  include_capex_costs: true       # Include CAPEX in objective
+  include_capex_costs: false       # Include CAPEX in objective
   include_activation_costs: true   # Include activation costs
   include_tie_breaker_costs: true  # Include tie breaker for solver stability
