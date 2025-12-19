@@ -906,7 +906,11 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     # Heat balance: When thermal network is enabled, use relaxed constraints
     # The network handles heat distribution via pipe flow constraints
-    thermal_network_enabled = cfg.get('thermal_network', {}).get('enabled', False)
+    thermal_network_cfg = cfg.get('thermal_network', {})
+    thermal_network_enabled = thermal_network_cfg.get('enabled', False)
+
+    # Debug output to diagnose config issues
+    print(f"[BUILD] thermal_network config: enabled={thermal_network_enabled}, cfg={thermal_network_cfg}")
 
     if thermal_network_enabled:
         print(f"[BUILD] Thermal network enabled - using relaxed heat balance (network handles distribution)")

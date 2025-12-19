@@ -61,7 +61,7 @@ system:
   # Storage - Investment enabled
   storage:
     enabled: true
-    min_energy_mwh: 50.0
+    min_energy_mwh: 0.0  # Allow empty storage (important for first timestep with soc0=0)
     max_energy_mwh: 5000.0
     max_power_mw: 200.0
     soc0_mwh: 0.0  # Start empty
