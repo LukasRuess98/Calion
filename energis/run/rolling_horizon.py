@@ -1186,6 +1186,44 @@ def _collect_timeseries_and_summary(
                 network_summary["Number_of_nodes"] = len(network_results.get('nodes', {}))
                 network_summary["Number_of_pipes"] = len(network_results.get('pipes', {}))
 
+                # Investment/CAPEX data from model
+                if hasattr(model, 'network_total_pipe_capex'):
+                    total_capex = model.network_total_pipe_capex
+                    if hasattr(total_capex, '__float__'):
+                        network_summary["Total_pipe_CAPEX_EUR"] = float(total_capex)
+                    else:
+                        try:
+                            network_summary["Total_pipe_CAPEX_EUR"] = float(pyo.value(total_capex))
+                        except:
+                            network_summary["Total_pipe_CAPEX_EUR"] = float(total_capex)
+
+                # Per-pipe CAPEX
+                if hasattr(model, 'pipe_capex_costs') and model.pipe_capex_costs:
+                    pipe_capex_summary = OrderedDict()
+                    for pipe_id, capex in model.pipe_capex_costs.items():
+                        try:
+                            capex_val = float(pyo.value(capex)) if hasattr(capex, 'is_expression_type') else float(capex)
+                            if capex_val > 0:
+                                pipe_capex_summary[pipe_id] = capex_val
+                        except:
+                            pass
+                    if pipe_capex_summary:
+                        network_summary["Pipe_CAPEX_per_pipe_EUR"] = pipe_capex_summary
+
+                # Pipe investment decisions (upgrade recommendations)
+                pipe_investments = []
+                if 'pipes' in network_results:
+                    for pipe_id, pipe_data in network_results['pipes'].items():
+                        if pipe_data.get('upgrade_recommended', False):
+                            pipe_investments.append({
+                                'pipe_id': pipe_id,
+                                'current_diameter_mm': pipe_data.get('current_diameter_mm'),
+                                'selected_diameter_mm': pipe_data.get('selected_diameter_mm'),
+                                'action': 'upgrade'
+                            })
+                if pipe_investments:
+                    network_summary["Pipe_investments"] = pipe_investments
+
                 if network_summary:
                     summary_sections["thermal_network"] = network_summary
 
@@ -2567,8 +2605,30 @@ def export_workflow_results(
                 writer = csv.writer(f)
                 writer.writerow(['Metric', 'Value'])
                 for key, value in result_obj.summary['thermal_network'].items():
-                    writer.writerow([key, value])
+                    # Convert nested dicts/lists to JSON for CSV export
+                    if isinstance(value, (dict, list)):
+                        writer.writerow([key, json.dumps(value, ensure_ascii=False)])
+                    else:
+                        writer.writerow([key, value])
             logger.info(f"✓ Exported thermal network summary: {network_summary_csv}")
+
+            # Also export investment details as separate JSON for easier access
+            thermal_summary = result_obj.summary['thermal_network']
+            if (thermal_summary.get('Total_pipe_CAPEX_EUR', 0) > 0 or
+                thermal_summary.get('Pipe_investments') or
+                thermal_summary.get('Pipe_CAPEX_per_pipe_EUR')):
+                network_investment_json = os.path.join(outdir, f"{prefix}_network_investment.json")
+                investment_data = {
+                    'total_capex_eur': thermal_summary.get('Total_pipe_CAPEX_EUR', 0),
+                    'pipe_capex_eur': thermal_summary.get('Pipe_CAPEX_per_pipe_EUR', {}),
+                    'pipe_investments': thermal_summary.get('Pipe_investments', []),
+                    'total_heat_loss_mwh': thermal_summary.get('Total_heat_loss_MWh', 0),
+                    'number_of_pipes': thermal_summary.get('Number_of_pipes', 0),
+                    'number_of_nodes': thermal_summary.get('Number_of_nodes', 0),
+                }
+                with open(network_investment_json, 'w', encoding='utf-8') as f:
+                    json.dump(investment_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"✓ Exported network investment details: {network_investment_json}")
 
     # Export network results for each workflow type
     if has_pf and workflow.pf_result:

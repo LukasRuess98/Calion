@@ -2896,6 +2896,36 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 )
             )
 
+            # Total Network CAPEX (Investment)
+            total_capex = self.network_summary.get('Total_pipe_CAPEX_EUR', 0)
+            if total_capex > 0:
+                kpi_cards.append(
+                    pn.Card(
+                        pn.pane.Markdown(
+                            f"## {total_capex:,.0f} €\n"
+                            f"**Netzwerk-CAPEX** (annualisiert)",
+                            styles={'text-align': 'center'}
+                        ),
+                        styles={'background': '#fff3e0', 'padding': '15px'},
+                        margin=5
+                    )
+                )
+
+            # Pipe investment count
+            pipe_investments = self.network_summary.get('Pipe_investments', [])
+            if pipe_investments:
+                kpi_cards.append(
+                    pn.Card(
+                        pn.pane.Markdown(
+                            f"## {len(pipe_investments)} Rohre\n"
+                            f"**Upgrade empfohlen**",
+                            styles={'text-align': 'center'}
+                        ),
+                        styles={'background': '#fce4ec', 'padding': '15px'},
+                        margin=5
+                    )
+                )
+
         # === TEMPERATURE PROFILES ===
         temp_fig = go.Figure()
 
@@ -3258,6 +3288,60 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 loss_percent = (loss_mwh / total_loss_mwh) * 100 if total_loss_mwh > 0 else 0
                 stats_md += f"- **{pipe_id}**: {loss_mwh:.2f} MWh ({loss_percent:.1f}% der Gesamtverluste)\n"
 
+        # === INVESTMENT SECTION ===
+        investment_md = "## 💰 Netzwerk-Investitionen\n\n"
+        has_investment_data = False
+
+        if self.network_summary:
+            total_capex = self.network_summary.get('Total_pipe_CAPEX_EUR', 0)
+            pipe_investments = self.network_summary.get('Pipe_investments', [])
+            pipe_capex_dict = self.network_summary.get('Pipe_CAPEX_per_pipe_EUR', {})
+
+            if total_capex > 0 or pipe_investments or pipe_capex_dict:
+                has_investment_data = True
+
+                investment_md += "### Gesamt-CAPEX\n\n"
+                investment_md += f"- **Gesamte Netzwerk-CAPEX (annualisiert)**: {total_capex:,.0f} €\n\n"
+
+                # Per-pipe CAPEX table
+                if pipe_capex_dict:
+                    investment_md += "### CAPEX pro Rohrleitung\n\n"
+                    investment_md += "| Rohrleitung | Annualisierte CAPEX [€] |\n"
+                    investment_md += "|-------------|------------------------|\n"
+                    for pipe_id, capex in sorted(pipe_capex_dict.items(), key=lambda x: x[1], reverse=True):
+                        investment_md += f"| {pipe_id} | {capex:,.0f} |\n"
+                    investment_md += "\n"
+
+                # Pipe upgrade recommendations
+                if pipe_investments:
+                    investment_md += "### Empfohlene Rohr-Upgrades\n\n"
+                    investment_md += "| Rohrleitung | Aktueller Ø [mm] | Empfohlener Ø [mm] | Aktion |\n"
+                    investment_md += "|-------------|------------------|--------------------|---------|\n"
+                    for inv in pipe_investments:
+                        pipe_id = inv.get('pipe_id', 'N/A')
+                        current_d = inv.get('current_diameter_mm', 'N/A')
+                        selected_d = inv.get('selected_diameter_mm', 'N/A')
+                        action = inv.get('action', 'upgrade')
+                        investment_md += f"| {pipe_id} | {current_d} | {selected_d} | {action} |\n"
+                    investment_md += "\n"
+
+                    investment_md += "### Investitionshinweise\n\n"
+                    investment_md += "Die empfohlenen Upgrades basieren auf der Optimierung von:\n"
+                    investment_md += "- Hydraulischen Verlusten (Druckverlust)\n"
+                    investment_md += "- Thermischen Verlusten (Wärmeverlust durch Rohrisolierung)\n"
+                    investment_md += "- Kapitalkosten (CAPEX) vs. Betriebskosten (OPEX)\n\n"
+
+        if not has_investment_data:
+            investment_md += "*Keine Investitionsdaten verfügbar.*\n\n"
+            investment_md += "Um Investitionsoptimierung zu aktivieren, setze in der Netzwerk-Konfiguration:\n"
+            investment_md += "```yaml\n"
+            investment_md += "pipes:\n"
+            investment_md += "  - id: pipe_xyz\n"
+            investment_md += "    upgrade_options:\n"
+            investment_md += "      enabled: true\n"
+            investment_md += "      diameter_options: [150, 200, 250, 300]\n"
+            investment_md += "```\n"
+
         return pn.Column(
             pn.pane.Markdown("# 🌡️ Thermisches Netzwerk – Analyse"),
             pn.pane.Markdown(
@@ -3285,6 +3369,8 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
             pn.pane.Plotly(pressure_fig, sizing_mode='stretch_width') if pipe_pressures else pn.pane.Markdown("*Keine Druckverlustdaten verfügbar*"),
             pn.layout.Divider(),
             pn.pane.Markdown(flow_stats_md),
+            pn.layout.Divider(),
+            pn.pane.Markdown(investment_md),
             pn.layout.Divider(),
             pn.pane.Markdown(stats_md),
             sizing_mode='stretch_width'
