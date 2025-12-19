@@ -39,7 +39,7 @@ site:
 # THERMAL NETWORK - Disabled
 thermal_network:
   enabled: ture 
-  topology_file: configs/networks/stadtbach_network.yaml
+  topology_file: configs/networks/stadtbach_brownfield.yaml
   brownfield_mode: true
   allow_pipe_investment: false
   # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
