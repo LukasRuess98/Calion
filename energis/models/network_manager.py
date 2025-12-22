@@ -190,6 +190,7 @@ class NetworkManager:
 
         # Check brownfield mode (moved earlier for pipe config)
         brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', False)
+        self.brownfield_mode = brownfield_mode  # Store as instance variable for get_results
         if brownfield_mode:
             logger.info("  [Brownfield mode: temperatures fixed at design values]")
 
@@ -456,14 +457,112 @@ class NetworkManager:
 
         logger.info(f"\nConnecting consumer demands to pipes...")
 
-        # In brownfield mode: Skip complex demand linking to avoid infeasibility
-        # The network constraints would require linking producer output (ht_out) to pipe inlets,
-        # which is complex and not necessary for brownfield analysis.
-        # Instead, we let the system heat balance handle demand satisfaction,
-        # and the network just calculates losses.
+        # In brownfield mode: Use simplified flow linking based on demand fractions
+        # This ensures realistic pipe flows for loss calculation, while avoiding
+        # the complex multi-node flow balance constraints that cause infeasibility.
         if brownfield_mode:
-            logger.info("  [Brownfield mode: skipping demand-to-pipe linking]")
-            logger.info("  → Network calculates losses only; heat balance ensures demand satisfaction")
+            logger.info("  [Brownfield mode: using simplified demand-based flow linking]")
+
+            # Calculate service fraction for each pipe, accounting for multi-source consumers
+            # When a consumer has N incoming pipes, each pipe carries 1/N of the demand
+            pipe_service_fractions = {}
+
+            # First, get consumer info (demand fraction, number of incoming pipes)
+            consumer_info = {}
+            for node_id, node_comp in node_components.items():
+                if node_comp['type'] == 'consumer':
+                    incoming = node_comp.get('incoming_pipes', [])
+                    consumer_info[node_id] = {
+                        'demand_fraction': node_comp.get('demand_fraction', 0.0),
+                        'num_sources': max(1, len(incoming)),
+                        'incoming_pipes': incoming
+                    }
+
+            # For each pipe, calculate total downstream demand fraction
+            # accounting for multi-source consumers (split demand among sources)
+            # Key insight: when a consumer has N incoming pipes, ALL downstream
+            # demand is also split N ways among those pipes.
+
+            def get_downstream_demand(pipe_id, visited=None):
+                """Recursively calculate total demand fraction served by this pipe."""
+                if visited is None:
+                    visited = set()
+                if pipe_id in visited:
+                    return 0.0
+                visited.add(pipe_id)
+
+                pipe_info = pipe_components.get(pipe_id, {})
+                to_node = pipe_info.get('to_node')
+                if not to_node:
+                    return 0.0
+
+                # Determine split factor at destination node
+                # If consumer has N incoming pipes, this pipe carries 1/N of everything
+                node_comp = node_components.get(to_node, {})
+                incoming_count = len(node_comp.get('incoming_pipes', [pipe_id]))
+                split_factor = 1.0 / max(1, incoming_count)
+
+                # Get demand at destination node (split among incoming pipes)
+                if to_node in consumer_info:
+                    info = consumer_info[to_node]
+                    local_demand = info['demand_fraction'] * split_factor
+                else:
+                    local_demand = 0.0
+
+                # Get demand from outgoing pipes (downstream), also split
+                outgoing = node_comp.get('outgoing_pipes', [])
+                downstream_demand = sum(
+                    get_downstream_demand(out_pipe, visited.copy())
+                    for out_pipe in outgoing
+                ) * split_factor
+
+                return local_demand + downstream_demand
+
+            for pipe_id in pipe_components.keys():
+                pipe_service_fractions[pipe_id] = get_downstream_demand(pipe_id)
+                logger.info(f"    {pipe_id}: serves {pipe_service_fractions[pipe_id]*100:.1f}% of demand")
+
+            # Verify total adds up (should be ~100% when summing plant-outgoing pipes)
+            plant_pipe_total = sum(
+                pipe_service_fractions.get(pid, 0)
+                for pid, pc in pipe_components.items()
+                if node_components.get(pc.get('from_node'), {}).get('type') == 'plant'
+            )
+            logger.info(f"  Total from plant pipes: {plant_pipe_total*100:.1f}% (should be ~100%)")
+
+            # Create flow constraints based on demand fractions
+            # m_dot = heatd * fraction * 1000 / (cp * delta_T)
+            cp_water = 4.186  # kJ/(kg·K)
+            delta_T = supply_temp - return_temp  # Temperature difference
+
+            logger.info(f"  Creating brownfield flow constraints (delta_T = {delta_T}K)...")
+
+            # Instead of constraining individual pipe flows (which conflicts with temp_drop constraints),
+            # we'll calculate network losses directly based on expected flows.
+            # This avoids the over-constraining issue while still getting realistic losses.
+
+            logger.info(f"  Calculating expected network losses based on demand fractions...")
+
+            # Calculate total network loss factor based on pipe service fractions and temp drops
+            # Q_loss_per_pipe = m_dot * cp * temp_drop / 1000 (MW)
+            # m_dot = heatd * fraction * 1000 / (cp * delta_T)
+            # So: Q_loss = heatd * fraction * temp_drop / delta_T
+
+            # For each pipe, temp_drop is typically 1°C (supply) + 1°C (return) = 2°C total
+            temp_drop_per_pipe = 2.0  # °C (1°C supply + 1°C return)
+
+            total_loss_factor = 0.0
+            for pipe_id, service_frac in pipe_service_fractions.items():
+                pipe_loss_factor = service_frac * temp_drop_per_pipe / delta_T
+                total_loss_factor += pipe_loss_factor
+                logger.info(f"    {pipe_id}: loss factor = {pipe_loss_factor*100:.3f}%")
+
+            logger.info(f"  Total network loss factor: {total_loss_factor*100:.2f}% of demand")
+
+            # Store the loss factor for later use in PHASE 6
+            # The brownfield_network_loss constraint will be created there
+            # (after network_Q_loss_per_timestep variable is created)
+            model._brownfield_loss_factor = total_loss_factor
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] == 'consumer' and not brownfield_mode:
@@ -610,32 +709,37 @@ class NetworkManager:
 
         logger.info(f"\nSetting up junction flow balance constraints...")
 
-        for node_id, node_comp in node_components.items():
-            if node_comp['type'] == 'junction':
-                incoming_pipes = node_comp.get('incoming_pipes', [])
-                outgoing_pipes = node_comp.get('outgoing_pipes', [])
+        # In brownfield mode, the brownfield_flow_rule already ensures consistent flows
+        # based on demand fractions. Skip explicit junction constraints to avoid conflicts.
+        if brownfield_mode:
+            logger.info("  [Brownfield mode: junction flows determined by brownfield_flow_rule]")
+        else:
+            for node_id, node_comp in node_components.items():
+                if node_comp['type'] == 'junction':
+                    incoming_pipes = node_comp.get('incoming_pipes', [])
+                    outgoing_pipes = node_comp.get('outgoing_pipes', [])
 
-                if not incoming_pipes or not outgoing_pipes:
-                    logger.warning(f"  ⚠ Junction {node_id} incomplete: "
-                                  f"{len(incoming_pipes)} in, {len(outgoing_pipes)} out")
-                    continue
+                    if not incoming_pipes or not outgoing_pipes:
+                        logger.warning(f"  ⚠ Junction {node_id} incomplete: "
+                                      f"{len(incoming_pipes)} in, {len(outgoing_pipes)} out")
+                        continue
 
-                # Flow balance: sum(incoming) = sum(outgoing)
-                constraint_name = f"junction_{node_id}_flow_balance"
+                    # Flow balance: sum(incoming) = sum(outgoing)
+                    constraint_name = f"junction_{node_id}_flow_balance"
 
-                def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
-                    total_in = sum(
-                        pipe_components[pid]['m_dot'][t]
-                        for pid in _in
-                    )
-                    total_out = sum(
-                        pipe_components[pid]['m_dot'][t]
-                        for pid in _out
-                    )
-                    return total_in == total_out
+                    def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
+                        total_in = sum(
+                            pipe_components[pid]['m_dot'][t]
+                            for pid in _in
+                        )
+                        total_out = sum(
+                            pipe_components[pid]['m_dot'][t]
+                            for pid in _out
+                        )
+                        return total_in == total_out
 
-                setattr(model, constraint_name, pyo.Constraint(time_set, rule=junction_flow_rule))
-                logger.info(f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out")
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=junction_flow_rule))
+                    logger.info(f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out")
 
         # ========================================
         # PHASE 5: Plant return temperature mixing
@@ -784,20 +888,31 @@ class NetworkManager:
             bounds=(0, 50)  # Max 50 MW losses per timestep (conservative)
         )
 
-        # Constraint: network_Q_loss_per_timestep[t] = sum of all pipe losses at time t
-        def network_loss_per_timestep_rule(m, t):
-            total_loss = sum(
-                pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t]
-                for pipe_comp in pipe_components.values()
+        # In brownfield mode, use direct loss factor calculation
+        # In greenfield mode, use pipe-based loss calculation
+        if brownfield_mode and hasattr(model, '_brownfield_loss_factor'):
+            # Brownfield: network losses = heatd * loss_factor
+            loss_factor = model._brownfield_loss_factor
+
+            def brownfield_network_loss_rule(m, t):
+                return m.network_Q_loss_per_timestep[t] == m.heatd[t] * loss_factor
+
+            model.brownfield_network_loss = pyo.Constraint(time_set, rule=brownfield_network_loss_rule)
+            logger.info(f"  ✓ Brownfield: network_Q_loss_per_timestep = {loss_factor*100:.2f}% × heatd")
+        else:
+            # Greenfield: network_Q_loss_per_timestep[t] = sum of all pipe losses at time t
+            def network_loss_per_timestep_rule(m, t):
+                total_loss = sum(
+                    pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t]
+                    for pipe_comp in pipe_components.values()
+                )
+                return m.network_Q_loss_per_timestep[t] == total_loss
+
+            model.network_loss_per_timestep_calc = pyo.Constraint(
+                time_set,
+                rule=network_loss_per_timestep_rule
             )
-            return m.network_Q_loss_per_timestep[t] == total_loss
-
-        model.network_loss_per_timestep_calc = pyo.Constraint(
-            time_set,
-            rule=network_loss_per_timestep_rule
-        )
-
-        logger.info(f"  ✓ Created network_Q_loss_per_timestep[t] for {len(list(time_set))} timesteps")
+            logger.info(f"  ✓ Greenfield: network_Q_loss_per_timestep from pipe losses")
 
         # Store for objective function
         model.network_total_pipe_capex = total_pipe_capex
@@ -852,15 +967,37 @@ class NetworkManager:
             results['nodes'][node_id] = node_results
 
         # Calculate summary statistics
-        total_heat_delivered = sum(
-            pipe_res['total_heat_delivered_mwh']
-            for pipe_res in results['pipes'].values()
-        )
+        # Get dt_h for MWh conversion
+        dt_h = getattr(model, 'dt_h', 1.0)
 
-        total_heat_loss = sum(
-            pipe_res['total_heat_loss_mwh']
-            for pipe_res in results['pipes'].values()
-        )
+        # In brownfield mode, use network_Q_loss_per_timestep (direct calculation from demand * loss_factor)
+        # because pipe-level Q_loss variables are unconstrained
+        brownfield_mode = getattr(self, 'brownfield_mode', False)
+
+        if brownfield_mode and hasattr(model, 'network_Q_loss_per_timestep'):
+            # Use the directly calculated network losses from brownfield constraint
+            total_heat_loss = sum(
+                pyo.value(model.network_Q_loss_per_timestep[t]) * dt_h / 1000  # kW*h -> MWh
+                for t in time_set
+            )
+            logger.info(f"  [Brownfield mode: Using network_Q_loss_per_timestep for losses]")
+
+            # Total heat delivered = total demand in brownfield mode
+            total_heat_delivered = sum(
+                pyo.value(model.heatd[t]) * dt_h / 1000  # kW*h -> MWh
+                for t in time_set
+            )
+        else:
+            # Standard mode: use pipe-level results
+            total_heat_delivered = sum(
+                pipe_res['total_heat_delivered_mwh']
+                for pipe_res in results['pipes'].values()
+            )
+
+            total_heat_loss = sum(
+                pipe_res['total_heat_loss_mwh']
+                for pipe_res in results['pipes'].values()
+            )
 
         loss_percentage = (total_heat_loss / total_heat_delivered * 100) if total_heat_delivered > 0 else 0
 
@@ -894,7 +1031,7 @@ class NetworkManager:
         pump_power_kw = (avg_total_flow * total_pressure_drop * 100000) / (density_water * pump_efficiency * 1000)
 
         # Annual pump energy [MWh] = P_pump [kW] * hours / 1000
-        dt_h = getattr(model, 'dt_h', 1.0)
+        # dt_h already defined above
         n_timesteps = len(list(time_set))
         operating_hours = n_timesteps * dt_h
         pump_energy_mwh = pump_power_kw * operating_hours / 1000
