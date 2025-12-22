@@ -14,7 +14,12 @@ run:
     # Parallelisierung
     Threads: 0              # Nutze 8 CPU-Kerne (0 = alle, aber 8 ist oft optimal)
     ConcurrentMIP: 2        # 2 parallele MIP-Strategien
-
+    
+    #Constrains_Errors
+    LogToConsole: 1
+    IISMethod: 1  # <-- Zeigt unerfüllbare Constraints
+    ResultFile: "infeasibility.ilp"  # <-- Speichert IIS-Analyse
+    
     # Termination
     MIPGap: 0.01           # 1% Gap (war 2%, jetzt schärfer aber noch schnell)
     TimeLimit: 3600         # 1 Stunde Zeitlimit

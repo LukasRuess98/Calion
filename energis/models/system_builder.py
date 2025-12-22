@@ -48,6 +48,7 @@ def _cop_series_from_table(
             - heat_pumps.cop.tables: Lookup table definitions
             - heat_pumps.cop.sink_defaults: Sink temperature settings
             - heat_pumps.types[hp_type]: Heat pump specific parameters
+
         hp_type (str): Heat pump type identifier (e.g., "default", "high_temp")
 
     Returns:
@@ -256,6 +257,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     - Multiple bus types (electricity, heat, gas, biomass, waste)
     - Investment decisions with CAPEX/OPEX modeling
     - Grid electricity purchase with demand charges and CO2 costs
+    - Thermal network with explicit heat loss modeling
 
     Args:
         table (TimeSeriesTable): Time series data containing demand profiles, weather data,
@@ -904,38 +906,102 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
     )
 
-    # Heat balance: When thermal network is enabled, use relaxed constraints
-    # The network handles heat distribution via pipe flow constraints
+    # ========================================
+    # THERMAL NETWORK INTEGRATION (BEFORE HEAT BALANCE!)
+    # ========================================
+    network_capex_total = 0
+    network_heat_loss_cost = 0
     thermal_network_cfg = cfg.get('thermal_network', {})
     thermal_network_enabled = thermal_network_cfg.get('enabled', False)
 
-    # Debug output to diagnose config issues
-    print(f"[BUILD] thermal_network config: enabled={thermal_network_enabled}, cfg={thermal_network_cfg}")
+    # Debug output
+    print(f"[BUILD] thermal_network config: enabled={thermal_network_enabled}")
 
     if thermal_network_enabled:
-        print(f"[BUILD] Thermal network enabled - using relaxed heat balance (network handles distribution)")
-        # Relaxed constraint: production must cover demand + storage charge (network handles distribution)
-        # CORRECTED: ht_in (storage charge) CONSUMES heat, so subtract from production side
-        m.ht_balance = pyo.Constraint(
-            m.t,
-            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) >= mm.heatd[t] + sum((f[t] for f in ht_in), start=0),
-        )
-        # Upper bound with dump capacity for excess heat
-        m.ht_upper = pyo.Constraint(
-            m.t,
-            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) <= mm.heatd[t] + sum((f[t] for f in ht_in), start=0) + mm.Q_dump[t] * 1.3,
-        )
+        from pathlib import Path
+        config_dir = Path(cfg.get('config_dir', '.'))
+
+        # Initialize network manager
+        network_mgr = NetworkManager(cfg, config_dir=config_dir)
+
+        # Attach network to model (this creates m.network_Q_loss_per_timestep)
+        buses = {}  # Bus references (if needed)
+        network_results = network_mgr.attach_to_model(m, m.t, buses)
+
+        # Add network CAPEX to objective
+        if hasattr(m, 'network_total_pipe_capex'):
+            network_capex_total = m.network_total_pipe_capex
+
+        # Add heat loss cost to objective
+        # The NetworkManager now provides m.network_Q_loss_per_timestep[t]
+        if hasattr(m, 'network_Q_loss_per_timestep'):
+            # Heat losses valued at dump cost (marginal generation cost proxy)
+            network_heat_loss_cost = m.dump_cost * sum(
+                m.network_Q_loss_per_timestep[t] * dt_h for t in m.t
+            )
+            print(f"[BUILD] Network heat losses (per timestep) added to objective")
+        elif hasattr(m, 'network_heat_loss_expr'):
+            # Fallback: use total expression (legacy behavior)
+            network_heat_loss_cost = m.network_heat_loss_expr * dt_h * m.dump_cost
+            print(f"[BUILD] Network heat losses (total expr) added to objective")
+        
+        # Store network manager for results extraction
+        m.network_manager = network_mgr
+
+    # ========================================
+
+    # HEAT BALANCE CONSTRAINTS
+
+    # ========================================
+
+    if thermal_network_enabled:
+        print(f"[BUILD] Thermal network enabled - using heat balance with explicit network losses")
+        
+        # Check if we have per-timestep network losses
+        if hasattr(m, 'network_Q_loss_per_timestep'):
+            # ✅ LANGFRISTIGE LÖSUNG: Explizite Netzwerk-Verluste pro Zeitschritt
+            # Heat Balance: Production = Demand + Storage_Charge + Network_Losses
+            m.ht_balance = pyo.Constraint(
+                m.t,
+                rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == 
+                                mm.heatd[t] + 
+                                sum((f[t] for f in ht_in), start=0) + 
+                                mm.network_Q_loss_per_timestep[t],
+            )
+            print(f"[BUILD]   → Using explicit network losses: network_Q_loss_per_timestep[t]")
+        else:
+            # ✅ PRAGMATISCHE LÖSUNG: Geschätzte Verluste als Prozentsatz
+            # Typische Wärmenetz-Verluste: 5-15% des transportierten Bedarfs
+            network_loss_factor = float(thermal_network_cfg.get('estimated_loss_factor', 0.12))
+            print(f"[BUILD]   → Using estimated network losses: {network_loss_factor*100:.1f}% of demand")
+            
+            # Heat Balance mit geschätzten Verlusten:
+            # Production = Demand * (1 + loss_factor) + Storage_Charge + Dump
+            m.ht_balance = pyo.Constraint(
+                m.t,
+                rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == 
+                                mm.heatd[t] * (1.0 + network_loss_factor) + 
+                                sum((f[t] for f in ht_in), start=0) + 
+                                mm.Q_dump[t],
+            )
+            
+            # Optional: Upper bound als Sicherheit
+            m.ht_upper = pyo.Constraint(
+                m.t,
+                rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) <= 
+                                mm.heatd[t] * (1.0 + network_loss_factor + 0.05) + 
+                                sum((f[t] for f in ht_in), start=0) + 
+                                mm.Q_dump[t] * 1.5,
+            )
     else:
         # Standard strict heat balance without thermal network
-        # CORRECTED: ht_in (storage charge) CONSUMES heat, so it goes on the RIGHT side
-        # Heat Balance: Production = Demand + Storage_Charge + Dump
-        # ht_out includes: generators, HPs, P2H, storage_discharge (Qd)
-        # ht_in includes: storage_charge (Qc) - this CONSUMES heat from the system
+        print(f"[BUILD] No thermal network - using strict heat balance")
         m.ht_balance = pyo.Constraint(
             m.t,
-            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == mm.heatd[t] + sum((f[t] for f in ht_in), start=0) + mm.Q_dump[t],
+            rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == 
+                            mm.heatd[t] + sum((f[t] for f in ht_in), start=0) + mm.Q_dump[t],
         )
-
+        
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)
     m.buy_limit = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.max_import)
@@ -1010,36 +1076,6 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     tie_break_total = sum(tie_breaker_terms) if tie_breaker_terms else 0
     storage_install_total = sum(storage_install_terms) if storage_install_terms else 0
 
-    # ========================================
-    # THERMAL NETWORK INTEGRATION
-    # ========================================
-    network_capex_total = 0
-    network_heat_loss_cost = 0
-
-    if cfg.get('thermal_network', {}).get('enabled', False):
-        from pathlib import Path
-        config_dir = Path(cfg.get('config_dir', '.'))
-
-        # Initialize network manager
-        network_mgr = NetworkManager(cfg, config_dir=config_dir)
-
-        # Attach network to model
-        buses = {}  # Bus references (if needed)
-        network_results = network_mgr.attach_to_model(m, m.t, buses)
-
-        # Add network CAPEX to objective
-        if hasattr(m, 'network_total_pipe_capex'):
-            network_capex_total = m.network_total_pipe_capex
-
-        # Add heat loss penalty to objective
-        # Value heat losses at average marginal generation cost
-        # For simplicity, use dump cost as proxy
-        if hasattr(m, 'network_heat_loss_expr'):
-            network_heat_loss_cost = m.network_heat_loss_expr * dt_h * m.dump_cost
-
-        # Store network manager for results extraction
-        m.network_manager = network_mgr
-
     m.capex_cost_expr = capex_total
     m.activation_cost_expr = activation_total
     m.tie_break_cost_expr = tie_break_total
@@ -1057,7 +1093,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         + storage_install_total
         + network_capex_total
         + network_heat_loss_cost,
+
         sense=pyo.minimize,
     )
     return m
-

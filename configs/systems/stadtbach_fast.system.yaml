@@ -8,7 +8,7 @@ system:
     enabled: true
     type: standard
     max_th_mw: 50.0
-    min_th_mw: 5.0
+    min_th_mw: 0.0
     investment:
       enabled: true  # Investment enabled for CAPEX calculation
 
@@ -64,15 +64,15 @@ system:
     min_energy_mwh: 0.0  # Allow empty storage (important for first timestep with soc0=0)
     max_energy_mwh: 5000.0
     max_power_mw: 200.0
-    soc0_mwh: 0.0  # Start empty
+    soc0_mwh: 500.0  # Start empty
     investment:
       enabled: true
       energy_capacity_min_mwh: 100.0
       energy_capacity_max_mwh: 5000.0
-      power_capacity_min_mw: 30.0
+      power_capacity_min_mw: 0.0
       power_capacity_max_mw: 200.0
       initial_energy_capacity_mwh: 500.0
-      initial_power_capacity_mw: 50.0
+      initial_power_capacity_mw: 0.0
 
   # Generators - all fixed (brownfield)
   generators:

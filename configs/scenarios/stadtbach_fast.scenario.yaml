@@ -38,13 +38,15 @@ site:
 
 # THERMAL NETWORK - Disabled
 thermal_network:
-  enabled: ture 
+  thermal_network:
+  enabled: ture
   topology_file: configs/networks/stadtbach_brownfield.yaml
+  estimated_loss_factor: 0.12  # <-- 12% geschätzte Verluste (typisch: 5-15%)
   brownfield_mode: true
   allow_pipe_investment: false
   # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
   validation:
-    max_velocity_m_s: 5
+    max_velocity_m_s: 2.5
     max_pressure_drop_bar: 10.0
 
 # Run parameters
@@ -60,6 +62,9 @@ run:
     Presolve: 2
     Heuristics: 0.2
     LogToConsole: 1
+    IISMethod: 1  # <-- Zeigt unerfüllbare Constraints
+    ResultFile: "infeasibility.ilp"  # <-- Speichert IIS-Analyse
+    
 
 # Grid settings
 grid:
