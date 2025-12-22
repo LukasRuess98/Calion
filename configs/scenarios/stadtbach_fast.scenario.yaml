@@ -39,7 +39,7 @@ site:
 # THERMAL NETWORK - Disabled
 thermal_network:
   thermal_network:
-  enabled: ture
+  enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
   estimated_loss_factor: 0.12  # <-- 12% geschätzte Verluste (typisch: 5-15%)
   brownfield_mode: true
