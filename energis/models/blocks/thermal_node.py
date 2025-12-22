@@ -188,7 +188,13 @@ class ThermalNodeBlock(BaseComponent):
         brownfield_mode = config.get('brownfield_mode', False)
 
         if node_type != 'plant' and incoming_pipes:
-            if len(incoming_pipes) == 1 and not brownfield_mode:
+            if brownfield_mode:
+                # Brownfield: DO NOT fix temperatures here!
+                # network_manager.py PHASE 3b handles all temperature fixing
+                # to ensure consistency across the entire network topology.
+                # The linking constraints will propagate pipe outlet temps to nodes.
+                logger.info(f"    Node {node_id}: brownfield - temps handled by network_manager")
+            elif len(incoming_pipes) == 1:
                 # Single pipe: simple temperature link
                 pipe_id = incoming_pipes[0]
                 pipe_prefix = pipe_id.upper().replace('-', '_')
@@ -199,14 +205,6 @@ class ThermalNodeBlock(BaseComponent):
 
                 setattr(model, f'{prefix}_temp_mixing',
                         pyo.Constraint(time_set, rule=single_temp_rule))
-            elif brownfield_mode:
-                # Brownfield: fix temperature at pipe outlet value (nominal - drop)
-                # For consumer nodes, this is the pipe supply out temperature (after losses)
-                # Using supply_temp - 1°C to match pipe_pair brownfield assumption
-                consumer_supply_temp = supply_temp_nominal_c - 1.0  # Match pipe T_supply_out
-                logger.info(f"    Node {node_id}: fixing supply temp to {consumer_supply_temp}°C (brownfield - matches pipe outlet)")
-                for t in time_set:
-                    T_supply[t].fix(consumer_supply_temp)
             else:
                 # Multiple pipes, greenfield: fix at nominal (this creates bilinear constraints)
                 logger.info(f"    Node {node_id}: fixing supply temp to {supply_temp_nominal_c}°C (multi-pipe)")

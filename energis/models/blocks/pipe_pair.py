@@ -207,22 +207,18 @@ class PipePairBlock(BaseComponent):
         Q_delivered = getattr(model, f'{prefix}_Q_delivered')
 
         # ============================================================
-        # BROWNFIELD MODE: Fix temperatures to design values
+        # BROWNFIELD MODE: Temperature fixing moved to network_manager.py
         # ============================================================
-        # This converts bilinear constraints (m_dot * T) to linear ones
+        # In brownfield mode, temperatures are fixed by network_manager AFTER
+        # all pipes and nodes are attached. This ensures consistent temperatures
+        # based on the actual network topology (plant nodes vs consumer nodes).
+        #
+        # NOTE: Do NOT fix temperatures here! network_manager.py handles this
+        # in PHASE 3b to avoid conflicts between pipe inlet temps and node temps.
 
         brownfield_mode = config.get('brownfield_mode', False)
         if brownfield_mode:
-            logger.info(f"    {pipe_id}: Brownfield mode - fixing temperatures")
-            # Assume small temperature drop in pipes (1°C supply, 1°C return)
-            supply_temp_out = supply_temp_nominal_c - 1.0
-            return_temp_out = return_temp_nominal_c - 1.0
-
-            for t in time_set:
-                T_supply_in[t].fix(supply_temp_nominal_c)
-                T_supply_out[t].fix(supply_temp_out)
-                T_return_in[t].fix(return_temp_nominal_c)
-                T_return_out[t].fix(return_temp_out)
+            logger.info(f"    {pipe_id}: Brownfield mode - temps will be fixed by network_manager")
 
         # ============================================================
         # CONSTRAINTS

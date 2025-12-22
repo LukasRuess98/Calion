@@ -251,49 +251,56 @@ class NetworkManager:
             from_node = pipe_comp['from_node']
             to_node = pipe_comp['to_node']
 
-            # Link pipe inlet temperature to from_node supply temperature
-            if from_node in node_components:
-                from_node_comp = node_components[from_node]
-                pipe_T_supply_in = pipe_comp['T_supply_in']
-                node_T_supply = from_node_comp['T_supply']
+            # In BROWNFIELD mode: Skip temperature linking constraints!
+            # PHASE 3b will fix all temperatures directly to avoid conflicts.
+            # In greenfield mode: Create linking constraints for temperature propagation.
 
-                # Create equality constraint
-                constraint_name = f"link_pipe_{pipe_id}_inlet_to_node_{from_node}"
+            if not brownfield_mode:
+                # Link pipe inlet temperature to from_node supply temperature
+                if from_node in node_components:
+                    from_node_comp = node_components[from_node]
+                    pipe_T_supply_in = pipe_comp['T_supply_in']
+                    node_T_supply = from_node_comp['T_supply']
 
-                def link_rule(m, t):
-                    if isinstance(node_T_supply, pyo.Param):
-                        return pipe_T_supply_in[t] == pyo.value(node_T_supply[t])
-                    else:
-                        return pipe_T_supply_in[t] == node_T_supply[t]
+                    # Create equality constraint
+                    constraint_name = f"link_pipe_{pipe_id}_inlet_to_node_{from_node}"
 
-                setattr(model, constraint_name, pyo.Constraint(time_set, rule=link_rule))
-                logger.info(f"    Linked {pipe_id} inlet ← {from_node} supply temp")
+                    def link_rule(m, t):
+                        if isinstance(node_T_supply, pyo.Param):
+                            return pipe_T_supply_in[t] == pyo.value(node_T_supply[t])
+                        else:
+                            return pipe_T_supply_in[t] == node_T_supply[t]
 
-            # Link pipe outlet to_node supply temperature (for consumer/junction nodes)
-            if to_node in node_components:
-                to_node_comp = node_components[to_node]
-                if to_node_comp['type'] in ['consumer', 'junction']:
-                    # The node's supply temp is set by pipe(s) feeding into it
-                    # This is handled by node's temperature mixing constraint
-                    pass
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=link_rule))
+                    logger.info(f"    Linked {pipe_id} inlet ← {from_node} supply temp")
 
-            # Link return temperatures
-            # Pipe return inlet gets temperature from to_node
-            if to_node in node_components:
-                to_node_comp = node_components[to_node]
-                pipe_T_return_in = pipe_comp['T_return_in']
-                node_T_return = to_node_comp['T_return']
+                # Link pipe outlet to_node supply temperature (for consumer/junction nodes)
+                if to_node in node_components:
+                    to_node_comp = node_components[to_node]
+                    if to_node_comp['type'] in ['consumer', 'junction']:
+                        # The node's supply temp is set by pipe(s) feeding into it
+                        # This is handled by node's temperature mixing constraint
+                        pass
 
-                constraint_name = f"link_pipe_{pipe_id}_return_to_node_{to_node}"
+                # Link return temperatures
+                # Pipe return inlet gets temperature from to_node
+                if to_node in node_components:
+                    to_node_comp = node_components[to_node]
+                    pipe_T_return_in = pipe_comp['T_return_in']
+                    node_T_return = to_node_comp['T_return']
 
-                def return_link_rule(m, t):
-                    if isinstance(node_T_return, pyo.Param):
-                        return pipe_T_return_in[t] == pyo.value(node_T_return[t])
-                    else:
-                        return pipe_T_return_in[t] == node_T_return[t]
+                    constraint_name = f"link_pipe_{pipe_id}_return_to_node_{to_node}"
 
-                setattr(model, constraint_name, pyo.Constraint(time_set, rule=return_link_rule))
-                logger.info(f"    Linked {pipe_id} return ← {to_node} return temp")
+                    def return_link_rule(m, t):
+                        if isinstance(node_T_return, pyo.Param):
+                            return pipe_T_return_in[t] == pyo.value(node_T_return[t])
+                        else:
+                            return pipe_T_return_in[t] == node_T_return[t]
+
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=return_link_rule))
+                    logger.info(f"    Linked {pipe_id} return ← {to_node} return temp")
+            else:
+                logger.info(f"    {pipe_id}: skipping temp links (brownfield - handled in PHASE 3b)")
 
             # Track return pipes for each plant node (for later mixing constraint)
             if from_node in node_components:
@@ -302,6 +309,81 @@ class NetworkManager:
                     if 'return_pipes' not in from_node_comp:
                         from_node_comp['return_pipes'] = []
                     from_node_comp['return_pipes'].append(pipe_id)
+
+        # ========================================
+        # PHASE 3b: BROWNFIELD Temperature Fixing
+        # ========================================
+        # In brownfield mode, fix temperatures based on network topology:
+        # - Plant nodes: T_supply = supply_temp_nominal
+        # - Pipes from plants: T_supply_in = supply_temp_nominal
+        # - Pipes between consumers: T_supply_in = T_supply_out of upstream pipe
+        # This avoids the conflict where all pipes had same inlet temp
+
+        if brownfield_mode:
+            logger.info(f"\nFixing temperatures for brownfield mode...")
+
+            # Calculate temperature drop per pipe (simplified: 1°C per pipe)
+            temp_drop_per_pipe = 1.0
+
+            for pipe_id, pipe_comp in pipe_components.items():
+                from_node = pipe_comp['from_node']
+                to_node = pipe_comp['to_node']
+                from_node_comp = node_components.get(from_node, {})
+                to_node_comp = node_components.get(to_node, {})
+                from_node_type = from_node_comp.get('type', 'unknown')
+                to_node_type = to_node_comp.get('type', 'unknown')
+
+                pipe_prefix = pipe_id.upper().replace('-', '_')
+                T_supply_in = getattr(model, f'{pipe_prefix}_T_supply_in')
+                T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+                T_return_in = getattr(model, f'{pipe_prefix}_T_return_in')
+                T_return_out = getattr(model, f'{pipe_prefix}_T_return_out')
+
+                # === SUPPLY TEMPERATURE ===
+                if from_node_type == 'plant':
+                    # Pipe from plant: inlet at nominal supply temp
+                    inlet_temp = supply_temp
+                    outlet_temp = supply_temp - temp_drop_per_pipe
+                    logger.info(f"    {pipe_id}: plant pipe, T_supply_in={inlet_temp}°C, T_supply_out={outlet_temp}°C")
+                else:
+                    # Pipe from consumer/junction: inlet = previous outlet
+                    incoming_to_from = from_node_comp.get('incoming_pipes', [])
+                    if incoming_to_from:
+                        # Cascade: each hop drops 1°C from plant
+                        # Count hops from plant
+                        hop_count = len(incoming_to_from)
+                        inlet_temp = supply_temp - temp_drop_per_pipe * hop_count
+                    else:
+                        inlet_temp = supply_temp - temp_drop_per_pipe
+                    outlet_temp = inlet_temp - temp_drop_per_pipe
+                    logger.info(f"    {pipe_id}: cascade pipe, T_supply_in={inlet_temp}°C, T_supply_out={outlet_temp}°C")
+
+                # === RETURN TEMPERATURE ===
+                # Use the to_node's return temp (from config) to ensure consistency
+                # This is critical for the heat_delivered = heat_demand linking
+                if to_node_type == 'consumer':
+                    # Get return temp from node config
+                    to_node_cfg = self.nodes.get(to_node, {})
+                    consumer_return_temp = to_node_cfg.get('return_temp_c', return_temp)
+                    pipe_return_in_temp = consumer_return_temp
+                    pipe_return_out_temp = consumer_return_temp - temp_drop_per_pipe
+                    logger.info(f"      T_return_in={pipe_return_in_temp}°C (from consumer), T_return_out={pipe_return_out_temp}°C")
+                else:
+                    # Junction or plant: use nominal return temp
+                    pipe_return_in_temp = return_temp
+                    pipe_return_out_temp = return_temp - temp_drop_per_pipe
+
+                # Fix supply temperatures
+                for t in time_set:
+                    T_supply_in[t].fix(inlet_temp)
+                    T_supply_out[t].fix(outlet_temp)
+
+                # Fix return temperatures
+                for t in time_set:
+                    T_return_in[t].fix(pipe_return_in_temp)
+                    T_return_out[t].fix(pipe_return_out_temp)
+
+            logger.info(f"  ✓ Fixed temperatures for {len(pipe_components)} pipes")
 
         # ========================================
         # PHASE 4: Connect demands to pipes
