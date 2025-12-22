@@ -41,7 +41,6 @@ thermal_network:
   thermal_network:
   enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
-  estimated_loss_factor: 0.12  # <-- 12% geschätzte Verluste (typisch: 5-15%)
   brownfield_mode: true
   allow_pipe_investment: false
   # Post-processing validation parameters (used by validate_hydraulics_post_optimization)
