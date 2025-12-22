@@ -956,17 +956,19 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     if thermal_network_enabled:
         print(f"[BUILD] Thermal network enabled - using heat balance with explicit network losses")
-        
+
         # Check if we have per-timestep network losses
         if hasattr(m, 'network_Q_loss_per_timestep'):
             # ✅ LANGFRISTIGE LÖSUNG: Explizite Netzwerk-Verluste pro Zeitschritt
-            # Heat Balance: Production = Demand + Storage_Charge + Network_Losses
+            # Heat Balance: Production = Demand + Storage_Charge + Network_Losses + Dump
+            # NOTE: Q_dump is essential as safety valve for excess production
             m.ht_balance = pyo.Constraint(
                 m.t,
-                rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == 
-                                mm.heatd[t] + 
-                                sum((f[t] for f in ht_in), start=0) + 
-                                mm.network_Q_loss_per_timestep[t],
+                rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) ==
+                                mm.heatd[t] +
+                                sum((f[t] for f in ht_in), start=0) +
+                                mm.network_Q_loss_per_timestep[t] +
+                                mm.Q_dump[t],
             )
             print(f"[BUILD]   → Using explicit network losses: network_Q_loss_per_timestep[t]")
         else:

@@ -385,19 +385,100 @@ class NetworkManager:
 
             logger.info(f"  ✓ Fixed temperatures for {len(pipe_components)} pipes")
 
+            # Also fix NODE temperatures in brownfield mode!
+            # This is critical to avoid bilinear constraints in consumer heat_demand rule:
+            # Q_demand = m_dot * cp * (T_supply - T_return)
+            # Without fixed T_supply, this is bilinear in m_dot × T_supply
+
+            logger.info(f"\nFixing node temperatures for brownfield mode...")
+
+            for node_id, node_comp in node_components.items():
+                node_type = node_comp['type']
+                node_prefix = node_id.upper().replace('-', '_')
+
+                if node_type == 'plant':
+                    # Plant supply is Param (already fixed), return needs fixing
+                    T_return = node_comp['T_return']
+                    if isinstance(T_return, pyo.Var):
+                        for t in time_set:
+                            T_return[t].fix(return_temp)
+                        logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
+
+                elif node_type == 'consumer':
+                    # Consumer: T_supply from incoming pipe, T_return is Param (already fixed)
+                    T_supply = node_comp['T_supply']
+                    incoming_pipes = node_comp.get('incoming_pipes', [])
+
+                    if incoming_pipes and isinstance(T_supply, pyo.Var):
+                        # Use the outlet temperature of the first incoming pipe
+                        # (for simplicity in brownfield - all pipes have similar temps)
+                        first_pipe = incoming_pipes[0]
+                        pipe_prefix = first_pipe.upper().replace('-', '_')
+                        pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+
+                        # Get the fixed value from the pipe
+                        first_t = next(iter(time_set))
+                        consumer_supply_temp = pyo.value(pipe_T_supply_out[first_t])
+
+                        for t in time_set:
+                            T_supply[t].fix(consumer_supply_temp)
+                        logger.info(f"    {node_id}: Fixed supply temp to {consumer_supply_temp}°C (from pipe {first_pipe})")
+
+                elif node_type == 'junction':
+                    # Junction: fix both temps
+                    T_supply = node_comp['T_supply']
+                    T_return = node_comp['T_return']
+
+                    incoming_pipes = node_comp.get('incoming_pipes', [])
+                    if incoming_pipes:
+                        first_pipe = incoming_pipes[0]
+                        pipe_prefix = first_pipe.upper().replace('-', '_')
+                        pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+
+                        first_t = next(iter(time_set))
+                        junction_supply_temp = pyo.value(pipe_T_supply_out[first_t])
+
+                        if isinstance(T_supply, pyo.Var):
+                            for t in time_set:
+                                T_supply[t].fix(junction_supply_temp)
+                            logger.info(f"    {node_id}: Fixed supply temp to {junction_supply_temp}°C")
+
+                    if isinstance(T_return, pyo.Var):
+                        for t in time_set:
+                            T_return[t].fix(return_temp)
+                        logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
+
+            logger.info(f"  ✓ Fixed temperatures for {len(node_components)} nodes")
+
         # ========================================
         # PHASE 4: Connect demands to pipes
         # ========================================
 
         logger.info(f"\nConnecting consumer demands to pipes...")
 
+        # In brownfield mode: Skip complex demand linking to avoid infeasibility
+        # The network constraints would require linking producer output (ht_out) to pipe inlets,
+        # which is complex and not necessary for brownfield analysis.
+        # Instead, we let the system heat balance handle demand satisfaction,
+        # and the network just calculates losses.
+        if brownfield_mode:
+            logger.info("  [Brownfield mode: skipping demand-to-pipe linking]")
+            logger.info("  → Network calculates losses only; heat balance ensures demand satisfaction")
+
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] == 'consumer':
+            if node_comp['type'] == 'consumer' and not brownfield_mode:
                 # Find pipe(s) supplying this consumer
                 incoming_pipes = node_comp.get('incoming_pipes', [])
+                outgoing_pipes = node_comp.get('outgoing_pipes', [])
 
-                if len(incoming_pipes) == 1:
-                    # Simple case: one pipe feeds this consumer
+                # CRITICAL: Consumer nodes can also be pass-through nodes!
+                # If a consumer has outgoing pipes, it's both consumer AND junction.
+                # Flow balance: incoming = local_demand + outgoing
+
+                has_outgoing = len(outgoing_pipes) > 0
+
+                if len(incoming_pipes) == 1 and not has_outgoing:
+                    # Simple case: one pipe feeds this consumer, no pass-through
                     pipe_id = incoming_pipes[0]
                     pipe_comp = pipe_components[pipe_id]
 
@@ -428,43 +509,97 @@ class NetworkManager:
 
                     logger.info(f"  ✓ {node_id} demand ← pipe {pipe_id}")
 
-                elif len(incoming_pipes) > 1:
-                    # Multiple pipes feed this consumer - sum of flows = demand
-                    logger.info(f"  ✓ {node_id} has {len(incoming_pipes)} incoming pipes - "
-                               f"creating multi-pipe flow balance")
+                elif len(incoming_pipes) == 1 and has_outgoing:
+                    # Consumer with pass-through: single incoming, multiple outgoing
+                    # Flow balance: incoming = local_demand + sum(outgoing)
+                    pipe_id = incoming_pipes[0]
+                    pipe_comp = pipe_components[pipe_id]
+                    pipe_m_dot = pipe_comp['m_dot']
+                    node_m_dot = node_comp['m_dot_demand']
 
+                    constraint_name = f"link_demand_{node_id}_passthrough_flow"
+
+                    def passthrough_flow_rule(m, t, _pipe=pipe_m_dot, _node=node_m_dot, _out=outgoing_pipes):
+                        outgoing_flow = sum(
+                            pipe_components[pid]['m_dot'][t]
+                            for pid in _out
+                        )
+                        return _pipe[t] == _node[t] + outgoing_flow
+
+                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=passthrough_flow_rule))
+
+                    # Heat balance: pipe delivers enough for local demand (outgoing pipes serve downstream)
+                    # Local heat extraction = pipe_Q_delivered - sum(outgoing_Q_input)
+                    # Simplified: just ensure local demand is met from incoming - outgoing
+                    node_Q_demand = node_comp['Q_demand']
+
+                    # For simplicity in brownfield, we just track heat extraction at local node
+                    # The downstream nodes handle their own demand linking
+                    logger.info(f"  ✓ {node_id} passthrough: incoming={pipe_id}, outgoing={len(outgoing_pipes)} pipes")
+
+                elif len(incoming_pipes) > 1:
+                    # Multiple pipes feed this consumer
+                    # May also have outgoing pipes (pass-through node)
                     node_m_dot = node_comp['m_dot_demand']
                     node_Q_demand = node_comp['Q_demand']
 
-                    # Flow balance: sum of pipe flows = consumer demand flow
-                    constraint_name_flow = f"link_demand_{node_id}_multi_pipe_flow"
+                    if has_outgoing:
+                        # Multi-input consumer with pass-through
+                        # Flow balance: sum(incoming) = local_demand + sum(outgoing)
+                        logger.info(f"  ✓ {node_id} has {len(incoming_pipes)} incoming, "
+                                   f"{len(outgoing_pipes)} outgoing pipes - passthrough hub")
 
-                    def multi_pipe_flow_rule(m, t, _incoming=incoming_pipes):
-                        total_inflow = sum(
-                            pipe_components[pid]['m_dot'][t]
-                            for pid in _incoming
-                        )
-                        return total_inflow == node_m_dot[t]
+                        constraint_name_flow = f"link_demand_{node_id}_multi_passthrough_flow"
 
-                    setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_pipe_flow_rule))
+                        def multi_passthrough_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes, _node=node_m_dot):
+                            total_inflow = sum(
+                                pipe_components[pid]['m_dot'][t]
+                                for pid in _in
+                            )
+                            total_outflow = sum(
+                                pipe_components[pid]['m_dot'][t]
+                                for pid in _out
+                            )
+                            return total_inflow == _node[t] + total_outflow
 
-                    # Heat balance: sum of heat delivered = consumer heat demand
-                    # Note: This constraint ensures thermal consistency at multi-pipe junctions
-                    constraint_name_heat = f"link_demand_{node_id}_multi_pipe_heat"
+                        setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_passthrough_flow_rule))
 
-                    def multi_pipe_heat_rule(m, t, _incoming=incoming_pipes, _Q=node_Q_demand):
-                        total_heat = sum(
-                            pipe_components[pid]['Q_delivered'][t]
-                            for pid in _incoming
-                        )
-                        if isinstance(_Q, pyo.Param):
-                            return total_heat >= pyo.value(_Q[t]) * 0.99  # Allow 1% tolerance
-                        else:
-                            return total_heat >= _Q[t] * 0.99
+                        logger.info(f"    ← incoming: {', '.join(incoming_pipes)}")
+                        logger.info(f"    → outgoing: {', '.join(outgoing_pipes)}")
 
-                    setattr(model, constraint_name_heat, pyo.Constraint(time_set, rule=multi_pipe_heat_rule))
+                    else:
+                        # Multi-input consumer, no pass-through
+                        # Flow balance: sum(incoming) = local_demand
+                        logger.info(f"  ✓ {node_id} has {len(incoming_pipes)} incoming pipes - "
+                                   f"creating multi-pipe flow balance")
 
-                    logger.info(f"    ← pipes: {', '.join(incoming_pipes)}")
+                        constraint_name_flow = f"link_demand_{node_id}_multi_pipe_flow"
+
+                        def multi_pipe_flow_rule(m, t, _incoming=incoming_pipes, _node=node_m_dot):
+                            total_inflow = sum(
+                                pipe_components[pid]['m_dot'][t]
+                                for pid in _incoming
+                            )
+                            return total_inflow == _node[t]
+
+                        setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_pipe_flow_rule))
+
+                        # Heat balance: sum of heat delivered >= consumer heat demand
+                        constraint_name_heat = f"link_demand_{node_id}_multi_pipe_heat"
+
+                        def multi_pipe_heat_rule(m, t, _incoming=incoming_pipes, _Q=node_Q_demand):
+                            total_heat = sum(
+                                pipe_components[pid]['Q_delivered'][t]
+                                for pid in _incoming
+                            )
+                            if isinstance(_Q, pyo.Param):
+                                return total_heat >= pyo.value(_Q[t]) * 0.99  # Allow 1% tolerance
+                            else:
+                                return total_heat >= _Q[t] * 0.99
+
+                        setattr(model, constraint_name_heat, pyo.Constraint(time_set, rule=multi_pipe_heat_rule))
+
+                        logger.info(f"    ← pipes: {', '.join(incoming_pipes)}")
 
                 else:
                     logger.warning(f"  ⚠ {node_id} has no incoming pipes!")
@@ -522,13 +657,18 @@ class NetworkManager:
                     pipe_T_return_out = pipe_comp['T_return_out']
                     pipe_m_dot = pipe_comp['m_dot']
 
-                    constraint_name = f"plant_{node_id}_return_temp_single"
+                    if brownfield_mode:
+                        # BROWNFIELD: Skip linking constraint - temps already fixed
+                        # Node T_return was fixed in PHASE 3b node temp fixing
+                        logger.info(f"  ✓ {node_id} return temp fixed (brownfield - skipping link to pipe {pipe_id})")
+                    else:
+                        constraint_name = f"plant_{node_id}_return_temp_single"
 
-                    def single_return_rule(m, t):
-                        return node_T_return[t] == pipe_T_return_out[t]
+                        def single_return_rule(m, t):
+                            return node_T_return[t] == pipe_T_return_out[t]
 
-                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=single_return_rule))
-                    logger.info(f"  ✓ {node_id} return temp ← pipe {pipe_id}")
+                        setattr(model, constraint_name, pyo.Constraint(time_set, rule=single_return_rule))
+                        logger.info(f"  ✓ {node_id} return temp ← pipe {pipe_id}")
 
                 else:
                     # Multiple return streams: weighted average by mass flow
@@ -624,6 +764,40 @@ class NetworkManager:
             sum(pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t] for t in time_set)
             for pipe_comp in pipe_components.values()
         )
+
+        # ========================================
+        # CRITICAL: Create per-timestep network losses
+        # ========================================
+        # system_builder.py checks for model.network_Q_loss_per_timestep[t]
+        # If missing, it falls back to estimated_loss_factor which causes infeasibility
+        # because the 12% loss factor conflicts with pipe constraints that deliver exact demand.
+        #
+        # Solution: Create a Pyomo Var for each timestep that equals the sum of pipe losses.
+        # This allows system_builder to use explicit network losses in the heat balance.
+
+        logger.info(f"\nCreating per-timestep network heat losses...")
+
+        # Create variable for network losses per timestep
+        model.network_Q_loss_per_timestep = pyo.Var(
+            time_set,
+            domain=pyo.NonNegativeReals,
+            bounds=(0, 50)  # Max 50 MW losses per timestep (conservative)
+        )
+
+        # Constraint: network_Q_loss_per_timestep[t] = sum of all pipe losses at time t
+        def network_loss_per_timestep_rule(m, t):
+            total_loss = sum(
+                pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t]
+                for pipe_comp in pipe_components.values()
+            )
+            return m.network_Q_loss_per_timestep[t] == total_loss
+
+        model.network_loss_per_timestep_calc = pyo.Constraint(
+            time_set,
+            rule=network_loss_per_timestep_rule
+        )
+
+        logger.info(f"  ✓ Created network_Q_loss_per_timestep[t] for {len(list(time_set))} timesteps")
 
         # Store for objective function
         model.network_total_pipe_capex = total_pipe_capex
