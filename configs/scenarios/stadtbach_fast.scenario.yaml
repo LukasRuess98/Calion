@@ -36,9 +36,8 @@ site:
       - CO2_consumption_based
       - co2
 
-# THERMAL NETWORK - Disabled
+# THERMAL NETWORK - Enabled
 thermal_network:
-  thermal_network:
   enabled: true
   topology_file: configs/networks/stadtbach_brownfield.yaml
   estimated_loss_factor: 0.12  # <-- 12% geschätzte Verluste (typisch: 5-15%)
