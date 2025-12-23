@@ -559,10 +559,12 @@ class NetworkManager:
 
             logger.info(f"  Total network loss factor: {total_loss_factor*100:.2f}% of demand")
 
-            # Store the loss factor for later use in PHASE 6
-            # The brownfield_network_loss constraint will be created there
-            # (after network_Q_loss_per_timestep variable is created)
+            # Store data for later use in get_results() - enables pipe-level calculations
+            # The brownfield_network_loss constraint will be created in PHASE 6
             model._brownfield_loss_factor = total_loss_factor
+            model._brownfield_pipe_service_fractions = pipe_service_fractions  # Per-pipe fractions
+            model._brownfield_delta_T = delta_T  # Temperature difference for flow calc
+            model._brownfield_cp_water = cp_water  # Specific heat capacity
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] == 'consumer' and not brownfield_mode:
@@ -973,6 +975,95 @@ class NetworkManager:
         # In brownfield mode, use network_Q_loss_per_timestep (direct calculation from demand * loss_factor)
         # because pipe-level Q_loss variables are unconstrained
         brownfield_mode = getattr(self, 'brownfield_mode', False)
+
+        # BROWNFIELD MODE: Calculate pipe-level data from demand and service fractions
+        # Since pipe variables (m_dot, Q_loss) are unconstrained in brownfield mode,
+        # we calculate expected values post-optimization for display purposes
+        if brownfield_mode and hasattr(model, '_brownfield_pipe_service_fractions'):
+            logger.info("  [Brownfield mode: Calculating pipe-level hydraulics from demand]")
+
+            pipe_fractions = model._brownfield_pipe_service_fractions
+            delta_T = getattr(model, '_brownfield_delta_T', 65.0)  # K
+            cp_water = getattr(model, '_brownfield_cp_water', 4.186)  # kJ/(kg·K)
+            temp_drop_per_pipe = 2.0  # °C (1°C supply + 1°C return)
+
+            # Get heatd time series (kW)
+            heatd_series = [pyo.value(model.heatd[t]) for t in time_set]
+            n_timesteps = len(heatd_series)
+
+            for pipe_id, service_frac in pipe_fractions.items():
+                if pipe_id not in results['pipes']:
+                    continue
+
+                pipe_config = self.pipes.get(pipe_id, {})
+                pipe_res = results['pipes'][pipe_id]
+
+                # Calculate expected m_dot per timestep: m_dot = heatd * frac * 1000 / (cp * delta_T)
+                # heatd is in kW, we need kg/s
+                # m_dot [kg/s] = Q [kW] / (cp [kJ/(kg·K)] * ΔT [K])
+                flow_series = [
+                    (heatd * service_frac) / (cp_water * delta_T)  # kg/s
+                    for heatd in heatd_series
+                ]
+
+                # Calculate Q_loss per timestep: Q_loss = m_dot * cp * temp_drop / 1000 (MW)
+                q_loss_series_kw = [
+                    m_dot * cp_water * temp_drop_per_pipe  # kW
+                    for m_dot in flow_series
+                ]
+
+                # Get pipe diameter for velocity calculation
+                diameter_mm = pipe_config.get('diameter_mm', 200)
+                diameter_m = diameter_mm / 1000.0
+                area_m2 = 3.14159 * (diameter_m / 2) ** 2
+                density_water = 1000  # kg/m³
+
+                # Calculate velocity: v = m_dot / (rho * A)
+                velocity_series = [
+                    m_dot / (density_water * area_m2) if area_m2 > 0 else 0
+                    for m_dot in flow_series
+                ]
+
+                # Calculate pressure drop using Darcy-Weisbach approximation
+                # ΔP = f * (L/D) * (ρ * v²) / 2
+                # Simplified: ΔP [bar] ≈ 0.001 * L * v² / D for water
+                pipe_length = pipe_config.get('length_m', 100)
+                pressure_series = [
+                    0.001 * pipe_length * (v ** 2) / diameter_m if diameter_m > 0 else 0
+                    for v in velocity_series
+                ]
+
+                # Update pipe results with calculated values
+                avg_flow = sum(flow_series) / n_timesteps if n_timesteps > 0 else 0
+                max_velocity = max(velocity_series) if velocity_series else 0
+                avg_velocity = sum(velocity_series) / n_timesteps if n_timesteps > 0 else 0
+                max_pressure = max(pressure_series) if pressure_series else 0
+                total_loss_mwh = sum(q_loss_series_kw) * dt_h / 1000  # kW*h -> MWh
+
+                # Heat delivered = demand served by this pipe
+                q_delivered_series_kw = [
+                    heatd * service_frac  # kW
+                    for heatd in heatd_series
+                ]
+                total_delivered_mwh = sum(q_delivered_series_kw) * dt_h / 1000
+
+                # Update pipe results
+                pipe_res['flow_kg_s'] = flow_series
+                pipe_res['Q_loss_supply_kw'] = [q / 2 for q in q_loss_series_kw]  # Split 50/50
+                pipe_res['Q_loss_return_kw'] = [q / 2 for q in q_loss_series_kw]
+                pipe_res['velocity_m_s'] = velocity_series
+                pipe_res['delta_p_total_bar'] = pressure_series
+                pipe_res['avg_flow_kg_s'] = avg_flow
+                pipe_res['max_velocity_m_s'] = max_velocity
+                pipe_res['avg_velocity_m_s'] = avg_velocity
+                pipe_res['max_delta_p_total_bar'] = max_pressure
+                pipe_res['total_heat_loss_mwh'] = total_loss_mwh
+                pipe_res['total_heat_delivered_mwh'] = total_delivered_mwh
+                pipe_res['service_fraction'] = service_frac
+
+                logger.info(f"    {pipe_id}: m_dot_avg={avg_flow:.3f} kg/s, "
+                           f"v_max={max_velocity:.4f} m/s, ΔP_max={max_pressure:.4f} bar, "
+                           f"Q_loss={total_loss_mwh:.3f} MWh")
 
         if brownfield_mode and hasattr(model, 'network_Q_loss_per_timestep'):
             # Use the directly calculated network losses from brownfield constraint
