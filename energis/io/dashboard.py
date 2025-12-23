@@ -3199,8 +3199,11 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 vel_rating = "🔴 Zu hoch"
 
             flow_stats_md += "### Hydraulische KPIs\n\n"
-            flow_stats_md += f"- **Max. Strömungsgeschwindigkeit**: {max_vel:.2f} m/s {vel_rating}\n"
-            flow_stats_md += f"- **Gesamtdruckverlust**: {total_dp:.2f} bar\n"
+            # Use appropriate decimal places based on value magnitude
+            vel_fmt = f"{max_vel:.4f}" if max_vel < 0.1 else f"{max_vel:.2f}"
+            dp_fmt = f"{total_dp:.4f}" if total_dp < 0.1 else f"{total_dp:.2f}"
+            flow_stats_md += f"- **Max. Strömungsgeschwindigkeit**: {vel_fmt} m/s {vel_rating}\n"
+            flow_stats_md += f"- **Gesamtdruckverlust**: {dp_fmt} bar\n"
             flow_stats_md += f"- **Geschätzte Pumpenleistung**: {pump_power:.1f} kW\n\n"
 
         if pipe_flows:
@@ -3212,7 +3215,9 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                 mean_flow = flows.mean()
                 max_flow = flows.max()
                 min_flow = flows.min()
-                flow_stats_md += f"| {pipe_id} | {mean_flow:.2f} | {max_flow:.2f} | {min_flow:.2f} |\n"
+                # Use more decimal places for small values
+                fmt = ".4f" if max_flow < 1.0 else ".2f"
+                flow_stats_md += f"| {pipe_id} | {mean_flow:{fmt}} | {max_flow:{fmt}} | {min_flow:{fmt}} |\n"
 
             flow_stats_md += "\n"
 
@@ -3231,7 +3236,9 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                     rating = "🟡"
                 else:
                     rating = "🔴"
-                flow_stats_md += f"| {pipe_id} | {mean_vel:.2f} | {max_vel:.2f} | {rating} |\n"
+                # Use more decimal places for small values
+                fmt = ".4f" if max_vel < 0.1 else ".2f"
+                flow_stats_md += f"| {pipe_id} | {mean_vel:{fmt}} | {max_vel:{fmt}} | {rating} |\n"
 
             flow_stats_md += "\n"
 
@@ -3286,7 +3293,9 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
             for pipe_id, loss_mwh in sorted_losses[:5]:
                 loss_percent = (loss_mwh / total_loss_mwh) * 100 if total_loss_mwh > 0 else 0
-                stats_md += f"- **{pipe_id}**: {loss_mwh:.2f} MWh ({loss_percent:.1f}% der Gesamtverluste)\n"
+                # Use more decimal places for small values
+                loss_fmt = f"{loss_mwh:.4f}" if loss_mwh < 1.0 else f"{loss_mwh:.2f}"
+                stats_md += f"- **{pipe_id}**: {loss_fmt} MWh ({loss_percent:.1f}% der Gesamtverluste)\n"
 
         # === INVESTMENT SECTION ===
         investment_md = "## 💰 Netzwerk-Investitionen\n\n"
