@@ -1,171 +1,121 @@
-# EnerGIS – Modular MILP Framework (Fuel Buses enabled)
+# EnerGIS - District Heating Optimization Framework
 
-This package contains a minimal, runnable skeleton to model industrial energy systems with **explicit fuel buses**.
-It keeps the structure close to oemof/pypsa (configs, components, buses, orchestrator) and your previous monolithic code.
+A modular MILP-based optimization framework for district heating systems with thermal network integration.
 
-## 🚨 Version 2.0 Update
+## Features
 
-**EnerGIS v2.0** introduces a unified workflow-based API. If you're using the old `orchestrator.run_all()` API, see **[MIGRATION_V2.md](MIGRATION_V2.md)** for the migration guide.
+- **Multi-stage optimization**: Perfect Foresight (PF) and Rolling Horizon (RH) modes
+- **Thermal network modeling**: Brownfield and greenfield network optimization
+- **Component library**: Heat pumps, CHP, storage, power-to-heat, biomass
+- **Investment optimization**: Capacity sizing for heat pumps and storage
+- **CO2 and cost tracking**: Detailed emissions and cost breakdown
 
-**Key Changes:**
-- ✅ **New API**: `rh.run_workflow()` + `rh.export_workflow_results()`
-- ✅ **Config cleanup**: `base.yaml` contains only technical defaults; scenarios in `configs/scenarios/*.yaml`
-- ✅ **Backwards compatible**: Old code works with deprecation warnings
-
-**Quick Migration:**
-```python
-# OLD (deprecated):
-from energis.run.orchestrator import run_all
-result = run_all(config_paths)
-
-# NEW (recommended):
-from energis.run import rolling_horizon as rh
-workflow = rh.run_workflow(config_paths)
-result = rh.export_workflow_results(workflow)
-```
-
-## Motivation & Forschungsfragen
-- EnerGIS digitalisiert eine bestehende Stadtbach-Referenz, um Wartbarkeit, Transparenz und CI-basierte Validierung für Fern- und Nahwärmenetze sicherzustellen.
-- Forschungsfragen und Paper-Skopierung sind in [`docs/paper_outline.md`](docs/paper_outline.md) skizziert: Wie nah kommt die modulare PF→RH-Architektur an die Legacy-Ergebnisse, welche Modellierungsentscheidungen treiben Abweichungen, und wie wird die Validierung automatisiert?
-
-## Highlights
-- YAML config-layer with merge order (base → tech_catalog → site → system → scenario → overrides.local)
-- Explicit **buses**: `electricity`, `heat`, `gas`, `biomass`, `waste`
-- Modular components (blocks): HeatPump, Storage, ThermalGenerator, P2H
-- PF + RH orchestration and single Excel export
-- Tests that build a tiny model and check bus balances (skipped if Pyomo missing)
-- Kurzgefasste Formulierungsdetails: siehe [`docs/methodology.md`](docs/methodology.md)
-
-## Quickstart
-1. Put your `Import_Data.xlsx` in the repo root or change the path in `configs/sites/default.site.yaml`.
-2. Install deps:
-   ```bash
-   pip install pyomo openpyxl pandas numpy pyyaml pytest
-   # Optional solvers: gurobi / highs / glpk (fallback to glpk if available)
-   ```
-3. Run quick test:
-   ```bash
-   python quickstart_test.py
-   ```
-4. Execute a configurable PF/RH workflow without writing exports:
-   ```bash
-   python -m energis.run.rolling_horizon \
-       configs/base.yaml \
-       configs/tech_catalog.yaml \
-       configs/sites/default.site.yaml \
-       configs/systems/baseline.system.yaml \
-       configs/scenarios/pf_then_rh.workflow.scenario.yaml \
-       --print-design \
-       --run-mode PF_THEN_RH \
-       --heat-horizon-hours 168 \
-       --step-hours 24 \
-       --terminal-policy free
-   ```
-   All CLI flags have matching environment variables (`RUN_MODE`, `HEAT_HORIZON_HOURS`, `STEP_HOURS`,
-   `TERMINAL_POLICY`, `FIX_DESIGN`, `PF_DESIGN_JSON`, `INCLUDE_GRIDCOST_IN_ENERGY`,
-   `INCLUDE_DEMAND_CHARGE_IN_RH`, `INCLUDE_CO2_COST_IN_OBJECTIVE`) so the workflow can be steered by
-   CI pipelines or notebooks without modifying YAML files. Additional helpers:
-   - `--rh-window-hours`/`--heat-horizon-hours` and `--rh-overlap-hours` allow explicit control of window length and overlap.
-   - Sensitivity sweeps for RH settings use comma-separated lists: e.g. `--sensitivity-horizon-hours 72,168 --sensitivity-overlap-hours 0,6` runs multiple PF→RH combinations sequentially.
-5. Interaktive Notebooks (siehe [`notebooks/README.md`](notebooks/README.md) für Details):
-   - **`runner.ipynb`** - Haupteinstiegspunkt für Optimierungsläufe (PF/RH)
-   - **`scenario_studio.ipynb`** - Interaktives Dashboard mit detaillierten Visualisierungen
-   - **`synthetic_example.ipynb`** - Beispiel mit synthetischen Daten
-   - **`validation.ipynb`** - Validierung gegen Legacy-Referenz
-
-### Case study exports
-
-Use the convenience wrapper to run the PF→RH workflow, export Excel/JSON bundles and plot images into `artifacts/`:
+## Installation
 
 ```bash
-./scripts/run_case_study.sh
+pip install -r requirements.txt
+
+# Optional: Install Gurobi solver (recommended for large problems)
+# Falls back to GLPK if Gurobi unavailable
 ```
 
-Optional overrides:
-- Pass an alternative config list as arguments to the script.
-- `CASE_TAG=mytag` adjusts the folder suffix, `ARTIFACT_ROOT=/tmp/out` changes the export root.
+## Quick Start
 
-### Validierung (Stadtbach-Referenz)
+```bash
+# Run optimization with default configuration
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/system.yaml configs/scenario.yaml
 
-- Der Test [`tests/test_stadtbach_validation.py`](tests/test_stadtbach_validation.py) führt einen 24h-Stadtbach-Lauf gegen die Legacy-Referenz aus, erstellt eine Kennzahlentabelle EnerGIS vs. Legacy und exportiert sie (CSV) für Artefakte.
-- Notebook [`notebooks/validation.ipynb`](notebooks/validation.ipynb) repliziert den Lauf interaktiv; die Ergebnis-Tabelle landet in `notebooks/exports/stadtbach_validation.csv`.
+# Start interactive dashboard
+python start_dashboard.py
+```
 
-### Configuration quick reference
+## Configuration Structure
 
-The default `configs/base.yaml` now ships sane defaults for the rolling horizon settings and cost flags:
+```
+configs/
+├── base.yaml           # Global defaults (solver, grid, costs)
+├── tech_catalog.yaml   # Technology parameters (efficiencies, fuel prices)
+├── system.yaml         # System components (generators, heat pumps, storage)
+├── network.yaml        # Thermal network topology (nodes, pipes)
+└── scenario.yaml       # Scenario settings (horizon, run mode, data source)
+```
+
+### Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `base.yaml` | Solver settings, grid parameters, cost defaults |
+| `tech_catalog.yaml` | Generator efficiencies, fuel prices, investment costs |
+| `system.yaml` | Heat pumps, storage, thermal generators |
+| `network.yaml` | Network topology (plants, consumers, pipes) |
+| `scenario.yaml` | Time horizon, run mode, data file, network settings |
+
+## Usage Examples
+
+### Run Full Year Optimization
 
 ```yaml
+# In scenario.yaml
 scenario:
   run_mode: PF_ONLY
-  fix_design: false
-  rolling_horizon:
-    heat_horizon_hours: 168.0
-    step_hours: 24.0
-    terminal_policy: free
-
-costs:
-  include_gridcost_in_energy: true
-  include_demand_charge_in_rh: true
-  include_co2_cost_in_objective: true
+  horizon:
+    start: "2023-01-01 00:00"
+    end: "2023-12-31 23:00"
 ```
 
-Individual scenarios can override these entries (see `configs/scenarios/`).  When `PF_THEN_RH` is used
-without executing a PF step, point `scenario.pf_design_json` to a previously exported `pf_design.json` so
-that the design fixation step can reuse those capacities. Missing design files are detected and reported
-gracefully.
+### Enable Thermal Network
 
-Exports go to `exports/<timestamp>_<tag>/scenario.xlsx`.
+```yaml
+# In scenario.yaml
+thermal_network:
+  enabled: true
+  topology_file: configs/network.yaml
+  brownfield_mode: true
+```
 
-## Architecture & Documentation
+## Project Structure
 
-EnerGIS uses a **v2.0 component-based architecture** inspired by Oemof and PyPSA:
+```
+energis/
+├── models/           # Pyomo model builders
+│   ├── system_builder.py
+│   ├── network_manager.py
+│   └── blocks/       # Component blocks (HP, storage, generators)
+├── run/              # Optimization orchestration
+│   └── rolling_horizon.py
+├── io/               # Input/output handling
+│   └── dashboard.py
+└── utils/            # Helper functions
 
-- **[ARCHITECTURE_V2.md](ARCHITECTURE_V2.md)** - Technical architecture reference (Component Protocol, BaseComponent, Bus abstraction, Registry pattern)
-- **[MIGRATION_GUIDE_V2.md](MIGRATION_GUIDE_V2.md)** - Migration guide for v1.0 → v2.0 (100% backward compatible)
-- **[docs/archive/](docs/archive/)** - Historical analysis and implementation reports
+notebooks/            # Jupyter notebooks for analysis
+data/                 # Input data files
+```
 
-### Key Features (v2.0)
+## Dashboard
 
-- ✅ **Plugin Architecture** - Add custom components via `@register_component` decorator
-- ✅ **Type Safety** - Full type hints with `typing.Protocol` for IDE support
-- ✅ **Explicit Flows** - Flow objects replace implicit dictionary returns
-- ✅ **Bus Abstraction** - Buses as first-class objects with capacity limits and loss factors
-- ✅ **Backward Compatible** - All v1.0 code works unchanged
-
-See `examples/custom_component_example.py` for a complete guide on adding new components.
-
-## Development Setup
-
-For contributors and developers:
+Launch the interactive dashboard to visualize results:
 
 ```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Install pre-commit hooks (recommended)
-pip install pre-commit
-pre-commit install
-
-# This will automatically:
-# - Strip notebook outputs before commits
-# - Format Python code with Black
-# - Sort imports with isort
-# - Run flake8 linting
-# - Check YAML/JSON syntax
-
-# Manual pre-commit run
-pre-commit run --all-files
-
-# Run tests
-pytest tests/ -v
-
-# Clear notebook outputs manually (if not using pre-commit)
-jupyter nbconvert --clear-output --inplace notebooks/*.ipynb
+python start_dashboard.py
 ```
 
-**Pre-commit hooks ensure:**
-- No large notebook outputs in Git history
-- Consistent code formatting
-- Clean diffs and easy code reviews
+The dashboard provides:
+- Heat balance visualization
+- Cost breakdown analysis
+- Network hydraulics overview
+- CO2 emissions tracking
 
-See [`.pre-commit-config.yaml`](.pre-commit-config.yaml) for configuration details.
+## Requirements
+
+- Python 3.9+
+- Pyomo
+- Gurobi or GLPK solver
+- pandas, numpy, pyyaml
+
+## License
+
+[Add license information]
+
+## Citation
+
+[Add citation information for Applied Energy publication]

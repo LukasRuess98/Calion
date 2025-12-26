@@ -282,7 +282,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     Example:
         >>> table = load_input_excel("data/Import_Data.xlsx")
-        >>> cfg = load_and_merge(["configs/base.yaml", "configs/systems/baseline.system.yaml"])
+        >>> cfg = load_and_merge(["configs/base.yaml", "configs/tech_catalog.yaml",
+        ...                       "configs/system.yaml", "configs/scenario.yaml"])
         >>> model = build_model(table, cfg, dt_h=1.0)
         >>> solver = pyo.SolverFactory("gurobi")
         >>> result = solver.solve(model)
