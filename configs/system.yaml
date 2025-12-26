@@ -1,21 +1,26 @@
-# Stadtbach System Configuration - MIT Investment-Optimierung
-# Für Kapazitätserweiterungsplanung
-# Speicher startet leer, Investitionen werden optimiert
-# Date: 2025-12-18
+# =============================================================================
+# SYSTEM CONFIGURATION
+# =============================================================================
+# Consolidated system configuration for district heating optimization
+# Defines all generation assets, heat pumps, and storage
+# =============================================================================
 
 system:
-  # Heat pump defaults - Investment ENABLED
+  # =========================================================================
+  # HEAT PUMP CONFIGURATION
+  # =========================================================================
   heat_pump_defaults:
     enabled: true
     type: standard
-    max_th_mw: 100.0
-    min_th_mw: 5.0
+    max_th_mw: 50.0
+    min_th_mw: 0.0
     investment:
-      enabled: true  # Investment-Optimierung aktiv
+      enabled: true
       capacity_min_mw: 5.0
       capacity_max_mw: 100.0
+      capex_eur_per_mw: 400000.0
+      lifetime_years: 15.0
 
-  # Heat Pumps - Investitionen aktiviert
   heat_pumps:
     - id: HP1
       enabled: true
@@ -26,7 +31,7 @@ system:
         enabled: true
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0  # Startschätzung
+        initial_capacity_mw: 50.0
 
     - id: HP2
       enabled: true
@@ -61,42 +66,64 @@ system:
         capacity_max_mw: 100.0
         initial_capacity_mw: 50.0
 
-  # Storage - Investment ENABLED, starts EMPTY
+  # =========================================================================
+  # THERMAL STORAGE
+  # =========================================================================
   storage:
     enabled: true
-    min_energy_mwh: 50.0
+    min_energy_mwh: 0.0
     max_energy_mwh: 5000.0
     max_power_mw: 200.0
-    soc0_mwh: 0.0  # Speicher startet LEER
+    soc0_mwh: 500.0
     investment:
-      enabled: true  # Investment-Optimierung aktiv
+      enabled: true
       energy_capacity_min_mwh: 100.0
       energy_capacity_max_mwh: 5000.0
-      power_capacity_min_mw: 30.0
+      power_capacity_min_mw: 0.0
       power_capacity_max_mw: 200.0
-      initial_energy_capacity_mwh: 500.0  # Startschätzung
-      initial_power_capacity_mw: 50.0
+      initial_energy_capacity_mwh: 500.0
 
-  # Generators - alle aktiv (fixed capacity, da Bestand)
+  # =========================================================================
+  # THERMAL GENERATORS (Brownfield - Fixed Capacities)
+  # =========================================================================
   generators:
+    # Combined Heat and Power (CHP)
     hkw:
       enabled: true
       cap_th_mw: 75.0
+      description: "Heizkraftwerk - Gas CHP"
+
+    # Gas Turbine
     gtost:
       enabled: true
       cap_th_mw: 41.3
+      description: "Gasturbine Ost"
+
+    # Power-to-Heat
     p2h:
       enabled: true
       cap_th_mw: 10.0
+      description: "Elektrodenkessel"
+
+    # Biomass CHP
     bmhkw:
       enabled: true
       cap_th_mw: 15.0
+      description: "Biomasse-Heizkraftwerk"
+
+    # Gas Boilers
     hws:
       enabled: true
       cap_th_mw: 45.0
+      description: "Heizwerk Süd - Gaskessel"
+
     hww:
       enabled: true
       cap_th_mw: 45.0
+      description: "Heizwerk West - Gaskessel"
+
+    # Waste Heat
     ava:
       enabled: true
       cap_th_mw: 45.0
+      description: "Abwärmenutzung AVA"

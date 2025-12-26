@@ -2792,11 +2792,8 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                     "```yaml\n"
                     "thermal_network:\n"
                     "  enabled: true\n"
-                    "  topology_file: stadtbach_network.yaml\n"
-                    "```\n\n"
-                    "**Weitere Informationen:**\n"
-                    "- `docs/THERMAL_NETWORK_QUICKSTART.md`\n"
-                    "- `notebooks/thermal_network_analysis.ipynb`"
+                    "  topology_file: configs/network.yaml\n"
+                    "```"
                 )
             )
 

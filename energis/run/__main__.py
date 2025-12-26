@@ -4,7 +4,7 @@ Command-line interface for EnerGIS framework.
 
 Usage:
     python -m energis.run <config1.yaml> <config2.yaml> ...
-    python -m energis.run configs/base.yaml configs/systems/baseline.system.yaml
+    python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/system.yaml configs/scenario.yaml
 """
 
 import sys
@@ -18,7 +18,7 @@ def main():
         print("Usage: python -m energis.run <config1.yaml> <config2.yaml> ...")
         print()
         print("Example:")
-        print("  python -m energis.run configs/base.yaml configs/systems/baseline.system.yaml")
+        print("  python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/system.yaml configs/scenario.yaml")
         sys.exit(1)
 
     config_paths = sys.argv[1:]
