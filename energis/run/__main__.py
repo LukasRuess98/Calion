@@ -3,8 +3,8 @@
 Command-line interface for EnerGIS framework.
 
 Usage:
+    python -m energis.run configs/stadtbach.yaml
     python -m energis.run <config1.yaml> <config2.yaml> ...
-    python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/baseline.yaml configs/scenarios/full_year.yaml
 """
 
 import sys
@@ -15,11 +15,11 @@ from energis.run import rolling_horizon as rh
 def main():
     """Main CLI entry point."""
     if len(sys.argv) < 2:
-        print("Usage: python -m energis.run <config1.yaml> <config2.yaml> ...")
+        print("Usage: python -m energis.run <config.yaml> [config2.yaml ...]")
         print()
         print("Examples:")
-        print("  python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/baseline.yaml configs/scenarios/full_year.yaml")
-        print("  python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/systems/baseline.yaml configs/scenarios/one_week.yaml")
+        print("  python -m energis.run configs/stadtbach.yaml")
+        print("  python -m energis.run configs/stadtbach.yaml configs/overrides.yaml")
         sys.exit(1)
 
     config_paths = sys.argv[1:]

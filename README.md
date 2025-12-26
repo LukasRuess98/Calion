@@ -22,84 +22,58 @@ pip install -r requirements.txt
 ## Quick Start
 
 ```bash
-# Run baseline full year optimization
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-    configs/systems/baseline.yaml configs/scenarios/full_year.yaml
-
-# Run quick one-week test
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-    configs/systems/baseline.yaml configs/scenarios/one_week.yaml
+# Run optimization (single config file)
+python -m energis.run configs/stadtbach.yaml
 
 # Start interactive dashboard
 python start_dashboard.py
 ```
 
-## Configuration Structure
+## Configuration
+
+All settings are in a single YAML file (`configs/stadtbach.yaml`):
+
+```yaml
+# Key settings to adjust:
+
+scenario:
+  horizon:
+    start: "2023-01-01 00:00"
+    end: "2023-01-07 23:00"    # Change for longer runs
+
+thermal_network:
+  enabled: true                 # Enable/disable network
+  brownfield_mode: true         # Fixed topology
+
+costs:
+  co2_price_eur_per_t: 100.0   # CO2 price
+```
+
+### Configuration Structure
 
 ```
 configs/
-├── base.yaml              # Global defaults (solver, grid, costs) - FIXED
-├── tech_catalog.yaml      # Technology parameters - FIXED
+├── stadtbach.yaml         # Complete configuration (recommended)
 │
-├── networks/              # Network topologies (interchangeable)
-│   └── brownfield.yaml    # Existing network infrastructure
+├── networks/              # Network topologies (optional, for variants)
+│   └── brownfield.yaml
 │
-├── systems/               # System configurations (interchangeable)
-│   ├── baseline.yaml      # Standard system with existing capacities
-│   └── high_hp.yaml       # High heat pump capacity scenario
+├── systems/               # System variants (optional)
+│   ├── baseline.yaml
+│   └── high_hp.yaml
 │
-└── scenarios/             # Scenario definitions (interchangeable)
-    ├── full_year.yaml     # Full year optimization
-    ├── one_week.yaml      # Quick test (1 week)
-    └── high_hp_year.yaml  # Decarbonization scenario
+└── scenarios/             # Scenario variants (optional)
+    ├── full_year.yaml
+    └── one_week.yaml
 ```
 
-### Configuration Philosophy
+### Advanced: Multiple Config Files
 
-| Layer | Purpose | Changes |
-|-------|---------|---------|
-| `base.yaml` | Solver settings, grid parameters | Rarely |
-| `tech_catalog.yaml` | Efficiencies, fuel prices, investment costs | Per study |
-| `networks/*.yaml` | Network topology (nodes, pipes) | Per network variant |
-| `systems/*.yaml` | Component capacities (HP, storage, generators) | Per system variant |
-| `scenarios/*.yaml` | Time horizon, run mode, network/system selection | Per run |
-
-### Scenario Combinations
+For scenario comparisons, you can split configs and merge them:
 
 ```bash
-# Baseline system, full year
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-    configs/systems/baseline.yaml configs/scenarios/full_year.yaml
-
-# High HP system, full year (decarbonization study)
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-    configs/systems/high_hp.yaml configs/scenarios/high_hp_year.yaml
-
-# Baseline system, one week test
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-    configs/systems/baseline.yaml configs/scenarios/one_week.yaml
-```
-
-## Usage Examples
-
-### Enable Thermal Network
-
-In your scenario file:
-```yaml
-thermal_network:
-  enabled: true
-  topology_file: configs/networks/brownfield.yaml
-  brownfield_mode: true
-```
-
-### Configure Time Horizon
-
-```yaml
-scenario:
-  run_mode: PF_ONLY  # or PF_THEN_RH
-  horizon:
-    start: "2023-01-01 00:00"
-    end: "2023-12-31 23:00"
+# Override specific settings
+python -m energis.run configs/stadtbach.yaml configs/my_overrides.yaml
 ```
 
 ## Project Structure
@@ -109,15 +83,15 @@ energis/
 ├── models/           # Pyomo model builders
 │   ├── system_builder.py
 │   ├── network_manager.py
-│   └── blocks/       # Component blocks (HP, storage, generators)
+│   └── blocks/       # Component blocks
 ├── run/              # Optimization orchestration
 │   └── rolling_horizon.py
 ├── io/               # Input/output handling
 │   └── dashboard.py
 └── utils/            # Helper functions
 
-configs/              # Configuration files (see above)
-notebooks/            # Jupyter notebooks for analysis
+configs/              # Configuration files
+notebooks/            # Jupyter notebooks
 data/                 # Input data files
 ```
 
@@ -129,7 +103,7 @@ Launch the interactive dashboard to visualize results:
 python start_dashboard.py
 ```
 
-The dashboard provides:
+Features:
 - Heat balance visualization
 - Cost breakdown analysis
 - Network hydraulics overview
