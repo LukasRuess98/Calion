@@ -188,11 +188,11 @@ class NetworkManager:
 
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
-        # Check brownfield mode (moved earlier for pipe config)
-        brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', False)
+        # Check brownfield mode - defaults to True (simplified fixed-topology mode)
+        brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', True)
         self.brownfield_mode = brownfield_mode  # Store as instance variable for get_results
         if brownfield_mode:
-            logger.info("  [Brownfield mode: temperatures fixed at design values]")
+            logger.info("  [Brownfield mode: fixed topology with physical losses (Q = U×L×ΔT)]")
 
         for pipe_id, pipe_config in self.pipes.items():
             # Enrich pipe config with global parameters
@@ -541,30 +541,58 @@ class NetworkManager:
             # we'll calculate network losses directly based on expected flows.
             # This avoids the over-constraining issue while still getting realistic losses.
 
-            logger.info(f"  Calculating expected network losses based on demand fractions...")
+            logger.info(f"  Calculating physical network losses (Q = U × L × ΔT)...")
 
-            # Calculate total network loss factor based on pipe service fractions and temp drops
-            # Q_loss_per_pipe = m_dot * cp * temp_drop / 1000 (MW)
-            # m_dot = heatd * fraction * 1000 / (cp * delta_T)
-            # So: Q_loss = heatd * fraction * temp_drop / delta_T
+            # =========================================================================
+            # PHYSICAL HEAT LOSS CALCULATION
+            # =========================================================================
+            # Q_loss = U [W/m·K] × L [m] × (T_fluid - T_ground) [K] / 1e6 → MW
+            # This is CONSTANT per pipe (independent of flow/demand)
+            # =========================================================================
 
-            # For each pipe, temp_drop is typically 1°C (supply) + 1°C (return) = 2°C total
-            temp_drop_per_pipe = 2.0  # °C (1°C supply + 1°C return)
+            ground_temp = self.parameters.get('ground_temp_default_c', 10.0)  # °C
 
-            total_loss_factor = 0.0
-            for pipe_id, service_frac in pipe_service_fractions.items():
-                pipe_loss_factor = service_frac * temp_drop_per_pipe / delta_T
-                total_loss_factor += pipe_loss_factor
-                logger.info(f"    {pipe_id}: loss factor = {pipe_loss_factor*100:.3f}%")
+            total_network_loss_mw = 0.0
+            pipe_losses = {}
 
-            logger.info(f"  Total network loss factor: {total_loss_factor*100:.2f}% of demand")
+            for pipe_id, pipe_config in self.pipes.items():
+                # Get pipe parameters
+                length_m = pipe_config.get('length_m', 0.0)
+                u_supply = pipe_config.get('u_value_supply_w_per_m_k', 0.28)  # W/(m·K)
+                u_return = pipe_config.get('u_value_return_w_per_m_k', 0.30)  # W/(m·K)
 
-            # Store data for later use in get_results() - enables pipe-level calculations
-            # The brownfield_network_loss constraint will be created in PHASE 6
-            model._brownfield_loss_factor = total_loss_factor
-            model._brownfield_pipe_service_fractions = pipe_service_fractions  # Per-pipe fractions
+                # Temperature differences
+                delta_t_supply = supply_temp - ground_temp  # K (supply pipe)
+                delta_t_return = return_temp - ground_temp  # K (return pipe)
+
+                # Heat loss per pipe [W] → [MW]
+                q_loss_supply_mw = u_supply * length_m * delta_t_supply / 1e6
+                q_loss_return_mw = u_return * length_m * delta_t_return / 1e6
+                q_loss_total_mw = q_loss_supply_mw + q_loss_return_mw
+
+                pipe_losses[pipe_id] = {
+                    'supply_mw': q_loss_supply_mw,
+                    'return_mw': q_loss_return_mw,
+                    'total_mw': q_loss_total_mw,
+                    'length_m': length_m
+                }
+                total_network_loss_mw += q_loss_total_mw
+
+                logger.info(f"    {pipe_id}: L={length_m:.0f}m, "
+                           f"U_s={u_supply:.2f}, U_r={u_return:.2f} → "
+                           f"Q_loss={q_loss_total_mw*1000:.1f} kW")
+
+            logger.info(f"  Ground temperature: {ground_temp}°C")
+            logger.info(f"  Supply/Return temps: {supply_temp}°C / {return_temp}°C")
+            logger.info(f"  Total network heat loss: {total_network_loss_mw:.3f} MW (constant)")
+
+            # Store data for later use in PHASE 6 and get_results()
+            model._brownfield_total_loss_mw = total_network_loss_mw  # Constant loss [MW]
+            model._brownfield_pipe_losses = pipe_losses  # Per-pipe breakdown
+            model._brownfield_pipe_service_fractions = pipe_service_fractions  # For flow calc
             model._brownfield_delta_T = delta_T  # Temperature difference for flow calc
             model._brownfield_cp_water = cp_water  # Specific heat capacity
+            model._brownfield_ground_temp = ground_temp
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] == 'consumer' and not brownfield_mode:
@@ -890,17 +918,17 @@ class NetworkManager:
             bounds=(0, 50)  # Max 50 MW losses per timestep (conservative)
         )
 
-        # In brownfield mode, use direct loss factor calculation
+        # In brownfield mode, use constant physical loss calculation
         # In greenfield mode, use pipe-based loss calculation
-        if brownfield_mode and hasattr(model, '_brownfield_loss_factor'):
-            # Brownfield: network losses = heatd * loss_factor
-            loss_factor = model._brownfield_loss_factor
+        if brownfield_mode and hasattr(model, '_brownfield_total_loss_mw'):
+            # Brownfield: network losses = constant (Q = U × L × ΔT)
+            total_loss_mw = model._brownfield_total_loss_mw
 
             def brownfield_network_loss_rule(m, t):
-                return m.network_Q_loss_per_timestep[t] == m.heatd[t] * loss_factor
+                return m.network_Q_loss_per_timestep[t] == total_loss_mw
 
             model.brownfield_network_loss = pyo.Constraint(time_set, rule=brownfield_network_loss_rule)
-            logger.info(f"  ✓ Brownfield: network_Q_loss_per_timestep = {loss_factor*100:.2f}% × heatd")
+            logger.info(f"  ✓ Brownfield: network_Q_loss_per_timestep = {total_loss_mw:.3f} MW (constant)")
         else:
             # Greenfield: network_Q_loss_per_timestep[t] = sum of all pipe losses at time t
             def network_loss_per_timestep_rule(m, t):
@@ -972,7 +1000,7 @@ class NetworkManager:
         # Get dt_h for MWh conversion
         dt_h = getattr(model, 'dt_h', 1.0)
 
-        # In brownfield mode, use network_Q_loss_per_timestep (direct calculation from demand * loss_factor)
+        # In brownfield mode, use network_Q_loss_per_timestep (constant physical losses Q = U×L×ΔT)
         # because pipe-level Q_loss variables are unconstrained
         brownfield_mode = getattr(self, 'brownfield_mode', False)
 
@@ -985,7 +1013,7 @@ class NetworkManager:
             pipe_fractions = model._brownfield_pipe_service_fractions
             delta_T = getattr(model, '_brownfield_delta_T', 65.0)  # K
             cp_water = getattr(model, '_brownfield_cp_water', 4.186)  # kJ/(kg·K)
-            temp_drop_per_pipe = 2.0  # °C (1°C supply + 1°C return)
+            pipe_losses = getattr(model, '_brownfield_pipe_losses', {})
 
             # Get heatd time series (kW)
             heatd_series = [pyo.value(model.heatd[t]) for t in time_set]
@@ -1006,14 +1034,18 @@ class NetworkManager:
                     for heatd in heatd_series
                 ]
 
-                # Calculate Q_loss per timestep: Q_loss = m_dot * cp * temp_drop / 1000 (MW)
-                q_loss_series_kw = [
-                    m_dot * cp_water * temp_drop_per_pipe  # kW
-                    for m_dot in flow_series
-                ]
+                # Use physical losses from U×L×ΔT calculation (constant per pipe)
+                pipe_loss_data = pipe_losses.get(pipe_id, {})
+                q_loss_supply_mw = pipe_loss_data.get('supply_mw', 0.0)
+                q_loss_return_mw = pipe_loss_data.get('return_mw', 0.0)
+                q_loss_total_mw = pipe_loss_data.get('total_mw', 0.0)
+
+                # Convert to kW series (constant for all timesteps)
+                q_loss_series_kw = [q_loss_total_mw * 1000] * n_timesteps  # MW -> kW
 
                 # Get pipe diameter for velocity calculation
-                diameter_mm = pipe_config.get('diameter_mm', 200)
+                diameter_mm = pipe_config.get('current_diameter_supply_mm',
+                              pipe_config.get('diameter_mm', 200))
                 diameter_m = diameter_mm / 1000.0
                 area_m2 = 3.14159 * (diameter_m / 2) ** 2
                 density_water = 1000  # kg/m³
@@ -1049,8 +1081,8 @@ class NetworkManager:
 
                 # Update pipe results
                 pipe_res['flow_kg_s'] = flow_series
-                pipe_res['Q_loss_supply_kw'] = [q / 2 for q in q_loss_series_kw]  # Split 50/50
-                pipe_res['Q_loss_return_kw'] = [q / 2 for q in q_loss_series_kw]
+                pipe_res['Q_loss_supply_kw'] = [q_loss_supply_mw * 1000] * n_timesteps  # MW -> kW
+                pipe_res['Q_loss_return_kw'] = [q_loss_return_mw * 1000] * n_timesteps  # MW -> kW
                 pipe_res['velocity_m_s'] = velocity_series
                 pipe_res['delta_p_total_bar'] = pressure_series
                 pipe_res['avg_flow_kg_s'] = avg_flow
