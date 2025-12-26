@@ -2792,7 +2792,7 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                     "```yaml\n"
                     "thermal_network:\n"
                     "  enabled: true\n"
-                    "  topology_file: configs/network.yaml\n"
+                    "  topology_file: configs/networks/brownfield.yaml\n"
                     "```"
                 )
             )

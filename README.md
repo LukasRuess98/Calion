@@ -22,8 +22,13 @@ pip install -r requirements.txt
 ## Quick Start
 
 ```bash
-# Run optimization with default configuration
-python -m energis.run configs/base.yaml configs/tech_catalog.yaml configs/system.yaml configs/scenario.yaml
+# Run baseline full year optimization
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
+    configs/systems/baseline.yaml configs/scenarios/full_year.yaml
+
+# Run quick one-week test
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
+    configs/systems/baseline.yaml configs/scenarios/one_week.yaml
 
 # Start interactive dashboard
 python start_dashboard.py
@@ -33,44 +38,68 @@ python start_dashboard.py
 
 ```
 configs/
-├── base.yaml           # Global defaults (solver, grid, costs)
-├── tech_catalog.yaml   # Technology parameters (efficiencies, fuel prices)
-├── system.yaml         # System components (generators, heat pumps, storage)
-├── network.yaml        # Thermal network topology (nodes, pipes)
-└── scenario.yaml       # Scenario settings (horizon, run mode, data source)
+├── base.yaml              # Global defaults (solver, grid, costs) - FIXED
+├── tech_catalog.yaml      # Technology parameters - FIXED
+│
+├── networks/              # Network topologies (interchangeable)
+│   └── brownfield.yaml    # Existing network infrastructure
+│
+├── systems/               # System configurations (interchangeable)
+│   ├── baseline.yaml      # Standard system with existing capacities
+│   └── high_hp.yaml       # High heat pump capacity scenario
+│
+└── scenarios/             # Scenario definitions (interchangeable)
+    ├── full_year.yaml     # Full year optimization
+    ├── one_week.yaml      # Quick test (1 week)
+    └── high_hp_year.yaml  # Decarbonization scenario
 ```
 
-### Configuration Files
+### Configuration Philosophy
 
-| File | Purpose |
-|------|---------|
-| `base.yaml` | Solver settings, grid parameters, cost defaults |
-| `tech_catalog.yaml` | Generator efficiencies, fuel prices, investment costs |
-| `system.yaml` | Heat pumps, storage, thermal generators |
-| `network.yaml` | Network topology (plants, consumers, pipes) |
-| `scenario.yaml` | Time horizon, run mode, data file, network settings |
+| Layer | Purpose | Changes |
+|-------|---------|---------|
+| `base.yaml` | Solver settings, grid parameters | Rarely |
+| `tech_catalog.yaml` | Efficiencies, fuel prices, investment costs | Per study |
+| `networks/*.yaml` | Network topology (nodes, pipes) | Per network variant |
+| `systems/*.yaml` | Component capacities (HP, storage, generators) | Per system variant |
+| `scenarios/*.yaml` | Time horizon, run mode, network/system selection | Per run |
+
+### Scenario Combinations
+
+```bash
+# Baseline system, full year
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
+    configs/systems/baseline.yaml configs/scenarios/full_year.yaml
+
+# High HP system, full year (decarbonization study)
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
+    configs/systems/high_hp.yaml configs/scenarios/high_hp_year.yaml
+
+# Baseline system, one week test
+python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
+    configs/systems/baseline.yaml configs/scenarios/one_week.yaml
+```
 
 ## Usage Examples
 
-### Run Full Year Optimization
+### Enable Thermal Network
+
+In your scenario file:
+```yaml
+thermal_network:
+  enabled: true
+  topology_file: configs/networks/brownfield.yaml
+  brownfield_mode: true
+```
+
+### Configure Time Horizon
 
 ```yaml
-# In scenario.yaml
 scenario:
-  run_mode: PF_ONLY
+  run_mode: PF_ONLY  # or PF_THEN_RH
   horizon:
     start: "2023-01-01 00:00"
     end: "2023-12-31 23:00"
-```
-
-### Enable Thermal Network
-
-```yaml
-# In scenario.yaml
-thermal_network:
-  enabled: true
-  topology_file: configs/network.yaml
-  brownfield_mode: true
 ```
 
 ## Project Structure
@@ -87,6 +116,7 @@ energis/
 │   └── dashboard.py
 └── utils/            # Helper functions
 
+configs/              # Configuration files (see above)
 notebooks/            # Jupyter notebooks for analysis
 data/                 # Input data files
 ```

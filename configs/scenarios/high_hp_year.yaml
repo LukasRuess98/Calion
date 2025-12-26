@@ -1,21 +1,17 @@
 # =============================================================================
-# SCENARIO CONFIGURATION
+# SCENARIO - HIGH HP FULL YEAR
 # =============================================================================
-# Main scenario file for district heating optimization
-# Usage: python -m energis.run configs/base.yaml configs/tech_catalog.yaml \
-#        configs/system.yaml configs/scenario.yaml
+# Full year optimization with high heat pump capacity scenario
+# For decarbonization pathway analysis
 # =============================================================================
 
 scenario:
-  title: "District Heating Optimization"
-  tag: "main"
-
-  # Optimization mode: PF_ONLY, RH_ONLY, PF_THEN_RH
+  title: "High HP Decarbonization"
+  tag: "high-hp-year"
   run_mode: PF_ONLY
   workflow:
     - PF
 
-  # Time horizon
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
@@ -34,16 +30,12 @@ site:
     price_candidates:
       - Day_Ahead_Price
       - "Day_Ahead_Price €/MWh"
-      - strompreis
     heat_candidates:
       - Waermebedarf_MW
       - "Wärmebedarf MW"
-      - waermebedarf
     co2_candidates:
       - CO2_consumption_based
       - "CO2_consumption_based kgCO2/MWh"
-      - co2
-    # Heat recovery sources
     wrg1_q_candidates: ["WRG1Q MW", "WRG1_Q MW"]
     wrg1_t_candidates: ["WRG1_T °C", "WRG1 T °C"]
     wrg2_q_candidates: ["WRG2Q MW", "WRG2_Q MW"]
@@ -58,13 +50,9 @@ site:
 # =============================================================================
 thermal_network:
   enabled: true
-  topology_file: configs/network.yaml
+  topology_file: configs/networks/brownfield.yaml
   brownfield_mode: true
   allow_pipe_investment: false
-
-  validation:
-    max_velocity_m_s: 2.5
-    max_pressure_drop_bar: 10.0
 
 # =============================================================================
 # SOLVER SETTINGS
@@ -75,26 +63,21 @@ run:
   solver_options:
     Threads: 0
     MIPGap: 0.01
-    TimeLimit: 3600
+    TimeLimit: 7200
     MIPFocus: 1
     Method: 2
     Presolve: 2
     LogToConsole: 1
 
 # =============================================================================
-# GRID SETTINGS
+# GRID & COST SETTINGS
 # =============================================================================
 grid:
   max_import_mw: 200
   max_export_mw: 100
-  big_m_grid_mw: 200
 
-# =============================================================================
-# COST SETTINGS
-# =============================================================================
 costs:
   dump_cost_eur_per_mwh_th: 1.0
-  co2_price_eur_per_t: 100.0
+  co2_price_eur_per_t: 150.0  # Higher CO2 price for decarbonization
   include_co2_cost_in_objective: true
   include_capex_costs: true
-  include_activation_costs: true
