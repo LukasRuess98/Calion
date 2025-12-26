@@ -49,8 +49,6 @@ site:
 thermal_network:
   enabled: true
   topology_file: configs/networks/brownfield.yaml
-  brownfield_mode: true
-  allow_pipe_investment: false
 
 # =============================================================================
 # SOLVER SETTINGS
