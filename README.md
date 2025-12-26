@@ -76,22 +76,32 @@ For scenario comparisons, you can split configs and merge them:
 python -m energis.run configs/stadtbach.yaml configs/my_overrides.yaml
 ```
 
+## Jupyter Notebook
+
+Für interaktive Nutzung:
+
+```bash
+jupyter notebook notebooks/energis.ipynb
+```
+
+Das Notebook enthält:
+- Optimierung ausführen
+- KPIs und Zusammenfassung
+- Thermisches Netzwerk-Analyse
+- Visualisierungen
+- Workflow-Management
+
 ## Project Structure
 
 ```
-energis/
+energis/              # Python-Modul
 ├── models/           # Pyomo model builders
-│   ├── system_builder.py
-│   ├── network_manager.py
-│   └── blocks/       # Component blocks
 ├── run/              # Optimization orchestration
-│   └── rolling_horizon.py
-├── io/               # Input/output handling
-│   └── dashboard.py
+├── io/               # Input/output (dashboard, export)
 └── utils/            # Helper functions
 
 configs/              # Configuration files
-notebooks/            # Jupyter notebooks
+notebooks/            # Jupyter notebook (energis.ipynb)
 data/                 # Input data files
 ```
 
