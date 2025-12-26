@@ -2163,12 +2163,6 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
         if hasattr(result, 'costs'):
             component_data = []
 
-            # ✅ Debug: Zeige verfügbare CO2-Keys
-            co2_keys = [k for k in result.costs.keys() if k.startswith('CO2_')]
-            print(f"\n[DEBUG] Verfügbare CO2-Keys in result.costs: {len(co2_keys)} Keys")
-            type_keys = [k for k in co2_keys if k.endswith('_type')]
-            print(f"[DEBUG] Komponenten-Typ-Keys: {type_keys}")
-
             # Sammle alle Komponenten
             for key in result.costs.keys():
                 if key.startswith('CO2_') and key.endswith('_type'):
@@ -2190,9 +2184,6 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
                     cost_heat_eur = result.costs.get(f'CO2_{comp_name}_heat_cost_EUR', 0)
                     cost_elec_eur = result.costs.get(f'CO2_{comp_name}_elec_cost_EUR', 0)
 
-                    # ✅ Debug: Zeige geladene Werte für diese Komponente
-                    print(f"[DEBUG] {comp_name} ({comp_type}): CO2_total={co2_total_kg}kg, CO2_heat={co2_heat_kg}kg, CO2_elec={co2_elec_kg}kg, Cost_total={cost_total_eur}€, Cost_heat={cost_heat_eur}€, Cost_elec={cost_elec_eur}€")
-
                     # Nur Komponenten mit CO2 > 0.01 t ODER Kosten > 1 EUR
                     if co2_total_t > 0.01 or cost_total_eur > 1.0:
                         component_data.append({
@@ -2208,14 +2199,6 @@ Führen Sie eine neue Simulation mit dem aktuellen Code durch. Diese berechnet d
 
             # Sortiere nach Gesamt-CO2 (absteigend)
             component_data.sort(key=lambda x: x['co2_total'], reverse=True)
-
-            # ✅ Debug: Ausgabe der geladenen Komponenten-Daten
-            if component_data:
-                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: {len(component_data)} Komponenten geladen")
-                for comp in component_data:
-                    print(f"  - {comp['name']} ({comp['type']}): CO2={comp['co2_total']:.1f}t (W:{comp['co2_heat']:.1f}t, S:{comp['co2_elec']:.1f}t), Kosten={comp['cost_total']:.0f}€ (W:{comp['cost_heat']:.0f}€, S:{comp['cost_elec']:.0f}€)")
-            else:
-                print(f"\n[DEBUG] CO2-Komponenten-Tabelle: Keine Komponenten gefunden (alte Simulation?)")
 
             if component_data:
                 summary_md += """

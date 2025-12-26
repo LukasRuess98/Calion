@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from typing import Dict, Any, List, Optional, Sequence
 import math
+
+logger = logging.getLogger(__name__)
 
 try:
     import pyomo.environ as pyo
@@ -592,7 +595,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
         if storage_type == "stratified":
             # Use advanced stratified storage with thermal zones
-            print(f"[BUILD] Using stratified storage (2-zone thermocline model)")
+            logger.info("Using stratified storage (2-zone thermocline model)")
 
             # Stratified storage specific parameters
             T_hot_C = float(sto_cfg.get("T_hot_C", 90.0))
@@ -645,7 +648,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             )
         else:
             # Use simple storage (existing code)
-            print(f"[BUILD] Using simple storage (single-zone model)")
+            logger.info("Using simple storage (single-zone model)")
 
             block = StorageBlock(
                 "TES",
@@ -899,7 +902,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             "Kein thermischer Erzeuger an den Heat-Bus angeschlossen (ht_out leer). Bitte System-Config prüfen."
         )
 
-    print(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
+    logger.info(f"Component counts: el_in={len(el_in)}, el_out={len(el_out)}, ht_out={len(ht_out)}, ht_in={len(ht_in)}")
 
     m.el_balance = pyo.Constraint(
         m.t,
@@ -913,9 +916,6 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     network_heat_loss_cost = 0
     thermal_network_cfg = cfg.get('thermal_network', {})
     thermal_network_enabled = thermal_network_cfg.get('enabled', False)
-
-    # Debug output
-    print(f"[BUILD] thermal_network config: enabled={thermal_network_enabled}")
 
     if thermal_network_enabled:
         from pathlib import Path
@@ -939,11 +939,11 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             network_heat_loss_cost = m.dump_cost * sum(
                 m.network_Q_loss_per_timestep[t] * dt_h for t in m.t
             )
-            print(f"[BUILD] Network heat losses (per timestep) added to objective")
+            logger.info("Network heat losses (per timestep) added to objective")
         elif hasattr(m, 'network_heat_loss_expr'):
             # Fallback: use total expression (legacy behavior)
             network_heat_loss_cost = m.network_heat_loss_expr * dt_h * m.dump_cost
-            print(f"[BUILD] Network heat losses (total expr) added to objective")
+            logger.info("Network heat losses (total expr) added to objective")
         
         # Store network manager for results extraction
         m.network_manager = network_mgr
@@ -955,7 +955,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     # ========================================
 
     if thermal_network_enabled:
-        print(f"[BUILD] Thermal network enabled - using heat balance with explicit network losses")
+        logger.info("Thermal network enabled - using heat balance with explicit network losses")
 
         # Check if we have per-timestep network losses
         if hasattr(m, 'network_Q_loss_per_timestep'):
@@ -970,12 +970,12 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                                 mm.network_Q_loss_per_timestep[t] +
                                 mm.Q_dump[t],
             )
-            print(f"[BUILD]   → Using explicit network losses: network_Q_loss_per_timestep[t]")
+            logger.info("Using explicit network losses: network_Q_loss_per_timestep[t]")
         else:
             # ✅ PRAGMATISCHE LÖSUNG: Geschätzte Verluste als Prozentsatz
             # Typische Wärmenetz-Verluste: 5-15% des transportierten Bedarfs
             network_loss_factor = float(thermal_network_cfg.get('estimated_loss_factor', 0.12))
-            print(f"[BUILD]   → Using estimated network losses: {network_loss_factor*100:.1f}% of demand")
+            logger.info(f"Using estimated network losses: {network_loss_factor*100:.1f}% of demand")
             
             # Heat Balance mit geschätzten Verlusten:
             # Production = Demand * (1 + loss_factor) + Storage_Charge + Dump
@@ -997,7 +997,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             )
     else:
         # Standard strict heat balance without thermal network
-        print(f"[BUILD] No thermal network - using strict heat balance")
+        logger.info("No thermal network - using strict heat balance")
         m.ht_balance = pyo.Constraint(
             m.t,
             rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) == 
