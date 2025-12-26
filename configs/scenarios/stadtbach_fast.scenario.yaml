@@ -15,7 +15,7 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-30 00:00"
+    end: "2023-03-01 00:00"
     enforce: false
 
 # System with Investment enabled
