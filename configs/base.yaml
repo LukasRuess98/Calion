@@ -2,8 +2,8 @@
 # BASE CONFIGURATION
 # ============================================================================
 # Diese Datei enthält NUR technische Defaults und globale Parameter.
-# Scenario-spezifische Einstellungen (run_mode, workflows, etc.) gehören in
-# configs/scenarios/*.scenario.yaml
+# Scenario-spezifische Einstellungen (workflow, horizon) gehören in
+# configs/scenarios/*.yaml oder configs/stadtbach.yaml
 # ============================================================================
 
 run:

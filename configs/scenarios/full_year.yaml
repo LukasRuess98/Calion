@@ -10,10 +10,8 @@ scenario:
   title: "District Heating Optimization"
   tag: "main"
 
-  # Optimization mode: PF_ONLY, RH_ONLY, PF_THEN_RH
-  run_mode: PF_ONLY
-  workflow:
-    - PF
+  # Workflow: [PF], [RH], [PF, RH], [PF, MPC]
+  workflow: [PF]
 
   # Time horizon
   horizon:

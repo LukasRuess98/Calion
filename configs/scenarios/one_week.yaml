@@ -7,9 +7,7 @@
 scenario:
   title: "One Week Test"
   tag: "test-1week"
-  run_mode: PF_ONLY
-  workflow:
-    - PF
+  workflow: [PF]
 
   horizon:
     type: "date_range"

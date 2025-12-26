@@ -11,9 +11,22 @@
 scenario:
   title: "Stadtbach District Heating"
   tag: "stadtbach"
-  run_mode: PF_ONLY
+
+  # Workflow: Liste der Optimierungsschritte
+  # Verfügbare Schritte:
+  #   - PF   : Perfect Foresight (vollständige Vorausschau)
+  #   - RH   : Rolling Horizon (rollierende Planung)
+  #   - MPC  : Model Predictive Control (mit Forecast-Updates)
+  #
+  # Beispiele:
+  #   workflow: [PF]           # Nur PF
+  #   workflow: [RH]           # Nur RH
+  #   workflow: [PF, RH]       # PF für Design, dann RH operativ
+  #   workflow: [PF, MPC]      # PF für Design, dann MPC
   workflow:
     - PF
+
+  # fix_design: true = Kapazitäten aus PF werden für RH/MPC fixiert
   fix_design: true
 
   horizon:
