@@ -200,7 +200,7 @@ system:
     enabled: true
     type: standard
     max_th_mw: 50.0
-    min_th_mw: 0.0
+    min_th_mw: 5.0
     investment:
       enabled: true
 
@@ -214,7 +214,7 @@ system:
         enabled: true
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+        initial_capacity_mw: 00.0
 
     - id: HP2
       enabled: true
@@ -225,7 +225,7 @@ system:
         enabled: true
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+        initial_capacity_mw: 00.0
 
     - id: HP3
       enabled: true
@@ -236,7 +236,7 @@ system:
         enabled: true
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+        initial_capacity_mw: 00.0
 
     - id: HP4
       enabled: true
@@ -247,7 +247,7 @@ system:
         enabled: true
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+        initial_capacity_mw: 0.0
 
   storage:
     enabled: true
