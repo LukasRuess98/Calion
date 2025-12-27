@@ -420,9 +420,11 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         inv_cfg = dict(hp_inv_defaults)
         inv_cfg.update(hp.get("investment", {}))
         invest_enabled = bool(inv_cfg.get("enabled", False))
-        cap_min = float(inv_cfg.get("capacity_min_mw", hp.get("min_th_mw", 0.0)))
-        cap_max = float(inv_cfg.get("capacity_max_mw", hp.get("max_th_mw", 0.0)))
-        existing_cap = float(hp.get("max_th_mw", cap_max))
+        # Support both old (capacity_min_mw) and new (min_mw) parameter names
+        cap_min = float(inv_cfg.get("min_mw", inv_cfg.get("capacity_min_mw", hp.get("min_th_mw", 0.0))))
+        cap_max = float(inv_cfg.get("max_mw", inv_cfg.get("capacity_max_mw", hp.get("max_th_mw", 0.0))))
+        # Support both old (max_th_mw) and new (capacity_mw) for existing capacity
+        existing_cap = float(hp.get("capacity_mw", hp.get("max_th_mw", cap_max)))
         cap_init = float(
             inv_cfg.get(
                 "initial_capacity_mw",
@@ -501,24 +503,24 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         sto_inv = dict(sto_defaults)
         sto_inv.update(sto_cfg.get("investment", {}))
         invest_enabled = bool(sto_inv.get("enabled", False))
-        e_cap_min = float(sto_inv.get("energy_capacity_min_mwh", sto_cfg.get("min_energy_mwh", 0.0)))
-        e_cap_max = float(sto_inv.get("energy_capacity_max_mwh", sto_cfg.get("max_energy_mwh", 50000.0)))
-        p_cap_min = float(sto_inv.get("power_capacity_min_mw", sto_cfg.get("min_power_mw", 0.0)))
-        p_cap_max = float(sto_inv.get("power_capacity_max_mw", sto_cfg.get("max_power_mw", 50.0)))
+        # Support both old (energy_capacity_min_mwh) and new (min_energy_mwh) parameter names
+        e_cap_min = float(sto_inv.get("min_energy_mwh", sto_inv.get("energy_capacity_min_mwh", sto_cfg.get("min_energy_mwh", 0.0))))
+        e_cap_max = float(sto_inv.get("max_energy_mwh", sto_inv.get("energy_capacity_max_mwh", sto_cfg.get("max_energy_mwh", 50000.0))))
+        p_cap_min = float(sto_inv.get("min_power_mw", sto_inv.get("power_capacity_min_mw", sto_cfg.get("min_power_mw", 0.0))))
+        p_cap_max = float(sto_inv.get("max_power_mw", sto_inv.get("power_capacity_max_mw", sto_cfg.get("max_power_mw", 50.0))))
+        # Support both old (max_energy_mwh) and new (energy_mwh) for existing capacity
+        existing_e_cap = sto_cfg.get("energy_mwh", sto_cfg.get("max_energy_mwh", e_cap_max))
+        existing_p_cap = sto_cfg.get("power_mw", sto_cfg.get("max_power_mw", p_cap_max))
         e_cap_init = float(
             sto_inv.get(
                 "initial_energy_capacity_mwh",
-                sto_cfg.get("max_energy_mwh", e_cap_max)
-                if not invest_enabled
-                else max(e_cap_min, min(e_cap_max, sto_cfg.get("max_energy_mwh", e_cap_max))),
+                existing_e_cap if not invest_enabled else max(e_cap_min, min(e_cap_max, existing_e_cap)),
             )
         )
         p_cap_init = float(
             sto_inv.get(
                 "initial_power_capacity_mw",
-                sto_cfg.get("max_power_mw", p_cap_max)
-                if not invest_enabled
-                else max(p_cap_min, min(p_cap_max, sto_cfg.get("max_power_mw", p_cap_max))),
+                existing_p_cap if not invest_enabled else max(p_cap_min, min(p_cap_max, existing_p_cap)),
             )
         )
 

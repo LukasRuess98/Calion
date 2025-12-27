@@ -826,33 +826,58 @@ def _collect_timeseries_and_summary(
 
         # Calculate CAPEX breakdown by component type
         # Extract heat pump CAPEX
-        for hp in meta["heat_pumps"]:
+        hp_inv_defaults = cfg.get("heat_pumps", {}).get("investment_defaults", {})
+        hp_list = cfg.get("system", {}).get("heat_pumps", [])
+
+        for i, hp in enumerate(meta["heat_pumps"]):
             comp = hp["id"]
             if hp.get("invest_enabled", False):
                 cap_var = getattr(model, f"{comp}_cap_mw", None)
+                build_var = getattr(model, f"{comp}_build", None)
                 if cap_var is not None:
                     try:
                         cap_value = float(pyo.value(cap_var))
-                        inv_cfg = cfg.get("system", {}).get("heat_pumps", [{}])[0].get("investment", {})
+                        build_value = float(pyo.value(build_var)) if build_var else 1.0
+
+                        # Merge defaults with specific HP investment config
+                        hp_cfg = hp_list[i] if i < len(hp_list) else {}
+                        inv_cfg = dict(hp_inv_defaults)
+                        inv_cfg.update(hp_cfg.get("investment", {}))
+
+                        # Support direct investment params in HP config (no defaults needed)
                         capex_rate = float(inv_cfg.get("capex_eur_per_mw", 0.0))
-                        lifetime = float(inv_cfg.get("lifetime_years", 1.0))
+                        activation = float(inv_cfg.get("activation_cost_eur", 0.0))
+                        lifetime = float(inv_cfg.get("lifetime_years", 15.0))
                         annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
+
                         capex_heat_pumps += cap_value * capex_rate * annual_factor
+                        activation_cost += build_value * activation * annual_factor
                     except Exception:  # pragma: no cover - defensive
                         pass
 
         # Extract storage CAPEX
+        sto_inv_defaults = cfg.get("storage", {}).get("investment_defaults", {})
         if meta["storage"] and meta["storage"].get("invest_enabled", False):
             cap_e_var = getattr(model, "TES_cap_energy", None)
+            build_var = getattr(model, "TES_build", None)
             if cap_e_var is not None:
                 try:
                     cap_e_value = float(pyo.value(cap_e_var))
+                    build_value = float(pyo.value(build_var)) if build_var else 1.0
+
+                    # Merge defaults with specific storage investment config
                     sto_cfg = cfg.get("system", {}).get("storage", {})
-                    inv_cfg = sto_cfg.get("investment", {})
+                    inv_cfg = dict(sto_inv_defaults)
+                    inv_cfg.update(sto_cfg.get("investment", {}))
+
+                    # Support direct investment params in storage config (no defaults needed)
                     e_capex = float(inv_cfg.get("energy_capex_eur_per_mwh", 0.0))
-                    lifetime = float(inv_cfg.get("lifetime_years", 1.0))
+                    activation = float(inv_cfg.get("activation_cost_eur", 0.0))
+                    lifetime = float(inv_cfg.get("lifetime_years", 20.0))
                     annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
+
                     capex_storage += cap_e_value * e_capex * annual_factor
+                    activation_cost += build_value * activation * annual_factor
                 except Exception:  # pragma: no cover - defensive
                     pass
 
