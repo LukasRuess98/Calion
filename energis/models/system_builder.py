@@ -25,6 +25,8 @@ from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
+from .network_manager import NetworkManager
+from pathlib import Path
 
 
 def _cop_series_from_table(
@@ -887,14 +889,73 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     print(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
 
+    # ========================================
+    # THERMAL NETWORK INTEGRATION
+    # ========================================
+    network_enabled = cfg.get('thermal_network', {}).get('enabled', False)
+
+    if network_enabled:
+        print("[BUILD] Integrating thermal network...")
+
+        # Get config directory from cfg if available, otherwise use current directory
+        config_dir = cfg.get('_config_dir', Path.cwd())
+        if not isinstance(config_dir, Path):
+            config_dir = Path(config_dir) if config_dir else Path.cwd()
+
+        try:
+            network_mgr = NetworkManager(cfg, config_dir=config_dir)
+
+            # Create buses dict for network integration
+            buses = {
+                'heat': {'in': ht_in, 'out': ht_out},
+                'electricity': {'in': el_in, 'out': el_out}
+            }
+
+            # Attach network to model
+            network_results = network_mgr.attach_to_model(m, m.t, buses)
+
+            # Store network manager for results extraction
+            m._network_manager = network_mgr
+            m._network_enabled = True
+
+            print(f"[BUILD] Thermal network integrated successfully")
+
+        except Exception as e:
+            print(f"[BUILD] WARNING: Failed to integrate thermal network: {e}")
+            print(f"[BUILD] Continuing without thermal network...")
+            m._network_enabled = False
+    else:
+        m._network_enabled = False
+        print("[BUILD] Thermal network disabled")
+
+    # ========================================
+    # BUS BALANCE CONSTRAINTS
+    # ========================================
+
     m.el_balance = pyo.Constraint(
         m.t,
         rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
     )
-    m.ht_balance = pyo.Constraint(
-        m.t,
-        rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) == mm.heatd[t] + mm.Q_dump[t],
-    )
+
+    # Heat balance with network losses
+    def heat_balance_rule(mm, t):
+        supply = sum((f[t] for f in ht_out), start=0)
+        consumption = sum((f[t] for f in ht_in), start=0)
+        demand = mm.heatd[t]
+        dump = mm.Q_dump[t]
+
+        # Add network losses if thermal network is enabled
+        if hasattr(mm, 'network_Q_loss_per_timestep'):
+            network_loss = mm.network_Q_loss_per_timestep[t]
+        else:
+            network_loss = 0
+
+        # Heat balance: supply + storage_discharge = demand + dump + storage_charge + network_losses
+        # Note: ht_out contains heat sources (generators, storage discharge)
+        #       ht_in contains heat sinks (storage charge - negative contribution)
+        return supply + consumption == demand + dump + network_loss
+
+    m.ht_balance = pyo.Constraint(m.t, rule=heat_balance_rule)
 
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)

@@ -12,8 +12,14 @@ Date: 2025-12-10
 """
 
 from typing import Dict, Any, Optional, List
-import pyomo.environ as pyo
 import logging
+
+try:
+    import pyomo.environ as pyo
+    HAVE_PYOMO = True
+except ImportError:
+    HAVE_PYOMO = False
+    pyo = None
 
 from ..component import BaseComponent
 from ..registry import register_component

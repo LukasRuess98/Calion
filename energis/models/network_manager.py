@@ -70,7 +70,13 @@ import yaml
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-import pyomo.environ as pyo
+
+try:
+    import pyomo.environ as pyo
+    HAVE_PYOMO = True
+except ImportError:
+    HAVE_PYOMO = False
+    pyo = None
 
 from .blocks.pipe_pair import PipePairBlock
 from .blocks.thermal_node import ThermalNodeBlock
