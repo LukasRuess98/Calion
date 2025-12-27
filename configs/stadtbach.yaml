@@ -241,5 +241,5 @@ system:
 # THERMISCHES NETZWERK
 # =============================================================================
 thermal_network:
-  enabled: true
+  enabled: false  # Temporarily disabled to test if network causes infeasibility
   topology_file: configs/networks/brownfield.yaml
