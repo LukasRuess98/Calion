@@ -12,7 +12,7 @@ scenario:
   title: "Stadtbach District Heating"
   tag: "stadtbach"
   workflow: [RH]
-  fix_design: false
+  fix_design: true  # Fix design after first window to avoid investment conflicts
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
