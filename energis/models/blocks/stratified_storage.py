@@ -484,16 +484,9 @@ class StratifiedStorageBlock(BaseComponent):
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
-        # (9) Terminal constraint (if specified)
-        if self.terminal_target is not None:
-            t_last = Tset.last()
-            target = float(self.terminal_target)
-            setattr(m, f"{comp}_terminal", pyo.Constraint(
-                expr=E_total[t_last] >= target
-            ))
-            print(f"[STRATIFIED_STORAGE] Created terminal constraint: {comp}_terminal")
-            print(f"  - E_total[{t_last}] >= {target}")
-            print(f"  - Constraint: Total SOC at end must be >= {target} MWh")
+        # (9) NOTE: Terminal constraint is created at the system_builder level (system_builder.py:685-699)
+        # to allow for policy-based constraints (==, >=) based on terminal_policy.
+        # Do NOT create a duplicate constraint here.
 
         # ========================================
         # REGISTER FLOWS

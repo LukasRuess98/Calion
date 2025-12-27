@@ -239,17 +239,9 @@ class StorageBlock(BaseComponent):
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
-        # Terminal constraint (final SOC target for rolling horizon)
-        if self.terminal_target is not None:
-            final_time = Tset.last()
-            setattr(
-                m,
-                f"{comp}_terminal",
-                pyo.Constraint(expr=E[final_time] == self.terminal_target)
-            )
-            print(f"[STORAGE] Created terminal constraint: {comp}_terminal")
-            print(f"  - E[{final_time}] == {self.terminal_target}")
-            print(f"  - Constraint: SOC at end must equal {self.terminal_target} MWh")
+        # NOTE: Terminal constraint is created at the system_builder level (system_builder.py:685-699)
+        # to allow for policy-based constraints (==, >=) based on terminal_policy.
+        # Do NOT create a duplicate constraint here.
 
         # Register flows with framework
         self.add_flow(Flow(

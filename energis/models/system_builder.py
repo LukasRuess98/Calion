@@ -691,17 +691,22 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] >= getattr(m, "TES_terminal_target")),
                 )
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
             else:
                 setattr(
                     m,
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] == getattr(m, "TES_terminal_target")),
                 )
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
         else:
             if hasattr(m, "TES_terminal"):
                 delattr(m, "TES_terminal")
             if hasattr(m, "TES_terminal_target"):
                 delattr(m, "TES_terminal_target")
+            print(f"[BUILD] No terminal constraint (terminal_target_val is None)")
 
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
