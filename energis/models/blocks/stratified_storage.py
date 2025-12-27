@@ -491,6 +491,9 @@ class StratifiedStorageBlock(BaseComponent):
             setattr(m, f"{comp}_terminal", pyo.Constraint(
                 expr=E_total[t_last] >= target
             ))
+            print(f"[STRATIFIED_STORAGE] Created terminal constraint: {comp}_terminal")
+            print(f"  - E_total[{t_last}] >= {target}")
+            print(f"  - Constraint: Total SOC at end must be >= {target} MWh")
 
         # ========================================
         # REGISTER FLOWS

@@ -564,6 +564,13 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             if terminal_policy not in {"equal", "geq"}:
                 terminal_policy = "equal"
 
+        # Debug logging
+        print(f"[BUILD] Storage terminal configuration:")
+        print(f"  - terminal_state: {terminal_state}")
+        print(f"  - terminal_policy: {terminal_policy}")
+        print(f"  - soc_init: {soc_init}")
+        print(f"  - terminal_target_val: {terminal_target_val}")
+
         coupling_factor = storage_defaults.get("power_energy_coupling")
         if "power_energy_coupling" in sto_cfg:
             coupling_factor = sto_cfg.get("power_energy_coupling")

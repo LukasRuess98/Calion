@@ -247,6 +247,9 @@ class StorageBlock(BaseComponent):
                 f"{comp}_terminal",
                 pyo.Constraint(expr=E[final_time] == self.terminal_target)
             )
+            print(f"[STORAGE] Created terminal constraint: {comp}_terminal")
+            print(f"  - E[{final_time}] == {self.terminal_target}")
+            print(f"  - Constraint: SOC at end must equal {self.terminal_target} MWh")
 
         # Register flows with framework
         self.add_flow(Flow(
