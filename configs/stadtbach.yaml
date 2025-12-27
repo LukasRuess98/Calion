@@ -11,12 +11,12 @@
 scenario:
   title: "Stadtbach District Heating"
   tag: "stadtbach"
-  workflow: [PF]
+  workflow: [RH]
   fix_design: true
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-01-07 23:00"
+    end: "2023-04-17 23:00"
     enforce: false
 
 # =============================================================================
