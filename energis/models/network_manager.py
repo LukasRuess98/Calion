@@ -1,11 +1,69 @@
 """
 Network Manager for Thermal District Heating Networks
+======================================================
 
-Coordinates pipe and node components, parses network topology,
-and integrates with the main optimization model.
+This module coordinates pipe and node components for district heating network
+optimization, managing both greenfield (new network design) and brownfield
+(existing network optimization) modes.
+
+Key Concepts:
+-------------
+1. **Brownfield Mode** (default):
+   - Network topology is fixed (no pipe investment)
+   - Temperatures are fixed at design values
+   - Heat losses calculated using physics: Q_loss = U × L × ΔT
+   - Simplified linear constraints for fast solving
+
+2. **Greenfield Mode** (advanced):
+   - Pipe diameters can be optimized
+   - Requires nonlinear solver (Gurobi, CPLEX)
+   - Full hydraulic constraints (flow, pressure, temperature)
+
+Network Components:
+-------------------
+- **Nodes**: Plants (heat sources), Consumers (heat sinks), Junctions
+- **Pipes**: Supply and return pipes connecting nodes, characterized by:
+  - length_m: Pipe length [m]
+  - diameter_mm: Pipe diameter [mm]
+  - u_value_w_per_m_k: Heat loss coefficient [W/(m·K)]
+
+Heat Loss Calculation (Brownfield):
+-----------------------------------
+Physical heat loss per pipe (constant, independent of flow):
+
+    Q_loss = U × L × (T_fluid - T_ground) / 1e6  [MW]
+
+where:
+    U = Heat transfer coefficient [W/(m·K)]
+    L = Pipe length [m]
+    T_fluid = Fluid temperature [°C]
+    T_ground = Ground temperature [°C]
+
+Configuration (brownfield.yaml):
+--------------------------------
+```yaml
+parameters:
+  supply_temp_nominal_c: 120    # Supply temperature [°C]
+  return_temp_nominal_c: 55     # Return temperature [°C]
+  ground_temp_default_c: 10     # Ground temperature [°C]
+
+pipes:
+  - id: main_pipe
+    from_node: plant
+    to_node: consumer
+    length_m: 1000
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+```
+
+Usage:
+------
+    >>> from energis.models.network_manager import NetworkManager
+    >>> nm = NetworkManager(config, config_dir=Path('.'))
+    >>> nm.attach_to_model(model, config, time_set)
+    >>> results = nm.get_results(model, config, time_set)
 
 Author: EnerGIS Development Team
-Date: 2025-12-10
 """
 
 import yaml
@@ -37,15 +95,25 @@ class NetworkManager:
         Initialize network manager.
 
         Args:
-            config: Network configuration dict
-            config_dir: Base directory for resolving relative paths
+            config: Full configuration dict containing 'thermal_network' section
+            config_dir: Base directory for resolving relative topology file paths
+
+        The network manager handles:
+        - Loading network topology from YAML or Excel files
+        - Parsing nodes (plants, consumers, junctions) and pipes
+        - Creating Pyomo constraints for the thermal network
+        - Calculating heat losses using physical formulas (Q = U × L × ΔT)
         """
         self.config = config
         self.config_dir = config_dir or Path.cwd()
 
-        self.nodes = {}
-        self.pipes = {}
-        self.pipe_catalog = {}
+        # Initialize all attributes to safe defaults (prevents AttributeError)
+        self.nodes = {}           # Dict[str, dict] - node configurations
+        self.pipes = {}           # Dict[str, dict] - pipe configurations
+        self.pipe_catalog = {}    # Dict[str, dict] - available pipe types
+        self.topology = {}        # Dict - raw topology data from file
+        self.parameters = {}      # Dict - network parameters (temps, pressures)
+        self.brownfield_mode = False  # bool - True = fixed topology, simplified constraints
 
         self.network_enabled = config.get('thermal_network', {}).get('enabled', False)
 
@@ -53,7 +121,18 @@ class NetworkManager:
             self._load_network_topology()
 
     def _load_network_topology(self):
-        """Load network topology from YAML file, Excel file, or inline config."""
+        """
+        Load network topology from YAML file, Excel file, or inline config.
+
+        Topology sources (checked in order):
+        1. topology_excel: Path to Excel file with Network_Nodes/Pipes/Parameters sheets
+        2. topology_file: Path to YAML file with network definition
+        3. Inline: thermal_network section contains topology directly
+
+        Raises:
+            FileNotFoundError: If specified topology file doesn't exist
+            yaml.YAMLError: If YAML file is malformed
+        """
         network_config = self.config.get('thermal_network', {})
 
         # Check for external topology file (YAML)
@@ -70,13 +149,22 @@ class NetworkManager:
 
             logger.info(f"Loading network topology from Excel: {excel_path}")
 
-            from energis.io.network_loader import load_network_from_excel
-            topology_data = load_network_from_excel(
-                str(excel_path),
-                nodes_sheet=network_config.get('nodes_sheet', 'Network_Nodes'),
-                pipes_sheet=network_config.get('pipes_sheet', 'Network_Pipes'),
-                params_sheet=network_config.get('params_sheet', 'Network_Parameters'),
-            )
+            try:
+                from energis.io.network_loader import load_network_from_excel
+                topology_data = load_network_from_excel(
+                    str(excel_path),
+                    nodes_sheet=network_config.get('nodes_sheet', 'Network_Nodes'),
+                    pipes_sheet=network_config.get('pipes_sheet', 'Network_Pipes'),
+                    params_sheet=network_config.get('params_sheet', 'Network_Parameters'),
+                )
+            except FileNotFoundError:
+                logger.error(f"Network Excel file not found: {excel_path}")
+                self.network_enabled = False
+                return
+            except Exception as e:
+                logger.error(f"Error loading network from Excel: {e}")
+                self.network_enabled = False
+                return
 
             if topology_data is None:
                 logger.warning("No network data found in Excel, disabling network")
@@ -90,8 +178,17 @@ class NetworkManager:
 
             logger.info(f"Loading network topology from YAML: {topology_path}")
 
-            with open(topology_path, 'r') as f:
-                topology_data = yaml.safe_load(f)
+            try:
+                with open(topology_path, 'r') as f:
+                    topology_data = yaml.safe_load(f)
+            except FileNotFoundError:
+                logger.error(f"Network YAML file not found: {topology_path}")
+                self.network_enabled = False
+                return
+            except yaml.YAMLError as e:
+                logger.error(f"Error parsing network YAML file: {e}")
+                self.network_enabled = False
+                return
         else:
             # Inline network definition
             topology_data = network_config

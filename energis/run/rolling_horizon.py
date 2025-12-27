@@ -2214,10 +2214,10 @@ def _solve_scenario(
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
 
-        import time as _time
-        _solve_start = _time.time()
+        # Measure solve time for performance monitoring
+        _solve_start = time.time()
         solver_result = opt.solve(model, tee=False)
-        _solve_time = _time.time() - _solve_start
+        _solve_time = time.time() - _solve_start
 
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))

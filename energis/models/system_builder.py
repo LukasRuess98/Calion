@@ -1,3 +1,62 @@
+"""
+System Builder - Core Optimization Model Construction
+======================================================
+
+This module constructs the Pyomo optimization model for district heating systems.
+It is the heart of EnerGIS, translating configuration into mathematical constraints.
+
+Architecture Overview:
+----------------------
+The build_model() function creates a complete optimization problem with:
+
+1. **Decision Variables**:
+   - P_buy[t], P_sell[t]: Electricity purchase/sale per timestep [MW]
+   - Q_th[t]: Heat output per component [MW]
+   - SOC[t]: Storage state-of-charge [MWh]
+   - cap_mw, build: Investment decisions (capacity, binary build)
+
+2. **Objective Function** (minimize):
+   Total_Cost = Energy_Cost + Fuel_Cost + CO2_Cost + CAPEX + Activation_Cost
+
+   Where:
+   - Energy_Cost = Σ(P_buy[t] × price[t] × dt) - Σ(P_sell[t] × sell_price[t] × dt)
+   - Fuel_Cost = Σ(fuel_input[t] × fuel_price × dt) for each generator
+   - CO2_Cost = Σ(emissions[t]) × CO2_price
+   - CAPEX = Σ(capacity × capex_per_mw × year_fraction / lifetime)
+   - Activation_Cost = Σ(build_binary × activation_cost × year_fraction / lifetime)
+
+3. **Constraints**:
+   - Heat balance: Σ(Q_out) = demand + losses + storage_charge
+   - Electricity balance: P_buy - P_sell = Σ(P_in) - Σ(P_out)
+   - Component limits: 0 ≤ Q_th ≤ capacity
+   - Storage dynamics: SOC[t+1] = SOC[t] × (1-loss) + charge - discharge
+
+Supported Components:
+---------------------
+- Heat Pumps (HeatPumpBlock): COP-based electricity-to-heat conversion
+- Thermal Storage (StorageBlock): Charge/discharge with self-discharge losses
+- CHP/Boilers (ThermalGeneratorBlock): Fuel-to-heat/electricity conversion
+- Power-to-Heat (P2HBlock): Direct electricity-to-heat (η≈1)
+- Thermal Network (NetworkManager): Pipe losses, hydraulics
+
+Investment Optimization:
+------------------------
+When investment.enabled=True, the optimizer can:
+- Choose optimal capacities within [min_mw, max_mw]
+- Decide whether to build each unit (binary build variable)
+- Account for CAPEX and activation costs in objective
+
+Usage:
+------
+    >>> from energis.models.system_builder import build_model
+    >>> model = build_model(table, config)  # Creates Pyomo ConcreteModel
+    >>> solver = pyo.SolverFactory('gurobi')
+    >>> result = solver.solve(model)
+    >>> print(pyo.value(model.OBJ))  # Optimal total cost
+
+Author: EnerGIS Team
+License: MIT
+"""
 from __future__ import annotations
 
 import logging
@@ -291,23 +350,40 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     if not HAVE_PYOMO:
         return None
 
-    T = len(table)
+    # =========================================================================
+    # MODEL INITIALIZATION
+    # =========================================================================
+    # Create Pyomo ConcreteModel with time index set {1, 2, ..., T}
+    # period_frac scales annual costs to the simulated period length
+
+    T = len(table)  # Number of timesteps
     m = pyo.ConcreteModel(name="EnerGIS_FuelBus")
-    m.t = pyo.RangeSet(1, T)
-    period_frac = float(T * dt_h / HOURS_PER_YEAR)
+    m.t = pyo.RangeSet(1, T)  # Time index: 1-indexed for Pyomo convention
+    period_frac = float(T * dt_h / HOURS_PER_YEAR)  # Fraction of year simulated
 
-    # Store model parameters for components
-    m.dt_h = dt_h
-    m.period_years = period_frac
+    # Store for use by component blocks
+    m.dt_h = dt_h              # Timestep duration [hours]
+    m.period_years = period_frac  # For annualizing costs
 
+    # Helper functions for converting pandas columns to Pyomo parameter dicts
     def series_dict(name: str) -> Dict[int, float]:
+        """Convert table column to {timestep: value} dict for Pyomo Param."""
         values = table[name]
         return {i + 1: float(values[i]) for i in range(T)}
 
     def column_series(name: str) -> List[float] | None:
+        """Get column as list, or None if column doesn't exist."""
         if name in table.columns:
             return [float(table[name][i]) for i in range(T)]
         return None
+
+    # =========================================================================
+    # INPUT TIME SERIES (exogenous parameters)
+    # =========================================================================
+    # These are the external inputs that drive the optimization:
+    # - price: Electricity spot price [EUR/MWh]
+    # - heatd: Heat demand that must be met [MW_th]
+    # - grid_co2: Grid emission factor [kg_CO2/MWh_el]
 
     m.price = pyo.Param(m.t, initialize=series_dict("strompreis_EUR_MWh"), mutable=True)
     m.heatd = pyo.Param(m.t, initialize=series_dict("waermebedarf_MWth"), mutable=True)
@@ -320,8 +396,18 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         # Default: no outdoor temperature data available yet
         m.outdoor_temp = {i + 1: 10.0 for i in range(T)}
 
+    # =========================================================================
+    # GRID & COST PARAMETERS
+    # =========================================================================
+    # Configure electricity grid interaction and cost calculation settings
+
     costs = cfg.get("costs", {})
     grid = cfg.get("grid", {})
+
+    # Grid tariff structure:
+    # - energy_fee: Fixed fee per MWh purchased [EUR/MWh]
+    # - grid_cost: Network usage fees [EUR/MWh]
+    # - sell_*: Parameters for feed-in revenue calculation
     m.energy_fee = pyo.Param(initialize=float(grid.get("energy_fee_eur_mwh", 0.0)))
     m.grid_cost = pyo.Param(initialize=float(grid.get("gridcost_eur_mwh", 0.0)))
     m.sell_floor = pyo.Param(initialize=float(grid.get("sell_floor_eur_mwh", 0.0)))
@@ -329,7 +415,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.sell_spread = pyo.Param(initialize=float(grid.get("sell_spread_eur_mwh", 0.0)))
     m.sell_fee = pyo.Param(initialize=float(grid.get("sell_fee_eur_mwh", 0.0)))
     m.sell_premium = pyo.Param(initialize=float(grid.get("sell_premium_eur_mwh", 0.0)))
-    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", 1e4)))
+
+    # Grid connection limits
+    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", 1e4)))  # Big-M for grid mode constraint
     max_import = grid.get("max_import_mw")
     max_export = grid.get("max_export_mw")
     m.max_import = pyo.Param(
@@ -338,11 +426,14 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.max_export = pyo.Param(
         initialize=float(max_export if max_export is not None else m.M_GRID.value)
     )
+
+    # Cost calculation parameters
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
     m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", 100.0)))
     m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", 1.0)))
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
+    # Flags controlling which cost components are included in objective
     include_gridcost = bool(costs.get("include_gridcost_in_energy", False))
     include_demand = bool(grid.get("include_demand_charge_in_rh", costs.get("include_demand_charge_in_rh", True)))
     include_co2 = bool(costs.get("include_co2_cost_in_objective", True))
@@ -359,42 +450,73 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     def efuel(key: str, default: float = 0.0) -> float:
         return float(fuels.get(key, {}).get("ef_kg_per_mwh_fuel", default))
 
-    m.P_buy = pyo.Var(m.t, domain=pyo.NonNegativeReals)
-    m.P_sell = pyo.Var(m.t, domain=pyo.NonNegativeReals)
-    m.grid_mode = pyo.Var(m.t, domain=pyo.Binary)
-    m.Q_dump = pyo.Var(m.t, domain=pyo.NonNegativeReals)
+    # =========================================================================
+    # DECISION VARIABLES
+    # =========================================================================
+    # Core variables that the optimizer will determine:
+    # - P_buy/P_sell: Electricity exchange with grid [MW]
+    # - grid_mode: Binary indicating buy (1) or sell (0) mode
+    # - Q_dump: Emergency heat dump (penalty cost, should be 0) [MW]
 
-    el_in: List = []
-    el_out: List = []
-    ht_out: List = []
-    ht_in: List = []
-    gas_in: List = []
-    bio_in: List = []
-    waste_in: List = []
+    m.P_buy = pyo.Var(m.t, domain=pyo.NonNegativeReals)   # Grid electricity purchase [MW]
+    m.P_sell = pyo.Var(m.t, domain=pyo.NonNegativeReals)  # Grid electricity sale [MW]
+    m.grid_mode = pyo.Var(m.t, domain=pyo.Binary)         # 1=buying, 0=selling
+    m.Q_dump = pyo.Var(m.t, domain=pyo.NonNegativeReals)  # Heat dump (emergency) [MW]
+
+    # =========================================================================
+    # ENERGY BUS TRACKING LISTS
+    # =========================================================================
+    # These lists collect contributions from all components for balance constraints
+    # After all components are added, we sum these for the balance equations:
+    #   Electricity: P_buy + Σ(el_out) = P_sell + Σ(el_in)
+    #   Heat:        Σ(ht_out) = demand + network_losses + storage_in + Q_dump
+
+    el_in: List = []    # Electricity consumers (heat pumps, P2H)
+    el_out: List = []   # Electricity producers (CHP generators)
+    ht_out: List = []   # Heat producers (all generators, heat pumps)
+    ht_in: List = []    # Heat consumers (storage charge, network losses)
+    gas_in: List = []   # Gas fuel consumption
+    bio_in: List = []   # Biomass fuel consumption
+    waste_in: List = [] # Waste fuel consumption
 
     syscfg = cfg.get("system", {})
 
     hp_defaults = cfg.get("heat_pumps", {})
     hp_inv_defaults = hp_defaults.get("investment_defaults", {})
 
-    capex_terms: List = []
-    activation_terms: List = []
-    tie_breaker_terms: List = []
-    storage_install_terms: List = []
+    # =========================================================================
+    # COST TERM ACCUMULATORS
+    # =========================================================================
+    # Lists collecting cost components for the objective function
 
-    # ✅ CO₂-Kosten pro Komponente (Wärme/Strom-Aufteilung)
-    co2_cost_heat_terms: List = []  # CO₂-Kosten für Wärmeerzeugung [EUR]
-    co2_cost_elec_terms: List = []  # CO₂-Kosten für Stromerzeugung [EUR]
-    co2_kg_heat_terms: List = []    # CO₂-Emissionen für Wärme [kg]
-    co2_kg_elec_terms: List = []    # CO₂-Emissionen für Strom [kg]
+    capex_terms: List = []           # CAPEX = capacity × cost_per_mw × period/lifetime
+    activation_terms: List = []       # Fixed costs when building a unit
+    tie_breaker_terms: List = []      # Small term to prefer smaller capacities (numerical)
+    storage_install_terms: List = []  # Storage installation costs
 
-    # ✅ Separate Tracking für Dashboard-Kategorien
-    co2_kg_fuel_to_heat: List = []   # Brennstoff → Wärme
-    co2_kg_fuel_to_elec: List = []   # Brennstoff → Strom (CHP)
-    co2_kg_grid_to_elec: List = []   # Grid → Strom (WP, P2H)
+    # CO2 tracking by component (for detailed reporting in dashboard)
+    co2_cost_heat_terms: List = []  # CO2 costs for heat production [EUR]
+    co2_cost_elec_terms: List = []  # CO2 costs for electricity [EUR]
+    co2_kg_heat_terms: List = []    # CO2 emissions for heat [kg]
+    co2_kg_elec_terms: List = []    # CO2 emissions for electricity [kg]
 
-    # Dictionary für Export (Komponenten-spezifisch)
+    # Detailed CO2 tracking by source
+    co2_kg_fuel_to_heat: List = []   # Fuel combustion → Heat
+    co2_kg_fuel_to_elec: List = []   # Fuel combustion → Electricity (CHP)
+    co2_kg_grid_to_elec: List = []   # Grid electricity → Heat pumps, P2H
+
+    # Per-component CO2 data for export
     m.co2_component_costs = {}
+
+    # =========================================================================
+    # HEAT PUMPS
+    # =========================================================================
+    # Each heat pump converts electricity to heat using COP (Coefficient of Performance)
+    # Q_th = P_el × COP
+    # COP varies with source temperature (waste heat recovery) and is >= 1
+    #
+    # Investment mode: optimizer chooses capacity within [min_mw, max_mw]
+    # Fixed mode: capacity is fixed, only dispatch is optimized
 
     for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):
@@ -495,6 +617,15 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         co2_kg_elec_terms.append(hp_co2_kg)
         co2_cost_elec_terms.append(hp_co2_cost_eur)
         co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
+
+    # =========================================================================
+    # THERMAL STORAGE
+    # =========================================================================
+    # Thermal Energy Storage (TES) shifts heat between timesteps
+    # Dynamics: SOC[t+1] = SOC[t] × (1 - loss_rate) + charge[t] - discharge[t]
+    #
+    # Investment mode: optimizer chooses energy capacity [MWh] and power [MW]
+    # Terminal constraint: SOC at end of horizon (rolling horizon compatibility)
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
     if sto_cfg.get("enabled", False):
@@ -692,19 +823,20 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         m.TES_active = pyo.Reference(fs["active"])
         setattr(m, "TES_terminal_policy", terminal_policy)
         if terminal_target_val is not None:
-            setattr(m, "TES_terminal_target", pyo.Param(initialize=terminal_target_val))
+            # Create terminal SOC constraint (forces storage to end at specific level)
+            # This ensures the storage doesn't just empty at the end of the horizon
+            m.TES_terminal_target = pyo.Param(initialize=terminal_target_val)
             last_t = m.t.last()
+
             if terminal_policy == "geq":
-                setattr(
-                    m,
-                    "TES_terminal",
-                    pyo.Constraint(expr=fs["SOC"][last_t] >= getattr(m, "TES_terminal_target")),
+                # SOC must be >= target (allows higher ending SOC)
+                m.TES_terminal = pyo.Constraint(
+                    expr=fs["SOC"][last_t] >= m.TES_terminal_target
                 )
             else:
-                setattr(
-                    m,
-                    "TES_terminal",
-                    pyo.Constraint(expr=fs["SOC"][last_t] == getattr(m, "TES_terminal_target")),
+                # SOC must be == target (exact ending SOC)
+                m.TES_terminal = pyo.Constraint(
+                    expr=fs["SOC"][last_t] == m.TES_terminal_target
                 )
         else:
             if hasattr(m, "TES_terminal"):
@@ -741,9 +873,21 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         if install_share and install_components and include_storage_install_costs:
             storage_install_terms.append(sum(install_components) * install_share * annual_factor)
 
+    # =========================================================================
+    # THERMAL GENERATORS (CHP, Boilers, P2H)
+    # =========================================================================
+    # Generators convert fuel (or electricity) to heat (and optionally electricity)
+    # Types:
+    # - CHP (Combined Heat and Power): fuel → heat + electricity (th_eff, el_eff)
+    # - Boilers (HWS, HWW): fuel → heat only (th_eff, el_eff=None)
+    # - P2H (Power-to-Heat): electricity → heat (el_to_th_eff ≈ 0.99)
+    #
+    # Fuel costs: fuel_input × fuel_price × dt
+    # CO2 emissions: fuel_input × emission_factor × dt
+
     gens = syscfg.get("generators", {})
-    fuel_cost_terms: List = []
-    fuel_co2_terms: List = []
+    fuel_cost_terms: List = []   # Fuel cost terms for objective
+    fuel_co2_terms: List = []    # CO2 emission terms from fuel
 
     for key, par in gens.items():
         if not par.get("enabled", False):
