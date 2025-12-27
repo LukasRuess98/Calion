@@ -939,8 +939,13 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     # Heat balance with network losses
     def heat_balance_rule(mm, t):
+        # Heat sources: generators, storage discharge
         supply = sum((f[t] for f in ht_out), start=0)
-        consumption = sum((f[t] for f in ht_in), start=0)
+
+        # Heat sinks: storage charge
+        storage_charge = sum((f[t] for f in ht_in), start=0)
+
+        # Heat demand
         demand = mm.heatd[t]
         dump = mm.Q_dump[t]
 
@@ -950,10 +955,13 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         else:
             network_loss = 0
 
-        # Heat balance: supply + storage_discharge = demand + dump + storage_charge + network_losses
-        # Note: ht_out contains heat sources (generators, storage discharge)
-        #       ht_in contains heat sinks (storage charge - negative contribution)
-        return supply + consumption == demand + dump + network_loss
+        # Heat balance: supply = demand + dump + storage_charge + network_losses
+        # supply: generators + storage discharge (all positive)
+        # demand: heat consumption (positive)
+        # storage_charge: heat into storage (positive, consumes heat)
+        # network_loss: transmission losses (positive, consumes heat)
+        # dump: excess heat (positive, consumes heat)
+        return supply == demand + dump + storage_charge + network_loss
 
     m.ht_balance = pyo.Constraint(m.t, rule=heat_balance_rule)
 

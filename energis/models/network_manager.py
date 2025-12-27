@@ -126,6 +126,67 @@ class NetworkManager:
         if self.network_enabled:
             self._load_network_topology()
 
+    def _find_repo_root(self, start_path: Path = None) -> Path:
+        """
+        Find repository root by searching for .git directory.
+
+        Args:
+            start_path: Starting directory (default: current working directory)
+
+        Returns:
+            Path to repository root, or start_path if not found
+        """
+        if start_path is None:
+            start_path = Path.cwd()
+
+        current = start_path.resolve()
+
+        # Search up to 10 levels
+        for _ in range(10):
+            if (current / '.git').exists():
+                return current
+
+            parent = current.parent
+            if parent == current:  # Reached filesystem root
+                break
+            current = parent
+
+        # If not found, return the original path
+        return start_path
+
+    def _resolve_path(self, path_str: str) -> Path:
+        """
+        Intelligently resolve a path that could be:
+        - Absolute
+        - Relative to config_dir
+        - Relative to repository root
+
+        Args:
+            path_str: Path string to resolve
+
+        Returns:
+            Resolved absolute Path
+        """
+        path = Path(path_str)
+
+        # If already absolute, use as-is
+        if path.is_absolute():
+            return path
+
+        # Try relative to config_dir first
+        config_relative = self.config_dir / path
+        if config_relative.exists():
+            return config_relative
+
+        # Try relative to repository root
+        repo_root = self._find_repo_root()
+        repo_relative = repo_root / path
+        if repo_relative.exists():
+            return repo_relative
+
+        # Fall back to config_dir (will raise FileNotFoundError later if doesn't exist)
+        return config_relative
+
     def _load_network_topology(self):
         """
         Load network topology from YAML file, Excel file, or inline config.
@@ -149,10 +210,7 @@ class NetworkManager:
 
         if topology_excel:
             # Load from Excel file
-            excel_path = Path(topology_excel)
-            if not excel_path.is_absolute():
-                excel_path = self.config_dir / topology_excel
-
+            excel_path = self._resolve_path(topology_excel)
             logger.info(f"Loading network topology from Excel: {excel_path}")
 
             try:
@@ -178,10 +236,7 @@ class NetworkManager:
                 return
 
         elif topology_file:
-            topology_path = Path(topology_file)
-            if not topology_path.is_absolute():
-                topology_path = self.config_dir / topology_path
-
+            topology_path = self._resolve_path(topology_file)
             logger.info(f"Loading network topology from YAML: {topology_path}")
 
             try:
