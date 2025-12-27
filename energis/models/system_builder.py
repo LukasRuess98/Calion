@@ -905,25 +905,40 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         try:
             network_mgr = NetworkManager(cfg, config_dir=config_dir)
 
-            # Create buses dict for network integration
-            buses = {
-                'heat': {'in': ht_in, 'out': ht_out},
-                'electricity': {'in': el_in, 'out': el_out}
-            }
+            # Check if network was actually loaded successfully
+            if not network_mgr.network_enabled:
+                print(f"[BUILD] WARNING: Thermal network failed to load (check topology file)")
+                print(f"[BUILD] Continuing without thermal network...")
+                m._network_enabled = False
+            else:
+                # Create buses dict for network integration
+                buses = {
+                    'heat': {'in': ht_in, 'out': ht_out},
+                    'electricity': {'in': el_in, 'out': el_out}
+                }
 
-            # Attach network to model
-            network_results = network_mgr.attach_to_model(m, m.t, buses)
+                # Attach network to model
+                network_results = network_mgr.attach_to_model(m, m.t, buses)
 
-            # Store network manager for results extraction
-            m._network_manager = network_mgr
-            m._network_enabled = True
-
-            print(f"[BUILD] Thermal network integrated successfully")
+                # Verify that network actually attached (not just returned empty dict)
+                if network_results and len(network_results.get('pipes', {})) > 0:
+                    # Store network manager for results extraction
+                    m._network_manager = network_mgr
+                    m._network_enabled = True
+                    print(f"[BUILD] Thermal network integrated successfully:")
+                    print(f"         {len(network_results.get('pipes', {}))} pipes, "
+                          f"{len(network_results.get('nodes', {}))} nodes")
+                else:
+                    print(f"[BUILD] WARNING: Thermal network returned no components")
+                    print(f"[BUILD] Continuing without thermal network...")
+                    m._network_enabled = False
 
         except Exception as e:
-            print(f"[BUILD] WARNING: Failed to integrate thermal network: {e}")
+            print(f"[BUILD] ERROR: Failed to integrate thermal network: {e}")
             print(f"[BUILD] Continuing without thermal network...")
             m._network_enabled = False
+            import traceback
+            traceback.print_exc()
     else:
         m._network_enabled = False
         print("[BUILD] Thermal network disabled")

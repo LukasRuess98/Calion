@@ -171,21 +171,27 @@ class NetworkManager:
 
         # If already absolute, use as-is
         if path.is_absolute():
+            logger.debug(f"Path is absolute: {path}")
             return path
 
-        # Try relative to config_dir first
-        config_relative = self.config_dir / path
-        if config_relative.exists():
-            return config_relative
-
-        # Try relative to repository root
+        # Try relative to repository root FIRST (most common case)
         repo_root = self._find_repo_root()
         repo_relative = repo_root / path
+        logger.debug(f"Trying repo_relative: {repo_relative}")
         if repo_relative.exists():
+            logger.debug(f"Found at repo root: {repo_relative}")
             return repo_relative
 
-        # Fall back to config_dir (will raise FileNotFoundError later if doesn't exist)
-        return config_relative
+        # Try relative to config_dir
+        config_relative = self.config_dir / path
+        logger.debug(f"Trying config_relative: {config_relative}")
+        if config_relative.exists():
+            logger.debug(f"Found at config_dir: {config_relative}")
+            return config_relative
+
+        # Not found - return repo_relative as best guess (will fail later with clear error)
+        logger.warning(f"Path not found. Tried:\n  - {repo_relative}\n  - {config_relative}")
+        return repo_relative
 
     def _load_network_topology(self):
         """
@@ -243,7 +249,13 @@ class NetworkManager:
                 with open(topology_path, 'r') as f:
                     topology_data = yaml.safe_load(f)
             except FileNotFoundError:
-                logger.error(f"Network YAML file not found: {topology_path}")
+                logger.error(f"=" * 70)
+                logger.error(f"THERMAL NETWORK ERROR: Topology file not found!")
+                logger.error(f"  Expected: {topology_path}")
+                logger.error(f"  Config value: {topology_file}")
+                logger.error(f"  Config dir: {self.config_dir}")
+                logger.error(f"  Repo root: {self._find_repo_root()}")
+                logger.error(f"=" * 70)
                 self.network_enabled = False
                 return
             except yaml.YAMLError as e:
