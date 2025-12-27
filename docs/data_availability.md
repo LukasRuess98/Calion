@@ -1,60 +1,17 @@
-# Data Availability Statement
+# Data availability and anonymisation
 
-## Synthetic Example Data
+## Synthetic example dataset
 
-This repository includes a synthetic example dataset for demonstration and testing purposes.
+* **Location:** `data/synthetic_site/`
+* **Files:** `synthetic_load_profile.csv`
+* **Content:** 24 hourly timestamps for 2023-01-01 with day-ahead power prices, aggregated heat demand, CO₂ intensity, and a single waste-heat recovery source (thermal potential and source temperature).
 
-### Dataset Description
+The dataset is generated from smooth sinusoidal patterns and does **not** contain customer or operational data. Values are scaled to sit comfortably within the default EnerGIS component capacities so that PF→RH runs succeed out-of-the-box. The data are stored as CSV (no binary Excel artefacts) so diffs remain text-only.
 
-- **Location:** `data/` directory
-- **Temporal coverage:** Hourly time steps
-- **Reference year:** 2023
-- **Purpose:** Reproducible examples and unit testing
+## Anonymisation approach
 
-### Columns
+The numbers are procedurally generated with deterministic formulae (sine/cosine curves plus offsets). No measurements or confidential parameters from real sites were used. Column names mirror the defaults in `configs/sites/*.site.yaml` so the files can be swapped in without additional cleaning.
 
-| Column | Unit | Description |
-|--------|------|-------------|
-| Datum | datetime | Hourly timestamps |
-| Day_Ahead_Price | €/MWh | Electricity spot price |
-| Wärmebedarf_MW | MW | Thermal heat demand |
-| CO2_consumption_based | kg/MWh | Grid electricity emission factor |
-| WRG*_Q MW | MW | Available waste heat |
-| WRG*_T °C | °C | Waste heat source temperature |
+## Licence
 
-### Generation Method
-
-Data is generated using deterministic formulae to ensure reproducibility:
-
-```python
-# Price: daily sinusoidal pattern
-price = 100 + 50 * sin(2π × hour / 24)
-
-# Heat demand: seasonal + daily pattern
-demand = 100 + 30 * cos(2π × day / 365) + 20 * cos(2π × hour / 24)
-
-# CO2 intensity: inverse correlation with renewables
-co2 = 400 + 100 * sin(2π × hour / 24 + π)
-```
-
-The synthetic data does **not** contain customer or operational data. Values are scaled to work with default EnerGIS component capacities.
-
-## Real-World Case Study Data
-
-The Stadtbach case study in the publication uses operational data from a German district heating network. Due to confidentiality agreements, this data cannot be published openly.
-
-**For access to real-world data:**
-- Contact the corresponding author
-- Data may be available under a data sharing agreement
-
-## Anonymization Approach
-
-- Synthetic data uses procedurally generated values (sine/cosine curves)
-- No measurements or confidential parameters from real sites
-- Column names mirror the configuration defaults for compatibility
-
-## License
-
-The synthetic dataset is released under the MIT License.
-
-You may copy, adapt, and redistribute the files. Attribution to this repository is appreciated.
+The synthetic dataset is released under the same permissive terms as the repository (MIT). You may copy, adapt, and redistribute the files, but attribution to this repository is appreciated to help others discover the source of the templates.

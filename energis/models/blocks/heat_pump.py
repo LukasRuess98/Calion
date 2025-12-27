@@ -93,44 +93,14 @@ class HeatPumpBlock(BaseComponent):
         setattr(m, f"{comp}_cap_min", pyo.Param(initialize=self.capacity_min_mw))
         setattr(m, f"{comp}_cap_max", pyo.Param(initialize=self.capacity_max_mw))
 
-        # ================================================================
-        # PERFORMANCE OPTIMIZATION: Different constraints based on investable
-        # ================================================================
-        # When investable=False, cap is FIXED → no bilinearity in cap*onv
-        # Only need Big-M linearization when cap is a decision variable
+        # Constraints
+        def cap_rule(mm, t):
+            return Q[t] <= cap * onv[t]
+        setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
 
-        if self.investable:
-            # INVESTABLE: Need Big-M linearization for cap * onv terms
-            M_cap = self.capacity_max_mw
-
-            # Q[t] <= cap  (capacity constraint)
-            def cap_rule_1(mm, t):
-                return Q[t] <= cap
-            setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule_1))
-
-            # Q[t] <= M * onv[t]  (on/off linkage)
-            def cap_rule_2(mm, t):
-                return Q[t] <= M_cap * onv[t]
-            setattr(m, f"{comp}_cap_on", pyo.Constraint(Tset, rule=cap_rule_2))
-
-            # Q[t] >= minload * cap - M * (1 - onv[t])
-            def min_rule(mm, t):
-                minload = mm.__getattribute__(f"{comp}_minload")
-                return Q[t] >= minload * cap - M_cap * (1 - onv[t])
-            setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
-        else:
-            # NON-INVESTABLE: cap is fixed constant → simpler linear constraints
-            # Q[t] <= cap * onv[t] is already linear (fixed * binary = linear)
-            fixed_cap = self.capacity_init_mw
-
-            def cap_rule(mm, t):
-                return Q[t] <= fixed_cap * onv[t]
-            setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
-
-            def min_rule(mm, t):
-                minload = mm.__getattribute__(f"{comp}_minload")
-                return Q[t] >= minload * fixed_cap * onv[t]
-            setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
+        def min_rule(mm, t):
+            return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap * onv[t]
+        setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
 
         def split_balance(mm, t):
             return Q[t] == Q_wrg[t] + Q_def[t]

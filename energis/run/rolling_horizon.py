@@ -826,58 +826,33 @@ def _collect_timeseries_and_summary(
 
         # Calculate CAPEX breakdown by component type
         # Extract heat pump CAPEX
-        hp_inv_defaults = cfg.get("heat_pumps", {}).get("investment_defaults", {})
-        hp_list = cfg.get("system", {}).get("heat_pumps", [])
-
-        for i, hp in enumerate(meta["heat_pumps"]):
+        for hp in meta["heat_pumps"]:
             comp = hp["id"]
             if hp.get("invest_enabled", False):
                 cap_var = getattr(model, f"{comp}_cap_mw", None)
-                build_var = getattr(model, f"{comp}_build", None)
                 if cap_var is not None:
                     try:
                         cap_value = float(pyo.value(cap_var))
-                        build_value = float(pyo.value(build_var)) if build_var else 1.0
-
-                        # Merge defaults with specific HP investment config
-                        hp_cfg = hp_list[i] if i < len(hp_list) else {}
-                        inv_cfg = dict(hp_inv_defaults)
-                        inv_cfg.update(hp_cfg.get("investment", {}))
-
-                        # Support direct investment params in HP config (no defaults needed)
+                        inv_cfg = cfg.get("system", {}).get("heat_pumps", [{}])[0].get("investment", {})
                         capex_rate = float(inv_cfg.get("capex_eur_per_mw", 0.0))
-                        activation = float(inv_cfg.get("activation_cost_eur", 0.0))
-                        lifetime = float(inv_cfg.get("lifetime_years", 15.0))
+                        lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                         annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
-
                         capex_heat_pumps += cap_value * capex_rate * annual_factor
-                        activation_cost += build_value * activation * annual_factor
                     except Exception:  # pragma: no cover - defensive
                         pass
 
         # Extract storage CAPEX
-        sto_inv_defaults = cfg.get("storage", {}).get("investment_defaults", {})
         if meta["storage"] and meta["storage"].get("invest_enabled", False):
             cap_e_var = getattr(model, "TES_cap_energy", None)
-            build_var = getattr(model, "TES_build", None)
             if cap_e_var is not None:
                 try:
                     cap_e_value = float(pyo.value(cap_e_var))
-                    build_value = float(pyo.value(build_var)) if build_var else 1.0
-
-                    # Merge defaults with specific storage investment config
                     sto_cfg = cfg.get("system", {}).get("storage", {})
-                    inv_cfg = dict(sto_inv_defaults)
-                    inv_cfg.update(sto_cfg.get("investment", {}))
-
-                    # Support direct investment params in storage config (no defaults needed)
+                    inv_cfg = sto_cfg.get("investment", {})
                     e_capex = float(inv_cfg.get("energy_capex_eur_per_mwh", 0.0))
-                    activation = float(inv_cfg.get("activation_cost_eur", 0.0))
-                    lifetime = float(inv_cfg.get("lifetime_years", 20.0))
+                    lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                     annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
-
                     capex_storage += cap_e_value * e_capex * annual_factor
-                    activation_cost += build_value * activation * annual_factor
                 except Exception:  # pragma: no cover - defensive
                     pass
 
@@ -1139,123 +1114,6 @@ def _collect_timeseries_and_summary(
         series["Grid_CO2_emissions_t_per_step"][i] + series["Fuel_CO2_emissions_t_per_step"][i]
         for i in range(n)
     ] if n else []
-
-    # ========================================
-    # THERMAL NETWORK RESULTS EXTRACTION
-    # ========================================
-    if model and hasattr(model, 'network_manager') and hasattr(model, 't'):
-        try:
-            # Extract network results (nodes and pipes are dicts)
-            network_results = model.network_manager.get_results(model, model.t)
-
-            # Add node results to series
-            if 'nodes' in network_results:
-                for node_id, node_data in network_results['nodes'].items():
-                    if 'T_supply_c' in node_data and isinstance(node_data['T_supply_c'], list):
-                        series[f"NET_{node_id}_T_supply_C"] = node_data['T_supply_c']
-                    if 'T_return_c' in node_data and isinstance(node_data['T_return_c'], list):
-                        series[f"NET_{node_id}_T_return_C"] = node_data['T_return_c']
-                    if 'Q_demand_mw' in node_data and isinstance(node_data['Q_demand_mw'], list):
-                        series[f"NET_{node_id}_Q_demand_MW"] = node_data['Q_demand_mw']
-
-            # Add pipe results to series
-            if 'pipes' in network_results:
-                for pipe_id, pipe_data in network_results['pipes'].items():
-                    # Thermal series
-                    if 'flow_kg_s' in pipe_data and isinstance(pipe_data['flow_kg_s'], list):
-                        series[f"NET_{pipe_id}_flow_kg_s"] = pipe_data['flow_kg_s']
-                    if 'T_supply_in_c' in pipe_data and isinstance(pipe_data['T_supply_in_c'], list):
-                        series[f"NET_{pipe_id}_T_supply_in_C"] = pipe_data['T_supply_in_c']
-                    if 'T_supply_out_c' in pipe_data and isinstance(pipe_data['T_supply_out_c'], list):
-                        series[f"NET_{pipe_id}_T_supply_out_C"] = pipe_data['T_supply_out_c']
-                    # Return pipe temperatures (complete thermal profile)
-                    if 'T_return_in_c' in pipe_data and isinstance(pipe_data['T_return_in_c'], list):
-                        series[f"NET_{pipe_id}_T_return_in_C"] = pipe_data['T_return_in_c']
-                    if 'T_return_out_c' in pipe_data and isinstance(pipe_data['T_return_out_c'], list):
-                        series[f"NET_{pipe_id}_T_return_out_C"] = pipe_data['T_return_out_c']
-                    if 'Q_loss_supply_kw' in pipe_data and isinstance(pipe_data['Q_loss_supply_kw'], list):
-                        series[f"NET_{pipe_id}_Q_loss_supply_kW"] = pipe_data['Q_loss_supply_kw']
-                    if 'Q_loss_return_kw' in pipe_data and isinstance(pipe_data['Q_loss_return_kw'], list):
-                        series[f"NET_{pipe_id}_Q_loss_return_kW"] = pipe_data['Q_loss_return_kw']
-
-                    # Hydraulic series (velocity, pressure drop)
-                    if 'velocity_m_s' in pipe_data and isinstance(pipe_data['velocity_m_s'], list):
-                        series[f"NET_{pipe_id}_velocity_m_s"] = pipe_data['velocity_m_s']
-                    if 'delta_p_total_bar' in pipe_data and isinstance(pipe_data['delta_p_total_bar'], list):
-                        series[f"NET_{pipe_id}_delta_p_bar"] = pipe_data['delta_p_total_bar']
-
-            # Add network summary statistics from network_results['summary']
-            if 'summary' in network_results:
-                network_summary = OrderedDict()
-                summary_data = network_results['summary']
-
-                # Use summary data from NetworkManager.get_results
-                if 'total_heat_delivered_mwh' in summary_data:
-                    network_summary["Total_heat_delivered_MWh"] = summary_data['total_heat_delivered_mwh']
-                if 'total_heat_loss_mwh' in summary_data:
-                    network_summary["Total_heat_loss_MWh"] = summary_data['total_heat_loss_mwh']
-                if 'loss_percentage' in summary_data:
-                    network_summary["Heat_loss_percentage"] = summary_data['loss_percentage']
-                if 'total_pipe_length_m' in summary_data:
-                    network_summary["Total_pipe_length_m"] = summary_data['total_pipe_length_m']
-
-                # Hydraulic summary
-                if 'max_velocity_m_s' in summary_data:
-                    network_summary["Max_velocity_m_s"] = summary_data['max_velocity_m_s']
-                if 'total_pressure_drop_bar' in summary_data:
-                    network_summary["Total_pressure_drop_bar"] = summary_data['total_pressure_drop_bar']
-                if 'pump_power_kw' in summary_data:
-                    network_summary["Pump_power_kW"] = summary_data['pump_power_kw']
-
-                # Network configuration
-                network_summary["Number_of_nodes"] = len(network_results.get('nodes', {}))
-                network_summary["Number_of_pipes"] = len(network_results.get('pipes', {}))
-
-                # Investment/CAPEX data from model
-                if hasattr(model, 'network_total_pipe_capex'):
-                    total_capex = model.network_total_pipe_capex
-                    if hasattr(total_capex, '__float__'):
-                        network_summary["Total_pipe_CAPEX_EUR"] = float(total_capex)
-                    else:
-                        try:
-                            network_summary["Total_pipe_CAPEX_EUR"] = float(pyo.value(total_capex))
-                        except:
-                            network_summary["Total_pipe_CAPEX_EUR"] = float(total_capex)
-
-                # Per-pipe CAPEX
-                if hasattr(model, 'pipe_capex_costs') and model.pipe_capex_costs:
-                    pipe_capex_summary = OrderedDict()
-                    for pipe_id, capex in model.pipe_capex_costs.items():
-                        try:
-                            capex_val = float(pyo.value(capex)) if hasattr(capex, 'is_expression_type') else float(capex)
-                            if capex_val > 0:
-                                pipe_capex_summary[pipe_id] = capex_val
-                        except:
-                            pass
-                    if pipe_capex_summary:
-                        network_summary["Pipe_CAPEX_per_pipe_EUR"] = pipe_capex_summary
-
-                # Pipe investment decisions (upgrade recommendations)
-                pipe_investments = []
-                if 'pipes' in network_results:
-                    for pipe_id, pipe_data in network_results['pipes'].items():
-                        if pipe_data.get('upgrade_recommended', False):
-                            pipe_investments.append({
-                                'pipe_id': pipe_id,
-                                'current_diameter_mm': pipe_data.get('current_diameter_mm'),
-                                'selected_diameter_mm': pipe_data.get('selected_diameter_mm'),
-                                'action': 'upgrade'
-                            })
-                if pipe_investments:
-                    network_summary["Pipe_investments"] = pipe_investments
-
-                if network_summary:
-                    summary_sections["thermal_network"] = network_summary
-
-        except Exception as e:
-            logger.warning(f"Failed to extract thermal network results: {e}")
-            import traceback
-            traceback.print_exc()
 
     flat = _flatten_summary(summary_sections)
     return series, summary_sections, flat
@@ -2164,139 +2022,26 @@ def _solve_scenario(
     }
     if model is not None and HAVE_PYOMO:
         solver_used = solver_name
-        opt = None
-
-        # Try to create requested solver
         try:
             opt = pyo.SolverFactory(solver_name)
-            # Check if solver is actually available (not just factory success)
-            if not opt.available():
-                logger.warning(f"Solver '{solver_name}' factory created but not available. Falling back to GLPK.")
-                opt = None
-        except Exception as e:
-            logger.warning(f"Failed to create solver '{solver_name}': {e}. Falling back to GLPK.")
-            opt = None
-
-        # Fallback to GLPK if needed
-        if opt is None:
+        except Exception:  # pragma: no cover - solver fallback
             solver_used = "glpk"
             opt = pyo.SolverFactory("glpk")
-            logger.info(f"Using fallback solver: GLPK")
-            print(f"[SOLVER] Using GLPK (fallback) - check if Gurobi is installed and licensed!")
-        else:
-            logger.info(f"Using solver: {solver_used}")
-            print(f"[SOLVER] Using {solver_used}")
 
-        # Apply solver options based on which solver is being used
+        # Apply solver options if configured (CRITICAL FIX: prevents infinite runtime)
         run_cfg = cfg.get("run", {})
         solver_options = run_cfg.get("solver_options", {})
-
-        # Map options to correct parameter names for different solvers
-        if solver_used.lower() in ["glpk"]:
-            # GLPK uses different parameter names
-            glpk_options = {}
-            if "TimeLimit" in solver_options:
-                glpk_options["tmlim"] = solver_options["TimeLimit"]
-            if "MIPGap" in solver_options:
-                glpk_options["mipgap"] = solver_options["MIPGap"]
-            # Apply GLPK-specific options
-            for key, value in glpk_options.items():
-                opt.options[key] = value
-            logger.info(f"Applied GLPK solver options: {glpk_options}")
-        elif solver_used.lower() in ["gurobi", "gurobi_direct"]:
-            # Gurobi uses native option names
-            for key, value in solver_options.items():
-                opt.options[key] = value
-            logger.debug(f"Applied Gurobi solver options: {solver_options}")
-        else:
-            # Other solvers - try to apply options directly
+        if solver_options:
             for key, value in solver_options.items():
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
 
-        # Measure solve time for performance monitoring
-        _solve_start = time.time()
         solver_result = opt.solve(model, tee=False)
-        _solve_time = time.time() - _solve_start
-
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
-        solver_meta["solve_time_seconds"] = _solve_time
-
-        # Check if solver found a valid solution
-        from pyomo.opt import TerminationCondition, SolutionStatus
-        term_cond = getattr(solver_result.solver, "termination_condition", None)
-        if term_cond not in (TerminationCondition.optimal, TerminationCondition.feasible,
-                             TerminationCondition.locallyOptimal, TerminationCondition.globallyOptimal):
-            # Solver failed - provide clear error message
-            status = solver_meta.get("status", "unknown")
-            term = solver_meta.get("termination_condition", "unknown")
-            raise RuntimeError(
-                f"Solver failed! Status: {status}, Termination: {term}. "
-                f"Check model feasibility, solver installation, and configuration."
-            )
-
-        # ========================================
-        # SOLVER RESULT OUTPUT
-        # ========================================
-        # Print comprehensive solver results
-        print("\n" + "=" * 70)
-        print("OPTIMIZATION RESULTS")
-        print("=" * 70)
-        print(f"Solver: {solver_used}")
-        print(f"Status: {solver_meta['status']}")
-        print(f"Termination: {solver_meta['termination_condition']}")
-        print(f"Solve time: {_solve_time:.2f} seconds")
-
-        # Extract objective value
-        if hasattr(model, 'objective'):
-            try:
-                obj_value = pyo.value(model.objective)
-                solver_meta["objective_value"] = obj_value
-                print(f"Objective value: {obj_value:,.2f} EUR")
-            except Exception:
-                pass
-
-        # Extract key decision variables for summary
-        print("\n--- Key Results ---")
-
-        # Heat pumps
-        hp_results = []
-        for hp_idx in range(1, 10):  # Check HP1 to HP9
-            hp_id = f"HP{hp_idx}"
-            q_var_name = f"{hp_id}_Q_th"
-            if hasattr(model, q_var_name):
-                q_var = getattr(model, q_var_name)
-                total_heat = sum(pyo.value(q_var[t]) for t in model.t) * dt_h
-                if total_heat > 0.1:
-                    hp_results.append((hp_id, total_heat))
-
-        if hp_results:
-            print("\nHeat Pumps:")
-            for hp_id, heat in hp_results:
-                print(f"  {hp_id}: {heat:,.1f} MWh")
-
-        # Storage
-        if hasattr(model, 'TES_soc'):
-            soc_final = pyo.value(model.TES_soc[max(model.t)])
-            print(f"\nStorage SOC (final): {soc_final:,.1f} MWh")
-
-        # Grid
-        if hasattr(model, 'P_buy'):
-            grid_buy = sum(pyo.value(model.P_buy[t]) for t in model.t) * dt_h
-            print(f"\nGrid purchase: {grid_buy:,.1f} MWh")
-        if hasattr(model, 'P_sell'):
-            grid_sell = sum(pyo.value(model.P_sell[t]) for t in model.t) * dt_h
-            print(f"Grid feed-in: {grid_sell:,.1f} MWh")
-
-        # Thermal network summary
-        if hasattr(model, 'network_manager') and model.network_manager.network_enabled:
-            print("\nThermal Network: ACTIVE")
-
-        print("=" * 70 + "\n")
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
@@ -2601,84 +2346,6 @@ def export_workflow_results(
         # Export MPC CSV
         mpc_csv = os.path.join(outdir, "mpc_timeseries.csv")
         write_timeseries_csv(mpc_csv, workflow.mpc_result.table, workflow.mpc_result.series)
-
-    # ========================================
-    # Export Thermal Network Results
-    # ========================================
-    def export_network_results(result_obj, outdir: str, prefix: str):
-        """Export network-specific time series and summary to CSV."""
-        if not result_obj or not result_obj.series:
-            return
-
-        # Filter network time series (all series starting with "NET_")
-        network_series = OrderedDict(
-            (key, values) for key, values in result_obj.series.items()
-            if key.startswith("NET_")
-        )
-
-        if network_series:
-            # Export network time series CSV
-            network_csv = os.path.join(outdir, f"{prefix}_network_timeseries.csv")
-            write_timeseries_csv(network_csv, result_obj.table, network_series)
-            logger.info(f"✓ Exported thermal network timeseries: {network_csv}")
-
-        # Export network summary if available
-        if hasattr(result_obj, 'summary') and 'thermal_network' in result_obj.summary:
-            network_summary_csv = os.path.join(outdir, f"{prefix}_network_summary.csv")
-            with open(network_summary_csv, 'w', newline='', encoding='utf-8') as f:
-                import csv
-                writer = csv.writer(f)
-                writer.writerow(['Metric', 'Value'])
-                for key, value in result_obj.summary['thermal_network'].items():
-                    # Convert nested dicts/lists to JSON for CSV export
-                    if isinstance(value, (dict, list)):
-                        writer.writerow([key, json.dumps(value, ensure_ascii=False)])
-                    else:
-                        writer.writerow([key, value])
-            logger.info(f"✓ Exported thermal network summary: {network_summary_csv}")
-
-            # Also export investment details as separate JSON for easier access
-            thermal_summary = result_obj.summary['thermal_network']
-            if (thermal_summary.get('Total_pipe_CAPEX_EUR', 0) > 0 or
-                thermal_summary.get('Pipe_investments') or
-                thermal_summary.get('Pipe_CAPEX_per_pipe_EUR')):
-                network_investment_json = os.path.join(outdir, f"{prefix}_network_investment.json")
-                investment_data = {
-                    'total_capex_eur': thermal_summary.get('Total_pipe_CAPEX_EUR', 0),
-                    'pipe_capex_eur': thermal_summary.get('Pipe_CAPEX_per_pipe_EUR', {}),
-                    'pipe_investments': thermal_summary.get('Pipe_investments', []),
-                    'total_heat_loss_mwh': thermal_summary.get('Total_heat_loss_MWh', 0),
-                    'number_of_pipes': thermal_summary.get('Number_of_pipes', 0),
-                    'number_of_nodes': thermal_summary.get('Number_of_nodes', 0),
-                }
-                with open(network_investment_json, 'w', encoding='utf-8') as f:
-                    json.dump(investment_data, f, indent=2, ensure_ascii=False)
-                logger.info(f"✓ Exported network investment details: {network_investment_json}")
-
-    # Export network results for each workflow type
-    if has_pf and workflow.pf_result:
-        export_network_results(workflow.pf_result, outdir, "pf")
-
-    if has_rh and workflow.rh_result:
-        export_network_results(workflow.rh_result, outdir, "rh")
-
-    if has_mpc and workflow.mpc_result:
-        export_network_results(workflow.mpc_result, outdir, "mpc")
-
-    # ========================================
-    # Export Dashboard JSON (if network enabled)
-    # ========================================
-    # Check if any result has network data
-    def export_dashboard_json(result_obj, model_ref, outdir: str, prefix: str):
-        """Export dashboard-ready JSON for network visualization."""
-        # This requires access to the model which has network_manager
-        # For now, we'll create a simplified dashboard JSON from the CSV results
-        # Full implementation will need model access or separate dashboard export step
-        pass
-
-    # Note: Full dashboard export with network topology requires model reference
-    # This will be implemented in the dashboard preparation phase
-    # For now, CSV exports contain all network data in accessible format
 
     # Prepare design export
     design_export: Dict[str, Any] = {}
