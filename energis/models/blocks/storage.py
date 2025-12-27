@@ -239,6 +239,15 @@ class StorageBlock(BaseComponent):
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
+        # Terminal constraint (final SOC target for rolling horizon)
+        if self.terminal_target is not None:
+            final_time = Tset.last()
+            setattr(
+                m,
+                f"{comp}_terminal",
+                pyo.Constraint(expr=E[final_time] == self.terminal_target)
+            )
+
         # Register flows with framework
         self.add_flow(Flow(
             bus="heat",

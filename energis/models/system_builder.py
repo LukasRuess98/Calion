@@ -630,6 +630,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
+                # Terminal constraint
+                terminal_target=terminal_target_val,
             )
         else:
             # Use simple storage (existing code)
@@ -652,7 +654,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
-                terminal_target=None,
+                terminal_target=terminal_target_val,
                 loss_series=loss_series,
                 eff_charge_series=eff_charge_series,
                 eff_discharge_series=eff_discharge_series,
