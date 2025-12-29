@@ -137,7 +137,7 @@ system:
   # ---------------------------------------------------------------------------
   heat_pumps:
     - id: HP1
-      enabled: false  # Re-enabled with correct column names
+      enabled: ture  # Re-enabled with correct column names
       type: standard
       wrg_source_column: WRG1_T_K
       wrg_capacity_column: WRG1_Q_MW  # Fixed: was WRG1_Q_cap
