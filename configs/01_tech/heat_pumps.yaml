@@ -9,6 +9,7 @@ heat_pumps:
   cop:
     deltaT_K: 20.0                            # Temperature lift (K)
     deltaTpp_K: 5.0                           # Pinch point temperature difference
+    cop_fallback: 3.0                         # Fallback COP (must be >= 1.01)
 
     # Heat sink (district heating network)
     sink_defaults:
