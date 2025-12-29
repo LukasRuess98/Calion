@@ -1,0 +1,27 @@
+# =============================================================================
+# SCENARIO: Full Year 2023
+# =============================================================================
+# Complete year optimization (Jan-Dec 2023)
+# Long-running production scenario
+# =============================================================================
+
+scenario:
+  title: "Full Year 2023"
+  tag: "full-2023"
+  workflow: [PF]                              # Perfect Foresight for full year
+
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-12-31 23:00"
+    enforce: false                            # No terminal constraints
+
+# Full solver time limit for complex optimization
+run:
+  solver_options:
+    TimeLimit: 7200                           # 2 hours for full year
+
+# Thermal network
+thermal_network:
+  enabled: false                              # Enable when ready
+  topology_file: configs/05_networks/brownfield.yaml

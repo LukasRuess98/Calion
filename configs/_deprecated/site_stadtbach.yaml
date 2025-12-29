@@ -1,0 +1,112 @@
+# =============================================================================
+# SITE CONFIGURATION - STADTBACH
+# =============================================================================
+# SINGLE SOURCE OF TRUTH für site-spezifische Daten
+# Diese Datei ändert sich SELTEN (nur bei neuen Datenquellen)
+# =============================================================================
+
+# Datenquelle
+site:
+  input_file: Import_Data.xlsx
+  year_target: 2023
+  tz: Europe/Berlin
+
+  # Column Mapping (CENTRAL DEFINITION - don't duplicate elsewhere!)
+  columns:
+    # Basis-Daten
+    price_candidates:
+      - Day_Ahead_Price
+      - "Day_Ahead_Price €/MWh"
+      - strompreis
+
+    heat_candidates:
+      - Waermebedarf_MW
+      - "Wärmebedarf MW"
+      - waermebedarf
+
+    co2_candidates:
+      - CO2_consumption_based
+      - "CO2_consumption_based kgCO2/MWh"
+      - co2
+
+    # WRG (Abwärme) Daten
+    # WICHTIG: Die tatsächlichen Excel-Spaltennamen mit allen Spaces/Sonderzeichen!
+    wrg1_q_candidates:
+      - "WRG1Q MW"      # Tatsächlicher Name in Excel
+      - "WRG1_Q MW"     # Alternative
+
+    wrg1_t_candidates:
+      - "WRG1_ T °C"    # ⚠️ ACHTUNG: Space VOR dem Underscore!
+      - "WRG1_T °C"     # Alternative ohne Space
+      - "WRG1 T °C"     # Weitere Alternative
+
+    wrg2_q_candidates:
+      - "WRG2Q MW"
+      - "WRG2_Q MW"
+
+    wrg2_t_candidates:
+      - "WRG2_T °C"
+      - "WRG2 T °C"
+
+    wrg3_q_candidates:
+      - "WRG3Q MW"
+      - "WRG3_Q MW"
+
+    wrg3_t_candidates:
+      - "WRG3_T °C"
+      - "WRG3 T °C"
+
+    wrg4_q_candidates:
+      - "WRG4Q MW"
+      - "WRG4_Q MW"
+
+    wrg4_t_candidates:
+      - "WRG4_T °C"
+      - "WRG4 T °C"
+
+# =============================================================================
+# INSTALLIERTE ASSETS (Brownfield)
+# =============================================================================
+# Was ist bereits vorhanden und kann NICHT geändert werden
+
+system:
+  generators:
+    # KWK-Anlagen
+    hkw:
+      enabled: true
+      cap_th_mw: 75.0
+      description: "Heizkraftwerk - Gas CHP"
+
+    gtost:
+      enabled: true
+      cap_th_mw: 41.3
+      description: "Gasturbine Ost"
+
+    # Biomasse
+    bmhkw:
+      enabled: true
+      cap_th_mw: 15.0
+      description: "Biomasse-Heizkraftwerk"
+
+    # Gaskessel
+    hws:
+      enabled: true
+      cap_th_mw: 45.0
+      description: "Heizwerk Süd - Gaskessel"
+
+    hww:
+      enabled: true
+      cap_th_mw: 45.0
+      description: "Heizwerk West - Gaskessel"
+
+    # Power-to-Heat
+    p2h:
+      enabled: true
+      cap_th_mw: 10.0
+      description: "Elektrodenkessel"
+
+    # Abwärme
+    ava:
+      enabled: true
+      cap_th_mw: 45.0
+      description: "Abwärmenutzung AVA"

@@ -1,0 +1,66 @@
+# =============================================================================
+# STADTBACH SITE - DATA SOURCE
+# =============================================================================
+# Excel data file and column mappings (SINGLE SOURCE OF TRUTH)
+# This file changes RARELY (only when adding new data sources)
+# =============================================================================
+
+site:
+  input_file: Import_Data.xlsx
+  year_target: 2023
+  tz: Europe/Berlin
+
+  # Column name mappings (handles variations in Excel column names)
+  columns:
+    # Electricity price
+    price_candidates:
+      - Day_Ahead_Price
+      - "Day_Ahead_Price €/MWh"
+      - strompreis
+
+    # Heat demand
+    heat_candidates:
+      - Waermebedarf_MW
+      - "Wärmebedarf MW"
+      - waermebedarf
+
+    # CO2 emissions
+    co2_candidates:
+      - CO2_consumption_based
+      - "CO2_consumption_based kgCO2/MWh"
+      - co2
+
+    # WRG (Waste Heat Recovery) sources
+    # ⚠️ CRITICAL: Excel has "WRG1_ T °C" with SPACE before underscore!
+    wrg1_q_candidates:
+      - "WRG1Q MW"
+      - "WRG1_Q MW"
+
+    wrg1_t_candidates:
+      - "WRG1_ T °C"                          # ← Space before _
+      - "WRG1_T °C"
+      - "WRG1 T °C"
+
+    wrg2_q_candidates:
+      - "WRG2Q MW"
+      - "WRG2_Q MW"
+
+    wrg2_t_candidates:
+      - "WRG2_T °C"
+      - "WRG2 T °C"
+
+    wrg3_q_candidates:
+      - "WRG3Q MW"
+      - "WRG3_Q MW"
+
+    wrg3_t_candidates:
+      - "WRG3_T °C"
+      - "WRG3 T °C"
+
+    wrg4_q_candidates:
+      - "WRG4Q MW"
+      - "WRG4_Q MW"
+
+    wrg4_t_candidates:
+      - "WRG4_T °C"
+      - "WRG4 T °C"

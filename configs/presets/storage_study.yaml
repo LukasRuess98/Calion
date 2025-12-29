@@ -1,0 +1,28 @@
+# =============================================================================
+# PRESET: Storage Investment Study
+# =============================================================================
+# Analyze optimal storage sizing without heat pumps
+# - Full year 2023 (Perfect Foresight)
+# - Storage investment optimization
+# - No heat pumps (isolate storage effects)
+#
+# Usage: python -m energis.run configs/presets/storage_study.yaml
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/storage.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/assets.yaml
+  - ../03_systems/with_storage.yaml
+  - ../04_scenarios/full_year_2023.yaml
+
+# Reduce activation cost to encourage storage investment
+system:
+  storage:
+    investment:
+      activation_cost_eur: 10000.0            # Lower cost for study

@@ -1,0 +1,28 @@
+# =============================================================================
+# THERMAL STORAGE TECHNOLOGY DEFAULTS
+# =============================================================================
+# Investment parameters and technical specifications for thermal energy storage
+# =============================================================================
+
+storage:
+  # Investment optimization defaults
+  investment_defaults:
+    enabled: true
+    energy_capacity_min_mwh: 10.0             # Minimum 10 MWh if built
+    energy_capacity_max_mwh: 10000.0          # Maximum 10 GWh
+    power_capacity_min_mw: 1.0                # Minimum 1 MW power
+    power_capacity_max_mw: 1000.0             # Maximum 1 GW power
+    energy_capex_eur_per_mwh: 5000.0          # 5k € per MWh capacity
+    power_capex_eur_per_mw: 1.0               # 1 € per MW (negligible)
+    activation_cost_eur: 20000.0              # Fixed cost for installation
+    lifetime_years: 20.0                      # Economic lifetime
+    tie_breaker_eur_per_mwh: 0.000000005      # Tiny cost to break ties
+
+  # Technical defaults (if not specified in system config)
+  defaults:
+    min_energy_mwh: 0.0                       # Can discharge to empty
+    max_energy_mwh: 5000.0                    # Default max capacity
+    max_power_mw: 200.0                       # Default max power
+    eff_charge: 0.95                          # Charging efficiency
+    eff_discharge: 0.95                       # Discharging efficiency
+    hourly_loss: 0.001                        # 0.1% per hour heat loss

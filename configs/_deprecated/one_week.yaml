@@ -1,0 +1,78 @@
+# =============================================================================
+# SCENARIO - ONE WEEK (Test/Development)
+# =============================================================================
+# Quick test scenario for development and validation
+# =============================================================================
+
+scenario:
+  title: "One Week Test"
+  tag: "test-1week"
+  workflow: [PF]
+
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-01-07 23:00"
+    enforce: false
+
+# =============================================================================
+# DATA SOURCE
+# =============================================================================
+site:
+  input_file: Import_Data.xlsx
+  year_target: 2023
+  tz: Europe/Berlin
+
+  columns:
+    price_candidates:
+      - Day_Ahead_Price
+      - "Day_Ahead_Price €/MWh"
+      - strompreis
+    heat_candidates:
+      - Waermebedarf_MW
+      - "Wärmebedarf MW"
+      - waermebedarf
+    co2_candidates:
+      - CO2_consumption_based
+      - "CO2_consumption_based kgCO2/MWh"
+      - co2
+    wrg1_q_candidates: ["WRG1Q MW", "WRG1_Q MW"]
+    wrg1_t_candidates: ["WRG1_T °C", "WRG1 T °C"]
+    wrg2_q_candidates: ["WRG2Q MW", "WRG2_Q MW"]
+    wrg2_t_candidates: ["WRG2_T °C", "WRG2 T °C"]
+    wrg3_q_candidates: ["WRG3Q MW", "WRG3_Q MW"]
+    wrg3_t_candidates: ["WRG3_T °C", "WRG3 T °C"]
+    wrg4_q_candidates: ["WRG4Q MW", "WRG4_Q MW"]
+    wrg4_t_candidates: ["WRG4_T °C", "WRG4 T °C"]
+
+# =============================================================================
+# THERMAL NETWORK
+# =============================================================================
+thermal_network:
+  enabled: true
+  topology_file: configs/networks/brownfield.yaml
+
+# =============================================================================
+# SOLVER SETTINGS (faster for testing)
+# =============================================================================
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    Threads: 0
+    MIPGap: 0.02
+    TimeLimit: 600
+    MIPFocus: 1
+    LogToConsole: 1
+
+# =============================================================================
+# GRID & COST SETTINGS
+# =============================================================================
+grid:
+  max_import_mw: 200
+  max_export_mw: 100
+
+costs:
+  dump_cost_eur_per_mwh_th: 1.0
+  co2_price_eur_per_t: 100.0
+  include_co2_cost_in_objective: true

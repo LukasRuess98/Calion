@@ -239,6 +239,10 @@ class StorageBlock(BaseComponent):
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
 
+        # NOTE: Terminal constraint is created at the system_builder level (system_builder.py:685-699)
+        # to allow for policy-based constraints (==, >=) based on terminal_policy.
+        # Do NOT create a duplicate constraint here.
+
         # Register flows with framework
         self.add_flow(Flow(
             bus="heat",

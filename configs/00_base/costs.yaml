@@ -1,0 +1,17 @@
+# =============================================================================
+# COST PARAMETERS
+# =============================================================================
+# Economic parameters for optimization objective function
+# =============================================================================
+
+costs:
+  # CO2 pricing
+  co2_price_eur_per_t: 100.0                  # €/t CO2
+  include_co2_cost_in_objective: true         # Include in objective
+
+  # Heat dumping (excess heat disposal)
+  dump_cost_eur_per_mwh_th: 1.0              # Small penalty to avoid waste
+
+  # Grid costs
+  include_gridcost_in_energy: true            # Include in energy costs
+  include_demand_charge_in_rh: true           # Include demand charge in RH

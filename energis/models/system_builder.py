@@ -25,6 +25,8 @@ from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
+from .network_manager import NetworkManager
+from pathlib import Path
 
 
 def _cop_series_from_table(
@@ -477,7 +479,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
+    print(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
     if sto_cfg.get("enabled", False):
+        print(f"[BUILD] Building storage component...")
         storage_defaults = cfg.get("storage", {})
         sto_defaults = storage_defaults.get("investment_defaults", {})
         sto_inv = dict(sto_defaults)
@@ -562,6 +566,13 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             if terminal_policy not in {"equal", "geq"}:
                 terminal_policy = "equal"
 
+        # Debug logging
+        print(f"[BUILD] Storage terminal configuration:")
+        print(f"  - terminal_state: {terminal_state}")
+        print(f"  - terminal_policy: {terminal_policy}")
+        print(f"  - soc_init: {soc_init}")
+        print(f"  - terminal_target_val: {terminal_target_val}")
+
         coupling_factor = storage_defaults.get("power_energy_coupling")
         if "power_energy_coupling" in sto_cfg:
             coupling_factor = sto_cfg.get("power_energy_coupling")
@@ -628,6 +639,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
+                # Terminal constraint
+                terminal_target=terminal_target_val,
             )
         else:
             # Use simple storage (existing code)
@@ -650,7 +663,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
-                terminal_target=None,
+                terminal_target=terminal_target_val,
                 loss_series=loss_series,
                 eff_charge_series=eff_charge_series,
                 eff_discharge_series=eff_discharge_series,
@@ -680,17 +693,22 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] >= getattr(m, "TES_terminal_target")),
                 )
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
             else:
                 setattr(
                     m,
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] == getattr(m, "TES_terminal_target")),
                 )
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
         else:
             if hasattr(m, "TES_terminal"):
                 delattr(m, "TES_terminal")
             if hasattr(m, "TES_terminal_target"):
                 delattr(m, "TES_terminal_target")
+            print(f"[BUILD] No terminal constraint (terminal_target_val is None)")
 
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
@@ -887,14 +905,96 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     print(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
 
+    # ========================================
+    # THERMAL NETWORK INTEGRATION
+    # ========================================
+    network_enabled = cfg.get('thermal_network', {}).get('enabled', False)
+
+    if network_enabled:
+        print("[BUILD] Integrating thermal network...")
+
+        # Get config directory from cfg if available, otherwise use current directory
+        config_dir = cfg.get('_config_dir', Path.cwd())
+        if not isinstance(config_dir, Path):
+            config_dir = Path(config_dir) if config_dir else Path.cwd()
+
+        try:
+            network_mgr = NetworkManager(cfg, config_dir=config_dir)
+
+            # Check if network was actually loaded successfully
+            if not network_mgr.network_enabled:
+                print(f"[BUILD] WARNING: Thermal network failed to load (check topology file)")
+                print(f"[BUILD] Continuing without thermal network...")
+                m._network_enabled = False
+            else:
+                # Create buses dict for network integration
+                buses = {
+                    'heat': {'in': ht_in, 'out': ht_out},
+                    'electricity': {'in': el_in, 'out': el_out}
+                }
+
+                # Attach network to model
+                network_results = network_mgr.attach_to_model(m, m.t, buses)
+
+                # Verify that network actually attached (not just returned empty dict)
+                if network_results and len(network_results.get('pipes', {})) > 0:
+                    # Store network manager for results extraction
+                    m._network_manager = network_mgr
+                    m._network_enabled = True
+                    print(f"[BUILD] Thermal network integrated successfully:")
+                    print(f"         {len(network_results.get('pipes', {}))} pipes, "
+                          f"{len(network_results.get('nodes', {}))} nodes")
+                else:
+                    print(f"[BUILD] WARNING: Thermal network returned no components")
+                    print(f"[BUILD] Continuing without thermal network...")
+                    m._network_enabled = False
+
+        except Exception as e:
+            print(f"[BUILD] ERROR: Failed to integrate thermal network: {e}")
+            print(f"[BUILD] Continuing without thermal network...")
+            m._network_enabled = False
+            import traceback
+            traceback.print_exc()
+    else:
+        m._network_enabled = False
+        print("[BUILD] Thermal network disabled")
+
+    # ========================================
+    # BUS BALANCE CONSTRAINTS
+    # ========================================
+
     m.el_balance = pyo.Constraint(
         m.t,
         rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
     )
-    m.ht_balance = pyo.Constraint(
-        m.t,
-        rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) == mm.heatd[t] + mm.Q_dump[t],
-    )
+
+    # Heat balance with network losses
+    def heat_balance_rule(mm, t):
+        # Heat sources: generators, storage discharge
+        supply = sum((f[t] for f in ht_out), start=0)
+
+        # Heat sinks: storage charge
+        storage_charge = sum((f[t] for f in ht_in), start=0)
+
+        # Heat demand
+        demand = mm.heatd[t]
+        dump = mm.Q_dump[t]
+
+        # Add network losses if thermal network is enabled
+        if hasattr(mm, 'network_Q_loss_per_timestep'):
+            network_loss = mm.network_Q_loss_per_timestep[t]
+        else:
+            network_loss = 0
+
+        # Heat balance: supply = demand + dump + storage_charge + network_losses
+        # supply: generators + storage discharge (all positive)
+        # demand: heat consumption (positive)
+        # storage_charge: heat into storage (positive, consumes heat)
+        # network_loss: transmission losses (positive, consumes heat)
+        # dump: excess heat (positive, consumes heat)
+        return supply == demand + dump + storage_charge + network_loss
+
+    m.ht_balance = pyo.Constraint(m.t, rule=heat_balance_rule)
 
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)

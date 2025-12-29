@@ -2003,9 +2003,15 @@ def _recompute_objective_costs(costs: MutableMapping[str, float]) -> None:
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
     soc_series = series.get("TES_SOC_MWh")
     if soc_series is None or commit_len <= 0:
+        print(f"[RH] _next_soc: No SOC series or invalid commit_len, using fallback={fallback}")
         return fallback
     idx = min(commit_len - 1, len(soc_series) - 1)
-    return float(soc_series[idx]) if idx >= 0 else fallback
+    soc_value = float(soc_series[idx]) if idx >= 0 else fallback
+    print(f"[RH] _next_soc: Extracting SOC at index {idx} (commit_len={commit_len})")
+    print(f"  - SOC value: {soc_value} MWh")
+    if len(soc_series) > 0:
+        print(f"  - SOC range in window: [{min(soc_series):.1f}, {max(soc_series):.1f}] MWh")
+    return soc_value
 
 
 def _solve_scenario(
@@ -2160,6 +2166,8 @@ def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
 
 
 def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
+    print(f"[RH] _set_initial_soc: Setting initial SOC for next window")
+    print(f"  - soc0_mwh: {soc} MWh")
     inputs = cfg.setdefault("inputs", {})
     if isinstance(inputs, dict):
         inputs["SOC_init"] = float(soc)
