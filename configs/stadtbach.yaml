@@ -33,7 +33,7 @@ site:
     heat_candidates: [Waermebedarf_MW, "Wärmebedarf MW", waermebedarf]
     co2_candidates: [CO2_consumption_based, "CO2_consumption_based kgCO2/MWh", co2]
     wrg1_q_candidates: ["WRG1Q MW", "WRG1_Q MW"]
-    wrg1_t_candidates: ["WRG1_T °C", "WRG1 T °C"]
+    wrg1_t_candidates: ["WRG1_ T °C", "WRG1_T °C", "WRG1 T °C"]  # NOTE: Space before underscore!
     wrg2_q_candidates: ["WRG2Q MW", "WRG2_Q MW"]
     wrg2_t_candidates: ["WRG2_T °C", "WRG2 T °C"]
     wrg3_q_candidates: ["WRG3Q MW", "WRG3_Q MW"]
