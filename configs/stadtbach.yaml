@@ -137,7 +137,7 @@ system:
   # ---------------------------------------------------------------------------
   heat_pumps:
     - id: HP1
-      enabled: true  # Re-enabled with correct column names
+      enabled: false  # Re-enabled with correct column names
       type: standard
       wrg_source_column: WRG1_T_K
       wrg_capacity_column: WRG1_Q_MW  # Fixed: was WRG1_Q_cap
@@ -151,7 +151,7 @@ system:
         lifetime_years: 15
 
     - id: HP2
-      enabled: true  # Re-enabled with correct column names
+      enabled: false  # Re-enabled with correct column names
       type: standard
       wrg_source_column: WRG2_T_K
       wrg_capacity_column: WRG2_Q_MW  # Fixed: was WRG2_Q_cap
@@ -165,7 +165,7 @@ system:
         lifetime_years: 15
 
     - id: HP3
-      enabled: true  # Re-enabled with correct column names
+      enabled: false  # Re-enabled with correct column names
       type: standard
       wrg_source_column: WRG3_T_K
       wrg_capacity_column: WRG3_Q_MW  # Fixed: was WRG3_Q_cap
@@ -179,7 +179,7 @@ system:
         lifetime_years: 15
 
     - id: HP4
-      enabled: true  # Re-enabled with correct column names
+      enabled: false  # Re-enabled with correct column names
       type: standard
       wrg_source_column: WRG4_T_K
       wrg_capacity_column: WRG4_Q_MW  # Fixed: was WRG4_Q_cap
@@ -196,7 +196,7 @@ system:
   # SPEICHER
   # ---------------------------------------------------------------------------
   storage:
-    enabled: true
+    enabled: false
     energy_mwh: 500.0
     power_mw: 50.0
     soc0_mwh: 500.0
