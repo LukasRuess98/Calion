@@ -2210,14 +2210,30 @@ def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
 
 
 def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
+    """Set initial SOC for next RH window in all relevant config locations."""
     print(f"[RH] _set_initial_soc: Setting initial SOC for next window")
     print(f"  - soc0_mwh: {soc} MWh")
+
+    # Set in inputs (for backward compatibility)
     inputs = cfg.setdefault("inputs", {})
     if isinstance(inputs, dict):
         inputs["SOC_init"] = float(soc)
-    storage = cfg.setdefault("system", {}).setdefault("storage", {})
-    if isinstance(storage, dict):
-        storage["soc0_mwh"] = float(soc)
+
+    # Set in system.storage (primary location)
+    system = cfg.setdefault("system", {})
+    if isinstance(system, dict):
+        storage = system.setdefault("storage", {})
+        if isinstance(storage, dict):
+            storage["soc0_mwh"] = float(soc)
+            # Also set terminal target to match new initial SOC
+            terminal = storage.setdefault("terminal", {})
+            if isinstance(terminal, dict):
+                terminal["target_mwh"] = float(soc)
+
+    # Also set in root-level storage (if exists) for consistency
+    root_storage = cfg.get("storage")
+    if isinstance(root_storage, dict):
+        root_storage["soc0_mwh"] = float(soc)
 
 
 def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
