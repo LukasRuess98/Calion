@@ -13,6 +13,13 @@ scenario:
   tag: "stadtbach"
   workflow: [RH]
   fix_design: true  # Fix design after first window to avoid investment conflicts
+
+  # Rolling Horizon parameters
+  rolling_horizon:
+    heat_horizon_hours: 168.0                 # 1 week window
+    step_hours: 24.0                          # Advance 1 day per window
+    terminal_policy: equal                    # CRITICAL: Enforce storage cycling
+
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
