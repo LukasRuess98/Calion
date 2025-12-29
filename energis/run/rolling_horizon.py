@@ -1650,6 +1650,20 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
 
 def _pf_step(context: WorkflowContext) -> None:
     result = _solve_scenario(context.table, context.cfg, context.dt_h, context.solver_name)
+
+    # Check for infeasible PF solution
+    term_cond = (result.solver.get("termination_condition") or "").lower()
+    if "infeasible" in term_cond or "unbounded" in term_cond:
+        logger.error(
+            "Perfect Foresight model is %s. Cannot proceed. "
+            "Check: heat demand vs capacity, storage limits, generator constraints.",
+            term_cond
+        )
+        raise RuntimeError(
+            f"Perfect Foresight optimization failed: {term_cond}. "
+            f"Hint: Verify generator capacities, storage configuration, and input data."
+        )
+
     context.pf_result = result
     context.design = _extract_design_data(result.summary)
 
@@ -1834,6 +1848,22 @@ def _run_rolling_horizon(
         _apply_cost_overrides(window_cfg, cost_plan, window_idx)
 
         window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
+
+        # Check for infeasible window
+        term_cond = (window_result.solver.get("termination_condition") or "").lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            logger.error(
+                "RH Window %d (start=%d) is %s. Stopping optimization. "
+                "Check: heat demand vs capacity, storage SOC constraints, terminal_policy setting.",
+                window_idx, start, term_cond
+            )
+            raise RuntimeError(
+                f"Rolling horizon window {window_idx} is infeasible. "
+                f"Termination condition: {term_cond}. "
+                f"Hint: Check if heat demand exceeds available capacity, "
+                f"or if storage terminal_policy='equal' cannot be satisfied."
+            )
+
         commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
         if commit_len <= 0:
             raise RuntimeError(
@@ -2042,6 +2072,20 @@ def _solve_scenario(
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+
+        # Check if solver found a feasible solution
+        term_cond = solver_meta["termination_condition"].lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            logger.error(
+                "Solver returned %s. Model is %s. "
+                "Check constraints: heat balance, storage limits, terminal policy.",
+                solver_meta["status"], term_cond
+            )
+            # Return empty results instead of trying to extract from infeasible model
+            series, summary, costs = _collect_timeseries_and_summary(
+                table, cfg, dt_h, None  # Pass None to get zero-filled results
+            )
+            return ScenarioResult(table, series, summary, costs, solver_meta)
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
