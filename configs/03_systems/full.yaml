@@ -11,8 +11,8 @@ system:
     - id: HP1
       enabled: true
       max_th_mw: 100.0
-      wrg_source_column: WRG1_T_K
-      wrg_capacity_column: WRG1_Q_MW
+      wrg_source_column: "WRG1_ T °C"         # Match Excel column name!
+      wrg_capacity_column: "WRG1Q MW"
       investment:
         enabled: true
         capacity_min_mw: 5.0
@@ -22,8 +22,8 @@ system:
     - id: HP2
       enabled: true
       max_th_mw: 100.0
-      wrg_source_column: WRG2_T_K
-      wrg_capacity_column: WRG2_Q_MW
+      wrg_source_column: "WRG2_T °C"
+      wrg_capacity_column: "WRG2Q MW"
       investment:
         enabled: true
         capacity_min_mw: 5.0
@@ -33,8 +33,8 @@ system:
     - id: HP3
       enabled: true
       max_th_mw: 100.0
-      wrg_source_column: WRG3_T_K
-      wrg_capacity_column: WRG3_Q_MW
+      wrg_source_column: "WRG3_T °C"
+      wrg_capacity_column: "WRG3Q MW"
       investment:
         enabled: true
         capacity_min_mw: 5.0
@@ -44,8 +44,8 @@ system:
     - id: HP4
       enabled: true
       max_th_mw: 100.0
-      wrg_source_column: WRG4_T_K
-      wrg_capacity_column: WRG4_Q_MW
+      wrg_source_column: "WRG4_T °C"
+      wrg_capacity_column: "WRG4Q MW"
       investment:
         enabled: true
         capacity_min_mw: 5.0
