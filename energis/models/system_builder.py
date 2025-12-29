@@ -558,7 +558,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             terminal_target_val = None
         elif terminal_state == "cyclic":
             terminal_policy = "equal"
-            terminal_target_val = float(soc_init)
+            # Use terminal_target_cfg if set (e.g., by _set_initial_soc), otherwise fall back to soc_init
+            terminal_target_val = float(terminal_target_cfg) if terminal_target_cfg is not None else float(soc_init)
         else:
             if terminal_target_cfg is None:
                 terminal_target_cfg = soc_init
