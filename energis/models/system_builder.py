@@ -479,7 +479,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
+    print(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
     if sto_cfg.get("enabled", False):
+        print(f"[BUILD] Building storage component...")
         storage_defaults = cfg.get("storage", {})
         sto_defaults = storage_defaults.get("investment_defaults", {})
         sto_inv = dict(sto_defaults)
