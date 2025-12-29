@@ -8,4 +8,4 @@ scenario:
   rolling_horizon:
     heat_horizon_hours: 168.0
     step_hours: 24.0
-    terminal_policy: free
+    terminal_policy: equal  # Fix: Enforce storage cycling to prevent infeasibility
