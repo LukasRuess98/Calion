@@ -242,7 +242,14 @@ def _cop_series_from_table(
     return cop
 
 
-def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
+def build_model(
+    table: TimeSeriesTable,
+    cfg: Dict[str, Any],
+    dt_h: float = 1.0,
+    *,
+    soc_init_override: float | None = None,
+    terminal_target_override: float | None = None,
+):
     """Build a Pyomo ConcreteModel for the energy system optimization.
 
     This is the main model builder that constructs a Mixed-Integer Linear Programming (MILP)
@@ -522,6 +529,10 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 soc_init = soc_init_series[0]
         soc_init = float(soc_init if soc_init is not None else 0.0)
 
+        # Apply override if provided (used by Rolling Horizon)
+        if soc_init_override is not None:
+            soc_init = float(soc_init_override)
+
         eff_charge_default = float(sto_cfg.get("eff_charge", storage_defaults.get("eff_charge", 0.95)))
         eff_discharge_default = float(sto_cfg.get("eff_discharge", storage_defaults.get("eff_discharge", 0.95)))
         loss_default = float(sto_cfg.get("loss_hour", storage_defaults.get("loss_hour", 0.9999)))
@@ -566,6 +577,10 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
             terminal_target_val = float(terminal_target_cfg)
             if terminal_policy not in {"equal", "geq"}:
                 terminal_policy = "equal"
+
+        # Apply terminal target override if provided (used by Rolling Horizon)
+        if terminal_target_override is not None:
+            terminal_target_val = float(terminal_target_override)
 
         # Debug logging
         print(f"[BUILD] Storage terminal configuration:")

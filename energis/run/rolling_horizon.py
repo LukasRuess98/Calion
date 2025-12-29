@@ -1832,8 +1832,9 @@ def _run_rolling_horizon(
 
         if params.terminal_policy:
             _apply_terminal_policy(window_cfg, params.terminal_policy)
-        if soc_next is not None and base_storage_enabled:
-            _set_initial_soc(window_cfg, soc_next)
+
+        # Determine SOC override for this window
+        soc_override = soc_next if (soc_next is not None and base_storage_enabled) else None
 
         should_fix_design = bool(
             design_state is not None
@@ -1847,7 +1848,15 @@ def _run_rolling_horizon(
 
         _apply_cost_overrides(window_cfg, cost_plan, window_idx)
 
-        window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
+        # Pass SOC override directly to build_model (robust approach)
+        window_result = _solve_scenario(
+            window_table,
+            window_cfg,
+            dt_h,
+            solver_name,
+            soc_init_override=soc_override,
+            terminal_target_override=soc_override,  # Terminal target = initial SOC for cyclic
+        )
 
         # Check for infeasible window
         term_cond = (window_result.solver.get("termination_condition") or "").lower()
@@ -2049,8 +2058,17 @@ def _solve_scenario(
     cfg: Dict[str, Any],
     dt_h: float,
     solver_name: str,
+    *,
+    soc_init_override: float | None = None,
+    terminal_target_override: float | None = None,
 ) -> ScenarioResult:
-    model = build_model(table, cfg, dt_h=dt_h)
+    model = build_model(
+        table,
+        cfg,
+        dt_h=dt_h,
+        soc_init_override=soc_init_override,
+        terminal_target_override=terminal_target_override,
+    )
     solver_meta: Dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
