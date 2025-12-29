@@ -34,6 +34,66 @@ def load_yaml(path: str) -> dict:
         raise TypeError(f"Expected mapping at document root in {path!r}.")
     return data
 
+
+def load_yaml_with_inheritance(path: str, _visited: set = None) -> dict:
+    """Load YAML with support for _extends: inheritance.
+
+    If a config contains "_extends: parent.yaml", it will:
+    1. Load the parent config first
+    2. Merge the current config on top
+    3. Remove the _extends key from the result
+
+    Supports both single parent and list of parents:
+        _extends: base.yaml
+        _extends: [base.yaml, overrides.yaml]
+
+    Prevents circular dependencies by tracking visited files.
+    """
+
+    if _visited is None:
+        _visited = set()
+
+    # Prevent circular dependencies
+    abs_path = str(_resolve_config_path(path))
+    if abs_path in _visited:
+        raise ValueError(f"Circular dependency detected: {abs_path}")
+    _visited.add(abs_path)
+
+    # Load current config
+    data = load_yaml(path)
+
+    # Check for _extends key
+    if "_extends" not in data:
+        return data
+
+    # Get parent config(s)
+    extends = data.pop("_extends")  # Remove _extends from result
+
+    # Convert single parent to list
+    if isinstance(extends, str):
+        extends = [extends]
+
+    if not isinstance(extends, list):
+        raise TypeError(f"_extends must be string or list, got {type(extends)}")
+
+    # Resolve parent paths relative to current config directory
+    config_dir = Path(path).parent
+
+    # Load and merge all parents (left to right)
+    result = {}
+    for parent_path in extends:
+        # Resolve relative to current config's directory
+        if not Path(parent_path).is_absolute():
+            parent_path = str(config_dir / parent_path)
+
+        parent_data = load_yaml_with_inheritance(parent_path, _visited)
+        result = deep_merge(result, parent_data)
+
+    # Merge current config on top of parents
+    result = deep_merge(result, data)
+
+    return result
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -65,22 +125,37 @@ def _resolve_config_path(path: str) -> Path:
     raise FileNotFoundError(f"Config not found: {(Path.cwd() / candidate).resolve()}")
 
 
-def load_and_merge(paths: List[str]) -> Dict[str,Any]:
+def load_and_merge(paths: List[str], enable_inheritance: bool = True) -> Dict[str,Any]:
+    """Load and merge multiple config files.
+
+    Args:
+        paths: List of config file paths to merge (left to right)
+        enable_inheritance: If True, support _extends: syntax (default: True)
+
+    Returns:
+        Merged configuration dictionary with metadata
+    """
     cfg = {}
     norm = []
+    load_fn = load_yaml_with_inheritance if enable_inheritance else load_yaml
+
     for p in paths:
         if p is None:
             continue
         resolved = _resolve_config_path(p)
         norm.append(str(resolved))
-        cfg = deep_merge(cfg, load_yaml(str(resolved)))
+        cfg = deep_merge(cfg, load_fn(str(resolved)))
+
     # compute hash for provenance
     h = hashlib.sha256()
     for p in norm:
         with open(p, "rb") as f:
             h.update(f.read())
+
     cfg["meta"] = cfg.get("meta", {})
     cfg["meta"]["config_hash"] = h.hexdigest()[:16]
     cfg["meta"]["merged_from"] = norm
+    cfg["meta"]["inheritance_enabled"] = enable_inheritance
+
     validate_config_schema(cfg)
     return cfg

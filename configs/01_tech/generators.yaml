@@ -1,0 +1,44 @@
+# =============================================================================
+# GENERATOR TECHNICAL PARAMETERS
+# =============================================================================
+# Thermal and electrical efficiencies for heat/power generators
+# =============================================================================
+
+generators:
+  # Combined Heat and Power (CHP) plants
+  hkw:
+    th_eff: 0.743                             # Thermal efficiency
+    el_eff: 0.177                             # Electrical efficiency
+    fuel_bus: gas
+
+  gtost:
+    th_eff: 0.466
+    el_eff: 0.36
+    fuel_bus: gas
+
+  bmhkw:
+    th_eff: 0.485
+    el_eff: 0.177
+    fuel_bus: biomass
+
+  # Heat-only boilers
+  hws:
+    th_eff: 0.936
+    el_eff: null                              # No electricity generation
+    fuel_bus: gas
+
+  hww:
+    th_eff: 0.924
+    el_eff: null
+    fuel_bus: gas
+
+  # Waste heat recovery
+  ava:
+    th_eff: 1.0                               # 100% heat recovery
+    el_eff: null
+    fuel_bus: waste
+
+  # Power-to-Heat (electrode boiler)
+  p2h:
+    el_to_th_eff: 0.99                        # Electric to thermal efficiency
+    min_load: 0.0                             # No minimum load constraint

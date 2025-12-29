@@ -1,0 +1,14 @@
+# =============================================================================
+# SYSTEM: BASELINE (Existing Assets Only)
+# =============================================================================
+# Only existing generators - no heat pumps, no storage
+# Use for baseline scenarios and quick testing
+# =============================================================================
+
+system:
+  # No heat pumps in baseline
+  heat_pumps: []
+
+  # No storage in baseline
+  storage:
+    enabled: false
