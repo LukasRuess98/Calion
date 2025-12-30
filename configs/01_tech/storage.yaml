@@ -26,3 +26,18 @@ storage:
     eff_charge: 0.95                          # Charging efficiency
     eff_discharge: 0.95                       # Discharging efficiency
     hourly_loss: 0.001                        # 0.1% per hour heat loss
+
+  # Terminal constraint defaults for Rolling Horizon
+  # These values are used when terminal_policy is "value" or "soft"
+  terminal_defaults:
+    # Salvage value for stored energy at end of horizon [EUR/MWh]
+    # Used with terminal_policy: "value"
+    # Higher value = optimizer prefers to keep storage full at end
+    # Default: Average electricity price (estimated heat value)
+    salvage_price_eur_mwh: null               # null = use avg electricity price
+
+    # Penalty for deviation from terminal target [EUR/MWh]
+    # Used with terminal_policy: "soft"
+    # Higher penalty = stronger incentive to reach target (but still feasible)
+    # Default: 2x salvage price
+    soft_penalty_eur_mwh: null                # null = 2x salvage price

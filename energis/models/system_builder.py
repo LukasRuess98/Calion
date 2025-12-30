@@ -560,8 +560,8 @@ def build_model(
         if terminal_state not in {"free", "cyclic", "target"}:
             raise ValueError("storage.terminal.state/terminal_state must be one of: free, cyclic, target")
 
-        if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free"}:
-            raise ValueError("storage.terminal.policy must be one of: equal, geq, free")
+        if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free", "value", "soft"}:
+            raise ValueError("storage.terminal.policy must be one of: equal, geq, free, value, soft")
 
         terminal_policy = "free" if terminal_state == "free" else (terminal_policy_raw or "equal")
         terminal_target_val: float | None
@@ -700,10 +700,34 @@ def build_model(
         m.TES_discharge_mode = pyo.Reference(fs["discharge_mode"])
         m.TES_active = pyo.Reference(fs["active"])
         setattr(m, "TES_terminal_policy", terminal_policy)
+
+        # Terminal value/soft constraint parameters from config hierarchy:
+        # 1. Check terminal_cfg (system.storage.terminal)
+        # 2. Check storage_defaults.terminal_defaults
+        # 3. Use computed default (avg electricity price)
+        terminal_defs = storage_defaults.get("terminal_defaults", {})
+        avg_price = sum(table["strompreis_EUR_MWh"]) / len(table) if len(table) > 0 else 50.0
+
+        # Salvage price: Value of stored energy at end of horizon (EUR/MWh)
+        salvage_cfg = terminal_cfg.get("salvage_price_eur_mwh")
+        if salvage_cfg is None:
+            salvage_cfg = terminal_defs.get("salvage_price_eur_mwh")
+        salvage_price = float(salvage_cfg) if salvage_cfg is not None else avg_price
+
+        # Soft penalty: Penalty for deviation from target (EUR/MWh)
+        penalty_cfg = terminal_cfg.get("soft_penalty_eur_mwh")
+        if penalty_cfg is None:
+            penalty_cfg = terminal_defs.get("soft_penalty_eur_mwh")
+        soft_penalty = float(penalty_cfg) if penalty_cfg is not None else (salvage_price * 2)
+
+        last_t = m.t.last()
+        terminal_value_term = None  # Will be added to objective if using value/soft policy
+
         if terminal_target_val is not None:
             setattr(m, "TES_terminal_target", pyo.Param(initialize=terminal_target_val))
-            last_t = m.t.last()
+
             if terminal_policy == "geq":
+                # Hard constraint: SOC >= target
                 setattr(
                     m,
                     "TES_terminal",
@@ -711,7 +735,9 @@ def build_model(
                 )
                 print(f"[BUILD] Created terminal constraint: TES_terminal")
                 print(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
-            else:
+
+            elif terminal_policy == "equal":
+                # Hard constraint: SOC == target
                 setattr(
                     m,
                     "TES_terminal",
@@ -719,12 +745,52 @@ def build_model(
                 )
                 print(f"[BUILD] Created terminal constraint: TES_terminal")
                 print(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
+
+            elif terminal_policy == "value":
+                # Salvage value approach: reward stored energy at end of horizon
+                # No hard constraint - terminal SOC is economically optimized
+                # Add negative term to objective (since we minimize, negative = reward)
+                terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                print(f"[BUILD] Using terminal value function (no hard constraint)")
+                print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+                print(f"  - Terminal SOC will be economically optimized")
+
+            elif terminal_policy == "soft":
+                # Soft constraint: penalize deviation from target
+                # Uses slack variables to make problem always feasible
+                m.TES_terminal_slack_pos = pyo.Var(domain=pyo.NonNegativeReals)  # SOC above target
+                m.TES_terminal_slack_neg = pyo.Var(domain=pyo.NonNegativeReals)  # SOC below target
+                setattr(
+                    m,
+                    "TES_terminal_soft",
+                    pyo.Constraint(
+                        expr=fs["SOC"][last_t] + m.TES_terminal_slack_neg - m.TES_terminal_slack_pos
+                        == getattr(m, "TES_terminal_target")
+                    ),
+                )
+                # Penalize deviation (asymmetric: being below target is worse)
+                terminal_value_term = soft_penalty * m.TES_terminal_slack_neg + (soft_penalty * 0.5) * m.TES_terminal_slack_pos
+                print(f"[BUILD] Created soft terminal constraint: TES_terminal_soft")
+                print(f"  - Target: {terminal_target_val} MWh, Penalty: {soft_penalty:.2f} EUR/MWh")
+                print(f"  - Always feasible (deviation is penalized, not forbidden)")
+
         else:
+            # No terminal constraint (free policy or value policy without target)
             if hasattr(m, "TES_terminal"):
                 delattr(m, "TES_terminal")
             if hasattr(m, "TES_terminal_target"):
                 delattr(m, "TES_terminal_target")
-            print(f"[BUILD] No terminal constraint (terminal_target_val is None)")
+
+            if terminal_policy == "value":
+                # Value policy without specific target: reward stored energy
+                terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                print(f"[BUILD] Using terminal value function (no target)")
+                print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+            else:
+                print(f"[BUILD] No terminal constraint (policy: free)")
+
+        # Store terminal value term for later addition to objective
+        m.terminal_value_term = terminal_value_term
 
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
@@ -1091,6 +1157,9 @@ def build_model(
     m.tie_break_cost_expr = tie_break_total
     m.storage_install_cost_expr = storage_install_total
 
+    # Terminal value term (for value/soft terminal policies in Rolling Horizon)
+    terminal_value = getattr(m, 'terminal_value_term', None) or 0
+
     m.obj = pyo.Objective(
         expr=energy_cost
         + dump_cost
@@ -1100,7 +1169,8 @@ def build_model(
         + capex_total
         + activation_total
         + tie_break_total
-        + storage_install_total,
+        + storage_install_total
+        + terminal_value,
         sense=pyo.minimize,
     )
     return m

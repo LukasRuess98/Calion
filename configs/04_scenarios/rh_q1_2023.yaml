@@ -17,14 +17,20 @@ scenario:
   rolling_horizon:
     heat_horizon_hours: 168.0                 # 1 week window
     step_hours: 24.0                          # Advance 1 day per window
-    terminal_policy: equal                    # CRITICAL: Enforce storage cycling
+    # Terminal policy options:
+    # - "equal": Hard constraint SOC_end == SOC_init (can cause infeasibility)
+    # - "geq": Hard constraint SOC_end >= SOC_init
+    # - "soft": Soft constraint with penalty (always feasible, recommended)
+    # - "value": Terminal value function (economically optimal, no hard constraint)
+    # - "free": No terminal constraint
+    terminal_policy: soft                     # Soft constraint (always feasible)
 
   # Time horizon
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
     end: "2023-04-17 23:00"                   # ~3.5 months
-    enforce: true                             # CRITICAL for storage cycling!
+    enforce: true                             # Ensure full horizon is covered
 
 # Thermal network (currently disabled for testing)
 thermal_network:

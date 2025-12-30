@@ -1836,6 +1836,20 @@ def _run_rolling_horizon(
         # Determine SOC override for this window
         soc_override = soc_next if (soc_next is not None and base_storage_enabled) else None
 
+        # Determine terminal target based on policy:
+        # - "equal": enforce cyclic (terminal = initial SOC)
+        # - "geq": terminal >= initial SOC
+        # - "value": no hard constraint (economically optimized via terminal value function)
+        # - "soft": soft constraint with penalty (always feasible)
+        # - "free": no terminal constraint
+        policy = (params.terminal_policy or "equal").lower()
+        if policy in ("value", "free"):
+            # For value/free policies, don't force terminal target
+            terminal_target = None
+        else:
+            # For equal/geq/soft policies, use initial SOC as target
+            terminal_target = soc_override
+
         should_fix_design = bool(
             design_state is not None
             and (
@@ -1855,7 +1869,7 @@ def _run_rolling_horizon(
             dt_h,
             solver_name,
             soc_init_override=soc_override,
-            terminal_target_override=soc_override,  # Terminal target = initial SOC for cyclic
+            terminal_target_override=terminal_target,
         )
 
         # Check for infeasible window
