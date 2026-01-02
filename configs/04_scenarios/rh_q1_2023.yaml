@@ -20,10 +20,10 @@ scenario:
     # Terminal policy options:
     # - "equal": Hard constraint SOC_end == SOC_init (can cause infeasibility)
     # - "geq": Hard constraint SOC_end >= SOC_init
-    # - "soft": Soft constraint with penalty (always feasible, recommended)
-    # - "value": Terminal value function (economically optimal, no hard constraint)
+    # - "soft": Soft constraint with penalty (always feasible)
+    # - "value": Terminal value function with diminishing returns (recommended)
     # - "free": No terminal constraint
-    terminal_policy: soft                     # Soft constraint (always feasible)
+    terminal_policy: value                    # Diminishing returns value function
 
   # Time horizon
   horizon:

@@ -41,3 +41,17 @@ storage:
     # Higher penalty = stronger incentive to reach target (but still feasible)
     # Default: 2x salvage price
     soft_penalty_eur_mwh: null                # null = 2x salvage price
+
+    # Value function type for terminal_policy: "value"
+    # Options:
+    # - "constant": V(SOC) = price * SOC (linear, current default)
+    # - "diminishing": V(SOC) = price * SOC * (1 - decay * SOC/SOC_max)
+    #                  Models diminishing returns - full storage is less valuable
+    value_function_type: diminishing
+
+    # Decay factor for diminishing value function [0.0 - 1.0]
+    # 0.0 = constant value (same as "constant" type)
+    # 0.3 = at 100% SOC, value is 70% of base price (recommended)
+    # 0.5 = at 100% SOC, value is 50% of base price
+    # 1.0 = at 100% SOC, value is 0 (extreme diminishing)
+    diminishing_decay: 0.3

@@ -749,11 +749,48 @@ def build_model(
             elif terminal_policy == "value":
                 # Salvage value approach: reward stored energy at end of horizon
                 # No hard constraint - terminal SOC is economically optimized
-                # Add negative term to objective (since we minimize, negative = reward)
-                terminal_value_term = -salvage_price * fs["SOC"][last_t]
-                print(f"[BUILD] Using terminal value function (no hard constraint)")
-                print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
-                print(f"  - Terminal SOC will be economically optimized")
+                # Supports two modes: "constant" (linear) or "diminishing" (piecewise linear)
+
+                value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
+                decay = float(terminal_defs.get("diminishing_decay", 0.3))
+
+                if value_func_type == "diminishing" and decay > 0:
+                    # Piecewise linear diminishing returns value function
+                    # Split SOC into two segments: low (full value) and high (reduced value)
+                    # V(SOC) ≈ price * SOC_low + price * (1-decay) * SOC_high
+                    # where SOC = SOC_low + SOC_high and SOC_low <= threshold
+
+                    # Use 50% of capacity as threshold
+                    soc_max = float(e_cap_init if not invest_enabled else e_cap_max)
+                    threshold = 0.5 * soc_max
+
+                    # Create auxiliary variables for piecewise segments
+                    m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
+                    m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
+
+                    # Constraint: SOC[T] = soc_low + soc_high
+                    m.TES_soc_split = pyo.Constraint(
+                        expr=fs["SOC"][last_t] == m.TES_soc_low + m.TES_soc_high
+                    )
+
+                    # Prices for each segment
+                    price_low = salvage_price  # Full price for first 50%
+                    price_high = salvage_price * (1 - decay)  # Reduced price above 50%
+
+                    # Value function: reward stored energy with diminishing returns
+                    terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
+
+                    print(f"[BUILD] Using DIMINISHING terminal value function")
+                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh")
+                    print(f"  - Decay factor: {decay:.2f}")
+                    print(f"  - Threshold: {threshold:.1f} MWh (50% of {soc_max:.1f})")
+                    print(f"  - Price below threshold: {price_low:.2f} EUR/MWh")
+                    print(f"  - Price above threshold: {price_high:.2f} EUR/MWh")
+                else:
+                    # Constant/linear value function (original behavior)
+                    terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                    print(f"[BUILD] Using CONSTANT terminal value function")
+                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
 
             elif terminal_policy == "soft":
                 # Soft constraint: penalize deviation from target
@@ -783,9 +820,30 @@ def build_model(
 
             if terminal_policy == "value":
                 # Value policy without specific target: reward stored energy
-                terminal_value_term = -salvage_price * fs["SOC"][last_t]
-                print(f"[BUILD] Using terminal value function (no target)")
-                print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+                value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
+                decay = float(terminal_defs.get("diminishing_decay", 0.3))
+
+                if value_func_type == "diminishing" and decay > 0:
+                    # Piecewise linear diminishing returns
+                    soc_max = float(e_cap_init if not invest_enabled else e_cap_max)
+                    threshold = 0.5 * soc_max
+
+                    m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
+                    m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
+                    m.TES_soc_split = pyo.Constraint(
+                        expr=fs["SOC"][last_t] == m.TES_soc_low + m.TES_soc_high
+                    )
+
+                    price_low = salvage_price
+                    price_high = salvage_price * (1 - decay)
+                    terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
+
+                    print(f"[BUILD] Using DIMINISHING terminal value function (no target)")
+                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh, Decay: {decay:.2f}")
+                else:
+                    terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                    print(f"[BUILD] Using CONSTANT terminal value function (no target)")
+                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
             else:
                 print(f"[BUILD] No terminal constraint (policy: free)")
 
