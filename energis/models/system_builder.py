@@ -568,14 +568,17 @@ def build_model(
         if terminal_state == "free":
             terminal_target_val = None
         elif terminal_state == "cyclic":
-            terminal_policy = "equal"
+            # For cyclic state, default to "equal" only if no policy specified
+            # But respect explicit policy settings (value, soft, geq)
+            if not terminal_policy_raw:
+                terminal_policy = "equal"
             # Use terminal_target_cfg if set (e.g., by _set_initial_soc), otherwise fall back to soc_init
             terminal_target_val = float(terminal_target_cfg) if terminal_target_cfg is not None else float(soc_init)
         else:
             if terminal_target_cfg is None:
                 terminal_target_cfg = soc_init
             terminal_target_val = float(terminal_target_cfg)
-            if terminal_policy not in {"equal", "geq"}:
+            if terminal_policy not in {"equal", "geq", "value", "soft"}:
                 terminal_policy = "equal"
 
         # Apply terminal target override if provided (used by Rolling Horizon)
