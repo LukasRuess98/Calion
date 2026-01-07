@@ -1219,7 +1219,10 @@ def build_model(
     m.storage_install_cost_expr = storage_install_total
 
     # Terminal value term (for value/soft terminal policies in Rolling Horizon)
-    terminal_value = getattr(m, 'terminal_value_term', None) or 0
+    # Note: Can't use "or 0" because Pyomo expressions can't be evaluated as bool
+    terminal_value = getattr(m, 'terminal_value_term', None)
+    if terminal_value is None:
+        terminal_value = 0
 
     m.obj = pyo.Objective(
         expr=energy_cost
