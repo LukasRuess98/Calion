@@ -2312,9 +2312,10 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
         actual_power = float(design.storage.get("power_mw", 0.0))
         storage_cfg["enabled"] = bool(design.storage.get("build_binary", 0.0) >= 0.5)
         storage_cfg["max_energy_mwh"] = actual_capacity
-        storage_cfg["min_energy_mwh"] = actual_capacity
+        # Note: min_energy_mwh is minimum SOC (usually 0), NOT minimum capacity
+        # Do NOT set it to actual_capacity - that would force storage to always be full!
         storage_cfg["max_power_mw"] = actual_power
-        storage_cfg["min_power_mw"] = actual_power
+        # Note: min_power_mw is kept at original value (usually 0 for flexibility)
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):
             invest_cfg["enabled"] = False
