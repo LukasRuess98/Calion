@@ -572,8 +572,13 @@ def build_model(
             # But respect explicit policy settings (value, soft, geq)
             if not terminal_policy_raw:
                 terminal_policy = "equal"
-            # Use terminal_target_cfg if set (e.g., by _set_initial_soc), otherwise fall back to soc_init
-            terminal_target_val = float(terminal_target_cfg) if terminal_target_cfg is not None else float(soc_init)
+            # For "value" policy: no target needed (value function optimizes freely)
+            # For "soft" policy: target is used but with slack (always feasible)
+            # For "equal"/"geq" policy: hard target constraint
+            if terminal_policy == "value":
+                terminal_target_val = None  # Value function doesn't need a target
+            else:
+                terminal_target_val = float(terminal_target_cfg) if terminal_target_cfg is not None else float(soc_init)
         else:
             if terminal_target_cfg is None:
                 terminal_target_cfg = soc_init
