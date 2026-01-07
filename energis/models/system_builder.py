@@ -699,7 +699,9 @@ def build_model(
         ht_in.append(fs["Q_th_in"])
         # Remove potentially existing references from previous attaches to avoid
         # Pyomo warnings about implicit replacement when rebuilding the model
-        for _name in ["TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active"]:
+        for _name in ["TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active",
+                      "TES_soc_low", "TES_soc_high", "TES_soc_split",
+                      "TES_terminal_slack_pos", "TES_terminal_slack_neg", "TES_terminal_soft"]:
             if hasattr(m, _name):
                 m.del_component(getattr(m, _name))
 
@@ -831,10 +833,24 @@ def build_model(
                 value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
                 decay = float(terminal_defs.get("diminishing_decay", 0.3))
 
+                # Debug: show capacity parameters
+                print(f"[BUILD] Value function capacity params:")
+                print(f"  - invest_enabled: {invest_enabled}")
+                print(f"  - e_cap_init: {e_cap_init:.1f} MWh")
+                print(f"  - e_cap_max: {e_cap_max:.1f} MWh")
+                print(f"  - soc_init: {soc_init:.1f} MWh")
+
                 if value_func_type == "diminishing" and decay > 0:
                     # Piecewise linear diminishing returns
                     soc_max = float(e_cap_init if not invest_enabled else e_cap_max)
                     threshold = 0.5 * soc_max
+
+                    # Safety check: ensure initial SOC fits within capacity
+                    if soc_init > soc_max:
+                        print(f"[BUILD] WARNING: soc_init ({soc_init:.1f}) > soc_max ({soc_max:.1f})!")
+                        print(f"[BUILD] This may cause infeasibility. Adjusting soc_max.")
+                        soc_max = max(soc_max, soc_init * 1.1)  # Add 10% margin
+                        threshold = 0.5 * soc_max
 
                     m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
                     m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
@@ -847,6 +863,7 @@ def build_model(
                     terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
 
                     print(f"[BUILD] Using DIMINISHING terminal value function (no target)")
+                    print(f"  - soc_max: {soc_max:.1f} MWh, threshold: {threshold:.1f} MWh")
                     print(f"  - Base price: {salvage_price:.2f} EUR/MWh, Decay: {decay:.2f}")
                 else:
                     terminal_value_term = -salvage_price * fs["SOC"][last_t]
