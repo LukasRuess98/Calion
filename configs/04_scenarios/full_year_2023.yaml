@@ -10,6 +10,10 @@ scenario:
   tag: "full-2023"
   workflow: [PF]                              # Perfect Foresight for full year
 
+  # No design configuration needed for PF-only workflow
+  design:
+    mode: none                                # No design fixation
+
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"

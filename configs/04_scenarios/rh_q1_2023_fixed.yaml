@@ -1,28 +1,21 @@
 # =============================================================================
-# SCENARIO: Rolling Horizon Q1 2023
+# SCENARIO: Rolling Horizon Q1 2023 with Fixed Design
 # =============================================================================
-# Rolling horizon optimization for Q1 2023 (Jan-Apr)
-# Production scenario with storage cycling
+# Rolling horizon optimization using a pre-defined design from JSON file
+# Use this when you want to run simulations with known/optimal design
 # =============================================================================
 
 scenario:
-  title: "Rolling Horizon - Q1 2023"
-  tag: "rh-q1-2023"
+  title: "Rolling Horizon - Q1 2023 (Fixed Design)"
+  tag: "rh-q1-2023-fixed"
   workflow: [RH]                              # Rolling Horizon
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DESIGN CONFIGURATION
-  # ═══════════════════════════════════════════════════════════════════════════
-  # Available modes:
-  #   - "file": Load design from JSON file (use with design.file)
-  #   - "optimize": Optimize in Window 0, fix for subsequent windows
-  #   - "inline": Define values directly in config (use with design.inline)
-  #   - "none": No design fixation (all windows optimize independently)
+  # DESIGN CONFIGURATION - Using pre-defined design file
   # ═══════════════════════════════════════════════════════════════════════════
   design:
-    mode: optimize                            # Optimize design in Window 0
-    apply_from_window: 1                      # Apply fixed design from Window 1+
-    # save_to: 06_designs/rh_q1_optimized.json  # Optionally save result
+    mode: file                                # Load design from JSON file
+    file: ../06_designs/stadtbach_optimal.json  # Path relative to this config
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ROLLING HORIZON PARAMETERS
@@ -30,12 +23,6 @@ scenario:
   rolling_horizon:
     heat_horizon_hours: 168.0                 # 1 week window
     step_hours: 24.0                          # Advance 1 day per window
-    # Terminal policy options:
-    # - "equal": Hard constraint SOC_end == SOC_init (can cause infeasibility)
-    # - "geq": Hard constraint SOC_end >= SOC_init
-    # - "soft": Soft constraint with penalty (always feasible)
-    # - "value": Terminal value function with diminishing returns (recommended)
-    # - "free": No terminal constraint
     terminal_policy: value                    # Diminishing returns value function
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -44,10 +31,9 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-04-17 23:00"                   # ~3.5 months
-    enforce: true                             # Ensure full horizon is covered
+    end: "2023-04-17 23:00"
+    enforce: true
 
-# Thermal network (currently disabled for testing)
+# Thermal network
 thermal_network:
   enabled: false
-  topology_file: configs/05_networks/brownfield.yaml

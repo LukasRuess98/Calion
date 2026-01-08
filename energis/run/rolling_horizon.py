@@ -35,6 +35,16 @@ from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
 from energis.models.system_builder import build_model
 from energis.utils.timeseries import TimeSeriesTable
+from energis.design import (
+    DesignSpec,
+    DesignConfig,
+    load_design_config,
+    load_design_for_scenario,
+    extract_design_from_summary,
+    apply_design_to_config,
+    save_design_to_file,
+    validate_design,
+)
 import time
 
 
@@ -70,7 +80,11 @@ class RollingHorizonResult:
 
 @dataclass
 class DesignData:
-    """Design figures extracted from a PF optimisation."""
+    """Design figures extracted from a PF optimisation.
+
+    DEPRECATED: Use DesignSpec from energis.design instead.
+    Kept for backward compatibility.
+    """
 
     heat_pumps: Dict[str, Dict[str, float]]
     storage: Optional[Dict[str, float]]
@@ -81,7 +95,8 @@ class WorkflowPlan:
     """Parsed representation of the requested workflow sequence."""
 
     steps: Sequence[str]
-    fix_design: bool
+    fix_design: bool  # Legacy flag (deprecated, use design_config instead)
+    design_config: Optional[DesignConfig] = None  # New design configuration
 
 
 @dataclass
@@ -131,7 +146,8 @@ class WorkflowContext:
     pf_result: Optional[ScenarioResult] = None
     rh_result: Optional[RollingHorizonResult] = None
     mpc_result: Optional[RollingHorizonResult] = None
-    design: Optional[DesignData] = None
+    design: Optional[DesignData] = None  # Legacy (deprecated)
+    design_spec: Optional[DesignSpec] = None  # New design specification
 
 
 @dataclass
@@ -1604,10 +1620,30 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
     inputs = _build_workflow_inputs(config_paths, overrides)
 
     context = WorkflowContext(inputs.cfg, inputs.table, inputs.dt_h, inputs.solver_name, inputs.plan)
+
+    # Load design based on new design configuration
+    design_config = inputs.plan.design_config
+    if design_config:
+        # Determine base path for resolving relative design file paths
+        base_path = None
+        if config_paths:
+            base_path = Path(config_paths[0]).parent
+
+        try:
+            context.design_spec = load_design_for_scenario(design_config, base_path)
+            if context.design_spec:
+                logger.info("[DESIGN] Loaded design: %s", design_config.mode)
+        except Exception as e:
+            logger.error("[DESIGN] Failed to load design: %s", e)
+            raise
+
+    # Legacy support: load design override from pf_design_json
     scenario_cfg = inputs.cfg.get("scenario", {})
-    design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
-    if design_override is not None:
-        context.design = design_override
+    if context.design_spec is None:
+        design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
+        if design_override is not None:
+            context.design = design_override
+            logger.info("[DESIGN] Loaded legacy design override from pf_design_json")
 
     for step in inputs.plan.steps:
         handler = _STEP_HANDLERS.get(step)
@@ -1642,10 +1678,19 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
     if not steps_upper:
         raise ValueError("Workflow must contain at least one step")
 
+    # Load new design configuration
+    design_config = load_design_config(scenario_cfg)
+
+    # Legacy support: fix_design flag (deprecated, use design.mode instead)
     fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH"}
     fix_design = bool(scenario_cfg.get("fix_design", scenario_cfg.get("fix_design_in_rh", fix_default)))
 
-    return WorkflowPlan(steps=steps_upper, fix_design=fix_design)
+    # If legacy fix_design is set but no design config, convert to optimize mode
+    if fix_design and design_config.mode == "none":
+        design_config = DesignConfig(mode="optimize", apply_from_window=1)
+        logger.info("[DESIGN] Legacy fix_design=true converted to design.mode=optimize")
+
+    return WorkflowPlan(steps=steps_upper, fix_design=fix_design, design_config=design_config)
 
 
 def _pf_step(context: WorkflowContext) -> None:
@@ -1671,11 +1716,21 @@ def _pf_step(context: WorkflowContext) -> None:
 def _rh_step(context: WorkflowContext) -> None:
     params = _load_rolling_params(context.cfg)
     horizon_steps, step_steps, overlap_steps = params.as_steps(context.dt_h)
+
+    # Get design configuration
+    design_config = context.plan.design_config
+
+    # Determine if we have a pre-loaded design (from file or inline)
+    if context.design_spec is not None:
+        logger.info("[DESIGN] Using pre-loaded design (mode: %s)", design_config.mode if design_config else "unknown")
+
+    # Legacy support
     fix_design = context.plan.fix_design and context.design is not None
-    if context.plan.fix_design and context.design is None:
+    if context.plan.fix_design and context.design is None and context.design_spec is None:
         logger.warning(
-            "Design fixation requested but no PF design data available – proceeding without fixation."
+            "Design fixation requested but no design data available – proceeding without fixation."
         )
+
     context.rh_result = _run_rolling_horizon(
         context.cfg,
         context.table,
@@ -1687,9 +1742,20 @@ def _rh_step(context: WorkflowContext) -> None:
         overlap_steps,
         context.design,
         fix_design,
+        design_spec=context.design_spec,
+        design_config=design_config,
     )
+
+    # Update design from result if extracted
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
+
+    # Save design if configured
+    if design_config and design_config.save_to and context.rh_result.design is not None:
+        # Convert legacy DesignData to DesignSpec for saving
+        extracted_spec = extract_design_from_summary(context.rh_result.costs)  # or from first window summary
+        save_design_to_file(extracted_spec, design_config.save_to)
+        logger.info("[DESIGN] Saved optimized design to %s", design_config.save_to)
 
     # ✅ FIX: Bei PF→RH mit fix_design, übertrage Investment-Kosten aus PF
     # Problem: RH berechnet keine CAPEX bei fix_design=True, aber Dashboard zeigt RH als primary
@@ -1798,6 +1864,9 @@ def _run_rolling_horizon(
     overlap_steps: int,
     design: Optional[DesignData],
     fix_design: bool,
+    *,
+    design_spec: Optional[DesignSpec] = None,
+    design_config: Optional[DesignConfig] = None,
 ) -> RollingHorizonResult:
     n = len(table)
     if n == 0:
@@ -1809,8 +1878,16 @@ def _run_rolling_horizon(
     aggregated_costs: Dict[str, float] = {}
     windows: List[WindowResult] = []
 
+    # Determine design handling mode
+    design_mode = design_config.mode if design_config else "none"
+    apply_from_window = design_config.apply_from_window if design_config else 1
+
+    # If we have a pre-loaded design_spec, use it
+    # Otherwise, we may extract design from window 0 (optimize mode)
+    active_design_spec = design_spec
+
     design_state = design
-    cost_plan = _load_cost_plan(base_cfg, fix_design)
+    cost_plan = _load_cost_plan(base_cfg, fix_design or design_mode in ("file", "inline", "optimize"))
     once_costs: Set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
@@ -1850,15 +1927,32 @@ def _run_rolling_horizon(
             # For equal/geq/soft policies, use initial SOC as target
             terminal_target = soc_override
 
-        should_fix_design = bool(
-            design_state is not None
-            and (
+        # Determine if we should apply a fixed design to this window
+        # Priority: 1) New design_spec system, 2) Legacy fix_design system
+        should_apply_design = False
+
+        if active_design_spec is not None:
+            # New system: apply design from window apply_from_window onwards
+            if window_idx >= apply_from_window:
+                should_apply_design = True
+                logger.debug("[DESIGN] Window %d: Applying design_spec (mode=%s)", window_idx, design_mode)
+        elif design_state is not None:
+            # Legacy system
+            should_fix_design = bool(
                 fix_design
                 or (design is None and window_idx > 0)
             )
-        )
-        if should_fix_design:
-            window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
+            if should_fix_design:
+                should_apply_design = True
+                logger.debug("[DESIGN] Window %d: Applying legacy design_state", window_idx)
+
+        if should_apply_design:
+            if active_design_spec is not None:
+                # Use new apply_design_to_config from design module
+                window_cfg = apply_design_to_config(window_cfg, active_design_spec)
+            elif design_state is not None:
+                # Legacy: use old _apply_design_fix
+                window_cfg = _apply_design_fix(window_cfg, design_state)
 
         _apply_cost_overrides(window_cfg, cost_plan, window_idx)
 
@@ -1930,8 +2024,20 @@ def _run_rolling_horizon(
             )
         window_idx += 1
 
+        # Extract design from window 0 if in optimize mode and no design yet
         if design_state is None:
             design_state = _extract_design_data(window_result.summary)
+
+        # For "optimize" mode: extract DesignSpec after first window
+        if design_mode == "optimize" and active_design_spec is None and window_idx == 1:
+            active_design_spec = extract_design_from_summary(window_result.summary)
+            errors = validate_design(active_design_spec)
+            if errors:
+                logger.warning("[DESIGN] Extracted design has validation issues: %s", errors)
+            else:
+                logger.info("[DESIGN] Extracted design from Window 0: storage=%.1f MWh / %.1f MW",
+                           active_design_spec.storage.capacity_mwh if active_design_spec.storage else 0,
+                           active_design_spec.storage.power_mw if active_design_spec.storage else 0)
 
     if aggregated_indices != list(range(n)):
         raise RuntimeError("Rolling horizon aggregation did not cover the full time series")

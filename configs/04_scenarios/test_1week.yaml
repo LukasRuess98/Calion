@@ -10,6 +10,11 @@ scenario:
   tag: "test-1week"
   workflow: [PF]                              # Perfect Foresight (faster)
 
+  # No design configuration needed for PF-only workflow
+  # Design is only relevant for RH/MPC where capacity needs to be fixed
+  design:
+    mode: none                                # No design fixation
+
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
