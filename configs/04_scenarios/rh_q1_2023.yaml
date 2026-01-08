@@ -2,41 +2,43 @@
 # SCENARIO: Rolling Horizon Q1 2023
 # =============================================================================
 # Rolling horizon optimization for Q1 2023 (Jan-Apr)
-# Production scenario with storage cycling
+# Production scenario with investment optimization in Window 0
 # =============================================================================
 
 scenario:
   title: "Rolling Horizon - Q1 2023"
   tag: "rh-q1-2023"
-  workflow: [RH]                              # Rolling Horizon
+  workflow: [RH]
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DESIGN CONFIGURATION
+  # OPTIMIZATION STRATEGY
   # ═══════════════════════════════════════════════════════════════════════════
-  # Available modes:
-  #   - "file": Load design from JSON file (use with design.file)
-  #   - "optimize": Optimize in Window 0, fix for subsequent windows
-  #   - "inline": Define values directly in config (use with design.inline)
-  #   - "none": No design fixation (all windows optimize independently)
+  # Defines which values are VARIABLES (optimized) vs PARAMETERS (fixed)
   # ═══════════════════════════════════════════════════════════════════════════
-  design:
-    mode: optimize                            # Optimize design in Window 0
-    apply_from_window: 1                      # Apply fixed design from Window 1+
-    # save_to: 06_designs/rh_q1_optimized.json  # Optionally save result
+  optimization:
+    # What should be optimized? (true = variable, false = parameter)
+    variables:
+      heat_pumps:
+        capacity: true              # Optimize HP capacities
+        build: true                 # Optimize build decisions
+      storage:
+        capacity: true              # Optimize storage energy capacity
+        power: true                 # Optimize storage power capacity
+        build: true                 # Optimize build decision
+
+    # For RH: When to fix investment decisions?
+    fix_after_window: 0             # After Window 0: variables become parameters
+
+    # Optional: Save optimized values for reuse
+    # save_result_to: 03_systems/variants/optimized_q1.yaml
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ROLLING HORIZON PARAMETERS
   # ═══════════════════════════════════════════════════════════════════════════
   rolling_horizon:
-    heat_horizon_hours: 168.0                 # 1 week window
-    step_hours: 24.0                          # Advance 1 day per window
-    # Terminal policy options:
-    # - "equal": Hard constraint SOC_end == SOC_init (can cause infeasibility)
-    # - "geq": Hard constraint SOC_end >= SOC_init
-    # - "soft": Soft constraint with penalty (always feasible)
-    # - "value": Terminal value function with diminishing returns (recommended)
-    # - "free": No terminal constraint
-    terminal_policy: value                    # Diminishing returns value function
+    heat_horizon_hours: 168.0       # 1 week window
+    step_hours: 24.0                # Advance 1 day per window
+    terminal_policy: value          # Diminishing returns value function
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIME HORIZON
@@ -44,10 +46,9 @@ scenario:
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
-    end: "2023-04-17 23:00"                   # ~3.5 months
-    enforce: true                             # Ensure full horizon is covered
+    end: "2023-04-17 23:00"
+    enforce: true
 
-# Thermal network (currently disabled for testing)
+# Thermal network
 thermal_network:
   enabled: false
-  topology_file: configs/05_networks/brownfield.yaml

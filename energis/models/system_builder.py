@@ -19,7 +19,7 @@ from energis.constants import (
     DEFAULT_LIFETIME_YEARS,
 )
 from energis.utils.timeseries import TimeSeriesTable
-from energis.utils.config_utils import apply_heat_pump_defaults
+from energis.utils.config_utils import apply_heat_pump_defaults, normalize_storage_config
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
@@ -486,6 +486,9 @@ def build_model(
         co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
+    # Normalize storage config to handle new config structure (technical_limits, defaults, costs)
+    if isinstance(sto_cfg, dict):
+        sto_cfg = normalize_storage_config(sto_cfg)
     print(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
     if sto_cfg.get("enabled", False):
         print(f"[BUILD] Building storage component...")

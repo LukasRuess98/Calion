@@ -2,6 +2,10 @@
 # SYSTEM: WITH HEAT PUMPS
 # =============================================================================
 # Existing generators + 4 heat pumps using WRG sources
+# No storage in this configuration
+#
+# NOTE: This file defines WHAT is in the system and technical limits.
+# The scenario config (04_scenarios) defines WHAT gets optimized.
 # =============================================================================
 
 system:
@@ -9,47 +13,63 @@ system:
   heat_pumps:
     - id: HP1
       enabled: true
-      max_th_mw: 100.0
-      wrg_source_column: WRG1_T_K             # Temperature data
-      wrg_capacity_column: WRG1_Q_MW          # Capacity data (✅ corrected)
-      investment:
-        enabled: true
+      wrg_source_column: WRG1_T_K
+      wrg_capacity_column: WRG1_Q_MW
+      technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
 
     - id: HP2
       enabled: true
-      max_th_mw: 100.0
       wrg_source_column: WRG2_T_K
       wrg_capacity_column: WRG2_Q_MW
-      investment:
-        enabled: true
+      technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
 
     - id: HP3
       enabled: true
-      max_th_mw: 100.0
       wrg_source_column: WRG3_T_K
       wrg_capacity_column: WRG3_Q_MW
-      investment:
-        enabled: true
+      technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
 
     - id: HP4
       enabled: true
-      max_th_mw: 100.0
       wrg_source_column: WRG4_T_K
       wrg_capacity_column: WRG4_Q_MW
-      investment:
-        enabled: true
+      technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
-        initial_capacity_mw: 50.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
 
   # No storage in this system configuration
   storage:

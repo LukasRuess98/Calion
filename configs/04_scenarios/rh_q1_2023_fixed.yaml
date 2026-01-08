@@ -1,29 +1,56 @@
 # =============================================================================
-# SCENARIO: Rolling Horizon Q1 2023 with Fixed Design
+# SCENARIO: Rolling Horizon Q1 2023 (Fixed Design)
 # =============================================================================
-# Rolling horizon optimization using a pre-defined design from JSON file
-# Use this when you want to run simulations with known/optimal design
+# Rolling horizon with pre-defined capacities (no investment optimization)
+# Use this when you know the optimal design from a previous run
 # =============================================================================
 
 scenario:
-  title: "Rolling Horizon - Q1 2023 (Fixed Design)"
+  title: "Rolling Horizon - Q1 2023 (Fixed)"
   tag: "rh-q1-2023-fixed"
-  workflow: [RH]                              # Rolling Horizon
+  workflow: [RH]
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # DESIGN CONFIGURATION - Using pre-defined design file
+  # OPTIMIZATION STRATEGY - Fixed Values
   # ═══════════════════════════════════════════════════════════════════════════
-  design:
-    mode: file                                # Load design from JSON file
-    file: ../06_designs/stadtbach_optimal.json  # Path relative to this config
+  optimization:
+    # All investment decisions are PARAMETERS (not optimized)
+    variables:
+      heat_pumps:
+        capacity: false             # Use fixed values
+        build: false
+      storage:
+        capacity: false
+        power: false
+        build: false
+
+    # Fixed values to use (overrides defaults from 03_systems)
+    fixed_values:
+      heat_pumps:
+        HP1:
+          capacity_mw: 50.0
+          build: true
+        HP2:
+          capacity_mw: 50.0
+          build: true
+        HP3:
+          capacity_mw: 0.0
+          build: false
+        HP4:
+          capacity_mw: 0.0
+          build: false
+      storage:
+        energy_mwh: 10000.0
+        power_mw: 200.0
+        build: true
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ROLLING HORIZON PARAMETERS
   # ═══════════════════════════════════════════════════════════════════════════
   rolling_horizon:
-    heat_horizon_hours: 168.0                 # 1 week window
-    step_hours: 24.0                          # Advance 1 day per window
-    terminal_policy: value                    # Diminishing returns value function
+    heat_horizon_hours: 168.0
+    step_hours: 24.0
+    terminal_policy: value
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIME HORIZON

@@ -8,24 +8,37 @@
 scenario:
   title: "Full Year 2023"
   tag: "full-2023"
-  workflow: [PF]                              # Perfect Foresight for full year
+  workflow: [PF]
 
-  # No design configuration needed for PF-only workflow
-  design:
-    mode: none                                # No design fixation
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OPTIMIZATION STRATEGY
+  # ═══════════════════════════════════════════════════════════════════════════
+  optimization:
+    # For PF: Optimize everything in single solve
+    variables:
+      heat_pumps:
+        capacity: true
+        build: true
+      storage:
+        capacity: true
+        power: true
+        build: true
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIME HORIZON
+  # ═══════════════════════════════════════════════════════════════════════════
   horizon:
     type: "date_range"
     start: "2023-01-01 00:00"
     end: "2023-12-31 23:00"
-    enforce: false                            # No terminal constraints
+    enforce: false
 
 # Full solver time limit for complex optimization
 run:
   solver_options:
-    TimeLimit: 7200                           # 2 hours for full year
+    TimeLimit: 7200
 
 # Thermal network
 thermal_network:
-  enabled: false                              # Enable when ready
+  enabled: false
   topology_file: configs/05_networks/brownfield.yaml
