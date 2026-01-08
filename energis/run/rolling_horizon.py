@@ -2151,6 +2151,7 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "capacity_mw": capacity,
                 "build_binary": build,
             }
+            print(f"[DESIGN] Extracted HP {hp_id}: capacity={capacity:.1f} MW, build={build:.1f}")
         elif key.startswith("storage_"):
             storage = {
                 "name": key.split("storage_", 1)[1],
@@ -2158,6 +2159,8 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "power_mw": float(metrics.get("Power_limit_MW", 0.0)),
                 "build_binary": float(metrics.get("Build_binary", metrics.get("Build", 0.0))),
             }
+            print(f"[DESIGN] Extracted Storage: capacity={storage['capacity_mwh']:.1f} MWh, "
+                  f"power={storage['power_mw']:.1f} MW, build={storage['build_binary']:.1f}")
 
     return DesignData(heat_pumps=heat_pumps, storage=storage)
 
@@ -2310,6 +2313,15 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
     if storage_cfg and design.storage:
         actual_capacity = float(design.storage.get("capacity_mwh", 0.0))
         actual_power = float(design.storage.get("power_mw", 0.0))
+        print(f"[DESIGN_FIX] Applying storage design: capacity={actual_capacity:.1f} MWh, power={actual_power:.1f} MW")
+
+        # Safety check: if power is 0 but capacity is not, use a reasonable default
+        # (This can happen if Power_limit_MW was not properly captured in summary)
+        if actual_power <= 0 and actual_capacity > 0:
+            # Use a reasonable power-to-energy ratio (e.g., 1:50 = 2% of capacity)
+            actual_power = max(actual_capacity / 50.0, 10.0)
+            print(f"[DESIGN_FIX] WARNING: power was 0, using fallback: {actual_power:.1f} MW")
+
         storage_cfg["enabled"] = bool(design.storage.get("build_binary", 0.0) >= 0.5)
         storage_cfg["max_energy_mwh"] = actual_capacity
         # Note: min_energy_mwh is minimum SOC (usually 0), NOT minimum capacity
