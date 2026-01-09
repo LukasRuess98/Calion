@@ -121,8 +121,9 @@ class WorkflowBrowser:
             if not workflow_dir.is_dir():
                 continue
 
-            # Check for metadata.json
+            # Check for metadata.json (preferred) or manifest.json (fallback)
             metadata_file = workflow_dir / 'metadata.json'
+            manifest_file = workflow_dir / 'manifest.json'
 
             if metadata_file.exists():
                 try:
@@ -165,6 +166,30 @@ class WorkflowBrowser:
                     })
                 except Exception as e:
                     logger.warning(f"Failed to load metadata from {metadata_file}: {e}")
+
+            elif manifest_file.exists():
+                # Fallback: use manifest.json (from export_workflow_results)
+                try:
+                    with open(manifest_file, 'r', encoding='utf-8') as f:
+                        manifest = json.load(f)
+
+                    # Extract data from manifest format
+                    name = manifest.get('scenario_title', workflow_dir.name)
+                    saved_at = manifest.get('export_timestamp', '')
+                    scenario = manifest.get('scenario_title', manifest.get('slug', 'unknown'))
+                    steps = manifest.get('workflow_steps', [])
+
+                    workflows.append({
+                        'path': workflow_dir,
+                        'name': name,
+                        'date': saved_at,
+                        'scenario': scenario,
+                        'costs': 0.0,  # Not available in manifest
+                        'steps': steps,
+                        'metadata': manifest
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to load manifest from {manifest_file}: {e}")
             else:
                 # Fallback: use directory name
                 workflows.append({
