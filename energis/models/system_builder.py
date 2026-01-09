@@ -19,7 +19,11 @@ from energis.constants import (
     DEFAULT_LIFETIME_YEARS,
 )
 from energis.utils.timeseries import TimeSeriesTable
-from energis.utils.config_utils import apply_heat_pump_defaults, normalize_storage_config
+from energis.utils.config_utils import (
+    apply_heat_pump_defaults,
+    normalize_storage_config,
+    normalize_thermal_network_config,
+)
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
@@ -1076,7 +1080,9 @@ def build_model(
     # ========================================
     # THERMAL NETWORK INTEGRATION
     # ========================================
-    network_enabled = cfg.get('thermal_network', {}).get('enabled', False)
+    # Normalize thermal_network config (supports both old and new structure)
+    network_cfg = normalize_thermal_network_config(cfg)
+    network_enabled = network_cfg.get('enabled', False)
 
     if network_enabled:
         print("[BUILD] Integrating thermal network...")
@@ -1086,8 +1092,12 @@ def build_model(
         if not isinstance(config_dir, Path):
             config_dir = Path(config_dir) if config_dir else Path.cwd()
 
+        # Inject normalized network config back into cfg for NetworkManager
+        cfg_with_network = dict(cfg)
+        cfg_with_network['thermal_network'] = network_cfg
+
         try:
-            network_mgr = NetworkManager(cfg, config_dir=config_dir)
+            network_mgr = NetworkManager(cfg_with_network, config_dir=config_dir)
 
             # Check if network was actually loaded successfully
             if not network_mgr.network_enabled:

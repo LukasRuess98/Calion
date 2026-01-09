@@ -100,3 +100,30 @@ system:
       power_capex_eur_per_mw: 50000.0
       activation_cost_eur: 50000.0
       lifetime_years: 20
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # THERMAL NETWORK
+  # ═══════════════════════════════════════════════════════════════════════════
+  thermal_network:
+    enabled: false  # Override in preset (rh_with_network.yaml) to enable
+    brownfield_mode: true
+    topology_file: configs/05_networks/brownfield.yaml
+
+    # Technical limits (hydraulic constraints)
+    technical_limits:
+      max_velocity_m_s: 2.5
+      max_pressure_bar: 25.0
+      min_pressure_bar: 2.0
+
+    # Default operating parameters
+    defaults:
+      supply_temp_c: 120
+      return_temp_c: 55
+      ground_temp_c: 10
+
+    # Cost parameters (for greenfield/investment optimization)
+    costs:
+      pipe_capex_eur_per_m: 500.0           # Average pipe installation cost
+      pump_capex_eur_per_kw: 1000.0         # Pump investment cost
+      heat_loss_cost_eur_per_mwh: 50.0      # Penalty for network losses
+      lifetime_years: 40

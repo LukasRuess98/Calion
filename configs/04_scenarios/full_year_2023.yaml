@@ -23,6 +23,9 @@ scenario:
         capacity: true
         power: true
         build: true
+      thermal_network:
+        pipe_diameters: false
+        pump_power: false
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIME HORIZON
@@ -38,7 +41,4 @@ run:
   solver_options:
     TimeLimit: 7200
 
-# Thermal network
-thermal_network:
-  enabled: false
-  topology_file: configs/05_networks/brownfield.yaml
+# NOTE: thermal_network config from system.thermal_network (03_systems/)

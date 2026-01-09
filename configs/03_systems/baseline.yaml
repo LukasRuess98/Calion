@@ -15,3 +15,7 @@ system:
   # No storage in baseline
   storage:
     enabled: false
+
+  # No thermal network in baseline
+  thermal_network:
+    enabled: false

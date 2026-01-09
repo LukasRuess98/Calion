@@ -34,3 +34,7 @@ system:
       power_capex_eur_per_mw: 50000.0
       activation_cost_eur: 50000.0
       lifetime_years: 20
+
+  # No thermal network in storage-only system
+  thermal_network:
+    enabled: false

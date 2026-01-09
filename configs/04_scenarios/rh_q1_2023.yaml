@@ -25,6 +25,9 @@ scenario:
         capacity: true              # Optimize storage energy capacity
         power: true                 # Optimize storage power capacity
         build: true                 # Optimize build decision
+      thermal_network:
+        pipe_diameters: false       # Greenfield: Optimize pipe sizes (requires NLP solver)
+        pump_power: false           # Optimize pump sizing
 
     # For RH: When to fix investment decisions?
     fix_after_window: 0             # After Window 0: variables become parameters
@@ -49,6 +52,5 @@ scenario:
     end: "2023-04-17 23:00"
     enforce: true
 
-# Thermal network
-thermal_network:
-  enabled: false
+# NOTE: thermal_network config now comes from system.thermal_network (03_systems/)
+# To enable/disable: modify 03_systems/<system>.yaml or override in preset

@@ -23,6 +23,9 @@ scenario:
         capacity: false
         power: false
         build: false
+      thermal_network:
+        pipe_diameters: false
+        pump_power: false
 
     # Fixed values to use (overrides defaults from 03_systems)
     fixed_values:
@@ -61,6 +64,4 @@ scenario:
     end: "2023-04-17 23:00"
     enforce: true
 
-# Thermal network
-thermal_network:
-  enabled: false
+# NOTE: thermal_network config now comes from system.thermal_network (03_systems/)

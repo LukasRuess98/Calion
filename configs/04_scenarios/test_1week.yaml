@@ -23,6 +23,9 @@ scenario:
         capacity: true
         power: true
         build: true
+      thermal_network:
+        pipe_diameters: false
+        pump_power: false
     # No fix_after_window needed for PF (single solve)
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -40,6 +43,5 @@ run:
     TimeLimit: 600
     LogToConsole: 1
 
-# Disable thermal network for faster solving
-thermal_network:
-  enabled: false
+# NOTE: thermal_network config from system.thermal_network (03_systems/)
+# For quick tests, use a system config with thermal_network.enabled: false

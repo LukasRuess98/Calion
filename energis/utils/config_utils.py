@@ -202,3 +202,92 @@ def normalize_storage_config(storage_cfg: Mapping[str, Any]) -> Dict[str, Any]:
             investment.setdefault("lifetime_years", lifetime)
 
     return result
+
+
+def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> Dict[str, Any]:
+    """Normalize thermal network config to the format expected by NetworkManager.
+
+    Supports both:
+    - New structure: system.thermal_network with technical_limits, defaults, costs
+    - Old structure: top-level thermal_network (can override system settings)
+
+    The old top-level thermal_network overrides system.thermal_network,
+    allowing presets to enable/disable the network.
+
+    Returns a merged config with backward-compatible keys.
+    """
+    # Get new structure: system.thermal_network
+    system_cfg = cfg.get("system", {})
+    new_network = system_cfg.get("thermal_network", {}) if isinstance(system_cfg, dict) else {}
+    if not isinstance(new_network, dict):
+        new_network = {}
+
+    # Get old structure: top-level thermal_network
+    old_network = cfg.get("thermal_network", {})
+    if not isinstance(old_network, dict):
+        old_network = {}
+
+    # Merge: Start with new structure, then override with old (for preset compatibility)
+    # This allows presets to set thermal_network.enabled: true to override system defaults
+    result = dict(new_network)
+    for key, value in old_network.items():
+        # Old structure overrides new structure (preset > system)
+        result[key] = value
+
+    if not result:
+        return {"enabled": False}
+
+    # Transform new structure to old format
+    tech_limits = result.pop("technical_limits", None)
+    net_defaults = result.pop("defaults", None)
+    costs = result.pop("costs", None)
+
+    # If none of the new keys exist, return as-is (old format)
+    if tech_limits is None and net_defaults is None and costs is None:
+        return result
+
+    # Build/update parameters from defaults
+    parameters = result.setdefault("parameters", {})
+    if not isinstance(parameters, dict):
+        parameters = {}
+        result["parameters"] = parameters
+
+    # Map defaults to parameters (for NetworkManager compatibility)
+    if isinstance(net_defaults, dict):
+        supply_temp = net_defaults.get("supply_temp_c")
+        return_temp = net_defaults.get("return_temp_c")
+        ground_temp = net_defaults.get("ground_temp_c")
+
+        if supply_temp is not None:
+            parameters.setdefault("supply_temp_nominal_c", supply_temp)
+        if return_temp is not None:
+            parameters.setdefault("return_temp_nominal_c", return_temp)
+        if ground_temp is not None:
+            parameters.setdefault("ground_temp_default_c", ground_temp)
+
+    # Map technical_limits to parameters
+    if isinstance(tech_limits, dict):
+        max_velocity = tech_limits.get("max_velocity_m_s")
+        max_pressure = tech_limits.get("max_pressure_bar")
+        min_pressure = tech_limits.get("min_pressure_bar")
+
+        if max_velocity is not None:
+            parameters.setdefault("max_velocity_m_s", max_velocity)
+        if max_pressure is not None:
+            parameters.setdefault("max_pressure_bar", max_pressure)
+        if min_pressure is not None:
+            parameters.setdefault("min_pressure_bar", min_pressure)
+
+    # Store costs for investment optimization
+    if isinstance(costs, dict):
+        result["costs"] = costs
+        # Also map to parameters for NetworkManager
+        pipe_capex = costs.get("pipe_capex_eur_per_m")
+        heat_loss_cost = costs.get("heat_loss_cost_eur_per_mwh")
+
+        if pipe_capex is not None:
+            parameters.setdefault("pipe_capex_eur_per_m", pipe_capex)
+        if heat_loss_cost is not None:
+            parameters.setdefault("heat_loss_cost_eur_per_mwh", heat_loss_cost)
+
+    return result
