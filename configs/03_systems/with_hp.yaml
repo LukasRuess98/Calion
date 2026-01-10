@@ -13,8 +13,8 @@ system:
   heat_pumps:
     - id: HP1
       enabled: true
-      wrg_source_column: WRG1_T_K
-      wrg_capacity_column: WRG1_Q_MW
+      wrg_source_column: "WRG1_ T °C"
+      wrg_capacity_column: "WRG1Q MW"
       technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
@@ -28,8 +28,8 @@ system:
 
     - id: HP2
       enabled: true
-      wrg_source_column: WRG2_T_K
-      wrg_capacity_column: WRG2_Q_MW
+      wrg_source_column: "WRG2_T °C"
+      wrg_capacity_column: "WRG2Q MW"
       technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
@@ -43,8 +43,8 @@ system:
 
     - id: HP3
       enabled: true
-      wrg_source_column: WRG3_T_K
-      wrg_capacity_column: WRG3_Q_MW
+      wrg_source_column: "WRG3_T °C"
+      wrg_capacity_column: "WRG3Q MW"
       technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
@@ -58,8 +58,8 @@ system:
 
     - id: HP4
       enabled: true
-      wrg_source_column: WRG4_T_K
-      wrg_capacity_column: WRG4_Q_MW
+      wrg_source_column: "WRG4_T °C"
+      wrg_capacity_column: "WRG4Q MW"
       technical_limits:
         capacity_min_mw: 5.0
         capacity_max_mw: 100.0
