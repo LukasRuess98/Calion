@@ -1,8 +1,8 @@
 # Configuration System Guide
 
-**NEW:** Modular config structure with inheritance support! 🎉
+**NEW:** Modular config structure with inheritance support!
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Simple: Use a Preset
 
@@ -34,7 +34,7 @@ python -m energis.run \
 
 ---
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 configs/
@@ -68,18 +68,16 @@ configs/
 ├── 05_networks/                # Network topologies
 │   └── brownfield.yaml         # District heating network
 │
-├── presets/                    # Pre-composed configurations
-│   ├── quick_test.yaml         # Fast development test
-│   ├── rh_full_system.yaml     # Production RH run
-│   ├── storage_study.yaml      # Storage optimization
-│   └── hp_optimization.yaml    # Heat pump sizing
-│
-└── _deprecated/                # Old configs (for reference)
+└── presets/                    # Pre-composed configurations
+    ├── quick_test.yaml         # Fast development test
+    ├── rh_full_system.yaml     # Production RH run
+    ├── storage_study.yaml      # Storage optimization
+    └── hp_optimization.yaml    # Heat pump sizing
 ```
 
 ---
 
-## 🎨 Config Inheritance with `_extends:`
+## Config Inheritance with `_extends:`
 
 **NEW FEATURE:** Configs can now inherit from other configs!
 
@@ -138,12 +136,12 @@ The system automatically detects and prevents circular dependencies:
 _extends: b.yaml
 
 # b.yaml
-_extends: a.yaml  # ❌ ERROR: Circular dependency!
+_extends: a.yaml  # ERROR: Circular dependency!
 ```
 
 ---
 
-## 📝 Creating Custom Configurations
+## Creating Custom Configurations
 
 ### Option 1: Use a Preset as Template
 
@@ -195,7 +193,7 @@ run:
 
 ---
 
-## 🎯 Common Use Cases
+## Common Use Cases
 
 ### 1. Quick Development Test
 ```bash
@@ -250,7 +248,7 @@ python -m energis.run fast_solver.yaml
 
 ---
 
-## 🔍 Configuration Layers
+## Configuration Layers
 
 Configs are organized by **change frequency**:
 
@@ -267,7 +265,7 @@ Configs are organized by **change frequency**:
 
 ---
 
-## ⚙️ Config Merging Rules
+## Config Merging Rules
 
 ### Precedence (Later Overrides Earlier)
 
@@ -316,7 +314,7 @@ system:
 
 ---
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### "Column not found" Error
 ```
@@ -358,19 +356,19 @@ print('Inheritance:', cfg['meta']['inheritance_enabled'])
 
 ---
 
-## 📖 Best Practices
+## Best Practices
 
 ### 1. **Use Presets for Common Tasks**
-❌ Don't: Manually compose 10 configs every time
-✅ Do: Create a preset and reuse it
+DON'T: Manually compose 10 configs every time
+DO: Create a preset and reuse it
 
 ### 2. **Layer Your Overrides**
-❌ Don't: Copy entire config files
-✅ Do: Use `_extends:` and override only what changes
+DON'T: Copy entire config files
+DO: Use `_extends:` and override only what changes
 
 ### 3. **Keep Site Data Separate**
-❌ Don't: Hardcode column mappings in scenarios
-✅ Do: Define once in `02_site/stadtbach/data_source.yaml`
+DON'T: Hardcode column mappings in scenarios
+DO: Define once in `02_site/stadtbach/data_source.yaml`
 
 ### 4. **Document Your Presets**
 ```yaml
@@ -418,23 +416,23 @@ python -m energis.run configs/presets/rh_full_system.yaml
 
 ---
 
-## 🆕 What's New
+## What's New
 
 ### Phase 2 & 3 Features
-- ✅ **Modular structure**: Configs organized by change frequency
-- ✅ **Config inheritance**: `_extends:` support
-- ✅ **Presets**: Ready-to-use complete configurations
-- ✅ **Circular dependency detection**: Prevents config loops
-- ✅ **Better documentation**: This guide!
+- **Modular structure**: Configs organized by change frequency
+- **Config inheritance**: `_extends:` support
+- **Presets**: Ready-to-use complete configurations
+- **Circular dependency detection**: Prevents config loops
+- **Better documentation**: This guide!
 
 ### Removed
-- ❌ `stadtbach.yaml` (monolith)
-- ❌ `base.yaml` (split into `00_base/*`)
-- ❌ `tech_catalog.yaml` (split into `01_tech/*`)
-- ❌ Old `scenarios/*.yaml` (replaced with `04_scenarios/*`)
-- ❌ Old `systems/*.yaml` (replaced with `03_systems/*`)
+- `stadtbach.yaml` (monolith)
+- `base.yaml` (split into `00_base/*`)
+- `tech_catalog.yaml` (split into `01_tech/*`)
+- Old `scenarios/*.yaml` (replaced with `04_scenarios/*`)
+- Old `systems/*.yaml` (replaced with `03_systems/*`)
 
-**All old configs moved to `_deprecated/` for reference.**
+**Old configs have been removed (preserved in git history).**
 
 ---
 
@@ -446,7 +444,7 @@ python -m energis.run configs/presets/rh_full_system.yaml
 
 ---
 
-## 💬 Need Help?
+## Need Help?
 
 1. **Check presets**: `configs/presets/` has working examples
 2. **Read examples**: Each preset is documented
@@ -455,4 +453,4 @@ python -m energis.run configs/presets/rh_full_system.yaml
 
 ---
 
-**Happy optimizing! 🚀**
+**Happy optimizing!**
