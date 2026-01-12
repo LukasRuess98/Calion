@@ -15,3 +15,8 @@ costs:
   # Grid costs
   include_gridcost_in_energy: true            # Include in energy costs
   include_demand_charge_in_rh: true           # Include demand charge in RH
+
+  # Investment costs in Rolling Horizon
+  # IMPORTANT: Must be true to show CAPEX in dashboard when using RH with investment
+  include_investment_in_rh: true              # Include CAPEX in RH aggregation
+  amortise_investment_once_in_rh: true        # Only count CAPEX once (in Window 0)
