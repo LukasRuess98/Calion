@@ -64,10 +64,12 @@ class HeatPumpBlock(BaseComponent):
         setattr(m, f"{comp}_Q_def", pyo.Var(Tset, domain=pyo.NonNegativeReals))  # fallback heat
         setattr(m, f"{comp}_on", pyo.Var(Tset, domain=pyo.Binary))
         setattr(m, f"{comp}_build", pyo.Var(domain=pyo.Binary))
+        # When investment is disabled, capacity is fixed - ensure bounds accommodate the fixed value
+        effective_cap_max = max(self.capacity_max_mw, self.capacity_init_mw) if not self.investable else self.capacity_max_mw
         setattr(
             m,
             f"{comp}_cap_mw",
-            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, self.capacity_max_mw)),
+            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, effective_cap_max)),
         )
 
         Q = getattr(m, f"{comp}_Q")

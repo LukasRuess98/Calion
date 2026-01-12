@@ -19,12 +19,18 @@ from energis.constants import (
     DEFAULT_LIFETIME_YEARS,
 )
 from energis.utils.timeseries import TimeSeriesTable
-from energis.utils.config_utils import apply_heat_pump_defaults
+from energis.utils.config_utils import (
+    apply_heat_pump_defaults,
+    normalize_storage_config,
+    normalize_thermal_network_config,
+)
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
+from .network_manager import NetworkManager
+from pathlib import Path
 
 
 def _cop_series_from_table(
@@ -240,7 +246,14 @@ def _cop_series_from_table(
     return cop
 
 
-def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
+def build_model(
+    table: TimeSeriesTable,
+    cfg: Dict[str, Any],
+    dt_h: float = 1.0,
+    *,
+    soc_init_override: float | None = None,
+    terminal_target_override: float | None = None,
+):
     """Build a Pyomo ConcreteModel for the energy system optimization.
 
     This is the main model builder that constructs a Mixed-Integer Linear Programming (MILP)
@@ -477,7 +490,12 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         co2_kg_grid_to_elec.append(hp_co2_kg)  # WP verbraucht Grid-Strom
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
+    # Normalize storage config to handle new config structure (technical_limits, defaults, costs)
+    if isinstance(sto_cfg, dict):
+        sto_cfg = normalize_storage_config(sto_cfg)
+    print(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
     if sto_cfg.get("enabled", False):
+        print(f"[BUILD] Building storage component...")
         storage_defaults = cfg.get("storage", {})
         sto_defaults = storage_defaults.get("investment_defaults", {})
         sto_inv = dict(sto_defaults)
@@ -518,6 +536,10 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 soc_init = soc_init_series[0]
         soc_init = float(soc_init if soc_init is not None else 0.0)
 
+        # Apply override if provided (used by Rolling Horizon)
+        if soc_init_override is not None:
+            soc_init = float(soc_init_override)
+
         eff_charge_default = float(sto_cfg.get("eff_charge", storage_defaults.get("eff_charge", 0.95)))
         eff_discharge_default = float(sto_cfg.get("eff_discharge", storage_defaults.get("eff_discharge", 0.95)))
         loss_default = float(sto_cfg.get("loss_hour", storage_defaults.get("loss_hour", 0.9999)))
@@ -545,22 +567,42 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         if terminal_state not in {"free", "cyclic", "target"}:
             raise ValueError("storage.terminal.state/terminal_state must be one of: free, cyclic, target")
 
-        if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free"}:
-            raise ValueError("storage.terminal.policy must be one of: equal, geq, free")
+        if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free", "value", "soft"}:
+            raise ValueError("storage.terminal.policy must be one of: equal, geq, free, value, soft")
 
         terminal_policy = "free" if terminal_state == "free" else (terminal_policy_raw or "equal")
         terminal_target_val: float | None
         if terminal_state == "free":
             terminal_target_val = None
         elif terminal_state == "cyclic":
-            terminal_policy = "equal"
-            terminal_target_val = float(soc_init)
+            # For cyclic state, default to "equal" only if no policy specified
+            # But respect explicit policy settings (value, soft, geq)
+            if not terminal_policy_raw:
+                terminal_policy = "equal"
+            # For "value" policy: no target needed (value function optimizes freely)
+            # For "soft" policy: target is used but with slack (always feasible)
+            # For "equal"/"geq" policy: hard target constraint
+            if terminal_policy == "value":
+                terminal_target_val = None  # Value function doesn't need a target
+            else:
+                terminal_target_val = float(terminal_target_cfg) if terminal_target_cfg is not None else float(soc_init)
         else:
             if terminal_target_cfg is None:
                 terminal_target_cfg = soc_init
             terminal_target_val = float(terminal_target_cfg)
-            if terminal_policy not in {"equal", "geq"}:
+            if terminal_policy not in {"equal", "geq", "value", "soft"}:
                 terminal_policy = "equal"
+
+        # Apply terminal target override if provided (used by Rolling Horizon)
+        if terminal_target_override is not None:
+            terminal_target_val = float(terminal_target_override)
+
+        # Debug logging
+        print(f"[BUILD] Storage terminal configuration:")
+        print(f"  - terminal_state: {terminal_state}")
+        print(f"  - terminal_policy: {terminal_policy}")
+        print(f"  - soc_init: {soc_init}")
+        print(f"  - terminal_target_val: {terminal_target_val}")
 
         coupling_factor = storage_defaults.get("power_energy_coupling")
         if "power_energy_coupling" in sto_cfg:
@@ -628,6 +670,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
+                # Terminal constraint
+                terminal_target=terminal_target_val,
             )
         else:
             # Use simple storage (existing code)
@@ -650,7 +694,7 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
                 p_cap_max=p_cap_max,
                 e_cap_init=e_cap_init,
                 p_cap_init=p_cap_init,
-                terminal_target=None,
+                terminal_target=terminal_target_val,
                 loss_series=loss_series,
                 eff_charge_series=eff_charge_series,
                 eff_discharge_series=eff_discharge_series,
@@ -662,7 +706,9 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         ht_in.append(fs["Q_th_in"])
         # Remove potentially existing references from previous attaches to avoid
         # Pyomo warnings about implicit replacement when rebuilding the model
-        for _name in ["TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active"]:
+        for _name in ["TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active",
+                      "TES_soc_low", "TES_soc_high", "TES_soc_split",
+                      "TES_terminal_slack_pos", "TES_terminal_slack_neg", "TES_terminal_soft"]:
             if hasattr(m, _name):
                 m.del_component(getattr(m, _name))
 
@@ -671,26 +717,170 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         m.TES_discharge_mode = pyo.Reference(fs["discharge_mode"])
         m.TES_active = pyo.Reference(fs["active"])
         setattr(m, "TES_terminal_policy", terminal_policy)
+
+        # Terminal value/soft constraint parameters from config hierarchy:
+        # 1. Check terminal_cfg (system.storage.terminal)
+        # 2. Check storage_defaults.terminal_defaults
+        # 3. Use computed default (avg electricity price)
+        terminal_defs = storage_defaults.get("terminal_defaults", {})
+        avg_price = sum(table["strompreis_EUR_MWh"]) / len(table) if len(table) > 0 else 50.0
+
+        # Salvage price: Value of stored energy at end of horizon (EUR/MWh)
+        salvage_cfg = terminal_cfg.get("salvage_price_eur_mwh")
+        if salvage_cfg is None:
+            salvage_cfg = terminal_defs.get("salvage_price_eur_mwh")
+        salvage_price = float(salvage_cfg) if salvage_cfg is not None else avg_price
+
+        # Soft penalty: Penalty for deviation from target (EUR/MWh)
+        penalty_cfg = terminal_cfg.get("soft_penalty_eur_mwh")
+        if penalty_cfg is None:
+            penalty_cfg = terminal_defs.get("soft_penalty_eur_mwh")
+        soft_penalty = float(penalty_cfg) if penalty_cfg is not None else (salvage_price * 2)
+
+        last_t = m.t.last()
+        terminal_value_term = None  # Will be added to objective if using value/soft policy
+
         if terminal_target_val is not None:
             setattr(m, "TES_terminal_target", pyo.Param(initialize=terminal_target_val))
-            last_t = m.t.last()
+
             if terminal_policy == "geq":
+                # Hard constraint: SOC >= target
                 setattr(
                     m,
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] >= getattr(m, "TES_terminal_target")),
                 )
-            else:
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
+
+            elif terminal_policy == "equal":
+                # Hard constraint: SOC == target
                 setattr(
                     m,
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] == getattr(m, "TES_terminal_target")),
                 )
+                print(f"[BUILD] Created terminal constraint: TES_terminal")
+                print(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
+
+            elif terminal_policy == "value":
+                # Salvage value approach: reward stored energy at end of horizon
+                # No hard constraint - terminal SOC is economically optimized
+                # Supports two modes: "constant" (linear) or "diminishing" (piecewise linear)
+
+                value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
+                decay = float(terminal_defs.get("diminishing_decay", 0.3))
+
+                if value_func_type == "diminishing" and decay > 0:
+                    # Piecewise linear diminishing returns value function
+                    # Split SOC into two segments: low (full value) and high (reduced value)
+                    # V(SOC) ≈ price * SOC_low + price * (1-decay) * SOC_high
+                    # where SOC = SOC_low + SOC_high and SOC_low <= threshold
+
+                    # Use 50% of capacity as threshold
+                    soc_max = float(e_cap_init if not invest_enabled else e_cap_max)
+                    threshold = 0.5 * soc_max
+
+                    # Create auxiliary variables for piecewise segments
+                    m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
+                    m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
+
+                    # Constraint: SOC[T] = soc_low + soc_high
+                    m.TES_soc_split = pyo.Constraint(
+                        expr=fs["SOC"][last_t] == m.TES_soc_low + m.TES_soc_high
+                    )
+
+                    # Prices for each segment
+                    price_low = salvage_price  # Full price for first 50%
+                    price_high = salvage_price * (1 - decay)  # Reduced price above 50%
+
+                    # Value function: reward stored energy with diminishing returns
+                    terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
+
+                    print(f"[BUILD] Using DIMINISHING terminal value function")
+                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh")
+                    print(f"  - Decay factor: {decay:.2f}")
+                    print(f"  - Threshold: {threshold:.1f} MWh (50% of {soc_max:.1f})")
+                    print(f"  - Price below threshold: {price_low:.2f} EUR/MWh")
+                    print(f"  - Price above threshold: {price_high:.2f} EUR/MWh")
+                else:
+                    # Constant/linear value function (original behavior)
+                    terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                    print(f"[BUILD] Using CONSTANT terminal value function")
+                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+
+            elif terminal_policy == "soft":
+                # Soft constraint: penalize deviation from target
+                # Uses slack variables to make problem always feasible
+                m.TES_terminal_slack_pos = pyo.Var(domain=pyo.NonNegativeReals)  # SOC above target
+                m.TES_terminal_slack_neg = pyo.Var(domain=pyo.NonNegativeReals)  # SOC below target
+                setattr(
+                    m,
+                    "TES_terminal_soft",
+                    pyo.Constraint(
+                        expr=fs["SOC"][last_t] + m.TES_terminal_slack_neg - m.TES_terminal_slack_pos
+                        == getattr(m, "TES_terminal_target")
+                    ),
+                )
+                # Penalize deviation (asymmetric: being below target is worse)
+                terminal_value_term = soft_penalty * m.TES_terminal_slack_neg + (soft_penalty * 0.5) * m.TES_terminal_slack_pos
+                print(f"[BUILD] Created soft terminal constraint: TES_terminal_soft")
+                print(f"  - Target: {terminal_target_val} MWh, Penalty: {soft_penalty:.2f} EUR/MWh")
+                print(f"  - Always feasible (deviation is penalized, not forbidden)")
+
         else:
+            # No terminal constraint (free policy or value policy without target)
             if hasattr(m, "TES_terminal"):
                 delattr(m, "TES_terminal")
             if hasattr(m, "TES_terminal_target"):
                 delattr(m, "TES_terminal_target")
+
+            if terminal_policy == "value":
+                # Value policy without specific target: reward stored energy
+                value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
+                decay = float(terminal_defs.get("diminishing_decay", 0.3))
+
+                # Debug: show capacity parameters
+                print(f"[BUILD] Value function capacity params:")
+                print(f"  - invest_enabled: {invest_enabled}")
+                print(f"  - e_cap_init: {e_cap_init:.1f} MWh")
+                print(f"  - e_cap_max: {e_cap_max:.1f} MWh")
+                print(f"  - soc_init: {soc_init:.1f} MWh")
+
+                if value_func_type == "diminishing" and decay > 0:
+                    # Piecewise linear diminishing returns
+                    soc_max = float(e_cap_init if not invest_enabled else e_cap_max)
+                    threshold = 0.5 * soc_max
+
+                    # Safety check: ensure initial SOC fits within capacity
+                    if soc_init > soc_max:
+                        print(f"[BUILD] WARNING: soc_init ({soc_init:.1f}) > soc_max ({soc_max:.1f})!")
+                        print(f"[BUILD] This may cause infeasibility. Adjusting soc_max.")
+                        soc_max = max(soc_max, soc_init * 1.1)  # Add 10% margin
+                        threshold = 0.5 * soc_max
+
+                    m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
+                    m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
+                    m.TES_soc_split = pyo.Constraint(
+                        expr=fs["SOC"][last_t] == m.TES_soc_low + m.TES_soc_high
+                    )
+
+                    price_low = salvage_price
+                    price_high = salvage_price * (1 - decay)
+                    terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
+
+                    print(f"[BUILD] Using DIMINISHING terminal value function (no target)")
+                    print(f"  - soc_max: {soc_max:.1f} MWh, threshold: {threshold:.1f} MWh")
+                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh, Decay: {decay:.2f}")
+                else:
+                    terminal_value_term = -salvage_price * fs["SOC"][last_t]
+                    print(f"[BUILD] Using CONSTANT terminal value function (no target)")
+                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+            else:
+                print(f"[BUILD] No terminal constraint (policy: free)")
+
+        # Store terminal value term for later addition to objective
+        m.terminal_value_term = terminal_value_term
 
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
@@ -887,14 +1077,102 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
 
     print(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
 
+    # ========================================
+    # THERMAL NETWORK INTEGRATION
+    # ========================================
+    # Normalize thermal_network config (supports both old and new structure)
+    network_cfg = normalize_thermal_network_config(cfg)
+    network_enabled = network_cfg.get('enabled', False)
+
+    if network_enabled:
+        print("[BUILD] Integrating thermal network...")
+
+        # Get config directory from cfg if available, otherwise use current directory
+        config_dir = cfg.get('_config_dir', Path.cwd())
+        if not isinstance(config_dir, Path):
+            config_dir = Path(config_dir) if config_dir else Path.cwd()
+
+        # Inject normalized network config back into cfg for NetworkManager
+        cfg_with_network = dict(cfg)
+        cfg_with_network['thermal_network'] = network_cfg
+
+        try:
+            network_mgr = NetworkManager(cfg_with_network, config_dir=config_dir)
+
+            # Check if network was actually loaded successfully
+            if not network_mgr.network_enabled:
+                print(f"[BUILD] WARNING: Thermal network failed to load (check topology file)")
+                print(f"[BUILD] Continuing without thermal network...")
+                m._network_enabled = False
+            else:
+                # Create buses dict for network integration
+                buses = {
+                    'heat': {'in': ht_in, 'out': ht_out},
+                    'electricity': {'in': el_in, 'out': el_out}
+                }
+
+                # Attach network to model
+                network_results = network_mgr.attach_to_model(m, m.t, buses)
+
+                # Verify that network actually attached (not just returned empty dict)
+                if network_results and len(network_results.get('pipes', {})) > 0:
+                    # Store network manager for results extraction
+                    m._network_manager = network_mgr
+                    m._network_enabled = True
+                    print(f"[BUILD] Thermal network integrated successfully:")
+                    print(f"         {len(network_results.get('pipes', {}))} pipes, "
+                          f"{len(network_results.get('nodes', {}))} nodes")
+                else:
+                    print(f"[BUILD] WARNING: Thermal network returned no components")
+                    print(f"[BUILD] Continuing without thermal network...")
+                    m._network_enabled = False
+
+        except Exception as e:
+            print(f"[BUILD] ERROR: Failed to integrate thermal network: {e}")
+            print(f"[BUILD] Continuing without thermal network...")
+            m._network_enabled = False
+            import traceback
+            traceback.print_exc()
+    else:
+        m._network_enabled = False
+        print("[BUILD] Thermal network disabled")
+
+    # ========================================
+    # BUS BALANCE CONSTRAINTS
+    # ========================================
+
     m.el_balance = pyo.Constraint(
         m.t,
         rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
     )
-    m.ht_balance = pyo.Constraint(
-        m.t,
-        rule=lambda mm, t: sum((f[t] for f in ht_out), start=0) + sum((f[t] for f in ht_in), start=0) == mm.heatd[t] + mm.Q_dump[t],
-    )
+
+    # Heat balance with network losses
+    def heat_balance_rule(mm, t):
+        # Heat sources: generators, storage discharge
+        supply = sum((f[t] for f in ht_out), start=0)
+
+        # Heat sinks: storage charge
+        storage_charge = sum((f[t] for f in ht_in), start=0)
+
+        # Heat demand
+        demand = mm.heatd[t]
+        dump = mm.Q_dump[t]
+
+        # Add network losses if thermal network is enabled
+        if hasattr(mm, 'network_Q_loss_per_timestep'):
+            network_loss = mm.network_Q_loss_per_timestep[t]
+        else:
+            network_loss = 0
+
+        # Heat balance: supply = demand + dump + storage_charge + network_losses
+        # supply: generators + storage discharge (all positive)
+        # demand: heat consumption (positive)
+        # storage_charge: heat into storage (positive, consumes heat)
+        # network_loss: transmission losses (positive, consumes heat)
+        # dump: excess heat (positive, consumes heat)
+        return supply == demand + dump + storage_charge + network_loss
+
+    m.ht_balance = pyo.Constraint(m.t, rule=heat_balance_rule)
 
     m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
     m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)
@@ -975,6 +1253,12 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
     m.tie_break_cost_expr = tie_break_total
     m.storage_install_cost_expr = storage_install_total
 
+    # Terminal value term (for value/soft terminal policies in Rolling Horizon)
+    # Note: Can't use "or 0" because Pyomo expressions can't be evaluated as bool
+    terminal_value = getattr(m, 'terminal_value_term', None)
+    if terminal_value is None:
+        terminal_value = 0
+
     m.obj = pyo.Objective(
         expr=energy_cost
         + dump_cost
@@ -984,7 +1268,8 @@ def build_model(table: TimeSeriesTable, cfg: Dict[str, Any], dt_h: float = 1.0):
         + capex_total
         + activation_total
         + tie_break_total
-        + storage_install_total,
+        + storage_install_total
+        + terminal_value,
         sense=pyo.minimize,
     )
     return m

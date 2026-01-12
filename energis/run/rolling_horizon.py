@@ -35,6 +35,16 @@ from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
 from energis.models.system_builder import build_model
 from energis.utils.timeseries import TimeSeriesTable
+from energis.design import (
+    DesignSpec,
+    DesignConfig,
+    load_design_config,
+    load_design_for_scenario,
+    extract_design_from_summary,
+    apply_design_to_config,
+    save_design_to_file,
+    validate_design,
+)
 import time
 
 
@@ -70,7 +80,11 @@ class RollingHorizonResult:
 
 @dataclass
 class DesignData:
-    """Design figures extracted from a PF optimisation."""
+    """Design figures extracted from a PF optimisation.
+
+    DEPRECATED: Use DesignSpec from energis.design instead.
+    Kept for backward compatibility.
+    """
 
     heat_pumps: Dict[str, Dict[str, float]]
     storage: Optional[Dict[str, float]]
@@ -81,7 +95,8 @@ class WorkflowPlan:
     """Parsed representation of the requested workflow sequence."""
 
     steps: Sequence[str]
-    fix_design: bool
+    fix_design: bool  # Legacy flag (deprecated, use design_config instead)
+    design_config: Optional[DesignConfig] = None  # New design configuration
 
 
 @dataclass
@@ -131,7 +146,8 @@ class WorkflowContext:
     pf_result: Optional[ScenarioResult] = None
     rh_result: Optional[RollingHorizonResult] = None
     mpc_result: Optional[RollingHorizonResult] = None
-    design: Optional[DesignData] = None
+    design: Optional[DesignData] = None  # Legacy (deprecated)
+    design_spec: Optional[DesignSpec] = None  # New design specification
 
 
 @dataclass
@@ -826,6 +842,9 @@ def _collect_timeseries_and_summary(
 
         # Calculate CAPEX breakdown by component type
         # Extract heat pump CAPEX
+        # ✅ FIX: Build lookup dict to get correct config for each HP by ID
+        hp_configs_by_id = {hp_cfg.get("id", f"HP{i}"): hp_cfg
+                            for i, hp_cfg in enumerate(cfg.get("system", {}).get("heat_pumps", []))}
         for hp in meta["heat_pumps"]:
             comp = hp["id"]
             if hp.get("invest_enabled", False):
@@ -833,7 +852,9 @@ def _collect_timeseries_and_summary(
                 if cap_var is not None:
                     try:
                         cap_value = float(pyo.value(cap_var))
-                        inv_cfg = cfg.get("system", {}).get("heat_pumps", [{}])[0].get("investment", {})
+                        # ✅ FIX: Get investment config for THIS specific HP, not just [0]
+                        hp_cfg = hp_configs_by_id.get(comp, {})
+                        inv_cfg = hp_cfg.get("investment", {})
                         capex_rate = float(inv_cfg.get("capex_eur_per_mw", 0.0))
                         lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                         annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
@@ -1604,10 +1625,30 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
     inputs = _build_workflow_inputs(config_paths, overrides)
 
     context = WorkflowContext(inputs.cfg, inputs.table, inputs.dt_h, inputs.solver_name, inputs.plan)
+
+    # Load design based on new design configuration
+    design_config = inputs.plan.design_config
+    if design_config:
+        # Determine base path for resolving relative design file paths
+        base_path = None
+        if config_paths:
+            base_path = Path(config_paths[0]).parent
+
+        try:
+            context.design_spec = load_design_for_scenario(design_config, base_path)
+            if context.design_spec:
+                logger.info("[DESIGN] Loaded design: %s", design_config.mode)
+        except Exception as e:
+            logger.error("[DESIGN] Failed to load design: %s", e)
+            raise
+
+    # Legacy support: load design override from pf_design_json
     scenario_cfg = inputs.cfg.get("scenario", {})
-    design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
-    if design_override is not None:
-        context.design = design_override
+    if context.design_spec is None:
+        design_override = _load_design_override(scenario_cfg if isinstance(scenario_cfg, Mapping) else {})
+        if design_override is not None:
+            context.design = design_override
+            logger.info("[DESIGN] Loaded legacy design override from pf_design_json")
 
     for step in inputs.plan.steps:
         handler = _STEP_HANDLERS.get(step)
@@ -1642,14 +1683,37 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
     if not steps_upper:
         raise ValueError("Workflow must contain at least one step")
 
+    # Load new design configuration
+    design_config = load_design_config(scenario_cfg)
+
+    # Legacy support: fix_design flag (deprecated, use design.mode instead)
     fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH"}
     fix_design = bool(scenario_cfg.get("fix_design", scenario_cfg.get("fix_design_in_rh", fix_default)))
 
-    return WorkflowPlan(steps=steps_upper, fix_design=fix_design)
+    # If legacy fix_design is set but no design config, convert to optimize mode
+    if fix_design and design_config.mode == "none":
+        design_config = DesignConfig(mode="optimize", apply_from_window=1)
+        logger.info("[DESIGN] Legacy fix_design=true converted to design.mode=optimize")
+
+    return WorkflowPlan(steps=steps_upper, fix_design=fix_design, design_config=design_config)
 
 
 def _pf_step(context: WorkflowContext) -> None:
     result = _solve_scenario(context.table, context.cfg, context.dt_h, context.solver_name)
+
+    # Check for infeasible PF solution
+    term_cond = (result.solver.get("termination_condition") or "").lower()
+    if "infeasible" in term_cond or "unbounded" in term_cond:
+        logger.error(
+            "Perfect Foresight model is %s. Cannot proceed. "
+            "Check: heat demand vs capacity, storage limits, generator constraints.",
+            term_cond
+        )
+        raise RuntimeError(
+            f"Perfect Foresight optimization failed: {term_cond}. "
+            f"Hint: Verify generator capacities, storage configuration, and input data."
+        )
+
     context.pf_result = result
     context.design = _extract_design_data(result.summary)
 
@@ -1657,11 +1721,21 @@ def _pf_step(context: WorkflowContext) -> None:
 def _rh_step(context: WorkflowContext) -> None:
     params = _load_rolling_params(context.cfg)
     horizon_steps, step_steps, overlap_steps = params.as_steps(context.dt_h)
+
+    # Get design configuration
+    design_config = context.plan.design_config
+
+    # Determine if we have a pre-loaded design (from file or inline)
+    if context.design_spec is not None:
+        logger.info("[DESIGN] Using pre-loaded design (mode: %s)", design_config.mode if design_config else "unknown")
+
+    # Legacy support
     fix_design = context.plan.fix_design and context.design is not None
-    if context.plan.fix_design and context.design is None:
+    if context.plan.fix_design and context.design is None and context.design_spec is None:
         logger.warning(
-            "Design fixation requested but no PF design data available – proceeding without fixation."
+            "Design fixation requested but no design data available – proceeding without fixation."
         )
+
     context.rh_result = _run_rolling_horizon(
         context.cfg,
         context.table,
@@ -1673,9 +1747,20 @@ def _rh_step(context: WorkflowContext) -> None:
         overlap_steps,
         context.design,
         fix_design,
+        design_spec=context.design_spec,
+        design_config=design_config,
     )
+
+    # Update design from result if extracted
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
+
+    # Save design if configured
+    if design_config and design_config.save_to and context.rh_result.design is not None:
+        # Convert legacy DesignData to DesignSpec for saving
+        extracted_spec = extract_design_from_summary(context.rh_result.costs)  # or from first window summary
+        save_design_to_file(extracted_spec, design_config.save_to)
+        logger.info("[DESIGN] Saved optimized design to %s", design_config.save_to)
 
     # ✅ FIX: Bei PF→RH mit fix_design, übertrage Investment-Kosten aus PF
     # Problem: RH berechnet keine CAPEX bei fix_design=True, aber Dashboard zeigt RH als primary
@@ -1784,6 +1869,9 @@ def _run_rolling_horizon(
     overlap_steps: int,
     design: Optional[DesignData],
     fix_design: bool,
+    *,
+    design_spec: Optional[DesignSpec] = None,
+    design_config: Optional[DesignConfig] = None,
 ) -> RollingHorizonResult:
     n = len(table)
     if n == 0:
@@ -1795,8 +1883,16 @@ def _run_rolling_horizon(
     aggregated_costs: Dict[str, float] = {}
     windows: List[WindowResult] = []
 
+    # Determine design handling mode
+    design_mode = design_config.mode if design_config else "none"
+    apply_from_window = design_config.apply_from_window if design_config else 1
+
+    # If we have a pre-loaded design_spec, use it
+    # Otherwise, we may extract design from window 0 (optimize mode)
+    active_design_spec = design_spec
+
     design_state = design
-    cost_plan = _load_cost_plan(base_cfg, fix_design)
+    cost_plan = _load_cost_plan(base_cfg, fix_design or design_mode in ("file", "inline", "optimize"))
     once_costs: Set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
@@ -1818,22 +1914,78 @@ def _run_rolling_horizon(
 
         if params.terminal_policy:
             _apply_terminal_policy(window_cfg, params.terminal_policy)
-        if soc_next is not None and base_storage_enabled:
-            _set_initial_soc(window_cfg, soc_next)
 
-        should_fix_design = bool(
-            design_state is not None
-            and (
+        # Determine SOC override for this window
+        soc_override = soc_next if (soc_next is not None and base_storage_enabled) else None
+
+        # Determine terminal target based on policy:
+        # - "equal": enforce cyclic (terminal = initial SOC)
+        # - "geq": terminal >= initial SOC
+        # - "value": no hard constraint (economically optimized via terminal value function)
+        # - "soft": soft constraint with penalty (always feasible)
+        # - "free": no terminal constraint
+        policy = (params.terminal_policy or "equal").lower()
+        if policy in ("value", "free"):
+            # For value/free policies, don't force terminal target
+            terminal_target = None
+        else:
+            # For equal/geq/soft policies, use initial SOC as target
+            terminal_target = soc_override
+
+        # Determine if we should apply a fixed design to this window
+        # Priority: 1) New design_spec system, 2) Legacy fix_design system
+        should_apply_design = False
+
+        if active_design_spec is not None:
+            # New system: apply design from window apply_from_window onwards
+            if window_idx >= apply_from_window:
+                should_apply_design = True
+                logger.debug("[DESIGN] Window %d: Applying design_spec (mode=%s)", window_idx, design_mode)
+        elif design_state is not None:
+            # Legacy system
+            should_fix_design = bool(
                 fix_design
                 or (design is None and window_idx > 0)
             )
-        )
-        if should_fix_design:
-            window_cfg = _apply_design_fix(window_cfg, design_state)  # type: ignore[arg-type]
+            if should_fix_design:
+                should_apply_design = True
+                logger.debug("[DESIGN] Window %d: Applying legacy design_state", window_idx)
+
+        if should_apply_design:
+            if active_design_spec is not None:
+                # Use new apply_design_to_config from design module
+                window_cfg = apply_design_to_config(window_cfg, active_design_spec)
+            elif design_state is not None:
+                # Legacy: use old _apply_design_fix
+                window_cfg = _apply_design_fix(window_cfg, design_state)
 
         _apply_cost_overrides(window_cfg, cost_plan, window_idx)
 
-        window_result = _solve_scenario(window_table, window_cfg, dt_h, solver_name)
+        # Pass SOC override directly to build_model (robust approach)
+        window_result = _solve_scenario(
+            window_table,
+            window_cfg,
+            dt_h,
+            solver_name,
+            soc_init_override=soc_override,
+            terminal_target_override=terminal_target,
+        )
+
+        # Check for infeasible window
+        term_cond = (window_result.solver.get("termination_condition") or "").lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            logger.error(
+                "RH Window %d (start=%d) is %s. Stopping optimization. "
+                "Check: heat demand vs capacity, storage SOC constraints, terminal_policy setting.",
+                window_idx, start, term_cond
+            )
+            raise RuntimeError(
+                f"Rolling horizon window {window_idx} is infeasible. "
+                f"Termination condition: {term_cond}. "
+                f"Hint: Check if heat demand exceeds available capacity, "
+                f"or if storage terminal_policy='equal' cannot be satisfied."
+            )
+
         commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
         if commit_len <= 0:
             raise RuntimeError(
@@ -1877,8 +2029,20 @@ def _run_rolling_horizon(
             )
         window_idx += 1
 
+        # Extract design from window 0 if in optimize mode and no design yet
         if design_state is None:
             design_state = _extract_design_data(window_result.summary)
+
+        # For "optimize" mode: extract DesignSpec after first window
+        if design_mode == "optimize" and active_design_spec is None and window_idx == 1:
+            active_design_spec = extract_design_from_summary(window_result.summary)
+            errors = validate_design(active_design_spec)
+            if errors:
+                logger.warning("[DESIGN] Extracted design has validation issues: %s", errors)
+            else:
+                logger.info("[DESIGN] Extracted design from Window 0: storage=%.1f MWh / %.1f MW",
+                           active_design_spec.storage.capacity_mwh if active_design_spec.storage else 0,
+                           active_design_spec.storage.power_mw if active_design_spec.storage else 0)
 
     if aggregated_indices != list(range(n)):
         raise RuntimeError("Rolling horizon aggregation did not cover the full time series")
@@ -2003,9 +2167,15 @@ def _recompute_objective_costs(costs: MutableMapping[str, float]) -> None:
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
     soc_series = series.get("TES_SOC_MWh")
     if soc_series is None or commit_len <= 0:
+        print(f"[RH] _next_soc: No SOC series or invalid commit_len, using fallback={fallback}")
         return fallback
     idx = min(commit_len - 1, len(soc_series) - 1)
-    return float(soc_series[idx]) if idx >= 0 else fallback
+    soc_value = float(soc_series[idx]) if idx >= 0 else fallback
+    print(f"[RH] _next_soc: Extracting SOC at index {idx} (commit_len={commit_len})")
+    print(f"  - SOC value: {soc_value} MWh")
+    if len(soc_series) > 0:
+        print(f"  - SOC range in window: [{min(soc_series):.1f}, {max(soc_series):.1f}] MWh")
+    return soc_value
 
 
 def _solve_scenario(
@@ -2013,8 +2183,17 @@ def _solve_scenario(
     cfg: Dict[str, Any],
     dt_h: float,
     solver_name: str,
+    *,
+    soc_init_override: float | None = None,
+    terminal_target_override: float | None = None,
 ) -> ScenarioResult:
-    model = build_model(table, cfg, dt_h=dt_h)
+    model = build_model(
+        table,
+        cfg,
+        dt_h=dt_h,
+        soc_init_override=soc_init_override,
+        terminal_target_override=terminal_target_override,
+    )
     solver_meta: Dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
@@ -2042,6 +2221,20 @@ def _solve_scenario(
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+
+        # Check if solver found a feasible solution
+        term_cond = solver_meta["termination_condition"].lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            logger.error(
+                "Solver returned %s. Model is %s. "
+                "Check constraints: heat balance, storage limits, terminal policy.",
+                solver_meta["status"], term_cond
+            )
+            # Return empty results instead of trying to extract from infeasible model
+            series, summary, costs = _collect_timeseries_and_summary(
+                table, cfg, dt_h, None  # Pass None to get zero-filled results
+            )
+            return ScenarioResult(table, series, summary, costs, solver_meta)
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
@@ -2069,6 +2262,7 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "capacity_mw": capacity,
                 "build_binary": build,
             }
+            print(f"[DESIGN] Extracted HP {hp_id}: capacity={capacity:.1f} MW, build={build:.1f}")
         elif key.startswith("storage_"):
             storage = {
                 "name": key.split("storage_", 1)[1],
@@ -2076,6 +2270,8 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "power_mw": float(metrics.get("Power_limit_MW", 0.0)),
                 "build_binary": float(metrics.get("Build_binary", metrics.get("Build", 0.0))),
             }
+            print(f"[DESIGN] Extracted Storage: capacity={storage['capacity_mwh']:.1f} MWh, "
+                  f"power={storage['power_mw']:.1f} MW, build={storage['build_binary']:.1f}")
 
     return DesignData(heat_pumps=heat_pumps, storage=storage)
 
@@ -2160,12 +2356,30 @@ def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
 
 
 def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
+    """Set initial SOC for next RH window in all relevant config locations."""
+    print(f"[RH] _set_initial_soc: Setting initial SOC for next window")
+    print(f"  - soc0_mwh: {soc} MWh")
+
+    # Set in inputs (for backward compatibility)
     inputs = cfg.setdefault("inputs", {})
     if isinstance(inputs, dict):
         inputs["SOC_init"] = float(soc)
-    storage = cfg.setdefault("system", {}).setdefault("storage", {})
-    if isinstance(storage, dict):
-        storage["soc0_mwh"] = float(soc)
+
+    # Set in system.storage (primary location)
+    system = cfg.setdefault("system", {})
+    if isinstance(system, dict):
+        storage = system.setdefault("storage", {})
+        if isinstance(storage, dict):
+            storage["soc0_mwh"] = float(soc)
+            # Also set terminal target to match new initial SOC
+            terminal = storage.setdefault("terminal", {})
+            if isinstance(terminal, dict):
+                terminal["target_mwh"] = float(soc)
+
+    # Also set in root-level storage (if exists) for consistency
+    root_storage = cfg.get("storage")
+    if isinstance(root_storage, dict):
+        root_storage["soc0_mwh"] = float(soc)
 
 
 def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
@@ -2208,18 +2422,34 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
 
     storage_cfg = system.get("storage") if isinstance(system.get("storage"), dict) else None
     if storage_cfg and design.storage:
+        actual_capacity = float(design.storage.get("capacity_mwh", 0.0))
+        actual_power = float(design.storage.get("power_mw", 0.0))
+        print(f"[DESIGN_FIX] Applying storage design: capacity={actual_capacity:.1f} MWh, power={actual_power:.1f} MW")
+
+        # Safety check: if power is 0 but capacity is not, use a reasonable default
+        # (This can happen if Power_limit_MW was not properly captured in summary)
+        if actual_power <= 0 and actual_capacity > 0:
+            # Use a reasonable power-to-energy ratio (e.g., 1:50 = 2% of capacity)
+            actual_power = max(actual_capacity / 50.0, 10.0)
+            print(f"[DESIGN_FIX] WARNING: power was 0, using fallback: {actual_power:.1f} MW")
+
         storage_cfg["enabled"] = bool(design.storage.get("build_binary", 0.0) >= 0.5)
-        storage_cfg["max_energy_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
-        storage_cfg["min_energy_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
-        storage_cfg["max_power_mw"] = float(design.storage.get("power_mw", 0.0))
-        storage_cfg["min_power_mw"] = float(design.storage.get("power_mw", 0.0))
+        storage_cfg["max_energy_mwh"] = actual_capacity
+        # Note: min_energy_mwh is minimum SOC (usually 0), NOT minimum capacity
+        # Do NOT set it to actual_capacity - that would force storage to always be full!
+        storage_cfg["max_power_mw"] = actual_power
+        # Note: min_power_mw is kept at original value (usually 0 for flexibility)
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):
             invest_cfg["enabled"] = False
-            invest_cfg["energy_capacity_min_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
-            invest_cfg["energy_capacity_max_mwh"] = float(design.storage.get("capacity_mwh", 0.0))
-            invest_cfg["power_capacity_min_mw"] = float(design.storage.get("power_mw", 0.0))
-            invest_cfg["power_capacity_max_mw"] = float(design.storage.get("power_mw", 0.0))
+            invest_cfg["energy_capacity_min_mwh"] = actual_capacity
+            invest_cfg["energy_capacity_max_mwh"] = actual_capacity
+            invest_cfg["power_capacity_min_mw"] = actual_power
+            invest_cfg["power_capacity_max_mw"] = actual_power
+            # CRITICAL: Also set initial_energy_capacity_mwh to fixed capacity
+            # Otherwise e_cap_init uses old value and soc_max becomes too small
+            invest_cfg["initial_energy_capacity_mwh"] = actual_capacity
+            invest_cfg["initial_power_capacity_mw"] = actual_power
 
     return cfg_copy
 

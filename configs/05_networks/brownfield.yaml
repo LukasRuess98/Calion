@@ -1,0 +1,236 @@
+# =============================================================================
+# STADTBACH DISTRICT HEATING NETWORK
+# =============================================================================
+# Consolidated network configuration for publication
+# Supports both brownfield (fixed topology) and greenfield (investment) modes
+# =============================================================================
+
+metadata:
+  name: Stadtbach District Heating Network
+  description: District heating network for optimization framework
+  operator: SWA Netze
+
+# =============================================================================
+# NETWORK PARAMETERS
+# =============================================================================
+parameters:
+  # Temperature settings
+  supply_temp_nominal_c: 120
+  supply_temp_summer_c: 90
+  return_temp_nominal_c: 55
+
+  # Environmental parameters
+  ground_temp_default_c: 10
+  soil_thermal_conductivity: 1.5  # W/(m·K)
+  pipe_burial_depth_m: 1.2
+
+  # Hydraulic limits
+  design_pressure_bar: 16
+  min_pressure_bar: 2.0
+  max_pressure_bar: 25.0
+  max_velocity_m_s: 2.5
+
+# =============================================================================
+# PRODUCTION PLANTS
+# =============================================================================
+production_plants:
+  - node_id: plant_ost
+    name: "Erzeugungsanlagen Ost"
+    type: plant
+    elevation_m: 466.0
+    coordinates: {x: 3000, y: 0}
+    supply_temp_c: 100
+    supply_pressure_bar: 8.0
+
+  - node_id: plant_west
+    name: "Heizwerk West (HWW)"
+    type: plant
+    elevation_m: 471.9
+    coordinates: {x: -2000, y: 1000}
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+  - node_id: plant_sued
+    name: "Heizwerk Süd (HWS)"
+    type: plant
+    elevation_m: 490.5
+    coordinates: {x: 1000, y: -3000}
+    supply_temp_c: 100
+    supply_pressure_bar: 6.0
+
+# =============================================================================
+# PUMP STATIONS
+# =============================================================================
+pump_stations:
+  - node_id: pump_west
+    name: "Pumpstation West"
+    type: junction
+    elevation_m: 471.35
+    coordinates: {x: -1000, y: 500}
+
+  - node_id: pump_sued
+    name: "Pumpstation Süd"
+    type: junction
+    elevation_m: 485.0
+    coordinates: {x: 500, y: -2000}
+
+# =============================================================================
+# CONSUMER ZONES
+# =============================================================================
+consumer_zones:
+  # North Network (40% of total demand)
+  - node_id: zone_nord_zentral
+    name: "Nord - Zentral"
+    demand_fraction: 0.20
+    return_temp_c: 55.0
+
+  - node_id: zone_nord_west
+    name: "Nord - West"
+    demand_fraction: 0.12
+    return_temp_c: 55.0
+
+  - node_id: zone_nord_ost
+    name: "Nord - Ost"
+    demand_fraction: 0.08
+    return_temp_c: 55.0
+
+  # South Network (60% of total demand)
+  - node_id: zone_sued_zentral
+    name: "Süd - Zentral"
+    demand_fraction: 0.30
+    return_temp_c: 55.0
+
+  - node_id: zone_sued_west
+    name: "Süd - West"
+    demand_fraction: 0.18
+    return_temp_c: 55.0
+
+  - node_id: zone_sued_ost
+    name: "Süd - Ost"
+    demand_fraction: 0.12
+    return_temp_c: 55.0
+
+# =============================================================================
+# PIPES (Brownfield - existing infrastructure)
+# =============================================================================
+pipes:
+  # North Network
+  - id: main_ost_nord
+    from_node: plant_ost
+    to_node: zone_nord_zentral
+    length_m: 1800
+    existing: true
+    current_diameter_supply_mm: 300
+    current_diameter_return_mm: 300
+    u_value_supply_w_per_m_k: 0.26
+    u_value_return_w_per_m_k: 0.28
+    max_velocity_m_s: 2.5
+
+  - id: nord_zentral_west
+    from_node: zone_nord_zentral
+    to_node: zone_nord_west
+    length_m: 1200
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+
+  - id: nord_zentral_ost
+    from_node: zone_nord_zentral
+    to_node: zone_nord_ost
+    length_m: 1100
+    existing: true
+    current_diameter_supply_mm: 150
+    current_diameter_return_mm: 150
+    u_value_supply_w_per_m_k: 0.30
+    u_value_return_w_per_m_k: 0.32
+    max_velocity_m_s: 2.5
+
+  # West Plant Connection
+  - id: west_pump
+    from_node: plant_west
+    to_node: pump_west
+    length_m: 800
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+    max_velocity_m_s: 2.5
+
+  - id: pump_west_nord
+    from_node: pump_west
+    to_node: zone_nord_west
+    length_m: 600
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+
+  # South Network
+  - id: main_ost_sued
+    from_node: plant_ost
+    to_node: zone_sued_zentral
+    length_m: 2200
+    existing: true
+    current_diameter_supply_mm: 350
+    current_diameter_return_mm: 350
+    u_value_supply_w_per_m_k: 0.25
+    u_value_return_w_per_m_k: 0.27
+    max_velocity_m_s: 2.5
+
+  - id: sued_zentral_west
+    from_node: zone_sued_zentral
+    to_node: zone_sued_west
+    length_m: 1400
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+
+  - id: sued_zentral_ost
+    from_node: zone_sued_zentral
+    to_node: zone_sued_ost
+    length_m: 1300
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+
+  # South Plant Connection
+  - id: sued_pump
+    from_node: plant_sued
+    to_node: pump_sued
+    length_m: 900
+    existing: true
+    current_diameter_supply_mm: 250
+    current_diameter_return_mm: 250
+    u_value_supply_w_per_m_k: 0.27
+    u_value_return_w_per_m_k: 0.29
+    max_velocity_m_s: 2.5
+
+  - id: pump_sued_zentral
+    from_node: pump_sued
+    to_node: zone_sued_zentral
+    length_m: 1100
+    existing: true
+    current_diameter_supply_mm: 200
+    current_diameter_return_mm: 200
+    u_value_supply_w_per_m_k: 0.28
+    u_value_return_w_per_m_k: 0.30
+    max_velocity_m_s: 2.5
+
+# =============================================================================
+# SUMMARY
+# Total network length: 12,400 m
+# Number of pipes: 10
+# Number of nodes: 11 (3 plants, 2 pumps, 6 consumers)
+# =============================================================================

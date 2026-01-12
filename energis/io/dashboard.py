@@ -597,6 +597,65 @@ class EnerGISDashboard:
 
         return pn.Column(header, tabs, sizing_mode='stretch_width')
 
+    def _calculate_total_investment(self) -> float:
+        """Calculate total investment (CAPEX) from design capacities and config.
+
+        Returns the actual total investment cost, NOT annualized or pro-rated.
+        This is what the user expects: capacity × unit_cost + activation_costs.
+        """
+        total_investment = 0.0
+
+        design = self.workflow.design
+        config = getattr(self.workflow, 'config', {}) or {}
+
+        if not design:
+            return 0.0
+
+        # Get system config for cost parameters
+        system_cfg = config.get('system', {})
+
+        # Heat Pump investment costs
+        if design.heat_pumps:
+            hp_configs = {hp.get('id', f'HP{i}'): hp
+                          for i, hp in enumerate(system_cfg.get('heat_pumps', []))}
+
+            for hp_id, hp_info in design.heat_pumps.items():
+                capacity_mw = hp_info.get('capacity_mw', 0.0)
+                if capacity_mw > 0:
+                    # Get cost parameters from config
+                    hp_cfg = hp_configs.get(hp_id, {})
+                    inv_cfg = hp_cfg.get('investment', {})
+
+                    # Default: 400,000 EUR/MW
+                    capex_per_mw = float(inv_cfg.get('capex_eur_per_mw', 400000.0))
+                    activation_cost = float(inv_cfg.get('activation_cost_eur', 250000.0))
+
+                    # Calculate HP investment
+                    hp_investment = capacity_mw * capex_per_mw + activation_cost
+                    total_investment += hp_investment
+
+        # Storage investment costs
+        if design.storage:
+            storage_mwh = design.storage.get('capacity_mwh', 0.0)
+            storage_mw = design.storage.get('power_mw', 0.0)
+
+            if storage_mwh > 0 or storage_mw > 0:
+                sto_cfg = system_cfg.get('storage', {})
+                inv_cfg = sto_cfg.get('investment', {})
+
+                # Default: 5,000 EUR/MWh energy, 50,000 EUR/MW power
+                energy_capex = float(inv_cfg.get('energy_capex_eur_per_mwh', 5000.0))
+                power_capex = float(inv_cfg.get('power_capex_eur_per_mw', 50000.0))
+                activation_cost = float(inv_cfg.get('activation_cost_eur', 50000.0))
+
+                # Calculate storage investment
+                storage_investment = (storage_mwh * energy_capex +
+                                      storage_mw * power_capex +
+                                      activation_cost)
+                total_investment += storage_investment
+
+        return total_investment
+
     def _create_overview_tab(self) -> pn.Column:
         """Create overview tab with KPIs and summary."""
 
@@ -640,30 +699,27 @@ class EnerGISDashboard:
         total_cost = 0
         elec_cost = 0
         fuel_cost = 0
-        capex = 0
+        capex_annualized = 0
 
         if hasattr(result, 'costs') and result.costs:
             total_cost = result.costs.get('objective.OBJ_value_EUR', 0)
             elec_cost = result.costs.get('objective.Grid_energy_cost_EUR', 0)
             fuel_cost = result.costs.get('objective.Fuel_cost_EUR', 0)
-            capex = result.costs.get('objective.Capex_cost_EUR', 0)
+            capex_annualized = result.costs.get('objective.Capex_cost_EUR', 0)
 
-            # ✅ FALLBACK: Bei fehlendem CAPEX in RH/MPC, nutze PF-CAPEX
-            # Dies ist ein Fallback für den Fall, dass der Backend-Fix noch nicht angewendet wurde
-            # oder bei älteren gespeicherten Workflows
-            if capex == 0 and self.primary_label in ("RH", "MPC") and self.has_pf and self.workflow.pf_result:
-                pf_capex = self.workflow.pf_result.costs.get('objective.Capex_cost_EUR', 0)
-                if pf_capex > 0:
-                    import logging
-                    logging.info(
-                        f"Dashboard: Using PF CAPEX ({pf_capex:,.0f} EUR) as fallback "
-                        f"({self.primary_label} result has no CAPEX)"
-                    )
-                    capex = pf_capex
-                    # Addiere zu Gesamtkosten wenn noch nicht enthalten
-                    # (Prüfen ob CAPEX bereits in total_cost eingerechnet ist)
-                    if 'Capex_cost_EUR' not in result.costs or result.costs['Capex_cost_EUR'] == 0:
-                        total_cost += pf_capex
+        # ✅ FIX: Berechne GESAMTE Investition (nicht annualisiert!)
+        # Die Optimizer-Kosten sind anteilig auf den Optimierungszeitraum umgelegt.
+        # Für das Dashboard wollen wir die tatsächliche Gesamtinvestition anzeigen.
+        total_investment = self._calculate_total_investment()
+
+        # Fallback: Wenn kein Design vorhanden, nutze annualisierte CAPEX als Hinweis
+        if total_investment == 0 and capex_annualized > 0:
+            import logging
+            logging.warning(
+                "Dashboard: Kein Design-Objekt verfügbar für Investitionsberechnung. "
+                f"Zeige annualisierte CAPEX ({capex_annualized:,.0f} EUR) als Fallback."
+            )
+            total_investment = capex_annualized  # Zeigt zumindest etwas an
 
         # ✅ FIX: Berechne Autarkie-Metriken mit ORIGINAL-Summen
         total_heat_production = self.original_total_heat_production
@@ -699,7 +755,7 @@ class EnerGISDashboard:
             self._create_kpi_card("Gesamtkosten", f"{total_cost:,.0f} €", "primary"),
             self._create_kpi_card("Stromkosten", f"{elec_cost:,.0f} €", "info"),
             self._create_kpi_card("Brennstoffkosten", f"{fuel_cost:,.0f} €", "warning"),
-            self._create_kpi_card("Investition (CAPEX)", f"{capex:,.0f} €", "success"),
+            self._create_kpi_card("Investition (Gesamt)", f"{total_investment:,.0f} €", "success"),
 
             # Reihe 2: Wärme-Metriken (4 Karten)
             self._create_kpi_card("Wärmebedarf (Total)", f"{total_demand_MWh:,.0f} MWh", "secondary"),

@@ -1,0 +1,40 @@
+# =============================================================================
+# SYSTEM: WITH STORAGE
+# =============================================================================
+# Existing generators + thermal storage
+# No heat pumps in this configuration
+#
+# NOTE: This file defines WHAT is in the system and technical limits.
+# The scenario config (04_scenarios) defines WHAT gets optimized.
+# =============================================================================
+
+system:
+  # No heat pumps (storage only scenario)
+  heat_pumps: []
+
+  # Thermal storage
+  storage:
+    enabled: true
+    # Initial state
+    soc0_mwh: 500.0
+    # Technical limits
+    technical_limits:
+      energy_min_mwh: 100.0
+      energy_max_mwh: 5000.0
+      power_min_mw: 10.0
+      power_max_mw: 200.0
+    # Default values
+    defaults:
+      energy_mwh: 500.0
+      power_mw: 50.0
+      build: true
+    # Cost parameters
+    costs:
+      energy_capex_eur_per_mwh: 5000.0
+      power_capex_eur_per_mw: 50000.0
+      activation_cost_eur: 50000.0
+      lifetime_years: 20
+
+  # No thermal network in storage-only system
+  thermal_network:
+    enabled: false

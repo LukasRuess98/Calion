@@ -1,0 +1,80 @@
+# =============================================================================
+# SYSTEM: WITH HEAT PUMPS
+# =============================================================================
+# Existing generators + 4 heat pumps using WRG sources
+# No storage in this configuration
+#
+# NOTE: This file defines WHAT is in the system and technical limits.
+# The scenario config (04_scenarios) defines WHAT gets optimized.
+# =============================================================================
+
+system:
+  # Heat pumps with WRG (Waste Heat Recovery) sources
+  heat_pumps:
+    - id: HP1
+      enabled: true
+      wrg_source_column: "WRG1_ T °C"
+      wrg_capacity_column: "WRG1Q MW"
+      technical_limits:
+        capacity_min_mw: 5.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
+
+    - id: HP2
+      enabled: true
+      wrg_source_column: "WRG2_T °C"
+      wrg_capacity_column: "WRG2Q MW"
+      technical_limits:
+        capacity_min_mw: 5.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
+
+    - id: HP3
+      enabled: true
+      wrg_source_column: "WRG3_T °C"
+      wrg_capacity_column: "WRG3Q MW"
+      technical_limits:
+        capacity_min_mw: 5.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
+
+    - id: HP4
+      enabled: true
+      wrg_source_column: "WRG4_T °C"
+      wrg_capacity_column: "WRG4Q MW"
+      technical_limits:
+        capacity_min_mw: 5.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 50.0
+        build: true
+      costs:
+        capex_eur_per_mw: 400000.0
+        activation_cost_eur: 250000.0
+        lifetime_years: 15
+
+  # No storage in this system configuration
+  storage:
+    enabled: false
+
+  # No thermal network in HP-only system
+  thermal_network:
+    enabled: false

@@ -113,15 +113,18 @@ class StorageBlock(BaseComponent):
         setattr(m, f"{comp}_charge_mode", pyo.Var(Tset, domain=pyo.Binary))
         setattr(m, f"{comp}_discharge_mode", pyo.Var(Tset, domain=pyo.Binary))
         setattr(m, f"{comp}_active", pyo.Var(Tset, domain=pyo.Binary))
+        # When investment is disabled, capacity is fixed - ensure bounds accommodate the fixed value
+        effective_e_cap_max = max(self.e_cap_max, self.e_cap_init) if not self.investable else self.e_cap_max
+        effective_p_cap_max = max(self.p_cap_max, self.p_cap_init) if not self.investable else self.p_cap_max
         setattr(
             m,
             f"{comp}_cap_energy",
-            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, self.e_cap_max)),
+            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, effective_e_cap_max)),
         )
         setattr(
             m,
             f"{comp}_cap_power",
-            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, self.p_cap_max)),
+            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, effective_p_cap_max)),
         )
 
         E = getattr(m, f"{comp}_E")
@@ -238,6 +241,10 @@ class StorageBlock(BaseComponent):
 
         if self.soc0 > 0:
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
+
+        # NOTE: Terminal constraint is created at the system_builder level (system_builder.py:685-699)
+        # to allow for policy-based constraints (==, >=) based on terminal_policy.
+        # Do NOT create a duplicate constraint here.
 
         # Register flows with framework
         self.add_flow(Flow(
