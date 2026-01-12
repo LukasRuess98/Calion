@@ -842,6 +842,9 @@ def _collect_timeseries_and_summary(
 
         # Calculate CAPEX breakdown by component type
         # Extract heat pump CAPEX
+        # ✅ FIX: Build lookup dict to get correct config for each HP by ID
+        hp_configs_by_id = {hp_cfg.get("id", f"HP{i}"): hp_cfg
+                            for i, hp_cfg in enumerate(cfg.get("system", {}).get("heat_pumps", []))}
         for hp in meta["heat_pumps"]:
             comp = hp["id"]
             if hp.get("invest_enabled", False):
@@ -849,7 +852,9 @@ def _collect_timeseries_and_summary(
                 if cap_var is not None:
                     try:
                         cap_value = float(pyo.value(cap_var))
-                        inv_cfg = cfg.get("system", {}).get("heat_pumps", [{}])[0].get("investment", {})
+                        # ✅ FIX: Get investment config for THIS specific HP, not just [0]
+                        hp_cfg = hp_configs_by_id.get(comp, {})
+                        inv_cfg = hp_cfg.get("investment", {})
                         capex_rate = float(inv_cfg.get("capex_eur_per_mw", 0.0))
                         lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                         annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
