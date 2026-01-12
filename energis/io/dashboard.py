@@ -1679,17 +1679,20 @@ class EnerGISDashboard:
         )
 
         # COP Statistiken
+        # Filter: NaN and 0.0 values (inactive timesteps where COP is undefined)
         cop_stats = []
         for cop_col in cop_cols:
             comp_name = cop_col.replace('_COP', '').replace('_cop', '')
             values = self.df[cop_col].dropna()
+            values = values[values > 0]  # Filter 0.0 values (inactive timesteps)
             if len(values) > 0:
                 cop_stats.append({
                     'Komponente': comp_name,
                     'Durchschnitt': values.mean(),
                     'Minimum': values.min(),
                     'Maximum': values.max(),
-                    'Median': values.median()
+                    'Median': values.median(),
+                    'Betriebsstunden': len(values)
                 })
 
         if cop_stats:
@@ -1701,6 +1704,7 @@ class EnerGISDashboard:
             for cop_col in cop_cols:
                 comp_name = cop_col.replace('_COP', '').replace('_cop', '')
                 values = self.df[cop_col].dropna()
+                values = values[values > 0]  # Filter 0.0 values (inactive timesteps)
 
                 fig_cop_box.add_trace(go.Box(
                     y=values,
@@ -1715,10 +1719,12 @@ class EnerGISDashboard:
                 showlegend=True
             )
 
-            stats_md = f"""
+            stats_md = """
 ### COP Statistiken
 
-Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance:
+Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Performance.
+
+**Hinweis:** Nur aktive Betriebsstunden werden berücksichtigt (COP > 0). Zeitschritte, in denen die Wärmepumpe nicht läuft, sind ausgeschlossen.
 """
 
             # Tabelle
@@ -1730,6 +1736,7 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
                     'Minimum': {'type': 'money', 'symbol': '', 'precision': 2},
                     'Maximum': {'type': 'money', 'symbol': '', 'precision': 2},
                     'Median': {'type': 'money', 'symbol': '', 'precision': 2},
+                    'Betriebsstunden': {'type': 'money', 'symbol': '', 'precision': 0},
                 },
                 show_index=False,
                 theme='modern',

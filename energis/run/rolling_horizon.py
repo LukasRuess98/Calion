@@ -887,7 +887,8 @@ def _collect_timeseries_and_summary(
             if pel > 1e-9:
                 cop_series.append(float(heat / pel))
             else:
-                cop_series.append(0.0)
+                # NaN for inactive timesteps - physically COP is undefined when HP is off
+                cop_series.append(float('nan'))
         series[f"{comp}_COP"] = cop_series
         heat_mwh = float(sum(heat_series) * dt_h)
         pel_mwh = float(sum(pel_series) * dt_h)
