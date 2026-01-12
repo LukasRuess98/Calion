@@ -1,0 +1,25 @@
+# =============================================================================
+# PRESET: Rolling Horizon with Full System
+# =============================================================================
+# Production optimization with all technologies
+# - Rolling Horizon Q1 2023
+# - Heat pumps + Storage
+# - Investment optimization enabled
+#
+# Usage: python -m energis.run configs/presets/pf_full_system.yaml
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/heat_pumps.yaml
+  - ../01_tech/storage.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/assets.yaml
+  - ../03_systems/full.yaml
+  - ../04_scenarios/full_year_2023.yaml
+
+# All settings inherited - this is a complete production configuration
