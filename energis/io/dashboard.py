@@ -1637,13 +1637,17 @@ class EnerGISDashboard:
         )
 
     def _create_efficiency_tab(self) -> pn.Column:
-        """Create efficiency and COP analysis tab."""
+        """Create efficiency and COP analysis tab with input/output comparison."""
 
         if len(self.df) == 0:
             return pn.Column(pn.pane.Markdown("## WARNUNG: Keine Daten verfügbar"))
 
-        # Finde COP-Spalten
-        cop_cols = [col for col in self.df.columns if 'COP' in col or 'cop' in col]
+        # Find COP columns (calculated from results)
+        cop_cols = [col for col in self.df.columns if col.endswith('_COP')]
+        # Find input COP columns (from optimization parameters)
+        cop_input_cols = [col for col in self.df.columns if col.endswith('_COP_input')]
+        # Find WRG ratio columns
+        wrg_ratio_cols = [col for col in self.df.columns if col.endswith('_WRG_ratio')]
 
         if not cop_cols:
             return pn.Column(
@@ -1657,43 +1661,159 @@ class EnerGISDashboard:
                 )
             )
 
-        # COP über Zeit
-        fig_cop_time = go.Figure()
+        elements = [pn.pane.Markdown("## η Effizienz & COP Analyse")]
 
-        for cop_col in cop_cols:
-            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
-            fig_cop_time.add_trace(go.Scatter(
-                x=list(range(len(self.df))),
-                y=self.df[cop_col],
-                mode='lines',
-                name=comp_name,
-                line=dict(width=2)
-            ))
+        # === COP Comparison: Input vs Calculated ===
+        if cop_input_cols:
+            fig_cop_comparison = go.Figure()
+            warnings = []
 
-        fig_cop_time.update_layout(
-            title='COP über Zeit',
-            xaxis_title='Zeitschritt',
-            yaxis_title='COP [-]',
-            height=400,
-            hovermode='x unified'
-        )
+            for cop_col in cop_cols:
+                comp_name = cop_col.replace('_COP', '')
+                cop_input_col = f"{comp_name}_COP_input"
 
-        # COP Statistiken
+                if cop_input_col in self.df.columns:
+                    # Calculated COP
+                    calc_values = self.df[cop_col].dropna()
+                    calc_values = calc_values[calc_values > 0]
+
+                    # Input COP
+                    input_values = self.df[cop_input_col].dropna()
+                    input_values = input_values[input_values > 0]
+
+                    if len(calc_values) > 0:
+                        fig_cop_comparison.add_trace(go.Scatter(
+                            x=list(range(len(self.df))),
+                            y=self.df[cop_col],
+                            mode='lines',
+                            name=f'{comp_name} (berechnet)',
+                            line=dict(width=2)
+                        ))
+
+                    if len(input_values) > 0:
+                        fig_cop_comparison.add_trace(go.Scatter(
+                            x=list(range(len(self.df))),
+                            y=self.df[cop_input_col],
+                            mode='lines',
+                            name=f'{comp_name} (Input)',
+                            line=dict(width=2, dash='dash')
+                        ))
+
+                    # Check for significant deviation
+                    if len(calc_values) > 0 and len(input_values) > 0:
+                        avg_calc = calc_values.mean()
+                        avg_input = input_values.mean()
+                        if avg_input > 0:
+                            deviation_pct = abs(avg_calc - avg_input) / avg_input * 100
+                            if deviation_pct > 5:
+                                warnings.append(
+                                    f"**{comp_name}**: COP-Abweichung von {deviation_pct:.1f}% "
+                                    f"(Input: {avg_input:.2f}, Berechnet: {avg_calc:.2f})"
+                                )
+
+            fig_cop_comparison.update_layout(
+                title='COP Vergleich: Input vs Berechnet',
+                xaxis_title='Zeitschritt',
+                yaxis_title='COP [-]',
+                height=400,
+                hovermode='x unified',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+
+            comparison_md = """
+### COP Vergleich: Input vs Berechnet
+
+- **Input COP**: Der COP-Wert, der als Parameter in die Optimierung eingeht (basierend auf Temperatur)
+- **Berechneter COP**: Der tatsächliche COP aus den Optimierungsergebnissen (Q_th / P_el)
+
+Bei reiner WRG-Nutzung (ohne Fallback) sollten beide Werte übereinstimmen.
+Abweichungen entstehen, wenn der Optimizer Fallback-Wärme (Q_def) mit COP_default nutzt.
+"""
+
+            elements.append(pn.pane.Markdown(comparison_md))
+
+            if warnings:
+                warning_md = "### ⚠️ COP-Abweichungen erkannt\n\n" + "\n".join(f"- {w}" for w in warnings)
+                warning_md += "\n\n**Ursache:** Der Optimizer nutzt teilweise Fallback-Wärme (Q_def) mit konstantem COP_default."
+                elements.append(pn.pane.Markdown(warning_md))
+
+            elements.append(pn.pane.Plotly(fig_cop_comparison, sizing_mode='stretch_width'))
+            elements.append(pn.layout.Divider())
+
+        # === WRG Ratio Analysis ===
+        if wrg_ratio_cols:
+            fig_wrg = go.Figure()
+
+            for wrg_col in wrg_ratio_cols:
+                comp_name = wrg_col.replace('_WRG_ratio', '')
+                values = self.df[wrg_col].dropna()
+                values = values[(values >= 0) & (values <= 1)]
+
+                if len(values) > 0:
+                    fig_wrg.add_trace(go.Scatter(
+                        x=list(range(len(self.df))),
+                        y=self.df[wrg_col] * 100,  # Convert to percentage
+                        mode='lines',
+                        name=comp_name,
+                        line=dict(width=2),
+                        fill='tozeroy'
+                    ))
+
+            fig_wrg.update_layout(
+                title='WRG-Anteil über Zeit (Waste Recovery Ratio)',
+                xaxis_title='Zeitschritt',
+                yaxis_title='WRG-Anteil [%]',
+                yaxis=dict(range=[0, 105]),
+                height=350,
+                hovermode='x unified'
+            )
+
+            wrg_md = """
+### WRG-Verhältnis (Waste Recovery Ratio)
+
+Zeigt den Anteil der Wärme, die über Waste Recovery (WRG) mit variablem COP bereitgestellt wird.
+- **100%**: Gesamte Wärme kommt aus WRG (COP = COP_input)
+- **< 100%**: Teil der Wärme kommt aus Fallback (Q_def) mit COP_default
+"""
+            elements.append(pn.pane.Markdown(wrg_md))
+            elements.append(pn.pane.Plotly(fig_wrg, sizing_mode='stretch_width'))
+            elements.append(pn.layout.Divider())
+
+        # === COP Statistics Table ===
         # Filter: NaN and 0.0 values (inactive timesteps where COP is undefined)
         cop_stats = []
         for cop_col in cop_cols:
-            comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+            comp_name = cop_col.replace('_COP', '')
             values = self.df[cop_col].dropna()
             values = values[values > 0]  # Filter 0.0 values (inactive timesteps)
+
             if len(values) > 0:
-                cop_stats.append({
+                stat_entry = {
                     'Komponente': comp_name,
-                    'Durchschnitt': values.mean(),
-                    'Minimum': values.min(),
-                    'Maximum': values.max(),
-                    'Median': values.median(),
+                    'COP (berechnet)': values.mean(),
+                    'Min': values.min(),
+                    'Max': values.max(),
                     'Betriebsstunden': len(values)
-                })
+                }
+
+                # Add input COP if available
+                cop_input_col = f"{comp_name}_COP_input"
+                if cop_input_col in self.df.columns:
+                    input_values = self.df[cop_input_col].dropna()
+                    input_values = input_values[input_values > 0]
+                    if len(input_values) > 0:
+                        stat_entry['COP (Input)'] = input_values.mean()
+                        stat_entry['Abweichung [%]'] = abs(values.mean() - input_values.mean()) / input_values.mean() * 100 if input_values.mean() > 0 else 0
+
+                # Add WRG ratio if available
+                wrg_col = f"{comp_name}_WRG_ratio"
+                if wrg_col in self.df.columns:
+                    wrg_values = self.df[wrg_col].dropna()
+                    wrg_values = wrg_values[(wrg_values >= 0) & (wrg_values <= 1)]
+                    if len(wrg_values) > 0:
+                        stat_entry['WRG-Anteil [%]'] = wrg_values.mean() * 100
+
+                cop_stats.append(stat_entry)
 
         if cop_stats:
             cop_stats_df = pd.DataFrame(cop_stats)
@@ -1702,7 +1822,7 @@ class EnerGISDashboard:
             fig_cop_box = go.Figure()
 
             for cop_col in cop_cols:
-                comp_name = cop_col.replace('_COP', '').replace('_cop', '')
+                comp_name = cop_col.replace('_COP', '')
                 values = self.df[cop_col].dropna()
                 values = values[values > 0]  # Filter 0.0 values (inactive timesteps)
 
@@ -1729,32 +1849,30 @@ Die folgende Tabelle zeigt die statistischen Kennwerte für die Wärmepumpen-Per
 
             # Tabelle
             from panel.widgets import Tabulator
+            formatters = {
+                'COP (berechnet)': {'type': 'money', 'symbol': '', 'precision': 2},
+                'COP (Input)': {'type': 'money', 'symbol': '', 'precision': 2},
+                'Min': {'type': 'money', 'symbol': '', 'precision': 2},
+                'Max': {'type': 'money', 'symbol': '', 'precision': 2},
+                'Betriebsstunden': {'type': 'money', 'symbol': '', 'precision': 0},
+                'Abweichung [%]': {'type': 'money', 'symbol': '', 'precision': 1},
+                'WRG-Anteil [%]': {'type': 'money', 'symbol': '', 'precision': 1},
+            }
             stats_table = Tabulator(
                 cop_stats_df,
-                formatters={
-                    'Durchschnitt': {'type': 'money', 'symbol': '', 'precision': 2},
-                    'Minimum': {'type': 'money', 'symbol': '', 'precision': 2},
-                    'Maximum': {'type': 'money', 'symbol': '', 'precision': 2},
-                    'Median': {'type': 'money', 'symbol': '', 'precision': 2},
-                    'Betriebsstunden': {'type': 'money', 'symbol': '', 'precision': 0},
-                },
+                formatters=formatters,
                 show_index=False,
                 theme='modern',
                 sizing_mode='stretch_width'
             )
 
-            return pn.Column(
-                pn.pane.Markdown("## η Effizienz & COP Analyse"),
-                pn.pane.Markdown(stats_md),
-                stats_table,
-                pn.layout.Divider(),
-                pn.pane.Markdown("### COP Zeitverlauf"),
-                pn.pane.Plotly(fig_cop_time, sizing_mode='stretch_width'),
-                pn.layout.Divider(),
-                pn.pane.Markdown("### COP Verteilung"),
-                pn.pane.Plotly(fig_cop_box, sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
+            elements.append(pn.pane.Markdown(stats_md))
+            elements.append(stats_table)
+            elements.append(pn.layout.Divider())
+            elements.append(pn.pane.Markdown("### COP Verteilung"))
+            elements.append(pn.pane.Plotly(fig_cop_box, sizing_mode='stretch_width'))
+
+            return pn.Column(*elements, sizing_mode='stretch_width')
 
         return pn.Column(pn.pane.Markdown("## WARNUNG: Keine COP-Statistiken verfügbar"))
 

@@ -454,6 +454,8 @@ def _collect_timeseries_and_summary(
         series[f"{comp}_Q_wrg_MW"] = [0.0] * n
         series[f"{comp}_Q_def_MW"] = [0.0] * n
         series[f"{comp}_COP"] = [0.0] * n
+        series[f"{comp}_COP_input"] = [0.0] * n  # Input COP from optimization parameter
+        series[f"{comp}_WRG_ratio"] = [0.0] * n  # Q_wrg / Q_total ratio
 
     if meta["storage"]:
         series["TES_SOC_MWh"] = [0.0] * n
@@ -566,6 +568,16 @@ def _collect_timeseries_and_summary(
             _extract(getattr(model, f"{comp}_on", None), f"{comp}_on")
             _extract(getattr(model, f"{comp}_Q_wrg", None), f"{comp}_Q_wrg_MW")
             _extract(getattr(model, f"{comp}_Q_def", None), f"{comp}_Q_def_MW")
+            # Extract input COP from Pyomo parameter
+            cop_param = getattr(model, f"{comp}_COP", None)
+            if cop_param is not None:
+                for t in model_Tset:
+                    idx = t - 1 + global_offset
+                    if idx < n:
+                        try:
+                            series[f"{comp}_COP_input"][idx] = float(pyo.value(cop_param[t]))
+                        except Exception:
+                            pass
 
         if meta["storage"]:
             _extract(getattr(model, "TES_E", None), "TES_SOC_MWh")
@@ -882,17 +894,43 @@ def _collect_timeseries_and_summary(
         heat_series = series[f"{comp}_Q_th_MW"]
         pel_series = series[f"{comp}_Pel_MW"]
         on_series = series[f"{comp}_on"]
+        q_wrg_series = series[f"{comp}_Q_wrg_MW"]
+        q_def_series = series[f"{comp}_Q_def_MW"]
+        cop_input_series = series[f"{comp}_COP_input"]
+
+        # Calculate COP from results and WRG ratio
         cop_series = []
-        for heat, pel in zip(heat_series, pel_series):
+        wrg_ratio_series = []
+        for heat, pel, q_wrg in zip(heat_series, pel_series, q_wrg_series):
             if pel > 1e-9:
                 cop_series.append(float(heat / pel))
             else:
                 # NaN for inactive timesteps - physically COP is undefined when HP is off
                 cop_series.append(float('nan'))
+            # WRG ratio: how much of heat comes from waste recovery vs fallback
+            if heat > 1e-9:
+                wrg_ratio_series.append(float(q_wrg / heat))
+            else:
+                wrg_ratio_series.append(float('nan'))
+
         series[f"{comp}_COP"] = cop_series
+        series[f"{comp}_WRG_ratio"] = wrg_ratio_series
+
         heat_mwh = float(sum(heat_series) * dt_h)
         pel_mwh = float(sum(pel_series) * dt_h)
         on_hours = float(sum(on_series) * dt_h)
+        q_wrg_mwh = float(sum(q_wrg_series) * dt_h)
+        q_def_mwh = float(sum(q_def_series) * dt_h)
+
+        # Calculate average input COP (weighted by heat output)
+        avg_cop_input = 0.0
+        total_weight = 0.0
+        for cop_in, heat in zip(cop_input_series, heat_series):
+            if cop_in > 0 and heat > 1e-9:
+                avg_cop_input += cop_in * heat
+                total_weight += heat
+        avg_cop_input = float(avg_cop_input / total_weight) if total_weight > 1e-9 else 0.0
+
         cap_value = float(hp.get("cap_init", hp["max_th"]))
         build_value = 1.0 if cap_value > 0 else 0.0
         if model is not None and HAVE_PYOMO:
@@ -910,10 +948,14 @@ def _collect_timeseries_and_summary(
                     build_value = 1.0 if cap_value > 0 else 0.0
         full_load = float((heat_mwh / cap_value) if cap_value > 1e-9 else 0.0)
         avg_cop = float((heat_mwh / pel_mwh) if pel_mwh > 1e-9 else 0.0)
+        avg_wrg_ratio = float((q_wrg_mwh / heat_mwh) if heat_mwh > 1e-9 else 0.0)
+
         hp_section = OrderedDict(
             [
                 ("Heat_output_MWh", heat_mwh),
                 ("Electricity_input_MWh", pel_mwh),
+                ("Q_wrg_MWh", q_wrg_mwh),
+                ("Q_def_MWh", q_def_mwh),
                 ("Operating_hours_h", on_hours),
                 ("Full_load_hours_h", full_load),
                 ("Thermal_capacity_MW", cap_value),
@@ -924,6 +966,8 @@ def _collect_timeseries_and_summary(
                     [hp.get("cap_min", 0.0), hp.get("cap_max", hp.get("max_th", cap_value))],
                 ),
                 ("Average_COP", avg_cop),
+                ("Average_COP_input", avg_cop_input),
+                ("Average_WRG_ratio", avg_wrg_ratio),
             ]
         )
 
