@@ -162,11 +162,19 @@ def _evaluate_costs_on_actual_data(
     fuel_cost_by_type: Dict[str, float] = {}
 
     # Get generator metadata from config
-    generators_cfg = cfg.get("system", {}).get("generators", [])
+    # Note: generators_cfg is a dict with gen_name as key, not a list
+    generators_cfg = cfg.get("system", {}).get("generators", {})
+    generators_tech = cfg.get("generators", {})  # Technical parameters (th_eff, fuel_bus)
     fuels_cfg = cfg.get("fuels", {})
 
-    for gen_cfg in generators_cfg:
-        gen_name = gen_cfg.get("name", gen_cfg.get("id", ""))
+    # Handle both dict and list format for generators
+    if isinstance(generators_cfg, dict):
+        gen_items = generators_cfg.items()
+    else:
+        # Fallback for list format
+        gen_items = [(g.get("name", g.get("id", "")), g) for g in generators_cfg if isinstance(g, dict)]
+
+    for gen_name, gen_cfg in gen_items:
         if not gen_name:
             continue
 
@@ -178,13 +186,24 @@ def _evaluate_costs_on_actual_data(
         fuel_series = series[fuel_key][:n]
         fuel_mwh = sum(fuel_series) * dt_h
 
-        # Get fuel type and price
-        fuel_type = str(gen_cfg.get("fuel_type", "gas")).lower()
+        # Get fuel type from technical config (fuel_bus) or asset config
+        gen_tech = generators_tech.get(gen_name, {})
+        if isinstance(gen_cfg, dict):
+            fuel_type = str(gen_cfg.get("fuel_bus", gen_cfg.get("fuel_type", ""))).lower()
+        else:
+            fuel_type = ""
+        if not fuel_type and isinstance(gen_tech, dict):
+            fuel_type = str(gen_tech.get("fuel_bus", gen_tech.get("fuel_type", "gas"))).lower()
+        if not fuel_type:
+            fuel_type = "gas"  # Default fallback
+
         fuel_cfg = fuels_cfg.get(fuel_type, {})
 
         # Fuel price (check multiple sources)
-        fuel_price = float(gen_cfg.get("fuel_price_eur_per_mwh", 0.0))
-        if fuel_price == 0:
+        fuel_price = 0.0
+        if isinstance(gen_cfg, dict):
+            fuel_price = float(gen_cfg.get("fuel_price_eur_per_mwh", 0.0))
+        if fuel_price == 0 and isinstance(fuel_cfg, dict):
             fuel_price = float(fuel_cfg.get("price_eur_per_mwh", 0.0))
         if fuel_price == 0 and fuel_type == "gas":
             # Use actual gas prices if available
@@ -199,7 +218,9 @@ def _evaluate_costs_on_actual_data(
         fuel_cost_by_type[fuel_type] = fuel_cost_by_type.get(fuel_type, 0.0) + cost_eur
 
         # Fuel emissions
-        emission_factor = float(fuel_cfg.get("co2_kg_per_mwh", 200.0))
+        emission_factor = 200.0  # Default
+        if isinstance(fuel_cfg, dict):
+            emission_factor = float(fuel_cfg.get("co2_kg_per_mwh", 200.0))
         emissions_t = fuel_mwh * emission_factor / 1000.0  # kg to tonnes
         fuel_emissions_t += emissions_t
 
