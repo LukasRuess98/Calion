@@ -3,13 +3,16 @@
 This module implements MPC by running rolling horizon optimization
 with periodically updated forecasts, simulating realistic operational
 planning where new forecast information becomes available.
+
+Key feature: MPC decisions are made on forecast data, but costs are
+evaluated on actual historical data for fair comparison with PF.
 """
 
 from __future__ import annotations
 
 import copy
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, MutableMapping
 from collections import OrderedDict
 
 from energis.forecasting.base import ForecastGenerator
@@ -17,6 +20,137 @@ from energis.utils.timeseries import TimeSeriesTable
 from energis.run.rolling_horizon import _slice_table
 
 logger = logging.getLogger(__name__)
+
+
+def _evaluate_costs_on_actual_data(
+    series: OrderedDict[str, List[float]],
+    actual_data: TimeSeriesTable,
+    committed_indices: List[int],
+    cfg: Dict[str, Any],
+    dt_h: float,
+) -> Dict[str, float]:
+    """Evaluate MPC decisions on actual (not forecast) data.
+
+    This is critical for fair comparison with PF: MPC makes decisions based
+    on imperfect forecasts, but the true cost of those decisions must be
+    calculated using actual prices and demand.
+
+    Parameters
+    ----------
+    series:
+        MPC decision time series (P_buy, P_sell, generator outputs, etc.)
+    actual_data:
+        The actual historical data with true prices
+    committed_indices:
+        Indices into actual_data for the committed steps
+    cfg:
+        Configuration dictionary (for cost parameters)
+    dt_h:
+        Time step in hours
+
+    Returns
+    -------
+    Dictionary of evaluated costs on actual data
+    """
+    n = len(committed_indices)
+    if n == 0:
+        return {}
+
+    # Extract actual prices for committed period
+    actual_elec_prices = []
+    actual_gas_prices = []
+    actual_demand = []
+
+    for idx in committed_indices:
+        if idx < len(actual_data):
+            actual_elec_prices.append(actual_data["price_elec_eur_mwh"][idx] if "price_elec_eur_mwh" in actual_data else 0.0)
+            actual_gas_prices.append(actual_data["price_gas_eur_mwh"][idx] if "price_gas_eur_mwh" in actual_data else 0.0)
+            actual_demand.append(actual_data["demand_mw"][idx] if "demand_mw" in actual_data else 0.0)
+
+    # Get MPC decisions (truncate to committed length)
+    p_buy = series.get("P_buy_MW", [0.0] * n)[:n]
+    p_sell = series.get("P_sell_MW", [0.0] * n)[:n]
+
+    # Calculate grid costs with actual prices
+    grid_cfg = cfg.get("grid", {})
+    energy_fee = float(grid_cfg.get("energy_fee_eur_per_mwh", 0.0))
+    grid_fee = float(grid_cfg.get("gridcost_eur_per_mwh", 0.0))
+    sell_price_base = float(grid_cfg.get("sell_price_eur_per_mwh", 0.0))
+
+    energy_cost = 0.0
+    energy_revenue = 0.0
+    base_electricity_cost = 0.0
+    energy_fee_cost = 0.0
+    grid_fee_cost = 0.0
+
+    for t in range(n):
+        elec_price = actual_elec_prices[t] if t < len(actual_elec_prices) else 0.0
+        buy_mw = p_buy[t] if t < len(p_buy) else 0.0
+        sell_mw = p_sell[t] if t < len(p_sell) else 0.0
+
+        # Buying electricity
+        base_electricity_cost += buy_mw * elec_price * dt_h
+        energy_fee_cost += buy_mw * energy_fee * dt_h
+        grid_fee_cost += buy_mw * grid_fee * dt_h
+
+        # Selling electricity
+        sell_price = sell_price_base if sell_price_base > 0 else elec_price
+        energy_revenue += sell_mw * sell_price * dt_h
+
+    energy_cost = base_electricity_cost + energy_fee_cost + grid_fee_cost
+
+    # Calculate fuel costs with actual gas prices
+    fuel_cost = 0.0
+    # Find all generator fuel series
+    for key, values in series.items():
+        if key.endswith("_fuel_MW"):
+            for t in range(min(n, len(values))):
+                gas_price = actual_gas_prices[t] if t < len(actual_gas_prices) else 0.0
+                fuel_cost += values[t] * gas_price * dt_h
+
+    # Demand charge (peak power)
+    demand_charge_rate = float(grid_cfg.get("demand_charge_eur_per_mw_year", 0.0))
+    from energis.constants import HOURS_PER_YEAR
+    period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n > 0 else 0.0
+    demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
+    peak_power = max(p_buy) if p_buy else 0.0
+    demand_cost = demand_charge_rate * demand_year_fraction * peak_power
+
+    # CO2 costs - based on fuel consumption (emission factors from config)
+    costs_cfg = cfg.get("costs", {})
+    co2_price = float(costs_cfg.get("co2_price_eur_per_t", 0.0))
+    fuels_cfg = cfg.get("fuels", {})
+
+    co2_emissions_kg = 0.0
+    for key, values in series.items():
+        if key.endswith("_fuel_MW"):
+            # Get emission factor for this fuel type (default: gas)
+            gas_emissions = float(fuels_cfg.get("gas", {}).get("co2_kg_per_mwh", 200.0))
+            for t in range(min(n, len(values))):
+                co2_emissions_kg += values[t] * gas_emissions * dt_h
+
+    co2_cost = co2_emissions_kg / 1000.0 * co2_price  # Convert kg to tonnes
+
+    # Dump costs (heat dumping penalty)
+    dump_series = series.get("Q_dump_MWth", [0.0] * n)[:n]
+    dump_price = float(costs_cfg.get("dump_price_eur_per_mwh", 100.0))
+    dump_cost = sum(dump_series) * dump_price * dt_h
+
+    # Build evaluated costs dict
+    evaluated_costs = {
+        "objective.Grid_energy_cost_EUR": energy_cost,
+        "objective.Electricity_base_cost_EUR": base_electricity_cost,
+        "objective.Electricity_energy_fee_EUR": energy_fee_cost,
+        "objective.Electricity_grid_fee_EUR": grid_fee_cost,
+        "objective.Grid_sell_revenue_EUR": energy_revenue,
+        "objective.Grid_net_cost_EUR": energy_cost - energy_revenue,
+        "objective.Fuel_cost_EUR": fuel_cost,
+        "objective.Demand_charge_cost_EUR": demand_cost,
+        "objective.CO2_cost_EUR": co2_cost,
+        "objective.Dump_cost_EUR": dump_cost,
+    }
+
+    return evaluated_costs
 
 
 def run_mpc(
@@ -201,7 +335,33 @@ def run_mpc(
 
     logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
 
-    # Recompute objective total from aggregated costs
+    # =========================================================================
+    # CRITICAL: Evaluate costs on ACTUAL data, not forecast data
+    # =========================================================================
+    # MPC decisions are made on imperfect forecasts, but true costs must be
+    # calculated using actual prices for fair comparison with PF.
+    # =========================================================================
+    evaluated_costs = _evaluate_costs_on_actual_data(
+        series=aggregated_series,
+        actual_data=historical_data,
+        committed_indices=aggregated_indices,
+        cfg=base_cfg,
+        dt_h=dt_h,
+    )
+
+    # Replace forecast-based costs with actual-data costs
+    # Keep investment costs (CAPEX) from aggregation - they don't depend on prices
+    for key, value in evaluated_costs.items():
+        aggregated_costs[key] = value
+        logger.debug(f"Replaced {key}: {value:.2f}")
+
+    logger.info(
+        f"MPC costs re-evaluated on actual data: "
+        f"Grid={evaluated_costs.get('objective.Grid_energy_cost_EUR', 0):,.0f} EUR, "
+        f"Fuel={evaluated_costs.get('objective.Fuel_cost_EUR', 0):,.0f} EUR"
+    )
+
+    # Recompute objective total from actual-data costs
     _recompute_objective_costs(aggregated_costs)
 
     # Build final result
