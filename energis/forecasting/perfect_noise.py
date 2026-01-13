@@ -72,31 +72,31 @@ class PerfectNoiseForecast(ForecastGenerator):
         forecast = _slice_table(historical_data, indices)
 
         # Add noise to demand series
-        if "demand_mw" in forecast.series:
-            demand = np.array(forecast.series["demand_mw"])
+        if "demand_mw" in forecast:
+            demand = np.array(forecast["demand_mw"])
             if len(demand) > 0 and demand.mean() > 0:
                 # Additive Gaussian noise scaled by mean
                 noise = self.rng.normal(0, self.std_dev * demand.mean(), len(demand))
                 noisy_demand = demand + noise
                 # Clip to ensure non-negative
-                forecast.series["demand_mw"] = noisy_demand.clip(min=0).tolist()
+                forecast.data["demand_mw"] = noisy_demand.clip(min=0).tolist()
 
         # Add noise to electricity price (lognormal to keep positive)
-        if "price_elec_eur_mwh" in forecast.series:
-            price = np.array(forecast.series["price_elec_eur_mwh"])
+        if "price_elec_eur_mwh" in forecast:
+            price = np.array(forecast["price_elec_eur_mwh"])
             if len(price) > 0:
                 # Multiplicative lognormal noise
                 noise_factor = self.rng.lognormal(0, self.std_dev, len(price))
                 noisy_price = price * noise_factor
-                forecast.series["price_elec_eur_mwh"] = noisy_price.clip(min=0).tolist()
+                forecast.data["price_elec_eur_mwh"] = noisy_price.clip(min=0).tolist()
 
         # Add noise to gas price if present
-        if "price_gas_eur_mwh" in forecast.series:
-            price = np.array(forecast.series["price_gas_eur_mwh"])
+        if "price_gas_eur_mwh" in forecast:
+            price = np.array(forecast["price_gas_eur_mwh"])
             if len(price) > 0:
                 noise_factor = self.rng.lognormal(0, self.std_dev, len(price))
                 noisy_price = price * noise_factor
-                forecast.series["price_gas_eur_mwh"] = noisy_price.clip(min=0).tolist()
+                forecast.data["price_gas_eur_mwh"] = noisy_price.clip(min=0).tolist()
 
         return forecast
 
