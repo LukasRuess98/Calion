@@ -57,44 +57,34 @@ def _evaluate_costs_on_actual_data(
     Dictionary of evaluated costs on actual data
     """
     from energis.constants import HOURS_PER_YEAR
+    from energis.run.rolling_horizon import _gather_component_metadata
 
     n = len(committed_indices)
     if n == 0:
         return {}
 
+    # Get component metadata using same function as PF
+    meta = _gather_component_metadata(cfg)
+
     # =========================================================================
     # 1. EXTRACT ACTUAL DATA FOR COMMITTED PERIOD
     # =========================================================================
-    # Mirror the data extraction from _collect_timeseries_and_summary
+    # Use same column name as PF: strompreis_EUR_MWh
+    price_series = actual_data.data.get("strompreis_EUR_MWh", [0.0] * len(actual_data))
+    grid_co2_series = actual_data.data.get("grid_co2_kg_MWh", [0.0] * len(actual_data))
+
+    # Extract prices for committed indices
     actual_elec_prices = []
-    actual_gas_prices = []
     actual_grid_co2 = []
-
     for idx in committed_indices:
-        if idx < len(actual_data):
-            # Electricity price (try multiple column names)
-            elec_price = 0.0
-            for col in ["price_elec_eur_mwh", "strompreis_EUR_MWh", "Strompreis_EUR_MWh"]:
-                if col in actual_data:
-                    elec_price = actual_data[col][idx]
-                    break
-            actual_elec_prices.append(elec_price)
-
-            # Gas price
-            gas_price = 0.0
-            for col in ["price_gas_eur_mwh", "gaspreis_EUR_MWh", "Gaspreis_EUR_MWh"]:
-                if col in actual_data:
-                    gas_price = actual_data[col][idx]
-                    break
-            actual_gas_prices.append(gas_price)
-
-            # Grid CO2 emission factor (kg/MWh)
-            grid_co2 = 0.0
-            for col in ["grid_co2_kg_MWh", "grid_co2_kg_mwh", "Grid_CO2_kg_MWh"]:
-                if col in actual_data:
-                    grid_co2 = actual_data[col][idx]
-                    break
-            actual_grid_co2.append(grid_co2)
+        if idx < len(price_series):
+            actual_elec_prices.append(float(price_series[idx]))
+        else:
+            actual_elec_prices.append(0.0)
+        if idx < len(grid_co2_series):
+            actual_grid_co2.append(float(grid_co2_series[idx]))
+        else:
+            actual_grid_co2.append(0.0)
 
     # =========================================================================
     # 2. GET MPC DECISIONS (time series from optimization)
@@ -109,18 +99,27 @@ def _evaluate_costs_on_actual_data(
     grid_cfg = cfg.get("grid", {})
     costs_cfg = cfg.get("costs", {})
 
-    # Fee and grid cost parameters
-    energy_fee = float(grid_cfg.get("energy_fee_eur_per_mwh", 0.0))
-    grid_cost = float(grid_cfg.get("gridcost_eur_per_mwh", 0.0))
-    sell_price_base = float(grid_cfg.get("sell_price_eur_per_mwh", 0.0))
+    # Fee and grid cost parameters - USE SAME KEYS AS PF!
+    energy_fee = float(grid_cfg.get("energy_fee_eur_mwh", 0.0))
+    grid_cost = float(grid_cfg.get("gridcost_eur_mwh", 0.0))
 
-    # Include flags (match PF behavior)
-    include_gridcost = bool(costs_cfg.get("include_gridcost_in_objective", True))
+    # Sell price calculation parameters (same as PF)
+    sell_floor = float(grid_cfg.get("sell_floor_eur_mwh", 0.0))
+    sell_haircut = float(grid_cfg.get("sell_haircut_fraction", 0.0))
+    sell_spread = float(grid_cfg.get("sell_spread_eur_mwh", 0.0))
+    sell_fee = float(grid_cfg.get("sell_fee_eur_mwh", 0.0))
+    sell_premium = float(grid_cfg.get("sell_premium_eur_mwh", 0.0))
+
+    def _sell_price(base: float) -> float:
+        """Calculate sell price same as PF."""
+        price = max(base - sell_spread, sell_floor)
+        price = price * max(0.0, 1.0 - sell_haircut)
+        price = price - sell_fee + sell_premium
+        return max(price, 0.0)
+
+    # Include flags - USE SAME KEY AS PF!
+    include_gridcost = bool(costs_cfg.get("include_gridcost_in_energy", False))
     addition = (energy_fee + grid_cost) if include_gridcost else 0.0
-
-    # Calculate energy in/out
-    energy_in = sum(p_buy) * dt_h
-    energy_out = sum(p_sell) * dt_h
 
     # Calculate costs timestep by timestep (identical to PF)
     base_electricity_cost = 0.0
@@ -132,21 +131,25 @@ def _evaluate_costs_on_actual_data(
         buy_mw = p_buy[t] if t < len(p_buy) else 0.0
         sell_mw = p_sell[t] if t < len(p_sell) else 0.0
 
-        # Buy price includes fees
+        # Buy price includes fees (same as PF line 801)
         buy_price = elec_price + addition
         base_electricity_cost += buy_mw * elec_price * dt_h
         energy_cost += buy_mw * buy_price * dt_h
 
-        # Sell price
-        sell_price = sell_price_base if sell_price_base > 0 else elec_price
+        # Sell price calculation (same as PF line 802)
+        sell_price = _sell_price(elec_price)
         energy_revenue += sell_mw * sell_price * dt_h
 
-    # Fee breakdown
-    energy_fee_cost = float(energy_in * energy_fee) if include_gridcost else 0.0
-    grid_fee_cost = float(energy_in * grid_cost) if include_gridcost else 0.0
+    # Calculate energy totals
+    energy_in = float(sum(p_buy) * dt_h)
+    energy_out = float(sum(p_sell) * dt_h)
+
+    # Fee breakdown (same as PF lines 810-811)
+    energy_fee_cost = float(energy_in * energy_fee)
+    grid_fee_cost = float(energy_in * grid_cost)
 
     # =========================================================================
-    # 4. GRID CO2 EMISSIONS (this was missing before!)
+    # 4. GRID CO2 EMISSIONS (same as PF line 815)
     # =========================================================================
     grid_co2_t = 0.0
     for t in range(n):
@@ -155,101 +158,72 @@ def _evaluate_costs_on_actual_data(
         grid_co2_t += buy_mw * co2_factor * dt_h / 1000.0  # kg to tonnes
 
     # =========================================================================
-    # 5. FUEL COSTS (with generator-specific prices)
+    # 5. FUEL COSTS (using _gather_component_metadata - same as PF)
     # =========================================================================
     fuel_cost_total = 0.0
     fuel_emissions_t = 0.0
     fuel_cost_by_type: Dict[str, float] = {}
 
-    # Get generator metadata from config
-    # Note: generators_cfg is a dict with gen_name as key, not a list
-    generators_cfg = cfg.get("system", {}).get("generators", {})
-    generators_tech = cfg.get("generators", {})  # Technical parameters (th_eff, fuel_bus)
-    fuels_cfg = cfg.get("fuels", {})
+    # Use generator metadata from _gather_component_metadata (same as PF lines 983-1024)
+    for gen in meta["generators"]:
+        comp = gen["name"]  # UPPERCASE name (e.g., "HKW")
 
-    # Handle both dict and list format for generators
-    if isinstance(generators_cfg, dict):
-        gen_items = generators_cfg.items()
-    else:
-        # Fallback for list format
-        gen_items = [(g.get("name", g.get("id", "")), g) for g in generators_cfg if isinstance(g, dict)]
-
-    for gen_name, gen_cfg in gen_items:
-        if not gen_name:
-            continue
-
-        # Find the fuel series for this generator
-        fuel_key = f"{gen_name}_fuel_MW"
+        # Find the fuel series for this generator - UPPERCASE!
+        fuel_key = f"{comp}_fuel_MW"
         if fuel_key not in series:
+            logger.debug(f"MPC: No fuel series found for {fuel_key}")
             continue
 
         fuel_series = series[fuel_key][:n]
-        fuel_mwh = sum(fuel_series) * dt_h
+        fuel_mwh = float(sum(fuel_series) * dt_h)
 
-        # Get fuel type from technical config (fuel_bus) or asset config
-        gen_tech = generators_tech.get(gen_name, {})
-        if isinstance(gen_cfg, dict):
-            fuel_type = str(gen_cfg.get("fuel_bus", gen_cfg.get("fuel_type", ""))).lower()
-        else:
-            fuel_type = ""
-        if not fuel_type and isinstance(gen_tech, dict):
-            fuel_type = str(gen_tech.get("fuel_bus", gen_tech.get("fuel_type", "gas"))).lower()
-        if not fuel_type:
-            fuel_type = "gas"  # Default fallback
+        # Use fuel_price and fuel_emission from metadata (same as PF lines 990-991)
+        cost_eur = float(fuel_mwh * gen["fuel_price"])
+        emission_t = float(fuel_mwh * gen["fuel_emission"] / 1000.0)  # kg to tonnes
 
-        fuel_cfg = fuels_cfg.get(fuel_type, {})
-
-        # Fuel price (check multiple sources)
-        fuel_price = 0.0
-        if isinstance(gen_cfg, dict):
-            fuel_price = float(gen_cfg.get("fuel_price_eur_per_mwh", 0.0))
-        if fuel_price == 0 and isinstance(fuel_cfg, dict):
-            fuel_price = float(fuel_cfg.get("price_eur_per_mwh", 0.0))
-        if fuel_price == 0 and fuel_type == "gas":
-            # Use actual gas prices if available
-            if actual_gas_prices:
-                fuel_price = sum(actual_gas_prices) / len(actual_gas_prices)
-
-        # Calculate fuel cost
-        cost_eur = fuel_mwh * fuel_price
         fuel_cost_total += cost_eur
+        fuel_emissions_t += emission_t
 
-        # Track by fuel type
-        fuel_cost_by_type[fuel_type] = fuel_cost_by_type.get(fuel_type, 0.0) + cost_eur
+        # Track by fuel type (same as PF lines 993-997)
+        fuel_bus = gen["fuel_bus"]
+        fuel_cost_by_type[fuel_bus] = fuel_cost_by_type.get(fuel_bus, 0.0) + cost_eur
 
-        # Fuel emissions
-        emission_factor = 200.0  # Default
-        if isinstance(fuel_cfg, dict):
-            emission_factor = float(fuel_cfg.get("co2_kg_per_mwh", 200.0))
-        emissions_t = fuel_mwh * emission_factor / 1000.0  # kg to tonnes
-        fuel_emissions_t += emissions_t
+        logger.debug(
+            f"MPC gen {comp}: fuel={fuel_mwh:.1f}MWh, price={gen['fuel_price']:.2f}€/MWh, "
+            f"cost={cost_eur:.0f}€, emissions={emission_t:.1f}t"
+        )
 
     # =========================================================================
-    # 6. CO2 COSTS (Grid + Fuel emissions)
+    # 6. CO2 COSTS (same as PF lines 1105-1107)
     # =========================================================================
     include_co2 = bool(costs_cfg.get("include_co2_cost_in_objective", True))
     co2_price = float(costs_cfg.get("co2_price_eur_per_t", 0.0))
-    total_emissions_t = grid_co2_t + fuel_emissions_t
+    total_emissions_t = float(grid_co2_t + fuel_emissions_t)
     co2_cost = float(co2_price * total_emissions_t) if include_co2 else 0.0
 
     # =========================================================================
-    # 7. DUMP COSTS (heat dumping penalty)
+    # 7. DUMP COSTS (same as PF line 1108)
     # =========================================================================
-    dump_cost_rate = float(costs_cfg.get("dump_price_eur_per_mwh", 100.0))
-    heat_dump = sum(q_dump) * dt_h
+    dump_cost_rate = float(costs_cfg.get("dump_cost_eur_per_mwh_th", 0.0))
+    heat_dump = float(sum(q_dump) * dt_h)
     dump_cost = float(dump_cost_rate * heat_dump)
 
     # =========================================================================
-    # 8. DEMAND CHARGE (peak power)
+    # 8. DEMAND CHARGE (same as PF lines 1110-1117)
     # =========================================================================
-    include_demand = bool(costs_cfg.get("include_demand_charge", True))
-    demand_charge_rate = float(grid_cfg.get("demand_charge_eur_per_mw_year", 0.0))
+    # Use same keys as PF!
+    include_demand = bool(grid_cfg.get(
+        "include_demand_charge_in_rh",
+        costs_cfg.get("include_demand_charge_in_rh", True)
+    ))
+    demand_charge_rate = float(grid_cfg.get("demand_charge_eur_per_mw_y", 0.0))
 
-    # Year fraction calculation (identical to PF)
+    # Year fraction calculation (same as PF lines 441-442)
+    from energis.constants import HOURS_PER_YEAR
     period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n > 0 else 0.0
     demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
 
-    peak_power = max(p_buy) if p_buy else 0.0
+    peak_power = float(max(p_buy)) if p_buy else 0.0
     demand_cost = float(demand_charge_rate * demand_year_fraction * peak_power) if include_demand else 0.0
 
     # =========================================================================
@@ -268,7 +242,7 @@ def _evaluate_costs_on_actual_data(
         "objective.Fuel_cost_EUR": fuel_cost_total,
         "objective.Fuel_emissions_t": fuel_emissions_t,
 
-        # CO2 (now includes both grid and fuel!)
+        # CO2 (includes both grid and fuel)
         "objective.CO2_cost_EUR": co2_cost,
         "objective.Grid_CO2_emissions_t": grid_co2_t,
         "objective.Total_CO2_emissions_t": total_emissions_t,
