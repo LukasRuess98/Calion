@@ -144,6 +144,9 @@ def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
 
     return {
         'has_results': has_any_result,
+        'has_pf': has_pf,
+        'has_rh': has_rh,
+        'has_mpc': has_mpc,
         'has_timeseries': has_timeseries,
         'has_costs': has_costs,
         'has_design': has_design,
@@ -165,7 +168,10 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     diagnosis : dict
         Diagnostic results from diagnose_workflow()
     """
-    print(f"\nDashboard Diagnosis (Primary Result: {diagnosis['primary_result_type']}):")
+    print(f"\nDashboard Diagnosis:")
+    print(f"  Available Results: PF={diagnosis.get('has_pf', False)}, "
+          f"RH={diagnosis.get('has_rh', False)}, MPC={diagnosis.get('has_mpc', False)}")
+    print(f"  Primary Result: {diagnosis['primary_result_type']}")
     print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
           else f"  ✗ Timeseries: No data")
     print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
