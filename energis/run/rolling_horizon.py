@@ -571,9 +571,9 @@ def _collect_timeseries_and_summary(
             # Extract input COP from Pyomo parameter
             cop_param = getattr(model, f"{comp}_COP", None)
             if cop_param is not None:
-                for t in model_Tset:
-                    idx = t - 1 + global_offset
-                    if idx < n:
+                for t in times:
+                    idx = t - 1  # Pyomo indices start at 1
+                    if 0 <= idx < n:
                         try:
                             series[f"{comp}_COP_input"][idx] = float(pyo.value(cop_param[t]))
                         except Exception:
