@@ -1,0 +1,54 @@
+# =============================================================================
+# SCENARIO: MPC with Persistence Forecast - Q1 2023
+# =============================================================================
+# MPC optimization using naive persistence forecast (baseline)
+#
+# Persistence forecast: Repeats the last 24h pattern cyclically
+# This is a simple baseline to compare against more sophisticated forecasts.
+# =============================================================================
+
+scenario:
+  title: "MPC Persistence - Q1 2023"
+  tag: "mpc-persistence-q1-2023"
+  workflow: [MPC]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OPTIMIZATION STRATEGY
+  # ═══════════════════════════════════════════════════════════════════════════
+  optimization:
+    variables:
+      heat_pumps:
+        capacity: true
+        build: true
+      storage:
+        capacity: true
+        power: true
+        build: true
+      thermal_network:
+        pipe_diameters: false
+        pump_power: false
+
+    fix_after_window: 0
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MPC PARAMETERS - Persistence Forecast
+  # ═══════════════════════════════════════════════════════════════════════════
+  mpc:
+    forecast_method: "persistence"  # Naive baseline
+    forecast_horizon_hours: 168.0   # 1 week lookahead
+    update_frequency_hours: 24.0    # Daily re-planning
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ROLLING HORIZON PARAMETERS
+  # ═══════════════════════════════════════════════════════════════════════════
+  rolling_horizon:
+    terminal_policy: value
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIME HORIZON
+  # ═══════════════════════════════════════════════════════════════════════════
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-04-17 23:00"
+    enforce: true

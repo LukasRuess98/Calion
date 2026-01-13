@@ -1,0 +1,72 @@
+# =============================================================================
+# SCENARIO: Model Predictive Control (MPC) Q1 2023
+# =============================================================================
+# MPC optimization for Q1 2023 (Jan-Apr)
+#
+# Key difference from Rolling Horizon:
+# - RH uses perfect foresight within each window (true future data)
+# - MPC uses realistic forecasts with uncertainty (noise or persistence)
+#
+# This simulates real-world operational planning where forecasts are imperfect.
+# =============================================================================
+
+scenario:
+  title: "MPC - Q1 2023"
+  tag: "mpc-q1-2023"
+  workflow: [MPC]
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OPTIMIZATION STRATEGY
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Defines which values are VARIABLES (optimized) vs PARAMETERS (fixed)
+  # ═══════════════════════════════════════════════════════════════════════════
+  optimization:
+    # What should be optimized? (true = variable, false = parameter)
+    variables:
+      heat_pumps:
+        capacity: true              # Optimize HP capacities
+        build: true                 # Optimize build decisions
+      storage:
+        capacity: true              # Optimize storage energy capacity
+        power: true                 # Optimize storage power capacity
+        build: true                 # Optimize build decision
+      thermal_network:
+        pipe_diameters: false
+        pump_power: false
+
+    # For MPC: When to fix investment decisions?
+    fix_after_window: 0             # After Window 0: variables become parameters
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MPC PARAMETERS
+  # ═══════════════════════════════════════════════════════════════════════════
+  mpc:
+    # Forecast method: "persistence" or "perfect_noise"
+    # - persistence: Naive baseline - repeats last 24h pattern cyclically
+    # - perfect_noise: True future data with Gaussian noise (for studying forecast value)
+    forecast_method: "perfect_noise"
+
+    # Forecast horizon in hours (how far ahead to optimize)
+    forecast_horizon_hours: 168.0   # 1 week lookahead
+
+    # Update frequency in hours (how often to re-plan with new forecast)
+    update_frequency_hours: 24.0    # Daily re-planning
+
+    # Noise parameters (only for perfect_noise method)
+    noise_std_dev: 0.10             # 10% standard deviation
+    random_seed: 42                 # For reproducibility
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ROLLING HORIZON PARAMETERS (used by MPC for terminal policy)
+  # ═══════════════════════════════════════════════════════════════════════════
+  rolling_horizon:
+    terminal_policy: value          # Diminishing returns value function
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TIME HORIZON
+  # ═══════════════════════════════════════════════════════════════════════════
+  horizon:
+    type: "date_range"
+    start: "2023-01-01 00:00"
+    end: "2023-04-17 23:00"
+    enforce: true
