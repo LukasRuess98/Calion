@@ -76,6 +76,7 @@ def run_mpc(
         _accumulate_costs,
         _extend_series,
         _next_soc,
+        _recompute_objective_costs,
     )
 
     n = len(historical_data)
@@ -199,6 +200,9 @@ def run_mpc(
             break
 
     logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
+
+    # Recompute objective total from aggregated costs
+    _recompute_objective_costs(aggregated_costs)
 
     # Build final result
     result_table = _slice_table(historical_data, aggregated_indices)
