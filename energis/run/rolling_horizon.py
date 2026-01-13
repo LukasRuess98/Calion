@@ -1732,7 +1732,8 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
     design_config = load_design_config(scenario_cfg)
 
     # Legacy support: fix_design flag (deprecated, use design.mode instead)
-    fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH"}
+    # fix_design should be True for any multi-step workflow (PF→RH or PF→MPC)
+    fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH", "PF_THEN_MPC"} or len(steps_upper) > 1
     fix_design = bool(scenario_cfg.get("fix_design", scenario_cfg.get("fix_design_in_rh", fix_default)))
 
     # If legacy fix_design is set but no design config, convert to optimize mode
