@@ -391,6 +391,8 @@ def run_mpc(
         f"horizon={forecast_horizon_hours}h, update_freq={update_frequency_hours}h, n={n} steps"
     )
 
+    infeasible_count = 0  # Track infeasible windows
+
     while current_index < n:
         logger.debug(f"MPC window {window_idx}: index={current_index}/{n}")
 
@@ -427,6 +429,13 @@ def run_mpc(
             dt_h,
             solver_name,
         )
+
+        # Check for infeasibility
+        term_cond = str(window_result.solver.get("termination_condition", "")).lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            infeasible_count += 1
+            if infeasible_count <= 3:  # Only print first few
+                print(f"[MPC WARNING] Window {window_idx} (index={current_index}) is {term_cond}")
 
         # 4. Extract design from first window (if not fixed)
         if window_idx == 0 and design_state is None:
@@ -476,6 +485,14 @@ def run_mpc(
             break
 
     logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
+
+    # Report infeasibility summary
+    if infeasible_count > 0:
+        print(f"\n[MPC ERROR] {infeasible_count} of {window_idx} windows were INFEASIBLE!")
+        print(f"[MPC ERROR] This causes operational costs to be 0. Check:")
+        print(f"  - Heat demand vs available capacity")
+        print(f"  - Storage terminal policy constraints")
+        print(f"  - Initial SOC values")
 
     # =========================================================================
     # CRITICAL: Evaluate costs on ACTUAL data, not forecast data
