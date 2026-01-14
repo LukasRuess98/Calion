@@ -66,6 +66,11 @@ def _evaluate_costs_on_actual_data(
     # Get component metadata using same function as PF
     meta = _gather_component_metadata(cfg)
 
+    # DEBUG: Show generator metadata
+    print(f"\n[MPC DEBUG] Generator metadata from _gather_component_metadata:")
+    for gen in meta["generators"]:
+        print(f"  {gen['name']}: fuel_bus={gen['fuel_bus']}, price={gen['fuel_price']:.2f}€/MWh, emission={gen['fuel_emission']:.1f}kg/MWh")
+
     # =========================================================================
     # 1. EXTRACT ACTUAL DATA FOR COMMITTED PERIOD
     # =========================================================================
@@ -463,6 +468,16 @@ def run_mpc(
     # with values calculated on actual historical data.
     # Investment costs (CAPEX) are preserved from aggregation.
     # =========================================================================
+
+    # DEBUG: Show available series keys for fuel calculation
+    fuel_keys = [k for k in aggregated_series.keys() if "fuel" in k.lower()]
+    print(f"\n[MPC DEBUG] Available fuel series: {fuel_keys}")
+    print(f"[MPC DEBUG] Committed indices: {len(aggregated_indices)} steps")
+    print(f"[MPC DEBUG] Aggregated costs BEFORE actual-data evaluation:")
+    for k, v in sorted(aggregated_costs.items()):
+        if "objective" in k.lower() and abs(v) > 0.01:
+            print(f"  {k}: {v:,.2f}")
+
     evaluated_costs = _evaluate_costs_on_actual_data(
         series=aggregated_series,
         actual_data=historical_data,
@@ -471,6 +486,11 @@ def run_mpc(
         dt_h=dt_h,
     )
 
+    print(f"\n[MPC DEBUG] Evaluated costs from actual data:")
+    for k, v in sorted(evaluated_costs.items()):
+        if abs(v) > 0.01:
+            print(f"  {k}: {v:,.2f}")
+
     # Replace forecast-based OPEX with actual-data costs
     # Keep investment costs (CAPEX) from aggregation - they don't depend on prices
     for key, value in evaluated_costs.items():
@@ -478,6 +498,12 @@ def run_mpc(
 
     # Recompute objective total from actual-data costs + preserved CAPEX
     _recompute_objective_costs(aggregated_costs)
+
+    print(f"\n[MPC DEBUG] Final costs AFTER recompute:")
+    for k, v in sorted(aggregated_costs.items()):
+        if "objective" in k.lower() and abs(v) > 0.01:
+            print(f"  {k}: {v:,.2f}")
+    print()
 
     # Build final result
     result_table = _slice_table(historical_data, aggregated_indices)
