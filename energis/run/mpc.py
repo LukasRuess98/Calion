@@ -78,6 +78,11 @@ def _evaluate_costs_on_actual_data(
     price_series = actual_data.data.get("strompreis_EUR_MWh", [0.0] * len(actual_data))
     grid_co2_series = actual_data.data.get("grid_co2_kg_MWh", [0.0] * len(actual_data))
 
+    # DEBUG: Show data availability
+    print(f"[MPC DEBUG] Actual data columns: {list(actual_data.data.keys())[:10]}...")
+    print(f"[MPC DEBUG] Price series length: {len(price_series)}, first 3 values: {price_series[:3]}")
+    print(f"[MPC DEBUG] Committed indices: n={n}, range=[{committed_indices[0] if committed_indices else 'N/A'}..{committed_indices[-1] if committed_indices else 'N/A'}]")
+
     # Extract prices for committed indices
     actual_elec_prices = []
     actual_grid_co2 = []
@@ -97,6 +102,20 @@ def _evaluate_costs_on_actual_data(
     p_buy = series.get("P_buy_MW", [0.0] * n)[:n]
     p_sell = series.get("P_sell_MW", [0.0] * n)[:n]
     q_dump = series.get("Q_dump_MWth", [0.0] * n)[:n]
+
+    # DEBUG: Show series values
+    print(f"[MPC DEBUG] Series keys: {list(series.keys())[:15]}...")
+    print(f"[MPC DEBUG] P_buy_MW: len={len(p_buy)}, sum={sum(p_buy):.1f}, max={max(p_buy) if p_buy else 0:.1f}")
+    print(f"[MPC DEBUG] P_sell_MW: len={len(p_sell)}, sum={sum(p_sell):.1f}")
+
+    # Check fuel series
+    for gen in meta["generators"]:
+        fuel_key = f"{gen['name']}_fuel_MW"
+        if fuel_key in series:
+            fuel_vals = series[fuel_key][:n]
+            print(f"[MPC DEBUG] {fuel_key}: sum={sum(fuel_vals):.1f} MW")
+        else:
+            print(f"[MPC DEBUG] {fuel_key}: NOT FOUND in series!")
 
     # =========================================================================
     # 3. GRID ELECTRICITY COSTS (identical to PF calculation)
