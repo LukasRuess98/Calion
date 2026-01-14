@@ -404,6 +404,43 @@ def run_mpc(
             dt_h=dt_h,
         )
 
+        # Debug: show forecast data for first window
+        if window_idx == 0:
+            print(f"\n[MPC DEBUG] First window forecast data:")
+            print(f"  - Length: {len(forecast_table)} steps")
+            print(f"  - Columns: {list(forecast_table.data.keys())[:8]}...")
+            if "waermebedarf_MWth" in forecast_table.data:
+                demand = forecast_table.data["waermebedarf_MWth"]
+                print(f"  - Heat demand: min={min(demand):.1f}, max={max(demand):.1f}, avg={sum(demand)/len(demand):.1f} MWth")
+
+            # Show generator capacities
+            gen_cfg = base_cfg.get("system", {}).get("generators", {})
+            total_cap = 0.0
+            print(f"[MPC DEBUG] Generator capacities:")
+            for name, cfg_val in gen_cfg.items():
+                if isinstance(cfg_val, dict) and cfg_val.get("enabled", False):
+                    cap = float(cfg_val.get("cap_th_mw", 0.0))
+                    total_cap += cap
+                    print(f"  - {name}: {cap:.1f} MWth")
+            print(f"  - TOTAL generators: {total_cap:.1f} MWth")
+
+            # Show heat pump capacities
+            hp_cfg = base_cfg.get("system", {}).get("heat_pumps", [])
+            hp_cap = 0.0
+            if isinstance(hp_cfg, list):
+                for hp in hp_cfg:
+                    if isinstance(hp, dict) and hp.get("enabled", True):
+                        cap = float(hp.get("max_th_mw", 0.0))
+                        hp_cap += cap
+                        print(f"  - {hp.get('id', 'HP')}: {cap:.1f} MWth")
+            print(f"  - TOTAL heat pumps: {hp_cap:.1f} MWth")
+            print(f"  - GRAND TOTAL: {total_cap + hp_cap:.1f} MWth")
+
+            if "waermebedarf_MWth" in forecast_table.data:
+                peak = max(demand)
+                total_available = total_cap + hp_cap
+                print(f"  - Peak demand: {peak:.1f} MWth {'(OK)' if total_available >= peak else '(INSUFFICIENT!)'}")
+
         # 2. Prepare window configuration
         window_cfg = copy.deepcopy(base_cfg)
 
