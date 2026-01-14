@@ -457,6 +457,19 @@ def run_mpc(
             design_state is not None and (fix_design or (design is None and window_idx > 0))
         )
         if should_fix_design:
+            # Debug: show design being applied
+            if window_idx == 0:
+                print(f"\n[MPC DEBUG] Applying design fix from PF:")
+                if design_state:
+                    print(f"  Heat Pumps:")
+                    for hp_id, hp_data in design_state.heat_pumps.items():
+                        print(f"    {hp_id}: capacity={hp_data.get('capacity_mw', 0):.2f} MW, build={hp_data.get('build_binary', 0):.2f}")
+                    if design_state.storage:
+                        print(f"  Storage: capacity={design_state.storage.get('capacity_mwh', 0):.1f} MWh, "
+                              f"power={design_state.storage.get('power_mw', 0):.1f} MW, "
+                              f"build={design_state.storage.get('build_binary', 0):.2f}")
+                    else:
+                        print(f"  Storage: None")
             window_cfg = _apply_design_fix(window_cfg, design_state)
 
         # 3. Solve optimization with forecast
