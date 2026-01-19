@@ -467,11 +467,12 @@ def run_sensitivity_analysis(results: dict, output_dir: Path):
 
     try:
         from energis.analysis import (
-            create_publication_sensitivity_study,
-            SensitivityStudyResult,
+            create_standard_sensitivity_study,
+            run_sensitivity_analysis,
         )
+        from energis.analysis.sensitivity_runner import SensitivityStudyResult
 
-        print("[INFO] Erstelle Sensitivitätsstudie...")
+        print("[INFO] Sensitivitätsanalyse-Module geladen!")
         print("[INFO] Dies kann einige Minuten dauern...")
 
         # Definiere Parameter für Sensitivitätsanalyse
@@ -480,16 +481,17 @@ def run_sensitivity_analysis(results: dict, output_dir: Path):
         # Demo: Zeige was die Funktion erwartet
         print("\n[INFO] Für eine vollständige Sensitivitätsanalyse, rufe auf:")
         print("""
-        from energis.analysis import run_full_sensitivity_study
+        from energis.analysis import create_standard_sensitivity_study, run_sensitivity_analysis
+        from energis.analysis.sensitivity_runner import SensitivityStudyResult
 
-        results = run_full_sensitivity_study(
-            base_configs=["configs/base.yaml", "configs/system.yaml"],
-            output_dir="exports/sensitivity",
-            parameters=[
-                {"path": "economics.gas_price", "variations": [-20, -10, 10, 20]},
-                {"path": "economics.co2_price", "variations": [-50, -25, 25, 50]},
-                {"path": "components.hp.capacity", "variations": [-30, -15, 15, 30]},
-            ]
+        # Erstelle Standard-Sensitivitätsstudie
+        variations = create_standard_sensitivity_study()
+
+        # Oder definiere eigene Parameter
+        results = run_sensitivity_analysis(
+            workflow=my_workflow,
+            variations=variations,
+            output_dir="exports/sensitivity"
         )
         """)
 
