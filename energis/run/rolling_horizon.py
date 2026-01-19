@@ -595,7 +595,13 @@ def _collect_timeseries_and_summary(
             _extract(getattr(model, "P2H_Qth", None), "P2H_Q_th_MW")
             _extract(getattr(model, "P2H_Pel", None), "P2H_Pel_MW")
 
-        objective["OBJ_value_EUR"] = float(pyo.value(model.obj)) if hasattr(model, "obj") else 0.0
+        if hasattr(model, "obj"):
+            model_obj_value = float(pyo.value(model.obj))
+        else:
+            model_obj_value = 0.0
+
+        objective["Model_OBJ_value_EUR"] = model_obj_value
+        objective["OBJ_value_EUR"] = model_obj_value  # initial = Model-Objektiv, wird später überschrieben
         objective["P_buy_peak_MW"] = float(pyo.value(model.P_buy_peak)) if hasattr(model, "P_buy_peak") else 0.0
 
         # ✅ Extrahiere CO2-Kosten pro Komponente aus Pyomo-Modell
@@ -1759,6 +1765,8 @@ def _pf_step(context: WorkflowContext) -> None:
             f"Perfect Foresight optimization failed: {term_cond}. "
             f"Hint: Verify generator capacities, storage configuration, and input data."
         )
+    if result.costs:
+        _recompute_objective_costs(result.costs)
 
     context.pf_result = result
     context.design = _extract_design_data(result.summary)
@@ -2206,10 +2214,10 @@ def _recompute_objective_costs(costs: MutableMapping[str, float]) -> None:
         + activation_cost
         + tie_break_cost
         + install_cost
+
     )
     costs["objective.OBJ_value_EUR"] = objective_total
     costs["objective.Objective_residual_EUR"] = 0.0
-
 
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
     soc_series = series.get("TES_SOC_MWh")
