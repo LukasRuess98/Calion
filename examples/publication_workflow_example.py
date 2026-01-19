@@ -350,19 +350,23 @@ def run_publication_plots(results: dict, output_dir: Path):
             ts_df = results["timeseries"]
 
             # Konvertiere zu TimeSeriesTable Format
-            table = TimeSeriesTable()
-            for col in ts_df.columns:
-                table.set_series(col, ts_df[col].values.tolist())
+            columns = list(ts_df.columns)
+            data = {col: ts_df[col].values.tolist() for col in columns}
+            index = ts_df.index.tolist()
+
+            table = TimeSeriesTable(
+                index=index,
+                columns=columns,
+                data=data,
+            )
 
             # Generiere Plots
             print("[INFO] Generiere Publication Plots...")
             generated = export_publication_plots(
                 outdir=str(output_dir),
                 table=table,
-                series={col: ts_df[col].values.tolist() for col in ts_df.columns},
+                series=data,
                 summary_sections=results.get("summary", {}),
-                formats=["png", "pdf"],  # PNG für Review, PDF für Publikation
-                dpi=300,
             )
 
             for name, path in generated.items():
