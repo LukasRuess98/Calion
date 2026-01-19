@@ -1,3 +1,4 @@
+#sensitivity.py
 """Sensitivity analysis framework for scientific publications.
 
 This module provides tools for systematic parameter variation studies,

@@ -5,22 +5,30 @@ Publication Workflow Example
 
 Dieses Skript zeigt, wie du die neuen Publication-Features nutzen kannst:
 
-1. Simulation ausführen (PF + RH)
+1. Simulation ausführen (PF/RH/MPC über run_workflow)
 2. Publication-Export (LaTeX-Tabellen, CSV, JSON)
 3. Publication-Plots generieren
 4. Sensitivitätsanalyse (optional)
 5. Framework-Validierung (optional)
 
 Usage:
-    # Einfache Ausführung
+    # Einfache Ausführung mit Default-Config
     python examples/publication_workflow_example.py
 
-    # Mit Umgebungsvariablen
-    SCENARIO_TITLE=Mein_Szenario python examples/publication_workflow_example.py
+    # Mit eigenen Configs (kommasepariert)
+    CONFIG_PATHS="configs/presets/quick_test.yaml" \
+    SCENARIO_TITLE=Mein_Szenario \
+    python examples/publication_workflow_example.py
+
+    # Mit mehreren Configs (z.B. PF→RH-Szenario)
+    CONFIG_PATHS="configs/00_base/solver.yaml,configs/03_systems/full.yaml,configs/04_scenarios/rh_q1_2023.yaml" \
+    DASHBOARD=1 \
+    SCENARIO_TITLE=RH_Q1_2023 \
+    python examples/publication_workflow_example.py
 
 Voraussetzungen:
     - Du musst auf dem Branch 'claude/framework-publication-plan-v0UhB' sein
-    - Die Datei 'Import_Data.xlsx' muss vorhanden sein
+    - Die EnerGIS-Konfigurationen in CONFIG_PATHS müssen gültig sein
 
 Autor: Claude (Publication Framework)
 """
@@ -30,29 +38,51 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from collections.abc import Mapping
 
 # Füge das Projektverzeichnis zum Path hinzu
+
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
+from energis.analysis.sensitivity_runner import (
+    create_publication_sensitivity_study,
+    SensitivityStudyResult,
+    run_full_sensitivity_study,
+)
 # ============================================================================
+
 # Konfiguration
+
 # ============================================================================
 
 SCENARIO_TITLE = os.environ.get("SCENARIO_TITLE", "Publication_Demo")
 EXPORT_DIR = Path(os.environ.get("EXPORT_DIR", "exports/publication"))
-INPUT_XLSX = os.environ.get("INPUT_XLSX", "Import_Data.xlsx")
-YEAR_TARGET = int(os.environ.get("YEAR_TARGET", "2023"))
+INPUT_XLSX = os.environ.get("INPUT_XLSX", "Import_Data.xlsx")  # derzeit ungenutzt
+YEAR_TARGET = int(os.environ.get("YEAR_TARGET", "2023"))       # derzeit ungenutzt
+
+# PF/RH/MPC-Konfiguration: kommaseparierte Liste von YAML-Dateien
+
+CONFIG_PATHS = os.environ.get(
+    "CONFIG_PATHS",
+    "configs/presets/quick_test.yaml"
+).split(",")
+
+# Dashboard-Export aktivieren?
+
+USE_DASHBOARD = os.environ.get("DASHBOARD", "0") == "1"
 
 # Was soll ausgeführt werden?
+
 RUN_SIMULATION = True           # Simulation ausführen
 RUN_PUBLICATION_EXPORT = True   # LaTeX/CSV/JSON Export
 RUN_PUBLICATION_PLOTS = True    # Publication-Plots generieren
-RUN_SENSITIVITY = False         # Sensitivitätsanalyse (dauert länger)
+RUN_SENSITIVITY = True         # Sensitivitätsanalyse (dauert länger)
 RUN_VALIDATION = True           # Framework-Validierung
 
 # ============================================================================
+
 # Imports
+
 # ============================================================================
 
 import json
@@ -67,177 +97,141 @@ print(f"{'='*70}\n")
 
 
 # ============================================================================
-# 1. SIMULATION AUSFÜHREN
+
+# 1. SIMULATION AUSFÜHREN (PF/RH/MPC)
+
 # ============================================================================
 
-def run_simulation():
+def _workflow_to_publication_results(workflow, base_result):
     """
-    Führt eine Simulation aus und gibt die Ergebnisse zurück.
+    Konvertiert PF/RH/MPC-Ergebnisse in das 'results'-Format des
+    Publication-Workflows:
+      - summary: dict mit Sections (inkl. 'objective'-Section)
+      - timeseries: Pandas DataFrame
+      - design: vereinfachte Designinfos (HP + Speicher)
 
-    Hier wird das bestehende standalone_heat_planning_example.py Konzept verwendet.
-    Du kannst dies durch deinen eigenen Simulationscode ersetzen.
     """
-    print("\n" + "="*70)
-    print("SCHRITT 1: SIMULATION")
-    print("="*70 + "\n")
 
-    # Import der notwendigen Module
-    try:
-        from pyomo.environ import (
-            ConcreteModel, Var, Param, RangeSet, Constraint, Objective,
-            NonNegativeReals, Binary, minimize, value as pyo_val
-        )
-        from pyomo.opt import SolverFactory
-    except ImportError:
-        print("[ERROR] Pyomo nicht installiert. Bitte 'pip install pyomo' ausführen.")
-        return None, None
+    # 1) Zeitreihen → DataFrame
+    table = base_result.table
+    ts_df = pd.DataFrame(
+        {col: table[col] for col in table.columns},
+        index=table.index,
+    )
+    # zusätzlich: Modell-Zeitreihen (Entscheidungsvariablen)
+    for name, series in base_result.series.items():
+        ts_df[name] = series
 
-    # Lade Eingabedaten
-    if not os.path.exists(INPUT_XLSX):
-        print(f"[WARN] Input-Datei '{INPUT_XLSX}' nicht gefunden.")
-        print("[INFO] Generiere synthetische Demo-Daten...")
-        df_input = _generate_demo_data()
-    else:
-        print(f"[INFO] Lade Daten aus {INPUT_XLSX}...")
-        df_input = pd.read_excel(INPUT_XLSX)
-        # Vereinfachte Verarbeitung
-        if "Datum" in df_input.columns:
-            df_input["Datum"] = pd.to_datetime(df_input["Datum"])
-            df_input = df_input.set_index("Datum")
+    # 2) Summary-Abschnitte:
+    summary_sections: dict[str, dict] = {}
 
-    print(f"[INFO] {len(df_input)} Zeitschritte geladen")
-
-    # Erstelle ein vereinfachtes Modell für die Demo
-    results = _run_demo_optimization(df_input)
-
-    return results, df_input
-
-
-def _generate_demo_data(n_hours: int = 168) -> pd.DataFrame:
-    """Generiert synthetische Demo-Daten für eine Woche."""
-    np.random.seed(42)
-
-    timestamps = pd.date_range("2023-01-01", periods=n_hours, freq="h")
-
-    # Sinusförmiger Wärmebedarf (höher im Winter, Tag/Nacht-Zyklus)
-    hour_of_day = np.array([t.hour for t in timestamps])
-    day_cycle = 1.0 + 0.3 * np.sin(2 * np.pi * (hour_of_day - 6) / 24)
-    base_demand = 50 + 20 * np.random.randn(n_hours)
-    heat_demand = np.maximum(10, base_demand * day_cycle)
-
-    # Strompreis (Day-Ahead)
-    base_price = 80 + 30 * np.sin(2 * np.pi * hour_of_day / 24)
-    noise = 15 * np.random.randn(n_hours)
-    electricity_price = np.maximum(20, base_price + noise)
-
-    # CO2-Intensität
-    co2_intensity = 400 + 100 * np.random.randn(n_hours)
-    co2_intensity = np.maximum(200, co2_intensity)
-
-    df = pd.DataFrame({
-        "strompreis_EUR_MWh": electricity_price,
-        "waermebedarf_MWth": heat_demand,
-        "grid_co2_kg_MWh": co2_intensity,
-    }, index=timestamps)
-
-    return df
-
-
-def _run_demo_optimization(df_input: pd.DataFrame) -> dict:
-    """
-    Führt eine Demo-Optimierung aus.
-
-    Dies ist eine vereinfachte Version. In deiner echten Anwendung
-    würdest du hier dein vollständiges Modell verwenden.
-    """
-    print("[INFO] Starte Demo-Optimierung...")
-
-    # Simuliere Ergebnisse (vereinfacht)
-    n_hours = len(df_input)
-
-    # Extrahiere Eingabedaten
-    if "waermebedarf_MWth" in df_input.columns:
-        heat_demand = df_input["waermebedarf_MWth"].values
-    elif "Wärmebedarf MW" in df_input.columns:
-        heat_demand = df_input["Wärmebedarf MW"].values
-    else:
-        heat_demand = 50 * np.ones(n_hours)
-
-    if "strompreis_EUR_MWh" in df_input.columns:
-        elec_price = df_input["strompreis_EUR_MWh"].values
-    elif "Day_Ahead_Price €/MWh" in df_input.columns:
-        elec_price = df_input["Day_Ahead_Price €/MWh"].values
-    else:
-        elec_price = 80 * np.ones(n_hours)
-
-    # Simulierte Wärmeerzeugung (vereinfacht: Merit-Order-ähnlich)
-    hp_production = np.minimum(heat_demand * 0.6, 30)  # Max 30 MW HP
-    gas_boiler = np.maximum(0, heat_demand - hp_production)
-
-    # Simulierte Kosten
-    hp_cop = 3.5
-    hp_electricity = hp_production / hp_cop
-    electricity_cost = np.sum(hp_electricity * elec_price)
-    gas_cost = np.sum(gas_boiler * 60)  # 60 EUR/MWh Gas
-
-    total_cost = electricity_cost + gas_cost
-
-    # Simulierte CO2-Emissionen
-    if "grid_co2_kg_MWh" in df_input.columns:
-        co2_intensity = df_input["grid_co2_kg_MWh"].values
-    else:
-        co2_intensity = 400 * np.ones(n_hours)
-
-    hp_co2 = np.sum(hp_electricity * co2_intensity) / 1000  # t CO2
-    gas_co2 = np.sum(gas_boiler * 0.2)  # 0.2 t CO2/MWh Gas
-    total_co2 = hp_co2 + gas_co2
-
-    # Ergebnisse strukturieren
-    results = {
-        "summary": {
-            "objective": {
-                "OBJ_value_EUR": total_cost,
-                "Grid_energy_cost_EUR": electricity_cost,
-                "Fuel_cost_EUR": gas_cost,
-            },
-            "emissions": {
-                "Total_CO2_t": total_co2,
-                "Grid_CO2_t": hp_co2,
-                "Gas_CO2_t": gas_co2,
-            },
-            "design": {
-                "HP_capacity_MW": 30.0,
-                "Gas_boiler_capacity_MW": 50.0,
-                "Storage_capacity_MWh": 100.0,
-            },
-            "kpi": {
-                "Specific_cost_EUR_per_MWh": total_cost / np.sum(heat_demand),
-                "Renewable_share_pct": 100 * np.sum(hp_production) / np.sum(heat_demand),
-                "CO2_intensity_kg_per_MWh": 1000 * total_co2 / np.sum(heat_demand),
-            },
-        },
-        "timeseries": pd.DataFrame({
-            "heat_demand": heat_demand,
-            "hp_production": hp_production,
-            "gas_boiler": gas_boiler,
-            "electricity_price": elec_price,
-        }, index=df_input.index),
-        "design": {
-            "HP_cap": {1: 15.0, 2: 10.0, 3: 5.0},
-            "storage_capacity": 100.0,
-            "storage_power": 25.0,
+    if hasattr(base_result, "summary") and isinstance(base_result.summary, Mapping):
+        summary_sections = {
+            str(sec): dict(vals) for sec, vals in base_result.summary.items()
         }
+
+    # 'objective'-Section aus costs aufbauen/überschreiben
+    objective = summary_sections.setdefault("objective", {})
+    if isinstance(base_result.costs, Mapping):
+        for k, v in base_result.costs.items():
+            if not (isinstance(k, str) and k.startswith("objective.")):
+                continue
+            metric = k.split("objective.", 1)[1]  # z.B. "OBJ_value_EUR"
+            objective[metric] = v
+
+    # 3) Design-Infos (falls vorhanden)
+    design = {}
+    if workflow.design:
+        design["heat_pumps"] = workflow.design.heat_pumps
+        if workflow.design.storage:
+            design["storage"] = workflow.design.storage
+
+    results = {
+        "summary": summary_sections,
+        "timeseries": ts_df,
+        "design": design,
     }
-
-    print(f"[INFO] Optimierung abgeschlossen")
-    print(f"       Gesamtkosten: {total_cost:,.0f} EUR")
-    print(f"       CO2-Emissionen: {total_co2:,.1f} t")
-
     return results
 
 
+def run_simulation():
+    """
+    Führt eine Simulation über EnerGIS (PF/RH/MPC) aus und gibt die
+    Ergebnisse im Publication-Format zurück.
+
+    Intern:
+      - ruft run_workflow(CONFIG_PATHS) auf
+      - führt export_workflow_results() aus (Standard-Export)
+      - optional: Dashboard-Export
+      - baut ein 'results'-Dict + df_input für die weiteren Publication-Schritte
+
+    """
+    print("\n" + "="*70)
+    print("SCHRITT 1: SIMULATION (PF/RH/MPC über run_workflow)")
+    print("="*70 + "\n")
+
+    from energis.run.rolling_horizon import run_workflow, export_workflow_results
+
+    # 1) PF/RH/MPC-Workflow starten
+    config_paths = [p.strip() for p in CONFIG_PATHS if p.strip()]
+    if not config_paths:
+        raise RuntimeError("Keine gültigen CONFIG_PATHS definiert (Umgebungsvariable CONFIG_PATHS).")
+
+    print(f"[INFO] Starte EnerGIS-Workflow mit Configs:")
+    for p in config_paths:
+        print(f"       - {p}")
+
+    workflow = run_workflow(config_paths)
+
+    # Bevorzugte Ergebnisquelle für die Publikation:
+    # 1. RH (Rolling Horizon), 2. MPC, 3. PF
+    base_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+    if base_result is None:
+        raise RuntimeError("Kein PF/RH/MPC-Ergebnis im Workflow vorhanden.")
+
+    # 2) Standard-Export des Frameworks (Excel-Bundle, CSV, JSON, Plots)
+    print("\n[INFO] Exportiere Framework-Ergebnisse (export_workflow_results)")
+    fw_outdir = EXPORT_DIR / "framework"
+    fw_export = export_workflow_results(workflow, outdir=str(fw_outdir))
+    print(f"       - Framework-Export: {fw_export['outdir']}")
+
+    # 3) Optional: Dashboard-Export
+    if USE_DASHBOARD:
+        try:
+            from energis.io.notebook_helpers import save_workflow_run
+
+            dash_dir = EXPORT_DIR / "dashboard"
+            dash_path = save_workflow_run(
+                workflow,
+                name=SCENARIO_TITLE,
+                description=f"Publication workflow: {', '.join(config_paths)}",
+                config_paths=config_paths,
+                save_dir=str(dash_dir),
+            )
+            print(f"\n[INFO] Dashboard-Export gespeichert unter:")
+            print(f"       - {dash_path}")
+            print("       Dashboard starten mit:  python start_dashboard.py")
+        except ImportError as e:
+            print(f"[WARN] Dashboard-Export nicht verfügbar: {e}")
+
+    # 4) Publication-kompatible Struktur aus dem Workflow bauen
+    results = _workflow_to_publication_results(workflow, base_result)
+
+    # Input-Daten als DataFrame (z.B. für Sensitivität/Plots)
+    table = base_result.table
+    df_input = pd.DataFrame(
+        {col: table[col] for col in table.columns},
+        index=table.index,
+    )
+
+    print("[INFO] Simulation (PF/RH/MPC) abgeschlossen.")
+    return results, df_input
+
+
 # ============================================================================
+
 # 2. PUBLICATION EXPORT
+
 # ============================================================================
 
 def run_publication_export(results: dict, output_dir: Path):
@@ -248,6 +242,7 @@ def run_publication_export(results: dict, output_dir: Path):
     - LaTeX-Tabellen (für Paper)
     - CSV-Dateien (für Analyse)
     - JSON-Dateien (für Metadaten)
+
     """
     print("\n" + "="*70)
     print("SCHRITT 2: PUBLICATION EXPORT")
@@ -311,12 +306,19 @@ def _manual_export(results: dict, output_dir: Path):
     # CSV Export für Zeitreihen
     if "timeseries" in results:
         ts_path = output_dir / "timeseries.csv"
-        results["timeseries"].to_csv(ts_path)
+        df_ts = results["timeseries"]
+        if isinstance(df_ts, pd.DataFrame):
+            df_ts.to_csv(ts_path)
+        else:
+            # Fallback: falls es schon ein DataFrame war, aber anders strukturiert
+            pd.DataFrame(df_ts).to_csv(ts_path)
         print(f"       - Timeseries CSV: {ts_path}")
 
 
 # ============================================================================
+
 # 3. PUBLICATION PLOTS
+
 # ============================================================================
 
 def run_publication_plots(results: dict, output_dir: Path):
@@ -327,6 +329,7 @@ def run_publication_plots(results: dict, output_dir: Path):
     - Hochauflösend (300 DPI für Druck)
     - Farbblind-freundliche Farbpalette
     - Applied Energy / IEEE konforme Formatierung
+
     """
     print("\n" + "="*70)
     print("SCHRITT 3: PUBLICATION PLOTS")
@@ -348,6 +351,8 @@ def run_publication_plots(results: dict, output_dir: Path):
         # Erstelle TimeSeriesTable aus Ergebnissen
         if "timeseries" in results:
             ts_df = results["timeseries"]
+            if not isinstance(ts_df, pd.DataFrame):
+                ts_df = pd.DataFrame(ts_df)
 
             # Konvertiere zu TimeSeriesTable Format
             columns = list(ts_df.columns)
@@ -392,6 +397,8 @@ def _simple_plots(results: dict, output_dir: Path):
             return
 
         ts_df = results["timeseries"]
+        if not isinstance(ts_df, pd.DataFrame):
+            ts_df = pd.DataFrame(ts_df)
 
         # Plot 1: Wärmeerzeugung
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -448,61 +455,79 @@ def _simple_plots(results: dict, output_dir: Path):
 
 
 # ============================================================================
+
 # 4. SENSITIVITÄTSANALYSE (OPTIONAL)
+
 # ============================================================================
 
 def run_sensitivity_analysis(results: dict, output_dir: Path):
     """
-    Führt eine Sensitivitätsanalyse durch.
+    Führt eine vollständige Sensitivitätsanalyse durch.
 
-    Untersucht die Auswirkung von Parameteränderungen auf das Ergebnis.
-    Generiert Tornado-Diagramme und LaTeX-Tabellen.
+    Nutzt:
+      - CONFIG_PATHS als Basis-Konfigurationsdateien
+      - run_full_sensitivity_study aus energis.analysis.sensitivity_runner
+      - create_publication_sensitivity_study als Standard-Parameter-Set
+
+    Generiert:
+      - Tornado-Diagramme / Spider-Plots (PDF/PNG)
+      - LaTeX-Tabelle
+      - JSON/CSV-Summary
+      - Parameter-Ranking (TXT)
+
     """
     print("\n" + "="*70)
     print("SCHRITT 4: SENSITIVITÄTSANALYSE")
     print("="*70 + "\n")
 
-    output_dir = Path(output_dir) / "sensitivity"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    outdir = Path(output_dir) / "sensitivity"
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    # Basis-Configs (gleich wie für die Hauptsimulation)
+    base_configs = [p.strip() for p in CONFIG_PATHS if p.strip()]
+    if not base_configs:
+        print("[ERROR] Keine CONFIG_PATHS für Sensitivitätsanalyse definiert.")
+        print("        Setze z.B.:  CONFIG_PATHS=configs/presets/rh_full_system.yaml")
+        return
 
     try:
-        from energis.analysis import (
-            create_standard_sensitivity_study,
-            run_sensitivity_analysis,
+        # 1) Standard-Parameterset für Publikationen
+        variations = create_publication_sensitivity_study()
+        print(f"[INFO] Sensitivitätsstudie mit {len(variations)} Parametern")
+        print(f"       Basis-Configs:")
+        for p in base_configs:
+            print(f"         - {p}")
+        print(f"       Output: {outdir}")
+
+        # 2) Vollständige Studie starten
+        study: SensitivityStudyResult = run_full_sensitivity_study(
+            base_configs=base_configs,
+            variations=variations,        # oder None, dann wird das gleiche Set benutzt
+            output_dir=str(outdir),
+            generate_plots=True,
+            generate_latex=True,
+            parallel=False,               # später ggf. auf True + n_jobs setzen
+            n_jobs=-1,
         )
-        from energis.analysis.sensitivity_runner import SensitivityStudyResult
 
-        print("[INFO] Sensitivitätsanalyse-Module geladen!")
-        print("[INFO] Dies kann einige Minuten dauern...")
+        # 3) Kurze Zusammenfassung in der Konsole ausgeben
+        print("\n" + study.summary())
+        print("\n[INFO] Generierte Sensitivitäts-Dateien:")
+        for label, path in study.generated_files.items():
+            print(f"       - {label}: {path}")
 
-        # Definiere Parameter für Sensitivitätsanalyse
-        # In deiner echten Anwendung würdest du hier deine Config-Pfade angeben
-
-        # Demo: Zeige was die Funktion erwartet
-        print("\n[INFO] Für eine vollständige Sensitivitätsanalyse, rufe auf:")
-        print("""
-        from energis.analysis import create_standard_sensitivity_study, run_sensitivity_analysis
-        from energis.analysis.sensitivity_runner import SensitivityStudyResult
-
-        # Erstelle Standard-Sensitivitätsstudie
-        variations = create_standard_sensitivity_study()
-
-        # Oder definiere eigene Parameter
-        results = run_sensitivity_analysis(
-            workflow=my_workflow,
-            variations=variations,
-            output_dir="exports/sensitivity"
-        )
-        """)
-
-        print("\n[SUCCESS] Sensitivitätsanalyse-Setup abgeschlossen!")
+        print("\n[SUCCESS] Sensitivitätsanalyse abgeschlossen!")
 
     except ImportError as e:
         print(f"[WARN] Sensitivity Modul nicht verfügbar: {e}")
-
+        print("[INFO] Stelle sicher, dass energis.analysis korrekt installiert ist.")
+    except Exception as e:
+        print(f"[ERROR] Sensitivitätsanalyse fehlgeschlagen: {e}")
 
 # ============================================================================
+
 # 5. FRAMEWORK-VALIDIERUNG (OPTIONAL)
+
 # ============================================================================
 
 def run_validation(output_dir: Path):
@@ -574,7 +599,9 @@ def run_validation(output_dir: Path):
 
 
 # ============================================================================
+
 # HAUPTPROGRAMM
+
 # ============================================================================
 
 def main():
@@ -599,7 +626,7 @@ def main():
             print("\n[ERROR] Simulation fehlgeschlagen. Beende...")
             return
 
-    # Wenn keine Simulation, lade Beispiel-Ergebnisse
+    # Wenn keine Simulation, lade Beispiel-Ergebnisse (Fallback)
     if results is None:
         print("[INFO] Keine Simulation. Verwende Demo-Ergebnisse...")
         results = {
