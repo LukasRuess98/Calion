@@ -274,11 +274,10 @@ def run_publication_export(results: dict, output_dir: Path):
         for name, path in latex_files.items():
             print(f"       - {name}: {path}")
 
-        # Export KPI Summary (CSV)
+        # Export KPI Summary (JSON + CSV)
         print("\n[INFO] Exportiere KPI-Summary...")
-        kpi_path = output_dir / "kpi_summary.csv"
-        export_kpi_summary(
-            filepath=str(kpi_path),
+        kpi_path = export_kpi_summary(
+            outdir=str(output_dir),
             summary_sections=results.get("summary", {}),
         )
         print(f"       - KPI Summary: {kpi_path}")
@@ -288,7 +287,6 @@ def run_publication_export(results: dict, output_dir: Path):
         bundle_files = export_publication_bundle(
             outdir=str(output_dir / "bundle"),
             summary_sections=results.get("summary", {}),
-            scenario_name=SCENARIO_TITLE,
         )
         print(f"       - Bundle erstellt in: {output_dir / 'bundle'}")
 
