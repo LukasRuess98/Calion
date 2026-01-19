@@ -27,9 +27,9 @@ scenario:
         capacity: true              # Optimize HP capacities
         build: true                 # Optimize build decisions
       storage:
-        capacity: true              # Optimize storage energy capacity
-        power: true                 # Optimize storage power capacity
-        build: true                 # Optimize build decision
+        capacity: false              # Optimize storage energy capacity
+        power: false                 # Optimize storage power capacity
+        build: false                 # Optimize build decision
       thermal_network:
         pipe_diameters: false
         pump_power: false
@@ -60,7 +60,7 @@ scenario:
   # ROLLING HORIZON PARAMETERS (used by MPC for terminal policy)
   # ═══════════════════════════════════════════════════════════════════════════
   rolling_horizon:
-    terminal_policy: value          # Diminishing returns value function
+    terminal_policy: free          # Diminishing returns value function
 
   # ═══════════════════════════════════════════════════════════════════════════
   # TIME HORIZON

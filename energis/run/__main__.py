@@ -101,7 +101,28 @@ Examples:
     try:
         # Run optimization
         workflow = rh.run_workflow(args.configs)
+                # NEU: PF- und MPC-Kostenblock in der Konsole ausgeben
+                # NEU: PF- und MPC-Kostenblock in der Konsole ausgeben
+        def _print_cost_block(label, costs):
+            if not costs:
+                return
+            print(f"\n=== {label} COSTS (objective.*) ===")
+            for k, v in sorted(costs.items()):
+                # Nur objective.*-Keys und nur numerische Werte ausgeben
+                if not k.startswith("objective."):
+                    continue
+                if not isinstance(v, (int, float)):   # Strings, dicts etc. überspringen
+                    continue
+                if abs(v) <= 1e-3:
+                    continue
+                print(f"{k:40s}: {v:,.2f}")
+                
+        if workflow.pf_result and workflow.pf_result.costs:
+            _print_cost_block("PF", workflow.pf_result.costs)
 
+        if workflow.mpc_result and workflow.mpc_result.costs:
+            _print_cost_block("MPC", workflow.mpc_result.costs)
+        
         # Export results
         if args.dashboard:
             # Use save_workflow_run for dashboard compatibility

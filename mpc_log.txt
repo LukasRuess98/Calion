@@ -1,0 +1,27 @@
+Traceback (most recent call last):
+  File "C:\Users\LKR\Documents\GitHub\Energy_Framwork\Planing-Framework-for-Heat\energis\run\__main__.py", line 103, in main
+    workflow = rh.run_workflow(args.configs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LKR\Documents\GitHub\Energy_Framwork\Planing-Framework-for-Heat\energis\run\rolling_horizon.py", line 1670, in run_workflow
+    inputs = _build_workflow_inputs(config_paths, overrides)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LKR\Documents\GitHub\Energy_Framwork\Planing-Framework-for-Heat\energis\run\rolling_horizon.py", line 1649, in _build_workflow_inputs
+    table = load_input_excel(site_cfg.get("input_xlsx", "Import_Data.xlsx"), site_cfg, dt_hours=dt_h)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\LKR\Documents\GitHub\Energy_Framwork\Planing-Framework-for-Heat\energis\io\loader.py", line 299, in load_input_excel
+    print(
+  File "C:\Users\LKR\AppData\Local\anaconda3\envs\stadtbach\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 24: character maps to <undefined>
+======================================================================
+EnerGIS - District Heating Optimization
+======================================================================
+
+Config files (1):
+  - configs/presets/pf_then_mpc.yaml
+
+
+======================================================================
+ERROR: 'charmap' codec can't encode character '\u2192' in position 24: character maps to <undefined>
+======================================================================

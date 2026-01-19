@@ -379,8 +379,13 @@ def run_mpc(
     soc_next = _initial_soc(base_cfg)
     base_storage_enabled = _storage_enabled(base_cfg)
 
-    # Get terminal policy
+    # ✅ FIX: Relax terminal policy for MPC (avoid infeasibility)
     terminal_policy = base_cfg.get("scenario", {}).get("rolling_horizon", {}).get("terminal_policy", "free")
+    if terminal_policy == "equal":
+        logger.warning("[MPC] Relaxing terminal_policy from 'equal' to 'geq' to avoid infeasibility")
+        terminal_policy = "geq"  # Less restrictive
+    elif not terminal_policy:
+        terminal_policy = "free"  # Most permissive
 
     # MPC main loop: update forecast at each step
     current_index = 0
@@ -388,10 +393,9 @@ def run_mpc(
 
     logger.info(
         f"Starting MPC: forecast={forecast_gen.get_method_name()}, "
-        f"horizon={forecast_horizon_hours}h, update_freq={update_frequency_hours}h, n={n} steps"
+        f"horizon={forecast_horizon_hours}h, update_freq={update_frequency_hours}h, n={n} steps, "
+        f"terminal_policy='{terminal_policy}'"
     )
-
-    infeasible_count = 0  # Track infeasible windows
 
     while current_index < n:
         logger.debug(f"MPC window {window_idx}: index={current_index}/{n}")
@@ -480,12 +484,22 @@ def run_mpc(
             solver_name,
         )
 
-        # Check for infeasibility
+        # ✅ FIX #2: Stop MPC on infeasibility (don't continue with zero costs)
         term_cond = str(window_result.solver.get("termination_condition", "")).lower()
         if "infeasible" in term_cond or "unbounded" in term_cond:
-            infeasible_count += 1
-            if infeasible_count <= 3:  # Only print first few
-                print(f"[MPC WARNING] Window {window_idx} (index={current_index}) is {term_cond}")
+            logger.error(
+                f"MPC Window {window_idx} (index={current_index}) is {term_cond}. "
+                f"Stopping optimization. Check: heat demand vs capacity, "
+                f"storage constraints, terminal_policy='{terminal_policy}'."
+            )
+            raise RuntimeError(
+                f"MPC optimization failed at window {window_idx}: {term_cond}. "
+                f"Hints:\n"
+                f"  - Relax terminal_policy (try 'free' or 'geq' instead of 'equal')\n"
+                f"  - Check if peak demand exceeds available capacity\n"
+                f"  - Verify storage bounds and initial SOC\n"
+                f"  - Increase forecast horizon or reduce update frequency"
+            )
 
         # 4. Extract design from first window (if not fixed)
         if window_idx == 0 and design_state is None:
@@ -534,55 +548,35 @@ def run_mpc(
             logger.warning(f"MPC stuck at index {current_index}, breaking")
             break
 
-    logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
-
-    # Report infeasibility summary
-    if infeasible_count > 0:
-        print(f"\n[MPC ERROR] {infeasible_count} of {window_idx} windows were INFEASIBLE!")
-        print(f"[MPC ERROR] This causes operational costs to be 0. Check:")
-        print(f"  - Heat demand vs available capacity")
-        print(f"  - Storage terminal policy constraints")
-        print(f"  - Initial SOC values")
+        logger.info(f"MPC completed: {window_idx} windows, {len(aggregated_indices)} committed steps")
 
     # =========================================================================
-    # CRITICAL: Evaluate costs on ACTUAL data, not forecast data
+    # Kosten auf Basis der REALEN Daten (historical_data) auswerten
     # =========================================================================
-    # MPC decisions are made on imperfect forecasts, but true costs must be
-    # calculated using actual prices for fair comparison with PF.
-    #
-    # This replaces ALL operational costs (Grid, Fuel, CO2, Dump, Demand)
-    # with values calculated on actual historical data.
-    # Investment costs (CAPEX) are preserved from aggregation.
-    # =========================================================================
+    # Falls aus irgendeinem Grund keine Schritte committet wurden, brechen wir
+    # sauber ab und geben nur CAPEX zurück.
+    if not aggregated_indices:
+        evaluated_costs: Dict[str, float] = {}
+    else:
+        evaluated_costs: Dict[str, float] = _evaluate_costs_on_actual_data(
+            series=aggregated_series,
+            actual_data=historical_data,
+            committed_indices=aggregated_indices,
+            cfg=base_cfg,
+            dt_h=dt_h,
+        )
 
-    # DEBUG: Show available series keys for fuel calculation
-    fuel_keys = [k for k in aggregated_series.keys() if "fuel" in k.lower()]
-    print(f"\n[MPC DEBUG] Available fuel series: {fuel_keys}")
-    print(f"[MPC DEBUG] Committed indices: {len(aggregated_indices)} steps")
-    print(f"[MPC DEBUG] Aggregated costs BEFORE actual-data evaluation:")
-    for k, v in sorted(aggregated_costs.items()):
-        if "objective" in k.lower() and abs(v) > 0.01:
-            print(f"  {k}: {v:,.2f}")
-
-    evaluated_costs = _evaluate_costs_on_actual_data(
-        series=aggregated_series,
-        actual_data=historical_data,
-        committed_indices=aggregated_indices,
-        cfg=base_cfg,
-        dt_h=dt_h,
-    )
-
+    # Debug-Ausgabe (optional)
     print(f"\n[MPC DEBUG] Evaluated costs from actual data:")
     for k, v in sorted(evaluated_costs.items()):
         if abs(v) > 0.01:
             print(f"  {k}: {v:,.2f}")
 
-    # Replace forecast-based OPEX with actual-data costs
-    # Keep investment costs (CAPEX) from aggregation - they don't depend on prices
+    # OPEX durch tatsächliche Kosten ersetzen, CAPEX aus Aggregation beibehalten
     for key, value in evaluated_costs.items():
         aggregated_costs[key] = value
 
-    # Recompute objective total from actual-data costs + preserved CAPEX
+    # Gesamtes Ziel neu berechnen (OPEX + CAPEX)
     _recompute_objective_costs(aggregated_costs)
 
     print(f"\n[MPC DEBUG] Final costs AFTER recompute:")
@@ -591,7 +585,7 @@ def run_mpc(
             print(f"  {k}: {v:,.2f}")
     print()
 
-    # Build final result
+    # Finale Ergebnis-Tabelle: echte Zeitschiene, nur die committeten Indizes
     result_table = _slice_table(historical_data, aggregated_indices)
 
     return RollingHorizonResult(
