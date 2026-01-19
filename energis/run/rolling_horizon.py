@@ -571,9 +571,9 @@ def _collect_timeseries_and_summary(
             # Extract input COP from Pyomo parameter
             cop_param = getattr(model, f"{comp}_COP", None)
             if cop_param is not None:
-                for t in model_Tset:
-                    idx = t - 1 + global_offset
-                    if idx < n:
+                for t in times:
+                    idx = t - 1  # Pyomo indices start at 1
+                    if 0 <= idx < n:
                         try:
                             series[f"{comp}_COP_input"][idx] = float(pyo.value(cop_param[t]))
                         except Exception:
@@ -1732,7 +1732,8 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
     design_config = load_design_config(scenario_cfg)
 
     # Legacy support: fix_design flag (deprecated, use design.mode instead)
-    fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH"}
+    # fix_design should be True for any multi-step workflow (PF→RH or PF→MPC)
+    fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH", "PF_THEN_MPC"} or len(steps_upper) > 1
     fix_design = bool(scenario_cfg.get("fix_design", scenario_cfg.get("fix_design_in_rh", fix_default)))
 
     # If legacy fix_design is set but no design config, convert to optimize mode
@@ -1969,7 +1970,8 @@ def _run_rolling_horizon(
         # - "value": no hard constraint (economically optimized via terminal value function)
         # - "soft": soft constraint with penalty (always feasible)
         # - "free": no terminal constraint
-        policy = (params.terminal_policy or "equal").lower()
+        policy = (params.terminal_policy or "free").lower()  # ✅ FIX: Default to "free" instead of "equal"
+        
         if policy in ("value", "free"):
             # For value/free policies, don't force terminal target
             terminal_target = None
@@ -2239,6 +2241,14 @@ def _solve_scenario(
         soc_init_override=soc_init_override,
         terminal_target_override=terminal_target_override,
     )
+     # ✅ DEBUG: Export LP file for infeasibility analysis
+    if model is not None and HAVE_PYOMO:
+        try:
+            lp_filename = "debug_model.lp"
+            model.write(lp_filename, io_options={'symbolic_solver_labels': True})
+            print(f"[DEBUG] LP file written to: {lp_filename}")
+        except Exception as e:
+            print(f"[DEBUG] Could not write LP file: {e}")
     solver_meta: Dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
@@ -2428,6 +2438,10 @@ def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
 
 
 def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
+    """Set terminal policy for storage in RH/MPC windows.
+    
+    CRITICAL: Must set BOTH 'policy' AND 'state' to fully override terminal behavior!
+    """
     if not policy:
         return
     system = cfg.setdefault("system", {})
@@ -2439,11 +2453,28 @@ def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
     terminal = storage.setdefault("terminal", {})
     if isinstance(terminal, dict):
         terminal["policy"] = policy
-
+        
+        # ✅ FIX #9: Set terminal_state based on policy
+        if policy in ("free", "value"):
+            terminal["state"] = "free"  # No hard constraint
+            terminal.pop("target_mwh", None)  # Remove target
+            terminal.pop("target", None)  # Remove legacy key too
+            storage.pop("terminal_soc_mwh", None)  # Remove legacy key
+            storage["terminal_state"] = "free"  # Legacy key
+            print(f"[TERMINAL] Set to '{policy}' (state=free, no target)")
+        elif policy in ("equal", "geq", "soft"):
+            terminal["state"] = "cyclic"
+            # Keep target if set, otherwise will use soc_init
+            print(f"[TERMINAL] Set to '{policy}' (state=cyclic)")
 
 def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]:
+    """Apply design from PF to RH/MPC."""
     cfg_copy = copy.deepcopy(cfg)
     system = cfg_copy.setdefault("system", {})
+    
+    print(f"[DESIGN_FIX] Brownfield generators: {list(system.get('generators', {}).keys())}")
+    
+    # Fix greenfield heat pump capacities
     heat_pumps = system.get("heat_pumps")
     if isinstance(heat_pumps, list):
         for hp_cfg in heat_pumps:
@@ -2452,38 +2483,60 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
             hp_id = str(hp_cfg.get("id"))
             if hp_id not in design.heat_pumps:
                 continue
+            
             design_entry = design.heat_pumps[hp_id]
             capacity = float(design_entry.get("capacity_mw", 0.0))
             build_binary = float(design_entry.get("build_binary", 0.0))
+            
+            # ✅ FIX: Set ALL capacity values consistently!
             invest_cfg = hp_cfg.setdefault("investment", {})
             if isinstance(invest_cfg, dict):
                 invest_cfg["enabled"] = False
                 invest_cfg["capacity_min_mw"] = capacity
                 invest_cfg["capacity_max_mw"] = capacity
+                invest_cfg["initial_capacity_mw"] = capacity  # ✅ CRITICAL!
+            
             hp_cfg["max_th_mw"] = capacity
-            hp_cfg["min_th_mw"] = capacity
-            if build_binary < 0.5:
+            hp_cfg["min_th_mw"] = 0.0
+            
+            if build_binary >= 0.5:
+                hp_cfg["enabled"] = True
+                print(f"[DESIGN_FIX] ✓ HP {hp_id} ENABLED: {capacity:.1f} MW")
+            else:
                 hp_cfg["enabled"] = False
-
-    storage_cfg = system.get("storage") if isinstance(system.get("storage"), dict) else None
+                print(f"[DESIGN_FIX] ✗ HP {hp_id} DISABLED")
+    
+    # Fix storage
+    storage_cfg = system.get("storage")
     if storage_cfg and design.storage:
         actual_capacity = float(design.storage.get("capacity_mwh", 0.0))
         actual_power = float(design.storage.get("power_mw", 0.0))
-        print(f"[DESIGN_FIX] Applying storage design: capacity={actual_capacity:.1f} MWh, power={actual_power:.1f} MW")
-
-        # Safety check: if power is 0 but capacity is not, use a reasonable default
-        # (This can happen if Power_limit_MW was not properly captured in summary)
+        build_binary = float(design.storage.get("build_binary", 0.0))
+        
         if actual_power <= 0 and actual_capacity > 0:
-            # Use a reasonable power-to-energy ratio (e.g., 1:50 = 2% of capacity)
-            actual_power = max(actual_capacity / 50.0, 10.0)
-            print(f"[DESIGN_FIX] WARNING: power was 0, using fallback: {actual_power:.1f} MW")
-
-        storage_cfg["enabled"] = bool(design.storage.get("build_binary", 0.0) >= 0.5)
+            actual_power = actual_capacity * 0.25
+            print(f"[DESIGN_FIX] Storage power calculated: {actual_power:.1f} MW")
+        
+        if build_binary >= 0.5:
+            storage_cfg["enabled"] = True
+            print(f"[DESIGN_FIX] ✓ Storage ENABLED: {actual_capacity:.1f} MWh / {actual_power:.1f} MW")
+        else:
+            storage_cfg["enabled"] = False
+            
         storage_cfg["max_energy_mwh"] = actual_capacity
-        # Note: min_energy_mwh is minimum SOC (usually 0), NOT minimum capacity
-        # Do NOT set it to actual_capacity - that would force storage to always be full!
         storage_cfg["max_power_mw"] = actual_power
-        # Note: min_power_mw is kept at original value (usually 0 for flexibility)
+        
+        # Force terminal to free
+        terminal_cfg = storage_cfg.setdefault("terminal", {})
+        terminal_cfg["state"] = "free"
+        terminal_cfg["policy"] = "free"
+        terminal_cfg.pop("target_mwh", None)
+        terminal_cfg.pop("target", None)
+        storage_cfg.pop("terminal_soc_mwh", None)
+        storage_cfg["terminal_state"] = "free"
+        print(f"[DESIGN_FIX] Storage terminal → FREE")
+        
+        # ✅ FIX: Set ALL storage investment values consistently!
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):
             invest_cfg["enabled"] = False
@@ -2491,13 +2544,10 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
             invest_cfg["energy_capacity_max_mwh"] = actual_capacity
             invest_cfg["power_capacity_min_mw"] = actual_power
             invest_cfg["power_capacity_max_mw"] = actual_power
-            # CRITICAL: Also set initial_energy_capacity_mwh to fixed capacity
-            # Otherwise e_cap_init uses old value and soc_max becomes too small
-            invest_cfg["initial_energy_capacity_mwh"] = actual_capacity
-            invest_cfg["initial_power_capacity_mw"] = actual_power
-
+            invest_cfg["initial_energy_capacity_mwh"] = actual_capacity  # ✅ CRITICAL!
+            invest_cfg["initial_power_capacity_mw"] = actual_power  # ✅ CRITICAL!
+    
     return cfg_copy
-
 
 def _register_default_steps() -> None:
     register_workflow_step("PF", _pf_step)

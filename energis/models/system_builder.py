@@ -391,6 +391,20 @@ def build_model(
     # Dictionary für Export (Komponenten-spezifisch)
     m.co2_component_costs = {}
 
+    # ========== DEBUG: Check HP config before processing ==========
+    print(f"\n[BUILD DEBUG] Raw HP config from syscfg:")
+    for hp_raw in syscfg.get("heat_pumps", []):
+        print(f"  {hp_raw.get('id')}: enabled={hp_raw.get('enabled')}, "
+              f"max_th_mw={hp_raw.get('max_th_mw')}, "
+              f"inv.enabled={hp_raw.get('investment', {}).get('enabled')}")
+    
+    print(f"\n[BUILD DEBUG] After apply_heat_pump_defaults:")
+    for hp_check in apply_heat_pump_defaults(syscfg):
+        print(f"  {hp_check.get('id')}: enabled={hp_check.get('enabled')}, "
+              f"max_th_mw={hp_check.get('max_th_mw')}")
+    print()
+    # ========== END DEBUG ==========
+
     for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):
             continue
@@ -445,6 +459,15 @@ def build_model(
         fs = block.attach(m, m.t, cfg, {})
         ht_out.append(fs["Q_th_out"])
         el_in.append(fs["P_el_in"])
+        
+        # Debug: Show HP parameters
+        if name == "HP1":
+            print(f"\n[BUILD DEBUG] HP1 parameters:")
+            print(f"  - capacity: {cap_min:.1f} - {cap_max:.1f} MW (init: {cap_init:.1f})")
+            print(f"  - investable: {invest_enabled}")
+            print(f"  - min_load: {min_load}")
+            print(f"  - COP series: min={min(COP_series):.2f}, max={max(COP_series):.2f}, avg={sum(COP_series)/len(COP_series):.2f}")
+            print(f"  - WRG caps: {'None' if wrg_caps is None else f'provided ({len(wrg_caps)} values)'}")
 
         cap_var = fs.get("capacity")
         build_var = fs.get("build")

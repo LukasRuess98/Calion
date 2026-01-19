@@ -1,0 +1,35 @@
+# =============================================================================
+# PRESET: Perfect Foresight → MPC
+# =============================================================================
+# Two-stage optimization:
+# 1. PF: Optimize investment decisions with perfect information
+# 2. MPC: Simulate operations with realistic forecast uncertainty
+#
+# This allows fair comparison of MPC operational performance
+# while using optimal design from perfect foresight.
+#
+# Usage: python -m energis.run configs/presets/pf_then_mpc.yaml
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/heat_pumps.yaml
+  - ../01_tech/storage.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/assets.yaml
+  - ../03_systems/full.yaml
+  - ../04_scenarios/mpc_q1_2023.yaml
+
+# Override to use PF→MPC workflow
+scenario:
+  title: "PF → MPC - Q1 2023"
+  tag: "pf-then-mpc-q1-2023"
+  workflow: [PF, MPC]
+
+  optimization:
+    # Fix design after PF (MPC uses PF-optimized capacities)
+    fix_after_window: 0
