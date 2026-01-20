@@ -13,9 +13,10 @@ from __future__ import annotations
 import os
 import json
 import csv
-from typing import Mapping, Sequence, Any
+from typing import Mapping, Sequence, Any, Dict, List
 from datetime import datetime
 import numpy as np
+from energis.analysis.sensitivity import SensitivityResult
 
 __all__ = [
     "export_latex_tables",
@@ -849,3 +850,111 @@ def _create_publication_readme(filepath: str, bundle: dict) -> None:
         f.write("## Citation\n\n")
         f.write("If you use these results in your publication, please cite:\n\n")
         f.write("[Your paper citation here]\n")
+
+def export_sensitivity_latex_table(
+    results: Dict[str, List[SensitivityResult]],
+    output_path: str,
+    table_style: str = "booktabs",
+    caption: str = "Sensitivity Analysis Results",
+    label: str = "tab:sensitivity",
+) -> str:
+    """
+    Exportiert Sensitivitätsergebnisse als LaTeX-Tabelle.
+
+    Parameters
+    ----------
+    results:
+        Dict[param_path -> List[SensitivityResult]]
+    output_path:
+        Pfad zur .tex-Datei
+    table_style:
+        "booktabs" oder "standard" (nur Einfluss auf top/mid/bottomrules)
+    caption:
+        Tabellen-Caption
+    label:
+        LaTeX-Label
+
+    Returns
+    -------
+    str
+        Pfad zur erzeugten Datei
+    """
+    lines: List[str] = []
+
+    use_booktabs = (table_style == "booktabs")
+
+    # Tabellenkopf
+    lines.append(r"\begin{table}[ht]")
+    lines.append(r"\centering")
+    lines.append(r"\caption{" + caption + r"}")
+    lines.append(r"\label{" + label + r"}")
+    if use_booktabs:
+        lines.append(r"\begin{tabular}{l l r r r r}")
+        lines.append(r"\toprule")
+    else:
+        lines.append(r"\begin{tabular}{l l r r r r}")
+        lines.append(r"\hline")
+
+    lines.append(
+        r"Parameter & Variation & Wert & Ziel [EUR] & $\Delta$ [EUR] & $\Delta$ [\%] \\"
+    )
+    if use_booktabs:
+        lines.append(r"\midrule")
+    else:
+        lines.append(r"\hline")
+
+    # Tabelleninhalt
+    for param, res_list in results.items():
+        # Baseline pro Parameter bestimmen
+        baseline = None
+        for r in res_list:
+            if "baseline" in r.variation_label.lower() and r.objective_value is not None:
+                baseline = r.objective_value
+                break
+        # Fallback: erste gültige Objective
+        if baseline is None:
+            for r in res_list:
+                if r.objective_value is not None:
+                    baseline = r.objective_value
+                    break
+
+        short_name = param.split(".")[-1]
+
+        for r in res_list:
+            obj = r.objective_value
+            if obj is None:
+                obj_str = r"$\text{N/A}$"
+                delta_str = r"$\text{N/A}$"
+                delta_pct_str = r"$\text{N/A}$"
+            else:
+                obj_str = f"{obj:,.0f}".replace(",", r"\,")  # Tausender-Trennzeichen
+                if baseline is None or baseline == 0:
+                    delta_str = r"$\text{N/A}$"
+                    delta_pct_str = r"$\text{N/A}$"
+                else:
+                    delta = obj - baseline
+                    delta_pct = delta / baseline * 100.0
+                    delta_str = f"{delta:+,.0f}".replace(",", r"\,")
+                    delta_pct_str = f"{delta_pct:+.1f}\\%"
+
+            # Parameterwert formatiert
+            val_str = f"{r.param_value:g}"
+
+            lines.append(
+                f"{short_name} & {r.variation_label} & {val_str} & "
+                f"{obj_str} & {delta_str} & {delta_pct_str} \\\\"
+            )
+
+    # Tabellenende
+    if use_booktabs:
+        lines.append(r"\bottomrule")
+    else:
+        lines.append(r"\hline")
+    lines.append(r"\end{tabular}")
+    lines.append(r"\end{table}")
+
+    # Schreiben
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    return output_path

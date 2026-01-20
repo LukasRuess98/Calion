@@ -110,22 +110,24 @@ system:
   # THERMAL NETWORK
   # ═══════════════════════════════════════════════════════════════════════════
   thermal_network:
-    enabled: false  # Override in preset (rh_with_network.yaml) to enable
+    enabled: true
     brownfield_mode: true
-    topology_file: configs/05_networks/brownfield.yaml
 
-    # Technical limits (hydraulic constraints)
-    technical_limits:
+    parameters:
+      supply_temp_nominal_c: 120
+      return_temp_nominal_c: 55
+      ground_temp_default_c: 10
+
+      cp_water_kj_per_kg_k: 4.186
+      rho_water_kg_per_m3: 983
       max_velocity_m_s: 2.5
-      max_pressure_bar: 25.0
-      min_pressure_bar: 2.0
+      brownfield_temp_drop_per_pipe_c: 1.0
+      network_Q_loss_bounds_mw: [0, 50]
+      default_pipe_demand_fraction: 0.2
 
-    # Default operating parameters
-    defaults:
-      supply_temp_c: 120
-      return_temp_c: 55
-      ground_temp_c: 10
-
+      # NEU:
+      brownfield_loss_model: demand_proportional
+      brownfield_loss_ref_heat_mw: 150.0    # Beispiel: Design-Peak-Last deines Netzes in MW
     # Cost parameters (for greenfield/investment optimization)
     costs:
       pipe_capex_eur_per_m: 500.0           # Average pipe installation cost

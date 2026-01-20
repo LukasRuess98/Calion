@@ -17,5 +17,31 @@ system:
     enabled: false
 
   # No thermal network in baseline
+  # ═══════════════════════════════════════════════════════════════════════════
+  # THERMAL NETWORK
+  # ═══════════════════════════════════════════════════════════════════════════
   thermal_network:
-    enabled: false
+    enabled: true
+    brownfield_mode: true
+
+    parameters:
+      supply_temp_nominal_c: 120
+      return_temp_nominal_c: 55
+      ground_temp_default_c: 10
+
+      cp_water_kj_per_kg_k: 4.186
+      rho_water_kg_per_m3: 983
+      max_velocity_m_s: 2.5
+      brownfield_temp_drop_per_pipe_c: 1.0
+      network_Q_loss_bounds_mw: [0, 50]
+      default_pipe_demand_fraction: 0.2
+
+      # NEU:
+      brownfield_loss_model: demand_proportional
+      brownfield_loss_ref_heat_mw: 150.0    # Beispiel: Design-Peak-Last deines Netzes in MW
+    # Cost parameters (for greenfield/investment optimization)
+    costs:
+      pipe_capex_eur_per_m: 500.0           # Average pipe installation cost
+      pump_capex_eur_per_kw: 1000.0         # Pump investment cost
+      heat_loss_cost_eur_per_mwh: 50.0      # Penalty for network losses
+      lifetime_years: 40

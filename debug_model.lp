@@ -2,678 +2,678 @@
 
 min 
 obj:
-+85.16 HKW_fuel(1)
-+85.16 HKW_fuel(2)
-+85.16 HKW_fuel(3)
-+85.16 HKW_fuel(4)
-+85.16 HKW_fuel(5)
-+85.16 HKW_fuel(6)
-+85.16 HKW_fuel(7)
-+85.16 HKW_fuel(8)
-+85.16 HKW_fuel(9)
-+85.16 HKW_fuel(10)
-+85.16 HKW_fuel(11)
-+85.16 HKW_fuel(12)
-+85.16 HKW_fuel(13)
-+85.16 HKW_fuel(14)
-+85.16 HKW_fuel(15)
-+85.16 HKW_fuel(16)
-+85.16 HKW_fuel(17)
-+85.16 HKW_fuel(18)
-+85.16 HKW_fuel(19)
-+85.16 HKW_fuel(20)
-+85.16 HKW_fuel(21)
-+85.16 HKW_fuel(22)
-+85.16 HKW_fuel(23)
-+85.16 HKW_fuel(24)
-+85.16 HKW_fuel(25)
-+85.16 HKW_fuel(26)
-+85.16 HKW_fuel(27)
-+85.16 HKW_fuel(28)
-+85.16 HKW_fuel(29)
-+85.16 HKW_fuel(30)
-+85.16 HKW_fuel(31)
-+85.16 HKW_fuel(32)
-+85.16 HKW_fuel(33)
-+85.16 HKW_fuel(34)
-+85.16 HKW_fuel(35)
-+85.16 HKW_fuel(36)
-+85.16 HKW_fuel(37)
-+85.16 HKW_fuel(38)
-+85.16 HKW_fuel(39)
-+85.16 HKW_fuel(40)
-+85.16 HKW_fuel(41)
-+85.16 HKW_fuel(42)
-+85.16 HKW_fuel(43)
-+85.16 HKW_fuel(44)
-+85.16 HKW_fuel(45)
-+85.16 HKW_fuel(46)
-+85.16 HKW_fuel(47)
-+85.16 HKW_fuel(48)
-+85.16 HKW_fuel(49)
-+85.16 HKW_fuel(50)
-+85.16 HKW_fuel(51)
-+85.16 HKW_fuel(52)
-+85.16 HKW_fuel(53)
-+85.16 HKW_fuel(54)
-+85.16 HKW_fuel(55)
-+85.16 HKW_fuel(56)
-+85.16 HKW_fuel(57)
-+85.16 HKW_fuel(58)
-+85.16 HKW_fuel(59)
-+85.16 HKW_fuel(60)
-+85.16 HKW_fuel(61)
-+85.16 HKW_fuel(62)
-+85.16 HKW_fuel(63)
-+85.16 HKW_fuel(64)
-+85.16 HKW_fuel(65)
-+85.16 HKW_fuel(66)
-+85.16 HKW_fuel(67)
-+85.16 HKW_fuel(68)
-+85.16 HKW_fuel(69)
-+85.16 HKW_fuel(70)
-+85.16 HKW_fuel(71)
-+85.16 HKW_fuel(72)
-+85.16 HKW_fuel(73)
-+85.16 HKW_fuel(74)
-+85.16 HKW_fuel(75)
-+85.16 HKW_fuel(76)
-+85.16 HKW_fuel(77)
-+85.16 HKW_fuel(78)
-+85.16 HKW_fuel(79)
-+85.16 HKW_fuel(80)
-+85.16 HKW_fuel(81)
-+85.16 HKW_fuel(82)
-+85.16 HKW_fuel(83)
-+85.16 HKW_fuel(84)
-+85.16 HKW_fuel(85)
-+85.16 HKW_fuel(86)
-+85.16 HKW_fuel(87)
-+85.16 HKW_fuel(88)
-+85.16 HKW_fuel(89)
-+85.16 HKW_fuel(90)
-+85.16 HKW_fuel(91)
-+85.16 HKW_fuel(92)
-+85.16 HKW_fuel(93)
-+85.16 HKW_fuel(94)
-+85.16 HKW_fuel(95)
-+85.16 HKW_fuel(96)
-+85.16 HKW_fuel(97)
-+85.16 HKW_fuel(98)
-+85.16 HKW_fuel(99)
-+85.16 HKW_fuel(100)
-+85.16 HKW_fuel(101)
-+85.16 HKW_fuel(102)
-+85.16 HKW_fuel(103)
-+85.16 HKW_fuel(104)
-+85.16 HKW_fuel(105)
-+85.16 HKW_fuel(106)
-+85.16 HKW_fuel(107)
-+85.16 HKW_fuel(108)
-+85.16 HKW_fuel(109)
-+85.16 HKW_fuel(110)
-+85.16 HKW_fuel(111)
-+85.16 HKW_fuel(112)
-+85.16 HKW_fuel(113)
-+85.16 HKW_fuel(114)
-+85.16 HKW_fuel(115)
-+85.16 HKW_fuel(116)
-+85.16 HKW_fuel(117)
-+85.16 HKW_fuel(118)
-+85.16 HKW_fuel(119)
-+85.16 HKW_fuel(120)
-+85.16 HKW_fuel(121)
-+85.16 HKW_fuel(122)
-+85.16 HKW_fuel(123)
-+85.16 HKW_fuel(124)
-+85.16 HKW_fuel(125)
-+85.16 HKW_fuel(126)
-+85.16 HKW_fuel(127)
-+85.16 HKW_fuel(128)
-+85.16 HKW_fuel(129)
-+85.16 HKW_fuel(130)
-+85.16 HKW_fuel(131)
-+85.16 HKW_fuel(132)
-+85.16 HKW_fuel(133)
-+85.16 HKW_fuel(134)
-+85.16 HKW_fuel(135)
-+85.16 HKW_fuel(136)
-+85.16 HKW_fuel(137)
-+85.16 HKW_fuel(138)
-+85.16 HKW_fuel(139)
-+85.16 HKW_fuel(140)
-+85.16 HKW_fuel(141)
-+85.16 HKW_fuel(142)
-+85.16 HKW_fuel(143)
-+85.16 HKW_fuel(144)
-+85.16 HKW_fuel(145)
-+85.16 HKW_fuel(146)
-+85.16 HKW_fuel(147)
-+85.16 HKW_fuel(148)
-+85.16 HKW_fuel(149)
-+85.16 HKW_fuel(150)
-+85.16 HKW_fuel(151)
-+85.16 HKW_fuel(152)
-+85.16 HKW_fuel(153)
-+85.16 HKW_fuel(154)
-+85.16 HKW_fuel(155)
-+85.16 HKW_fuel(156)
-+85.16 HKW_fuel(157)
-+85.16 HKW_fuel(158)
-+85.16 HKW_fuel(159)
-+85.16 HKW_fuel(160)
-+85.16 HKW_fuel(161)
-+85.16 HKW_fuel(162)
-+85.16 HKW_fuel(163)
-+85.16 HKW_fuel(164)
-+85.16 HKW_fuel(165)
-+85.16 HKW_fuel(166)
-+85.16 HKW_fuel(167)
-+85.16 HKW_fuel(168)
-+85.16 GTOST_fuel(1)
-+85.16 GTOST_fuel(2)
-+85.16 GTOST_fuel(3)
-+85.16 GTOST_fuel(4)
-+85.16 GTOST_fuel(5)
-+85.16 GTOST_fuel(6)
-+85.16 GTOST_fuel(7)
-+85.16 GTOST_fuel(8)
-+85.16 GTOST_fuel(9)
-+85.16 GTOST_fuel(10)
-+85.16 GTOST_fuel(11)
-+85.16 GTOST_fuel(12)
-+85.16 GTOST_fuel(13)
-+85.16 GTOST_fuel(14)
-+85.16 GTOST_fuel(15)
-+85.16 GTOST_fuel(16)
-+85.16 GTOST_fuel(17)
-+85.16 GTOST_fuel(18)
-+85.16 GTOST_fuel(19)
-+85.16 GTOST_fuel(20)
-+85.16 GTOST_fuel(21)
-+85.16 GTOST_fuel(22)
-+85.16 GTOST_fuel(23)
-+85.16 GTOST_fuel(24)
-+85.16 GTOST_fuel(25)
-+85.16 GTOST_fuel(26)
-+85.16 GTOST_fuel(27)
-+85.16 GTOST_fuel(28)
-+85.16 GTOST_fuel(29)
-+85.16 GTOST_fuel(30)
-+85.16 GTOST_fuel(31)
-+85.16 GTOST_fuel(32)
-+85.16 GTOST_fuel(33)
-+85.16 GTOST_fuel(34)
-+85.16 GTOST_fuel(35)
-+85.16 GTOST_fuel(36)
-+85.16 GTOST_fuel(37)
-+85.16 GTOST_fuel(38)
-+85.16 GTOST_fuel(39)
-+85.16 GTOST_fuel(40)
-+85.16 GTOST_fuel(41)
-+85.16 GTOST_fuel(42)
-+85.16 GTOST_fuel(43)
-+85.16 GTOST_fuel(44)
-+85.16 GTOST_fuel(45)
-+85.16 GTOST_fuel(46)
-+85.16 GTOST_fuel(47)
-+85.16 GTOST_fuel(48)
-+85.16 GTOST_fuel(49)
-+85.16 GTOST_fuel(50)
-+85.16 GTOST_fuel(51)
-+85.16 GTOST_fuel(52)
-+85.16 GTOST_fuel(53)
-+85.16 GTOST_fuel(54)
-+85.16 GTOST_fuel(55)
-+85.16 GTOST_fuel(56)
-+85.16 GTOST_fuel(57)
-+85.16 GTOST_fuel(58)
-+85.16 GTOST_fuel(59)
-+85.16 GTOST_fuel(60)
-+85.16 GTOST_fuel(61)
-+85.16 GTOST_fuel(62)
-+85.16 GTOST_fuel(63)
-+85.16 GTOST_fuel(64)
-+85.16 GTOST_fuel(65)
-+85.16 GTOST_fuel(66)
-+85.16 GTOST_fuel(67)
-+85.16 GTOST_fuel(68)
-+85.16 GTOST_fuel(69)
-+85.16 GTOST_fuel(70)
-+85.16 GTOST_fuel(71)
-+85.16 GTOST_fuel(72)
-+85.16 GTOST_fuel(73)
-+85.16 GTOST_fuel(74)
-+85.16 GTOST_fuel(75)
-+85.16 GTOST_fuel(76)
-+85.16 GTOST_fuel(77)
-+85.16 GTOST_fuel(78)
-+85.16 GTOST_fuel(79)
-+85.16 GTOST_fuel(80)
-+85.16 GTOST_fuel(81)
-+85.16 GTOST_fuel(82)
-+85.16 GTOST_fuel(83)
-+85.16 GTOST_fuel(84)
-+85.16 GTOST_fuel(85)
-+85.16 GTOST_fuel(86)
-+85.16 GTOST_fuel(87)
-+85.16 GTOST_fuel(88)
-+85.16 GTOST_fuel(89)
-+85.16 GTOST_fuel(90)
-+85.16 GTOST_fuel(91)
-+85.16 GTOST_fuel(92)
-+85.16 GTOST_fuel(93)
-+85.16 GTOST_fuel(94)
-+85.16 GTOST_fuel(95)
-+85.16 GTOST_fuel(96)
-+85.16 GTOST_fuel(97)
-+85.16 GTOST_fuel(98)
-+85.16 GTOST_fuel(99)
-+85.16 GTOST_fuel(100)
-+85.16 GTOST_fuel(101)
-+85.16 GTOST_fuel(102)
-+85.16 GTOST_fuel(103)
-+85.16 GTOST_fuel(104)
-+85.16 GTOST_fuel(105)
-+85.16 GTOST_fuel(106)
-+85.16 GTOST_fuel(107)
-+85.16 GTOST_fuel(108)
-+85.16 GTOST_fuel(109)
-+85.16 GTOST_fuel(110)
-+85.16 GTOST_fuel(111)
-+85.16 GTOST_fuel(112)
-+85.16 GTOST_fuel(113)
-+85.16 GTOST_fuel(114)
-+85.16 GTOST_fuel(115)
-+85.16 GTOST_fuel(116)
-+85.16 GTOST_fuel(117)
-+85.16 GTOST_fuel(118)
-+85.16 GTOST_fuel(119)
-+85.16 GTOST_fuel(120)
-+85.16 GTOST_fuel(121)
-+85.16 GTOST_fuel(122)
-+85.16 GTOST_fuel(123)
-+85.16 GTOST_fuel(124)
-+85.16 GTOST_fuel(125)
-+85.16 GTOST_fuel(126)
-+85.16 GTOST_fuel(127)
-+85.16 GTOST_fuel(128)
-+85.16 GTOST_fuel(129)
-+85.16 GTOST_fuel(130)
-+85.16 GTOST_fuel(131)
-+85.16 GTOST_fuel(132)
-+85.16 GTOST_fuel(133)
-+85.16 GTOST_fuel(134)
-+85.16 GTOST_fuel(135)
-+85.16 GTOST_fuel(136)
-+85.16 GTOST_fuel(137)
-+85.16 GTOST_fuel(138)
-+85.16 GTOST_fuel(139)
-+85.16 GTOST_fuel(140)
-+85.16 GTOST_fuel(141)
-+85.16 GTOST_fuel(142)
-+85.16 GTOST_fuel(143)
-+85.16 GTOST_fuel(144)
-+85.16 GTOST_fuel(145)
-+85.16 GTOST_fuel(146)
-+85.16 GTOST_fuel(147)
-+85.16 GTOST_fuel(148)
-+85.16 GTOST_fuel(149)
-+85.16 GTOST_fuel(150)
-+85.16 GTOST_fuel(151)
-+85.16 GTOST_fuel(152)
-+85.16 GTOST_fuel(153)
-+85.16 GTOST_fuel(154)
-+85.16 GTOST_fuel(155)
-+85.16 GTOST_fuel(156)
-+85.16 GTOST_fuel(157)
-+85.16 GTOST_fuel(158)
-+85.16 GTOST_fuel(159)
-+85.16 GTOST_fuel(160)
-+85.16 GTOST_fuel(161)
-+85.16 GTOST_fuel(162)
-+85.16 GTOST_fuel(163)
-+85.16 GTOST_fuel(164)
-+85.16 GTOST_fuel(165)
-+85.16 GTOST_fuel(166)
-+85.16 GTOST_fuel(167)
-+85.16 GTOST_fuel(168)
-+85.16 HWS_fuel(1)
-+85.16 HWS_fuel(2)
-+85.16 HWS_fuel(3)
-+85.16 HWS_fuel(4)
-+85.16 HWS_fuel(5)
-+85.16 HWS_fuel(6)
-+85.16 HWS_fuel(7)
-+85.16 HWS_fuel(8)
-+85.16 HWS_fuel(9)
-+85.16 HWS_fuel(10)
-+85.16 HWS_fuel(11)
-+85.16 HWS_fuel(12)
-+85.16 HWS_fuel(13)
-+85.16 HWS_fuel(14)
-+85.16 HWS_fuel(15)
-+85.16 HWS_fuel(16)
-+85.16 HWS_fuel(17)
-+85.16 HWS_fuel(18)
-+85.16 HWS_fuel(19)
-+85.16 HWS_fuel(20)
-+85.16 HWS_fuel(21)
-+85.16 HWS_fuel(22)
-+85.16 HWS_fuel(23)
-+85.16 HWS_fuel(24)
-+85.16 HWS_fuel(25)
-+85.16 HWS_fuel(26)
-+85.16 HWS_fuel(27)
-+85.16 HWS_fuel(28)
-+85.16 HWS_fuel(29)
-+85.16 HWS_fuel(30)
-+85.16 HWS_fuel(31)
-+85.16 HWS_fuel(32)
-+85.16 HWS_fuel(33)
-+85.16 HWS_fuel(34)
-+85.16 HWS_fuel(35)
-+85.16 HWS_fuel(36)
-+85.16 HWS_fuel(37)
-+85.16 HWS_fuel(38)
-+85.16 HWS_fuel(39)
-+85.16 HWS_fuel(40)
-+85.16 HWS_fuel(41)
-+85.16 HWS_fuel(42)
-+85.16 HWS_fuel(43)
-+85.16 HWS_fuel(44)
-+85.16 HWS_fuel(45)
-+85.16 HWS_fuel(46)
-+85.16 HWS_fuel(47)
-+85.16 HWS_fuel(48)
-+85.16 HWS_fuel(49)
-+85.16 HWS_fuel(50)
-+85.16 HWS_fuel(51)
-+85.16 HWS_fuel(52)
-+85.16 HWS_fuel(53)
-+85.16 HWS_fuel(54)
-+85.16 HWS_fuel(55)
-+85.16 HWS_fuel(56)
-+85.16 HWS_fuel(57)
-+85.16 HWS_fuel(58)
-+85.16 HWS_fuel(59)
-+85.16 HWS_fuel(60)
-+85.16 HWS_fuel(61)
-+85.16 HWS_fuel(62)
-+85.16 HWS_fuel(63)
-+85.16 HWS_fuel(64)
-+85.16 HWS_fuel(65)
-+85.16 HWS_fuel(66)
-+85.16 HWS_fuel(67)
-+85.16 HWS_fuel(68)
-+85.16 HWS_fuel(69)
-+85.16 HWS_fuel(70)
-+85.16 HWS_fuel(71)
-+85.16 HWS_fuel(72)
-+85.16 HWS_fuel(73)
-+85.16 HWS_fuel(74)
-+85.16 HWS_fuel(75)
-+85.16 HWS_fuel(76)
-+85.16 HWS_fuel(77)
-+85.16 HWS_fuel(78)
-+85.16 HWS_fuel(79)
-+85.16 HWS_fuel(80)
-+85.16 HWS_fuel(81)
-+85.16 HWS_fuel(82)
-+85.16 HWS_fuel(83)
-+85.16 HWS_fuel(84)
-+85.16 HWS_fuel(85)
-+85.16 HWS_fuel(86)
-+85.16 HWS_fuel(87)
-+85.16 HWS_fuel(88)
-+85.16 HWS_fuel(89)
-+85.16 HWS_fuel(90)
-+85.16 HWS_fuel(91)
-+85.16 HWS_fuel(92)
-+85.16 HWS_fuel(93)
-+85.16 HWS_fuel(94)
-+85.16 HWS_fuel(95)
-+85.16 HWS_fuel(96)
-+85.16 HWS_fuel(97)
-+85.16 HWS_fuel(98)
-+85.16 HWS_fuel(99)
-+85.16 HWS_fuel(100)
-+85.16 HWS_fuel(101)
-+85.16 HWS_fuel(102)
-+85.16 HWS_fuel(103)
-+85.16 HWS_fuel(104)
-+85.16 HWS_fuel(105)
-+85.16 HWS_fuel(106)
-+85.16 HWS_fuel(107)
-+85.16 HWS_fuel(108)
-+85.16 HWS_fuel(109)
-+85.16 HWS_fuel(110)
-+85.16 HWS_fuel(111)
-+85.16 HWS_fuel(112)
-+85.16 HWS_fuel(113)
-+85.16 HWS_fuel(114)
-+85.16 HWS_fuel(115)
-+85.16 HWS_fuel(116)
-+85.16 HWS_fuel(117)
-+85.16 HWS_fuel(118)
-+85.16 HWS_fuel(119)
-+85.16 HWS_fuel(120)
-+85.16 HWS_fuel(121)
-+85.16 HWS_fuel(122)
-+85.16 HWS_fuel(123)
-+85.16 HWS_fuel(124)
-+85.16 HWS_fuel(125)
-+85.16 HWS_fuel(126)
-+85.16 HWS_fuel(127)
-+85.16 HWS_fuel(128)
-+85.16 HWS_fuel(129)
-+85.16 HWS_fuel(130)
-+85.16 HWS_fuel(131)
-+85.16 HWS_fuel(132)
-+85.16 HWS_fuel(133)
-+85.16 HWS_fuel(134)
-+85.16 HWS_fuel(135)
-+85.16 HWS_fuel(136)
-+85.16 HWS_fuel(137)
-+85.16 HWS_fuel(138)
-+85.16 HWS_fuel(139)
-+85.16 HWS_fuel(140)
-+85.16 HWS_fuel(141)
-+85.16 HWS_fuel(142)
-+85.16 HWS_fuel(143)
-+85.16 HWS_fuel(144)
-+85.16 HWS_fuel(145)
-+85.16 HWS_fuel(146)
-+85.16 HWS_fuel(147)
-+85.16 HWS_fuel(148)
-+85.16 HWS_fuel(149)
-+85.16 HWS_fuel(150)
-+85.16 HWS_fuel(151)
-+85.16 HWS_fuel(152)
-+85.16 HWS_fuel(153)
-+85.16 HWS_fuel(154)
-+85.16 HWS_fuel(155)
-+85.16 HWS_fuel(156)
-+85.16 HWS_fuel(157)
-+85.16 HWS_fuel(158)
-+85.16 HWS_fuel(159)
-+85.16 HWS_fuel(160)
-+85.16 HWS_fuel(161)
-+85.16 HWS_fuel(162)
-+85.16 HWS_fuel(163)
-+85.16 HWS_fuel(164)
-+85.16 HWS_fuel(165)
-+85.16 HWS_fuel(166)
-+85.16 HWS_fuel(167)
-+85.16 HWS_fuel(168)
-+85.16 HWW_fuel(1)
-+85.16 HWW_fuel(2)
-+85.16 HWW_fuel(3)
-+85.16 HWW_fuel(4)
-+85.16 HWW_fuel(5)
-+85.16 HWW_fuel(6)
-+85.16 HWW_fuel(7)
-+85.16 HWW_fuel(8)
-+85.16 HWW_fuel(9)
-+85.16 HWW_fuel(10)
-+85.16 HWW_fuel(11)
-+85.16 HWW_fuel(12)
-+85.16 HWW_fuel(13)
-+85.16 HWW_fuel(14)
-+85.16 HWW_fuel(15)
-+85.16 HWW_fuel(16)
-+85.16 HWW_fuel(17)
-+85.16 HWW_fuel(18)
-+85.16 HWW_fuel(19)
-+85.16 HWW_fuel(20)
-+85.16 HWW_fuel(21)
-+85.16 HWW_fuel(22)
-+85.16 HWW_fuel(23)
-+85.16 HWW_fuel(24)
-+85.16 HWW_fuel(25)
-+85.16 HWW_fuel(26)
-+85.16 HWW_fuel(27)
-+85.16 HWW_fuel(28)
-+85.16 HWW_fuel(29)
-+85.16 HWW_fuel(30)
-+85.16 HWW_fuel(31)
-+85.16 HWW_fuel(32)
-+85.16 HWW_fuel(33)
-+85.16 HWW_fuel(34)
-+85.16 HWW_fuel(35)
-+85.16 HWW_fuel(36)
-+85.16 HWW_fuel(37)
-+85.16 HWW_fuel(38)
-+85.16 HWW_fuel(39)
-+85.16 HWW_fuel(40)
-+85.16 HWW_fuel(41)
-+85.16 HWW_fuel(42)
-+85.16 HWW_fuel(43)
-+85.16 HWW_fuel(44)
-+85.16 HWW_fuel(45)
-+85.16 HWW_fuel(46)
-+85.16 HWW_fuel(47)
-+85.16 HWW_fuel(48)
-+85.16 HWW_fuel(49)
-+85.16 HWW_fuel(50)
-+85.16 HWW_fuel(51)
-+85.16 HWW_fuel(52)
-+85.16 HWW_fuel(53)
-+85.16 HWW_fuel(54)
-+85.16 HWW_fuel(55)
-+85.16 HWW_fuel(56)
-+85.16 HWW_fuel(57)
-+85.16 HWW_fuel(58)
-+85.16 HWW_fuel(59)
-+85.16 HWW_fuel(60)
-+85.16 HWW_fuel(61)
-+85.16 HWW_fuel(62)
-+85.16 HWW_fuel(63)
-+85.16 HWW_fuel(64)
-+85.16 HWW_fuel(65)
-+85.16 HWW_fuel(66)
-+85.16 HWW_fuel(67)
-+85.16 HWW_fuel(68)
-+85.16 HWW_fuel(69)
-+85.16 HWW_fuel(70)
-+85.16 HWW_fuel(71)
-+85.16 HWW_fuel(72)
-+85.16 HWW_fuel(73)
-+85.16 HWW_fuel(74)
-+85.16 HWW_fuel(75)
-+85.16 HWW_fuel(76)
-+85.16 HWW_fuel(77)
-+85.16 HWW_fuel(78)
-+85.16 HWW_fuel(79)
-+85.16 HWW_fuel(80)
-+85.16 HWW_fuel(81)
-+85.16 HWW_fuel(82)
-+85.16 HWW_fuel(83)
-+85.16 HWW_fuel(84)
-+85.16 HWW_fuel(85)
-+85.16 HWW_fuel(86)
-+85.16 HWW_fuel(87)
-+85.16 HWW_fuel(88)
-+85.16 HWW_fuel(89)
-+85.16 HWW_fuel(90)
-+85.16 HWW_fuel(91)
-+85.16 HWW_fuel(92)
-+85.16 HWW_fuel(93)
-+85.16 HWW_fuel(94)
-+85.16 HWW_fuel(95)
-+85.16 HWW_fuel(96)
-+85.16 HWW_fuel(97)
-+85.16 HWW_fuel(98)
-+85.16 HWW_fuel(99)
-+85.16 HWW_fuel(100)
-+85.16 HWW_fuel(101)
-+85.16 HWW_fuel(102)
-+85.16 HWW_fuel(103)
-+85.16 HWW_fuel(104)
-+85.16 HWW_fuel(105)
-+85.16 HWW_fuel(106)
-+85.16 HWW_fuel(107)
-+85.16 HWW_fuel(108)
-+85.16 HWW_fuel(109)
-+85.16 HWW_fuel(110)
-+85.16 HWW_fuel(111)
-+85.16 HWW_fuel(112)
-+85.16 HWW_fuel(113)
-+85.16 HWW_fuel(114)
-+85.16 HWW_fuel(115)
-+85.16 HWW_fuel(116)
-+85.16 HWW_fuel(117)
-+85.16 HWW_fuel(118)
-+85.16 HWW_fuel(119)
-+85.16 HWW_fuel(120)
-+85.16 HWW_fuel(121)
-+85.16 HWW_fuel(122)
-+85.16 HWW_fuel(123)
-+85.16 HWW_fuel(124)
-+85.16 HWW_fuel(125)
-+85.16 HWW_fuel(126)
-+85.16 HWW_fuel(127)
-+85.16 HWW_fuel(128)
-+85.16 HWW_fuel(129)
-+85.16 HWW_fuel(130)
-+85.16 HWW_fuel(131)
-+85.16 HWW_fuel(132)
-+85.16 HWW_fuel(133)
-+85.16 HWW_fuel(134)
-+85.16 HWW_fuel(135)
-+85.16 HWW_fuel(136)
-+85.16 HWW_fuel(137)
-+85.16 HWW_fuel(138)
-+85.16 HWW_fuel(139)
-+85.16 HWW_fuel(140)
-+85.16 HWW_fuel(141)
-+85.16 HWW_fuel(142)
-+85.16 HWW_fuel(143)
-+85.16 HWW_fuel(144)
-+85.16 HWW_fuel(145)
-+85.16 HWW_fuel(146)
-+85.16 HWW_fuel(147)
-+85.16 HWW_fuel(148)
-+85.16 HWW_fuel(149)
-+85.16 HWW_fuel(150)
-+85.16 HWW_fuel(151)
-+85.16 HWW_fuel(152)
-+85.16 HWW_fuel(153)
-+85.16 HWW_fuel(154)
-+85.16 HWW_fuel(155)
-+85.16 HWW_fuel(156)
-+85.16 HWW_fuel(157)
-+85.16 HWW_fuel(158)
-+85.16 HWW_fuel(159)
-+85.16 HWW_fuel(160)
-+85.16 HWW_fuel(161)
-+85.16 HWW_fuel(162)
-+85.16 HWW_fuel(163)
-+85.16 HWW_fuel(164)
-+85.16 HWW_fuel(165)
-+85.16 HWW_fuel(166)
-+85.16 HWW_fuel(167)
-+85.16 HWW_fuel(168)
++78.76 HKW_fuel(1)
++78.76 HKW_fuel(2)
++78.76 HKW_fuel(3)
++78.76 HKW_fuel(4)
++78.76 HKW_fuel(5)
++78.76 HKW_fuel(6)
++78.76 HKW_fuel(7)
++78.76 HKW_fuel(8)
++78.76 HKW_fuel(9)
++78.76 HKW_fuel(10)
++78.76 HKW_fuel(11)
++78.76 HKW_fuel(12)
++78.76 HKW_fuel(13)
++78.76 HKW_fuel(14)
++78.76 HKW_fuel(15)
++78.76 HKW_fuel(16)
++78.76 HKW_fuel(17)
++78.76 HKW_fuel(18)
++78.76 HKW_fuel(19)
++78.76 HKW_fuel(20)
++78.76 HKW_fuel(21)
++78.76 HKW_fuel(22)
++78.76 HKW_fuel(23)
++78.76 HKW_fuel(24)
++78.76 HKW_fuel(25)
++78.76 HKW_fuel(26)
++78.76 HKW_fuel(27)
++78.76 HKW_fuel(28)
++78.76 HKW_fuel(29)
++78.76 HKW_fuel(30)
++78.76 HKW_fuel(31)
++78.76 HKW_fuel(32)
++78.76 HKW_fuel(33)
++78.76 HKW_fuel(34)
++78.76 HKW_fuel(35)
++78.76 HKW_fuel(36)
++78.76 HKW_fuel(37)
++78.76 HKW_fuel(38)
++78.76 HKW_fuel(39)
++78.76 HKW_fuel(40)
++78.76 HKW_fuel(41)
++78.76 HKW_fuel(42)
++78.76 HKW_fuel(43)
++78.76 HKW_fuel(44)
++78.76 HKW_fuel(45)
++78.76 HKW_fuel(46)
++78.76 HKW_fuel(47)
++78.76 HKW_fuel(48)
++78.76 HKW_fuel(49)
++78.76 HKW_fuel(50)
++78.76 HKW_fuel(51)
++78.76 HKW_fuel(52)
++78.76 HKW_fuel(53)
++78.76 HKW_fuel(54)
++78.76 HKW_fuel(55)
++78.76 HKW_fuel(56)
++78.76 HKW_fuel(57)
++78.76 HKW_fuel(58)
++78.76 HKW_fuel(59)
++78.76 HKW_fuel(60)
++78.76 HKW_fuel(61)
++78.76 HKW_fuel(62)
++78.76 HKW_fuel(63)
++78.76 HKW_fuel(64)
++78.76 HKW_fuel(65)
++78.76 HKW_fuel(66)
++78.76 HKW_fuel(67)
++78.76 HKW_fuel(68)
++78.76 HKW_fuel(69)
++78.76 HKW_fuel(70)
++78.76 HKW_fuel(71)
++78.76 HKW_fuel(72)
++78.76 HKW_fuel(73)
++78.76 HKW_fuel(74)
++78.76 HKW_fuel(75)
++78.76 HKW_fuel(76)
++78.76 HKW_fuel(77)
++78.76 HKW_fuel(78)
++78.76 HKW_fuel(79)
++78.76 HKW_fuel(80)
++78.76 HKW_fuel(81)
++78.76 HKW_fuel(82)
++78.76 HKW_fuel(83)
++78.76 HKW_fuel(84)
++78.76 HKW_fuel(85)
++78.76 HKW_fuel(86)
++78.76 HKW_fuel(87)
++78.76 HKW_fuel(88)
++78.76 HKW_fuel(89)
++78.76 HKW_fuel(90)
++78.76 HKW_fuel(91)
++78.76 HKW_fuel(92)
++78.76 HKW_fuel(93)
++78.76 HKW_fuel(94)
++78.76 HKW_fuel(95)
++78.76 HKW_fuel(96)
++78.76 HKW_fuel(97)
++78.76 HKW_fuel(98)
++78.76 HKW_fuel(99)
++78.76 HKW_fuel(100)
++78.76 HKW_fuel(101)
++78.76 HKW_fuel(102)
++78.76 HKW_fuel(103)
++78.76 HKW_fuel(104)
++78.76 HKW_fuel(105)
++78.76 HKW_fuel(106)
++78.76 HKW_fuel(107)
++78.76 HKW_fuel(108)
++78.76 HKW_fuel(109)
++78.76 HKW_fuel(110)
++78.76 HKW_fuel(111)
++78.76 HKW_fuel(112)
++78.76 HKW_fuel(113)
++78.76 HKW_fuel(114)
++78.76 HKW_fuel(115)
++78.76 HKW_fuel(116)
++78.76 HKW_fuel(117)
++78.76 HKW_fuel(118)
++78.76 HKW_fuel(119)
++78.76 HKW_fuel(120)
++78.76 HKW_fuel(121)
++78.76 HKW_fuel(122)
++78.76 HKW_fuel(123)
++78.76 HKW_fuel(124)
++78.76 HKW_fuel(125)
++78.76 HKW_fuel(126)
++78.76 HKW_fuel(127)
++78.76 HKW_fuel(128)
++78.76 HKW_fuel(129)
++78.76 HKW_fuel(130)
++78.76 HKW_fuel(131)
++78.76 HKW_fuel(132)
++78.76 HKW_fuel(133)
++78.76 HKW_fuel(134)
++78.76 HKW_fuel(135)
++78.76 HKW_fuel(136)
++78.76 HKW_fuel(137)
++78.76 HKW_fuel(138)
++78.76 HKW_fuel(139)
++78.76 HKW_fuel(140)
++78.76 HKW_fuel(141)
++78.76 HKW_fuel(142)
++78.76 HKW_fuel(143)
++78.76 HKW_fuel(144)
++78.76 HKW_fuel(145)
++78.76 HKW_fuel(146)
++78.76 HKW_fuel(147)
++78.76 HKW_fuel(148)
++78.76 HKW_fuel(149)
++78.76 HKW_fuel(150)
++78.76 HKW_fuel(151)
++78.76 HKW_fuel(152)
++78.76 HKW_fuel(153)
++78.76 HKW_fuel(154)
++78.76 HKW_fuel(155)
++78.76 HKW_fuel(156)
++78.76 HKW_fuel(157)
++78.76 HKW_fuel(158)
++78.76 HKW_fuel(159)
++78.76 HKW_fuel(160)
++78.76 HKW_fuel(161)
++78.76 HKW_fuel(162)
++78.76 HKW_fuel(163)
++78.76 HKW_fuel(164)
++78.76 HKW_fuel(165)
++78.76 HKW_fuel(166)
++78.76 HKW_fuel(167)
++78.76 HKW_fuel(168)
++78.75999999999999 GTOST_fuel(1)
++78.75999999999999 GTOST_fuel(2)
++78.75999999999999 GTOST_fuel(3)
++78.75999999999999 GTOST_fuel(4)
++78.75999999999999 GTOST_fuel(5)
++78.75999999999999 GTOST_fuel(6)
++78.75999999999999 GTOST_fuel(7)
++78.75999999999999 GTOST_fuel(8)
++78.75999999999999 GTOST_fuel(9)
++78.75999999999999 GTOST_fuel(10)
++78.75999999999999 GTOST_fuel(11)
++78.75999999999999 GTOST_fuel(12)
++78.75999999999999 GTOST_fuel(13)
++78.75999999999999 GTOST_fuel(14)
++78.75999999999999 GTOST_fuel(15)
++78.75999999999999 GTOST_fuel(16)
++78.75999999999999 GTOST_fuel(17)
++78.75999999999999 GTOST_fuel(18)
++78.75999999999999 GTOST_fuel(19)
++78.75999999999999 GTOST_fuel(20)
++78.75999999999999 GTOST_fuel(21)
++78.75999999999999 GTOST_fuel(22)
++78.75999999999999 GTOST_fuel(23)
++78.75999999999999 GTOST_fuel(24)
++78.75999999999999 GTOST_fuel(25)
++78.75999999999999 GTOST_fuel(26)
++78.75999999999999 GTOST_fuel(27)
++78.75999999999999 GTOST_fuel(28)
++78.75999999999999 GTOST_fuel(29)
++78.75999999999999 GTOST_fuel(30)
++78.75999999999999 GTOST_fuel(31)
++78.75999999999999 GTOST_fuel(32)
++78.75999999999999 GTOST_fuel(33)
++78.75999999999999 GTOST_fuel(34)
++78.75999999999999 GTOST_fuel(35)
++78.75999999999999 GTOST_fuel(36)
++78.75999999999999 GTOST_fuel(37)
++78.75999999999999 GTOST_fuel(38)
++78.75999999999999 GTOST_fuel(39)
++78.75999999999999 GTOST_fuel(40)
++78.75999999999999 GTOST_fuel(41)
++78.75999999999999 GTOST_fuel(42)
++78.75999999999999 GTOST_fuel(43)
++78.75999999999999 GTOST_fuel(44)
++78.75999999999999 GTOST_fuel(45)
++78.75999999999999 GTOST_fuel(46)
++78.75999999999999 GTOST_fuel(47)
++78.75999999999999 GTOST_fuel(48)
++78.75999999999999 GTOST_fuel(49)
++78.75999999999999 GTOST_fuel(50)
++78.75999999999999 GTOST_fuel(51)
++78.75999999999999 GTOST_fuel(52)
++78.75999999999999 GTOST_fuel(53)
++78.75999999999999 GTOST_fuel(54)
++78.75999999999999 GTOST_fuel(55)
++78.75999999999999 GTOST_fuel(56)
++78.75999999999999 GTOST_fuel(57)
++78.75999999999999 GTOST_fuel(58)
++78.75999999999999 GTOST_fuel(59)
++78.75999999999999 GTOST_fuel(60)
++78.75999999999999 GTOST_fuel(61)
++78.75999999999999 GTOST_fuel(62)
++78.75999999999999 GTOST_fuel(63)
++78.75999999999999 GTOST_fuel(64)
++78.75999999999999 GTOST_fuel(65)
++78.75999999999999 GTOST_fuel(66)
++78.75999999999999 GTOST_fuel(67)
++78.75999999999999 GTOST_fuel(68)
++78.75999999999999 GTOST_fuel(69)
++78.75999999999999 GTOST_fuel(70)
++78.75999999999999 GTOST_fuel(71)
++78.75999999999999 GTOST_fuel(72)
++78.75999999999999 GTOST_fuel(73)
++78.75999999999999 GTOST_fuel(74)
++78.75999999999999 GTOST_fuel(75)
++78.75999999999999 GTOST_fuel(76)
++78.75999999999999 GTOST_fuel(77)
++78.75999999999999 GTOST_fuel(78)
++78.75999999999999 GTOST_fuel(79)
++78.75999999999999 GTOST_fuel(80)
++78.75999999999999 GTOST_fuel(81)
++78.75999999999999 GTOST_fuel(82)
++78.75999999999999 GTOST_fuel(83)
++78.75999999999999 GTOST_fuel(84)
++78.75999999999999 GTOST_fuel(85)
++78.75999999999999 GTOST_fuel(86)
++78.75999999999999 GTOST_fuel(87)
++78.75999999999999 GTOST_fuel(88)
++78.75999999999999 GTOST_fuel(89)
++78.75999999999999 GTOST_fuel(90)
++78.75999999999999 GTOST_fuel(91)
++78.75999999999999 GTOST_fuel(92)
++78.75999999999999 GTOST_fuel(93)
++78.75999999999999 GTOST_fuel(94)
++78.75999999999999 GTOST_fuel(95)
++78.75999999999999 GTOST_fuel(96)
++78.75999999999999 GTOST_fuel(97)
++78.75999999999999 GTOST_fuel(98)
++78.75999999999999 GTOST_fuel(99)
++78.75999999999999 GTOST_fuel(100)
++78.75999999999999 GTOST_fuel(101)
++78.75999999999999 GTOST_fuel(102)
++78.75999999999999 GTOST_fuel(103)
++78.75999999999999 GTOST_fuel(104)
++78.75999999999999 GTOST_fuel(105)
++78.75999999999999 GTOST_fuel(106)
++78.75999999999999 GTOST_fuel(107)
++78.75999999999999 GTOST_fuel(108)
++78.75999999999999 GTOST_fuel(109)
++78.75999999999999 GTOST_fuel(110)
++78.75999999999999 GTOST_fuel(111)
++78.75999999999999 GTOST_fuel(112)
++78.75999999999999 GTOST_fuel(113)
++78.75999999999999 GTOST_fuel(114)
++78.75999999999999 GTOST_fuel(115)
++78.75999999999999 GTOST_fuel(116)
++78.75999999999999 GTOST_fuel(117)
++78.75999999999999 GTOST_fuel(118)
++78.75999999999999 GTOST_fuel(119)
++78.75999999999999 GTOST_fuel(120)
++78.75999999999999 GTOST_fuel(121)
++78.75999999999999 GTOST_fuel(122)
++78.75999999999999 GTOST_fuel(123)
++78.75999999999999 GTOST_fuel(124)
++78.75999999999999 GTOST_fuel(125)
++78.75999999999999 GTOST_fuel(126)
++78.75999999999999 GTOST_fuel(127)
++78.75999999999999 GTOST_fuel(128)
++78.75999999999999 GTOST_fuel(129)
++78.75999999999999 GTOST_fuel(130)
++78.75999999999999 GTOST_fuel(131)
++78.75999999999999 GTOST_fuel(132)
++78.75999999999999 GTOST_fuel(133)
++78.75999999999999 GTOST_fuel(134)
++78.75999999999999 GTOST_fuel(135)
++78.75999999999999 GTOST_fuel(136)
++78.75999999999999 GTOST_fuel(137)
++78.75999999999999 GTOST_fuel(138)
++78.75999999999999 GTOST_fuel(139)
++78.75999999999999 GTOST_fuel(140)
++78.75999999999999 GTOST_fuel(141)
++78.75999999999999 GTOST_fuel(142)
++78.75999999999999 GTOST_fuel(143)
++78.75999999999999 GTOST_fuel(144)
++78.75999999999999 GTOST_fuel(145)
++78.75999999999999 GTOST_fuel(146)
++78.75999999999999 GTOST_fuel(147)
++78.75999999999999 GTOST_fuel(148)
++78.75999999999999 GTOST_fuel(149)
++78.75999999999999 GTOST_fuel(150)
++78.75999999999999 GTOST_fuel(151)
++78.75999999999999 GTOST_fuel(152)
++78.75999999999999 GTOST_fuel(153)
++78.75999999999999 GTOST_fuel(154)
++78.75999999999999 GTOST_fuel(155)
++78.75999999999999 GTOST_fuel(156)
++78.75999999999999 GTOST_fuel(157)
++78.75999999999999 GTOST_fuel(158)
++78.75999999999999 GTOST_fuel(159)
++78.75999999999999 GTOST_fuel(160)
++78.75999999999999 GTOST_fuel(161)
++78.75999999999999 GTOST_fuel(162)
++78.75999999999999 GTOST_fuel(163)
++78.75999999999999 GTOST_fuel(164)
++78.75999999999999 GTOST_fuel(165)
++78.75999999999999 GTOST_fuel(166)
++78.75999999999999 GTOST_fuel(167)
++78.75999999999999 GTOST_fuel(168)
++78.76 HWS_fuel(1)
++78.76 HWS_fuel(2)
++78.76 HWS_fuel(3)
++78.76 HWS_fuel(4)
++78.76 HWS_fuel(5)
++78.76 HWS_fuel(6)
++78.76 HWS_fuel(7)
++78.76 HWS_fuel(8)
++78.76 HWS_fuel(9)
++78.76 HWS_fuel(10)
++78.76 HWS_fuel(11)
++78.76 HWS_fuel(12)
++78.76 HWS_fuel(13)
++78.76 HWS_fuel(14)
++78.76 HWS_fuel(15)
++78.76 HWS_fuel(16)
++78.76 HWS_fuel(17)
++78.76 HWS_fuel(18)
++78.76 HWS_fuel(19)
++78.76 HWS_fuel(20)
++78.76 HWS_fuel(21)
++78.76 HWS_fuel(22)
++78.76 HWS_fuel(23)
++78.76 HWS_fuel(24)
++78.76 HWS_fuel(25)
++78.76 HWS_fuel(26)
++78.76 HWS_fuel(27)
++78.76 HWS_fuel(28)
++78.76 HWS_fuel(29)
++78.76 HWS_fuel(30)
++78.76 HWS_fuel(31)
++78.76 HWS_fuel(32)
++78.76 HWS_fuel(33)
++78.76 HWS_fuel(34)
++78.76 HWS_fuel(35)
++78.76 HWS_fuel(36)
++78.76 HWS_fuel(37)
++78.76 HWS_fuel(38)
++78.76 HWS_fuel(39)
++78.76 HWS_fuel(40)
++78.76 HWS_fuel(41)
++78.76 HWS_fuel(42)
++78.76 HWS_fuel(43)
++78.76 HWS_fuel(44)
++78.76 HWS_fuel(45)
++78.76 HWS_fuel(46)
++78.76 HWS_fuel(47)
++78.76 HWS_fuel(48)
++78.76 HWS_fuel(49)
++78.76 HWS_fuel(50)
++78.76 HWS_fuel(51)
++78.76 HWS_fuel(52)
++78.76 HWS_fuel(53)
++78.76 HWS_fuel(54)
++78.76 HWS_fuel(55)
++78.76 HWS_fuel(56)
++78.76 HWS_fuel(57)
++78.76 HWS_fuel(58)
++78.76 HWS_fuel(59)
++78.76 HWS_fuel(60)
++78.76 HWS_fuel(61)
++78.76 HWS_fuel(62)
++78.76 HWS_fuel(63)
++78.76 HWS_fuel(64)
++78.76 HWS_fuel(65)
++78.76 HWS_fuel(66)
++78.76 HWS_fuel(67)
++78.76 HWS_fuel(68)
++78.76 HWS_fuel(69)
++78.76 HWS_fuel(70)
++78.76 HWS_fuel(71)
++78.76 HWS_fuel(72)
++78.76 HWS_fuel(73)
++78.76 HWS_fuel(74)
++78.76 HWS_fuel(75)
++78.76 HWS_fuel(76)
++78.76 HWS_fuel(77)
++78.76 HWS_fuel(78)
++78.76 HWS_fuel(79)
++78.76 HWS_fuel(80)
++78.76 HWS_fuel(81)
++78.76 HWS_fuel(82)
++78.76 HWS_fuel(83)
++78.76 HWS_fuel(84)
++78.76 HWS_fuel(85)
++78.76 HWS_fuel(86)
++78.76 HWS_fuel(87)
++78.76 HWS_fuel(88)
++78.76 HWS_fuel(89)
++78.76 HWS_fuel(90)
++78.76 HWS_fuel(91)
++78.76 HWS_fuel(92)
++78.76 HWS_fuel(93)
++78.76 HWS_fuel(94)
++78.76 HWS_fuel(95)
++78.76 HWS_fuel(96)
++78.76 HWS_fuel(97)
++78.76 HWS_fuel(98)
++78.76 HWS_fuel(99)
++78.76 HWS_fuel(100)
++78.76 HWS_fuel(101)
++78.76 HWS_fuel(102)
++78.76 HWS_fuel(103)
++78.76 HWS_fuel(104)
++78.76 HWS_fuel(105)
++78.76 HWS_fuel(106)
++78.76 HWS_fuel(107)
++78.76 HWS_fuel(108)
++78.76 HWS_fuel(109)
++78.76 HWS_fuel(110)
++78.76 HWS_fuel(111)
++78.76 HWS_fuel(112)
++78.76 HWS_fuel(113)
++78.76 HWS_fuel(114)
++78.76 HWS_fuel(115)
++78.76 HWS_fuel(116)
++78.76 HWS_fuel(117)
++78.76 HWS_fuel(118)
++78.76 HWS_fuel(119)
++78.76 HWS_fuel(120)
++78.76 HWS_fuel(121)
++78.76 HWS_fuel(122)
++78.76 HWS_fuel(123)
++78.76 HWS_fuel(124)
++78.76 HWS_fuel(125)
++78.76 HWS_fuel(126)
++78.76 HWS_fuel(127)
++78.76 HWS_fuel(128)
++78.76 HWS_fuel(129)
++78.76 HWS_fuel(130)
++78.76 HWS_fuel(131)
++78.76 HWS_fuel(132)
++78.76 HWS_fuel(133)
++78.76 HWS_fuel(134)
++78.76 HWS_fuel(135)
++78.76 HWS_fuel(136)
++78.76 HWS_fuel(137)
++78.76 HWS_fuel(138)
++78.76 HWS_fuel(139)
++78.76 HWS_fuel(140)
++78.76 HWS_fuel(141)
++78.76 HWS_fuel(142)
++78.76 HWS_fuel(143)
++78.76 HWS_fuel(144)
++78.76 HWS_fuel(145)
++78.76 HWS_fuel(146)
++78.76 HWS_fuel(147)
++78.76 HWS_fuel(148)
++78.76 HWS_fuel(149)
++78.76 HWS_fuel(150)
++78.76 HWS_fuel(151)
++78.76 HWS_fuel(152)
++78.76 HWS_fuel(153)
++78.76 HWS_fuel(154)
++78.76 HWS_fuel(155)
++78.76 HWS_fuel(156)
++78.76 HWS_fuel(157)
++78.76 HWS_fuel(158)
++78.76 HWS_fuel(159)
++78.76 HWS_fuel(160)
++78.76 HWS_fuel(161)
++78.76 HWS_fuel(162)
++78.76 HWS_fuel(163)
++78.76 HWS_fuel(164)
++78.76 HWS_fuel(165)
++78.76 HWS_fuel(166)
++78.76 HWS_fuel(167)
++78.76 HWS_fuel(168)
++78.76 HWW_fuel(1)
++78.76 HWW_fuel(2)
++78.76 HWW_fuel(3)
++78.76 HWW_fuel(4)
++78.76 HWW_fuel(5)
++78.76 HWW_fuel(6)
++78.76 HWW_fuel(7)
++78.76 HWW_fuel(8)
++78.76 HWW_fuel(9)
++78.76 HWW_fuel(10)
++78.76 HWW_fuel(11)
++78.76 HWW_fuel(12)
++78.76 HWW_fuel(13)
++78.76 HWW_fuel(14)
++78.76 HWW_fuel(15)
++78.76 HWW_fuel(16)
++78.76 HWW_fuel(17)
++78.76 HWW_fuel(18)
++78.76 HWW_fuel(19)
++78.76 HWW_fuel(20)
++78.76 HWW_fuel(21)
++78.76 HWW_fuel(22)
++78.76 HWW_fuel(23)
++78.76 HWW_fuel(24)
++78.76 HWW_fuel(25)
++78.76 HWW_fuel(26)
++78.76 HWW_fuel(27)
++78.76 HWW_fuel(28)
++78.76 HWW_fuel(29)
++78.76 HWW_fuel(30)
++78.76 HWW_fuel(31)
++78.76 HWW_fuel(32)
++78.76 HWW_fuel(33)
++78.76 HWW_fuel(34)
++78.76 HWW_fuel(35)
++78.76 HWW_fuel(36)
++78.76 HWW_fuel(37)
++78.76 HWW_fuel(38)
++78.76 HWW_fuel(39)
++78.76 HWW_fuel(40)
++78.76 HWW_fuel(41)
++78.76 HWW_fuel(42)
++78.76 HWW_fuel(43)
++78.76 HWW_fuel(44)
++78.76 HWW_fuel(45)
++78.76 HWW_fuel(46)
++78.76 HWW_fuel(47)
++78.76 HWW_fuel(48)
++78.76 HWW_fuel(49)
++78.76 HWW_fuel(50)
++78.76 HWW_fuel(51)
++78.76 HWW_fuel(52)
++78.76 HWW_fuel(53)
++78.76 HWW_fuel(54)
++78.76 HWW_fuel(55)
++78.76 HWW_fuel(56)
++78.76 HWW_fuel(57)
++78.76 HWW_fuel(58)
++78.76 HWW_fuel(59)
++78.76 HWW_fuel(60)
++78.76 HWW_fuel(61)
++78.76 HWW_fuel(62)
++78.76 HWW_fuel(63)
++78.76 HWW_fuel(64)
++78.76 HWW_fuel(65)
++78.76 HWW_fuel(66)
++78.76 HWW_fuel(67)
++78.76 HWW_fuel(68)
++78.76 HWW_fuel(69)
++78.76 HWW_fuel(70)
++78.76 HWW_fuel(71)
++78.76 HWW_fuel(72)
++78.76 HWW_fuel(73)
++78.76 HWW_fuel(74)
++78.76 HWW_fuel(75)
++78.76 HWW_fuel(76)
++78.76 HWW_fuel(77)
++78.76 HWW_fuel(78)
++78.76 HWW_fuel(79)
++78.76 HWW_fuel(80)
++78.76 HWW_fuel(81)
++78.76 HWW_fuel(82)
++78.76 HWW_fuel(83)
++78.76 HWW_fuel(84)
++78.76 HWW_fuel(85)
++78.76 HWW_fuel(86)
++78.76 HWW_fuel(87)
++78.76 HWW_fuel(88)
++78.76 HWW_fuel(89)
++78.76 HWW_fuel(90)
++78.76 HWW_fuel(91)
++78.76 HWW_fuel(92)
++78.76 HWW_fuel(93)
++78.76 HWW_fuel(94)
++78.76 HWW_fuel(95)
++78.76 HWW_fuel(96)
++78.76 HWW_fuel(97)
++78.76 HWW_fuel(98)
++78.76 HWW_fuel(99)
++78.76 HWW_fuel(100)
++78.76 HWW_fuel(101)
++78.76 HWW_fuel(102)
++78.76 HWW_fuel(103)
++78.76 HWW_fuel(104)
++78.76 HWW_fuel(105)
++78.76 HWW_fuel(106)
++78.76 HWW_fuel(107)
++78.76 HWW_fuel(108)
++78.76 HWW_fuel(109)
++78.76 HWW_fuel(110)
++78.76 HWW_fuel(111)
++78.76 HWW_fuel(112)
++78.76 HWW_fuel(113)
++78.76 HWW_fuel(114)
++78.76 HWW_fuel(115)
++78.76 HWW_fuel(116)
++78.76 HWW_fuel(117)
++78.76 HWW_fuel(118)
++78.76 HWW_fuel(119)
++78.76 HWW_fuel(120)
++78.76 HWW_fuel(121)
++78.76 HWW_fuel(122)
++78.76 HWW_fuel(123)
++78.76 HWW_fuel(124)
++78.76 HWW_fuel(125)
++78.76 HWW_fuel(126)
++78.76 HWW_fuel(127)
++78.76 HWW_fuel(128)
++78.76 HWW_fuel(129)
++78.76 HWW_fuel(130)
++78.76 HWW_fuel(131)
++78.76 HWW_fuel(132)
++78.76 HWW_fuel(133)
++78.76 HWW_fuel(134)
++78.76 HWW_fuel(135)
++78.76 HWW_fuel(136)
++78.76 HWW_fuel(137)
++78.76 HWW_fuel(138)
++78.76 HWW_fuel(139)
++78.76 HWW_fuel(140)
++78.76 HWW_fuel(141)
++78.76 HWW_fuel(142)
++78.76 HWW_fuel(143)
++78.76 HWW_fuel(144)
++78.76 HWW_fuel(145)
++78.76 HWW_fuel(146)
++78.76 HWW_fuel(147)
++78.76 HWW_fuel(148)
++78.76 HWW_fuel(149)
++78.76 HWW_fuel(150)
++78.76 HWW_fuel(151)
++78.76 HWW_fuel(152)
++78.76 HWW_fuel(153)
++78.76 HWW_fuel(154)
++78.76 HWW_fuel(155)
++78.76 HWW_fuel(156)
++78.76 HWW_fuel(157)
++78.76 HWW_fuel(158)
++78.76 HWW_fuel(159)
++78.76 HWW_fuel(160)
++78.76 HWW_fuel(161)
++78.76 HWW_fuel(162)
++78.76 HWW_fuel(163)
++78.76 HWW_fuel(164)
++78.76 HWW_fuel(165)
++78.76 HWW_fuel(166)
++78.76 HWW_fuel(167)
++78.76 HWW_fuel(168)
 +19.228148377907104 P2H_Pel(1)
 +19.233185098290402 P2H_Pel(2)
 +19.3129596165323 P2H_Pel(3)
@@ -1658,7 +1658,7 @@ obj:
 +10.0 AVA_fuel(166)
 +10.0 AVA_fuel(167)
 +10.0 AVA_fuel(168)
-+127240.0 P_buy_peak
++190860.0 P_buy_peak
 
 s.t.
 
@@ -14766,6 +14766,678 @@ c_e_AVA_thlink(168)_:
 +1 AVA_Qth(168)
 = 0
 
+c_e_brownfield_network_loss(1)_:
++1 network_Q_loss_per_timestep(1)
+= 0.0
+
+c_e_brownfield_network_loss(2)_:
++1 network_Q_loss_per_timestep(2)
+= 0.0
+
+c_e_brownfield_network_loss(3)_:
++1 network_Q_loss_per_timestep(3)
+= 0.0
+
+c_e_brownfield_network_loss(4)_:
++1 network_Q_loss_per_timestep(4)
+= 0.0
+
+c_e_brownfield_network_loss(5)_:
++1 network_Q_loss_per_timestep(5)
+= 0.0
+
+c_e_brownfield_network_loss(6)_:
++1 network_Q_loss_per_timestep(6)
+= 0.0
+
+c_e_brownfield_network_loss(7)_:
++1 network_Q_loss_per_timestep(7)
+= 0.0
+
+c_e_brownfield_network_loss(8)_:
++1 network_Q_loss_per_timestep(8)
+= 0.0
+
+c_e_brownfield_network_loss(9)_:
++1 network_Q_loss_per_timestep(9)
+= 0.0
+
+c_e_brownfield_network_loss(10)_:
++1 network_Q_loss_per_timestep(10)
+= 0.0
+
+c_e_brownfield_network_loss(11)_:
++1 network_Q_loss_per_timestep(11)
+= 0.0
+
+c_e_brownfield_network_loss(12)_:
++1 network_Q_loss_per_timestep(12)
+= 0.0
+
+c_e_brownfield_network_loss(13)_:
++1 network_Q_loss_per_timestep(13)
+= 0.0
+
+c_e_brownfield_network_loss(14)_:
++1 network_Q_loss_per_timestep(14)
+= 0.0
+
+c_e_brownfield_network_loss(15)_:
++1 network_Q_loss_per_timestep(15)
+= 0.0
+
+c_e_brownfield_network_loss(16)_:
++1 network_Q_loss_per_timestep(16)
+= 0.0
+
+c_e_brownfield_network_loss(17)_:
++1 network_Q_loss_per_timestep(17)
+= 0.0
+
+c_e_brownfield_network_loss(18)_:
++1 network_Q_loss_per_timestep(18)
+= 0.0
+
+c_e_brownfield_network_loss(19)_:
++1 network_Q_loss_per_timestep(19)
+= 0.0
+
+c_e_brownfield_network_loss(20)_:
++1 network_Q_loss_per_timestep(20)
+= 0.0
+
+c_e_brownfield_network_loss(21)_:
++1 network_Q_loss_per_timestep(21)
+= 0.0
+
+c_e_brownfield_network_loss(22)_:
++1 network_Q_loss_per_timestep(22)
+= 0.0
+
+c_e_brownfield_network_loss(23)_:
++1 network_Q_loss_per_timestep(23)
+= 0.0
+
+c_e_brownfield_network_loss(24)_:
++1 network_Q_loss_per_timestep(24)
+= 0.0
+
+c_e_brownfield_network_loss(25)_:
++1 network_Q_loss_per_timestep(25)
+= 0.0
+
+c_e_brownfield_network_loss(26)_:
++1 network_Q_loss_per_timestep(26)
+= 0.0
+
+c_e_brownfield_network_loss(27)_:
++1 network_Q_loss_per_timestep(27)
+= 0.0
+
+c_e_brownfield_network_loss(28)_:
++1 network_Q_loss_per_timestep(28)
+= 0.0
+
+c_e_brownfield_network_loss(29)_:
++1 network_Q_loss_per_timestep(29)
+= 0.0
+
+c_e_brownfield_network_loss(30)_:
++1 network_Q_loss_per_timestep(30)
+= 0.0
+
+c_e_brownfield_network_loss(31)_:
++1 network_Q_loss_per_timestep(31)
+= 0.0
+
+c_e_brownfield_network_loss(32)_:
++1 network_Q_loss_per_timestep(32)
+= 0.0
+
+c_e_brownfield_network_loss(33)_:
++1 network_Q_loss_per_timestep(33)
+= 0.0
+
+c_e_brownfield_network_loss(34)_:
++1 network_Q_loss_per_timestep(34)
+= 0.0
+
+c_e_brownfield_network_loss(35)_:
++1 network_Q_loss_per_timestep(35)
+= 0.0
+
+c_e_brownfield_network_loss(36)_:
++1 network_Q_loss_per_timestep(36)
+= 0.0
+
+c_e_brownfield_network_loss(37)_:
++1 network_Q_loss_per_timestep(37)
+= 0.0
+
+c_e_brownfield_network_loss(38)_:
++1 network_Q_loss_per_timestep(38)
+= 0.0
+
+c_e_brownfield_network_loss(39)_:
++1 network_Q_loss_per_timestep(39)
+= 0.0
+
+c_e_brownfield_network_loss(40)_:
++1 network_Q_loss_per_timestep(40)
+= 0.0
+
+c_e_brownfield_network_loss(41)_:
++1 network_Q_loss_per_timestep(41)
+= 0.0
+
+c_e_brownfield_network_loss(42)_:
++1 network_Q_loss_per_timestep(42)
+= 0.0
+
+c_e_brownfield_network_loss(43)_:
++1 network_Q_loss_per_timestep(43)
+= 0.0
+
+c_e_brownfield_network_loss(44)_:
++1 network_Q_loss_per_timestep(44)
+= 0.0
+
+c_e_brownfield_network_loss(45)_:
++1 network_Q_loss_per_timestep(45)
+= 0.0
+
+c_e_brownfield_network_loss(46)_:
++1 network_Q_loss_per_timestep(46)
+= 0.0
+
+c_e_brownfield_network_loss(47)_:
++1 network_Q_loss_per_timestep(47)
+= 0.0
+
+c_e_brownfield_network_loss(48)_:
++1 network_Q_loss_per_timestep(48)
+= 0.0
+
+c_e_brownfield_network_loss(49)_:
++1 network_Q_loss_per_timestep(49)
+= 0.0
+
+c_e_brownfield_network_loss(50)_:
++1 network_Q_loss_per_timestep(50)
+= 0.0
+
+c_e_brownfield_network_loss(51)_:
++1 network_Q_loss_per_timestep(51)
+= 0.0
+
+c_e_brownfield_network_loss(52)_:
++1 network_Q_loss_per_timestep(52)
+= 0.0
+
+c_e_brownfield_network_loss(53)_:
++1 network_Q_loss_per_timestep(53)
+= 0.0
+
+c_e_brownfield_network_loss(54)_:
++1 network_Q_loss_per_timestep(54)
+= 0.0
+
+c_e_brownfield_network_loss(55)_:
++1 network_Q_loss_per_timestep(55)
+= 0.0
+
+c_e_brownfield_network_loss(56)_:
++1 network_Q_loss_per_timestep(56)
+= 0.0
+
+c_e_brownfield_network_loss(57)_:
++1 network_Q_loss_per_timestep(57)
+= 0.0
+
+c_e_brownfield_network_loss(58)_:
++1 network_Q_loss_per_timestep(58)
+= 0.0
+
+c_e_brownfield_network_loss(59)_:
++1 network_Q_loss_per_timestep(59)
+= 0.0
+
+c_e_brownfield_network_loss(60)_:
++1 network_Q_loss_per_timestep(60)
+= 0.0
+
+c_e_brownfield_network_loss(61)_:
++1 network_Q_loss_per_timestep(61)
+= 0.0
+
+c_e_brownfield_network_loss(62)_:
++1 network_Q_loss_per_timestep(62)
+= 0.0
+
+c_e_brownfield_network_loss(63)_:
++1 network_Q_loss_per_timestep(63)
+= 0.0
+
+c_e_brownfield_network_loss(64)_:
++1 network_Q_loss_per_timestep(64)
+= 0.0
+
+c_e_brownfield_network_loss(65)_:
++1 network_Q_loss_per_timestep(65)
+= 0.0
+
+c_e_brownfield_network_loss(66)_:
++1 network_Q_loss_per_timestep(66)
+= 0.0
+
+c_e_brownfield_network_loss(67)_:
++1 network_Q_loss_per_timestep(67)
+= 0.0
+
+c_e_brownfield_network_loss(68)_:
++1 network_Q_loss_per_timestep(68)
+= 0.0
+
+c_e_brownfield_network_loss(69)_:
++1 network_Q_loss_per_timestep(69)
+= 0.0
+
+c_e_brownfield_network_loss(70)_:
++1 network_Q_loss_per_timestep(70)
+= 0.0
+
+c_e_brownfield_network_loss(71)_:
++1 network_Q_loss_per_timestep(71)
+= 0.0
+
+c_e_brownfield_network_loss(72)_:
++1 network_Q_loss_per_timestep(72)
+= 0.0
+
+c_e_brownfield_network_loss(73)_:
++1 network_Q_loss_per_timestep(73)
+= 0.0
+
+c_e_brownfield_network_loss(74)_:
++1 network_Q_loss_per_timestep(74)
+= 0.0
+
+c_e_brownfield_network_loss(75)_:
++1 network_Q_loss_per_timestep(75)
+= 0.0
+
+c_e_brownfield_network_loss(76)_:
++1 network_Q_loss_per_timestep(76)
+= 0.0
+
+c_e_brownfield_network_loss(77)_:
++1 network_Q_loss_per_timestep(77)
+= 0.0
+
+c_e_brownfield_network_loss(78)_:
++1 network_Q_loss_per_timestep(78)
+= 0.0
+
+c_e_brownfield_network_loss(79)_:
++1 network_Q_loss_per_timestep(79)
+= 0.0
+
+c_e_brownfield_network_loss(80)_:
++1 network_Q_loss_per_timestep(80)
+= 0.0
+
+c_e_brownfield_network_loss(81)_:
++1 network_Q_loss_per_timestep(81)
+= 0.0
+
+c_e_brownfield_network_loss(82)_:
++1 network_Q_loss_per_timestep(82)
+= 0.0
+
+c_e_brownfield_network_loss(83)_:
++1 network_Q_loss_per_timestep(83)
+= 0.0
+
+c_e_brownfield_network_loss(84)_:
++1 network_Q_loss_per_timestep(84)
+= 0.0
+
+c_e_brownfield_network_loss(85)_:
++1 network_Q_loss_per_timestep(85)
+= 0.0
+
+c_e_brownfield_network_loss(86)_:
++1 network_Q_loss_per_timestep(86)
+= 0.0
+
+c_e_brownfield_network_loss(87)_:
++1 network_Q_loss_per_timestep(87)
+= 0.0
+
+c_e_brownfield_network_loss(88)_:
++1 network_Q_loss_per_timestep(88)
+= 0.0
+
+c_e_brownfield_network_loss(89)_:
++1 network_Q_loss_per_timestep(89)
+= 0.0
+
+c_e_brownfield_network_loss(90)_:
++1 network_Q_loss_per_timestep(90)
+= 0.0
+
+c_e_brownfield_network_loss(91)_:
++1 network_Q_loss_per_timestep(91)
+= 0.0
+
+c_e_brownfield_network_loss(92)_:
++1 network_Q_loss_per_timestep(92)
+= 0.0
+
+c_e_brownfield_network_loss(93)_:
++1 network_Q_loss_per_timestep(93)
+= 0.0
+
+c_e_brownfield_network_loss(94)_:
++1 network_Q_loss_per_timestep(94)
+= 0.0
+
+c_e_brownfield_network_loss(95)_:
++1 network_Q_loss_per_timestep(95)
+= 0.0
+
+c_e_brownfield_network_loss(96)_:
++1 network_Q_loss_per_timestep(96)
+= 0.0
+
+c_e_brownfield_network_loss(97)_:
++1 network_Q_loss_per_timestep(97)
+= 0.0
+
+c_e_brownfield_network_loss(98)_:
++1 network_Q_loss_per_timestep(98)
+= 0.0
+
+c_e_brownfield_network_loss(99)_:
++1 network_Q_loss_per_timestep(99)
+= 0.0
+
+c_e_brownfield_network_loss(100)_:
++1 network_Q_loss_per_timestep(100)
+= 0.0
+
+c_e_brownfield_network_loss(101)_:
++1 network_Q_loss_per_timestep(101)
+= 0.0
+
+c_e_brownfield_network_loss(102)_:
++1 network_Q_loss_per_timestep(102)
+= 0.0
+
+c_e_brownfield_network_loss(103)_:
++1 network_Q_loss_per_timestep(103)
+= 0.0
+
+c_e_brownfield_network_loss(104)_:
++1 network_Q_loss_per_timestep(104)
+= 0.0
+
+c_e_brownfield_network_loss(105)_:
++1 network_Q_loss_per_timestep(105)
+= 0.0
+
+c_e_brownfield_network_loss(106)_:
++1 network_Q_loss_per_timestep(106)
+= 0.0
+
+c_e_brownfield_network_loss(107)_:
++1 network_Q_loss_per_timestep(107)
+= 0.0
+
+c_e_brownfield_network_loss(108)_:
++1 network_Q_loss_per_timestep(108)
+= 0.0
+
+c_e_brownfield_network_loss(109)_:
++1 network_Q_loss_per_timestep(109)
+= 0.0
+
+c_e_brownfield_network_loss(110)_:
++1 network_Q_loss_per_timestep(110)
+= 0.0
+
+c_e_brownfield_network_loss(111)_:
++1 network_Q_loss_per_timestep(111)
+= 0.0
+
+c_e_brownfield_network_loss(112)_:
++1 network_Q_loss_per_timestep(112)
+= 0.0
+
+c_e_brownfield_network_loss(113)_:
++1 network_Q_loss_per_timestep(113)
+= 0.0
+
+c_e_brownfield_network_loss(114)_:
++1 network_Q_loss_per_timestep(114)
+= 0.0
+
+c_e_brownfield_network_loss(115)_:
++1 network_Q_loss_per_timestep(115)
+= 0.0
+
+c_e_brownfield_network_loss(116)_:
++1 network_Q_loss_per_timestep(116)
+= 0.0
+
+c_e_brownfield_network_loss(117)_:
++1 network_Q_loss_per_timestep(117)
+= 0.0
+
+c_e_brownfield_network_loss(118)_:
++1 network_Q_loss_per_timestep(118)
+= 0.0
+
+c_e_brownfield_network_loss(119)_:
++1 network_Q_loss_per_timestep(119)
+= 0.0
+
+c_e_brownfield_network_loss(120)_:
++1 network_Q_loss_per_timestep(120)
+= 0.0
+
+c_e_brownfield_network_loss(121)_:
++1 network_Q_loss_per_timestep(121)
+= 0.0
+
+c_e_brownfield_network_loss(122)_:
++1 network_Q_loss_per_timestep(122)
+= 0.0
+
+c_e_brownfield_network_loss(123)_:
++1 network_Q_loss_per_timestep(123)
+= 0.0
+
+c_e_brownfield_network_loss(124)_:
++1 network_Q_loss_per_timestep(124)
+= 0.0
+
+c_e_brownfield_network_loss(125)_:
++1 network_Q_loss_per_timestep(125)
+= 0.0
+
+c_e_brownfield_network_loss(126)_:
++1 network_Q_loss_per_timestep(126)
+= 0.0
+
+c_e_brownfield_network_loss(127)_:
++1 network_Q_loss_per_timestep(127)
+= 0.0
+
+c_e_brownfield_network_loss(128)_:
++1 network_Q_loss_per_timestep(128)
+= 0.0
+
+c_e_brownfield_network_loss(129)_:
++1 network_Q_loss_per_timestep(129)
+= 0.0
+
+c_e_brownfield_network_loss(130)_:
++1 network_Q_loss_per_timestep(130)
+= 0.0
+
+c_e_brownfield_network_loss(131)_:
++1 network_Q_loss_per_timestep(131)
+= 0.0
+
+c_e_brownfield_network_loss(132)_:
++1 network_Q_loss_per_timestep(132)
+= 0.0
+
+c_e_brownfield_network_loss(133)_:
++1 network_Q_loss_per_timestep(133)
+= 0.0
+
+c_e_brownfield_network_loss(134)_:
++1 network_Q_loss_per_timestep(134)
+= 0.0
+
+c_e_brownfield_network_loss(135)_:
++1 network_Q_loss_per_timestep(135)
+= 0.0
+
+c_e_brownfield_network_loss(136)_:
++1 network_Q_loss_per_timestep(136)
+= 0.0
+
+c_e_brownfield_network_loss(137)_:
++1 network_Q_loss_per_timestep(137)
+= 0.0
+
+c_e_brownfield_network_loss(138)_:
++1 network_Q_loss_per_timestep(138)
+= 0.0
+
+c_e_brownfield_network_loss(139)_:
++1 network_Q_loss_per_timestep(139)
+= 0.0
+
+c_e_brownfield_network_loss(140)_:
++1 network_Q_loss_per_timestep(140)
+= 0.0
+
+c_e_brownfield_network_loss(141)_:
++1 network_Q_loss_per_timestep(141)
+= 0.0
+
+c_e_brownfield_network_loss(142)_:
++1 network_Q_loss_per_timestep(142)
+= 0.0
+
+c_e_brownfield_network_loss(143)_:
++1 network_Q_loss_per_timestep(143)
+= 0.0
+
+c_e_brownfield_network_loss(144)_:
++1 network_Q_loss_per_timestep(144)
+= 0.0
+
+c_e_brownfield_network_loss(145)_:
++1 network_Q_loss_per_timestep(145)
+= 0.0
+
+c_e_brownfield_network_loss(146)_:
++1 network_Q_loss_per_timestep(146)
+= 0.0
+
+c_e_brownfield_network_loss(147)_:
++1 network_Q_loss_per_timestep(147)
+= 0.0
+
+c_e_brownfield_network_loss(148)_:
++1 network_Q_loss_per_timestep(148)
+= 0.0
+
+c_e_brownfield_network_loss(149)_:
++1 network_Q_loss_per_timestep(149)
+= 0.0
+
+c_e_brownfield_network_loss(150)_:
++1 network_Q_loss_per_timestep(150)
+= 0.0
+
+c_e_brownfield_network_loss(151)_:
++1 network_Q_loss_per_timestep(151)
+= 0.0
+
+c_e_brownfield_network_loss(152)_:
++1 network_Q_loss_per_timestep(152)
+= 0.0
+
+c_e_brownfield_network_loss(153)_:
++1 network_Q_loss_per_timestep(153)
+= 0.0
+
+c_e_brownfield_network_loss(154)_:
++1 network_Q_loss_per_timestep(154)
+= 0.0
+
+c_e_brownfield_network_loss(155)_:
++1 network_Q_loss_per_timestep(155)
+= 0.0
+
+c_e_brownfield_network_loss(156)_:
++1 network_Q_loss_per_timestep(156)
+= 0.0
+
+c_e_brownfield_network_loss(157)_:
++1 network_Q_loss_per_timestep(157)
+= 0.0
+
+c_e_brownfield_network_loss(158)_:
++1 network_Q_loss_per_timestep(158)
+= 0.0
+
+c_e_brownfield_network_loss(159)_:
++1 network_Q_loss_per_timestep(159)
+= 0.0
+
+c_e_brownfield_network_loss(160)_:
++1 network_Q_loss_per_timestep(160)
+= 0.0
+
+c_e_brownfield_network_loss(161)_:
++1 network_Q_loss_per_timestep(161)
+= 0.0
+
+c_e_brownfield_network_loss(162)_:
++1 network_Q_loss_per_timestep(162)
+= 0.0
+
+c_e_brownfield_network_loss(163)_:
++1 network_Q_loss_per_timestep(163)
+= 0.0
+
+c_e_brownfield_network_loss(164)_:
++1 network_Q_loss_per_timestep(164)
+= 0.0
+
+c_e_brownfield_network_loss(165)_:
++1 network_Q_loss_per_timestep(165)
+= 0.0
+
+c_e_brownfield_network_loss(166)_:
++1 network_Q_loss_per_timestep(166)
+= 0.0
+
+c_e_brownfield_network_loss(167)_:
++1 network_Q_loss_per_timestep(167)
+= 0.0
+
+c_e_brownfield_network_loss(168)_:
++1 network_Q_loss_per_timestep(168)
+= 0.0
+
 c_e_el_balance(1)_:
 -1 P2H_Pel(1)
 +1 P_buy(1)
@@ -16287,6 +16959,7 @@ c_e_ht_balance(1)_:
 +1 HWW_Qth(1)
 +1 P2H_Qth(1)
 +1 AVA_Qth(1)
+-1 network_Q_loss_per_timestep(1)
 = 72.3
 
 c_e_ht_balance(2)_:
@@ -16298,6 +16971,7 @@ c_e_ht_balance(2)_:
 +1 HWW_Qth(2)
 +1 P2H_Qth(2)
 +1 AVA_Qth(2)
+-1 network_Q_loss_per_timestep(2)
 = 74.6
 
 c_e_ht_balance(3)_:
@@ -16309,6 +16983,7 @@ c_e_ht_balance(3)_:
 +1 HWW_Qth(3)
 +1 P2H_Qth(3)
 +1 AVA_Qth(3)
+-1 network_Q_loss_per_timestep(3)
 = 75.2
 
 c_e_ht_balance(4)_:
@@ -16320,6 +16995,7 @@ c_e_ht_balance(4)_:
 +1 HWW_Qth(4)
 +1 P2H_Qth(4)
 +1 AVA_Qth(4)
+-1 network_Q_loss_per_timestep(4)
 = 76.6
 
 c_e_ht_balance(5)_:
@@ -16331,6 +17007,7 @@ c_e_ht_balance(5)_:
 +1 HWW_Qth(5)
 +1 P2H_Qth(5)
 +1 AVA_Qth(5)
+-1 network_Q_loss_per_timestep(5)
 = 83.1
 
 c_e_ht_balance(6)_:
@@ -16342,6 +17019,7 @@ c_e_ht_balance(6)_:
 +1 HWW_Qth(6)
 +1 P2H_Qth(6)
 +1 AVA_Qth(6)
+-1 network_Q_loss_per_timestep(6)
 = 90.6
 
 c_e_ht_balance(7)_:
@@ -16353,6 +17031,7 @@ c_e_ht_balance(7)_:
 +1 HWW_Qth(7)
 +1 P2H_Qth(7)
 +1 AVA_Qth(7)
+-1 network_Q_loss_per_timestep(7)
 = 96.4
 
 c_e_ht_balance(8)_:
@@ -16364,6 +17043,7 @@ c_e_ht_balance(8)_:
 +1 HWW_Qth(8)
 +1 P2H_Qth(8)
 +1 AVA_Qth(8)
+-1 network_Q_loss_per_timestep(8)
 = 100.7
 
 c_e_ht_balance(9)_:
@@ -16375,6 +17055,7 @@ c_e_ht_balance(9)_:
 +1 HWW_Qth(9)
 +1 P2H_Qth(9)
 +1 AVA_Qth(9)
+-1 network_Q_loss_per_timestep(9)
 = 105.1
 
 c_e_ht_balance(10)_:
@@ -16386,6 +17067,7 @@ c_e_ht_balance(10)_:
 +1 HWW_Qth(10)
 +1 P2H_Qth(10)
 +1 AVA_Qth(10)
+-1 network_Q_loss_per_timestep(10)
 = 101.3
 
 c_e_ht_balance(11)_:
@@ -16397,6 +17079,7 @@ c_e_ht_balance(11)_:
 +1 HWW_Qth(11)
 +1 P2H_Qth(11)
 +1 AVA_Qth(11)
+-1 network_Q_loss_per_timestep(11)
 = 91.4
 
 c_e_ht_balance(12)_:
@@ -16408,6 +17091,7 @@ c_e_ht_balance(12)_:
 +1 HWW_Qth(12)
 +1 P2H_Qth(12)
 +1 AVA_Qth(12)
+-1 network_Q_loss_per_timestep(12)
 = 84.7
 
 c_e_ht_balance(13)_:
@@ -16419,6 +17103,7 @@ c_e_ht_balance(13)_:
 +1 HWW_Qth(13)
 +1 P2H_Qth(13)
 +1 AVA_Qth(13)
+-1 network_Q_loss_per_timestep(13)
 = 78.4
 
 c_e_ht_balance(14)_:
@@ -16430,6 +17115,7 @@ c_e_ht_balance(14)_:
 +1 HWW_Qth(14)
 +1 P2H_Qth(14)
 +1 AVA_Qth(14)
+-1 network_Q_loss_per_timestep(14)
 = 77.5
 
 c_e_ht_balance(15)_:
@@ -16441,6 +17127,7 @@ c_e_ht_balance(15)_:
 +1 HWW_Qth(15)
 +1 P2H_Qth(15)
 +1 AVA_Qth(15)
+-1 network_Q_loss_per_timestep(15)
 = 74.9
 
 c_e_ht_balance(16)_:
@@ -16452,6 +17139,7 @@ c_e_ht_balance(16)_:
 +1 HWW_Qth(16)
 +1 P2H_Qth(16)
 +1 AVA_Qth(16)
+-1 network_Q_loss_per_timestep(16)
 = 75.5
 
 c_e_ht_balance(17)_:
@@ -16463,6 +17151,7 @@ c_e_ht_balance(17)_:
 +1 HWW_Qth(17)
 +1 P2H_Qth(17)
 +1 AVA_Qth(17)
+-1 network_Q_loss_per_timestep(17)
 = 80.2
 
 c_e_ht_balance(18)_:
@@ -16474,6 +17163,7 @@ c_e_ht_balance(18)_:
 +1 HWW_Qth(18)
 +1 P2H_Qth(18)
 +1 AVA_Qth(18)
+-1 network_Q_loss_per_timestep(18)
 = 86.7
 
 c_e_ht_balance(19)_:
@@ -16485,6 +17175,7 @@ c_e_ht_balance(19)_:
 +1 HWW_Qth(19)
 +1 P2H_Qth(19)
 +1 AVA_Qth(19)
+-1 network_Q_loss_per_timestep(19)
 = 90.8
 
 c_e_ht_balance(20)_:
@@ -16496,6 +17187,7 @@ c_e_ht_balance(20)_:
 +1 HWW_Qth(20)
 +1 P2H_Qth(20)
 +1 AVA_Qth(20)
+-1 network_Q_loss_per_timestep(20)
 = 92.5
 
 c_e_ht_balance(21)_:
@@ -16507,6 +17199,7 @@ c_e_ht_balance(21)_:
 +1 HWW_Qth(21)
 +1 P2H_Qth(21)
 +1 AVA_Qth(21)
+-1 network_Q_loss_per_timestep(21)
 = 92.0
 
 c_e_ht_balance(22)_:
@@ -16518,6 +17211,7 @@ c_e_ht_balance(22)_:
 +1 HWW_Qth(22)
 +1 P2H_Qth(22)
 +1 AVA_Qth(22)
+-1 network_Q_loss_per_timestep(22)
 = 91.5
 
 c_e_ht_balance(23)_:
@@ -16529,6 +17223,7 @@ c_e_ht_balance(23)_:
 +1 HWW_Qth(23)
 +1 P2H_Qth(23)
 +1 AVA_Qth(23)
+-1 network_Q_loss_per_timestep(23)
 = 90.1
 
 c_e_ht_balance(24)_:
@@ -16540,6 +17235,7 @@ c_e_ht_balance(24)_:
 +1 HWW_Qth(24)
 +1 P2H_Qth(24)
 +1 AVA_Qth(24)
+-1 network_Q_loss_per_timestep(24)
 = 83.8
 
 c_e_ht_balance(25)_:
@@ -16551,6 +17247,7 @@ c_e_ht_balance(25)_:
 +1 HWW_Qth(25)
 +1 P2H_Qth(25)
 +1 AVA_Qth(25)
+-1 network_Q_loss_per_timestep(25)
 = 82.7
 
 c_e_ht_balance(26)_:
@@ -16562,6 +17259,7 @@ c_e_ht_balance(26)_:
 +1 HWW_Qth(26)
 +1 P2H_Qth(26)
 +1 AVA_Qth(26)
+-1 network_Q_loss_per_timestep(26)
 = 85.8
 
 c_e_ht_balance(27)_:
@@ -16573,6 +17271,7 @@ c_e_ht_balance(27)_:
 +1 HWW_Qth(27)
 +1 P2H_Qth(27)
 +1 AVA_Qth(27)
+-1 network_Q_loss_per_timestep(27)
 = 89.0
 
 c_e_ht_balance(28)_:
@@ -16584,6 +17283,7 @@ c_e_ht_balance(28)_:
 +1 HWW_Qth(28)
 +1 P2H_Qth(28)
 +1 AVA_Qth(28)
+-1 network_Q_loss_per_timestep(28)
 = 88.3
 
 c_e_ht_balance(29)_:
@@ -16595,6 +17295,7 @@ c_e_ht_balance(29)_:
 +1 HWW_Qth(29)
 +1 P2H_Qth(29)
 +1 AVA_Qth(29)
+-1 network_Q_loss_per_timestep(29)
 = 95.3
 
 c_e_ht_balance(30)_:
@@ -16606,6 +17307,7 @@ c_e_ht_balance(30)_:
 +1 HWW_Qth(30)
 +1 P2H_Qth(30)
 +1 AVA_Qth(30)
+-1 network_Q_loss_per_timestep(30)
 = 103.8
 
 c_e_ht_balance(31)_:
@@ -16617,6 +17319,7 @@ c_e_ht_balance(31)_:
 +1 HWW_Qth(31)
 +1 P2H_Qth(31)
 +1 AVA_Qth(31)
+-1 network_Q_loss_per_timestep(31)
 = 108.2
 
 c_e_ht_balance(32)_:
@@ -16628,6 +17331,7 @@ c_e_ht_balance(32)_:
 +1 HWW_Qth(32)
 +1 P2H_Qth(32)
 +1 AVA_Qth(32)
+-1 network_Q_loss_per_timestep(32)
 = 107.2
 
 c_e_ht_balance(33)_:
@@ -16639,6 +17343,7 @@ c_e_ht_balance(33)_:
 +1 HWW_Qth(33)
 +1 P2H_Qth(33)
 +1 AVA_Qth(33)
+-1 network_Q_loss_per_timestep(33)
 = 108.8
 
 c_e_ht_balance(34)_:
@@ -16650,6 +17355,7 @@ c_e_ht_balance(34)_:
 +1 HWW_Qth(34)
 +1 P2H_Qth(34)
 +1 AVA_Qth(34)
+-1 network_Q_loss_per_timestep(34)
 = 106.8
 
 c_e_ht_balance(35)_:
@@ -16661,6 +17367,7 @@ c_e_ht_balance(35)_:
 +1 HWW_Qth(35)
 +1 P2H_Qth(35)
 +1 AVA_Qth(35)
+-1 network_Q_loss_per_timestep(35)
 = 96.4
 
 c_e_ht_balance(36)_:
@@ -16672,6 +17379,7 @@ c_e_ht_balance(36)_:
 +1 HWW_Qth(36)
 +1 P2H_Qth(36)
 +1 AVA_Qth(36)
+-1 network_Q_loss_per_timestep(36)
 = 91.2
 
 c_e_ht_balance(37)_:
@@ -16683,6 +17391,7 @@ c_e_ht_balance(37)_:
 +1 HWW_Qth(37)
 +1 P2H_Qth(37)
 +1 AVA_Qth(37)
+-1 network_Q_loss_per_timestep(37)
 = 81.7
 
 c_e_ht_balance(38)_:
@@ -16694,6 +17403,7 @@ c_e_ht_balance(38)_:
 +1 HWW_Qth(38)
 +1 P2H_Qth(38)
 +1 AVA_Qth(38)
+-1 network_Q_loss_per_timestep(38)
 = 77.3
 
 c_e_ht_balance(39)_:
@@ -16705,6 +17415,7 @@ c_e_ht_balance(39)_:
 +1 HWW_Qth(39)
 +1 P2H_Qth(39)
 +1 AVA_Qth(39)
+-1 network_Q_loss_per_timestep(39)
 = 77.1
 
 c_e_ht_balance(40)_:
@@ -16716,6 +17427,7 @@ c_e_ht_balance(40)_:
 +1 HWW_Qth(40)
 +1 P2H_Qth(40)
 +1 AVA_Qth(40)
+-1 network_Q_loss_per_timestep(40)
 = 79.5
 
 c_e_ht_balance(41)_:
@@ -16727,6 +17439,7 @@ c_e_ht_balance(41)_:
 +1 HWW_Qth(41)
 +1 P2H_Qth(41)
 +1 AVA_Qth(41)
+-1 network_Q_loss_per_timestep(41)
 = 83.5
 
 c_e_ht_balance(42)_:
@@ -16738,6 +17451,7 @@ c_e_ht_balance(42)_:
 +1 HWW_Qth(42)
 +1 P2H_Qth(42)
 +1 AVA_Qth(42)
+-1 network_Q_loss_per_timestep(42)
 = 85.0
 
 c_e_ht_balance(43)_:
@@ -16749,6 +17463,7 @@ c_e_ht_balance(43)_:
 +1 HWW_Qth(43)
 +1 P2H_Qth(43)
 +1 AVA_Qth(43)
+-1 network_Q_loss_per_timestep(43)
 = 83.6
 
 c_e_ht_balance(44)_:
@@ -16760,6 +17475,7 @@ c_e_ht_balance(44)_:
 +1 HWW_Qth(44)
 +1 P2H_Qth(44)
 +1 AVA_Qth(44)
+-1 network_Q_loss_per_timestep(44)
 = 86.0
 
 c_e_ht_balance(45)_:
@@ -16771,6 +17487,7 @@ c_e_ht_balance(45)_:
 +1 HWW_Qth(45)
 +1 P2H_Qth(45)
 +1 AVA_Qth(45)
+-1 network_Q_loss_per_timestep(45)
 = 86.6
 
 c_e_ht_balance(46)_:
@@ -16782,6 +17499,7 @@ c_e_ht_balance(46)_:
 +1 HWW_Qth(46)
 +1 P2H_Qth(46)
 +1 AVA_Qth(46)
+-1 network_Q_loss_per_timestep(46)
 = 84.2
 
 c_e_ht_balance(47)_:
@@ -16793,6 +17511,7 @@ c_e_ht_balance(47)_:
 +1 HWW_Qth(47)
 +1 P2H_Qth(47)
 +1 AVA_Qth(47)
+-1 network_Q_loss_per_timestep(47)
 = 79.2
 
 c_e_ht_balance(48)_:
@@ -16804,6 +17523,7 @@ c_e_ht_balance(48)_:
 +1 HWW_Qth(48)
 +1 P2H_Qth(48)
 +1 AVA_Qth(48)
+-1 network_Q_loss_per_timestep(48)
 = 74.6
 
 c_e_ht_balance(49)_:
@@ -16815,6 +17535,7 @@ c_e_ht_balance(49)_:
 +1 HWW_Qth(49)
 +1 P2H_Qth(49)
 +1 AVA_Qth(49)
+-1 network_Q_loss_per_timestep(49)
 = 72.0
 
 c_e_ht_balance(50)_:
@@ -16826,6 +17547,7 @@ c_e_ht_balance(50)_:
 +1 HWW_Qth(50)
 +1 P2H_Qth(50)
 +1 AVA_Qth(50)
+-1 network_Q_loss_per_timestep(50)
 = 71.1
 
 c_e_ht_balance(51)_:
@@ -16837,6 +17559,7 @@ c_e_ht_balance(51)_:
 +1 HWW_Qth(51)
 +1 P2H_Qth(51)
 +1 AVA_Qth(51)
+-1 network_Q_loss_per_timestep(51)
 = 73.2
 
 c_e_ht_balance(52)_:
@@ -16848,6 +17571,7 @@ c_e_ht_balance(52)_:
 +1 HWW_Qth(52)
 +1 P2H_Qth(52)
 +1 AVA_Qth(52)
+-1 network_Q_loss_per_timestep(52)
 = 76.3
 
 c_e_ht_balance(53)_:
@@ -16859,6 +17583,7 @@ c_e_ht_balance(53)_:
 +1 HWW_Qth(53)
 +1 P2H_Qth(53)
 +1 AVA_Qth(53)
+-1 network_Q_loss_per_timestep(53)
 = 84.9
 
 c_e_ht_balance(54)_:
@@ -16870,6 +17595,7 @@ c_e_ht_balance(54)_:
 +1 HWW_Qth(54)
 +1 P2H_Qth(54)
 +1 AVA_Qth(54)
+-1 network_Q_loss_per_timestep(54)
 = 95.0
 
 c_e_ht_balance(55)_:
@@ -16881,6 +17607,7 @@ c_e_ht_balance(55)_:
 +1 HWW_Qth(55)
 +1 P2H_Qth(55)
 +1 AVA_Qth(55)
+-1 network_Q_loss_per_timestep(55)
 = 104.1
 
 c_e_ht_balance(56)_:
@@ -16892,6 +17619,7 @@ c_e_ht_balance(56)_:
 +1 HWW_Qth(56)
 +1 P2H_Qth(56)
 +1 AVA_Qth(56)
+-1 network_Q_loss_per_timestep(56)
 = 104.2
 
 c_e_ht_balance(57)_:
@@ -16903,6 +17631,7 @@ c_e_ht_balance(57)_:
 +1 HWW_Qth(57)
 +1 P2H_Qth(57)
 +1 AVA_Qth(57)
+-1 network_Q_loss_per_timestep(57)
 = 104.9
 
 c_e_ht_balance(58)_:
@@ -16914,6 +17643,7 @@ c_e_ht_balance(58)_:
 +1 HWW_Qth(58)
 +1 P2H_Qth(58)
 +1 AVA_Qth(58)
+-1 network_Q_loss_per_timestep(58)
 = 106.6
 
 c_e_ht_balance(59)_:
@@ -16925,6 +17655,7 @@ c_e_ht_balance(59)_:
 +1 HWW_Qth(59)
 +1 P2H_Qth(59)
 +1 AVA_Qth(59)
+-1 network_Q_loss_per_timestep(59)
 = 105.0
 
 c_e_ht_balance(60)_:
@@ -16936,6 +17667,7 @@ c_e_ht_balance(60)_:
 +1 HWW_Qth(60)
 +1 P2H_Qth(60)
 +1 AVA_Qth(60)
+-1 network_Q_loss_per_timestep(60)
 = 99.4
 
 c_e_ht_balance(61)_:
@@ -16947,6 +17679,7 @@ c_e_ht_balance(61)_:
 +1 HWW_Qth(61)
 +1 P2H_Qth(61)
 +1 AVA_Qth(61)
+-1 network_Q_loss_per_timestep(61)
 = 96.2
 
 c_e_ht_balance(62)_:
@@ -16958,6 +17691,7 @@ c_e_ht_balance(62)_:
 +1 HWW_Qth(62)
 +1 P2H_Qth(62)
 +1 AVA_Qth(62)
+-1 network_Q_loss_per_timestep(62)
 = 96.5
 
 c_e_ht_balance(63)_:
@@ -16969,6 +17703,7 @@ c_e_ht_balance(63)_:
 +1 HWW_Qth(63)
 +1 P2H_Qth(63)
 +1 AVA_Qth(63)
+-1 network_Q_loss_per_timestep(63)
 = 95.1
 
 c_e_ht_balance(64)_:
@@ -16980,6 +17715,7 @@ c_e_ht_balance(64)_:
 +1 HWW_Qth(64)
 +1 P2H_Qth(64)
 +1 AVA_Qth(64)
+-1 network_Q_loss_per_timestep(64)
 = 94.5
 
 c_e_ht_balance(65)_:
@@ -16991,6 +17727,7 @@ c_e_ht_balance(65)_:
 +1 HWW_Qth(65)
 +1 P2H_Qth(65)
 +1 AVA_Qth(65)
+-1 network_Q_loss_per_timestep(65)
 = 96.4
 
 c_e_ht_balance(66)_:
@@ -17002,6 +17739,7 @@ c_e_ht_balance(66)_:
 +1 HWW_Qth(66)
 +1 P2H_Qth(66)
 +1 AVA_Qth(66)
+-1 network_Q_loss_per_timestep(66)
 = 96.7
 
 c_e_ht_balance(67)_:
@@ -17013,6 +17751,7 @@ c_e_ht_balance(67)_:
 +1 HWW_Qth(67)
 +1 P2H_Qth(67)
 +1 AVA_Qth(67)
+-1 network_Q_loss_per_timestep(67)
 = 95.0
 
 c_e_ht_balance(68)_:
@@ -17024,6 +17763,7 @@ c_e_ht_balance(68)_:
 +1 HWW_Qth(68)
 +1 P2H_Qth(68)
 +1 AVA_Qth(68)
+-1 network_Q_loss_per_timestep(68)
 = 94.1
 
 c_e_ht_balance(69)_:
@@ -17035,6 +17775,7 @@ c_e_ht_balance(69)_:
 +1 HWW_Qth(69)
 +1 P2H_Qth(69)
 +1 AVA_Qth(69)
+-1 network_Q_loss_per_timestep(69)
 = 90.0
 
 c_e_ht_balance(70)_:
@@ -17046,6 +17787,7 @@ c_e_ht_balance(70)_:
 +1 HWW_Qth(70)
 +1 P2H_Qth(70)
 +1 AVA_Qth(70)
+-1 network_Q_loss_per_timestep(70)
 = 88.6
 
 c_e_ht_balance(71)_:
@@ -17057,6 +17799,7 @@ c_e_ht_balance(71)_:
 +1 HWW_Qth(71)
 +1 P2H_Qth(71)
 +1 AVA_Qth(71)
+-1 network_Q_loss_per_timestep(71)
 = 81.2
 
 c_e_ht_balance(72)_:
@@ -17068,6 +17811,7 @@ c_e_ht_balance(72)_:
 +1 HWW_Qth(72)
 +1 P2H_Qth(72)
 +1 AVA_Qth(72)
+-1 network_Q_loss_per_timestep(72)
 = 76.8
 
 c_e_ht_balance(73)_:
@@ -17079,6 +17823,7 @@ c_e_ht_balance(73)_:
 +1 HWW_Qth(73)
 +1 P2H_Qth(73)
 +1 AVA_Qth(73)
+-1 network_Q_loss_per_timestep(73)
 = 73.6
 
 c_e_ht_balance(74)_:
@@ -17090,6 +17835,7 @@ c_e_ht_balance(74)_:
 +1 HWW_Qth(74)
 +1 P2H_Qth(74)
 +1 AVA_Qth(74)
+-1 network_Q_loss_per_timestep(74)
 = 74.8
 
 c_e_ht_balance(75)_:
@@ -17101,6 +17847,7 @@ c_e_ht_balance(75)_:
 +1 HWW_Qth(75)
 +1 P2H_Qth(75)
 +1 AVA_Qth(75)
+-1 network_Q_loss_per_timestep(75)
 = 74.1
 
 c_e_ht_balance(76)_:
@@ -17112,6 +17859,7 @@ c_e_ht_balance(76)_:
 +1 HWW_Qth(76)
 +1 P2H_Qth(76)
 +1 AVA_Qth(76)
+-1 network_Q_loss_per_timestep(76)
 = 75.5
 
 c_e_ht_balance(77)_:
@@ -17123,6 +17871,7 @@ c_e_ht_balance(77)_:
 +1 HWW_Qth(77)
 +1 P2H_Qth(77)
 +1 AVA_Qth(77)
+-1 network_Q_loss_per_timestep(77)
 = 86.9
 
 c_e_ht_balance(78)_:
@@ -17134,6 +17883,7 @@ c_e_ht_balance(78)_:
 +1 HWW_Qth(78)
 +1 P2H_Qth(78)
 +1 AVA_Qth(78)
+-1 network_Q_loss_per_timestep(78)
 = 94.2
 
 c_e_ht_balance(79)_:
@@ -17145,6 +17895,7 @@ c_e_ht_balance(79)_:
 +1 HWW_Qth(79)
 +1 P2H_Qth(79)
 +1 AVA_Qth(79)
+-1 network_Q_loss_per_timestep(79)
 = 98.7
 
 c_e_ht_balance(80)_:
@@ -17156,6 +17907,7 @@ c_e_ht_balance(80)_:
 +1 HWW_Qth(80)
 +1 P2H_Qth(80)
 +1 AVA_Qth(80)
+-1 network_Q_loss_per_timestep(80)
 = 102.2
 
 c_e_ht_balance(81)_:
@@ -17167,6 +17919,7 @@ c_e_ht_balance(81)_:
 +1 HWW_Qth(81)
 +1 P2H_Qth(81)
 +1 AVA_Qth(81)
+-1 network_Q_loss_per_timestep(81)
 = 104.8
 
 c_e_ht_balance(82)_:
@@ -17178,6 +17931,7 @@ c_e_ht_balance(82)_:
 +1 HWW_Qth(82)
 +1 P2H_Qth(82)
 +1 AVA_Qth(82)
+-1 network_Q_loss_per_timestep(82)
 = 103.3
 
 c_e_ht_balance(83)_:
@@ -17189,6 +17943,7 @@ c_e_ht_balance(83)_:
 +1 HWW_Qth(83)
 +1 P2H_Qth(83)
 +1 AVA_Qth(83)
+-1 network_Q_loss_per_timestep(83)
 = 94.9
 
 c_e_ht_balance(84)_:
@@ -17200,6 +17955,7 @@ c_e_ht_balance(84)_:
 +1 HWW_Qth(84)
 +1 P2H_Qth(84)
 +1 AVA_Qth(84)
+-1 network_Q_loss_per_timestep(84)
 = 90.5
 
 c_e_ht_balance(85)_:
@@ -17211,6 +17967,7 @@ c_e_ht_balance(85)_:
 +1 HWW_Qth(85)
 +1 P2H_Qth(85)
 +1 AVA_Qth(85)
+-1 network_Q_loss_per_timestep(85)
 = 81.5
 
 c_e_ht_balance(86)_:
@@ -17222,6 +17979,7 @@ c_e_ht_balance(86)_:
 +1 HWW_Qth(86)
 +1 P2H_Qth(86)
 +1 AVA_Qth(86)
+-1 network_Q_loss_per_timestep(86)
 = 75.0
 
 c_e_ht_balance(87)_:
@@ -17233,6 +17991,7 @@ c_e_ht_balance(87)_:
 +1 HWW_Qth(87)
 +1 P2H_Qth(87)
 +1 AVA_Qth(87)
+-1 network_Q_loss_per_timestep(87)
 = 78.3
 
 c_e_ht_balance(88)_:
@@ -17244,6 +18003,7 @@ c_e_ht_balance(88)_:
 +1 HWW_Qth(88)
 +1 P2H_Qth(88)
 +1 AVA_Qth(88)
+-1 network_Q_loss_per_timestep(88)
 = 88.2
 
 c_e_ht_balance(89)_:
@@ -17255,6 +18015,7 @@ c_e_ht_balance(89)_:
 +1 HWW_Qth(89)
 +1 P2H_Qth(89)
 +1 AVA_Qth(89)
+-1 network_Q_loss_per_timestep(89)
 = 94.9
 
 c_e_ht_balance(90)_:
@@ -17266,6 +18027,7 @@ c_e_ht_balance(90)_:
 +1 HWW_Qth(90)
 +1 P2H_Qth(90)
 +1 AVA_Qth(90)
+-1 network_Q_loss_per_timestep(90)
 = 94.5
 
 c_e_ht_balance(91)_:
@@ -17277,6 +18039,7 @@ c_e_ht_balance(91)_:
 +1 HWW_Qth(91)
 +1 P2H_Qth(91)
 +1 AVA_Qth(91)
+-1 network_Q_loss_per_timestep(91)
 = 94.6
 
 c_e_ht_balance(92)_:
@@ -17288,6 +18051,7 @@ c_e_ht_balance(92)_:
 +1 HWW_Qth(92)
 +1 P2H_Qth(92)
 +1 AVA_Qth(92)
+-1 network_Q_loss_per_timestep(92)
 = 97.6
 
 c_e_ht_balance(93)_:
@@ -17299,6 +18063,7 @@ c_e_ht_balance(93)_:
 +1 HWW_Qth(93)
 +1 P2H_Qth(93)
 +1 AVA_Qth(93)
+-1 network_Q_loss_per_timestep(93)
 = 93.6
 
 c_e_ht_balance(94)_:
@@ -17310,6 +18075,7 @@ c_e_ht_balance(94)_:
 +1 HWW_Qth(94)
 +1 P2H_Qth(94)
 +1 AVA_Qth(94)
+-1 network_Q_loss_per_timestep(94)
 = 96.7
 
 c_e_ht_balance(95)_:
@@ -17321,6 +18087,7 @@ c_e_ht_balance(95)_:
 +1 HWW_Qth(95)
 +1 P2H_Qth(95)
 +1 AVA_Qth(95)
+-1 network_Q_loss_per_timestep(95)
 = 94.9
 
 c_e_ht_balance(96)_:
@@ -17332,6 +18099,7 @@ c_e_ht_balance(96)_:
 +1 HWW_Qth(96)
 +1 P2H_Qth(96)
 +1 AVA_Qth(96)
+-1 network_Q_loss_per_timestep(96)
 = 90.8
 
 c_e_ht_balance(97)_:
@@ -17343,6 +18111,7 @@ c_e_ht_balance(97)_:
 +1 HWW_Qth(97)
 +1 P2H_Qth(97)
 +1 AVA_Qth(97)
+-1 network_Q_loss_per_timestep(97)
 = 85.3
 
 c_e_ht_balance(98)_:
@@ -17354,6 +18123,7 @@ c_e_ht_balance(98)_:
 +1 HWW_Qth(98)
 +1 P2H_Qth(98)
 +1 AVA_Qth(98)
+-1 network_Q_loss_per_timestep(98)
 = 89.4
 
 c_e_ht_balance(99)_:
@@ -17365,6 +18135,7 @@ c_e_ht_balance(99)_:
 +1 HWW_Qth(99)
 +1 P2H_Qth(99)
 +1 AVA_Qth(99)
+-1 network_Q_loss_per_timestep(99)
 = 94.4
 
 c_e_ht_balance(100)_:
@@ -17376,6 +18147,7 @@ c_e_ht_balance(100)_:
 +1 HWW_Qth(100)
 +1 P2H_Qth(100)
 +1 AVA_Qth(100)
+-1 network_Q_loss_per_timestep(100)
 = 95.5
 
 c_e_ht_balance(101)_:
@@ -17387,6 +18159,7 @@ c_e_ht_balance(101)_:
 +1 HWW_Qth(101)
 +1 P2H_Qth(101)
 +1 AVA_Qth(101)
+-1 network_Q_loss_per_timestep(101)
 = 105.4
 
 c_e_ht_balance(102)_:
@@ -17398,6 +18171,7 @@ c_e_ht_balance(102)_:
 +1 HWW_Qth(102)
 +1 P2H_Qth(102)
 +1 AVA_Qth(102)
+-1 network_Q_loss_per_timestep(102)
 = 116.2
 
 c_e_ht_balance(103)_:
@@ -17409,6 +18183,7 @@ c_e_ht_balance(103)_:
 +1 HWW_Qth(103)
 +1 P2H_Qth(103)
 +1 AVA_Qth(103)
+-1 network_Q_loss_per_timestep(103)
 = 123.6
 
 c_e_ht_balance(104)_:
@@ -17420,6 +18195,7 @@ c_e_ht_balance(104)_:
 +1 HWW_Qth(104)
 +1 P2H_Qth(104)
 +1 AVA_Qth(104)
+-1 network_Q_loss_per_timestep(104)
 = 124.8
 
 c_e_ht_balance(105)_:
@@ -17431,6 +18207,7 @@ c_e_ht_balance(105)_:
 +1 HWW_Qth(105)
 +1 P2H_Qth(105)
 +1 AVA_Qth(105)
+-1 network_Q_loss_per_timestep(105)
 = 129.9
 
 c_e_ht_balance(106)_:
@@ -17442,6 +18219,7 @@ c_e_ht_balance(106)_:
 +1 HWW_Qth(106)
 +1 P2H_Qth(106)
 +1 AVA_Qth(106)
+-1 network_Q_loss_per_timestep(106)
 = 130.8
 
 c_e_ht_balance(107)_:
@@ -17453,6 +18231,7 @@ c_e_ht_balance(107)_:
 +1 HWW_Qth(107)
 +1 P2H_Qth(107)
 +1 AVA_Qth(107)
+-1 network_Q_loss_per_timestep(107)
 = 132.8
 
 c_e_ht_balance(108)_:
@@ -17464,6 +18243,7 @@ c_e_ht_balance(108)_:
 +1 HWW_Qth(108)
 +1 P2H_Qth(108)
 +1 AVA_Qth(108)
+-1 network_Q_loss_per_timestep(108)
 = 133.2
 
 c_e_ht_balance(109)_:
@@ -17475,6 +18255,7 @@ c_e_ht_balance(109)_:
 +1 HWW_Qth(109)
 +1 P2H_Qth(109)
 +1 AVA_Qth(109)
+-1 network_Q_loss_per_timestep(109)
 = 129.7
 
 c_e_ht_balance(110)_:
@@ -17486,6 +18267,7 @@ c_e_ht_balance(110)_:
 +1 HWW_Qth(110)
 +1 P2H_Qth(110)
 +1 AVA_Qth(110)
+-1 network_Q_loss_per_timestep(110)
 = 128.9
 
 c_e_ht_balance(111)_:
@@ -17497,6 +18279,7 @@ c_e_ht_balance(111)_:
 +1 HWW_Qth(111)
 +1 P2H_Qth(111)
 +1 AVA_Qth(111)
+-1 network_Q_loss_per_timestep(111)
 = 135.3
 
 c_e_ht_balance(112)_:
@@ -17508,6 +18291,7 @@ c_e_ht_balance(112)_:
 +1 HWW_Qth(112)
 +1 P2H_Qth(112)
 +1 AVA_Qth(112)
+-1 network_Q_loss_per_timestep(112)
 = 142.9
 
 c_e_ht_balance(113)_:
@@ -17519,6 +18303,7 @@ c_e_ht_balance(113)_:
 +1 HWW_Qth(113)
 +1 P2H_Qth(113)
 +1 AVA_Qth(113)
+-1 network_Q_loss_per_timestep(113)
 = 144.9
 
 c_e_ht_balance(114)_:
@@ -17530,6 +18315,7 @@ c_e_ht_balance(114)_:
 +1 HWW_Qth(114)
 +1 P2H_Qth(114)
 +1 AVA_Qth(114)
+-1 network_Q_loss_per_timestep(114)
 = 137.9
 
 c_e_ht_balance(115)_:
@@ -17541,6 +18327,7 @@ c_e_ht_balance(115)_:
 +1 HWW_Qth(115)
 +1 P2H_Qth(115)
 +1 AVA_Qth(115)
+-1 network_Q_loss_per_timestep(115)
 = 133.9
 
 c_e_ht_balance(116)_:
@@ -17552,6 +18339,7 @@ c_e_ht_balance(116)_:
 +1 HWW_Qth(116)
 +1 P2H_Qth(116)
 +1 AVA_Qth(116)
+-1 network_Q_loss_per_timestep(116)
 = 129.6
 
 c_e_ht_balance(117)_:
@@ -17563,6 +18351,7 @@ c_e_ht_balance(117)_:
 +1 HWW_Qth(117)
 +1 P2H_Qth(117)
 +1 AVA_Qth(117)
+-1 network_Q_loss_per_timestep(117)
 = 124.9
 
 c_e_ht_balance(118)_:
@@ -17574,6 +18363,7 @@ c_e_ht_balance(118)_:
 +1 HWW_Qth(118)
 +1 P2H_Qth(118)
 +1 AVA_Qth(118)
+-1 network_Q_loss_per_timestep(118)
 = 118.1
 
 c_e_ht_balance(119)_:
@@ -17585,6 +18375,7 @@ c_e_ht_balance(119)_:
 +1 HWW_Qth(119)
 +1 P2H_Qth(119)
 +1 AVA_Qth(119)
+-1 network_Q_loss_per_timestep(119)
 = 111.3
 
 c_e_ht_balance(120)_:
@@ -17596,6 +18387,7 @@ c_e_ht_balance(120)_:
 +1 HWW_Qth(120)
 +1 P2H_Qth(120)
 +1 AVA_Qth(120)
+-1 network_Q_loss_per_timestep(120)
 = 108.6
 
 c_e_ht_balance(121)_:
@@ -17607,6 +18399,7 @@ c_e_ht_balance(121)_:
 +1 HWW_Qth(121)
 +1 P2H_Qth(121)
 +1 AVA_Qth(121)
+-1 network_Q_loss_per_timestep(121)
 = 106.1
 
 c_e_ht_balance(122)_:
@@ -17618,6 +18411,7 @@ c_e_ht_balance(122)_:
 +1 HWW_Qth(122)
 +1 P2H_Qth(122)
 +1 AVA_Qth(122)
+-1 network_Q_loss_per_timestep(122)
 = 108.0
 
 c_e_ht_balance(123)_:
@@ -17629,6 +18423,7 @@ c_e_ht_balance(123)_:
 +1 HWW_Qth(123)
 +1 P2H_Qth(123)
 +1 AVA_Qth(123)
+-1 network_Q_loss_per_timestep(123)
 = 107.5
 
 c_e_ht_balance(124)_:
@@ -17640,6 +18435,7 @@ c_e_ht_balance(124)_:
 +1 HWW_Qth(124)
 +1 P2H_Qth(124)
 +1 AVA_Qth(124)
+-1 network_Q_loss_per_timestep(124)
 = 108.8
 
 c_e_ht_balance(125)_:
@@ -17651,6 +18447,7 @@ c_e_ht_balance(125)_:
 +1 HWW_Qth(125)
 +1 P2H_Qth(125)
 +1 AVA_Qth(125)
+-1 network_Q_loss_per_timestep(125)
 = 119.6
 
 c_e_ht_balance(126)_:
@@ -17662,6 +18459,7 @@ c_e_ht_balance(126)_:
 +1 HWW_Qth(126)
 +1 P2H_Qth(126)
 +1 AVA_Qth(126)
+-1 network_Q_loss_per_timestep(126)
 = 123.3
 
 c_e_ht_balance(127)_:
@@ -17673,6 +18471,7 @@ c_e_ht_balance(127)_:
 +1 HWW_Qth(127)
 +1 P2H_Qth(127)
 +1 AVA_Qth(127)
+-1 network_Q_loss_per_timestep(127)
 = 131.6
 
 c_e_ht_balance(128)_:
@@ -17684,6 +18483,7 @@ c_e_ht_balance(128)_:
 +1 HWW_Qth(128)
 +1 P2H_Qth(128)
 +1 AVA_Qth(128)
+-1 network_Q_loss_per_timestep(128)
 = 139.3
 
 c_e_ht_balance(129)_:
@@ -17695,6 +18495,7 @@ c_e_ht_balance(129)_:
 +1 HWW_Qth(129)
 +1 P2H_Qth(129)
 +1 AVA_Qth(129)
+-1 network_Q_loss_per_timestep(129)
 = 140.8
 
 c_e_ht_balance(130)_:
@@ -17706,6 +18507,7 @@ c_e_ht_balance(130)_:
 +1 HWW_Qth(130)
 +1 P2H_Qth(130)
 +1 AVA_Qth(130)
+-1 network_Q_loss_per_timestep(130)
 = 139.8
 
 c_e_ht_balance(131)_:
@@ -17717,6 +18519,7 @@ c_e_ht_balance(131)_:
 +1 HWW_Qth(131)
 +1 P2H_Qth(131)
 +1 AVA_Qth(131)
+-1 network_Q_loss_per_timestep(131)
 = 136.1
 
 c_e_ht_balance(132)_:
@@ -17728,6 +18531,7 @@ c_e_ht_balance(132)_:
 +1 HWW_Qth(132)
 +1 P2H_Qth(132)
 +1 AVA_Qth(132)
+-1 network_Q_loss_per_timestep(132)
 = 138.3
 
 c_e_ht_balance(133)_:
@@ -17739,6 +18543,7 @@ c_e_ht_balance(133)_:
 +1 HWW_Qth(133)
 +1 P2H_Qth(133)
 +1 AVA_Qth(133)
+-1 network_Q_loss_per_timestep(133)
 = 133.1
 
 c_e_ht_balance(134)_:
@@ -17750,6 +18555,7 @@ c_e_ht_balance(134)_:
 +1 HWW_Qth(134)
 +1 P2H_Qth(134)
 +1 AVA_Qth(134)
+-1 network_Q_loss_per_timestep(134)
 = 124.1
 
 c_e_ht_balance(135)_:
@@ -17761,6 +18567,7 @@ c_e_ht_balance(135)_:
 +1 HWW_Qth(135)
 +1 P2H_Qth(135)
 +1 AVA_Qth(135)
+-1 network_Q_loss_per_timestep(135)
 = 129.1
 
 c_e_ht_balance(136)_:
@@ -17772,6 +18579,7 @@ c_e_ht_balance(136)_:
 +1 HWW_Qth(136)
 +1 P2H_Qth(136)
 +1 AVA_Qth(136)
+-1 network_Q_loss_per_timestep(136)
 = 125.9
 
 c_e_ht_balance(137)_:
@@ -17783,6 +18591,7 @@ c_e_ht_balance(137)_:
 +1 HWW_Qth(137)
 +1 P2H_Qth(137)
 +1 AVA_Qth(137)
+-1 network_Q_loss_per_timestep(137)
 = 127.0
 
 c_e_ht_balance(138)_:
@@ -17794,6 +18603,7 @@ c_e_ht_balance(138)_:
 +1 HWW_Qth(138)
 +1 P2H_Qth(138)
 +1 AVA_Qth(138)
+-1 network_Q_loss_per_timestep(138)
 = 130.6
 
 c_e_ht_balance(139)_:
@@ -17805,6 +18615,7 @@ c_e_ht_balance(139)_:
 +1 HWW_Qth(139)
 +1 P2H_Qth(139)
 +1 AVA_Qth(139)
+-1 network_Q_loss_per_timestep(139)
 = 131.2
 
 c_e_ht_balance(140)_:
@@ -17816,6 +18627,7 @@ c_e_ht_balance(140)_:
 +1 HWW_Qth(140)
 +1 P2H_Qth(140)
 +1 AVA_Qth(140)
+-1 network_Q_loss_per_timestep(140)
 = 129.9
 
 c_e_ht_balance(141)_:
@@ -17827,6 +18639,7 @@ c_e_ht_balance(141)_:
 +1 HWW_Qth(141)
 +1 P2H_Qth(141)
 +1 AVA_Qth(141)
+-1 network_Q_loss_per_timestep(141)
 = 127.3
 
 c_e_ht_balance(142)_:
@@ -17838,6 +18651,7 @@ c_e_ht_balance(142)_:
 +1 HWW_Qth(142)
 +1 P2H_Qth(142)
 +1 AVA_Qth(142)
+-1 network_Q_loss_per_timestep(142)
 = 127.8
 
 c_e_ht_balance(143)_:
@@ -17849,6 +18663,7 @@ c_e_ht_balance(143)_:
 +1 HWW_Qth(143)
 +1 P2H_Qth(143)
 +1 AVA_Qth(143)
+-1 network_Q_loss_per_timestep(143)
 = 120.0
 
 c_e_ht_balance(144)_:
@@ -17860,6 +18675,7 @@ c_e_ht_balance(144)_:
 +1 HWW_Qth(144)
 +1 P2H_Qth(144)
 +1 AVA_Qth(144)
+-1 network_Q_loss_per_timestep(144)
 = 115.7
 
 c_e_ht_balance(145)_:
@@ -17871,6 +18687,7 @@ c_e_ht_balance(145)_:
 +1 HWW_Qth(145)
 +1 P2H_Qth(145)
 +1 AVA_Qth(145)
+-1 network_Q_loss_per_timestep(145)
 = 117.2
 
 c_e_ht_balance(146)_:
@@ -17882,6 +18699,7 @@ c_e_ht_balance(146)_:
 +1 HWW_Qth(146)
 +1 P2H_Qth(146)
 +1 AVA_Qth(146)
+-1 network_Q_loss_per_timestep(146)
 = 118.4
 
 c_e_ht_balance(147)_:
@@ -17893,6 +18711,7 @@ c_e_ht_balance(147)_:
 +1 HWW_Qth(147)
 +1 P2H_Qth(147)
 +1 AVA_Qth(147)
+-1 network_Q_loss_per_timestep(147)
 = 121.8
 
 c_e_ht_balance(148)_:
@@ -17904,6 +18723,7 @@ c_e_ht_balance(148)_:
 +1 HWW_Qth(148)
 +1 P2H_Qth(148)
 +1 AVA_Qth(148)
+-1 network_Q_loss_per_timestep(148)
 = 126.2
 
 c_e_ht_balance(149)_:
@@ -17915,6 +18735,7 @@ c_e_ht_balance(149)_:
 +1 HWW_Qth(149)
 +1 P2H_Qth(149)
 +1 AVA_Qth(149)
+-1 network_Q_loss_per_timestep(149)
 = 136.6
 
 c_e_ht_balance(150)_:
@@ -17926,6 +18747,7 @@ c_e_ht_balance(150)_:
 +1 HWW_Qth(150)
 +1 P2H_Qth(150)
 +1 AVA_Qth(150)
+-1 network_Q_loss_per_timestep(150)
 = 147.2
 
 c_e_ht_balance(151)_:
@@ -17937,6 +18759,7 @@ c_e_ht_balance(151)_:
 +1 HWW_Qth(151)
 +1 P2H_Qth(151)
 +1 AVA_Qth(151)
+-1 network_Q_loss_per_timestep(151)
 = 157.1
 
 c_e_ht_balance(152)_:
@@ -17948,6 +18771,7 @@ c_e_ht_balance(152)_:
 +1 HWW_Qth(152)
 +1 P2H_Qth(152)
 +1 AVA_Qth(152)
+-1 network_Q_loss_per_timestep(152)
 = 162.3
 
 c_e_ht_balance(153)_:
@@ -17959,6 +18783,7 @@ c_e_ht_balance(153)_:
 +1 HWW_Qth(153)
 +1 P2H_Qth(153)
 +1 AVA_Qth(153)
+-1 network_Q_loss_per_timestep(153)
 = 172.0
 
 c_e_ht_balance(154)_:
@@ -17970,6 +18795,7 @@ c_e_ht_balance(154)_:
 +1 HWW_Qth(154)
 +1 P2H_Qth(154)
 +1 AVA_Qth(154)
+-1 network_Q_loss_per_timestep(154)
 = 167.0
 
 c_e_ht_balance(155)_:
@@ -17981,6 +18807,7 @@ c_e_ht_balance(155)_:
 +1 HWW_Qth(155)
 +1 P2H_Qth(155)
 +1 AVA_Qth(155)
+-1 network_Q_loss_per_timestep(155)
 = 163.8
 
 c_e_ht_balance(156)_:
@@ -17992,6 +18819,7 @@ c_e_ht_balance(156)_:
 +1 HWW_Qth(156)
 +1 P2H_Qth(156)
 +1 AVA_Qth(156)
+-1 network_Q_loss_per_timestep(156)
 = 159.9
 
 c_e_ht_balance(157)_:
@@ -18003,6 +18831,7 @@ c_e_ht_balance(157)_:
 +1 HWW_Qth(157)
 +1 P2H_Qth(157)
 +1 AVA_Qth(157)
+-1 network_Q_loss_per_timestep(157)
 = 155.2
 
 c_e_ht_balance(158)_:
@@ -18014,6 +18843,7 @@ c_e_ht_balance(158)_:
 +1 HWW_Qth(158)
 +1 P2H_Qth(158)
 +1 AVA_Qth(158)
+-1 network_Q_loss_per_timestep(158)
 = 153.2
 
 c_e_ht_balance(159)_:
@@ -18025,6 +18855,7 @@ c_e_ht_balance(159)_:
 +1 HWW_Qth(159)
 +1 P2H_Qth(159)
 +1 AVA_Qth(159)
+-1 network_Q_loss_per_timestep(159)
 = 151.0
 
 c_e_ht_balance(160)_:
@@ -18036,6 +18867,7 @@ c_e_ht_balance(160)_:
 +1 HWW_Qth(160)
 +1 P2H_Qth(160)
 +1 AVA_Qth(160)
+-1 network_Q_loss_per_timestep(160)
 = 159.1
 
 c_e_ht_balance(161)_:
@@ -18047,6 +18879,7 @@ c_e_ht_balance(161)_:
 +1 HWW_Qth(161)
 +1 P2H_Qth(161)
 +1 AVA_Qth(161)
+-1 network_Q_loss_per_timestep(161)
 = 156.1
 
 c_e_ht_balance(162)_:
@@ -18058,6 +18891,7 @@ c_e_ht_balance(162)_:
 +1 HWW_Qth(162)
 +1 P2H_Qth(162)
 +1 AVA_Qth(162)
+-1 network_Q_loss_per_timestep(162)
 = 150.7
 
 c_e_ht_balance(163)_:
@@ -18069,6 +18903,7 @@ c_e_ht_balance(163)_:
 +1 HWW_Qth(163)
 +1 P2H_Qth(163)
 +1 AVA_Qth(163)
+-1 network_Q_loss_per_timestep(163)
 = 146.4
 
 c_e_ht_balance(164)_:
@@ -18080,6 +18915,7 @@ c_e_ht_balance(164)_:
 +1 HWW_Qth(164)
 +1 P2H_Qth(164)
 +1 AVA_Qth(164)
+-1 network_Q_loss_per_timestep(164)
 = 144.7
 
 c_e_ht_balance(165)_:
@@ -18091,6 +18927,7 @@ c_e_ht_balance(165)_:
 +1 HWW_Qth(165)
 +1 P2H_Qth(165)
 +1 AVA_Qth(165)
+-1 network_Q_loss_per_timestep(165)
 = 132.9
 
 c_e_ht_balance(166)_:
@@ -18102,6 +18939,7 @@ c_e_ht_balance(166)_:
 +1 HWW_Qth(166)
 +1 P2H_Qth(166)
 +1 AVA_Qth(166)
+-1 network_Q_loss_per_timestep(166)
 = 130.8
 
 c_e_ht_balance(167)_:
@@ -18113,6 +18951,7 @@ c_e_ht_balance(167)_:
 +1 HWW_Qth(167)
 +1 P2H_Qth(167)
 +1 AVA_Qth(167)
+-1 network_Q_loss_per_timestep(167)
 = 127.0
 
 c_e_ht_balance(168)_:
@@ -18124,6 +18963,7 @@ c_e_ht_balance(168)_:
 +1 HWW_Qth(168)
 +1 P2H_Qth(168)
 +1 AVA_Qth(168)
+-1 network_Q_loss_per_timestep(168)
 = 117.3
 
 c_u_buy_gate(1)_:
@@ -25352,6 +26192,174 @@ bounds
    0 <= AVA_Qth(166) <= +inf
    0 <= AVA_Qth(167) <= +inf
    0 <= AVA_Qth(168) <= +inf
+   0 <= network_Q_loss_per_timestep(1) <= 50
+   0 <= network_Q_loss_per_timestep(2) <= 50
+   0 <= network_Q_loss_per_timestep(3) <= 50
+   0 <= network_Q_loss_per_timestep(4) <= 50
+   0 <= network_Q_loss_per_timestep(5) <= 50
+   0 <= network_Q_loss_per_timestep(6) <= 50
+   0 <= network_Q_loss_per_timestep(7) <= 50
+   0 <= network_Q_loss_per_timestep(8) <= 50
+   0 <= network_Q_loss_per_timestep(9) <= 50
+   0 <= network_Q_loss_per_timestep(10) <= 50
+   0 <= network_Q_loss_per_timestep(11) <= 50
+   0 <= network_Q_loss_per_timestep(12) <= 50
+   0 <= network_Q_loss_per_timestep(13) <= 50
+   0 <= network_Q_loss_per_timestep(14) <= 50
+   0 <= network_Q_loss_per_timestep(15) <= 50
+   0 <= network_Q_loss_per_timestep(16) <= 50
+   0 <= network_Q_loss_per_timestep(17) <= 50
+   0 <= network_Q_loss_per_timestep(18) <= 50
+   0 <= network_Q_loss_per_timestep(19) <= 50
+   0 <= network_Q_loss_per_timestep(20) <= 50
+   0 <= network_Q_loss_per_timestep(21) <= 50
+   0 <= network_Q_loss_per_timestep(22) <= 50
+   0 <= network_Q_loss_per_timestep(23) <= 50
+   0 <= network_Q_loss_per_timestep(24) <= 50
+   0 <= network_Q_loss_per_timestep(25) <= 50
+   0 <= network_Q_loss_per_timestep(26) <= 50
+   0 <= network_Q_loss_per_timestep(27) <= 50
+   0 <= network_Q_loss_per_timestep(28) <= 50
+   0 <= network_Q_loss_per_timestep(29) <= 50
+   0 <= network_Q_loss_per_timestep(30) <= 50
+   0 <= network_Q_loss_per_timestep(31) <= 50
+   0 <= network_Q_loss_per_timestep(32) <= 50
+   0 <= network_Q_loss_per_timestep(33) <= 50
+   0 <= network_Q_loss_per_timestep(34) <= 50
+   0 <= network_Q_loss_per_timestep(35) <= 50
+   0 <= network_Q_loss_per_timestep(36) <= 50
+   0 <= network_Q_loss_per_timestep(37) <= 50
+   0 <= network_Q_loss_per_timestep(38) <= 50
+   0 <= network_Q_loss_per_timestep(39) <= 50
+   0 <= network_Q_loss_per_timestep(40) <= 50
+   0 <= network_Q_loss_per_timestep(41) <= 50
+   0 <= network_Q_loss_per_timestep(42) <= 50
+   0 <= network_Q_loss_per_timestep(43) <= 50
+   0 <= network_Q_loss_per_timestep(44) <= 50
+   0 <= network_Q_loss_per_timestep(45) <= 50
+   0 <= network_Q_loss_per_timestep(46) <= 50
+   0 <= network_Q_loss_per_timestep(47) <= 50
+   0 <= network_Q_loss_per_timestep(48) <= 50
+   0 <= network_Q_loss_per_timestep(49) <= 50
+   0 <= network_Q_loss_per_timestep(50) <= 50
+   0 <= network_Q_loss_per_timestep(51) <= 50
+   0 <= network_Q_loss_per_timestep(52) <= 50
+   0 <= network_Q_loss_per_timestep(53) <= 50
+   0 <= network_Q_loss_per_timestep(54) <= 50
+   0 <= network_Q_loss_per_timestep(55) <= 50
+   0 <= network_Q_loss_per_timestep(56) <= 50
+   0 <= network_Q_loss_per_timestep(57) <= 50
+   0 <= network_Q_loss_per_timestep(58) <= 50
+   0 <= network_Q_loss_per_timestep(59) <= 50
+   0 <= network_Q_loss_per_timestep(60) <= 50
+   0 <= network_Q_loss_per_timestep(61) <= 50
+   0 <= network_Q_loss_per_timestep(62) <= 50
+   0 <= network_Q_loss_per_timestep(63) <= 50
+   0 <= network_Q_loss_per_timestep(64) <= 50
+   0 <= network_Q_loss_per_timestep(65) <= 50
+   0 <= network_Q_loss_per_timestep(66) <= 50
+   0 <= network_Q_loss_per_timestep(67) <= 50
+   0 <= network_Q_loss_per_timestep(68) <= 50
+   0 <= network_Q_loss_per_timestep(69) <= 50
+   0 <= network_Q_loss_per_timestep(70) <= 50
+   0 <= network_Q_loss_per_timestep(71) <= 50
+   0 <= network_Q_loss_per_timestep(72) <= 50
+   0 <= network_Q_loss_per_timestep(73) <= 50
+   0 <= network_Q_loss_per_timestep(74) <= 50
+   0 <= network_Q_loss_per_timestep(75) <= 50
+   0 <= network_Q_loss_per_timestep(76) <= 50
+   0 <= network_Q_loss_per_timestep(77) <= 50
+   0 <= network_Q_loss_per_timestep(78) <= 50
+   0 <= network_Q_loss_per_timestep(79) <= 50
+   0 <= network_Q_loss_per_timestep(80) <= 50
+   0 <= network_Q_loss_per_timestep(81) <= 50
+   0 <= network_Q_loss_per_timestep(82) <= 50
+   0 <= network_Q_loss_per_timestep(83) <= 50
+   0 <= network_Q_loss_per_timestep(84) <= 50
+   0 <= network_Q_loss_per_timestep(85) <= 50
+   0 <= network_Q_loss_per_timestep(86) <= 50
+   0 <= network_Q_loss_per_timestep(87) <= 50
+   0 <= network_Q_loss_per_timestep(88) <= 50
+   0 <= network_Q_loss_per_timestep(89) <= 50
+   0 <= network_Q_loss_per_timestep(90) <= 50
+   0 <= network_Q_loss_per_timestep(91) <= 50
+   0 <= network_Q_loss_per_timestep(92) <= 50
+   0 <= network_Q_loss_per_timestep(93) <= 50
+   0 <= network_Q_loss_per_timestep(94) <= 50
+   0 <= network_Q_loss_per_timestep(95) <= 50
+   0 <= network_Q_loss_per_timestep(96) <= 50
+   0 <= network_Q_loss_per_timestep(97) <= 50
+   0 <= network_Q_loss_per_timestep(98) <= 50
+   0 <= network_Q_loss_per_timestep(99) <= 50
+   0 <= network_Q_loss_per_timestep(100) <= 50
+   0 <= network_Q_loss_per_timestep(101) <= 50
+   0 <= network_Q_loss_per_timestep(102) <= 50
+   0 <= network_Q_loss_per_timestep(103) <= 50
+   0 <= network_Q_loss_per_timestep(104) <= 50
+   0 <= network_Q_loss_per_timestep(105) <= 50
+   0 <= network_Q_loss_per_timestep(106) <= 50
+   0 <= network_Q_loss_per_timestep(107) <= 50
+   0 <= network_Q_loss_per_timestep(108) <= 50
+   0 <= network_Q_loss_per_timestep(109) <= 50
+   0 <= network_Q_loss_per_timestep(110) <= 50
+   0 <= network_Q_loss_per_timestep(111) <= 50
+   0 <= network_Q_loss_per_timestep(112) <= 50
+   0 <= network_Q_loss_per_timestep(113) <= 50
+   0 <= network_Q_loss_per_timestep(114) <= 50
+   0 <= network_Q_loss_per_timestep(115) <= 50
+   0 <= network_Q_loss_per_timestep(116) <= 50
+   0 <= network_Q_loss_per_timestep(117) <= 50
+   0 <= network_Q_loss_per_timestep(118) <= 50
+   0 <= network_Q_loss_per_timestep(119) <= 50
+   0 <= network_Q_loss_per_timestep(120) <= 50
+   0 <= network_Q_loss_per_timestep(121) <= 50
+   0 <= network_Q_loss_per_timestep(122) <= 50
+   0 <= network_Q_loss_per_timestep(123) <= 50
+   0 <= network_Q_loss_per_timestep(124) <= 50
+   0 <= network_Q_loss_per_timestep(125) <= 50
+   0 <= network_Q_loss_per_timestep(126) <= 50
+   0 <= network_Q_loss_per_timestep(127) <= 50
+   0 <= network_Q_loss_per_timestep(128) <= 50
+   0 <= network_Q_loss_per_timestep(129) <= 50
+   0 <= network_Q_loss_per_timestep(130) <= 50
+   0 <= network_Q_loss_per_timestep(131) <= 50
+   0 <= network_Q_loss_per_timestep(132) <= 50
+   0 <= network_Q_loss_per_timestep(133) <= 50
+   0 <= network_Q_loss_per_timestep(134) <= 50
+   0 <= network_Q_loss_per_timestep(135) <= 50
+   0 <= network_Q_loss_per_timestep(136) <= 50
+   0 <= network_Q_loss_per_timestep(137) <= 50
+   0 <= network_Q_loss_per_timestep(138) <= 50
+   0 <= network_Q_loss_per_timestep(139) <= 50
+   0 <= network_Q_loss_per_timestep(140) <= 50
+   0 <= network_Q_loss_per_timestep(141) <= 50
+   0 <= network_Q_loss_per_timestep(142) <= 50
+   0 <= network_Q_loss_per_timestep(143) <= 50
+   0 <= network_Q_loss_per_timestep(144) <= 50
+   0 <= network_Q_loss_per_timestep(145) <= 50
+   0 <= network_Q_loss_per_timestep(146) <= 50
+   0 <= network_Q_loss_per_timestep(147) <= 50
+   0 <= network_Q_loss_per_timestep(148) <= 50
+   0 <= network_Q_loss_per_timestep(149) <= 50
+   0 <= network_Q_loss_per_timestep(150) <= 50
+   0 <= network_Q_loss_per_timestep(151) <= 50
+   0 <= network_Q_loss_per_timestep(152) <= 50
+   0 <= network_Q_loss_per_timestep(153) <= 50
+   0 <= network_Q_loss_per_timestep(154) <= 50
+   0 <= network_Q_loss_per_timestep(155) <= 50
+   0 <= network_Q_loss_per_timestep(156) <= 50
+   0 <= network_Q_loss_per_timestep(157) <= 50
+   0 <= network_Q_loss_per_timestep(158) <= 50
+   0 <= network_Q_loss_per_timestep(159) <= 50
+   0 <= network_Q_loss_per_timestep(160) <= 50
+   0 <= network_Q_loss_per_timestep(161) <= 50
+   0 <= network_Q_loss_per_timestep(162) <= 50
+   0 <= network_Q_loss_per_timestep(163) <= 50
+   0 <= network_Q_loss_per_timestep(164) <= 50
+   0 <= network_Q_loss_per_timestep(165) <= 50
+   0 <= network_Q_loss_per_timestep(166) <= 50
+   0 <= network_Q_loss_per_timestep(167) <= 50
+   0 <= network_Q_loss_per_timestep(168) <= 50
    0 <= grid_mode(1) <= 1
    0 <= grid_mode(2) <= 1
    0 <= grid_mode(3) <= 1

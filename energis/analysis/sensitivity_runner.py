@@ -89,21 +89,9 @@ class SensitivityStudyResult:
 def create_publication_sensitivity_study() -> List[ParameterVariation]:
     """Create extended parameter variation set for peer-reviewed publications.
 
-    Returns a comprehensive set of variations covering:
-    - Technology efficiency parameters
-    - Economic parameters (prices, costs)
-    - Operational parameters
-    - Design constraints
-
-    The variation ranges are based on:
-    - Manufacturer uncertainty (±3-5%)
-    - Market price volatility (±20%)
-    - Applied Energy publication standards
-
-    Returns:
-        List of ParameterVariation specifications
+    Pfade und Basiswerte sind an die aktuelle Config-Struktur angepasst.
     """
-    variations = []
+    variations: List[ParameterVariation] = []
 
     # ==========================================================================
     # Technology Efficiency Parameters
@@ -113,7 +101,7 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
     variations.append(
         ParameterVariation(
             param_path="heat_pumps.types.standard.eta",
-            base_value=0.50,
+            base_value=0.75,  # aus heat_pumps.types.standard.eta
             variations=[0.90, 0.95, 1.0, 1.05, 1.10],
             variation_type="multiplicative",
             description="Heat pump Carnot efficiency factor",
@@ -121,7 +109,7 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
         )
     )
 
-    # P2H Efficiency
+    # P2H Efficiency (Pfad ggf. in generators.yaml prüfen)
     variations.append(
         ParameterVariation(
             param_path="generators.p2h.el_to_th_eff",
@@ -133,11 +121,11 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
         )
     )
 
-    # Storage Charge Efficiency
+    # Storage Charge Efficiency (Defaults)
     variations.append(
         ParameterVariation(
-            param_path="storage.eff_charge",
-            base_value=0.95,
+            param_path="storage.defaults.eff_charge",
+            base_value=0.95,  # aus storage.defaults.eff_charge
             variations=[0.95, 1.0, 1.03],
             variation_type="multiplicative",
             description="Storage charge efficiency",
@@ -145,11 +133,11 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
         )
     )
 
-    # Storage Discharge Efficiency
+    # Storage Discharge Efficiency (Defaults)
     variations.append(
         ParameterVariation(
-            param_path="storage.eff_discharge",
-            base_value=0.95,
+            param_path="storage.defaults.eff_discharge",
+            base_value=0.95,  # aus storage.defaults.eff_discharge
             variations=[0.95, 1.0, 1.03],
             variation_type="multiplicative",
             description="Storage discharge efficiency",
@@ -157,11 +145,11 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
         )
     )
 
-    # Storage Hourly Loss
+    # Storage Hourly Loss (Defaults)
     variations.append(
         ParameterVariation(
-            param_path="storage.hourly_loss",
-            base_value=0.0005,
+            param_path="storage.defaults.hourly_loss",
+            base_value=0.001,  # aus storage.defaults.hourly_loss
             variations=[0.5, 1.0, 2.0],
             variation_type="multiplicative",
             description="Storage hourly self-discharge",
@@ -176,8 +164,8 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
     # CO2 Price
     variations.append(
         ParameterVariation(
-            param_path="costs.co2_price_eur_t",
-            base_value=85.0,
+            param_path="costs.co2_price_eur_per_t",
+            base_value=100.0,  # aus costs.co2_price_eur_per_t
             variations=[0.5, 0.75, 1.0, 1.25, 1.5],
             variation_type="multiplicative",
             description="CO2 certificate price",
@@ -189,7 +177,7 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
     variations.append(
         ParameterVariation(
             param_path="fuels.gas.price_eur_mwh",
-            base_value=50.0,
+            base_value=58.6,  # aus fuels.gas.price_eur_mwh
             variations=[0.7, 0.85, 1.0, 1.15, 1.3],
             variation_type="multiplicative",
             description="Natural gas price",
@@ -197,60 +185,52 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
         )
     )
 
-    # Heat Pump CAPEX
+    # Heat Pump CAPEX (EUR/MW)
     variations.append(
         ParameterVariation(
-            param_path="costs.capex_hp_eur_kw",
-            base_value=800.0,
+            param_path="heat_pumps.investment_defaults.capex_eur_per_mw",
+            base_value=400000.0,  # aus heat_pumps.investment_defaults.capex_eur_per_mw
             variations=[0.8, 0.9, 1.0, 1.1, 1.2],
             variation_type="multiplicative",
             description="Heat pump investment cost",
-            units="EUR/kW",
+            units="EUR/MW",
         )
     )
 
-    # Storage CAPEX
+    # Storage CAPEX (EUR/MWh)
     variations.append(
         ParameterVariation(
-            param_path="costs.capex_storage_eur_kwh",
-            base_value=30.0,
+            param_path="storage.investment_defaults.energy_capex_eur_per_mwh",
+            base_value=5000.0,  # aus storage.investment_defaults.energy_capex_eur_per_mwh
             variations=[0.7, 0.85, 1.0, 1.15, 1.3],
             variation_type="multiplicative",
             description="Storage investment cost",
-            units="EUR/kWh",
+            units="EUR/MWh",
         )
     )
 
-    # Demand Charge
+    # Demand Charge (EUR/MW/year)
     variations.append(
         ParameterVariation(
-            param_path="grid.demand_charge_eur_kw_month",
-            base_value=10.0,
+            param_path="grid.demand_charge_eur_per_mw_y",
+            base_value=127240.0,  # aus grid.demand_charge_eur_per_mw_y
             variations=[0.5, 0.75, 1.0, 1.25, 1.5],
             variation_type="multiplicative",
             description="Grid demand charge",
-            units="EUR/kW/month",
+            units="EUR/MW/year",
         )
     )
 
     # ==========================================================================
-    # Operational Parameters
+    # Operational Parameters (optional)
     # ==========================================================================
 
-    # Demand Scaling
-    variations.append(
-        ParameterVariation(
-            param_path="scenario.demand_scaling_factor",
-            base_value=1.0,
-            variations=[0.9, 0.95, 1.0, 1.05, 1.1],
-            variation_type="multiplicative",
-            description="Heat demand scaling factor",
-            units="-",
-        )
-    )
+    # Demand scaling ist in deinen Szenarios aktuell nicht als eigener Parameter
+    # hinterlegt (kein scenario.demand_scaling_factor). Falls du später einen
+    # solchen Parameter einbaust, kannst du hier einen weiteren ParameterVariation
+    # hinzufügen.
 
     return variations
-
 
 def run_full_sensitivity_study(
     base_configs: List[str],
@@ -312,41 +292,74 @@ def run_full_sensitivity_study(
         """Run single optimization and extract results."""
         from energis.run.rolling_horizon import run_workflow
 
-        # Merge base configs with overrides
-        result = run_workflow(base_configs, config)
+        # Config als Overrides an run_workflow übergeben
+        result = run_workflow(base_configs, overrides=config)
 
-        # Extract objective value
+        # Aktives Ergebnis bestimmen (MPC > RH > PF)
         active_result = result.mpc_result or result.rh_result or result.pf_result
-        if active_result:
-            objective = sum(active_result.costs.values())
-            key_metrics = {
-                "total_cost": objective,
-                "capex": sum(v for k, v in active_result.costs.items() if "Capex" in k or "Activation" in k),
-                "opex": sum(v for k, v in active_result.costs.items() if "Capex" not in k and "Activation" not in k),
-            }
-
-            # Add CO2 if available
-            if hasattr(active_result, 'summary'):
-                grid_section = active_result.summary.get('grid', {})
-                key_metrics["co2_emissions_t"] = float(grid_section.get("Total_CO2_emissions_t", 0) or 0)
-
+        if not active_result:
             return SensitivityResult(
                 param_path="",
-                param_value=0,
-                variation_label="",
-                objective_value=objective,
-                key_metrics=key_metrics,
-                solve_status="optimal",
-            )
-        else:
-            return SensitivityResult(
-                param_path="",
-                param_value=0,
+                param_value=0.0,
                 variation_label="",
                 objective_value=None,
-                solve_status="error",
+                key_metrics={},
+                solve_status="no_result",
             )
 
+        costs = active_result.costs or {}
+
+        # 1) Primär: explizites Objective aus den Kosten
+        objective = costs.get("objective.OBJ_value_EUR")
+
+        # 2) Fallback: wenn der Key fehlt, aus den Komponenten zusammensetzen
+        if objective is None:
+            objective = float(
+                (costs.get("objective.Grid_net_cost_EUR", 0.0))
+                + (costs.get("objective.Fuel_cost_EUR", 0.0))
+                + (costs.get("objective.Dump_cost_EUR", 0.0))
+                + (costs.get("objective.CO2_cost_EUR", 0.0))
+                + (costs.get("objective.Demand_charge_cost_EUR", 0.0))
+                + (costs.get("objective.Capex_cost_EUR", 0.0))
+                + (costs.get("objective.Activation_cost_EUR", 0.0))
+                + (costs.get("objective.Tie_breaker_cost_EUR", 0.0))
+                + (costs.get("objective.Storage_installation_cost_EUR", 0.0))
+
+            )
+
+        # 3) KPI-Aufteilung: CAPEX vs. OPEX
+        capex = float(costs.get("objective.Capex_cost_EUR", 0.0)) \
+            + float(costs.get("objective.Activation_cost_EUR", 0.0)) \
+            + float(costs.get("objective.Storage_installation_cost_EUR", 0.0))
+
+        opex = float(objective) - capex
+
+        key_metrics = {
+            "total_cost": float(objective),
+            "capex": capex,
+            "opex": opex,
+        }
+
+        # CO2, falls im Summary vorhanden
+        co2_t = 0.0
+        if hasattr(active_result, "summary") and isinstance(active_result.summary, dict):
+            grid_section = active_result.summary.get("grid", {})
+            try:
+                co2_t = float(grid_section.get("Total_CO2_emissions_t", 0) or 0.0)
+            except (TypeError, ValueError):
+                co2_t = 0.0
+        key_metrics["co2_emissions_t"] = co2_t
+
+        return SensitivityResult(
+            param_path="",
+            param_value=0.0,
+            variation_label="",
+            objective_value=float(objective),
+            key_metrics=key_metrics,
+            config=None,
+            solve_status="optimal",
+        )
+    
     # Load and merge base configuration
     from energis.config.merge import load_and_merge
     base_config = load_and_merge(base_configs)
