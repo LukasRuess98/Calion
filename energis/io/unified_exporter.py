@@ -398,9 +398,17 @@ class UnifiedExporter:
                 summary_sections=self._summary_sections,
             )
 
-            for name, path in plot_files.items():
-                files[f"figure_{name}"] = path
-                logger.info(f"  Exported: {path}")
+            # plot_files returns dict[str, list[str]] (multiple formats per plot)
+            for name, paths in plot_files.items():
+                if isinstance(paths, list):
+                    # Store first path as primary, but log all
+                    if paths:
+                        files[f"figure_{name}"] = paths[0]
+                        for p in paths:
+                            logger.info(f"  Exported: {p}")
+                else:
+                    files[f"figure_{name}"] = paths
+                    logger.info(f"  Exported: {paths}")
 
         except ImportError as e:
             logger.warning(f"Publication plotter not available: {e}")

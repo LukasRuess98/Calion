@@ -211,7 +211,10 @@ def main():
     for cat, files in sorted(categories.items()):
         print(f"\n  {cat.upper()}:")
         for key, path in files:
-            rel_path = os.path.relpath(path, result.output_dir)
+            # Handle case where path might be a list
+            if isinstance(path, (list, tuple)):
+                path = path[0] if path else "unknown"
+            rel_path = os.path.relpath(str(path), result.output_dir)
             print(f"    - {rel_path}")
 
     print()
