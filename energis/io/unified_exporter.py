@@ -93,7 +93,9 @@ class ExportResult:
         lines.append("")
         lines.append("Generated files:")
         for category, path in sorted(self.generated_files.items()):
-            lines.append(f"  {category}: {os.path.basename(path)}")
+            if isinstance(path, (list, tuple)):
+                path = path[0] if path else "unknown"
+            lines.append(f"  {category}: {os.path.basename(str(path))}")
 
         lines.append("=" * 60)
         return "\n".join(lines)
@@ -526,14 +528,35 @@ class UnifiedExporter:
         try:
             from energis.io.exporter import export_scenario_bundle
 
-            # Use existing exporter
+            # Get directory from path
+            outdir = os.path.dirname(path)
+
+            # Build timeseries sections for export_scenario_bundle
+            table = self._active_result.table
+            series = self._active_result.series if hasattr(self._active_result, "series") else {}
+
+            timeseries_sections = [
+                {
+                    "label": "Input",
+                    "timestamps": list(table.index),
+                    "series": OrderedDict((col, list(table[col])) for col in table.columns),
+                },
+                {
+                    "label": "Results",
+                    "timestamps": list(table.index),
+                    "series": OrderedDict((name, list(values)) for name, values in series.items()),
+                },
+            ]
+
+            # Use existing exporter with correct signature
             export_scenario_bundle(
-                path,
-                self._active_result.table,
-                self._active_result.series,
-                self._summary_sections,
+                outdir,
+                meta_sections=self._summary_sections,
+                timeseries_sections=timeseries_sections,
+                cost_sections={"costs": self._active_result.costs} if hasattr(self._active_result, "costs") else None,
             )
-        except ImportError:
+        except (ImportError, Exception) as e:
+            logger.warning(f"export_scenario_bundle failed: {e}, using pandas fallback")
             # Fallback: simple pandas export
             with pd.ExcelWriter(path, engine="openpyxl") as writer:
                 self._timeseries_df.to_excel(writer, sheet_name="Timeseries")
