@@ -73,7 +73,7 @@ CONFIG_PATHS = os.environ.get(
 ).split(",")
 
 # Feature flags
-RUN_SENSITIVITY = os.environ.get("RUN_SENSITIVITY", "0") == "1"
+RUN_SENSITIVITY = os.environ.get("RUN_SENSITIVITY", "1") == "1"
 EXPORT_DASHBOARD = os.environ.get("EXPORT_DASHBOARD", "0") == "1"
 
 
