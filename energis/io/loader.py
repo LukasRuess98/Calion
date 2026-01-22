@@ -224,6 +224,25 @@ def load_input_excel(
     heat_col = pick("heat_candidates", ["Wärmebedarf MW", "waermebedarf"])
     co2_col = pick("co2_candidates", ["CO2_consumption_based kgCO2/MWh", "co2"])
 
+    # Outdoor temperature for heating curve (optional)
+    outdoor_temp_col = _map_column(header, [
+        "Außentemperatur °C",
+        "Außentemperatur",
+        "aussentemperatur",
+        "outdoor_temp",
+        "T_outdoor",
+        "T_amb",
+        "Ambient_Temp",
+        "ambient_temperature",
+        "temperature_c",
+    ])
+    if "outdoor_temp_candidates" in cols_cfg:
+        custom_col = cols_cfg["outdoor_temp_candidates"]
+        if isinstance(custom_col, str):
+            outdoor_temp_col = _map_column(header, [custom_col]) or outdoor_temp_col
+        elif isinstance(custom_col, list):
+            outdoor_temp_col = _map_column(header, custom_col) or outdoor_temp_col
+
     wrg_cols: Dict[int, Dict[str, Optional[str]]] = {}
     for i in range(1, 5):
         q_key = f"wrg{i}_q_candidates"
@@ -247,11 +266,23 @@ def load_input_excel(
     heat = [_to_float(rec.get(heat_col)) for rec in records]
     co2 = [_to_float(rec.get(co2_col)) for rec in records]
 
+    # Outdoor temperature (optional, for heating curve)
+    outdoor_temp: List[float] = []
+    if outdoor_temp_col:
+        outdoor_temp = [_to_float(rec.get(outdoor_temp_col)) for rec in records]
+        print(f"[LOAD] Außentemperatur gefunden: Spalte '{outdoor_temp_col}'")
+    else:
+        print("[LOAD] Keine Außentemperatur-Spalte gefunden (Heizkurve deaktiviert)")
+
     data: Dict[str, List[float]] = {
         "strompreis_EUR_MWh": price,
         "waermebedarf_MWth": heat,
         "grid_co2_kg_MWh": co2,
     }
+
+    # Add outdoor temperature if available
+    if outdoor_temp and any(t == t for t in outdoor_temp):  # Check for non-NaN values
+        data["outdoor_temp_C"] = outdoor_temp
 
     for i in range(1, 5):
         q_col = wrg_cols[i]["q"]

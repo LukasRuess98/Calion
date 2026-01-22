@@ -265,6 +265,11 @@ def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> Dict[str, Any]:
         if ground_temp is not None:
             parameters.setdefault("ground_temp_default_c", ground_temp)
 
+        # Heating curve parameters (for outdoor-dependent supply temperature)
+        heating_curve = net_defaults.get("heating_curve")
+        if isinstance(heating_curve, dict):
+            parameters.setdefault("heating_curve", heating_curve)
+
     # Map technical_limits to parameters
     if isinstance(tech_limits, dict):
         max_velocity = tech_limits.get("max_velocity_m_s")

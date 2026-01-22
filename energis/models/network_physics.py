@@ -242,3 +242,152 @@ def get_heating_curve_parameters(
         "T_outdoor_low_c": T_outdoor_low_c,
         "formula": f"T_supply = {intercept:.2f} + ({slope:.4f}) * T_outdoor",
     }
+
+
+def plot_heating_curve(
+    T_supply_min_c: float = 80.0,
+    T_supply_max_c: float = 120.0,
+    T_outdoor_high_c: float = 20.0,
+    T_outdoor_low_c: float = -10.0,
+    outdoor_temp_series: Sequence[float] = None,
+    supply_temp_series: Sequence[float] = None,
+    save_path: str = None,
+    show: bool = True,
+    figsize: tuple = (10, 6),
+) -> "matplotlib.figure.Figure":
+    """
+    Plot the heating curve and optionally actual data points.
+
+    Args:
+        T_supply_min_c: Minimum supply temperature [°C]
+        T_supply_max_c: Maximum supply temperature [°C]
+        T_outdoor_high_c: Outdoor temp threshold for min supply [°C]
+        T_outdoor_low_c: Outdoor temp threshold for max supply [°C]
+        outdoor_temp_series: Optional actual outdoor temperature data [°C]
+        supply_temp_series: Optional actual supply temperature data [°C]
+        save_path: Optional path to save the figure
+        show: Whether to display the figure
+        figsize: Figure size (width, height) in inches
+
+    Returns:
+        matplotlib Figure object
+
+    Example:
+        >>> # Plot theoretical heating curve
+        >>> fig = plot_heating_curve()
+        >>>
+        >>> # Plot with actual data
+        >>> fig = plot_heating_curve(
+        ...     outdoor_temp_series=[15, 10, 5, 0, -5],
+        ...     supply_temp_series=[87, 93, 100, 107, 113],
+        ...     save_path="heating_curve.pdf"
+        ... )
+    """
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        raise ImportError("matplotlib and numpy are required for plotting")
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Generate theoretical curve
+    T_outdoor_range = np.linspace(T_outdoor_low_c - 5, T_outdoor_high_c + 5, 100)
+    T_supply_theoretical = [
+        calculate_supply_temperature(
+            T_outdoor_c=t,
+            T_supply_min_c=T_supply_min_c,
+            T_supply_max_c=T_supply_max_c,
+            T_outdoor_high_c=T_outdoor_high_c,
+            T_outdoor_low_c=T_outdoor_low_c,
+        )
+        for t in T_outdoor_range
+    ]
+
+    # Plot theoretical curve
+    ax.plot(
+        T_outdoor_range,
+        T_supply_theoretical,
+        'b-',
+        linewidth=2,
+        label='Heizkurve (theoretisch)',
+        zorder=2,
+    )
+
+    # Add actual data points if provided
+    if outdoor_temp_series is not None and supply_temp_series is not None:
+        ax.scatter(
+            outdoor_temp_series,
+            supply_temp_series,
+            c='red',
+            s=20,
+            alpha=0.5,
+            label='Betriebsdaten',
+            zorder=3,
+        )
+
+    # Mark design points
+    ax.scatter(
+        [T_outdoor_high_c, T_outdoor_low_c],
+        [T_supply_min_c, T_supply_max_c],
+        c='green',
+        s=100,
+        marker='D',
+        label='Auslegungspunkte',
+        zorder=4,
+    )
+
+    # Add annotations for design points
+    ax.annotate(
+        f'Sommer: {T_supply_min_c}°C\n(bei {T_outdoor_high_c}°C)',
+        xy=(T_outdoor_high_c, T_supply_min_c),
+        xytext=(T_outdoor_high_c + 3, T_supply_min_c - 8),
+        fontsize=9,
+        arrowprops=dict(arrowstyle='->', color='gray'),
+    )
+    ax.annotate(
+        f'Winter: {T_supply_max_c}°C\n(bei {T_outdoor_low_c}°C)',
+        xy=(T_outdoor_low_c, T_supply_max_c),
+        xytext=(T_outdoor_low_c + 3, T_supply_max_c + 5),
+        fontsize=9,
+        arrowprops=dict(arrowstyle='->', color='gray'),
+    )
+
+    # Formatting
+    ax.set_xlabel('Außentemperatur [°C]', fontsize=12)
+    ax.set_ylabel('Vorlauftemperatur [°C]', fontsize=12)
+    ax.set_title('Heizkurve Fernwärmenetz', fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right')
+    ax.grid(True, alpha=0.3)
+
+    # Set axis limits
+    ax.set_xlim(T_outdoor_low_c - 5, T_outdoor_high_c + 5)
+    ax.set_ylim(T_supply_min_c - 10, T_supply_max_c + 10)
+
+    # Add formula annotation
+    params = get_heating_curve_parameters(
+        T_supply_min_c, T_supply_max_c, T_outdoor_high_c, T_outdoor_low_c
+    )
+    ax.text(
+        0.02, 0.98,
+        f"Formel: {params['formula']}",
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment='top',
+        fontfamily='monospace',
+        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
+    )
+
+    plt.tight_layout()
+
+    # Save if path provided
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Heating curve plot saved to: {save_path}")
+
+    # Show if requested
+    if show:
+        plt.show()
+
+    return fig
