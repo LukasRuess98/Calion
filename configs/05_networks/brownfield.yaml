@@ -15,9 +15,25 @@ metadata:
 # =============================================================================
 parameters:
   # Temperature settings
-  supply_temp_nominal_c: 120
-  supply_temp_summer_c: 90
-  return_temp_nominal_c: 55
+  supply_temp_nominal_c: 120    # Design/fallback supply temperature [°C]
+  supply_temp_summer_c: 90      # Summer supply temperature [°C]
+  return_temp_nominal_c: 55     # Return temperature [°C]
+
+  # =============================================================================
+  # HEATING CURVE (Heizkurve) - Outdoor-dependent supply temperature
+  # =============================================================================
+  # Linear function: T_supply = f(T_outdoor)
+  # At T_outdoor_high (e.g., 20°C): T_supply = T_supply_min (e.g., 80°C)
+  # At T_outdoor_low (e.g., -10°C): T_supply = T_supply_max (e.g., 120°C)
+  #
+  # Formula: T_supply = 106.67 - 1.333 × T_outdoor
+  #
+  heating_curve:
+    enabled: true               # Enable/disable heating curve
+    T_supply_min_c: 80.0        # Minimum supply temp (at high outdoor temp) [°C]
+    T_supply_max_c: 120.0       # Maximum supply temp (at low outdoor temp) [°C]
+    T_outdoor_high_c: 20.0      # Outdoor temp threshold for min supply [°C]
+    T_outdoor_low_c: -10.0      # Outdoor temp threshold for max supply [°C]
 
   # Environmental parameters
   ground_temp_default_c: 10
