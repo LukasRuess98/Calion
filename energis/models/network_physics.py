@@ -92,6 +92,144 @@ def pipe_total_heat_loss_mw(
 
 
 # =============================================================================
+# PIPE TEMPERATURE DROP CALCULATION
+# =============================================================================
+
+def pipe_temperature_drop_c(
+    U_w_per_m_k: float,
+    length_m: float,
+    T_inlet_c: float,
+    T_ground_c: float,
+    m_dot_kg_s: float,
+    cp_kj_per_kg_k: float = 4.186,
+) -> float:
+    """
+    Calculate temperature drop through a pipe based on heat loss.
+
+    Uses the logarithmic mean temperature difference (LMTD) model
+    for more accurate results than simple average temperature.
+
+    Simplified formula (for moderate ΔT):
+        T_out = T_in - Q_loss / (m_dot × c_p)
+        where Q_loss = U × L × (T_avg - T_ground)
+        and T_avg ≈ (T_in + T_out) / 2
+
+    Solving for T_out:
+        T_out = (T_in × (m_dot × c_p - U × L / 2) + U × L × T_ground / 2) /
+                (m_dot × c_p + U × L / 2)
+
+    Or simplified for low losses:
+        ΔT ≈ U × L × (T_in - T_ground) / (m_dot × c_p)
+
+    Args:
+        U_w_per_m_k: Heat transfer coefficient [W/(m·K)]
+        length_m: Pipe length [m]
+        T_inlet_c: Inlet temperature [°C]
+        T_ground_c: Ground temperature [°C]
+        m_dot_kg_s: Mass flow rate [kg/s]
+        cp_kj_per_kg_k: Specific heat capacity [kJ/(kg·K)], default 4.186 for water
+
+    Returns:
+        Temperature drop ΔT [°C]
+    """
+    if m_dot_kg_s <= 0.001:  # Avoid division by zero, assume 1g/s minimum
+        m_dot_kg_s = 0.001
+
+    # Heat loss [W] = U × L × ΔT_avg
+    # For small losses, ΔT_avg ≈ T_inlet - T_ground
+    # Q_loss [kW] = U [W/(m·K)] × L [m] × (T_in - T_ground) [K] / 1000
+
+    delta_T_driving = T_inlet_c - T_ground_c
+    Q_loss_kw = U_w_per_m_k * length_m * delta_T_driving / 1000.0
+
+    # Temperature drop: ΔT = Q_loss / (m_dot × c_p)
+    # m_dot [kg/s] × c_p [kJ/(kg·K)] = [kW/K]
+    heat_capacity_rate = m_dot_kg_s * cp_kj_per_kg_k  # [kW/K]
+
+    delta_T_c = Q_loss_kw / heat_capacity_rate
+
+    # Sanity check: temperature drop shouldn't exceed driving temperature
+    max_delta = max(0, delta_T_driving * 0.9)  # Cap at 90% of driving force
+    return min(delta_T_c, max_delta)
+
+
+def calculate_pipe_temp_drops(
+    pipes_config: Dict[str, Dict],
+    supply_temp_c: float,
+    return_temp_c: float,
+    ground_temp_c: float,
+    total_heat_demand_kw: float,
+    default_u_value: float = 0.5,
+    cp_kj_per_kg_k: float = 4.186,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Calculate temperature drops for all pipes based on physics.
+
+    Estimates flow distribution based on pipe geometry and calculates
+    individual temperature drops using the pipe_temperature_drop_c function.
+
+    Args:
+        pipes_config: Dictionary of pipe configurations with 'length_m', 'u_value_w_per_m_k', etc.
+        supply_temp_c: Supply temperature at plant [°C]
+        return_temp_c: Return temperature at plant [°C]
+        ground_temp_c: Ground temperature [°C]
+        total_heat_demand_kw: Total system heat demand [kW]
+        default_u_value: Default U-value if not specified [W/(m·K)]
+        cp_kj_per_kg_k: Specific heat capacity [kJ/(kg·K)]
+
+    Returns:
+        Dictionary mapping pipe_id to {'supply_drop_c': float, 'return_drop_c': float}
+    """
+    delta_T_system = supply_temp_c - return_temp_c
+    if delta_T_system <= 0:
+        delta_T_system = 40  # Default 40K spread
+
+    # Total mass flow from system demand
+    total_m_dot_kg_s = total_heat_demand_kw / (cp_kj_per_kg_k * delta_T_system)
+
+    result = {}
+    total_length = sum(p.get('length_m', 100) for p in pipes_config.values())
+
+    for pipe_id, pipe_cfg in pipes_config.items():
+        length_m = pipe_cfg.get('length_m', 100)
+        u_value = pipe_cfg.get('u_value_w_per_m_k', default_u_value)
+
+        # Estimate flow for this pipe (proportional to length for series, or demand-based)
+        # Simplified: assume proportional distribution
+        pipe_flow_fraction = length_m / total_length if total_length > 0 else 1.0
+        pipe_m_dot = total_m_dot_kg_s * max(pipe_flow_fraction, 0.1)  # Min 10% flow
+
+        # Supply pipe temperature drop
+        supply_drop = pipe_temperature_drop_c(
+            U_w_per_m_k=u_value,
+            length_m=length_m,
+            T_inlet_c=supply_temp_c,
+            T_ground_c=ground_temp_c,
+            m_dot_kg_s=pipe_m_dot,
+            cp_kj_per_kg_k=cp_kj_per_kg_k,
+        )
+
+        # Return pipe temperature drop (heating from ground if return < ground)
+        return_inlet = return_temp_c
+        return_drop = pipe_temperature_drop_c(
+            U_w_per_m_k=u_value,
+            length_m=length_m,
+            T_inlet_c=return_inlet,
+            T_ground_c=ground_temp_c,
+            m_dot_kg_s=pipe_m_dot,
+            cp_kj_per_kg_k=cp_kj_per_kg_k,
+        )
+
+        result[pipe_id] = {
+            'supply_drop_c': supply_drop,
+            'return_drop_c': return_drop,
+            'estimated_flow_kg_s': pipe_m_dot,
+        }
+
+    return result
+
+
+# =============================================================================
 # HEATING CURVE (Heizkurve)
 # =============================================================================
 

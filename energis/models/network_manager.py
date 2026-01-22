@@ -84,6 +84,8 @@ from .network_physics import (
     heat_kw_to_mdot_kg_s,
     mdot_to_velocity_m_s,
     pipe_total_heat_loss_mw,
+    pipe_temperature_drop_c,
+    calculate_pipe_temp_drops,
     calculate_supply_temperature,
     calculate_supply_temperature_series,
     get_heating_curve_parameters,
@@ -561,8 +563,48 @@ class NetworkManager:
         if brownfield_mode:
             logger.info(f"\nFixing temperatures for brownfield mode...")
 
-            # Parametrisierter Temperaturabfall pro Leitung (Heuristik)
-            temp_drop_per_pipe = self.parameters.get('brownfield_temp_drop_per_pipe_c', 1.0)
+            # ============================================================
+            # PIPE-SPECIFIC TEMPERATURE DROPS (Physics-based calculation)
+            # ============================================================
+            # Options:
+            # 1. use_physics_temp_drop: True (default) - calculate from U, L, m_dot
+            # 2. brownfield_temp_drop_per_pipe_c: fallback constant [°C]
+            # ============================================================
+            use_physics_temp_drop = self.parameters.get('use_physics_temp_drop', True)
+            default_temp_drop = self.parameters.get('brownfield_temp_drop_per_pipe_c', 1.0)
+
+            # Calculate pipe-specific temperature drops if enabled
+            if use_physics_temp_drop and hasattr(model, 'heatd'):
+                # Estimate total heat demand from first timestep
+                first_t = list(time_set)[0]
+                total_demand_mw = pyo.value(model.heatd[first_t]) if hasattr(model, 'heatd') else 10.0
+                total_demand_kw = total_demand_mw * 1000
+
+                # Build pipes config for calculation
+                pipes_for_calc = {}
+                for pipe_id in self.pipes:
+                    pipe_cfg = self.pipes[pipe_id]
+                    pipes_for_calc[pipe_id] = {
+                        'length_m': pipe_cfg.get('length_m', 100),
+                        'u_value_w_per_m_k': pipe_cfg.get('u_value_w_per_m_k', 0.5),
+                    }
+
+                # Calculate physics-based temperature drops
+                pipe_temp_drops = calculate_pipe_temp_drops(
+                    pipes_config=pipes_for_calc,
+                    supply_temp_c=supply_temp,
+                    return_temp_c=return_temp,
+                    ground_temp_c=ground_temp,
+                    total_heat_demand_kw=total_demand_kw,
+                )
+
+                logger.info(f"  Using physics-based temperature drops (demand={total_demand_mw:.1f} MW)")
+                for pipe_id, drops in pipe_temp_drops.items():
+                    logger.debug(f"    {pipe_id}: supply_drop={drops['supply_drop_c']:.2f}°C, "
+                               f"return_drop={drops['return_drop_c']:.2f}°C")
+            else:
+                pipe_temp_drops = None
+                logger.info(f"  Using constant temperature drop: {default_temp_drop}°C/pipe")
 
             # Check if using time-varying supply temperatures (heating curve)
             supply_temp_dict = getattr(model, 'supply_temp_series', None)
@@ -598,6 +640,24 @@ class NetworkManager:
 
                 hop_count = pipe_hop_counts[pipe_id]
 
+                # Get pipe-specific temperature drop (physics-based or constant fallback)
+                if pipe_temp_drops and pipe_id in pipe_temp_drops:
+                    supply_drop = pipe_temp_drops[pipe_id]['supply_drop_c']
+                    return_drop = pipe_temp_drops[pipe_id]['return_drop_c']
+                else:
+                    supply_drop = default_temp_drop
+                    return_drop = default_temp_drop
+
+                # Cumulative supply drop for cascaded pipes (sum of upstream drops)
+                cumulative_supply_drop = 0.0
+                if hop_count > 0 and pipe_temp_drops:
+                    # Sum up drops from upstream pipes (simplified: use average)
+                    upstream_drops = [d['supply_drop_c'] for d in pipe_temp_drops.values()]
+                    avg_upstream_drop = sum(upstream_drops) / len(upstream_drops) if upstream_drops else default_temp_drop
+                    cumulative_supply_drop = avg_upstream_drop * hop_count
+                else:
+                    cumulative_supply_drop = default_temp_drop * hop_count
+
                 # === SUPPLY TEMPERATURE (time-varying with heating curve) ===
                 for t in time_set:
                     base_supply_temp = supply_temp_dict[t]
@@ -605,28 +665,28 @@ class NetworkManager:
                     if from_node_type == 'plant':
                         # Pipe from plant: inlet at supply temp (from heating curve)
                         inlet_temp_t = base_supply_temp
-                        outlet_temp_t = base_supply_temp - temp_drop_per_pipe
+                        outlet_temp_t = base_supply_temp - supply_drop
                     else:
                         # Pipe from consumer/junction: cascade temperature drop
-                        inlet_temp_t = base_supply_temp - temp_drop_per_pipe * hop_count
-                        outlet_temp_t = inlet_temp_t - temp_drop_per_pipe
+                        inlet_temp_t = base_supply_temp - cumulative_supply_drop
+                        outlet_temp_t = inlet_temp_t - supply_drop
 
                     T_supply_in[t].fix(inlet_temp_t)
                     T_supply_out[t].fix(outlet_temp_t)
 
                 # Log summary (using average if time-varying)
                 if use_heating_curve:
-                    avg_inlet = sum(supply_temp_dict[t] - temp_drop_per_pipe * hop_count for t in time_set) / len(list(time_set))
+                    avg_inlet = sum(supply_temp_dict[t] - cumulative_supply_drop for t in time_set) / len(list(time_set))
                     logger.info(
                         f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
-                        f"T_supply_in=heating_curve (avg {avg_inlet:.1f}°C)"
+                        f"T_supply_in=heating_curve (avg {avg_inlet:.1f}°C), ΔT_supply={supply_drop:.2f}°C"
                     )
                 else:
-                    inlet_temp = supply_temp - temp_drop_per_pipe * hop_count
-                    outlet_temp = inlet_temp - temp_drop_per_pipe
+                    inlet_temp = supply_temp - cumulative_supply_drop
+                    outlet_temp = inlet_temp - supply_drop
                     logger.info(
                         f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
-                        f"T_supply_in={inlet_temp:.1f}°C, T_supply_out={outlet_temp:.1f}°C"
+                        f"T_supply_in={inlet_temp:.1f}°C, T_supply_out={outlet_temp:.1f}°C (ΔT={supply_drop:.2f}°C)"
                     )
 
                 # === RETURN TEMPERATURE (fixed, not affected by heating curve) ===
@@ -634,14 +694,14 @@ class NetworkManager:
                     to_node_cfg = self.nodes.get(to_node, {})
                     consumer_return_temp = to_node_cfg.get('return_temp_c', return_temp)
                     pipe_return_in_temp = consumer_return_temp
-                    pipe_return_out_temp = consumer_return_temp - temp_drop_per_pipe
+                    pipe_return_out_temp = consumer_return_temp - return_drop
                     logger.info(
                         f"      T_return_in={pipe_return_in_temp}°C (from consumer), "
                         f"T_return_out={pipe_return_out_temp}°C"
                     )
                 else:
                     pipe_return_in_temp = return_temp
-                    pipe_return_out_temp = return_temp - temp_drop_per_pipe
+                    pipe_return_out_temp = return_temp - return_drop
 
                 # Fix return temperatures (constant over time)
                 for t in time_set:
