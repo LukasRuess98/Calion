@@ -88,6 +88,7 @@ from .network_physics import (
     calculate_supply_temperature_series,
     get_heating_curve_parameters,
 )
+from ..utils.config_utils import resolve_heating_curve_profile
 
 logger = logging.getLogger(__name__)
 
@@ -365,7 +366,12 @@ class NetworkManager:
         # ========================================
         # HEATING CURVE (Heizkurve) - Time-varying supply temperature
         # ========================================
-        heating_curve_config = self.parameters.get('heating_curve', {})
+        heating_curve_config_raw = self.parameters.get('heating_curve', {})
+        # Resolve profile reference (e.g., "profile: standard_dh" -> full parameters)
+        heating_curve_config = resolve_heating_curve_profile(
+            heating_curve_config_raw,
+            config_dir=self.config_dir,
+        )
         use_heating_curve = heating_curve_config.get('enabled', False)
 
         if use_heating_curve and use_outdoor_temp:

@@ -1,8 +1,35 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional
+
+import yaml
 
 from energis.config.merge import deep_merge
+
+
+# Default heating curve profiles (fallback if config file not found)
+_DEFAULT_HEATING_CURVES = {
+    "standard_dh": {
+        "T_supply_min_c": 80.0,
+        "T_supply_max_c": 120.0,
+        "T_outdoor_high_c": 20.0,
+        "T_outdoor_low_c": -10.0,
+    },
+    "4gdh_low_temp": {
+        "T_supply_min_c": 50.0,
+        "T_supply_max_c": 70.0,
+        "T_outdoor_high_c": 15.0,
+        "T_outdoor_low_c": -5.0,
+    },
+    "constant_90": {
+        "T_supply_min_c": 90.0,
+        "T_supply_max_c": 90.0,
+        "T_outdoor_high_c": 20.0,
+        "T_outdoor_low_c": -10.0,
+    },
+}
 
 
 def apply_heat_pump_defaults(system_cfg: Mapping[str, Any]) -> List[dict]:
@@ -294,5 +321,93 @@ def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> Dict[str, Any]:
             parameters.setdefault("pipe_capex_eur_per_m", pipe_capex)
         if heat_loss_cost is not None:
             parameters.setdefault("heat_loss_cost_eur_per_mwh", heat_loss_cost)
+
+    return result
+
+
+def load_heating_curves(config_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    """Load heating curve profiles from configs/01_tech/heating_curves.yaml.
+
+    Args:
+        config_dir: Optional path to configs directory. If None, attempts to
+                    find it relative to the package location.
+
+    Returns:
+        Dictionary mapping profile names to their parameters.
+    """
+    if config_dir is None:
+        # Try to find configs directory relative to this file
+        # energis/utils/config_utils.py -> energis -> project root -> configs
+        package_dir = Path(__file__).parent.parent.parent
+        config_dir = package_dir / "configs"
+
+    heating_curves_path = config_dir / "01_tech" / "heating_curves.yaml"
+
+    if heating_curves_path.exists():
+        try:
+            with open(heating_curves_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                if isinstance(data, dict) and "heating_curves" in data:
+                    return data["heating_curves"]
+        except Exception:
+            pass
+
+    # Return default profiles if config file not found
+    return _DEFAULT_HEATING_CURVES
+
+
+def resolve_heating_curve_profile(
+    heating_curve_cfg: Mapping[str, Any],
+    config_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Resolve a heating curve profile reference to its full parameters.
+
+    If heating_curve_cfg contains a 'profile' key, looks up the named profile
+    from configs/01_tech/heating_curves.yaml and returns its parameters.
+    If no profile is specified or inline values are provided, returns
+    the config as-is.
+
+    Args:
+        heating_curve_cfg: Heating curve configuration, may contain:
+            - profile: Name of a heating curve profile to load
+            - enabled: Whether heating curve is enabled
+            - T_supply_min_c, T_supply_max_c, etc.: Inline values (override profile)
+        config_dir: Optional path to configs directory
+
+    Returns:
+        Resolved heating curve configuration with all parameters filled in.
+
+    Example:
+        >>> cfg = {"enabled": True, "profile": "standard_dh"}
+        >>> resolved = resolve_heating_curve_profile(cfg)
+        >>> resolved
+        {
+            'enabled': True,
+            'T_supply_min_c': 80.0,
+            'T_supply_max_c': 120.0,
+            'T_outdoor_high_c': 20.0,
+            'T_outdoor_low_c': -10.0
+        }
+    """
+    if not isinstance(heating_curve_cfg, Mapping):
+        return {}
+
+    result = dict(heating_curve_cfg)
+    profile_name = result.pop("profile", None)
+
+    # If no profile specified or inline values already present, return as-is
+    has_inline_values = any(
+        k in result for k in ["T_supply_min_c", "T_supply_max_c", "T_outdoor_high_c", "T_outdoor_low_c"]
+    )
+
+    if profile_name and not has_inline_values:
+        # Load profile from config file
+        profiles = load_heating_curves(config_dir)
+        if profile_name in profiles:
+            profile = profiles[profile_name]
+            # Merge profile values (profile provides defaults, result overrides)
+            for key, value in profile.items():
+                if key not in result and key != "description":
+                    result[key] = value
 
     return result
