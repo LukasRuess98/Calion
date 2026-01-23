@@ -1,0 +1,129 @@
+# =============================================================================
+# PRESET: Multi-Temperature Network Demo
+# =============================================================================
+# Demonstration of multi-temperature district heating networks with:
+# - High-temperature industrial network (90-120°C)
+# - Low-temperature residential network (50-70°C, 4GDH)
+# - Cascade heat exchanger for waste heat recovery
+#
+# Usage (Anaconda Prompt):
+#   cd /path/to/Planing-Framework-for-Heat
+#   python -m energis.run configs/presets/multi_network_demo.yaml
+#
+# With dashboard:
+#   python -m energis.run configs/presets/multi_network_demo.yaml --dashboard
+#
+# Export results:
+#   python -m energis.run configs/presets/multi_network_demo.yaml --export
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/heat_pumps.yaml
+  - ../01_tech/storage.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/assets.yaml
+  - ../03_systems/full.yaml
+
+# =============================================================================
+# SCENARIO CONFIGURATION
+# =============================================================================
+scenario:
+  title: "Multi-Temperature Network Demo"
+  description: |
+    Demonstration of cascaded district heating with industrial and residential networks
+
+  # Simulation period (kurz für schnellen Test)
+  start_date: "2023-01-01"
+  end_date: "2023-01-07"  # 1 Woche
+
+  # Alternativ für längere Simulation:
+  # end_date: "2023-03-31"  # Q1 2023
+
+# =============================================================================
+# WORKFLOW CONFIGURATION
+# =============================================================================
+workflow:
+  plan:
+    steps:
+      - PF  # Perfect Foresight für schnellen Test
+    # Alternativ für Rolling Horizon:
+    # steps:
+    #   - RH
+
+  solver:
+    name: highs  # oder: gurobi, cplex, glpk
+    options:
+      mip_gap: 0.01
+      time_limit: 300
+
+# =============================================================================
+# MULTI-NETWORK CONFIGURATION
+# =============================================================================
+multi_network:
+  enabled: true
+
+  # Netzwerke definieren
+  networks:
+    hochtemp_industrie:
+      name: "Hochtemperatur-Industrienetz"
+      temperature_level: "high"
+      supply_temp_c: 110.0
+      return_temp_c: 60.0
+      demand_fraction: 0.4  # 40% der Gesamtnachfrage
+
+    niedertemp_wohnen:
+      name: "Niedertemperatur-Wohnnetz (4GDH)"
+      temperature_level: "low"
+      supply_temp_c: 55.0
+      return_temp_c: 30.0
+      demand_fraction: 0.6  # 60% der Gesamtnachfrage
+
+  # Wärmetauscher für Kaskaden-Nutzung
+  heat_exchangers:
+    cascade_hx_1:
+      primary_network: hochtemp_industrie
+      secondary_network: niedertemp_wohnen
+      effectiveness: 0.85
+      max_power_mw: 5.0
+      min_power_mw: 0.5
+
+  # Optimierungsziele
+  objectives:
+    minimize_total_cost: true
+    maximize_cascade_efficiency: true
+    cascade_weight: 0.1
+
+# =============================================================================
+# THERMAL NETWORK (Basis-Netzwerk)
+# =============================================================================
+thermal_network:
+  enabled: true
+  brownfield_mode: true
+  topology_file: configs/05_networks/brownfield.yaml
+
+  # Heizkurve
+  heating_curve:
+    enabled: true
+    profile: "standard_dh"
+
+  # Physik-Modell
+  use_physics_temp_drop: true
+  use_pwl_pressure_drop: true
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  export_timeseries: true
+  export_summary: true
+  export_multi_network: true
+
+  figures:
+    enabled: true
+    formats: ["png", "pdf"]
+    dpi: 300
