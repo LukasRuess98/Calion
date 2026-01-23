@@ -352,6 +352,7 @@ class NetworkManager:
         # Global network parameters
         supply_temp_nominal = self.parameters.get('supply_temp_nominal_c', 90.0)
         return_temp = self.parameters.get('return_temp_nominal_c', 50.0)
+        ground_temp = self.parameters.get('ground_temp_default_c', 10.0)
 
         # Setup outdoor temperature (if available)
         use_outdoor_temp = self.config.get('thermal_network', {}).get('use_outdoor_temperature', False)
@@ -360,7 +361,7 @@ class NetworkManager:
             outdoor_temp_series = [model.outdoor_temp[t] for t in time_set]
         else:
             # Create fixed ground temperature
-            default_ground_temp = self.parameters.get('ground_temp_default_c', 10.0)
+            default_ground_temp = ground_temp
             model.outdoor_temp = {t: default_ground_temp for t in time_set}
             outdoor_temp_series = [default_ground_temp for _ in time_set]
             logger.info(f"Using fixed ground temperature: {default_ground_temp}°C")
