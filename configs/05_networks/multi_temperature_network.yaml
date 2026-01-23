@@ -1,0 +1,281 @@
+# =============================================================================
+# MULTI-TEMPERATURE DISTRICT HEATING NETWORK CONFIGURATION
+# =============================================================================
+# Example configuration for a multi-level district heating system:
+# - High-temperature network (90-120°C) for industrial consumers
+# - Low-temperature network (50-70°C) for residential consumers
+# - Heat exchanger coupling for cascading waste heat
+#
+# This enables efficient use of industrial waste heat for residential heating.
+# =============================================================================
+
+# =============================================================================
+# GLOBAL PARAMETERS
+# =============================================================================
+parameters:
+  # Ground temperature (shared across networks)
+  ground_temp_default_c: 10.0
+
+  # Optimization settings
+  enable_multi_network_optimization: true
+  cascade_heat_recovery: true
+
+# =============================================================================
+# NETWORK DEFINITIONS
+# =============================================================================
+networks:
+  # -------------------------------------------------------------------------
+  # HIGH-TEMPERATURE NETWORK (Industrial)
+  # -------------------------------------------------------------------------
+  - id: hochtemp_industrie
+    name: "Hochtemperatur-Industrienetz"
+    temperature_level: high
+    enabled: true
+
+    parameters:
+      supply_temp_nominal_c: 110.0
+      return_temp_nominal_c: 60.0
+      ground_temp_default_c: 10.0
+
+      # Heating curve for this network
+      heating_curve:
+        enabled: true
+        profile: high_temp  # 90-130°C
+
+      # Pressure settings
+      max_velocity_m_s: 2.5
+      max_pressure_bar: 16.0
+
+    # Network topology
+    nodes:
+      - node_id: plant_industrie
+        type: plant
+        elevation_m: 0.0
+
+      - node_id: industrie_1
+        type: consumer
+        elevation_m: 5.0
+
+      - node_id: industrie_2
+        type: consumer
+        elevation_m: 3.0
+
+      - node_id: hx_kopplung  # Heat exchanger node
+        type: junction
+        elevation_m: 0.0
+
+    pipes:
+      - id: pipe_ind_1
+        from_node: plant_industrie
+        to_node: industrie_1
+        length_m: 800
+        diameter_mm: 150
+        u_value_w_per_m_k: 0.4
+
+      - id: pipe_ind_2
+        from_node: industrie_1
+        to_node: industrie_2
+        length_m: 500
+        diameter_mm: 100
+        u_value_w_per_m_k: 0.4
+
+      - id: pipe_ind_hx
+        from_node: industrie_2
+        to_node: hx_kopplung
+        length_m: 300
+        diameter_mm: 100
+        u_value_w_per_m_k: 0.4
+
+    consumer_zones:
+      - node_id: industrie_1
+        name: "Industriebetrieb 1"
+        demand_fraction: 0.6
+        return_temp_c: 65.0
+        peak_demand_mw: 8.0
+
+      - node_id: industrie_2
+        name: "Industriebetrieb 2"
+        demand_fraction: 0.4
+        return_temp_c: 60.0
+        peak_demand_mw: 5.0
+
+  # -------------------------------------------------------------------------
+  # LOW-TEMPERATURE NETWORK (Residential / 4GDH)
+  # -------------------------------------------------------------------------
+  - id: niedertemp_wohnen
+    name: "Niedertemperatur-Wohnnetz (4GDH)"
+    temperature_level: low
+    enabled: true
+
+    parameters:
+      supply_temp_nominal_c: 55.0
+      return_temp_nominal_c: 30.0
+      ground_temp_default_c: 10.0
+
+      # Heating curve for 4th generation DH
+      heating_curve:
+        enabled: true
+        profile: 4gdh_low_temp  # 50-70°C
+
+      # Lower pressure for residential
+      max_velocity_m_s: 1.5
+      max_pressure_bar: 10.0
+
+    nodes:
+      - node_id: plant_wohnen  # Fed by HX from industrial return
+        type: plant
+        elevation_m: 0.0
+
+      - node_id: wohngebiet_1
+        type: consumer
+        elevation_m: 2.0
+
+      - node_id: wohngebiet_2
+        type: consumer
+        elevation_m: 4.0
+
+      - node_id: wohngebiet_3
+        type: consumer
+        elevation_m: 1.0
+
+    pipes:
+      - id: pipe_wohn_1
+        from_node: plant_wohnen
+        to_node: wohngebiet_1
+        length_m: 400
+        diameter_mm: 125
+        u_value_w_per_m_k: 0.3
+
+      - id: pipe_wohn_2
+        from_node: wohngebiet_1
+        to_node: wohngebiet_2
+        length_m: 350
+        diameter_mm: 100
+        u_value_w_per_m_k: 0.3
+
+      - id: pipe_wohn_3
+        from_node: wohngebiet_1
+        to_node: wohngebiet_3
+        length_m: 250
+        diameter_mm: 80
+        u_value_w_per_m_k: 0.3
+
+    consumer_zones:
+      - node_id: wohngebiet_1
+        name: "Wohngebiet Nord"
+        demand_fraction: 0.4
+        return_temp_c: 32.0
+        # Load-dependent return temperature
+        return_temp_range: [28, 38]
+        return_temp_load_factor: 0.6
+        peak_demand_mw: 3.0
+
+      - node_id: wohngebiet_2
+        name: "Wohngebiet Süd"
+        demand_fraction: 0.35
+        return_temp_c: 30.0
+        peak_demand_mw: 2.5
+
+      - node_id: wohngebiet_3
+        name: "Wohngebiet West"
+        demand_fraction: 0.25
+        return_temp_c: 30.0
+        peak_demand_mw: 1.8
+
+# =============================================================================
+# HEAT EXCHANGERS (Network Couplings)
+# =============================================================================
+heat_exchangers:
+  # -------------------------------------------------------------------------
+  # Cascade Heat Exchanger: Industrial Return → Residential Supply
+  # -------------------------------------------------------------------------
+  - id: hx_cascade_1
+    name: "Kaskaden-Wärmetauscher Industrie→Wohnen"
+    type: counter_flow
+
+    # Network connections
+    primary_network: hochtemp_industrie
+    primary_side: return  # Uses return flow from industrial network
+    secondary_network: niedertemp_wohnen
+    secondary_side: supply  # Feeds supply of residential network
+
+    # Performance parameters
+    effectiveness: 0.85
+    max_power_mw: 5.0
+    min_power_mw: 0.5
+    min_load_fraction: 0.1
+
+    # Temperature specifications
+    T_primary_in_c: 60.0   # Industrial return temperature
+    T_primary_out_c: 35.0  # Cooled primary outlet
+    T_secondary_in_c: 30.0  # Residential return temperature
+    T_secondary_out_c: 55.0  # Heated secondary outlet (residential supply)
+
+    # Constraints
+    min_approach_temp_c: 3.0  # Minimum temperature difference at pinch
+
+    # Investment parameters (optional)
+    investable: false
+    capex_eur_per_mw: 50000
+
+    # Operating mode
+    brownfield_mode: true
+
+# =============================================================================
+# NETWORK COUPLINGS (Additional explicit connections)
+# =============================================================================
+couplings:
+  # Energy balance coupling: HX heat transfer affects both networks
+  - id: coupling_hx_cascade_1
+    heat_exchanger: hx_cascade_1
+    constraint_type: energy_balance
+    description: "Heat from industrial return feeds residential supply"
+
+# =============================================================================
+# DEMAND PROFILES (References to external data)
+# =============================================================================
+demand_profiles:
+  industrie_lastgang:
+    type: industrial
+    base_load_fraction: 0.6  # 60% base load
+    peak_hours: [8, 9, 10, 11, 14, 15, 16]  # Production hours
+
+  wohn_lastgang:
+    type: residential
+    morning_peak: [6, 7, 8]
+    evening_peak: [17, 18, 19, 20, 21]
+    night_reduction: 0.3
+
+# =============================================================================
+# OPTIMIZATION OBJECTIVES
+# =============================================================================
+objectives:
+  # Primary: Minimize total cost
+  minimize_cost: true
+
+  # Secondary: Maximize heat recovery via HX
+  maximize_cascade_efficiency: true
+  cascade_weight: 0.1  # Weight in multi-objective
+
+  # Constraints
+  ensure_demand_satisfaction: true
+  max_network_loss_fraction: 0.15  # Max 15% heat loss
+
+# =============================================================================
+# USAGE EXAMPLE
+# =============================================================================
+# To use this configuration:
+#
+# from energis.models.multi_network_manager import MultiNetworkManager
+#
+# manager = MultiNetworkManager(
+#     config=yaml.safe_load(open('multi_temperature_network.yaml')),
+#     config_dir=Path('configs/05_networks')
+# )
+#
+# # Attach to Pyomo model
+# result = manager.attach_to_model(model, config, time_set, outdoor_temp)
+#
+# # Get results after optimization
+# results = manager.get_results(model, config, time_set)
+# =============================================================================
