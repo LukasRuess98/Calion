@@ -1250,7 +1250,26 @@ class NetworkManager:
                 rule=network_loss_per_timestep_rule
             )
             logger.info(f"  ✓ Greenfield: network_Q_loss_per_timestep from pipe losses")
-    
+
+        # ========================================
+        # FINAL: Return results dictionary
+        # ========================================
+        logger.info(f"\n" + "=" * 60)
+        logger.info(f"THERMAL NETWORK ATTACHED SUCCESSFULLY")
+        logger.info(f"  Pipes: {len(pipe_components)}")
+        logger.info(f"  Nodes: {len(node_components)}")
+        logger.info("=" * 60)
+
+        return {
+            'pipes': pipe_components,
+            'nodes': node_components,
+            'parameters': self.parameters,
+            'brownfield_mode': brownfield_mode,
+            'supply_temp': supply_temp,
+            'return_temp': return_temp,
+            'ground_temp': ground_temp,
+        }
+
     def get_results(self, model, time_set) -> Dict[str, Any]:
         """
         Extract network results from solved model.
