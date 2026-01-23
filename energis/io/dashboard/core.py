@@ -172,6 +172,8 @@ class EnerGISDashboard:
             create_costs_tab,
             create_design_tab,
             create_comparison_tab,
+            create_multi_network_tab,
+            has_multi_network_data,
         )
 
         tabs = pn.Tabs(
@@ -187,6 +189,20 @@ class EnerGISDashboard:
             ('Anlagen-Design', create_design_tab(self.workflow)),
             dynamic=True
         )
+
+        # Add multi-network tab if multi-network data is available
+        if has_multi_network_data(self.data):
+            # Try to get multi-network results from workflow
+            multi_results = None
+            if hasattr(self.workflow, 'multi_network_results'):
+                multi_results = self.workflow.multi_network_results
+            elif hasattr(self.primary_result, 'multi_network'):
+                multi_results = self.primary_result.multi_network
+
+            tabs.append((
+                'Multi-Netzwerk',
+                create_multi_network_tab(self.data, multi_results)
+            ))
 
         # Add comparison tab if multiple results available
         if (self.has_pf and self.has_rh) or (self.has_pf and self.has_mpc):
