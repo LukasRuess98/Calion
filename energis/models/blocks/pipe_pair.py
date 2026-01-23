@@ -608,11 +608,11 @@ class PipePairBlock(BaseComponent):
             def pressure_drop_return_rule(m, t):
                 return delta_p_return[t] == k_pressure * velocity[t] * velocity[t]
 
-        setattr(model, f'{prefix}_pressure_drop_supply',
-                pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
+            setattr(model, f'{prefix}_pressure_drop_supply',
+                    pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
 
-        setattr(model, f'{prefix}_pressure_drop_return',
-                pyo.Constraint(time_set, rule=pressure_drop_return_rule))
+            setattr(model, f'{prefix}_pressure_drop_return',
+                    pyo.Constraint(time_set, rule=pressure_drop_return_rule))
 
         # (10) Total pressure drop = supply + return
         def total_pressure_drop_rule(m, t):
