@@ -104,16 +104,25 @@ def create_thermal_network_tab(
 
 def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any]]:
     """Try to extract network data from workflow result."""
-    # Check for exported network data
-    if hasattr(workflow, 'network_export_data'):
+    # Check for exported network data attached to workflow
+    if hasattr(workflow, 'network_export_data') and workflow.network_export_data:
         return workflow.network_export_data
 
-    # Check primary result
-    result = workflow.mpc_result or workflow.rh_result or workflow.pf_result
+    # Check primary result's solver_meta
+    result = None
+    if hasattr(workflow, 'rh_result') and workflow.rh_result:
+        result = workflow.rh_result
+    elif hasattr(workflow, 'mpc_result') and workflow.mpc_result:
+        result = workflow.mpc_result
+    elif hasattr(workflow, 'pf_result') and workflow.pf_result:
+        result = workflow.pf_result
+
     if result and hasattr(result, 'solver_meta'):
         meta = result.solver_meta
-        if isinstance(meta, dict) and 'network_data' in meta:
-            return meta['network_data']
+        if isinstance(meta, dict):
+            network_data = meta.get('network_data')
+            if network_data and (network_data.get('nodes') or network_data.get('pipes')):
+                return network_data
 
     return None
 
@@ -423,11 +432,28 @@ def has_thermal_network_data(workflow: Any) -> bool:
     if workflow is None:
         return False
 
-    # Check for network manager
-    result = workflow.mpc_result or workflow.rh_result or workflow.pf_result
+    # Check for network_export_data attached to workflow
+    if hasattr(workflow, 'network_export_data') and workflow.network_export_data:
+        return True
+
+    # Check primary result's solver_meta for network_data
+    result = None
+    if hasattr(workflow, 'rh_result') and workflow.rh_result:
+        result = workflow.rh_result
+    elif hasattr(workflow, 'mpc_result') and workflow.mpc_result:
+        result = workflow.mpc_result
+    elif hasattr(workflow, 'pf_result') and workflow.pf_result:
+        result = workflow.pf_result
+
     if result and hasattr(result, 'solver_meta'):
         meta = result.solver_meta
         if isinstance(meta, dict):
-            return 'export_files' in meta or 'network_data' in meta
+            # Check for actual network_data with content
+            network_data = meta.get('network_data', {})
+            if network_data and (network_data.get('nodes') or network_data.get('pipes')):
+                return True
+            # Fallback: check if export_files exists (network was exported)
+            if 'export_files' in meta:
+                return True
 
     return False
