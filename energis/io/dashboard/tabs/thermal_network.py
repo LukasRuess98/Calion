@@ -62,16 +62,46 @@ def create_thermal_network_tab(
     if network_data is None and workflow is not None:
         network_data = _extract_network_data_from_workflow(workflow)
 
-    if network_data is None or not network_data:
-        return pn.Column(
-            pn.pane.Markdown("## Thermal Network Ergebnisse"),
-            pn.pane.Alert(
-                "Keine Thermal Network Daten verfügbar. "
-                "Stellen Sie sicher, dass 'export_thermal_network: true' in der Config aktiviert ist.",
-                alert_type="warning"
-            ),
-            sizing_mode='stretch_width'
-        )
+    # Check if we have any data
+    has_nodes = network_data and network_data.get('nodes')
+    has_pipes = network_data and network_data.get('pipes')
+
+    if not has_nodes and not has_pipes:
+        # Check if thermal network was configured but failed
+        config = getattr(workflow, 'config', {}) or {}
+        thermal_cfg = config.get('thermal_network', {})
+        thermal_enabled = thermal_cfg.get('enabled', False)
+
+        if thermal_enabled:
+            # Network was enabled but no data - likely a loading error
+            return pn.Column(
+                pn.pane.Markdown("## Thermal Network Ergebnisse"),
+                pn.pane.Alert(
+                    "**Thermal Network ist aktiviert, aber keine Daten verfügbar.**\n\n"
+                    "Mögliche Ursachen:\n"
+                    "- Die Topologie-Datei wurde nicht gefunden\n"
+                    "- Der Network Manager konnte nicht initialisiert werden\n"
+                    "- Prüfen Sie die Konsolen-Ausgabe auf '[BUILD]' Warnungen",
+                    alert_type="danger"
+                ),
+                pn.pane.Markdown(
+                    "**Config:**\n"
+                    f"- `thermal_network.enabled`: {thermal_enabled}\n"
+                    f"- `thermal_network.topology_file`: {thermal_cfg.get('topology_file', 'nicht angegeben')}\n"
+                    f"- `thermal_network.brownfield_mode`: {thermal_cfg.get('brownfield_mode', False)}"
+                ),
+                sizing_mode='stretch_width'
+            )
+        else:
+            return pn.Column(
+                pn.pane.Markdown("## Thermal Network Ergebnisse"),
+                pn.pane.Alert(
+                    "Keine Thermal Network Daten verfügbar. "
+                    "Stellen Sie sicher, dass `thermal_network.enabled: true` in der Config aktiviert ist.",
+                    alert_type="warning"
+                ),
+                sizing_mode='stretch_width'
+            )
 
     # Build tab content
     components = [
@@ -104,6 +134,11 @@ def create_thermal_network_tab(
 
 def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any]]:
     """Try to extract network data from workflow result."""
+    import json
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
+
     # Check for exported network data attached to workflow
     if hasattr(workflow, 'network_export_data') and workflow.network_export_data:
         return workflow.network_export_data
@@ -120,9 +155,113 @@ def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any
     if result and hasattr(result, 'solver_meta'):
         meta = result.solver_meta
         if isinstance(meta, dict):
+            # First try: get network_data directly from solver_meta
             network_data = meta.get('network_data')
             if network_data and (network_data.get('nodes') or network_data.get('pipes')):
+                logger.info("[THERMAL_TAB] Using network_data from solver_meta")
                 return network_data
+
+            # Second try: read from exported files
+            export_dir = meta.get('export_dir')
+            if export_dir:
+                network_data = _read_network_data_from_files(export_dir)
+                if network_data:
+                    logger.info(f"[THERMAL_TAB] Loaded network_data from files in {export_dir}")
+                    return network_data
+
+    # Third try: check default export directory
+    default_export_dir = 'exports/thermal_network_results'
+    if os.path.exists(default_export_dir):
+        network_data = _read_network_data_from_files(default_export_dir)
+        if network_data:
+            logger.info(f"[THERMAL_TAB] Loaded network_data from default dir {default_export_dir}")
+            return network_data
+
+    return None
+
+
+def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
+    """Read network data from exported JSON/CSV files."""
+    import json
+    import os
+
+    network_data = {
+        'nodes': {},
+        'pipes': {},
+        'summary': {},
+        'timeseries': {},
+    }
+
+    try:
+        # Read network summary
+        summary_path = os.path.join(export_dir, 'thermal_network', 'network_summary.json')
+        if os.path.exists(summary_path):
+            with open(summary_path, 'r', encoding='utf-8') as f:
+                summary = json.load(f)
+                network_data['summary'] = {
+                    'num_nodes': summary.get('topology', {}).get('total_nodes', 0),
+                    'num_pipes': summary.get('topology', {}).get('total_pipes', 0),
+                    'total_pipe_length_m': summary.get('topology', {}).get('total_pipe_length_m', 0),
+                    'total_network_loss_mwh': summary.get('energy', {}).get('total_network_loss_mwh', 0),
+                    'avg_network_loss_mw': summary.get('energy', {}).get('avg_network_loss_mw', 0),
+                }
+
+        # Read node summary
+        nodes_summary_path = os.path.join(export_dir, 'thermal_network', 'nodes', 'nodes_summary.json')
+        if os.path.exists(nodes_summary_path):
+            with open(nodes_summary_path, 'r', encoding='utf-8') as f:
+                nodes_list = json.load(f)
+                for node in nodes_list:
+                    node_id = node.get('node_id')
+                    if node_id:
+                        network_data['nodes'][node_id] = {
+                            'id': node_id,
+                            'type': node.get('type', 'unknown'),
+                            'name': node.get('name', node_id),
+                            'T_supply_avg': node.get('T_supply_avg_c'),
+                            'T_return_avg': node.get('T_return_avg_c'),
+                        }
+
+        # Read pipe summary
+        pipes_summary_path = os.path.join(export_dir, 'thermal_network', 'pipes', 'pipes_summary.json')
+        if os.path.exists(pipes_summary_path):
+            with open(pipes_summary_path, 'r', encoding='utf-8') as f:
+                pipes_list = json.load(f)
+                for pipe in pipes_list:
+                    pipe_id = pipe.get('pipe_id')
+                    if pipe_id:
+                        network_data['pipes'][pipe_id] = {
+                            'id': pipe_id,
+                            'from_node': pipe.get('from_node'),
+                            'to_node': pipe.get('to_node'),
+                            'length_m': pipe.get('length_m', 0),
+                            'm_dot_avg': pipe.get('m_dot_avg_kg_s'),
+                            'm_dot_max': pipe.get('m_dot_max_kg_s'),
+                            'velocity_avg': pipe.get('velocity_avg_m_s'),
+                            'velocity_max': pipe.get('velocity_max_m_s'),
+                            'delta_p_avg': pipe.get('delta_p_total_avg_bar'),
+                            'delta_p_max': pipe.get('delta_p_total_max_bar'),
+                            'total_heat_loss_mwh': (
+                                (pipe.get('Q_loss_supply_total_mwh') or 0) +
+                                (pipe.get('Q_loss_return_total_mwh') or 0)
+                            ),
+                        }
+
+        # Read timeseries from unified CSV
+        unified_ts_path = os.path.join(export_dir, 'unified_timeseries.csv')
+        if os.path.exists(unified_ts_path):
+            df = pd.read_csv(unified_ts_path, sep=';')
+            for col in df.columns:
+                if col != 'timestep':
+                    network_data['timeseries'][col] = df[col].tolist()
+
+        # Check if we got any data
+        if network_data['nodes'] or network_data['pipes']:
+            return network_data
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[THERMAL_TAB] Failed to read network data from files: {e}")
 
     return None
 
@@ -429,11 +568,23 @@ def _create_timeseries_section(
 
 def has_thermal_network_data(workflow: Any) -> bool:
     """Check if thermal network data is available."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     if workflow is None:
         return False
 
     # Check for network_export_data attached to workflow
     if hasattr(workflow, 'network_export_data') and workflow.network_export_data:
+        logger.debug("[THERMAL_TAB] Found network_export_data on workflow")
+        return True
+
+    # Check workflow config for thermal_network enabled
+    config = getattr(workflow, 'config', {}) or {}
+    thermal_cfg = config.get('thermal_network', {})
+    if thermal_cfg.get('enabled', False):
+        logger.debug("[THERMAL_TAB] thermal_network.enabled=True in config")
+        # Thermal network was configured, show tab even if data extraction failed
         return True
 
     # Check primary result's solver_meta for network_data
@@ -451,9 +602,15 @@ def has_thermal_network_data(workflow: Any) -> bool:
             # Check for actual network_data with content
             network_data = meta.get('network_data', {})
             if network_data and (network_data.get('nodes') or network_data.get('pipes')):
+                logger.debug("[THERMAL_TAB] Found network_data in solver_meta")
                 return True
             # Fallback: check if export_files exists (network was exported)
             if 'export_files' in meta:
+                logger.debug("[THERMAL_TAB] Found export_files in solver_meta")
+                return True
+            # Check if export_dir exists (we can try to read from files)
+            if 'export_dir' in meta:
+                logger.debug("[THERMAL_TAB] Found export_dir in solver_meta")
                 return True
 
     return False
