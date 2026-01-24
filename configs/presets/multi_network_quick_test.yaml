@@ -78,3 +78,11 @@ thermal_network:
   heating_curve:
     enabled: true
     profile: "standard_dh"
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  export_thermal_network: true
+  export_solver_solution: true
+  export_dir: "exports/thermal_network_results"

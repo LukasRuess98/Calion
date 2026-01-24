@@ -123,6 +123,11 @@ output:
   export_summary: true
   export_multi_network: true
 
+  # Thermal Network Export (NEW)
+  export_thermal_network: true
+  export_solver_solution: true
+  export_dir: "exports/thermal_network_results"
+
   figures:
     enabled: true
     formats: ["png", "pdf"]
