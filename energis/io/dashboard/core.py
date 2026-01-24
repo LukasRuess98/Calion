@@ -174,6 +174,8 @@ class EnerGISDashboard:
             create_comparison_tab,
             create_multi_network_tab,
             has_multi_network_data,
+            create_thermal_network_tab,
+            has_thermal_network_data,
         )
 
         tabs = pn.Tabs(
@@ -202,6 +204,22 @@ class EnerGISDashboard:
             tabs.append((
                 'Multi-Netzwerk',
                 create_multi_network_tab(self.data, multi_results)
+            ))
+
+        # Add thermal network tab if network data is available
+        if has_thermal_network_data(self.workflow):
+            # Extract network data for dashboard
+            network_data = None
+            if hasattr(self.workflow, 'network_export_data'):
+                network_data = self.workflow.network_export_data
+            elif hasattr(self.primary_result, 'solver_meta'):
+                meta = self.primary_result.solver_meta
+                if isinstance(meta, dict) and 'network_data' in meta:
+                    network_data = meta['network_data']
+
+            tabs.append((
+                'Wärmenetz',
+                create_thermal_network_tab(self.data, network_data, self.workflow)
             ))
 
         # Add comparison tab if multiple results available

@@ -652,7 +652,8 @@ def export_all_results(
     output_dir: str,
     dt_h: float = 1.0,
     export_solver_files: bool = True,
-) -> Dict[str, str]:
+    scenario_name: str = None,
+) -> Dict[str, Any]:
     """
     Export all results including solver files and thermal network.
 
@@ -670,13 +671,16 @@ def export_all_results(
         Timestep duration in hours
     export_solver_files : bool
         Whether to export LP/SOL/MPS files
+    scenario_name : str
+        Optional scenario name for the export
 
     Returns
     -------
-    Dict[str, str]
-        Dictionary of all exported file paths
+    Dict[str, Any]
+        Dictionary with 'files' (file paths) and 'data' (extracted data for dashboard)
     """
     all_files = {}
+    extracted_data = {}  # Data for dashboard display
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -698,12 +702,24 @@ def export_all_results(
         )
         all_files.update({f"network_{k}": v for k, v in network_files.items()})
 
-    # 3. Export manifest
+        # Extract data for dashboard
+        extracted_data['network'] = _extract_network_data_for_dashboard(
+            model, network_manager, time_set, dt_h
+        )
+
+    # 3. Export unified summary CSV (all timeseries in one file)
+    unified_csv = _export_unified_timeseries(model, network_manager, time_set, output_dir, dt_h)
+    if unified_csv:
+        all_files['unified_timeseries'] = unified_csv
+
+    # 4. Export manifest
     manifest = {
         'export_timestamp': datetime.now().isoformat(),
+        'scenario_name': scenario_name,
         'output_dir': output_dir,
         'total_files': len(all_files),
         'files': all_files,
+        'has_network_data': network_manager is not None,
     }
 
     manifest_path = os.path.join(output_dir, "export_manifest.json")
@@ -715,4 +731,187 @@ def export_all_results(
     logger.info(f"EXPORT COMPLETE: {len(all_files)} files")
     logger.info(f"{'=' * 60}")
 
-    return all_files
+    return {
+        'files': all_files,
+        'data': extracted_data,
+        'output_dir': output_dir,
+    }
+
+
+def _export_unified_timeseries(
+    model,
+    network_manager,
+    time_set,
+    output_dir: str,
+    dt_h: float,
+) -> Optional[str]:
+    """Export all timeseries data into one unified CSV file."""
+    try:
+        all_data = {'timestep': list(time_set)}
+
+        # Heat demand
+        if hasattr(model, 'heatd'):
+            all_data['heat_demand_MW'] = [pyo.value(model.heatd[t]) / 1000 for t in time_set]
+
+        # Network loss
+        if hasattr(model, 'network_Q_loss_per_timestep'):
+            all_data['network_loss_MW'] = [
+                pyo.value(model.network_Q_loss_per_timestep[t]) for t in time_set
+            ]
+
+        # Storage
+        if hasattr(model, 'TES_SOC'):
+            all_data['storage_SOC_MWh'] = [pyo.value(model.TES_SOC[t]) for t in time_set]
+        if hasattr(model, 'TES_Q_charge'):
+            all_data['storage_charge_MW'] = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
+        if hasattr(model, 'TES_Q_discharge'):
+            all_data['storage_discharge_MW'] = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
+
+        # Network pipes
+        if network_manager and hasattr(network_manager, 'pipes'):
+            for pipe_id in list(network_manager.pipes.keys())[:10]:  # Limit to first 10 pipes
+                prefix = pipe_id.upper().replace('-', '_')
+
+                for var_name in ['m_dot', 'velocity', 'delta_p_total']:
+                    var = getattr(model, f'{prefix}_{var_name}', None)
+                    if var is not None:
+                        try:
+                            all_data[f'{pipe_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
+                        except:
+                            pass
+
+        # Network nodes
+        if network_manager and hasattr(network_manager, 'nodes'):
+            for node_id in list(network_manager.nodes.keys())[:10]:  # Limit to first 10 nodes
+                prefix = node_id.upper().replace('-', '_')
+
+                for var_name in ['T_supply', 'T_return']:
+                    var = getattr(model, f'{prefix}_{var_name}', None)
+                    if var is not None:
+                        try:
+                            all_data[f'{node_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
+                        except:
+                            pass
+
+        # Create DataFrame and save
+        df = pd.DataFrame(all_data)
+        csv_path = os.path.join(output_dir, "unified_timeseries.csv")
+        df.to_csv(csv_path, sep=';', index=False)
+
+        logger.info(f"  Exported unified timeseries: {csv_path}")
+        return csv_path
+
+    except Exception as e:
+        logger.warning(f"Failed to export unified timeseries: {e}")
+        return None
+
+
+def _extract_network_data_for_dashboard(
+    model,
+    network_manager,
+    time_set,
+    dt_h: float,
+) -> Dict[str, Any]:
+    """Extract network data in a format suitable for dashboard display."""
+    dashboard_data = {
+        'nodes': {},
+        'pipes': {},
+        'summary': {},
+        'timeseries': {},
+    }
+
+    time_list = list(time_set)
+
+    # Extract node data
+    for node_id, node_config in network_manager.nodes.items():
+        prefix = node_id.upper().replace('-', '_')
+        node_data = {
+            'id': node_id,
+            'type': node_config.get('type', 'unknown'),
+            'name': node_config.get('name', node_id),
+        }
+
+        # Temperature timeseries
+        T_supply = getattr(model, f'{prefix}_T_supply', None)
+        T_return = getattr(model, f'{prefix}_T_return', None)
+
+        if T_supply is not None:
+            vals = [pyo.value(T_supply[t]) for t in time_set]
+            node_data['T_supply_series'] = vals
+            node_data['T_supply_avg'] = sum(vals) / len(vals)
+            dashboard_data['timeseries'][f'{node_id}_T_supply'] = vals
+
+        if T_return is not None:
+            vals = [pyo.value(T_return[t]) for t in time_set]
+            node_data['T_return_series'] = vals
+            node_data['T_return_avg'] = sum(vals) / len(vals)
+            dashboard_data['timeseries'][f'{node_id}_T_return'] = vals
+
+        dashboard_data['nodes'][node_id] = node_data
+
+    # Extract pipe data
+    for pipe_id, pipe_config in network_manager.pipes.items():
+        prefix = pipe_id.upper().replace('-', '_')
+        pipe_data = {
+            'id': pipe_id,
+            'from_node': pipe_config.get('from_node'),
+            'to_node': pipe_config.get('to_node'),
+            'length_m': pipe_config.get('length_m', 0),
+        }
+
+        # Flow and pressure
+        m_dot = getattr(model, f'{prefix}_m_dot', None)
+        delta_p = getattr(model, f'{prefix}_delta_p_total', None)
+        velocity = getattr(model, f'{prefix}_velocity', None)
+
+        if m_dot is not None:
+            vals = [pyo.value(m_dot[t]) for t in time_set]
+            pipe_data['m_dot_series'] = vals
+            pipe_data['m_dot_avg'] = sum(vals) / len(vals)
+            pipe_data['m_dot_max'] = max(vals)
+            dashboard_data['timeseries'][f'{pipe_id}_m_dot'] = vals
+
+        if delta_p is not None:
+            vals = [pyo.value(delta_p[t]) for t in time_set]
+            pipe_data['delta_p_series'] = vals
+            pipe_data['delta_p_avg'] = sum(vals) / len(vals)
+            pipe_data['delta_p_max'] = max(vals)
+            dashboard_data['timeseries'][f'{pipe_id}_delta_p'] = vals
+
+        if velocity is not None:
+            vals = [pyo.value(velocity[t]) for t in time_set]
+            pipe_data['velocity_series'] = vals
+            pipe_data['velocity_avg'] = sum(vals) / len(vals)
+            pipe_data['velocity_max'] = max(vals)
+            dashboard_data['timeseries'][f'{pipe_id}_velocity'] = vals
+
+        # Heat losses
+        Q_loss_s = getattr(model, f'{prefix}_Q_loss_supply', None)
+        Q_loss_r = getattr(model, f'{prefix}_Q_loss_return', None)
+
+        total_loss = 0
+        if Q_loss_s is not None:
+            vals = [pyo.value(Q_loss_s[t]) for t in time_set]
+            total_loss += sum(vals) * dt_h
+        if Q_loss_r is not None:
+            vals = [pyo.value(Q_loss_r[t]) for t in time_set]
+            total_loss += sum(vals) * dt_h
+
+        pipe_data['total_heat_loss_mwh'] = total_loss
+
+        dashboard_data['pipes'][pipe_id] = pipe_data
+
+    # Summary statistics
+    if hasattr(model, 'network_Q_loss_per_timestep'):
+        loss_vals = [pyo.value(model.network_Q_loss_per_timestep[t]) for t in time_set]
+        dashboard_data['summary']['total_network_loss_mwh'] = sum(loss_vals) * dt_h
+        dashboard_data['summary']['avg_network_loss_mw'] = sum(loss_vals) / len(loss_vals)
+        dashboard_data['timeseries']['network_loss'] = loss_vals
+
+    dashboard_data['summary']['total_pipe_length_m'] = sum(
+        p.get('length_m', 0) for p in network_manager.pipes.values()
+    )
+    dashboard_data['summary']['num_nodes'] = len(network_manager.nodes)
+    dashboard_data['summary']['num_pipes'] = len(network_manager.pipes)
+
+    return dashboard_data

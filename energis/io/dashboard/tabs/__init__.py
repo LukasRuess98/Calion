@@ -15,6 +15,7 @@ from .costs import create_costs_tab
 from .design import create_design_tab
 from .comparison import create_comparison_tab
 from .multi_network import create_multi_network_tab, has_multi_network_data
+from .thermal_network import create_thermal_network_tab, has_thermal_network_data
 
 __all__ = [
     'create_overview_tab',
@@ -28,4 +29,6 @@ __all__ = [
     'create_comparison_tab',
     'create_multi_network_tab',
     'has_multi_network_data',
+    'create_thermal_network_tab',
+    'has_thermal_network_data',
 ]
