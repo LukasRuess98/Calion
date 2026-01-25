@@ -1347,3 +1347,368 @@ def _fuel_cost_breakdown_publication(
            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     return _save_figure(fig, outdir, "fuel_cost_breakdown_publication", dpi, formats)
+
+
+# ============================================================================
+# MULTI-NETWORK PLOTTING FUNCTIONS
+# ============================================================================
+
+def _multi_network_temperature_publication(
+    outdir: str,
+    multi_network_results: Mapping[str, Mapping[str, object]],
+    timestamps: Sequence[datetime] | Sequence[int],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """
+    Generate temperature comparison plot for multiple networks.
+
+    Shows supply and return temperatures for each network with
+    different temperature levels (e.g., high-temp industrial vs low-temp residential).
+    """
+    if not HAVE_MATPLOTLIB:
+        return []
+
+    networks = multi_network_results.get('networks', {})
+    if not networks:
+        return []
+
+    n_networks = len(networks)
+    if n_networks == 0:
+        return []
+
+    fig, axes = plt.subplots(n_networks, 1,
+                             figsize=(PublicationConfig.FIGSIZE_DOUBLE_COLUMN[0],
+                                     2.5 * n_networks),
+                             constrained_layout=True,
+                             sharex=True)
+
+    if n_networks == 1:
+        axes = [axes]
+
+    colors = PublicationConfig.COLORS_QUALITATIVE
+
+    for idx, (net_id, net_data) in enumerate(networks.items()):
+        ax = axes[idx]
+
+        # Get temperature data
+        T_supply = net_data.get('supply_temperatures_c', [])
+        T_return = net_data.get('return_temperatures_c', [])
+
+        if not T_supply and not T_return:
+            # Try alternative keys
+            T_supply = net_data.get('avg_supply_temp_c', [])
+            T_return = net_data.get('avg_return_temp_c', [])
+
+        x_data = timestamps if len(timestamps) == len(T_supply) else range(len(T_supply))
+
+        if T_supply:
+            ax.plot(x_data, T_supply, label='Supply', color=colors[0], linewidth=1.5)
+        if T_return:
+            ax.plot(x_data, T_return, label='Return', color=colors[1], linewidth=1.5)
+
+        # Add network info
+        temp_level = net_data.get('temperature_level', 'unknown')
+        ax.set_ylabel(f'Temperature [°C]')
+        ax.set_title(f'{net_id} ({temp_level})', fontsize=10, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+        # Set y-axis limits based on temperature level
+        if temp_level == 'high':
+            ax.set_ylim(40, 130)
+        elif temp_level == 'low':
+            ax.set_ylim(20, 80)
+
+    axes[-1].set_xlabel('Time')
+    _configure_time_axis(axes[-1], timestamps)
+
+    fig.suptitle('Multi-Network Temperature Profiles', fontsize=12, fontweight='bold')
+
+    return _save_figure(fig, outdir, "multi_network_temperatures", dpi, formats)
+
+
+def _heat_exchanger_operation_publication(
+    outdir: str,
+    multi_network_results: Mapping[str, Mapping[str, object]],
+    timestamps: Sequence[datetime] | Sequence[int],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """
+    Generate heat exchanger operation plot showing heat transfer over time.
+    """
+    if not HAVE_MATPLOTLIB:
+        return []
+
+    hx_data = multi_network_results.get('heat_exchangers', {})
+    if not hx_data:
+        return []
+
+    n_hx = len(hx_data)
+    fig, axes = plt.subplots(n_hx, 1,
+                             figsize=(PublicationConfig.FIGSIZE_DOUBLE_COLUMN[0],
+                                     2.5 * max(n_hx, 1)),
+                             constrained_layout=True,
+                             sharex=True)
+
+    if n_hx == 1:
+        axes = [axes]
+
+    colors = PublicationConfig.COLORS_QUALITATIVE
+
+    for idx, (hx_id, hx_result) in enumerate(hx_data.items()):
+        ax = axes[idx]
+
+        Q_transfer = hx_result.get('Q_transfer_mw', [])
+        T_prim_in = hx_result.get('T_prim_in_c', [])
+        T_sec_out = hx_result.get('T_sec_out_c', [])
+
+        x_data = timestamps if len(timestamps) == len(Q_transfer) else range(len(Q_transfer))
+
+        # Primary axis: Heat transfer
+        ax.fill_between(x_data, Q_transfer, alpha=0.4, color=colors[0], label='Heat Transfer')
+        ax.plot(x_data, Q_transfer, color=colors[0], linewidth=1.5)
+        ax.set_ylabel('Heat Transfer [MW]', color=colors[0])
+        ax.tick_params(axis='y', labelcolor=colors[0])
+
+        # Secondary axis: Temperatures
+        ax2 = ax.twinx()
+        if T_prim_in:
+            ax2.plot(x_data, T_prim_in, '--', color=colors[1], linewidth=1.0, label='T_prim_in')
+        if T_sec_out:
+            ax2.plot(x_data, T_sec_out, ':', color=colors[2], linewidth=1.0, label='T_sec_out')
+        ax2.set_ylabel('Temperature [°C]', color=colors[1])
+        ax2.tick_params(axis='y', labelcolor=colors[1])
+
+        # Title with summary
+        total_mwh = hx_result.get('total_heat_transferred_mwh', 0)
+        ax.set_title(f'{hx_id} (Total: {total_mwh:.1f} MWh)', fontsize=10, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        # Combined legend
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
+
+    axes[-1].set_xlabel('Time')
+    _configure_time_axis(axes[-1], timestamps)
+
+    fig.suptitle('Heat Exchanger Operation', fontsize=12, fontweight='bold')
+
+    return _save_figure(fig, outdir, "heat_exchanger_operation", dpi, formats)
+
+
+def _multi_network_sankey_publication(
+    outdir: str,
+    multi_network_results: Mapping[str, Mapping[str, object]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """
+    Generate Sankey diagram showing energy flows between networks.
+
+    Shows heat sources, networks, heat exchangers, and sinks.
+    """
+    if not HAVE_MATPLOTLIB:
+        return []
+
+    try:
+        from matplotlib.sankey import Sankey
+    except ImportError:
+        return []
+
+    networks = multi_network_results.get('networks', {})
+    hx_data = multi_network_results.get('heat_exchangers', {})
+    summary = multi_network_results.get('summary', {})
+
+    if not networks:
+        return []
+
+    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN,
+                           constrained_layout=True)
+
+    # Collect energy flows
+    flows = []
+    labels = []
+
+    # Network heat demands
+    total_demand = 0
+    for net_id, net_data in networks.items():
+        demand = net_data.get('total_heat_demand_mwh', 0)
+        if demand == 0:
+            demand = net_data.get('heat_delivered_mwh', 100)  # Default
+        total_demand += demand
+        flows.append(-demand)  # Negative = outflow
+        labels.append(f'{net_id}\n({demand:.0f} MWh)')
+
+    # Heat losses
+    total_loss = summary.get('total_network_heat_loss_mwh', 0)
+    if total_loss > 0:
+        flows.append(-total_loss)
+        labels.append(f'Losses\n({total_loss:.0f} MWh)')
+
+    # Heat input (to balance)
+    heat_input = total_demand + total_loss
+    flows.insert(0, heat_input)
+    labels.insert(0, f'Heat Input\n({heat_input:.0f} MWh)')
+
+    # HX transfer (internal, doesn't affect balance but shown)
+    hx_total = summary.get('total_hx_heat_transferred_mwh', 0)
+
+    # Create simple bar representation instead of Sankey if too complex
+    fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN,
+                           constrained_layout=True)
+
+    categories = ['Heat Input'] + list(networks.keys()) + ['Losses', 'HX Transfer']
+    values = [heat_input]
+
+    for net_id, net_data in networks.items():
+        demand = net_data.get('total_heat_demand_mwh', net_data.get('heat_delivered_mwh', 50))
+        values.append(demand)
+
+    values.append(total_loss)
+    values.append(hx_total)
+
+    colors = ['#228833'] + [PublicationConfig.COLORS_QUALITATIVE[i % len(PublicationConfig.COLORS_QUALITATIVE)]
+                           for i in range(len(networks))] + ['#EE6677', '#CCBB44']
+
+    bars = ax.barh(categories, values, color=colors, alpha=0.8)
+
+    ax.set_xlabel('Energy [MWh]')
+    ax.set_title('Multi-Network Energy Balance', fontsize=12, fontweight='bold')
+    ax.grid(True, axis='x', alpha=0.3)
+
+    # Add value labels
+    for bar, val in zip(bars, values):
+        width = bar.get_width()
+        ax.text(width + max(values) * 0.02, bar.get_y() + bar.get_height()/2,
+               f'{val:.0f}', ha='left', va='center', fontsize=9)
+
+    return _save_figure(fig, outdir, "multi_network_energy_balance", dpi, formats)
+
+
+def _network_comparison_publication(
+    outdir: str,
+    multi_network_results: Mapping[str, Mapping[str, object]],
+    dpi: int,
+    formats: Sequence[str],
+) -> list[str]:
+    """
+    Generate comparison bar chart for multiple networks.
+
+    Compares key metrics: heat delivered, losses, efficiency.
+    """
+    if not HAVE_MATPLOTLIB:
+        return []
+
+    networks = multi_network_results.get('networks', {})
+    if not networks or len(networks) < 2:
+        return []
+
+    fig, axes = plt.subplots(1, 3, figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN,
+                             constrained_layout=True)
+
+    net_ids = list(networks.keys())
+    x_pos = range(len(net_ids))
+    colors = PublicationConfig.COLORS_QUALITATIVE[:len(net_ids)]
+
+    # Metric 1: Heat Delivered
+    heat_delivered = [networks[nid].get('total_heat_delivered_mwh',
+                                        networks[nid].get('heat_delivered_mwh', 0))
+                     for nid in net_ids]
+    axes[0].bar(x_pos, heat_delivered, color=colors, alpha=0.8)
+    axes[0].set_xticks(x_pos)
+    axes[0].set_xticklabels(net_ids, rotation=45, ha='right')
+    axes[0].set_ylabel('Energy [MWh]')
+    axes[0].set_title('Heat Delivered', fontsize=10, fontweight='bold')
+    axes[0].grid(True, axis='y', alpha=0.3)
+
+    # Metric 2: Heat Losses
+    heat_losses = [networks[nid].get('total_network_heat_loss_mwh',
+                                     networks[nid].get('heat_loss_mwh', 0))
+                  for nid in net_ids]
+    axes[1].bar(x_pos, heat_losses, color=colors, alpha=0.8)
+    axes[1].set_xticks(x_pos)
+    axes[1].set_xticklabels(net_ids, rotation=45, ha='right')
+    axes[1].set_ylabel('Energy [MWh]')
+    axes[1].set_title('Heat Losses', fontsize=10, fontweight='bold')
+    axes[1].grid(True, axis='y', alpha=0.3)
+
+    # Metric 3: Network Efficiency
+    efficiencies = []
+    for nid in net_ids:
+        delivered = networks[nid].get('total_heat_delivered_mwh', 1)
+        loss = networks[nid].get('total_network_heat_loss_mwh', 0)
+        if delivered > 0:
+            eff = (delivered - loss) / delivered * 100
+        else:
+            eff = 100
+        efficiencies.append(eff)
+
+    axes[2].bar(x_pos, efficiencies, color=colors, alpha=0.8)
+    axes[2].set_xticks(x_pos)
+    axes[2].set_xticklabels(net_ids, rotation=45, ha='right')
+    axes[2].set_ylabel('Efficiency [%]')
+    axes[2].set_title('Network Efficiency', fontsize=10, fontweight='bold')
+    axes[2].set_ylim(0, 105)
+    axes[2].grid(True, axis='y', alpha=0.3)
+
+    fig.suptitle('Multi-Network Comparison', fontsize=12, fontweight='bold')
+
+    return _save_figure(fig, outdir, "multi_network_comparison", dpi, formats)
+
+
+def export_multi_network_plots(
+    outdir: str,
+    multi_network_results: Mapping[str, Mapping[str, object]],
+    timestamps: Sequence[datetime] | Sequence[int] | None = None,
+    dpi: int = PublicationConfig.DPI_PRINT,
+    formats: Sequence[str] = ("png", "pdf"),
+) -> list[str]:
+    """
+    Export all multi-network publication plots.
+
+    Args:
+        outdir: Output directory for plots
+        multi_network_results: Results from MultiNetworkManager.get_results()
+        timestamps: Time axis data
+        dpi: Output resolution
+        formats: Output formats (png, pdf, eps)
+
+    Returns:
+        List of created file paths
+    """
+    if not HAVE_MATPLOTLIB:
+        return []
+
+    PublicationConfig.apply_style()
+    os.makedirs(outdir, exist_ok=True)
+
+    all_files = []
+
+    if timestamps is None:
+        # Generate default timestamps
+        networks = multi_network_results.get('networks', {})
+        if networks:
+            first_net = list(networks.values())[0]
+            n_steps = len(first_net.get('supply_temperatures_c', range(24)))
+            timestamps = list(range(n_steps))
+        else:
+            timestamps = list(range(24))
+
+    # Generate all plots
+    all_files.extend(_multi_network_temperature_publication(
+        outdir, multi_network_results, timestamps, dpi, formats))
+
+    all_files.extend(_heat_exchanger_operation_publication(
+        outdir, multi_network_results, timestamps, dpi, formats))
+
+    all_files.extend(_multi_network_sankey_publication(
+        outdir, multi_network_results, dpi, formats))
+
+    all_files.extend(_network_comparison_publication(
+        outdir, multi_network_results, dpi, formats))
+
+    return all_files
+

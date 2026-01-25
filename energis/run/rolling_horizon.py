@@ -2285,6 +2285,42 @@ def _solve_scenario(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
 
+        # ====================================================================
+        # EXPORT SOLVER SOLUTION AND THERMAL NETWORK RESULTS
+        # ====================================================================
+        export_cfg = cfg.get('output', {})
+        if export_cfg.get('export_thermal_network', True) or export_cfg.get('export_solver_solution', True):
+            try:
+                from energis.io.thermal_network_exporter import export_all_results
+
+                export_dir = export_cfg.get('export_dir', 'exports/thermal_network_results')
+                network_mgr = getattr(model, '_network_manager', None)
+
+                export_result = export_all_results(
+                    model=model,
+                    network_manager=network_mgr,
+                    time_set=model.t,
+                    output_dir=export_dir,
+                    dt_h=dt_h,
+                    export_solver_files=export_cfg.get('export_solver_solution', True),
+                )
+
+                # export_result contains 'files', 'data', and 'output_dir'
+                export_files = export_result.get('files', {})
+                network_data = export_result.get('data', {}).get('network', {})
+
+                logger.info(f"[EXPORT] Exported {len(export_files)} files to {export_dir}")
+
+                # Store export paths and network data in solver_meta for dashboard access
+                solver_meta['export_files'] = export_files
+                solver_meta['export_dir'] = export_dir
+                solver_meta['network_data'] = network_data  # This is what dashboard needs
+
+            except Exception as e:
+                logger.warning(f"[EXPORT] Failed to export thermal network results: {e}")
+                import traceback
+                traceback.print_exc()
+
         # Check if solver found a feasible solution
         term_cond = solver_meta["termination_condition"].lower()
         if "infeasible" in term_cond or "unbounded" in term_cond:

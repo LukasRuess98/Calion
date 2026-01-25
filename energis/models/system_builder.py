@@ -315,6 +315,14 @@ def build_model(
     m.heatd = pyo.Param(m.t, initialize=series_dict("waermebedarf_MWth"), mutable=True)
     m.grid_co2 = pyo.Param(m.t, initialize=series_dict("grid_co2_kg_MWh"), mutable=True)
 
+    # Outdoor temperature for heating curve (if available in data)
+    outdoor_temp_series = column_series("outdoor_temp_C")
+    if outdoor_temp_series is not None:
+        m.outdoor_temp = {i + 1: float(outdoor_temp_series[i]) for i in range(T)}
+        logger.info(f"Outdoor temperature loaded: {min(outdoor_temp_series):.1f}°C to {max(outdoor_temp_series):.1f}°C")
+    else:
+        m.outdoor_temp = None  # Will be set by NetworkManager if needed
+
     costs = cfg.get("costs", {})
     grid = cfg.get("grid", {})
     m.energy_fee = pyo.Param(initialize=float(grid.get("energy_fee_eur_mwh", 0.0)))
@@ -1114,6 +1122,15 @@ def build_model(
         config_dir = cfg.get('_config_dir', Path.cwd())
         if not isinstance(config_dir, Path):
             config_dir = Path(config_dir) if config_dir else Path.cwd()
+
+        # Check if outdoor temperature is available for heating curve
+        has_outdoor_temp = hasattr(m, 'outdoor_temp') and m.outdoor_temp is not None
+        if has_outdoor_temp:
+            # Enable outdoor temperature usage in network config
+            network_cfg.setdefault('use_outdoor_temperature', True)
+            print("[BUILD] Outdoor temperature available - heating curve enabled")
+        else:
+            print("[BUILD] No outdoor temperature data - using fixed supply temperature")
 
         # Inject normalized network config back into cfg for NetworkManager
         cfg_with_network = dict(cfg)

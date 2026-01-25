@@ -15,9 +15,24 @@ metadata:
 # =============================================================================
 parameters:
   # Temperature settings
-  supply_temp_nominal_c: 120
-  supply_temp_summer_c: 90
-  return_temp_nominal_c: 55
+  supply_temp_nominal_c: 120    # Design/fallback supply temperature [°C]
+  supply_temp_summer_c: 90      # Summer supply temperature [°C]
+  return_temp_nominal_c: 55     # Return temperature [°C]
+
+  # =============================================================================
+  # HEATING CURVE (Heizkurve) - Outdoor-dependent supply temperature
+  # =============================================================================
+  # References named profile from configs/01_tech/heating_curves.yaml
+  # Available profiles: standard_dh, 4gdh_low_temp, moderate_temp, high_temp,
+  #                     constant_90, constant_100, constant_120
+  #
+  # Formula (standard_dh): T_supply = 106.67 - 1.333 × T_outdoor
+  #   At T_outdoor = 20°C → T_supply = 80°C (summer)
+  #   At T_outdoor = -10°C → T_supply = 120°C (winter)
+  #
+  heating_curve:
+    enabled: true               # Enable/disable heating curve
+    profile: standard_dh        # Reference to heating_curves.yaml profile
 
   # Environmental parameters
   ground_temp_default_c: 10

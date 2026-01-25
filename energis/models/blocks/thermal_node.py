@@ -101,6 +101,24 @@ class ThermalNodeBlock(BaseComponent):
         supply_temp_nominal_c = config.get('supply_temp_nominal_c', 90.0)
         return_temp_c = config.get('return_temp_c', 50.0)
 
+        # ============================================================
+        # ENHANCED RETURN TEMPERATURE MODELING
+        # ============================================================
+        # Options for time-varying/load-dependent return temperature:
+        #
+        # 1. return_temp_profile: Dict[t, float] - explicit profile per timestep
+        # 2. return_temp_range: [T_min, T_max] - bounds for load-dependent
+        # 3. return_temp_load_factor: float - sensitivity to load (0=none, 1=full)
+        #
+        # Formula: T_return[t] = T_base + load_factor * (load[t]/load_max - 0.5) * ΔT_range
+        # At 50% load: T_return = T_base
+        # At 100% load: T_return = T_base + 0.5 * load_factor * ΔT_range
+        # At 0% load: T_return = T_base - 0.5 * load_factor * ΔT_range
+        # ============================================================
+        return_temp_profile = config.get('return_temp_profile', None)
+        return_temp_range = config.get('return_temp_range', None)  # [T_min, T_max]
+        return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
+
         # Identify connected pipes
         incoming_pipes = []
         outgoing_pipes = []
@@ -140,9 +158,31 @@ class ThermalNodeBlock(BaseComponent):
 
         # Return temperature at node (°C)
         if node_type == 'consumer':
-            # Consumer nodes have fixed return temperature
-            setattr(model, f'{prefix}_T_return',
-                    pyo.Param(time_set, initialize=return_temp_c, mutable=True))
+            # Consumer nodes: return temperature can be constant, profiled, or load-dependent
+            if return_temp_profile is not None:
+                # Option 1: Explicit time-varying profile
+                def return_temp_init(m, t):
+                    return return_temp_profile.get(t, return_temp_c)
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Param(time_set, initialize=return_temp_init, mutable=True))
+                logger.info(f"    Node {node_id}: using return temp profile "
+                           f"(range: {min(return_temp_profile.values()):.1f}-{max(return_temp_profile.values()):.1f}°C)")
+
+            elif return_temp_range is not None and return_temp_load_factor > 0:
+                # Option 2: Load-dependent return temperature (variable, linearized)
+                # T_return bounded by [T_min, T_max], linked to load via constraint
+                T_ret_min, T_ret_max = return_temp_range
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                               bounds=(T_ret_min, T_ret_max)))
+                logger.info(f"    Node {node_id}: load-dependent return temp "
+                           f"(range: {T_ret_min:.1f}-{T_ret_max:.1f}°C, factor: {return_temp_load_factor})")
+
+            else:
+                # Option 3: Constant return temperature (original behavior)
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Param(time_set, initialize=return_temp_c, mutable=True))
+
             T_return = getattr(model, f'{prefix}_T_return')
         else:
             # Plant and junction nodes: return temperature from pipes
@@ -230,6 +270,36 @@ class ThermalNodeBlock(BaseComponent):
 
             setattr(model, f'{prefix}_heat_demand',
                     pyo.Constraint(time_set, rule=heat_demand_rule))
+
+            # (3b) Load-dependent return temperature constraint (optional)
+            # Links T_return to demand level for more realistic modeling
+            # T_return = T_base + load_factor * (Q/Q_max - 0.5) * ΔT_range
+            if return_temp_range is not None and return_temp_load_factor > 0:
+                T_ret_min, T_ret_max = return_temp_range
+                T_ret_base = (T_ret_min + T_ret_max) / 2  # Midpoint at 50% load
+                delta_T_range = T_ret_max - T_ret_min
+
+                # Get peak demand from config or estimate from heatd
+                peak_demand_mw = config.get('peak_demand_mw', None)
+                if peak_demand_mw is None and hasattr(model, 'heatd'):
+                    # Estimate peak demand from total demand * fraction
+                    demand_frac = config.get('demand_fraction', 0.0)
+                    peak_demand_mw = max(pyo.value(model.heatd[t]) for t in time_set) * demand_frac
+
+                if peak_demand_mw and peak_demand_mw > 0:
+                    # Linear constraint: T_return = T_base + k * (Q - 0.5*Q_max)
+                    # where k = load_factor * ΔT_range / Q_max
+                    k_ret_temp = return_temp_load_factor * delta_T_range / peak_demand_mw
+
+                    def return_temp_load_rule(m, t):
+                        # T_return = T_base + k * (Q_demand - 0.5 * Q_max)
+                        return T_return[t] == T_ret_base + k_ret_temp * (Q_demand[t] - 0.5 * peak_demand_mw)
+
+                    setattr(model, f'{prefix}_return_temp_load',
+                            pyo.Constraint(time_set, rule=return_temp_load_rule))
+
+                    logger.info(f"    Node {node_id}: load-dependent T_return constraint "
+                               f"(k={k_ret_temp:.4f} °C/MW, Q_max={peak_demand_mw:.2f} MW)")
 
         # (4) Connect node temperatures to connected pipes
         # This is handled by linking pipe variables directly

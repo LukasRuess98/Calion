@@ -400,6 +400,86 @@ class StratifiedStorageBlock(BaseComponent):
             return E_total[t] == e_hot + e_cold
         setattr(m, f"{comp}_energy_calc", pyo.Constraint(Tset, rule=energy_from_volume_rule))
 
+        # ========================================
+        # PIECEWISE-LINEAR LOSS MODEL (MILP-Compatible)
+        # ========================================
+        # Instead of constant 50% assumption, use PWL approximation
+        # based on actual V_hot/V_total ratio.
+        #
+        # Creates V_loss[t] as a variable linked to V_hot[t-1] via PWL constraint
+        # ========================================
+        use_pwl_loss = cfg.get('use_pwl_loss', True)
+
+        if use_pwl_loss and self.piecewise_n_points >= 3:
+            # Generate PWL data
+            pwl_data = self.calculate_loss_piecewise_data()
+            bp_ratios = pwl_data["breakpoints"]  # [0, 0.25, 0.5, 0.75, 1.0]
+            bp_v_losses = pwl_data["volume_losses"]  # V_loss at each breakpoint
+
+            n_segments = len(bp_ratios) - 1
+            bp_V_hot = [r * self.volume_total for r in bp_ratios]
+
+            # V_loss variable [m³]
+            max_v_loss = max(bp_v_losses) * self.dt_h * 1.2 if bp_v_losses else 1.0
+            setattr(m, f"{comp}_V_loss", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0, max_v_loss)))
+            V_loss_var = getattr(m, f"{comp}_V_loss")
+
+            # Lambda variables for PWL interpolation (SOS2-style)
+            # λ_i ≥ 0, Σλ_i = 1, at most 2 adjacent λ_i non-zero
+            setattr(m, f"{comp}_pwl_lambda", pyo.Var(Tset, range(len(bp_ratios)),
+                                                      domain=pyo.NonNegativeReals, bounds=(0, 1)))
+            pwl_lambda = getattr(m, f"{comp}_pwl_lambda")
+
+            # Constraint: Σλ = 1
+            def lambda_sum_rule(mm, t):
+                return sum(pwl_lambda[t, i] for i in range(len(bp_ratios))) == 1
+            setattr(m, f"{comp}_pwl_lambda_sum", pyo.Constraint(Tset, rule=lambda_sum_rule))
+
+            # Constraint: V_hot[t-1] = Σ λ_i * V_bp_i (links V_hot to breakpoints)
+            def v_hot_pwl_rule(mm, t):
+                if t == Tset.first():
+                    V_prev = self.V_hot_init
+                else:
+                    V_prev = V_hot[t-1]
+                return V_prev == sum(pwl_lambda[t, i] * bp_V_hot[i] for i in range(len(bp_ratios)))
+            setattr(m, f"{comp}_v_hot_pwl", pyo.Constraint(Tset, rule=v_hot_pwl_rule))
+
+            # Constraint: V_loss = Σ λ_i * V_loss_bp_i (interpolated loss)
+            # Note: V_loss from calculate_loss_piecewise_data is per hour, multiply by dt_h
+            def v_loss_pwl_rule(mm, t):
+                return V_loss_var[t] == sum(
+                    pwl_lambda[t, i] * bp_v_losses[i] * self.dt_h
+                    for i in range(len(bp_ratios))
+                )
+            setattr(m, f"{comp}_v_loss_pwl", pyo.Constraint(Tset, rule=v_loss_pwl_rule))
+
+            # SOS2 constraint: enforce adjacency (binary variables for segment selection)
+            setattr(m, f"{comp}_pwl_seg", pyo.Var(Tset, range(n_segments), domain=pyo.Binary))
+            pwl_seg = getattr(m, f"{comp}_pwl_seg")
+
+            # Only one segment active
+            def one_seg_rule(mm, t):
+                return sum(pwl_seg[t, s] for s in range(n_segments)) == 1
+            setattr(m, f"{comp}_pwl_one_seg", pyo.Constraint(Tset, rule=one_seg_rule))
+
+            # Lambda constraints: λ_i can only be non-zero if adjacent segment is active
+            def lambda_seg_rule(mm, t, i):
+                if i == 0:
+                    return pwl_lambda[t, i] <= pwl_seg[t, 0]
+                elif i == len(bp_ratios) - 1:
+                    return pwl_lambda[t, i] <= pwl_seg[t, n_segments - 1]
+                else:
+                    return pwl_lambda[t, i] <= pwl_seg[t, i-1] + pwl_seg[t, i]
+            setattr(m, f"{comp}_lambda_seg", pyo.Constraint(Tset, range(len(bp_ratios)), rule=lambda_seg_rule))
+
+            logger.info(f"Storage {comp}: PWL loss model with {len(bp_ratios)} breakpoints")
+            logger.debug(f"  Breakpoint ratios: {bp_ratios}")
+            logger.debug(f"  V_loss at breakpoints (m³/h): {[f'{v:.4f}' for v in bp_v_losses]}")
+
+        else:
+            # Simple constant loss model (original)
+            V_loss_var = None
+
         # (3) Volume dynamics with losses
         def volume_dynamics_rule(mm, t):
             effc = mm.__getattribute__(f"{comp}_effc")[t]
@@ -419,10 +499,13 @@ class StratifiedStorageBlock(BaseComponent):
             delta_V_charge = effc * Qc[t] * self.dt_h * conversion_factor
             delta_V_discharge = (Qd[t] / effd) * self.dt_h * conversion_factor
 
-            # Heat losses (simplified: use previous volume for linearity)
-            # More sophisticated: piecewise linearization (implemented below)
-            # For now: constant percentage based on average
-            V_loss = self._calculate_volume_loss_simple(V_prev, t)
+            # Heat losses
+            if V_loss_var is not None:
+                # PWL model: V_loss determined by separate constraint
+                V_loss = V_loss_var[t]
+            else:
+                # Simplified: constant rate based on 50% fill assumption
+                V_loss = self._calculate_volume_loss_simple(V_prev, t)
 
             return V_hot[t] == V_prev + delta_V_charge - delta_V_discharge - V_loss
 

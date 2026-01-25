@@ -1,0 +1,88 @@
+# =============================================================================
+# PRESET: Multi-Network Quick Test (24 Stunden)
+# =============================================================================
+# Schnelltest der Multi-Netzwerk-Funktionalität
+# Simuliert nur 24 Stunden für schnelle Verifikation
+#
+# Usage (Anaconda Prompt):
+#   python -m energis.run configs/presets/multi_network_quick_test.yaml
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/heat_pumps.yaml
+  - ../01_tech/storage.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/assets.yaml
+  - ../03_systems/full.yaml
+
+# =============================================================================
+# SCENARIO - Nur 24 Stunden
+# =============================================================================
+scenario:
+  title: "Multi-Network Quick Test"
+  start_date: "2023-01-15"
+  end_date: "2023-01-16"  # 24 Stunden
+
+# =============================================================================
+# WORKFLOW - Perfect Foresight (schneller)
+# =============================================================================
+workflow:
+  plan:
+    steps:
+      - PF
+
+  solver:
+    name: highs
+    options:
+      mip_gap: 0.02
+      time_limit: 60
+
+# =============================================================================
+# MULTI-NETWORK
+# =============================================================================
+multi_network:
+  enabled: true
+
+  networks:
+    hochtemp:
+      name: "Hochtemperatur"
+      supply_temp_c: 90.0
+      return_temp_c: 55.0
+      demand_fraction: 0.4
+
+    niedertemp:
+      name: "Niedertemperatur"
+      supply_temp_c: 55.0
+      return_temp_c: 30.0
+      demand_fraction: 0.6
+
+  heat_exchangers:
+    hx_cascade:
+      primary_network: hochtemp
+      secondary_network: niedertemp
+      effectiveness: 0.85
+      max_power_mw: 3.0
+
+# =============================================================================
+# THERMAL NETWORK
+# =============================================================================
+thermal_network:
+  enabled: true
+  brownfield_mode: true
+  topology_file: configs/05_networks/brownfield.yaml
+  heating_curve:
+    enabled: true
+    profile: "standard_dh"
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  export_thermal_network: true
+  export_solver_solution: true
+  export_dir: "exports/thermal_network_results"

@@ -478,24 +478,127 @@ class PipePairBlock(BaseComponent):
         # This is conservative but MILP-compatible
 
         brownfield_mode = config.get('brownfield_mode', False)
+        use_pwl_pressure = config.get('use_pwl_pressure', True)  # Piecewise-linear by default
 
         if brownfield_mode:
-            # In brownfield mode, use simplified linear approximation
-            # ΔP ≈ k_linear * m_dot where k_linear is calibrated to match
-            # quadratic behavior at typical operating point
-            # k_linear = k_pressure * v_typical / m_dot_typical
-            # For m_dot = m_dot_max, v = v_max: ΔP = k_pressure * v_max²
-            # Linear approx: ΔP = k_linear * m_dot
-            # At m_dot_max: k_linear * m_dot_max = k_pressure * v_max²
-            # k_linear = k_pressure * v_max² / m_dot_max
-            k_linear = k_pressure * max_velocity * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
+            if use_pwl_pressure and effective_max_flow > 0:
+                # ============================================================
+                # PIECEWISE-LINEAR PRESSURE DROP (MILP-Compatible, More Accurate)
+                # ============================================================
+                # Real: ΔP = k * v² ∝ m_dot²
+                # PWL approximation with 3 segments for better accuracy:
+                #   Segment 1: 0-30% flow (low flow regime)
+                #   Segment 2: 30-70% flow (typical operation)
+                #   Segment 3: 70-100% flow (high flow regime)
+                #
+                # Each segment linearized at its midpoint:
+                #   ΔP_segment = k_i * (m_dot - m_dot_i_start) + ΔP_i_start
+                #
+                # This reduces error from ~50% (single linear) to ~10% (PWL)
+                # ============================================================
 
-            def pressure_drop_supply_rule(m, t):
-                # Linear approximation: ΔP = k_linear * m_dot
-                return delta_p_supply[t] == k_linear * m_dot[t]
+                # Flow breakpoints (fraction of max flow)
+                bp_fractions = [0.0, 0.3, 0.7, 1.0]
+                bp_flows = [f * effective_max_flow for f in bp_fractions]
 
-            def pressure_drop_return_rule(m, t):
-                return delta_p_return[t] == k_linear * m_dot[t]
+                # Calculate quadratic ΔP at each breakpoint
+                # ΔP = k_pressure * v², where v = m_dot / (density * area)
+                v_at_max = effective_max_flow / (density_water * area_m2) if area_m2 > 0 else max_velocity
+                k_flow_to_dp = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
+
+                bp_dp = [k_flow_to_dp * (f * effective_max_flow) ** 2 for f in bp_fractions]
+
+                # Linear slopes for each segment (dΔP/dm_dot at segment midpoint)
+                # Derivative of ΔP = k * m_dot² is dΔP/dm_dot = 2 * k * m_dot
+                slopes = []
+                for i in range(3):
+                    mid_flow = (bp_flows[i] + bp_flows[i + 1]) / 2
+                    slope = 2 * k_flow_to_dp * mid_flow  # Tangent at midpoint
+                    slopes.append(slope)
+
+                # Store for logging
+                pipe_pwl_info = {
+                    'breakpoints': bp_flows,
+                    'dp_at_bp': bp_dp,
+                    'slopes': slopes,
+                }
+
+                logger.debug(f"Pipe {pipe_id} PWL pressure drop:")
+                logger.debug(f"  Breakpoints (kg/s): {[f'{x:.2f}' for x in bp_flows]}")
+                logger.debug(f"  ΔP at breakpoints (bar): {[f'{x:.4f}' for x in bp_dp]}")
+                logger.debug(f"  Segment slopes: {[f'{x:.6f}' for x in slopes]}")
+
+                # Binary variables for segment selection (exactly one active)
+                pwl_seg = pyo.Var(time_set, range(3), domain=pyo.Binary)
+                setattr(model, f'{prefix}_pwl_segment', pwl_seg)
+
+                # Continuous auxiliary for flow within segment
+                pwl_flow = pyo.Var(time_set, range(3), domain=pyo.NonNegativeReals)
+                setattr(model, f'{prefix}_pwl_flow', pwl_flow)
+
+                # Constraint: Exactly one segment active per timestep
+                def one_segment_rule(m, t):
+                    return sum(pwl_seg[t, s] for s in range(3)) == 1
+                setattr(model, f'{prefix}_pwl_one_segment',
+                        pyo.Constraint(time_set, rule=one_segment_rule))
+
+                # Constraint: Flow equals sum of segment flows
+                def flow_sum_rule(m, t):
+                    return m_dot[t] == sum(pwl_flow[t, s] for s in range(3))
+                setattr(model, f'{prefix}_pwl_flow_sum',
+                        pyo.Constraint(time_set, rule=flow_sum_rule))
+
+                # Constraint: Segment flow bounds (big-M formulation)
+                M_flow = effective_max_flow * 1.1
+
+                def seg_flow_lb_rule(m, t, s):
+                    return pwl_flow[t, s] >= bp_flows[s] * pwl_seg[t, s]
+                setattr(model, f'{prefix}_pwl_seg_lb',
+                        pyo.Constraint(time_set, range(3), rule=seg_flow_lb_rule))
+
+                def seg_flow_ub_rule(m, t, s):
+                    return pwl_flow[t, s] <= bp_flows[s + 1] * pwl_seg[t, s] + M_flow * (1 - pwl_seg[t, s])
+                setattr(model, f'{prefix}_pwl_seg_ub',
+                        pyo.Constraint(time_set, range(3), rule=seg_flow_ub_rule))
+
+                # PWL pressure drop constraint
+                # ΔP = Σ_s [ΔP_at_start_s + slope_s * (flow_s - bp_start_s)] * seg_s
+                # Simplified: ΔP = Σ_s [slope_s * flow_s + (ΔP_start_s - slope_s * bp_start_s) * seg_s]
+                intercepts = [bp_dp[s] - slopes[s] * bp_flows[s] for s in range(3)]
+
+                def pwl_pressure_drop_supply_rule(m, t):
+                    return delta_p_supply[t] == sum(
+                        slopes[s] * pwl_flow[t, s] + intercepts[s] * pwl_seg[t, s]
+                        for s in range(3)
+                    )
+
+                def pwl_pressure_drop_return_rule(m, t):
+                    return delta_p_return[t] == sum(
+                        slopes[s] * pwl_flow[t, s] + intercepts[s] * pwl_seg[t, s]
+                        for s in range(3)
+                    )
+
+                setattr(model, f'{prefix}_pressure_drop_supply',
+                        pyo.Constraint(time_set, rule=pwl_pressure_drop_supply_rule))
+                setattr(model, f'{prefix}_pressure_drop_return',
+                        pyo.Constraint(time_set, rule=pwl_pressure_drop_return_rule))
+
+            else:
+                # Simple linear approximation (original brownfield behavior)
+                # ΔP ≈ k_linear * m_dot
+                # Calibrated at max flow: k_linear = k_pressure * v_max² / m_dot_max
+                k_linear = k_pressure * max_velocity * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
+
+                def pressure_drop_supply_rule(m, t):
+                    return delta_p_supply[t] == k_linear * m_dot[t]
+
+                def pressure_drop_return_rule(m, t):
+                    return delta_p_return[t] == k_linear * m_dot[t]
+
+                setattr(model, f'{prefix}_pressure_drop_supply',
+                        pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
+                setattr(model, f'{prefix}_pressure_drop_return',
+                        pyo.Constraint(time_set, rule=pressure_drop_return_rule))
         else:
             # Quadratic pressure drop (requires QP/MIQP solver like Gurobi)
             def pressure_drop_supply_rule(m, t):
@@ -505,11 +608,11 @@ class PipePairBlock(BaseComponent):
             def pressure_drop_return_rule(m, t):
                 return delta_p_return[t] == k_pressure * velocity[t] * velocity[t]
 
-        setattr(model, f'{prefix}_pressure_drop_supply',
-                pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
+            setattr(model, f'{prefix}_pressure_drop_supply',
+                    pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
 
-        setattr(model, f'{prefix}_pressure_drop_return',
-                pyo.Constraint(time_set, rule=pressure_drop_return_rule))
+            setattr(model, f'{prefix}_pressure_drop_return',
+                    pyo.Constraint(time_set, rule=pressure_drop_return_rule))
 
         # (10) Total pressure drop = supply + return
         def total_pressure_drop_rule(m, t):

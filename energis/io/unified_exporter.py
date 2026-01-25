@@ -65,6 +65,9 @@ class ExportConfig:
     # Sensitivity (only if sensitivity results provided)
     export_sensitivity: bool = True
 
+    # Multi-network exports (automatically enabled if multi-network results exist)
+    export_multi_network: bool = True
+
 
 @dataclass
 class ExportResult:
@@ -85,6 +88,10 @@ class ExportResult:
             f"Files generated: {len(self.generated_files)}",
         ]
 
+        # Multi-network info
+        if self.metadata.get("has_multi_network"):
+            lines.append("Multi-network export: Yes")
+
         if self.errors:
             lines.append(f"Errors: {len(self.errors)}")
             for err in self.errors[:3]:
@@ -92,10 +99,40 @@ class ExportResult:
 
         lines.append("")
         lines.append("Generated files:")
+
+        # Group files by category
+        categories = {
+            "data": [],
+            "publication": [],
+            "figure": [],
+            "multi_network": [],
+            "dashboard": [],
+            "other": [],
+        }
+
         for category, path in sorted(self.generated_files.items()):
             if isinstance(path, (list, tuple)):
                 path = path[0] if path else "unknown"
-            lines.append(f"  {category}: {os.path.basename(str(path))}")
+            basename = os.path.basename(str(path))
+
+            if category.startswith("data_"):
+                categories["data"].append((category, basename))
+            elif category.startswith("latex_") or category.startswith("publication_"):
+                categories["publication"].append((category, basename))
+            elif category.startswith("figure_"):
+                categories["figure"].append((category, basename))
+            elif category.startswith("multi_network"):
+                categories["multi_network"].append((category, basename))
+            elif category.startswith("dashboard_"):
+                categories["dashboard"].append((category, basename))
+            else:
+                categories["other"].append((category, basename))
+
+        for cat_name, items in categories.items():
+            if items:
+                lines.append(f"  [{cat_name}]")
+                for category, basename in items:
+                    lines.append(f"    {category}: {basename}")
 
         lines.append("=" * 60)
         return "\n".join(lines)
@@ -158,6 +195,9 @@ class UnifiedExporter:
         self._summary_sections = self._build_summary_sections()
         self._timeseries_df = self._build_timeseries_df()
 
+        # Multi-network data (if available)
+        self._multi_network_results = self._extract_multi_network_results()
+
     def _build_summary_sections(self) -> Dict[str, Dict[str, Any]]:
         """Build unified summary sections from workflow results."""
         sections: Dict[str, Dict[str, Any]] = {}
@@ -200,6 +240,55 @@ class UnifiedExporter:
 
         return df
 
+    def _extract_multi_network_results(self) -> Optional[Dict[str, Any]]:
+        """
+        Extract multi-network results if available.
+
+        Looks for multi-network data in:
+        1. workflow.multi_network_results
+        2. _active_result.multi_network
+        3. Series with network-prefixed names
+        """
+        multi_results = None
+
+        # Check workflow for multi-network results
+        if hasattr(self.workflow, 'multi_network_results'):
+            multi_results = self.workflow.multi_network_results
+
+        # Check active result for multi-network data
+        if multi_results is None and hasattr(self._active_result, 'multi_network'):
+            multi_results = self._active_result.multi_network
+
+        # Check summary sections for multi-network indicators
+        if multi_results is None:
+            for section, data in self._summary_sections.items():
+                if isinstance(data, dict):
+                    if 'networks' in data or 'heat_exchangers' in data:
+                        multi_results = data
+                        break
+
+        # Look for network-prefixed series (e.g., "hochtemp_T_supply")
+        if multi_results is None and hasattr(self._active_result, 'series'):
+            network_prefixes = set()
+            for name in self._active_result.series.keys():
+                if '_T_supply' in name or '_T_return' in name:
+                    prefix = name.split('_T_')[0]
+                    if prefix:
+                        network_prefixes.add(prefix)
+
+            if len(network_prefixes) > 1:
+                # Multiple networks detected from series names
+                multi_results = {
+                    'networks': {p: {'id': p} for p in network_prefixes},
+                    'detected_from_series': True,
+                }
+
+        return multi_results
+
+    def has_multi_network_results(self) -> bool:
+        """Check if multi-network results are available."""
+        return self._multi_network_results is not None
+
     def export_all(
         self,
         output_dir: Optional[str] = None,
@@ -232,6 +321,7 @@ class UnifiedExporter:
                 "timestamp": datetime.now().isoformat(),
                 "scenario_name": scenario_name,
                 "workflow_mode": self._get_workflow_mode(),
+                "has_multi_network": self.has_multi_network_results(),
             }
         )
 
@@ -275,6 +365,15 @@ class UnifiedExporter:
             except Exception as e:
                 result.errors.append(f"Dashboard export failed: {e}")
                 logger.warning(f"Dashboard export failed: {e}")
+
+        # Export multi-network results (if available)
+        if self.config.export_multi_network and self.has_multi_network_results():
+            try:
+                multi_files = self._export_multi_network(output_dir)
+                result.generated_files.update(multi_files)
+            except Exception as e:
+                result.errors.append(f"Multi-network export failed: {e}")
+                logger.warning(f"Multi-network export failed: {e}")
 
         # Write export manifest
         manifest_path = os.path.join(output_dir, "export_manifest.json")
@@ -531,6 +630,379 @@ class UnifiedExporter:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
 
+    def _export_multi_network(self, output_dir: str) -> Dict[str, str]:
+        """
+        Export multi-network specific data and visualizations.
+
+        Creates:
+        - multi_network/
+            ├── networks_summary.json
+            ├── heat_exchangers.json
+            ├── network_temperatures.csv
+            └── figures/
+                ├── multi_network_temperatures.png
+                ├── heat_exchanger_operation.png
+                └── network_comparison.png
+        """
+        multi_dir = os.path.join(output_dir, "multi_network")
+        fig_dir = os.path.join(multi_dir, "figures")
+        os.makedirs(fig_dir, exist_ok=True)
+
+        files = {}
+        multi_data = self._multi_network_results
+
+        logger.info("Exporting multi-network results...")
+
+        # ============================================================
+        # 1. NETWORKS SUMMARY JSON
+        # ============================================================
+        networks_data = multi_data.get('networks', {})
+        if networks_data:
+            networks_path = os.path.join(multi_dir, "networks_summary.json")
+            networks_export = {}
+
+            for net_id, net_info in networks_data.items():
+                net_export = {
+                    'id': net_id,
+                    'name': net_info.get('name', net_id),
+                    'temperature_level': net_info.get('temperature_level', 'unknown'),
+                }
+
+                # Add temperature info if available
+                if 'supply_temp_c' in net_info:
+                    net_export['supply_temp_c'] = net_info['supply_temp_c']
+                if 'return_temp_c' in net_info:
+                    net_export['return_temp_c'] = net_info['return_temp_c']
+
+                # Add summary statistics if available
+                if 'total_network_heat_loss_mwh' in net_info:
+                    net_export['total_heat_loss_mwh'] = net_info['total_network_heat_loss_mwh']
+                if 'total_demand_mwh' in net_info:
+                    net_export['total_demand_mwh'] = net_info['total_demand_mwh']
+
+                networks_export[net_id] = net_export
+
+            with open(networks_path, "w", encoding="utf-8") as f:
+                json.dump(networks_export, f, indent=2, default=str)
+            files["multi_network_summary"] = networks_path
+            logger.info(f"  Exported: {networks_path}")
+
+        # ============================================================
+        # 2. HEAT EXCHANGERS JSON
+        # ============================================================
+        hx_data = multi_data.get('heat_exchangers', {})
+        if hx_data:
+            hx_path = os.path.join(multi_dir, "heat_exchangers.json")
+            hx_export = {}
+
+            for hx_id, hx_info in hx_data.items():
+                hx_export[hx_id] = {
+                    'id': hx_id,
+                    'primary_network': hx_info.get('primary_network'),
+                    'secondary_network': hx_info.get('secondary_network'),
+                    'effectiveness': hx_info.get('effectiveness'),
+                    'max_power_mw': hx_info.get('max_power_mw'),
+                    'total_heat_transferred_mwh': hx_info.get('total_heat_transferred_mwh'),
+                    'operating_hours': hx_info.get('operating_hours'),
+                }
+
+            with open(hx_path, "w", encoding="utf-8") as f:
+                json.dump(hx_export, f, indent=2, default=str)
+            files["multi_network_heat_exchangers"] = hx_path
+            logger.info(f"  Exported: {hx_path}")
+
+        # ============================================================
+        # 3. NETWORK TEMPERATURES CSV
+        # ============================================================
+        temp_cols = {}
+        df = self._timeseries_df
+
+        # Extract temperature columns by network
+        for col in df.columns:
+            if '_T_supply' in col or '_T_return' in col or '_Q_' in col:
+                temp_cols[col] = df[col].values
+
+        if temp_cols:
+            temp_df = pd.DataFrame(temp_cols, index=df.index)
+            temp_path = os.path.join(multi_dir, "network_temperatures.csv")
+            temp_df.to_csv(temp_path, sep=";")
+            files["multi_network_temperatures_csv"] = temp_path
+            logger.info(f"  Exported: {temp_path}")
+
+        # ============================================================
+        # 4. MULTI-NETWORK PLOTS
+        # ============================================================
+        try:
+            plot_files = self._export_multi_network_plots(fig_dir, multi_data)
+            files.update(plot_files)
+        except Exception as e:
+            logger.warning(f"Multi-network plots failed: {e}")
+
+        # ============================================================
+        # 5. LATEX SUMMARY FOR MULTI-NETWORK
+        # ============================================================
+        try:
+            latex_files = self._export_multi_network_latex(multi_dir, multi_data)
+            files.update(latex_files)
+        except Exception as e:
+            logger.warning(f"Multi-network LaTeX export failed: {e}")
+
+        return files
+
+    def _export_multi_network_plots(
+        self,
+        fig_dir: str,
+        multi_data: Dict[str, Any],
+    ) -> Dict[str, str]:
+        """Export multi-network specific plots."""
+        files = {}
+
+        try:
+            from energis.io.publication_plotter import (
+                export_multi_network_plots,
+                PublicationConfig,
+            )
+
+            # Apply publication style
+            PublicationConfig.apply_style()
+
+            # Get table from active result
+            table = self._active_result.table
+            series = dict(self._active_result.series) if hasattr(self._active_result, "series") else {}
+
+            # Generate multi-network plots
+            plot_files = export_multi_network_plots(
+                outdir=fig_dir,
+                table=table,
+                series=series,
+                multi_network_results=multi_data,
+            )
+
+            for name, paths in plot_files.items():
+                if isinstance(paths, list) and paths:
+                    files[f"multi_network_figure_{name}"] = paths[0]
+                    for p in paths:
+                        logger.info(f"  Exported: {p}")
+                elif paths:
+                    files[f"multi_network_figure_{name}"] = paths
+                    logger.info(f"  Exported: {paths}")
+
+        except ImportError as e:
+            logger.warning(f"Publication plotter not available for multi-network: {e}")
+            # Fallback: basic multi-network plots
+            files.update(self._export_basic_multi_network_plots(fig_dir, multi_data))
+        except Exception as e:
+            logger.warning(f"Multi-network plot export failed: {e}")
+            files.update(self._export_basic_multi_network_plots(fig_dir, multi_data))
+
+        return files
+
+    def _export_basic_multi_network_plots(
+        self,
+        fig_dir: str,
+        multi_data: Dict[str, Any],
+    ) -> Dict[str, str]:
+        """Fallback: basic multi-network plots with matplotlib."""
+        files = {}
+
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            df = self._timeseries_df
+
+            # Plot 1: Multi-network temperature comparison
+            fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+            networks = multi_data.get('networks', {})
+            colors = plt.cm.Set1.colors
+
+            # Supply temperatures
+            ax1 = axes[0]
+            for i, (net_id, _) in enumerate(networks.items()):
+                supply_col = f"{net_id}_T_supply"
+                if supply_col in df.columns:
+                    ax1.plot(
+                        df.index[:168],
+                        df[supply_col].values[:168],
+                        label=f"{net_id} (Vorlauf)",
+                        color=colors[i % len(colors)],
+                        linewidth=1.5,
+                    )
+            ax1.set_ylabel("Temperature [°C]")
+            ax1.set_title("Supply Temperatures by Network")
+            ax1.legend(loc="upper right")
+            ax1.grid(True, alpha=0.3)
+
+            # Return temperatures
+            ax2 = axes[1]
+            for i, (net_id, _) in enumerate(networks.items()):
+                return_col = f"{net_id}_T_return"
+                if return_col in df.columns:
+                    ax2.plot(
+                        df.index[:168],
+                        df[return_col].values[:168],
+                        label=f"{net_id} (Rücklauf)",
+                        color=colors[i % len(colors)],
+                        linewidth=1.5,
+                        linestyle='--',
+                    )
+            ax2.set_xlabel("Time")
+            ax2.set_ylabel("Temperature [°C]")
+            ax2.set_title("Return Temperatures by Network")
+            ax2.legend(loc="upper right")
+            ax2.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            plot_path = os.path.join(fig_dir, "multi_network_temperatures.png")
+            plt.savefig(plot_path, dpi=self.config.plot_dpi, bbox_inches="tight")
+            plt.close()
+            files["multi_network_temperatures"] = plot_path
+            logger.info(f"  Exported: {plot_path}")
+
+            # Plot 2: Heat exchanger operation
+            hx_data = multi_data.get('heat_exchangers', {})
+            if hx_data:
+                fig, ax = plt.subplots(figsize=(12, 5))
+
+                for i, (hx_id, hx_info) in enumerate(hx_data.items()):
+                    Q_col = f"{hx_id.upper().replace('-', '_')}_Q_transfer"
+                    if Q_col in df.columns:
+                        ax.fill_between(
+                            df.index[:168],
+                            0,
+                            df[Q_col].values[:168],
+                            label=hx_id,
+                            alpha=0.6,
+                            color=colors[i % len(colors)],
+                        )
+
+                ax.set_xlabel("Time")
+                ax.set_ylabel("Heat Transfer [MW]")
+                ax.set_title("Heat Exchanger Operation")
+                ax.legend(loc="upper right")
+                ax.grid(True, alpha=0.3)
+
+                plt.tight_layout()
+                plot_path = os.path.join(fig_dir, "heat_exchanger_operation.png")
+                plt.savefig(plot_path, dpi=self.config.plot_dpi, bbox_inches="tight")
+                plt.close()
+                files["heat_exchanger_operation"] = plot_path
+                logger.info(f"  Exported: {plot_path}")
+
+        except ImportError:
+            logger.warning("Matplotlib not available for multi-network fallback plots")
+        except Exception as e:
+            logger.warning(f"Basic multi-network plot generation failed: {e}")
+
+        return files
+
+    def _export_multi_network_latex(
+        self,
+        multi_dir: str,
+        multi_data: Dict[str, Any],
+    ) -> Dict[str, str]:
+        """Export multi-network LaTeX summary table."""
+        files = {}
+
+        latex_dir = os.path.join(multi_dir, "latex")
+        os.makedirs(latex_dir, exist_ok=True)
+
+        # Network comparison table
+        networks = multi_data.get('networks', {})
+        if networks:
+            latex_lines = [
+                r"\begin{table}[htbp]",
+                r"\centering",
+                r"\caption{Multi-Temperature Network Comparison}",
+                r"\label{tab:multi_network_comparison}",
+                r"\begin{tabular}{lcccc}",
+                r"\toprule",
+                r"Network & Level & $T_\text{supply}$ [°C] & $T_\text{return}$ [°C] & Loss [MWh] \\",
+                r"\midrule",
+            ]
+
+            for net_id, net_info in networks.items():
+                name = net_info.get('name', net_id)[:20]
+                level = net_info.get('temperature_level', '-')
+                t_supply = net_info.get('supply_temp_c', '-')
+                t_return = net_info.get('return_temp_c', '-')
+                loss = net_info.get('total_network_heat_loss_mwh', '-')
+
+                if isinstance(t_supply, (int, float)):
+                    t_supply = f"{t_supply:.0f}"
+                if isinstance(t_return, (int, float)):
+                    t_return = f"{t_return:.0f}"
+                if isinstance(loss, (int, float)):
+                    loss = f"{loss:.1f}"
+
+                latex_lines.append(
+                    f"{name} & {level} & {t_supply} & {t_return} & {loss} \\\\"
+                )
+
+            latex_lines.extend([
+                r"\bottomrule",
+                r"\end{tabular}",
+                r"\end{table}",
+            ])
+
+            latex_path = os.path.join(latex_dir, "multi_network_comparison.tex")
+            with open(latex_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(latex_lines))
+            files["multi_network_latex_table"] = latex_path
+            logger.info(f"  Exported: {latex_path}")
+
+        # Heat exchanger table
+        hx_data = multi_data.get('heat_exchangers', {})
+        if hx_data:
+            latex_lines = [
+                r"\begin{table}[htbp]",
+                r"\centering",
+                r"\caption{Heat Exchanger Coupling Results}",
+                r"\label{tab:heat_exchangers}",
+                r"\begin{tabular}{lccccc}",
+                r"\toprule",
+                r"HX ID & Primary $\rightarrow$ Secondary & $\epsilon$ & $Q_\text{max}$ [MW] & Transfer [MWh] & Hours \\",
+                r"\midrule",
+            ]
+
+            for hx_id, hx_info in hx_data.items():
+                primary = hx_info.get('primary_network', '-')
+                secondary = hx_info.get('secondary_network', '-')
+                coupling = f"{primary}$\\rightarrow${secondary}"
+                eff = hx_info.get('effectiveness', '-')
+                q_max = hx_info.get('max_power_mw', '-')
+                transfer = hx_info.get('total_heat_transferred_mwh', '-')
+                hours = hx_info.get('operating_hours', '-')
+
+                if isinstance(eff, (int, float)):
+                    eff = f"{eff:.2f}"
+                if isinstance(q_max, (int, float)):
+                    q_max = f"{q_max:.1f}"
+                if isinstance(transfer, (int, float)):
+                    transfer = f"{transfer:.1f}"
+                if isinstance(hours, (int, float)):
+                    hours = f"{hours:.0f}"
+
+                latex_lines.append(
+                    f"{hx_id} & {coupling} & {eff} & {q_max} & {transfer} & {hours} \\\\"
+                )
+
+            latex_lines.extend([
+                r"\bottomrule",
+                r"\end{tabular}",
+                r"\end{table}",
+            ])
+
+            latex_path = os.path.join(latex_dir, "heat_exchangers.tex")
+            with open(latex_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(latex_lines))
+            files["multi_network_hx_latex_table"] = latex_path
+            logger.info(f"  Exported: {latex_path}")
+
+        return files
+
     def _export_excel_bundle(self, path: str) -> None:
         """Export complete Excel workbook."""
         try:
@@ -731,5 +1203,202 @@ def export_with_sensitivity(
     except Exception as e:
         result.errors.append(f"Sensitivity analysis failed: {e}")
         logger.warning(f"Sensitivity analysis failed: {e}")
+
+    return result
+
+
+def export_multi_network_results(
+    multi_network_results: Dict[str, Any],
+    output_dir: str,
+    timeseries_df: Optional[pd.DataFrame] = None,
+    scenario_name: Optional[str] = None,
+) -> ExportResult:
+    """
+    Standalone export function for multi-network results.
+
+    Use this when you have multi-network results but not a full workflow.
+
+    Parameters
+    ----------
+    multi_network_results : dict
+        Results from MultiNetworkManager.get_results()
+    output_dir : str
+        Output directory path
+    timeseries_df : pd.DataFrame, optional
+        Timeseries data with network columns
+    scenario_name : str, optional
+        Scenario name for filenames
+
+    Returns
+    -------
+    ExportResult
+        Export summary
+
+    Example
+    -------
+    >>> from energis.models.multi_network_manager import MultiNetworkManager
+    >>> from energis.io.unified_exporter import export_multi_network_results
+    >>>
+    >>> manager = MultiNetworkManager(config)
+    >>> results = manager.get_results(model, config, time_set)
+    >>> export_result = export_multi_network_results(results, "exports/multi_net")
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    result = ExportResult(
+        output_dir=output_dir,
+        metadata={
+            "timestamp": datetime.now().isoformat(),
+            "scenario_name": scenario_name,
+            "has_multi_network": True,
+            "export_type": "standalone_multi_network",
+        }
+    )
+
+    logger.info("=" * 60)
+    logger.info("MULTI-NETWORK STANDALONE EXPORT")
+    logger.info(f"Output directory: {output_dir}")
+    logger.info("=" * 60)
+
+    multi_dir = os.path.join(output_dir, "multi_network")
+    fig_dir = os.path.join(multi_dir, "figures")
+    latex_dir = os.path.join(multi_dir, "latex")
+    os.makedirs(fig_dir, exist_ok=True)
+    os.makedirs(latex_dir, exist_ok=True)
+
+    # ========================================
+    # 1. NETWORKS SUMMARY JSON
+    # ========================================
+    networks_data = multi_network_results.get('networks', {})
+    if networks_data:
+        networks_path = os.path.join(multi_dir, "networks_summary.json")
+        with open(networks_path, "w", encoding="utf-8") as f:
+            json.dump(networks_data, f, indent=2, default=str)
+        result.generated_files["multi_network_summary"] = networks_path
+        logger.info(f"  Exported: {networks_path}")
+
+    # ========================================
+    # 2. HEAT EXCHANGERS JSON
+    # ========================================
+    hx_data = multi_network_results.get('heat_exchangers', {})
+    if hx_data:
+        hx_path = os.path.join(multi_dir, "heat_exchangers.json")
+        with open(hx_path, "w", encoding="utf-8") as f:
+            json.dump(hx_data, f, indent=2, default=str)
+        result.generated_files["multi_network_heat_exchangers"] = hx_path
+        logger.info(f"  Exported: {hx_path}")
+
+    # ========================================
+    # 3. SUMMARY JSON
+    # ========================================
+    summary = multi_network_results.get('summary', {})
+    if summary:
+        summary_path = os.path.join(multi_dir, "summary.json")
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, default=str)
+        result.generated_files["multi_network_overall_summary"] = summary_path
+        logger.info(f"  Exported: {summary_path}")
+
+    # ========================================
+    # 4. TIMESERIES CSV (if provided)
+    # ========================================
+    if timeseries_df is not None:
+        ts_path = os.path.join(multi_dir, "timeseries.csv")
+        timeseries_df.to_csv(ts_path, sep=";")
+        result.generated_files["multi_network_timeseries"] = ts_path
+        logger.info(f"  Exported: {ts_path}")
+
+    # ========================================
+    # 5. LATEX TABLES
+    # ========================================
+    # Network comparison
+    if networks_data:
+        latex_lines = [
+            r"\begin{table}[htbp]",
+            r"\centering",
+            r"\caption{Multi-Temperature Network Results}",
+            r"\label{tab:multi_network}",
+            r"\begin{tabular}{lccc}",
+            r"\toprule",
+            r"Network ID & Temperature Level & Heat Loss [MWh] & Demand [MWh] \\",
+            r"\midrule",
+        ]
+
+        for net_id, net_info in networks_data.items():
+            level = net_info.get('temperature_level', '-')
+            loss = net_info.get('total_network_heat_loss_mwh', 0)
+            demand = net_info.get('total_demand_mwh', 0)
+
+            loss_str = f"{loss:.1f}" if isinstance(loss, (int, float)) else str(loss)
+            demand_str = f"{demand:.1f}" if isinstance(demand, (int, float)) else str(demand)
+
+            latex_lines.append(f"{net_id} & {level} & {loss_str} & {demand_str} \\\\")
+
+        latex_lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ])
+
+        latex_path = os.path.join(latex_dir, "networks.tex")
+        with open(latex_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(latex_lines))
+        result.generated_files["multi_network_latex_networks"] = latex_path
+        logger.info(f"  Exported: {latex_path}")
+
+    # Heat exchangers
+    if hx_data:
+        latex_lines = [
+            r"\begin{table}[htbp]",
+            r"\centering",
+            r"\caption{Heat Exchanger Operation Summary}",
+            r"\label{tab:heat_exchangers}",
+            r"\begin{tabular}{lccc}",
+            r"\toprule",
+            r"HX ID & Coupling & Heat Transfer [MWh] & Operating Hours \\",
+            r"\midrule",
+        ]
+
+        for hx_id, hx_info in hx_data.items():
+            prim = hx_info.get('primary_network', '?')
+            sec = hx_info.get('secondary_network', '?')
+            coupling = f"{prim} $\\rightarrow$ {sec}"
+            transfer = hx_info.get('total_heat_transferred_mwh', 0)
+            hours = hx_info.get('operating_hours', 0)
+
+            transfer_str = f"{transfer:.1f}" if isinstance(transfer, (int, float)) else str(transfer)
+            hours_str = f"{hours:.0f}" if isinstance(hours, (int, float)) else str(hours)
+
+            latex_lines.append(f"{hx_id} & {coupling} & {transfer_str} & {hours_str} \\\\")
+
+        latex_lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ])
+
+        latex_path = os.path.join(latex_dir, "heat_exchangers.tex")
+        with open(latex_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(latex_lines))
+        result.generated_files["multi_network_latex_hx"] = latex_path
+        logger.info(f"  Exported: {latex_path}")
+
+    # ========================================
+    # 6. MANIFEST
+    # ========================================
+    manifest_path = os.path.join(output_dir, "export_manifest.json")
+    manifest = {
+        "export_timestamp": datetime.now().isoformat(),
+        "output_dir": output_dir,
+        "export_type": "multi_network_standalone",
+        "num_networks": len(networks_data),
+        "num_heat_exchangers": len(hx_data),
+        "generated_files": result.generated_files,
+    }
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+    result.generated_files["manifest"] = manifest_path
+
+    logger.info(result.summary())
 
     return result
