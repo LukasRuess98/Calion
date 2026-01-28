@@ -19,6 +19,15 @@ from .sensitivity import (
     calculate_sensitivity_indices,
 )
 
+from .co2_resolution_analysis import (
+    ResolutionScenario,
+    CO2ResolutionAnalysis,
+    analyze_co2_resolution,
+    analyze_from_result,
+    create_comparison_report,
+    create_monthly_breakdown,
+)
+
 __all__ = [
     "ParameterVariation",
     "SensitivityResult",
@@ -27,4 +36,11 @@ __all__ = [
     "run_sensitivity_analysis",
     "format_sensitivity_table",
     "calculate_sensitivity_indices",
+    # CO2 Resolution Analysis
+    "ResolutionScenario",
+    "CO2ResolutionAnalysis",
+    "analyze_co2_resolution",
+    "analyze_from_result",
+    "create_comparison_report",
+    "create_monthly_breakdown",
 ]
