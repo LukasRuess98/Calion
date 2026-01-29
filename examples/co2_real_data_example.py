@@ -61,14 +61,18 @@ def load_data_from_excel(filepath: str) -> tuple:
     return df, time_col, elec_col, co2_col
 
 
-def main():
-    # Standard-Pfad - anpassen falls nötig
-    data_path = "data/stadtbach/Import_Data.xlsx"
+def main(filepath: str = None):
+    # Pfad aus Argument oder Standard-Pfad
+    if filepath:
+        data_path = filepath
+    else:
+        data_path = "data/stadtbach/Import_Data.xlsx"
 
     # Prüfen ob Datei existiert
     if not Path(data_path).exists():
         # Versuche alternatives Verzeichnis
         alt_paths = [
+            "Import_Data.xlsx",
             "data/Import_Data.xlsx",
             "../data/stadtbach/Import_Data.xlsx",
         ]
@@ -144,8 +148,5 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1:
-        # Pfad als Argument übergeben
-        main_with_path = lambda: None  # Placeholder
-        data_path = sys.argv[1]
-    main()
+    filepath = sys.argv[1] if len(sys.argv) > 1 else None
+    main(filepath)
