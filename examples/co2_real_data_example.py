@@ -42,6 +42,7 @@ def load_data_from_excel(filepath: str) -> tuple:
     # Versuche automatisch die richtigen Spalten zu finden
     time_col = None
     elec_col = None
+    heat_col = None
     co2_col = None
 
     for col in df.columns:
@@ -50,15 +51,18 @@ def load_data_from_excel(filepath: str) -> tuple:
             time_col = col
         elif any(x in col_lower for x in ['p_buy', 'pbuy', 'strom', 'elec', 'power', 'load']):
             elec_col = col
+        elif any(x in col_lower for x in ['wärme', 'waerme', 'heat', 'demand', 'bedarf']):
+            heat_col = col
         elif any(x in col_lower for x in ['co2', 'emission', 'carbon']):
             co2_col = col
 
     print(f"\nAutomatisch erkannte Spalten:")
     print(f"  Zeit: {time_col}")
     print(f"  Strom: {elec_col}")
+    print(f"  Wärme: {heat_col}")
     print(f"  CO2: {co2_col}")
 
-    return df, time_col, elec_col, co2_col
+    return df, time_col, elec_col, heat_col, co2_col
 
 
 def main(filepath: str = None):
@@ -87,23 +91,37 @@ def main(filepath: str = None):
             return
 
     # Daten laden
-    df, time_col, elec_col, co2_col = load_data_from_excel(data_path)
+    df, time_col, elec_col, heat_col, co2_col = load_data_from_excel(data_path)
 
-    if time_col is None or elec_col is None or co2_col is None:
+    if time_col is None or co2_col is None:
         print("\n" + "=" * 60)
-        print("MANUELLE KONFIGURATION ERFORDERLICH")
+        print("FEHLER: Zeit- oder CO2-Spalte nicht gefunden")
         print("=" * 60)
-        print("\nBitte passen Sie die Spaltennamen im Skript an:")
-        print("  time_col = 'IHR_ZEITSTEMPEL_SPALTENNAME'")
-        print("  elec_col = 'IHR_STROMVERBRAUCH_SPALTENNAME'")
-        print("  co2_col  = 'IHR_CO2_FAKTOR_SPALTENNAME'")
+        return
+
+    if elec_col is None and heat_col is None:
+        print("\n" + "=" * 60)
+        print("FEHLER: Weder Strom- noch Wärmespalte gefunden")
+        print("=" * 60)
         return
 
     # Daten extrahieren
     df[time_col] = pd.to_datetime(df[time_col])
     timestamps = df[time_col].tolist()
-    electricity_mw = df[elec_col].tolist()
     co2_factors = df[co2_col].tolist()
+
+    # Stromverbrauch: direkt oder aus Wärmebedarf berechnet
+    if elec_col is not None:
+        electricity_mw = df[elec_col].tolist()
+        print("\n→ Verwende direkten Stromverbrauch")
+    else:
+        # Berechne Stromverbrauch aus Wärmebedarf mit Wärmepumpe (COP = 3.0)
+        COP = 3.0
+        heat_demand = df[heat_col].tolist()
+        electricity_mw = [q / COP for q in heat_demand]
+        print(f"\n→ Berechne Stromverbrauch aus Wärmebedarf (Wärmepumpe, COP={COP})")
+        print(f"  Wärmebedarf: {sum(heat_demand):.0f} MWh/a")
+        print(f"  → Stromverbrauch: {sum(electricity_mw):.0f} MWh/a")
 
     # Zeitschrittdauer ermitteln
     if len(timestamps) > 1:
