@@ -9,12 +9,53 @@ heat_pumps:
   cop:
     deltaT_K: 20.0                            # Temperature lift (K)
     deltaTpp_K: 5.0                           # Pinch point temperature difference
-    cop_fallback: 3.0                         # Fallback COP (must be >= 1.01)
+    cop_fallback: 2.5                         # Fallback COP (conservative)
+    cop_min: 1.5                              # Minimum realistic COP
+    cop_max: 6.0                              # Maximum realistic COP
 
     # Heat sink (district heating network)
     sink_defaults:
       Tsink_out_K: 363.15                     # 90°C supply temperature
       Tsink_in_K: 343.15                      # 70°C return temperature
+
+    # =========================================================================
+    # COP LOOKUP TABLES
+    # =========================================================================
+    # 2D interpolation table for realistic COP calculation
+    # x-axis: Source temperature (WRG) in Kelvin
+    # y-axis: Sink temperature (supply) in Kelvin
+    # Values based on industrial heat pump manufacturer data (50% Carnot efficiency)
+    #
+    # Formula: COP_real ≈ 0.50 × Carnot_COP = 0.50 × T_sink / (T_sink - T_source)
+    # =========================================================================
+    tables:
+      standard:
+        # Source temperatures (WRG/Abwärme) in Kelvin
+        # 273K=0°C, 283K=10°C, 293K=20°C, 303K=30°C, 313K=40°C, 323K=50°C
+        x: [273.15, 283.15, 293.15, 303.15, 313.15, 323.15]
+
+        # Sink temperatures (Fernwärme-Vorlauf) in Kelvin
+        # 343K=70°C, 353K=80°C, 363K=90°C, 373K=100°C
+        y: [343.15, 353.15, 363.15, 373.15]
+
+        # COP values matrix [y_rows][x_columns]
+        # Each row = different sink temperature
+        # Each column = different source temperature
+        #
+        # Row 1: Sink 70°C (343K) - lower lift = higher COP
+        # Row 2: Sink 80°C (353K)
+        # Row 3: Sink 90°C (363K) - typical district heating
+        # Row 4: Sink 100°C (373K) - high temp = lower COP
+        values:
+          - [2.45, 2.86, 3.43, 4.29, 5.72, 8.58]   # T_sink = 70°C
+          - [2.21, 2.52, 2.94, 3.53, 4.41, 5.88]   # T_sink = 80°C
+          - [2.02, 2.27, 2.59, 3.02, 3.63, 4.54]   # T_sink = 90°C
+          - [1.87, 2.07, 2.33, 2.67, 3.11, 3.73]   # T_sink = 100°C
+
+        clamp: true                               # Clamp values outside table range
+        x_column: null                            # Use wrg_source_column from HP config
+        y_column: null                            # Use sink_defaults.Tsink_out_K
+        y_default: 363.15                         # Default sink temp if not specified
 
   # Investment optimization defaults
   investment_defaults:
