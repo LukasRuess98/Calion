@@ -75,15 +75,15 @@ system:
   # ═══════════════════════════════════════════════════════════════════════════
   storage:
     enabled: true
-    soc0_mwh: 250.0              # Startzustand: 50% gefüllt
+    soc0_mwh: 0.0              # Startzustand: 50% gefüllt
     technical_limits:
-      energy_min_mwh: 1000.0      # Fix auf 500 MWh
+      energy_min_mwh: 000.0      # Fix auf 500 MWh
       energy_max_mwh: 1000.0      # Fix auf 500 MWh
-      power_min_mw: 100.0        # Lade-/Entladeleistung
+      power_min_mw: 00.0        # Lade-/Entladeleistung
       power_max_mw: 100.0
     defaults:
       energy_mwh: 1000.0          # Installierte Kapazität
-      power_mw: 100.0            # Lade-/Entladeleistung
+      power_mw: 500.0            # Lade-/Entladeleistung
       build: true                # Bereits installiert
     costs:
       energy_capex_eur_per_mwh: 0.0   # Keine CAPEX (bereits installiert)

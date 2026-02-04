@@ -2284,7 +2284,7 @@ def _solve_scenario(
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
-        model.display()
+        #model.display()
 
         # ====================================================================
         # EXPORT SOLVER SOLUTION AND THERMAL NETWORK RESULTS

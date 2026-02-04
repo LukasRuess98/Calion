@@ -72,4 +72,4 @@ heat_pumps:
     standard:
       eta: 0.75                               # Carnot efficiency (75%)
       FQ: 0.10                                # Heat loss factor
-      min_load: 0.30                          # 30% minimum load
+      min_load: 0.0                          # 30% minimum load
