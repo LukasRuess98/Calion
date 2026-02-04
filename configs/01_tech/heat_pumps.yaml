@@ -61,7 +61,7 @@ heat_pumps:
   investment_defaults:
     enabled: true
     capacity_min_mw: 5.0                      # Minimum 5 MW if built
-    capacity_max_mw: 100.0                    # Maximum 100 MW
+    capacity_max_mw: 1000.0                    # Maximum 100 MW
     capex_eur_per_mw: 400000.0                # 400k € per MW capacity
     activation_cost_eur: 250000.0             # Fixed cost for installation
     lifetime_years: 15.0                      # Economic lifetime

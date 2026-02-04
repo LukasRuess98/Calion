@@ -1,0 +1,27 @@
+# =============================================================================
+# PRESET: Heat Pump Investment Study
+# =============================================================================
+# Analyze optimal heat pump sizing using WRG sources
+# - Full year 2023
+# - 4 heat pumps with WRG sources
+# - No storage (isolate HP effects)
+#
+# Usage: python -m energis.run configs/presets/hp_optimization.yaml
+# =============================================================================
+
+_extends:
+  - ../00_base/solver.yaml
+  - ../00_base/costs.yaml
+  - ../00_base/grid.yaml
+  - ../01_tech/fuels.yaml
+  - ../01_tech/generators.yaml
+  - ../01_tech/heat_pumps.yaml
+  - ../02_site/stadtbach/data_source.yaml
+  - ../02_site/stadtbach/HP_only.yaml
+  - ../03_systems/with_hp.yaml
+  - ../04_scenarios/full_year_2023.yaml
+
+# Lower HP activation cost to encourage investment
+heat_pumps:
+  investment_defaults:
+    activation_cost_eur: 100000.0             # Lower for study

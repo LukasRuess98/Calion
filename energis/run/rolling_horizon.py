@@ -2267,8 +2267,8 @@ def _solve_scenario(
         try:
             opt = pyo.SolverFactory(solver_name)
         except Exception:  # pragma: no cover - solver fallback
-            solver_used = "glpk"
-            opt = pyo.SolverFactory("glpk")
+            solver_used = "cbc"
+            opt = pyo.SolverFactory("cbc")
 
         # Apply solver options if configured (CRITICAL FIX: prevents infinite runtime)
         run_cfg = cfg.get("run", {})
@@ -2284,6 +2284,7 @@ def _solve_scenario(
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+        model.display()
 
         # ====================================================================
         # EXPORT SOLVER SOLUTION AND THERMAL NETWORK RESULTS
