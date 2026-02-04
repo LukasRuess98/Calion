@@ -35,10 +35,10 @@ def main():
     # 1. Optimierungslauf durchführen
     # -------------------------------------------------------------------------
     print("\n[1] Starte Optimierungslauf...")
-    print("    Konfiguration: hp_optimization.yaml (Wärmepumpen-System)")
+    print("    Konfiguration: HP_only.yaml (Wärmepumpen-System)")
     print("    Zeitraum: Volles Jahr 2023")
 
-    config_paths = ["configs/presets/hp_optimization.yaml"]
+    config_paths = ["configs/presets/HP_only.yaml"]
 
     try:
         result = run_workflow(config_paths)
