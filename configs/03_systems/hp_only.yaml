@@ -1,0 +1,98 @@
+# =============================================================================
+# SYSTEM: HP ONLY (4x100MW Wärmepumpen + 500MWh Speicher)
+# =============================================================================
+# Nur Wärmepumpen und Speicher, keine konventionellen Generatoren
+# Alle Komponenten sind bereits installiert (build: true, feste Kapazitäten)
+# =============================================================================
+
+system:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WÄRMEPUMPEN (4x 100 MW, bereits installiert)
+  # ═══════════════════════════════════════════════════════════════════════════
+  heat_pumps:
+    - id: HP1
+      enabled: true
+      wrg_source_column: "WRG1_T_K"
+      wrg_capacity_column: "WRG1_Q_cap"
+      technical_limits:
+        capacity_min_mw: 100.0    # Fix auf 100 MW
+        capacity_max_mw: 100.0    # Fix auf 100 MW
+      defaults:
+        capacity_mw: 100.0        # Installierte Kapazität
+        build: true               # Bereits installiert
+      costs:
+        capex_eur_per_mw: 0.0     # Keine CAPEX (bereits installiert)
+        activation_cost_eur: 0.0
+        lifetime_years: 15
+
+    - id: HP2
+      enabled: true
+      wrg_source_column: "WRG2_T_K"
+      wrg_capacity_column: "WRG2_Q_cap"
+      technical_limits:
+        capacity_min_mw: 100.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 100.0
+        build: true
+      costs:
+        capex_eur_per_mw: 0.0
+        activation_cost_eur: 0.0
+        lifetime_years: 15
+
+    - id: HP3
+      enabled: true
+      wrg_source_column: "WRG3_T_K"
+      wrg_capacity_column: "WRG3_Q_cap"
+      technical_limits:
+        capacity_min_mw: 100.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 100.0
+        build: true
+      costs:
+        capex_eur_per_mw: 0.0
+        activation_cost_eur: 0.0
+        lifetime_years: 15
+
+    - id: HP4
+      enabled: true
+      wrg_source_column: "WRG4_T_K"
+      wrg_capacity_column: "WRG4_Q_cap"
+      technical_limits:
+        capacity_min_mw: 100.0
+        capacity_max_mw: 100.0
+      defaults:
+        capacity_mw: 100.0
+        build: true
+      costs:
+        capex_eur_per_mw: 0.0
+        activation_cost_eur: 0.0
+        lifetime_years: 15
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # THERMISCHER SPEICHER (500 MWh, bereits installiert)
+  # ═══════════════════════════════════════════════════════════════════════════
+  storage:
+    enabled: true
+    soc0_mwh: 250.0              # Startzustand: 50% gefüllt
+    technical_limits:
+      energy_min_mwh: 500.0      # Fix auf 500 MWh
+      energy_max_mwh: 500.0      # Fix auf 500 MWh
+      power_min_mw: 100.0        # Lade-/Entladeleistung
+      power_max_mw: 100.0
+    defaults:
+      energy_mwh: 500.0          # Installierte Kapazität
+      power_mw: 100.0            # Lade-/Entladeleistung
+      build: true                # Bereits installiert
+    costs:
+      energy_capex_eur_per_mwh: 0.0   # Keine CAPEX (bereits installiert)
+      power_capex_eur_per_mw: 0.0
+      activation_cost_eur: 0.0
+      lifetime_years: 20
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KEIN THERMISCHES NETZWERK
+  # ═══════════════════════════════════════════════════════════════════════════
+  thermal_network:
+    enabled: false
