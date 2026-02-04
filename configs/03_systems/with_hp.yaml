@@ -1,106 +1,67 @@
 # =============================================================================
-# SYSTEM: WITH HEAT PUMPS
+# SYSTEM: WITH_HP
 # =============================================================================
-# Existing generators + 4 heat pumps using WRG sources
-# No storage in this configuration
+# Hybrid-System: Bestands-Generatoren + Wärmepumpen (ohne Speicher)
 #
-# NOTE: This file defines WHAT is in the system and technical limits.
-# The scenario config (04_scenarios) defines WHAT gets optimized.
+# HIER DEFINIERT (System-spezifisch):
+#   - Welche Komponenten aktiv sind (enabled)
+#   - Konkrete Kapazitäten (capacity_mw)
+#   - WRG-Spaltenzuordnungen
+#
+# NICHT HIER:
+#   - COP-Tabellen, Effizienzen → 01_tech/heat_pumps.yaml
+#   - Bestands-Generatoren → 02_site/stadtbach/assets.yaml
+#   - Zeitraum → 04_scenarios/
 # =============================================================================
 
 system:
-  # Heat pumps with WRG (Waste Heat Recovery) sources
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WÄRMEPUMPEN
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4 Wärmepumpen mit je 50 MW (gesamt: 200 MW thermisch)
+  # Diese können zusammen mit den Bestands-Generatoren betrieben werden
+  # ───────────────────────────────────────────────────────────────────────────
   heat_pumps:
     - id: HP1
       enabled: true
+      type: standard
       wrg_source_column: "WRG1_T_K"
       wrg_capacity_column: "WRG1_Q_cap"
-      technical_limits:
-        capacity_min_mw: 5.0
-        capacity_max_mw: 100.0
-      defaults:
-        capacity_mw: 50.0
-        build: true
-      costs:
-        capex_eur_per_mw: 400000.0
-        activation_cost_eur: 250000.0
-        lifetime_years: 15
+      capacity_mw: 50.0
+      build: true
 
     - id: HP2
       enabled: true
+      type: standard
       wrg_source_column: "WRG2_T_K"
       wrg_capacity_column: "WRG2_Q_cap"
-      technical_limits:
-        capacity_min_mw: 5.0
-        capacity_max_mw: 100.0
-      defaults:
-        capacity_mw: 50.0
-        build: true
-      costs:
-        capex_eur_per_mw: 400000.0
-        activation_cost_eur: 250000.0
-        lifetime_years: 15
+      capacity_mw: 50.0
+      build: true
 
     - id: HP3
       enabled: true
+      type: standard
       wrg_source_column: "WRG3_T_K"
       wrg_capacity_column: "WRG3_Q_cap"
-      technical_limits:
-        capacity_min_mw: 5.0
-        capacity_max_mw: 100.0
-      defaults:
-        capacity_mw: 50.0
-        build: true
-      costs:
-        capex_eur_per_mw: 400000.0
-        activation_cost_eur: 250000.0
-        lifetime_years: 15
+      capacity_mw: 50.0
+      build: true
 
     - id: HP4
       enabled: true
+      type: standard
       wrg_source_column: "WRG4_T_K"
       wrg_capacity_column: "WRG4_Q_cap"
-      technical_limits:
-        capacity_min_mw: 5.0
-        capacity_max_mw: 100.0
-      defaults:
-        capacity_mw: 50.0
-        build: true
-      costs:
-        capex_eur_per_mw: 400000.0
-        activation_cost_eur: 250000.0
-        lifetime_years: 15
+      capacity_mw: 50.0
+      build: true
 
-  # No storage in this system configuration
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SPEICHER (deaktiviert in diesem System)
+  # ═══════════════════════════════════════════════════════════════════════════
   storage:
     enabled: false
 
-  # No thermal network in HP-only system
   # ═══════════════════════════════════════════════════════════════════════════
-  # THERMAL NETWORK
+  # THERMISCHES NETZWERK (deaktiviert)
   # ═══════════════════════════════════════════════════════════════════════════
   thermal_network:
     enabled: false
-    brownfield_mode: true
-
-    parameters:
-      supply_temp_nominal_c: 120
-      return_temp_nominal_c: 55
-      ground_temp_default_c: 10
-
-      cp_water_kj_per_kg_k: 4.186
-      rho_water_kg_per_m3: 983
-      max_velocity_m_s: 2.5
-      brownfield_temp_drop_per_pipe_c: 1.0
-      network_Q_loss_bounds_mw: [0, 50]
-      default_pipe_demand_fraction: 0.2
-
-      # NEU:
-      brownfield_loss_model: demand_proportional
-      brownfield_loss_ref_heat_mw: 150.0    # Beispiel: Design-Peak-Last deines Netzes in MW
-    # Cost parameters (for greenfield/investment optimization)
-    costs:
-      pipe_capex_eur_per_m: 500.0           # Average pipe installation cost
-      pump_capex_eur_per_kw: 1000.0         # Pump investment cost
-      heat_loss_cost_eur_per_mwh: 50.0      # Penalty for network losses
-      lifetime_years: 40

@@ -1,23 +1,61 @@
 # =============================================================================
-# PRESET: HP Only (4x100MW Wärmepumpen + 500MWh Speicher)
+# PRESET: HP_ONLY
 # =============================================================================
-# Rein elektrisches Wärmesystem ohne konventionelle Generatoren
-# - 4 Wärmepumpen mit je 100 MW (bereits installiert)
-# - 1 thermischer Speicher mit 500 MWh (bereits installiert)
-# - Keine CHP, Kessel oder andere Generatoren
+# Rein elektrisches Wärmesystem: Nur Wärmepumpen + Speicher
 #
-# Usage: python -m energis.run configs/presets/HP_only.yaml
+# Komponenten:
+#   - 4× 200 MW Wärmepumpen (800 MW gesamt)
+#   - 1× 1000 MWh / 200 MW Thermischer Speicher
+#   - Keine konventionellen Generatoren (CHP, Kessel, etc.)
+#
+# Verwendung:
+#   python -m energis.run configs/presets/HP_only.yaml
+#
+# Für CO2-Analyse:
+#   python examples/co2_optimization_analysis.py
 # =============================================================================
 
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ KONFIGURATIONSHIERARCHIE (Reihenfolge wichtig!)                          │
+# │ Spätere Dateien überschreiben frühere bei Konflikten                     │
+# └───────────────────────────────────────────────────────────────────────────┘
 _extends:
-  - ../00_base/solver.yaml
-  - ../00_base/costs.yaml
-  - ../00_base/grid.yaml
-  - ../01_tech/fuels.yaml
-  - ../01_tech/generators.yaml
-  - ../01_tech/heat_pumps.yaml
-  - ../01_tech/storage.yaml
-  - ../02_site/stadtbach/data_source.yaml
-  - ../02_site/stadtbach/HP_only.yaml
-  - ../03_systems/hp_only.yaml
-  - ../04_scenarios/full_year_2023.yaml
+  # ─────────────────────────────────────────────────────────────────────────
+  # EBENE 0: Basis-Einstellungen
+  # ─────────────────────────────────────────────────────────────────────────
+  - ../00_base/solver.yaml              # Solver (GLPK/CBC), Zeitlimit
+  - ../00_base/costs.yaml               # CO2-Preis, Kostenparameter
+  - ../00_base/grid.yaml                # Netzanschluss, Import/Export Limits
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EBENE 1: Technologie-Defaults
+  # ─────────────────────────────────────────────────────────────────────────
+  - ../01_tech/fuels.yaml               # Brennstoffpreise
+  - ../01_tech/generators.yaml          # Generator-Technologien
+  - ../01_tech/heat_pumps.yaml          # COP-Tabellen, WP-Effizienz
+  - ../01_tech/storage.yaml             # Speicher-Effizienz, Verluste
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EBENE 2: Standort-Daten
+  # ─────────────────────────────────────────────────────────────────────────
+  - ../02_site/stadtbach/data_source.yaml   # Excel-Pfad, Spalten-Mapping
+  - ../02_site/stadtbach/HP_only.yaml       # Generatoren DEAKTIVIERT
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EBENE 3: System-Konfiguration (konkrete Größen)
+  # ─────────────────────────────────────────────────────────────────────────
+  - ../03_systems/hp_only.yaml          # 4×200MW WP + 1000MWh Speicher
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # EBENE 4: Szenario (Zeitraum)
+  # ─────────────────────────────────────────────────────────────────────────
+  - ../04_scenarios/full_year_2023.yaml # Volles Jahr 2023, stündlich
+
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ LOKALE OVERRIDES (optional)                                              │
+# │ Hier können Werte aus den _extends-Dateien überschrieben werden          │
+# └───────────────────────────────────────────────────────────────────────────┘
+# Beispiel: Speicher-Terminal-Policy ändern
+# scenario:
+#   storage:
+#     terminal_state: free

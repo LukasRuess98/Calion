@@ -1,57 +1,60 @@
 # =============================================================================
-# THERMAL STORAGE TECHNOLOGY DEFAULTS
+# THERMAL STORAGE - TECHNOLOGIE-PARAMETER
 # =============================================================================
-# Investment parameters and technical specifications for thermal energy storage
+# Diese Datei definiert NUR technologische Eigenschaften des Speichers.
+# Konkrete Größen (energy_mwh, power_mw) gehören in 03_systems/*.yaml
+#
+# HIER DEFINIERT:
+#   - Effizienz (Laden/Entladen)
+#   - Verlustrate
+#   - CAPEX-Raten für Investitionsrechnung
+#   - Technische Grenzen (für Optimierung)
+#
+# NICHT HIER:
+#   - Konkrete Kapazitäten → 03_systems/
+#   - Anfangszustand (soc0) → 03_systems/
+#   - Terminal-Policy → 04_scenarios/
 # =============================================================================
 
 storage:
-  # Investment optimization defaults
-  investment_defaults:
-    enabled: true
-    energy_capacity_min_mwh: 10.0             # Minimum 10 MWh if built
-    energy_capacity_max_mwh: 10000.0          # Maximum 10 GWh
-    power_capacity_min_mw: 1.0                # Minimum 1 MW power
-    power_capacity_max_mw: 1000.0             # Maximum 1 GW power
-    energy_capex_eur_per_mwh: 5000.0          # 5k € per MWh capacity
-    power_capex_eur_per_mw: 1.0               # 1 € per MW (negligible)
-    activation_cost_eur: 20000.0              # Fixed cost for installation
-    lifetime_years: 20.0                      # Economic lifetime
-    tie_breaker_eur_per_mwh: 0.000000005      # Tiny cost to break ties
+  # ═══════════════════════════════════════════════════════════════════════════
+  # PHYSIKALISCHE EIGENSCHAFTEN
+  # ═══════════════════════════════════════════════════════════════════════════
+  efficiency:
+    charge: 0.95                    # Lade-Effizienz (95%)
+    discharge: 0.95                 # Entlade-Effizienz (95%)
 
-  # Technical defaults (if not specified in system config)
-  defaults:
-    min_energy_mwh: 0.0                       # Can discharge to empty
-    max_energy_mwh: 5000.0                    # Default max capacity
-    max_power_mw: 200.0                       # Default max power
-    eff_charge: 0.95                          # Charging efficiency
-    eff_discharge: 0.95                       # Discharging efficiency
-    hourly_loss: 0.001                        # 0.1% per hour heat loss
+  losses:
+    hourly_rate: 0.001              # Wärmeverlust pro Stunde (0.1%/h)
+    # Bei 1000 MWh: ~1 MWh Verlust pro Stunde
 
-  # Terminal constraint defaults for Rolling Horizon
-  # These values are used when terminal_policy is "value" or "soft"
-  terminal_defaults:
-    # Salvage value for stored energy at end of horizon [EUR/MWh]
-    # Used with terminal_policy: "value"
-    # Higher value = optimizer prefers to keep storage full at end
-    # Default: Average electricity price (estimated heat value)
-    salvage_price_eur_mwh: null               # null = use avg electricity price
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INVESTITIONS-PARAMETER (für Kapazitätsoptimierung)
+  # ═══════════════════════════════════════════════════════════════════════════
+  investment:
+    # CAPEX-Raten (werden nur verwendet wenn build optimiert wird)
+    capex_energy_eur_per_mwh: 5000.0    # 5.000 €/MWh Speicherkapazität
+    capex_power_eur_per_mw: 50000.0     # 50.000 €/MW Lade-/Entladeleistung
+    activation_cost_eur: 20000.0         # Fixkosten für Installation
+    lifetime_years: 20.0                 # Wirtschaftliche Lebensdauer
 
-    # Penalty for deviation from terminal target [EUR/MWh]
-    # Used with terminal_policy: "soft"
-    # Higher penalty = stronger incentive to reach target (but still feasible)
-    # Default: 2x salvage price
-    soft_penalty_eur_mwh: null                # null = 2x salvage price
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TECHNISCHE GRENZEN (für Investitionsoptimierung)
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Diese Grenzen gelten nur wenn capacity optimiert wird (nicht fix vorgegeben)
+  bounds:
+    energy_min_mwh: 10.0            # Mindestgröße wenn gebaut
+    energy_max_mwh: 10000.0         # Maximale Größe (10 GWh)
+    power_min_mw: 1.0               # Mindestleistung
+    power_max_mw: 1000.0            # Maximale Leistung (1 GW)
 
-    # Value function type for terminal_policy: "value"
-    # Options:
-    # - "constant": V(SOC) = price * SOC (linear, current default)
-    # - "diminishing": V(SOC) = price * SOC * (1 - decay * SOC/SOC_max)
-    #                  Models diminishing returns - full storage is less valuable
-    value_function_type: diminishing
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TERMINAL-WERT PARAMETER (für Rolling Horizon)
+  # ═══════════════════════════════════════════════════════════════════════════
+  terminal_value:
+    # Salvage-Preis: Wert der gespeicherten Energie am Horizont-Ende
+    salvage_price_eur_mwh: null     # null = durchschnittlicher Strompreis
 
-    # Decay factor for diminishing value function [0.0 - 1.0]
-    # 0.0 = constant value (same as "constant" type)
-    # 0.3 = at 100% SOC, value is 70% of base price (recommended)
-    # 0.5 = at 100% SOC, value is 50% of base price
-    # 1.0 = at 100% SOC, value is 0 (extreme diminishing)
-    diminishing_decay: 0.3
+    # Wertfunktion für Endzustand
+    value_function: diminishing     # "constant" oder "diminishing"
+    diminishing_decay: 0.3          # Bei 100% SOC: 70% des Basiswerts

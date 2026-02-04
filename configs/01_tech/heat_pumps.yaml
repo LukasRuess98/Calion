@@ -1,75 +1,93 @@
 # =============================================================================
-# HEAT PUMP TECHNOLOGY DEFAULTS
+# WÄRMEPUMPEN - TECHNOLOGIE-PARAMETER
 # =============================================================================
-# COP calculation, investment parameters, and technical constraints
+# Diese Datei definiert NUR technologische Eigenschaften von Wärmepumpen.
+# Konkrete Kapazitäten und WRG-Spaltenzuordnungen gehören in 03_systems/*.yaml
+#
+# HIER DEFINIERT:
+#   - COP-Berechnungsparameter und Lookup-Tabellen
+#   - Effizienz-Parameter (eta, FQ, min_load)
+#   - CAPEX-Raten für Investitionsrechnung
+#
+# NICHT HIER:
+#   - Konkrete Kapazitäten (capacity_mw) → 03_systems/
+#   - WRG-Spaltennamen → 03_systems/
+#   - enabled/build Status → 03_systems/
 # =============================================================================
 
 heat_pumps:
-  # COP (Coefficient of Performance) calculation parameters
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COP-BERECHNUNG
+  # ═══════════════════════════════════════════════════════════════════════════
   cop:
-    deltaT_K: 20.0                            # Temperature lift (K)
-    deltaTpp_K: 5.0                           # Pinch point temperature difference
-    cop_fallback: 2.5                         # Fallback COP (conservative)
-    cop_min: 1.5                              # Minimum realistic COP
-    cop_max: 6.0                              # Maximum realistic COP
+    # Fallback-Werte (wenn keine Tabelle oder Spalte verfügbar)
+    cop_fallback: 2.5               # Konservativer Fallback-COP
+    cop_min: 1.5                    # Physikalisches Minimum
+    cop_max: 6.0                    # Realistisches Maximum
 
-    # Heat sink (district heating network)
+    # Temperatur-Parameter für analytische COP-Berechnung
+    deltaT_K: 20.0                  # Temperaturhub (Kelvin)
+    deltaTpp_K: 5.0                 # Pinch-Point Temperaturdifferenz
+
+    # Senke (Fernwärmenetz) - Default-Temperaturen
     sink_defaults:
-      Tsink_out_K: 363.15                     # 90°C supply temperature
-      Tsink_in_K: 343.15                      # 70°C return temperature
+      Tsink_out_K: 363.15           # 90°C Vorlauftemperatur
+      Tsink_in_K: 343.15            # 70°C Rücklauftemperatur
 
-    # =========================================================================
-    # COP LOOKUP TABLES
-    # =========================================================================
-    # 2D interpolation table for realistic COP calculation
-    # x-axis: Source temperature (WRG) in Kelvin
-    # y-axis: Sink temperature (supply) in Kelvin
-    # Values based on industrial heat pump manufacturer data (50% Carnot efficiency)
-    #
-    # Formula: COP_real ≈ 0.50 × Carnot_COP = 0.50 × T_sink / (T_sink - T_source)
-    # =========================================================================
+    # ─────────────────────────────────────────────────────────────────────────
+    # COP LOOKUP-TABELLE
+    # ─────────────────────────────────────────────────────────────────────────
+    # 2D-Interpolation basierend auf Hersteller-Daten (50% Carnot-Effizienz)
+    # x-Achse: Quelltemperatur (WRG/Abwärme) in Kelvin
+    # y-Achse: Senkentemperatur (Vorlauf) in Kelvin
     tables:
       standard:
-        # Source temperatures (WRG/Abwärme) in Kelvin
+        # Quelltemperaturen in Kelvin
         # 273K=0°C, 283K=10°C, 293K=20°C, 303K=30°C, 313K=40°C, 323K=50°C
         x: [273.15, 283.15, 293.15, 303.15, 313.15, 323.15]
 
-        # Sink temperatures (Fernwärme-Vorlauf) in Kelvin
+        # Senkentemperaturen in Kelvin
         # 343K=70°C, 353K=80°C, 363K=90°C, 373K=100°C
         y: [343.15, 353.15, 363.15, 373.15]
 
-        # COP values matrix [y_rows][x_columns]
-        # Each row = different sink temperature
-        # Each column = different source temperature
-        #
-        # Row 1: Sink 70°C (343K) - lower lift = higher COP
-        # Row 2: Sink 80°C (353K)
-        # Row 3: Sink 90°C (363K) - typical district heating
-        # Row 4: Sink 100°C (373K) - high temp = lower COP
+        # COP-Werte [Zeilen=Senke, Spalten=Quelle]
+        # Formel: COP ≈ 0.50 × T_sink / (T_sink - T_source)
         values:
-          - [2.45, 2.86, 3.43, 4.29, 5.72, 8.58]   # T_sink = 70°C
-          - [2.21, 2.52, 2.94, 3.53, 4.41, 5.88]   # T_sink = 80°C
-          - [2.02, 2.27, 2.59, 3.02, 3.63, 4.54]   # T_sink = 90°C
-          - [1.87, 2.07, 2.33, 2.67, 3.11, 3.73]   # T_sink = 100°C
+          - [2.45, 2.86, 3.43, 4.29, 5.72, 8.58]   # Senke 70°C
+          - [2.21, 2.52, 2.94, 3.53, 4.41, 5.88]   # Senke 80°C
+          - [2.02, 2.27, 2.59, 3.02, 3.63, 4.54]   # Senke 90°C (Standard FW)
+          - [1.87, 2.07, 2.33, 2.67, 3.11, 3.73]   # Senke 100°C
 
-        clamp: true                               # Clamp values outside table range
-        x_column: null                            # Use wrg_source_column from HP config
-        y_column: null                            # Use sink_defaults.Tsink_out_K
-        y_default: 363.15                         # Default sink temp if not specified
+        clamp: true                 # Werte außerhalb des Bereichs begrenzen
+        x_column: null              # Verwendet wrg_source_column aus System-Config
+        y_column: null              # Verwendet sink_defaults.Tsink_out_K
+        y_default: 363.15           # Default: 90°C Vorlauf
 
-  # Investment optimization defaults
-  investment_defaults:
-    enabled: true
-    capacity_min_mw: 5.0                      # Minimum 5 MW if built
-    capacity_max_mw: 1000.0                    # Maximum 100 MW
-    capex_eur_per_mw: 400000.0                # 400k € per MW capacity
-    activation_cost_eur: 250000.0             # Fixed cost for installation
-    lifetime_years: 15.0                      # Economic lifetime
-    tie_breaker_eur_per_mw: 0.00005           # Small cost to break ties
-
-  # Technical performance types
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WP-TYPEN (Effizienz-Parameter)
+  # ═══════════════════════════════════════════════════════════════════════════
   types:
     standard:
-      eta: 0.75                               # Carnot efficiency (75%)
-      FQ: 0.10                                # Heat loss factor
-      min_load: 0.0                          # 30% minimum load
+      eta: 0.50                     # Carnot-Effizienz (50%)
+      FQ: 0.10                      # Wärmeverlustfaktor
+      min_load: 0.30                # Minimale Teillast (30%)
+
+    high_efficiency:
+      eta: 0.55                     # Hocheffizienz (55%)
+      FQ: 0.08
+      min_load: 0.25
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # INVESTITIONS-PARAMETER (für Kapazitätsoptimierung)
+  # ═══════════════════════════════════════════════════════════════════════════
+  investment:
+    capex_eur_per_mw: 400000.0      # 400.000 €/MW thermische Leistung
+    activation_cost_eur: 250000.0   # Fixkosten für Installation
+    lifetime_years: 15.0            # Wirtschaftliche Lebensdauer
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TECHNISCHE GRENZEN (für Investitionsoptimierung)
+  # ═══════════════════════════════════════════════════════════════════════════
+  bounds:
+    capacity_min_mw: 5.0            # Mindestgröße wenn gebaut
+    capacity_max_mw: 500.0          # Maximale Größe pro WP

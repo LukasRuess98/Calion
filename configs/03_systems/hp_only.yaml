@@ -1,98 +1,81 @@
 # =============================================================================
-# SYSTEM: HP ONLY (4x100MW Wärmepumpen + 500MWh Speicher)
+# SYSTEM: HP_ONLY
 # =============================================================================
-# Nur Wärmepumpen und Speicher, keine konventionellen Generatoren
-# Alle Komponenten sind bereits installiert (build: true, feste Kapazitäten)
+# Rein elektrisches Wärmesystem: Nur Wärmepumpen + Speicher
+#
+# HIER DEFINIERT (System-spezifisch):
+#   - Welche Komponenten aktiv sind (enabled)
+#   - Konkrete Kapazitäten (capacity_mw, energy_mwh)
+#   - WRG-Spaltenzuordnungen
+#   - Anfangszustand Speicher (soc0_mwh)
+#
+# NICHT HIER:
+#   - COP-Tabellen, Effizienzen → 01_tech/heat_pumps.yaml
+#   - CAPEX-Raten (außer Override) → 01_tech/
+#   - Zeitraum, Terminal-Policy → 04_scenarios/
 # =============================================================================
 
 system:
   # ═══════════════════════════════════════════════════════════════════════════
-  # WÄRMEPUMPEN (4x 100 MW, bereits installiert)
+  # WÄRMEPUMPEN
   # ═══════════════════════════════════════════════════════════════════════════
+  # 4 Wärmepumpen mit je 200 MW (gesamt: 800 MW thermisch)
+  # WRG = Wärmerückgewinnung aus Abwärmequellen
+  #
+  # wrg_source_column: Interne Spalte für Quelltemperatur (vom Loader erstellt)
+  # wrg_capacity_column: Interne Spalte für verfügbare Abwärme
+  # ───────────────────────────────────────────────────────────────────────────
   heat_pumps:
     - id: HP1
       enabled: true
-      wrg_source_column: "WRG1_T_K"
-      wrg_capacity_column: "WRG1_Q_cap"
-      technical_limits:
-        capacity_min_mw: 200.0    # Fix auf 100 MW
-        capacity_max_mw: 200.0    # Fix auf 100 MW
-      defaults:
-        capacity_mw: 200.0        # Installierte Kapazität
-        build: true               # Bereits installiert
-      costs:
-        capex_eur_per_mw: 0.0     # Keine CAPEX (bereits installiert)
-        activation_cost_eur: 0.0
-        lifetime_years: 15
+      type: standard                        # Typ aus 01_tech/heat_pumps.yaml
+      wrg_source_column: "WRG1_T_K"         # Quelltemperatur [Kelvin]
+      wrg_capacity_column: "WRG1_Q_cap"     # Verfügbare Abwärme [MW]
+      capacity_mw: 200.0                    # Installierte Kapazität [MW_th]
+      build: true                           # Bereits installiert (keine CAPEX)
 
     - id: HP2
       enabled: true
+      type: standard
       wrg_source_column: "WRG2_T_K"
       wrg_capacity_column: "WRG2_Q_cap"
-      technical_limits:
-        capacity_min_mw: 200.0
-        capacity_max_mw: 200.0
-      defaults:
-        capacity_mw: 200.0
-        build: true
-      costs:
-        capex_eur_per_mw: 0.0
-        activation_cost_eur: 0.0
-        lifetime_years: 15
+      capacity_mw: 200.0
+      build: true
 
     - id: HP3
       enabled: true
+      type: standard
       wrg_source_column: "WRG3_T_K"
       wrg_capacity_column: "WRG3_Q_cap"
-      technical_limits:
-        capacity_min_mw: 200.0
-        capacity_max_mw: 200.0
-      defaults:
-        capacity_mw: 200.0
-        build: true
-      costs:
-        capex_eur_per_mw: 0.0
-        activation_cost_eur: 0.0
-        lifetime_years: 15
+      capacity_mw: 200.0
+      build: true
 
     - id: HP4
       enabled: true
+      type: standard
       wrg_source_column: "WRG4_T_K"
       wrg_capacity_column: "WRG4_Q_cap"
-      technical_limits:
-        capacity_min_mw: 200.0
-        capacity_max_mw: 200.0
-      defaults:
-        capacity_mw: 200.0
-        build: true
-      costs:
-        capex_eur_per_mw: 0.0
-        activation_cost_eur: 0.0
-        lifetime_years: 15
+      capacity_mw: 200.0
+      build: true
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # THERMISCHER SPEICHER (500 MWh, bereits installiert)
+  # THERMISCHER SPEICHER
   # ═══════════════════════════════════════════════════════════════════════════
+  # Druckloser Heißwasserspeicher
+  # Effizienz und Verlustrate kommen aus 01_tech/storage.yaml
+  # ───────────────────────────────────────────────────────────────────────────
   storage:
     enabled: true
-    soc0_mwh: 0.0              # Startzustand: 50% gefüllt
-    technical_limits:
-      energy_min_mwh: 000.0      # Fix auf 500 MWh
-      energy_max_mwh: 1000.0      # Fix auf 500 MWh
-      power_min_mw: 00.0        # Lade-/Entladeleistung
-      power_max_mw: 100.0
-    defaults:
-      energy_mwh: 1000.0          # Installierte Kapazität
-      power_mw: 500.0            # Lade-/Entladeleistung
-      build: true                # Bereits installiert
-    costs:
-      energy_capex_eur_per_mwh: 0.0   # Keine CAPEX (bereits installiert)
-      power_capex_eur_per_mw: 0.0
-      activation_cost_eur: 0.0
-      lifetime_years: 20
+    energy_mwh: 1000.0                      # Speicherkapazität [MWh]
+    power_mw: 200.0                         # Max. Lade-/Entladeleistung [MW]
+    soc0_mwh: 500.0                         # Anfangszustand: 50% gefüllt
+    build: true                             # Bereits installiert (keine CAPEX)
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # KEIN THERMISCHES NETZWERK
+  # DEAKTIVIERTE KOMPONENTEN
   # ═══════════════════════════════════════════════════════════════════════════
   thermal_network:
     enabled: false
+
+  # Alle konventionellen Generatoren werden über das Preset deaktiviert
+  # (siehe presets/HP_only.yaml → extends 02_site/stadtbach/HP_only.yaml)
