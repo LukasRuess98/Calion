@@ -60,22 +60,32 @@ def main():
     print("\n[2] Extrahiere Ergebnisse...")
 
     # Hole das Szenario-Ergebnis (PF oder RH)
-    if hasattr(result, 'pf') and result.pf is not None:
-        scenario = result.pf
+    if hasattr(result, 'pf_result') and result.pf_result is not None:
+        scenario = result.pf_result
         print("    → Verwende Perfect Foresight Ergebnis")
-    elif hasattr(result, 'rh') and result.rh is not None:
-        scenario = result.rh
+    elif hasattr(result, 'rh_result') and result.rh_result is not None:
+        scenario = result.rh_result
         print("    → Verwende Rolling Horizon Ergebnis")
+    elif hasattr(result, 'mpc_result') and result.mpc_result is not None:
+        scenario = result.mpc_result
+        print("    → Verwende MPC Ergebnis")
     else:
         print("    ✗ Kein gültiges Szenario-Ergebnis gefunden")
+        print(f"    Verfügbare Attribute: {[a for a in dir(result) if not a.startswith('_')]}")
         return
 
     series = scenario.series
     table = scenario.table
 
-    # Zeitstempel
+    # Zeitstempel und Zeitschrittdauer
     timestamps = table.index
-    dt_h = result.dt_h if hasattr(result, 'dt_h') else 1.0
+    # dt_h kann in config oder direkt im result sein
+    if hasattr(result, 'dt_h'):
+        dt_h = result.dt_h
+    elif hasattr(result, 'config') and 'run' in result.config:
+        dt_h = result.config['run'].get('dt_h', 1.0)
+    else:
+        dt_h = 1.0
 
     # Strombezug vom Netz (P_buy)
     p_buy_key = None
