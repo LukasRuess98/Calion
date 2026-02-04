@@ -42,8 +42,8 @@ system:
     # Other Heat Sources
     # =========================================================================
     p2h:
-      enabled: true
-      cap_th_mw: 10.0
+      enabled: false
+      cap_th_mw: 0.0
       description: "Elektrodenkessel - Power-to-Heat"
 
     ava:
