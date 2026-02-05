@@ -1,18 +1,13 @@
 # =============================================================================
 # SOLVER CONFIGURATION
 # =============================================================================
-# Gurobi solver settings for optimization
+# Solver settings for optimization
+# Available solvers: glpk (open-source), cbc (open-source), gurobi (commercial)
 # =============================================================================
 
 run:
   dt_h: 1.0
-  solver: gurobi
+  solver: cbc            # CBC is faster than GLPK for MILP problems
 
-  solver_options:
-    MIPGap: 0.02        # 2% MIP Gap (faster convergence)
-    TimeLimit: 3600     # 1 hour maximum
-    Threads: 0          # Use all available CPU cores
-    MIPFocus: 1         # Focus on finding feasible solutions
-    Presolve: 2         # Aggressive presolve
-    Cuts: 2             # Aggressive cuts
-    LogToConsole: 0     # Suppress console output (0=off, 1=on)
+  # CBC options (leave empty for defaults)
+  solver_options: {}

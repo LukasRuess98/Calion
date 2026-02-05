@@ -36,23 +36,28 @@ def main():
     # -------------------------------------------------------------------------
     print("\n[1] Starte Optimierungslauf...")
     print("    Konfiguration: HP_only.yaml (Wärmepumpen-System)")
-    print("    Zeitraum: Volles Jahr 2023")
+    print("    Zeitraum: 1 Woche (Januar 2023)")
 
     config_paths = ["configs/presets/HP_only.yaml"]
+    # Override to use shorter time horizon for faster testing
+    overrides = {
+        "scenario": {
+            "horizon": {
+                "type": "date_range",
+                "start": "2023-01-01 00:00",
+                "end": "2023-01-07 23:00"  # 1 week for quick testing
+            }
+        }
+    }
 
     try:
-        result = run_workflow(config_paths)
+        result = run_workflow(config_paths, overrides)
         print("    ✓ Optimierung erfolgreich abgeschlossen")
     except Exception as e:
         print(f"    ✗ Fehler bei der Optimierung: {e}")
-        print("\n    Versuche Alternative: quick_test.yaml (1 Woche)")
-        config_paths = ["configs/presets/quick_test.yaml"]
-        try:
-            result = run_workflow(config_paths)
-            print("    ✓ Quick-Test erfolgreich abgeschlossen")
-        except Exception as e2:
-            print(f"    ✗ Auch Quick-Test fehlgeschlagen: {e2}")
-            return
+        import traceback
+        traceback.print_exc()
+        return
 
     # -------------------------------------------------------------------------
     # 2. Ergebnisse extrahieren

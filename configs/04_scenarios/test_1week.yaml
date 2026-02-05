@@ -37,11 +37,6 @@ scenario:
     end: "2023-01-07 23:00"
     enforce: false
 
-# Override solver settings for faster solving
-run:
-  solver_options:
-    TimeLimit: 600
-    LogToConsole: 1
-
 # NOTE: thermal_network config from system.thermal_network (03_systems/)
+# NOTE: Solver options (TimeLimit etc.) are configured in 00_base/solver.yaml
 # For quick tests, use a system config with thermal_network.enabled: false

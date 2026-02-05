@@ -5,7 +5,7 @@
 #
 # HIER DEFINIERT (System-spezifisch):
 #   - Welche Komponenten aktiv sind (enabled)
-#   - Konkrete Kapazitäten (capacity_mw, energy_mwh)
+#   - Konkrete Kapazitäten (max_th_mw, max_energy_mwh)
 #   - WRG-Spaltenzuordnungen
 #   - Anfangszustand Speicher (soc0_mwh)
 #
@@ -31,7 +31,7 @@ system:
       type: standard                        # Typ aus 01_tech/heat_pumps.yaml
       wrg_source_column: "WRG1_T_K"         # Quelltemperatur [Kelvin]
       wrg_capacity_column: "WRG1_Q_cap"     # Verfügbare Abwärme [MW]
-      capacity_mw: 200.0                    # Installierte Kapazität [MW_th]
+      max_th_mw: 200.0                      # Installierte Kapazität [MW_th]
       build: true                           # Bereits installiert (keine CAPEX)
 
     - id: HP2
@@ -39,7 +39,7 @@ system:
       type: standard
       wrg_source_column: "WRG2_T_K"
       wrg_capacity_column: "WRG2_Q_cap"
-      capacity_mw: 200.0
+      max_th_mw: 200.0
       build: true
 
     - id: HP3
@@ -47,7 +47,7 @@ system:
       type: standard
       wrg_source_column: "WRG3_T_K"
       wrg_capacity_column: "WRG3_Q_cap"
-      capacity_mw: 200.0
+      max_th_mw: 200.0
       build: true
 
     - id: HP4
@@ -55,7 +55,7 @@ system:
       type: standard
       wrg_source_column: "WRG4_T_K"
       wrg_capacity_column: "WRG4_Q_cap"
-      capacity_mw: 200.0
+      max_th_mw: 200.0
       build: true
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -66,8 +66,8 @@ system:
   # ───────────────────────────────────────────────────────────────────────────
   storage:
     enabled: true
-    energy_mwh: 1000.0                      # Speicherkapazität [MWh]
-    power_mw: 200.0                         # Max. Lade-/Entladeleistung [MW]
+    max_energy_mwh: 1000.0                  # Speicherkapazität [MWh]
+    max_power_mw: 200.0                     # Max. Lade-/Entladeleistung [MW]
     soc0_mwh: 500.0                         # Anfangszustand: 50% gefüllt
     build: true                             # Bereits installiert (keine CAPEX)
 

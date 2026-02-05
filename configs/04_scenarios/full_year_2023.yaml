@@ -36,9 +36,5 @@ scenario:
     end: "2023-12-31 23:00"
     enforce: false
 
-# Full solver time limit for complex optimization
-run:
-  solver_options:
-    TimeLimit: 7200
-
 # NOTE: thermal_network config from system.thermal_network (03_systems/)
+# NOTE: Solver options (TimeLimit etc.) are configured in 00_base/solver.yaml
