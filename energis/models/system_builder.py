@@ -25,6 +25,11 @@ from energis.utils.config_utils import (
     normalize_thermal_network_config,
 )
 from .cop_calculator import calculate_cop_series
+from .constraint_builder import (
+    add_bus_balance_constraints,
+    add_grid_market_constraints,
+    create_objective,
+)
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
@@ -985,44 +990,12 @@ def build_model(
     # ========================================
     # BUS BALANCE CONSTRAINTS
     # ========================================
+    add_bus_balance_constraints(m, el_in, el_out, ht_in, ht_out)
 
-    m.el_balance = pyo.Constraint(
-        m.t,
-        rule=lambda mm, t: mm.P_buy[t] + sum((f[t] for f in el_out), start=0) == sum((f[t] for f in el_in), start=0) + mm.P_sell[t],
-    )
-
-    # Heat balance with network losses
-    def heat_balance_rule(mm, t):
-        # Heat sources: generators, storage discharge
-        supply = sum((f[t] for f in ht_out), start=0)
-
-        # Heat sinks: storage charge
-        storage_charge = sum((f[t] for f in ht_in), start=0)
-
-        # Heat demand
-        demand = mm.heatd[t]
-        dump = mm.Q_dump[t]
-
-        # Add network losses if thermal network is enabled
-        if hasattr(mm, 'network_Q_loss_per_timestep'):
-            network_loss = mm.network_Q_loss_per_timestep[t]
-        else:
-            network_loss = 0
-
-        # Heat balance: supply = demand + dump + storage_charge + network_losses
-        # supply: generators + storage discharge (all positive)
-        # demand: heat consumption (positive)
-        # storage_charge: heat into storage (positive, consumes heat)
-        # network_loss: transmission losses (positive, consumes heat)
-        # dump: excess heat (positive, consumes heat)
-        return supply == demand + dump + storage_charge + network_loss
-
-    m.ht_balance = pyo.Constraint(m.t, rule=heat_balance_rule)
-
-    m.buy_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.grid_mode[t] * mm.M_GRID)
-    m.sell_gate = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= (1 - mm.grid_mode[t]) * mm.M_GRID)
-    m.buy_limit = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy[t] <= mm.max_import)
-    m.sell_limit = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_sell[t] <= mm.max_export)
+    # ========================================
+    # GRID MARKET CONSTRAINTS
+    # ========================================
+    add_grid_market_constraints(m)
 
     base_prices = [float(table["strompreis_EUR_MWh"][i]) for i in range(T)]
     if include_gridcost:
@@ -1084,38 +1057,33 @@ def build_model(
     # Zielfunktion: Verwende neue CO₂-Kosten-Summe
     co2_term = co2_cost_total if include_co2 else 0
 
-    m.P_buy_peak = pyo.Var(domain=pyo.NonNegativeReals)
-    m.peak_con = pyo.Constraint(m.t, rule=lambda mm, t: mm.P_buy_peak >= mm.P_buy[t])
     demand_term = (m.demand_charge_y * m.year_frac * m.P_buy_peak) if include_demand else 0
 
+    # ========================================
+    # OBJECTIVE FUNCTION
+    # ========================================
     capex_total = sum(capex_terms) if capex_terms else 0
     activation_total = sum(activation_terms) if activation_terms else 0
     tie_break_total = sum(tie_breaker_terms) if tie_breaker_terms else 0
     storage_install_total = sum(storage_install_terms) if storage_install_terms else 0
 
-    m.capex_cost_expr = capex_total
-    m.activation_cost_expr = activation_total
-    m.tie_break_cost_expr = tie_break_total
-    m.storage_install_cost_expr = storage_install_total
-
     # Terminal value term (for value/soft terminal policies in Rolling Horizon)
-    # Note: Can't use "or 0" because Pyomo expressions can't be evaluated as bool
     terminal_value = getattr(m, 'terminal_value_term', None)
     if terminal_value is None:
         terminal_value = 0
 
-    m.obj = pyo.Objective(
-        expr=energy_cost
-        + dump_cost
-        + fuel_costs
-        + co2_term
-        + demand_term
-        + capex_total
-        + activation_total
-        + tie_break_total
-        + storage_install_total
-        + terminal_value,
-        sense=pyo.minimize,
+    create_objective(
+        m,
+        energy_cost=energy_cost,
+        dump_cost=dump_cost,
+        fuel_costs=fuel_costs,
+        co2_cost=co2_term,
+        demand_cost=demand_term,
+        capex_cost=capex_total,
+        activation_cost=activation_total,
+        tie_break_cost=tie_break_total,
+        storage_install_cost=storage_install_total,
+        terminal_value=terminal_value,
     )
     return m
 
