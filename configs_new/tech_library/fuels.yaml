@@ -1,0 +1,220 @@
+# =============================================================================
+# FUEL PROPERTIES LIBRARY
+# =============================================================================
+# Fuel properties, emission factors, and default prices
+# Prices can be overridden in scenario configs
+# =============================================================================
+
+fuels:
+  # ===========================================================================
+  # NATURAL GAS
+  # ===========================================================================
+  natural_gas:
+    description: "Natural gas (pipeline quality)"
+
+    # Energy content
+    heating_value:
+      lower_heating_value_mwh_per_nm3: 0.01003  # 10.03 kWh/Nm³
+      higher_heating_value_mwh_per_nm3: 0.01111  # 11.11 kWh/Nm³
+      use_lhv: true                              # Use LHV for efficiency calculations
+
+    # Default pricing (can be overridden in scenarios)
+    pricing:
+      default_price_eur_per_mwh: 40.0
+      price_volatility: high                    # Market volatility indicator
+      price_history_2020_2023:
+        "2020": 18.0
+        "2021": 28.0
+        "2022": 95.0                            # Energy crisis
+        "2023": 45.0
+
+    # Emission factors
+    emissions:
+      # Direct combustion emissions
+      co2_kg_per_mwh_lhv: 202.0                 # kg CO2 per MWh (LHV)
+      co2_kg_per_mwh_hhv: 182.0                 # kg CO2 per MWh (HHV)
+
+      # Other pollutants (depend on burner technology)
+      ch4_leakage_fraction: 0.001               # 0.1% methane leakage (upstream)
+      n2o_kg_per_mwh: 0.001                     # Negligible N2O
+
+      # Upstream emissions (extraction, transport)
+      upstream_co2_kg_per_mwh: 20.0             # ~10% extra
+
+      # Total lifecycle
+      total_lifecycle_co2_kg_per_mwh: 222.0     # Direct + upstream
+
+    # Physical properties
+    properties:
+      density_kg_per_nm3: 0.84
+      methane_content_fraction: 0.85            # ~85% CH4
+      energy_density_mwh_per_m3: 0.01003
+
+  # ===========================================================================
+  # BIOMASS (Wood chips/pellets)
+  # ===========================================================================
+  biomass:
+    description: "Wood chips and pellets (sustainable forestry)"
+
+    heating_value:
+      lower_heating_value_mwh_per_ton: 4.2      # ~4.2 MWh/ton (dry basis)
+      higher_heating_value_mwh_per_ton: 4.8
+      moisture_content_fraction: 0.30           # 30% moisture (typical)
+      use_lhv: true
+
+    pricing:
+      default_price_eur_per_mwh: 25.0           # Cheaper than gas
+      price_volatility: low
+      price_history_2020_2023:
+        "2020": 23.0
+        "2021": 24.0
+        "2022": 28.0                            # Slight increase
+        "2023": 26.0
+
+    emissions:
+      # Biogenic carbon (carbon neutral assumption)
+      co2_kg_per_mwh_lhv: 0.0                   # Carbon neutral (regrowth)
+      biogenic_co2_kg_per_mwh: 396.0            # Actual emissions (re-absorbed)
+
+      # Other pollutants
+      ch4_kg_per_mwh: 0.03                      # Higher than gas
+      n2o_kg_per_mwh: 0.004
+
+      # Particulates (depend on combustion technology)
+      pm10_kg_per_mwh: 0.15                     # Can be high without filters
+      pm25_kg_per_mwh: 0.08
+
+      # Upstream (harvesting, transport, processing)
+      upstream_fossil_co2_kg_per_mwh: 15.0      # Diesel for harvesting/transport
+
+      # Total lifecycle (only fossil portion)
+      total_lifecycle_co2_kg_per_mwh: 15.0
+
+    properties:
+      bulk_density_kg_per_m3: 250               # Wood chips
+      ash_content_fraction: 0.02                # 2% ash
+
+  # ===========================================================================
+  # WASTE HEAT (Industrial waste heat recovery)
+  # ===========================================================================
+  waste_heat:
+    description: "Industrial waste heat recovery (zero-emission)"
+
+    heating_value:
+      # No combustion - direct heat recovery
+      effective_energy_mwh_per_mwh: 1.0         # 1:1 recovery
+
+    pricing:
+      default_price_eur_per_mwh: 5.0            # Opportunity cost
+      price_volatility: low
+      # Often free or low-cost (avoid otherwise wasted heat)
+
+    emissions:
+      # No emissions (heat recovery, no combustion)
+      co2_kg_per_mwh_lhv: 0.0
+      ch4_kg_per_mwh: 0.0
+      n2o_kg_per_mwh: 0.0
+      pm10_kg_per_mwh: 0.0
+
+      # Upstream (heat exchanger, pumping)
+      upstream_fossil_co2_kg_per_mwh: 2.0       # Minimal (electricity for pumps)
+
+      total_lifecycle_co2_kg_per_mwh: 2.0
+
+    properties:
+      source_temperature_range_c: [40, 150]     # Typical waste heat temps
+      availability_factor: 0.85                 # Process-dependent
+
+  # ===========================================================================
+  # HEATING OIL (Backup fuel)
+  # ===========================================================================
+  heating_oil:
+    description: "Light heating oil / diesel (backup/peak load)"
+
+    heating_value:
+      lower_heating_value_mwh_per_liter: 0.00990  # ~9.9 kWh/L
+      higher_heating_value_mwh_per_liter: 0.01056  # ~10.56 kWh/L
+      density_kg_per_liter: 0.84
+      use_lhv: true
+
+    pricing:
+      default_price_eur_per_mwh: 80.0           # Expensive (backup only)
+      price_volatility: high                    # Linked to crude oil
+      price_history_2020_2023:
+        "2020": 45.0
+        "2021": 65.0
+        "2022": 120.0                           # Peak during crisis
+        "2023": 85.0
+
+    emissions:
+      # Direct combustion
+      co2_kg_per_mwh_lhv: 266.0                 # Higher than gas
+      co2_kg_per_mwh_hhv: 249.0
+
+      # Other pollutants
+      ch4_kg_per_mwh: 0.002
+      n2o_kg_per_mwh: 0.0015
+      sox_kg_per_mwh: 0.19                      # Sulfur oxides
+      pm10_kg_per_mwh: 0.03
+
+      # Upstream (refining, transport)
+      upstream_co2_kg_per_mwh: 35.0
+
+      total_lifecycle_co2_kg_per_mwh: 301.0
+
+    properties:
+      sulfur_content_ppm: 50                    # Low-sulfur
+      flash_point_c: 55
+
+  # ===========================================================================
+  # ELECTRICITY (for P2H and heat pumps)
+  # ===========================================================================
+  electricity_grid:
+    description: "Grid electricity (time-varying CO2 intensity)"
+
+    # No heating value (not a fuel, but included for CO2 accounting)
+
+    # Grid CO2 intensity (time-varying - provided in time series)
+    emissions:
+      # Average grid mix (Germany 2023)
+      average_co2_kg_per_mwh_el: 420.0          # Average grid intensity
+
+      # Range (depends on generation mix)
+      min_co2_kg_per_mwh_el: 50.0               # High renewables
+      max_co2_kg_per_mwh_el: 800.0              # Coal/gas dominated
+
+      # Should use time series: "grid_co2_kg_MWh" column in data
+      use_time_series: true
+      time_series_column: "grid_co2_kg_MWh"
+
+    # Upstream (fuel extraction, transmission losses)
+    transmission_loss_fraction: 0.05            # ~5% grid losses
+
+  # ===========================================================================
+  # HYDROGEN (Future fuel)
+  # ===========================================================================
+  hydrogen_green:
+    description: "Green hydrogen (electrolysis from renewable electricity)"
+
+    heating_value:
+      lower_heating_value_mwh_per_kg: 0.0333    # 33.3 kWh/kg
+      higher_heating_value_mwh_per_kg: 0.0396   # 39.6 kWh/kg
+      use_lhv: true
+
+    pricing:
+      default_price_eur_per_mwh: 150.0          # Currently expensive
+      price_volatility: medium
+      # Expected to decrease with scale
+
+    emissions:
+      # Green hydrogen (from renewable electricity)
+      co2_kg_per_mwh_lhv: 0.0                   # Zero direct emissions
+
+      # Upstream (electrolysis, compression, transport)
+      upstream_co2_kg_per_mwh: 10.0             # Minimal (if renewable)
+
+      total_lifecycle_co2_kg_per_mwh: 10.0
+
+    properties:
+      density_kg_per_nm3: 0.0899                # At STP
+      energy_density_mwh_per_nm3: 0.00299

@@ -1,0 +1,150 @@
+# =============================================================================
+# FLUID PROPERTIES LIBRARY
+# =============================================================================
+# Thermophysical properties of heat transfer fluids
+# =============================================================================
+
+fluids:
+  # ===========================================================================
+  # WATER (Primary district heating fluid)
+  # ===========================================================================
+  water:
+    description: "Pure water for district heating networks"
+
+    # Temperature-dependent properties (polynomial fits)
+    # Valid range: 0-150°C
+
+    # Density [kg/m³]
+    # ρ(T) = ρ_ref + a*(T-T_ref) + b*(T-T_ref)²
+    density:
+      reference_temp_c: 60
+      reference_value_kg_per_m3: 983.2
+      linear_coeff: -0.385          # kg/(m³·K)
+      quadratic_coeff: -0.0035      # kg/(m³·K²)
+
+      # Or tabulated values
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_kg_per_m3: [999.8, 998.2, 992.2, 983.2, 971.8, 958.4, 943.1, 917.0]
+
+    # Specific heat capacity [kJ/(kg·K)]
+    specific_heat:
+      reference_temp_c: 60
+      reference_value_kj_per_kg_k: 4.186
+      linear_coeff: 0.0006
+      quadratic_coeff: 0.0
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_kj_per_kg_k: [4.217, 4.182, 4.178, 4.184, 4.196, 4.216, 4.244, 4.310]
+
+    # Dynamic viscosity [Pa·s = kg/(m·s)]
+    dynamic_viscosity:
+      # Vogel equation: μ = A * 10^(B/(T-C))
+      vogel_A: 0.02939
+      vogel_B: 507.88
+      vogel_C: 149.3
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_pa_s: [0.001792, 0.001002, 0.000653, 0.000467, 0.000355, 0.000282, 0.000232, 0.000183]
+
+    # Kinematic viscosity [m²/s]
+    kinematic_viscosity:
+      # ν = μ / ρ
+      calculate_from_dynamic: true
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_m2_per_s: [1.792e-6, 1.004e-6, 0.658e-6, 0.475e-6, 0.365e-6, 0.294e-6, 0.246e-6, 0.200e-6]
+
+    # Thermal conductivity [W/(m·K)]
+    thermal_conductivity:
+      reference_temp_c: 60
+      reference_value_w_per_m_k: 0.651
+      linear_coeff: 0.0015
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_w_per_m_k: [0.561, 0.598, 0.628, 0.651, 0.668, 0.680, 0.685, 0.684]
+
+    # Prandtl number (dimensionless)
+    # Pr = ν / α = (μ * cp) / λ
+    prandtl_number:
+      calculate_from_properties: true
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values: [13.44, 7.01, 4.34, 3.02, 2.22, 1.75, 1.44, 1.15]
+
+    # Saturation pressure [bar]
+    saturation_pressure:
+      # Antoine equation: log10(P) = A - B/(C + T)
+      antoine_A: 4.6543
+      antoine_B: 1435.264
+      antoine_C: -64.848
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100, 120, 150]
+        values_bar: [0.0061, 0.0234, 0.0738, 0.199, 0.474, 1.014, 1.985, 4.758]
+
+  # ===========================================================================
+  # WATER-GLYCOL MIXTURE (for freeze protection)
+  # ===========================================================================
+  water_glycol_30:
+    description: "Water-glycol mixture (30% ethylene glycol by volume)"
+
+    # Properties at different temperatures
+    # Worse heat transfer than pure water, but freeze protection to -15°C
+
+    density:
+      reference_temp_c: 60
+      reference_value_kg_per_m3: 1024.5
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100]
+        values_kg_per_m3: [1042.0, 1035.2, 1029.8, 1024.5, 1019.0, 1013.2]
+
+    specific_heat:
+      reference_temp_c: 60
+      reference_value_kj_per_kg_k: 3.865
+
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100]
+        values_kj_per_kg_k: [3.692, 3.775, 3.820, 3.865, 3.910, 3.955]
+
+    dynamic_viscosity:
+      # Higher viscosity than pure water
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100]
+        values_pa_s: [0.00435, 0.00220, 0.00135, 0.00092, 0.00068, 0.00052]
+
+    thermal_conductivity:
+      table:
+        temps_c: [0, 20, 40, 60, 80, 100]
+        values_w_per_m_k: [0.465, 0.495, 0.520, 0.540, 0.555, 0.565]
+
+    # Freeze point
+    freeze_point_c: -15.0
+
+  # ===========================================================================
+  # PRESSURIZED HOT WATER (above 100°C)
+  # ===========================================================================
+  pressurized_water:
+    description: "Pressurized hot water (above boiling point)"
+
+    # Same properties as water, but operating above 100°C requires pressure
+    properties_reference: water
+
+    # Operating envelope
+    operating_conditions:
+      min_pressure_bar_at_temp:
+        100: 1.0
+        110: 1.5
+        120: 2.0
+        130: 2.7
+        140: 3.6
+        150: 4.8
+        160: 6.2
+
+      recommended_margin_bar: 2.0    # Safety margin above saturation

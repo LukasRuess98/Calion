@@ -42,3 +42,5 @@ exports/
 htmlcov/
 *.egg-info/
 .pytest_cache/" 
+# Claude Code files
+.claude/

@@ -1,0 +1,101 @@
+# =============================================================================
+# HEAT PUMP TECHNOLOGY LIBRARY
+# =============================================================================
+# Reusable heat pump technology definitions with performance curves and costs
+# =============================================================================
+
+heat_pumps:
+  # ===========================================================================
+  # HIGH-TEMPERATURE HEAT PUMP (for District Heating)
+  # ===========================================================================
+  high_temp_heat_pump:
+    description: "Industrial high-temperature heat pump for district heating (up to 90°C)"
+
+    # Operational constraints
+    operational:
+      min_load_fraction: 0.30         # Minimum part-load (30%)
+      max_starts_per_day: 10          # Cycling limit
+      min_runtime_hours: 2.0          # Minimum continuous runtime
+      ramp_rate_per_min: 0.10         # 10% per minute
+
+    # COP (Coefficient of Performance) calculation
+    cop_model:
+      type: lookup_table_2d           # Options: lookup_table_2d, analytical, constant
+      fallback_cop: 2.5               # Used if calculation fails
+      cop_bounds: [1.5, 6.0]          # Physical limits
+
+      # 2D COP lookup table
+      # Based on manufacturer data: ~50% Carnot efficiency
+      # x-axis: Source temperature (waste heat) [K]
+      # y-axis: Sink temperature (supply) [K]
+      lookup_table:
+        source_temps_K: [273.15, 283.15, 293.15, 303.15, 313.15, 323.15, 333.15, 343.15]  # 0°C to 70°C
+        sink_temps_K: [343.15, 353.15, 363.15, 373.15, 383.15]  # 70°C to 110°C
+
+        # COP values [rows=sink temp, cols=source temp]
+        cop_values:
+          - [2.45, 2.86, 3.43, 4.29, 5.72, 8.58, 17.15, null]   # Sink 70°C
+          - [2.21, 2.52, 2.94, 3.53, 4.41, 5.88, 8.82, 17.65]   # Sink 80°C
+          - [2.02, 2.27, 2.59, 3.02, 3.63, 4.54, 6.05, 9.08]    # Sink 90°C (typical DH)
+          - [1.87, 2.07, 2.33, 2.67, 3.11, 3.73, 4.67, 6.23]    # Sink 100°C
+          - [1.74, 1.91, 2.12, 2.40, 2.75, 3.23, 3.87, 4.84]    # Sink 110°C
+
+        extrapolation: clamp           # Options: clamp, linear, error
+
+      # Analytical model (alternative - for validation)
+      analytical:
+        carnot_efficiency: 0.50        # 50% of Carnot COP
+        delta_T_evaporator_K: 5.0      # Evaporator pinch point
+        delta_T_condenser_K: 5.0       # Condenser pinch point
+        heat_loss_fraction: 0.05       # 5% losses
+
+    # Default costs (can be overridden in assets)
+    costs:
+      capex_eur_per_mw_th: 400000      # 400k EUR per MW thermal capacity
+      opex_fixed_eur_per_mw_yr: 8000   # 8k EUR/MW/year maintenance
+      opex_variable_eur_per_mwh: 2.0   # 2 EUR/MWh operation
+      activation_cost_eur: 250000      # Fixed installation cost (piping, controls)
+      decommissioning_cost_eur: 50000  # Removal cost
+      lifetime_yr: 15                  # Economic lifetime
+
+    # Environmental
+    refrigerant:
+      type: R1234ze                    # Low-GWP refrigerant
+      gwp: 7                           # Global Warming Potential
+      charge_kg_per_mw: 15             # Refrigerant charge per MW
+
+  # ===========================================================================
+  # MEDIUM-TEMPERATURE HEAT PUMP (for lower-temp networks)
+  # ===========================================================================
+  medium_temp_heat_pump:
+    description: "Heat pump for medium-temperature networks (up to 70°C)"
+
+    operational:
+      min_load_fraction: 0.25
+      max_starts_per_day: 15
+      min_runtime_hours: 1.0
+      ramp_rate_per_min: 0.15
+
+    cop_model:
+      type: analytical                 # Use analytical model for simplicity
+      fallback_cop: 3.5
+      cop_bounds: [2.0, 8.0]
+
+      analytical:
+        carnot_efficiency: 0.55        # Higher efficiency at lower temps
+        delta_T_evaporator_K: 5.0
+        delta_T_condenser_K: 5.0
+        heat_loss_fraction: 0.03
+
+    costs:
+      capex_eur_per_mw_th: 300000      # Cheaper for lower temps
+      opex_fixed_eur_per_mw_yr: 6000
+      opex_variable_eur_per_mwh: 1.5
+      activation_cost_eur: 150000
+      decommissioning_cost_eur: 30000
+      lifetime_yr: 18
+
+    refrigerant:
+      type: R134a
+      gwp: 1430
+      charge_kg_per_mw: 12

@@ -1,0 +1,224 @@
+# =============================================================================
+# THERMAL STORAGE TECHNOLOGY LIBRARY
+# =============================================================================
+# Reusable thermal energy storage technology definitions
+# =============================================================================
+
+storage:
+  # ===========================================================================
+  # STRATIFIED HOT WATER TANK (Advanced 2-Zone Model)
+  # ===========================================================================
+  stratified_tank:
+    description: "Large-scale stratified hot water storage tank with thermal zones"
+
+    # Storage type
+    model: two_zone_stratified       # Options: single_zone, two_zone_stratified
+
+    # Efficiency parameters
+    efficiency:
+      charge: 0.95                   # Charging efficiency (pump losses, mixing)
+      discharge: 0.95                # Discharging efficiency
+      round_trip: 0.9025             # Combined (0.95 * 0.95)
+      hourly_loss_factor: 0.9999     # 99.99% retained per hour (~0.01%/h standby loss)
+
+    # Thermal stratification (two-zone model)
+    thermal:
+      hot_zone_temp_c: 90.0          # Hot zone temperature
+      cold_zone_temp_c: 40.0         # Cold zone (return) temperature
+      delta_T_design_K: 50.0         # Design temperature difference
+      ambient_temp_c: 15.0           # Ambient air temperature
+      ground_temp_c: 10.0            # Ground temperature (for buried tanks)
+
+    # Geometry
+    geometry:
+      type: cylindrical_tank         # Options: cylindrical_tank, pit_storage
+      aspect_ratio: 1.5              # Height/Diameter ratio
+      min_volume_m3: 100             # Minimum practical size
+      max_volume_m3: 50000           # Maximum practical size
+
+    # Heat loss coefficients [W/(m²·K)]
+    heat_loss:
+      U_top: 0.30                    # Top surface (exposed to air)
+      U_side: 0.20                   # Side walls
+      U_bottom: 0.15                 # Bottom (ground contact)
+      insulation_type: mineral_wool  # Material type
+
+    # Operational constraints
+    operational:
+      min_charge_rate_fraction: 0.05     # 5% of rated power
+      max_charge_rate_fraction: 1.0
+      min_discharge_rate_fraction: 0.05
+      max_discharge_rate_fraction: 1.0
+      max_cycles_per_day: 4              # Typical for district heating
+
+    # Default costs
+    costs:
+      # Energy capacity costs (storage volume)
+      energy_capex_eur_per_mwh: 5000     # ~5k EUR/MWh (steel tank, insulation)
+
+      # Power capacity costs (heat exchangers, pumps)
+      power_capex_eur_per_mw: 50000      # ~50k EUR/MW (HX, piping, controls)
+
+      # Fixed costs
+      activation_cost_eur: 100000        # Foundation, piping, controls
+      decommissioning_cost_eur: 20000
+
+      # Operational costs
+      opex_eur_per_mwh_yr: 50            # Maintenance per MWh capacity
+
+      # Lifetime
+      lifetime_yr: 25
+
+    # Typical coupling (can be overridden)
+    typical_power_energy_ratio: 0.10     # 10% → 100 MWh needs 10 MW power
+
+  # ===========================================================================
+  # SIMPLE SINGLE-ZONE TANK (Simplified Model)
+  # ===========================================================================
+  simple_tank:
+    description: "Single-zone hot water storage (simplified model)"
+
+    model: single_zone
+
+    efficiency:
+      charge: 0.95
+      discharge: 0.95
+      round_trip: 0.9025
+      hourly_loss_factor: 0.9995       # Slightly higher losses (less stratification)
+
+    thermal:
+      average_temp_c: 70.0             # Average storage temperature
+      delta_T_design_K: 30.0           # Average delta-T
+      ambient_temp_c: 15.0
+      ground_temp_c: 10.0
+
+    geometry:
+      type: cylindrical_tank
+      aspect_ratio: 1.2
+      min_volume_m3: 50
+      max_volume_m3: 20000
+
+    heat_loss:
+      U_average: 0.25                  # Average heat loss coefficient
+      insulation_type: polyurethane
+
+    operational:
+      min_charge_rate_fraction: 0.10
+      max_charge_rate_fraction: 1.0
+      min_discharge_rate_fraction: 0.10
+      max_discharge_rate_fraction: 1.0
+      max_cycles_per_day: 6
+
+    costs:
+      energy_capex_eur_per_mwh: 4000   # Cheaper (simpler design)
+      power_capex_eur_per_mw: 40000
+      activation_cost_eur: 75000
+      decommissioning_cost_eur: 15000
+      opex_eur_per_mwh_yr: 40
+      lifetime_yr: 20
+
+    typical_power_energy_ratio: 0.15   # Higher ratio for simpler systems
+
+  # ===========================================================================
+  # PIT THERMAL ENERGY STORAGE (PTES)
+  # ===========================================================================
+  pit_storage:
+    description: "Large-scale pit thermal energy storage (excavated, lined pit)"
+
+    model: two_zone_stratified
+
+    efficiency:
+      charge: 0.98                     # Very high (minimal equipment)
+      discharge: 0.98
+      round_trip: 0.9604
+      hourly_loss_factor: 0.9998       # Low losses (large volume/surface ratio)
+
+    thermal:
+      hot_zone_temp_c: 80.0
+      cold_zone_temp_c: 35.0
+      delta_T_design_K: 45.0
+      ambient_temp_c: 15.0
+      ground_temp_c: 10.0
+
+    geometry:
+      type: pit_storage
+      aspect_ratio: 0.5                # Shallow and wide
+      min_volume_m3: 10000             # Very large scale only
+      max_volume_m3: 200000
+
+    heat_loss:
+      U_top: 0.20                      # Floating cover
+      U_side: 0.10                     # Earth contact
+      U_bottom: 0.05                   # Deep ground contact
+      insulation_type: floating_cover
+
+    operational:
+      min_charge_rate_fraction: 0.02   # Very flexible
+      max_charge_rate_fraction: 0.5    # Slower charging
+      min_discharge_rate_fraction: 0.02
+      max_discharge_rate_fraction: 0.5
+      max_cycles_per_day: 2            # Seasonal storage
+
+    costs:
+      energy_capex_eur_per_mwh: 3000   # Cheapest per MWh (large scale)
+      power_capex_eur_per_mw: 80000    # More complex HX systems
+      activation_cost_eur: 500000      # High (excavation, lining)
+      decommissioning_cost_eur: 100000
+      opex_eur_per_mwh_yr: 30
+      lifetime_yr: 30
+
+    typical_power_energy_ratio: 0.05   # Very low ratio (seasonal storage)
+
+  # ===========================================================================
+  # PHASE CHANGE MATERIAL (PCM) STORAGE
+  # ===========================================================================
+  pcm_storage:
+    description: "Phase change material storage (high energy density)"
+
+    model: single_zone               # PCM acts as single temperature
+
+    efficiency:
+      charge: 0.92                   # Crystallization losses
+      discharge: 0.92
+      round_trip: 0.8464
+      hourly_loss_factor: 0.9997
+
+    thermal:
+      phase_change_temp_c: 58.0      # Melting point of PCM
+      delta_T_sensible_K: 10.0       # Sensible heat range
+      ambient_temp_c: 15.0
+      ground_temp_c: 10.0
+
+    geometry:
+      type: module_array             # Modular PCM capsules
+      aspect_ratio: 1.0
+      min_volume_m3: 10
+      max_volume_m3: 1000
+
+    heat_loss:
+      U_average: 0.35                # Higher (complex geometry)
+      insulation_type: vacuum_panel
+
+    operational:
+      min_charge_rate_fraction: 0.15
+      max_charge_rate_fraction: 0.8   # Limited by heat transfer
+      min_discharge_rate_fraction: 0.15
+      max_discharge_rate_fraction: 0.8
+      max_cycles_per_day: 10
+
+    costs:
+      energy_capex_eur_per_mwh: 12000  # Expensive (PCM material)
+      power_capex_eur_per_mw: 100000   # Complex heat exchangers
+      activation_cost_eur: 50000
+      decommissioning_cost_eur: 25000
+      opex_eur_per_mwh_yr: 100
+      lifetime_yr: 15
+
+    typical_power_energy_ratio: 0.20
+
+    # PCM-specific
+    pcm_properties:
+      material: sodium_acetate_trihydrate
+      latent_heat_kj_per_kg: 264
+      density_kg_per_m3: 1450
+      thermal_conductivity_w_per_m_k: 0.5
