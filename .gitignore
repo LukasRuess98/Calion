@@ -36,3 +36,9 @@ exports/
 *.log
 *.lp
 
+echo "__pycache__/
+*.pyc
+exports/
+htmlcov/
+*.egg-info/
+.pytest_cache/" 
