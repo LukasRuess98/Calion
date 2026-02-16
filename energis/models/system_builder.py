@@ -30,6 +30,25 @@ from .constraint_builder import (
     add_grid_market_constraints,
     create_objective,
 )
+from .config_schema import (
+    InvestmentConfig,
+    HeatPumpConfig,
+    StorageConfig,
+    ThermalGeneratorConfig,
+    P2HConfig,
+    CostConfig,
+    extract_component_configs,
+)
+from .cost_calculator import (
+    calculate_energy_costs,
+    calculate_co2_costs,
+    calculate_demand_charge,
+    calculate_investment_costs,
+    calculate_fuel_costs,
+    calculate_dump_costs,
+    aggregate_co2_emissions,
+    store_cost_expressions_on_model,
+)
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
@@ -997,75 +1016,76 @@ def build_model(
     # ========================================
     add_grid_market_constraints(m)
 
+    # ========================================
+    # ENERGY COSTS (Grid Buy/Sell)
+    # ========================================
     base_prices = [float(table["strompreis_EUR_MWh"][i]) for i in range(T)]
-    if include_gridcost:
-        addition = float(m.energy_fee.value) + float(m.grid_cost.value)
-    else:
-        addition = 0.0
-    buy_price = [bp + addition for bp in base_prices]
-
-    floor = float(m.sell_floor.value)
-    haircut = float(m.sell_haircut.value)
-    spread = float(m.sell_spread.value)
-    fee = float(m.sell_fee.value)
-    premium = float(m.sell_premium.value)
-
-    def _sell_price(base: float) -> float:
-        price = max(base - spread, floor)
-        price = price * max(0.0, 1.0 - haircut)
-        price = price - fee + premium
-        return max(price, 0.0)
-
-    sell_price = [_sell_price(bp) for bp in base_prices]
-
-    energy_cost = sum(
-        dt_h * (m.P_buy[t] * buy_price[idx] - m.P_sell[t] * sell_price[idx])
-        for idx, t in enumerate(m.t)
+    time_steps = list(m.t)
+    energy_cost = calculate_energy_costs(
+        m, time_steps, base_prices, dt_h=dt_h, include_grid_cost=include_gridcost
     )
-    dump_cost = m.dump_cost * sum(m.Q_dump[t] * dt_h for t in m.t)
-    fuel_costs = sum(fuel_cost_terms) if fuel_cost_terms else 0
 
-    # ✅ Neue CO₂-Kosten: Summen aus Komponenten (Wärme/Strom-Aufteilung)
-    co2_cost_heat_total = sum(co2_cost_heat_terms) if co2_cost_heat_terms else 0
-    co2_cost_elec_total = sum(co2_cost_elec_terms) if co2_cost_elec_terms else 0
-    co2_cost_total = co2_cost_heat_total + co2_cost_elec_total
+    # ========================================
+    # DUMP COSTS
+    # ========================================
+    dump_cost = calculate_dump_costs(
+        m, time_steps, dt_h=dt_h, dump_cost_eur_per_mwh=float(m.dump_cost.value)
+    )
+    # ========================================
+    # FUEL COSTS
+    # ========================================
+    fuel_costs = calculate_fuel_costs(fuel_cost_terms)
 
-    # ✅ CO₂-Mengen in kg: Summen aus Komponenten (Wärme/Strom-Aufteilung)
-    co2_kg_heat_total = sum(co2_kg_heat_terms) if co2_kg_heat_terms else 0
-    co2_kg_elec_total = sum(co2_kg_elec_terms) if co2_kg_elec_terms else 0
+    # ========================================
+    # CO2 COSTS AND EMISSIONS
+    # ========================================
+    # Calculate CO2 costs with heat/electricity breakdown
+    co2_cost_total, co2_cost_heat_total, co2_cost_elec_total = calculate_co2_costs(
+        m.co2_component_costs, co2_price_eur_per_t=float(m.co2_price.value)
+    )
 
-    # ✅ Dashboard-Kategorien (3 separate Emissionsquellen)
-    co2_kg_fuel_heat = sum(co2_kg_fuel_to_heat) if co2_kg_fuel_to_heat else 0  # Brennstoff → Wärme
-    co2_kg_fuel_elec = sum(co2_kg_fuel_to_elec) if co2_kg_fuel_to_elec else 0  # Brennstoff → Strom (CHP)
-    co2_kg_grid_elec = sum(co2_kg_grid_to_elec) if co2_kg_grid_to_elec else 0  # Grid → Strom (WP, P2H)
+    # Aggregate CO2 emissions by category
+    co2_kg_heat_total, co2_kg_elec_total, co2_kg_fuel_heat, co2_kg_fuel_elec, co2_kg_grid_elec = aggregate_co2_emissions(
+        m.co2_component_costs
+    )
 
-    # Speichere Gesamt-Expressions am Modell für Export
-    m.co2_cost_heat_expr = co2_cost_heat_total
-    m.co2_cost_elec_expr = co2_cost_elec_total
-    m.co2_cost_total_expr = co2_cost_total
-    m.co2_kg_heat_expr = co2_kg_heat_total
-    m.co2_kg_elec_expr = co2_kg_elec_total
-    # Dashboard-Kategorien
-    m.co2_kg_fuel_to_heat_expr = co2_kg_fuel_heat
-    m.co2_kg_fuel_to_elec_expr = co2_kg_fuel_elec
-    m.co2_kg_grid_to_elec_expr = co2_kg_grid_elec
+    # Store expressions on model for export and reporting
+    store_cost_expressions_on_model(
+        m,
+        co2_cost_total=co2_cost_total,
+        co2_cost_heat=co2_cost_heat_total,
+        co2_cost_elec=co2_cost_elec_total,
+        co2_kg_heat=co2_kg_heat_total,
+        co2_kg_elec=co2_kg_elec_total,
+        co2_kg_fuel_to_heat=co2_kg_fuel_heat,
+        co2_kg_fuel_to_elec=co2_kg_fuel_elec,
+        co2_kg_grid_to_elec=co2_kg_grid_elec,
+    )
 
     # Legacy-Kompatibilität: Gesamt-CO₂ in kg (für alte Reports)
     co2_grid = sum(m.P_buy[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h for t in m.t)
     co2_fuel = sum(fuel_co2_terms) if fuel_co2_terms else 0
 
-    # Zielfunktion: Verwende neue CO₂-Kosten-Summe
+    # ========================================
+    # DEMAND CHARGE
+    # ========================================
+    demand_term = calculate_demand_charge(m, include_demand=include_demand)
+
+    # ========================================
+    # INVESTMENT COSTS (CAPEX)
+    # ========================================
+    capex_total, activation_total, tie_break_total, storage_install_total = calculate_investment_costs(
+        capex_terms=capex_terms,
+        activation_terms=activation_terms,
+        tie_breaker_terms=tie_breaker_terms,
+        storage_install_terms=storage_install_terms,
+        include_capex=include_capex_costs,
+        include_activation=include_activation_costs,
+        include_tie_breaker=include_tie_breaker_costs,
+    )
+
+    # CO2 cost term (conditional on include_co2 flag)
     co2_term = co2_cost_total if include_co2 else 0
-
-    demand_term = (m.demand_charge_y * m.year_frac * m.P_buy_peak) if include_demand else 0
-
-    # ========================================
-    # OBJECTIVE FUNCTION
-    # ========================================
-    capex_total = sum(capex_terms) if capex_terms else 0
-    activation_total = sum(activation_terms) if activation_terms else 0
-    tie_break_total = sum(tie_breaker_terms) if tie_breaker_terms else 0
-    storage_install_total = sum(storage_install_terms) if storage_install_terms else 0
 
     # Terminal value term (for value/soft terminal policies in Rolling Horizon)
     terminal_value = getattr(m, 'terminal_value_term', None)
