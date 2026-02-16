@@ -38,7 +38,7 @@ __all__ = [
 def _ensure_lengths(data: Mapping[str, Sequence[float]], expected: int) -> None:
     for key, values in data.items():
         if len(values) != expected:
-            raise ValueError(f"Serie {key!r} hat Länge {len(values)} statt {expected}")
+            raise ValueError(f"Series {key!r} has length {len(values)} instead of {expected}")
 
 
 def write_timeseries_csv(

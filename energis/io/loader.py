@@ -137,7 +137,7 @@ def _find_time_column(header: List[str]) -> str:
     for cand in candidates:
         if cand in norm:
             return norm[cand]
-    raise RuntimeError("Zeitspalte nicht gefunden (z.B. 'Datum').")
+    raise RuntimeError("Time column not found (e.g., 'Datum', 'Date', 'Time').")
 
 
 def _map_column(header: List[str], candidates: List[str]) -> Optional[str]:
@@ -177,12 +177,12 @@ def load_input_excel(
 ) -> TimeSeriesTable:
     resolved_path = _resolve_input_path(path, site_cfg)
     header, rows = _read_tabular(resolved_path, site_cfg.get("sheet_name"))
-    _require(header, f"Eingabedatei {resolved_path} enthält keine Daten")
+    _require(header, f"Input file {resolved_path} contains no data")
     records = _build_records(header, rows)
 
     time_col = _find_time_column(header)
     records = [rec for rec in records if not _is_empty(rec.get(time_col))]
-    _require(records, f"Zeitspalte '{time_col}' enthält keine gültigen Werte.")
+    _require(records, f"Time column '{time_col}' contains no valid values.")
     timestamps = [_parse_datetime(rec[time_col]) for rec in records]
 
     year_target = site_cfg.get("year_target")
