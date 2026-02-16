@@ -4,8 +4,8 @@ Command-line interface for EnerGIS framework.
 
 Usage:
     python -m energis.run <config1.yaml> <config2.yaml> ...
-    python -m energis.run configs/presets/quick_test.yaml
-    python -m energis.run configs/presets/rh_full_system.yaml --dashboard
+    python -m energis.run configs/scenarios/quick_test.yaml
+    python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard
 
 Options:
     --dashboard     Save results for dashboard (to notebooks/saved_workflows/)
@@ -28,13 +28,13 @@ def main():
         epilog="""
 Examples:
   # Quick test
-  python -m energis.run configs/presets/quick_test.yaml
+  python -m energis.run configs/scenarios/quick_test.yaml
 
   # Rolling Horizon with dashboard export
-  python -m energis.run configs/presets/rh_full_system.yaml --dashboard
+  python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard
 
   # With custom name
-  python -m energis.run configs/presets/rh_full_system.yaml --dashboard --name "Baseline Q1"
+  python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard --name "Baseline Q1"
 
   # Multiple config files
   python -m energis.run configs/00_base/solver.yaml configs/03_systems/full.yaml configs/04_scenarios/rh_q1_2023.yaml

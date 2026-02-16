@@ -14,12 +14,12 @@ Usage:
     python examples/publication_workflow_example.py
 
     # With custom configs
-    CONFIG_PATHS="configs/presets/rh_full_system.yaml" \
+    CONFIG_PATHS="configs/scenarios/rh_full_system.yaml" \
     SCENARIO_NAME="My_Analysis" \
     python examples/publication_workflow_example.py
 
     # With sensitivity analysis
-    CONFIG_PATHS="configs/presets/rh_full_system.yaml" \
+    CONFIG_PATHS="configs/scenarios/rh_full_system.yaml" \
     RUN_SENSITIVITY=1 \
     python examples/publication_workflow_example.py
 
@@ -69,7 +69,7 @@ EXPORT_DIR = os.environ.get("EXPORT_DIR")  # None = auto-generate with timestamp
 
 CONFIG_PATHS = os.environ.get(
     "CONFIG_PATHS",
-    "configs/presets/quick_test.yaml"
+    "configs/scenarios/quick_test.yaml"
 ).split(",")
 
 # Feature flags

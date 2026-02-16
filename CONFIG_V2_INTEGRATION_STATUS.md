@@ -40,23 +40,23 @@ All type-safe configuration schemas have been implemented:
 Complete new config structure created:
 
 1. **Technology Library (7 files)** ✅
-   - `configs_new/tech_library/heat_pumps.yaml`
-   - `configs_new/tech_library/storage.yaml`
-   - `configs_new/tech_library/generators.yaml`
-   - `configs_new/tech_library/p2h.yaml`
-   - `configs_new/tech_library/pipes.yaml`
-   - `configs_new/tech_library/fluids.yaml`
-   - `configs_new/tech_library/fuels.yaml`
+   - `configs/tech_library/heat_pumps.yaml`
+   - `configs/tech_library/storage.yaml`
+   - `configs/tech_library/generators.yaml`
+   - `configs/tech_library/p2h.yaml`
+   - `configs/tech_library/pipes.yaml`
+   - `configs/tech_library/fluids.yaml`
+   - `configs/tech_library/fuels.yaml`
 
 2. **Stadtbach Assets (4 files)** ✅
-   - `configs_new/assets/stadtbach/components.yaml` (276 MW total capacity)
-   - `configs_new/assets/stadtbach/grid.yaml`
-   - `configs_new/assets/stadtbach/network_topology.yaml` (7 nodes, 6 pipes)
-   - `configs_new/assets/stadtbach/data_sources.yaml`
+   - `configs/assets/stadtbach/components.yaml` (276 MW total capacity)
+   - `configs/assets/stadtbach/grid.yaml`
+   - `configs/assets/stadtbach/network_topology.yaml` (7 nodes, 6 pipes)
+   - `configs/assets/stadtbach/data_sources.yaml`
 
 3. **Scenarios (2 files)** ✅
-   - `configs_new/scenarios/stadtbach_baseline_2023.yaml` (dispatch only)
-   - `configs_new/scenarios/stadtbach_capacity_expansion.yaml` (investment)
+   - `configs/scenarios/stadtbach_baseline_2023.yaml` (dispatch only)
+   - `configs/scenarios/stadtbach_capacity_expansion.yaml` (investment)
 
 ### Phase C: Config Loader (COMPLETE)
 
@@ -86,7 +86,7 @@ Configuration loading infrastructure:
 ### Phase D: Documentation & Examples (COMPLETE)
 
 1. **Documentation** ✅
-   - `configs_new/README.md` - Config structure overview
+   - `configs/README.md` - Config structure overview
    - `docs/CONFIG_REFACTORING_PROPOSAL.md` - Design rationale
    - `docs/CONFIG_GAP_ANALYSIS.md` - Old vs new comparison
    - `docs/CONFIG_V2_USAGE_GUIDE.md` - Complete usage guide
@@ -110,7 +110,7 @@ Configuration loading infrastructure:
 ```python
 from energis.config.config_manager import ConfigManager
 
-manager = ConfigManager("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
 config = manager.load()  # Loads and validates
 ```
 
@@ -270,9 +270,9 @@ Based on priorities:
 ```python
 from energis.config.config_manager import ConfigManager
 
-# 1. Create scenario YAML in configs_new/scenarios/
+# 1. Create scenario YAML in configs/scenarios/
 # 2. Load and validate
-manager = ConfigManager("configs_new/scenarios/my_scenario.yaml")
+manager = ConfigManager("configs/scenarios/my_scenario.yaml")
 config = manager.load()
 
 # 3. Use type-safe access
@@ -290,7 +290,7 @@ Option 1: **Use ConfigManager** (recommended)
 ```python
 from energis.config.config_manager import ConfigManager
 
-manager = ConfigManager("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
 config = manager.load()
 # Rest of code unchanged
 ```
@@ -299,7 +299,7 @@ Option 2: **Use load_config_v2** (minimal change)
 ```python
 from energis.config.loader_v2 import load_config_v2
 
-config = load_config_v2("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
 # Rest of code unchanged
 ```
 
@@ -327,7 +327,7 @@ config = load_config_v2("configs_new/scenarios/stadtbach_baseline_2023.yaml")
 - Scenarios (2 files)
 
 **Documentation (4 files):**
-- `configs_new/README.md`
+- `configs/README.md`
 - `docs/CONFIG_REFACTORING_PROPOSAL.md`
 - `docs/CONFIG_GAP_ANALYSIS.md`
 - `docs/CONFIG_V2_USAGE_GUIDE.md`

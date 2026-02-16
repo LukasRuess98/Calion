@@ -198,7 +198,7 @@ def load_and_validate_config(scenario_path: str, validate: bool = True) -> Dict[
         Loaded configuration dictionary
 
     Example:
-        >>> config = load_and_validate_config("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+        >>> config = load_and_validate_config("configs/scenarios/stadtbach_baseline_2023.yaml")
         >>> scenario = config['_schemas']['scenario']
         >>> print(scenario.name)
     """

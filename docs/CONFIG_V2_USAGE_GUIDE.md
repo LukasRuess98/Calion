@@ -22,7 +22,7 @@ EnerGIS v2.0 introduces a completely redesigned configuration system with:
 from energis.config.config_manager import ConfigManager
 
 # Load and validate configuration
-manager = ConfigManager("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
 config = manager.load()
 
 # Access type-safe schema objects
@@ -42,7 +42,7 @@ from energis.config.loader_v2 import load_config_v2
 from energis.models.system_builder import build_model
 
 # Load new config format
-config = load_config_v2("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
 
 # Use with existing system_builder (backward compatible!)
 model = build_model(config, table)
@@ -74,7 +74,7 @@ for hp_id, hp in heat_pumps.items():
 ### Directory Layout
 
 ```
-configs_new/
+configs/
 ├── tech_library/           # Reusable technology templates
 │   ├── heat_pumps.yaml
 │   ├── storage.yaml
@@ -346,7 +346,7 @@ print(scenario.solver.name)
 The new config loader creates a backward-compatible dict that works with existing `system_builder.py`:
 
 ```python
-config = load_config_v2("configs_new/scenarios/stadtbach_baseline_2023.yaml")
+config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
 
 # Old-style access (still works!)
 config['system']['heat_pumps']  # List[Dict]
@@ -596,7 +596,7 @@ For questions or issues:
 - See examples in `examples/use_new_config_structure.py`
 - Check config validation output
 - Review `docs/CONFIG_REFACTORING_PROPOSAL.md` for design rationale
-- Review `configs_new/README.md` for config structure overview
+- Review `configs/README.md` for config structure overview
 
 ---
 

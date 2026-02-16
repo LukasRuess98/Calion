@@ -29,7 +29,7 @@ def main():
     print("=" * 70)
 
     # Path to scenario file
-    scenario_path = "configs_new/scenarios/stadtbach_baseline_2023.yaml"
+    scenario_path = "configs/scenarios/stadtbach_baseline_2023.yaml"
 
     # Create config manager
     manager = ConfigManager(scenario_path, validate=True)
