@@ -345,32 +345,56 @@ class NetworkManager:
         logger.info("ATTACHING THERMAL NETWORK")
         logger.info("=" * 60)
 
-        # Store references
-        pipe_components = {}
-        node_components = {}
+        temp_setup = self._setup_temperatures(model, time_set)
+        pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup)
+        node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
 
-        # Global network parameters
+        self._link_greenfield_temperatures(model, time_set, pipe_components, node_components)
+        self._fix_brownfield_temperatures(model, time_set, temp_setup, pipe_components, node_components)
+        self._link_consumer_demands(model, time_set, temp_setup, pipe_components, node_components)
+        self._link_junction_flows(model, time_set, pipe_components, node_components)
+        self._link_plant_return_temps(model, time_set, temp_setup, pipe_components, node_components)
+        self._setup_network_losses(model, time_set, temp_setup, pipe_components)
+
+        logger.info(f"\n" + "=" * 60)
+        logger.info(f"THERMAL NETWORK ATTACHED SUCCESSFULLY")
+        logger.info(f"  Pipes: {len(pipe_components)}")
+        logger.info(f"  Nodes: {len(node_components)}")
+        logger.info("=" * 60)
+
+        return {
+            'pipes': pipe_components,
+            'nodes': node_components,
+            'parameters': self.parameters,
+            'brownfield_mode': temp_setup['brownfield_mode'],
+            'supply_temp': temp_setup['supply_temp'],
+            'return_temp': temp_setup['return_temp'],
+            'ground_temp': temp_setup['ground_temp'],
+        }
+
+    # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _setup_temperatures(self, model, time_set) -> Dict[str, Any]:
+        """Setup temperature profiles and brownfield mode flag.
+
+        Returns a dict with keys: supply_temp, return_temp, ground_temp,
+        use_heating_curve, use_outdoor_temp, supply_temp_dict, brownfield_mode.
+        Also sets model.outdoor_temp and model.supply_temp_series.
+        """
         supply_temp_nominal = self.parameters.get('supply_temp_nominal_c', 90.0)
         return_temp = self.parameters.get('return_temp_nominal_c', 50.0)
         ground_temp = self.parameters.get('ground_temp_default_c', 10.0)
 
-        # Setup outdoor temperature (if available)
         use_outdoor_temp = self.config.get('thermal_network', {}).get('use_outdoor_temperature', False)
         if use_outdoor_temp and hasattr(model, 'outdoor_temp'):
             logger.info("Using time-varying outdoor temperature from model")
             outdoor_temp_series = [model.outdoor_temp[t] for t in time_set]
         else:
-            # Create fixed ground temperature
-            default_ground_temp = ground_temp
-            model.outdoor_temp = {t: default_ground_temp for t in time_set}
-            outdoor_temp_series = [default_ground_temp for _ in time_set]
-            logger.info(f"Using fixed ground temperature: {default_ground_temp}°C")
+            model.outdoor_temp = {t: ground_temp for t in time_set}
+            outdoor_temp_series = [ground_temp for _ in time_set]
+            logger.info(f"Using fixed ground temperature: {ground_temp}°C")
 
-        # ========================================
-        # HEATING CURVE (Heizkurve) - Time-varying supply temperature
-        # ========================================
         heating_curve_config_raw = self.parameters.get('heating_curve', {})
-        # Resolve profile reference (e.g., "profile: standard_dh" -> full parameters)
         heating_curve_config = resolve_heating_curve_profile(
             heating_curve_config_raw,
             config_dir=self.config_dir,
@@ -378,13 +402,11 @@ class NetworkManager:
         use_heating_curve = heating_curve_config.get('enabled', False)
 
         if use_heating_curve and use_outdoor_temp:
-            # Extract heating curve parameters
             T_supply_min = heating_curve_config.get('T_supply_min_c', 80.0)
             T_supply_max = heating_curve_config.get('T_supply_max_c', 120.0)
             T_outdoor_high = heating_curve_config.get('T_outdoor_high_c', 20.0)
             T_outdoor_low = heating_curve_config.get('T_outdoor_low_c', -10.0)
 
-            # Calculate time-varying supply temperatures
             supply_temp_series = calculate_supply_temperature_series(
                 T_outdoor_series=outdoor_temp_series,
                 T_supply_min_c=T_supply_min,
@@ -392,11 +414,8 @@ class NetworkManager:
                 T_outdoor_high_c=T_outdoor_high,
                 T_outdoor_low_c=T_outdoor_low,
             )
-
-            # Store as model attribute for later use
             model.supply_temp_series = {t: supply_temp_series[i] for i, t in enumerate(time_set)}
 
-            # Log heating curve info
             curve_params = get_heating_curve_parameters(
                 T_supply_min_c=T_supply_min,
                 T_supply_max_c=T_supply_max,
@@ -410,31 +429,42 @@ class NetworkManager:
             logger.info(f"    Supply temp range in data: "
                        f"{min(supply_temp_series):.1f}°C - {max(supply_temp_series):.1f}°C")
 
-            # Use nominal for static calculations (average or design point)
             supply_temp = sum(supply_temp_series) / len(supply_temp_series)
             logger.info(f"    Average supply temp: {supply_temp:.1f}°C")
         else:
-            # Fixed supply temperature (original behavior)
             supply_temp = supply_temp_nominal
             model.supply_temp_series = {t: supply_temp for t in time_set}
             if use_heating_curve and not use_outdoor_temp:
                 logger.warning("  Heating curve enabled but outdoor temperature not available!")
                 logger.warning("  Set 'use_outdoor_temperature: true' in config to enable heating curve.")
 
-        # ========================================
-        # PHASE 1: Attach all pipes
-        # ========================================
+        brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', True)
+        self.brownfield_mode = brownfield_mode
 
+        return {
+            'supply_temp': supply_temp,
+            'return_temp': return_temp,
+            'ground_temp': ground_temp,
+            'use_heating_curve': use_heating_curve,
+            'use_outdoor_temp': use_outdoor_temp,
+            'supply_temp_dict': {t: model.supply_temp_series[t] for t in time_set},
+            'brownfield_mode': brownfield_mode,
+        }
+
+    def _attach_all_pipes(self, model, time_set, buses, temp_setup) -> Dict:
+        """Phase 1: Validate and attach all pipe pair blocks to the model."""
+        supply_temp = temp_setup['supply_temp']
+        return_temp = temp_setup['return_temp']
+        use_outdoor_temp = temp_setup['use_outdoor_temp']
+        brownfield_mode = temp_setup['brownfield_mode']
+
+        pipe_components: Dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
-        # Check brownfield mode - defaults to True (simplified fixed-topology mode)
-        brownfield_mode = self.config.get('thermal_network', {}).get('brownfield_mode', True)
-        self.brownfield_mode = brownfield_mode  # Store as instance variable for get_results
         if brownfield_mode:
             logger.info("  [Brownfield mode: fixed topology with physical losses (Q = U×L×ΔT)]")
 
         for pipe_id, pipe_config in self.pipes.items():
-            # Enrich pipe config with global parameters
             enriched_config = {
                 **pipe_config,
                 'supply_temp_nominal_c': supply_temp,
@@ -444,26 +474,26 @@ class NetworkManager:
                 'brownfield_mode': brownfield_mode,
                 **self.parameters
             }
-
-            # Validate and attach
             PipePairBlock.validate_config(enriched_config)
             pipe_result = PipePairBlock.attach(model, time_set, enriched_config, buses)
-
             pipe_components[pipe_id] = pipe_result
-
             logger.info(
                 f"  ✓ {pipe_id}: {pipe_config['from_node']} → {pipe_config['to_node']} "
                 f"({pipe_config['length_m']}m)"
             )
 
-        # ========================================
-        # PHASE 2: Attach all nodes
-        # ========================================
+        return pipe_components
 
+    def _attach_all_nodes(self, model, time_set, buses, temp_setup, pipe_components) -> Dict:
+        """Phase 2: Validate and attach all thermal node blocks to the model."""
+        supply_temp = temp_setup['supply_temp']
+        return_temp = temp_setup['return_temp']
+        brownfield_mode = temp_setup['brownfield_mode']
+
+        node_components: Dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
 
         for node_id, node_config in self.nodes.items():
-            # Enrich node config
             enriched_config = {
                 **node_config,
                 'id': node_id,
@@ -471,80 +501,67 @@ class NetworkManager:
                 'return_temp_c': return_temp,
                 'brownfield_mode': brownfield_mode,
             }
-
-            # Validate and attach
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
                 model, time_set, enriched_config, buses, pipe_components
             )
-
             node_components[node_id] = node_result
-
             node_type = node_config.get('type', 'unknown')
             logger.info(f"  ✓ {node_id} ({node_type})")
 
-        # ========================================
-        # PHASE 3: Connect pipes to nodes
-        # ========================================
+        return node_components
 
+    def _link_greenfield_temperatures(self, model, time_set, pipe_components, node_components) -> None:
+        """Phase 3: Link pipe temperature variables to node temperatures (greenfield only).
+
+        In brownfield mode this is skipped – temperatures are fixed in _fix_brownfield_temperatures.
+        Also tracks return pipes for each plant node (used by _link_plant_return_temps).
+        """
         logger.info(f"\nConnecting pipes to nodes...")
 
         for pipe_id, pipe_comp in pipe_components.items():
             from_node = pipe_comp['from_node']
             to_node = pipe_comp['to_node']
 
-            # In BROWNFIELD mode: Skip temperature linking constraints!
-            # PHASE 3b will fix all temperatures directly to avoid conflicts.
-            # In greenfield mode: Create linking constraints for temperature propagation.
-
-            if not brownfield_mode:
-                # Link pipe inlet temperature to from_node supply temperature
+            if not self.brownfield_mode:
                 if from_node in node_components:
                     from_node_comp = node_components[from_node]
                     pipe_T_supply_in = pipe_comp['T_supply_in']
                     node_T_supply = from_node_comp['T_supply']
-
-                    # Create equality constraint
                     constraint_name = f"link_pipe_{pipe_id}_inlet_to_node_{from_node}"
 
-                    def link_rule(m, t):
-                        if isinstance(node_T_supply, pyo.Param):
-                            return pipe_T_supply_in[t] == pyo.value(node_T_supply[t])
+                    def link_rule(m, t, _pipe=pipe_T_supply_in, _node=node_T_supply):
+                        if isinstance(_node, pyo.Param):
+                            return _pipe[t] == pyo.value(_node[t])
                         else:
-                            return pipe_T_supply_in[t] == node_T_supply[t]
+                            return _pipe[t] == _node[t]
 
                     setattr(model, constraint_name, pyo.Constraint(time_set, rule=link_rule))
                     logger.info(f"    Linked {pipe_id} inlet ← {from_node} supply temp")
 
-                # Link pipe outlet to_node supply temperature (for consumer/junction nodes)
                 if to_node in node_components:
                     to_node_comp = node_components[to_node]
                     if to_node_comp['type'] in ['consumer', 'junction']:
-                        # The node's supply temp is set by pipe(s) feeding into it
-                        # This is handled by node's temperature mixing constraint
-                        pass
+                        pass  # Handled by node's temperature mixing constraint
 
-                # Link return temperatures
-                # Pipe return inlet gets temperature from to_node
                 if to_node in node_components:
                     to_node_comp = node_components[to_node]
                     pipe_T_return_in = pipe_comp['T_return_in']
                     node_T_return = to_node_comp['T_return']
-
                     constraint_name = f"link_pipe_{pipe_id}_return_to_node_{to_node}"
 
-                    def return_link_rule(m, t):
-                        if isinstance(node_T_return, pyo.Param):
-                            return pipe_T_return_in[t] == pyo.value(node_T_return[t])
+                    def return_link_rule(m, t, _pipe=pipe_T_return_in, _node=node_T_return):
+                        if isinstance(_node, pyo.Param):
+                            return _pipe[t] == pyo.value(_node[t])
                         else:
-                            return pipe_T_return_in[t] == node_T_return[t]
+                            return _pipe[t] == _node[t]
 
                     setattr(model, constraint_name, pyo.Constraint(time_set, rule=return_link_rule))
                     logger.info(f"    Linked {pipe_id} return ← {to_node} return temp")
             else:
-                logger.info(f"    {pipe_id}: skipping temp links (brownfield - handled in PHASE 3b)")
+                logger.info(f"    {pipe_id}: skipping temp links (brownfield - handled in Phase 3b)")
 
-            # Track return pipes for each plant node (for later mixing constraint)
+            # Track return pipes for each plant node
             if from_node in node_components:
                 from_node_comp = node_components[from_node]
                 if from_node_comp['type'] == 'plant':
@@ -552,246 +569,212 @@ class NetworkManager:
                         from_node_comp['return_pipes'] = []
                     from_node_comp['return_pipes'].append(pipe_id)
 
-        # ========================================
-        # PHASE 3b: BROWNFIELD Temperature Fixing
-        # ========================================
-        # In brownfield mode, fix temperatures based on network topology:
-        # - Plant nodes: T_supply = supply_temp (from heating curve if enabled)
-        # - Pipes from plants: T_supply_in = supply_temp (time-varying if heating curve)
-        # - Pipes between consumers: T_supply_in = T_supply_out of upstream pipe
-        # This avoids the conflict where all pipes had same inlet temp
+    def _fix_brownfield_temperatures(self, model, time_set, temp_setup, pipe_components, node_components) -> None:
+        """Phase 3b: Fix pipe and node temperatures using physics in brownfield mode."""
+        if not temp_setup['brownfield_mode']:
+            return
 
-        if brownfield_mode:
-            logger.info(f"\nFixing temperatures for brownfield mode...")
+        supply_temp = temp_setup['supply_temp']
+        return_temp = temp_setup['return_temp']
+        ground_temp = temp_setup['ground_temp']
+        use_heating_curve = temp_setup['use_heating_curve']
+        supply_temp_dict = temp_setup['supply_temp_dict']
 
-            # ============================================================
-            # PIPE-SPECIFIC TEMPERATURE DROPS (Physics-based calculation)
-            # ============================================================
-            # Options:
-            # 1. use_physics_temp_drop: True (default) - calculate from U, L, m_dot
-            # 2. brownfield_temp_drop_per_pipe_c: fallback constant [°C]
-            # ============================================================
-            use_physics_temp_drop = self.parameters.get('use_physics_temp_drop', True)
-            default_temp_drop = self.parameters.get('brownfield_temp_drop_per_pipe_c', 1.0)
+        logger.info(f"\nFixing temperatures for brownfield mode...")
 
-            # Calculate pipe-specific temperature drops if enabled
-            if use_physics_temp_drop and hasattr(model, 'heatd'):
-                # Estimate total heat demand from first timestep
-                first_t = list(time_set)[0]
-                total_demand_mw = pyo.value(model.heatd[first_t]) if hasattr(model, 'heatd') else 10.0
-                total_demand_kw = total_demand_mw * 1000
+        use_physics_temp_drop = self.parameters.get('use_physics_temp_drop', True)
+        default_temp_drop = self.parameters.get('brownfield_temp_drop_per_pipe_c', 1.0)
 
-                # Build pipes config for calculation
-                pipes_for_calc = {}
-                for pipe_id in self.pipes:
-                    pipe_cfg = self.pipes[pipe_id]
-                    pipes_for_calc[pipe_id] = {
-                        'length_m': pipe_cfg.get('length_m', 100),
-                        'u_value_w_per_m_k': pipe_cfg.get('u_value_w_per_m_k', 0.5),
-                    }
+        if use_physics_temp_drop and hasattr(model, 'heatd'):
+            first_t = list(time_set)[0]
+            total_demand_mw = pyo.value(model.heatd[first_t]) if hasattr(model, 'heatd') else 10.0
+            total_demand_kw = total_demand_mw * 1000
 
-                # Calculate physics-based temperature drops
-                pipe_temp_drops = calculate_pipe_temp_drops(
-                    pipes_config=pipes_for_calc,
-                    supply_temp_c=supply_temp,
-                    return_temp_c=return_temp,
-                    ground_temp_c=ground_temp,
-                    total_heat_demand_kw=total_demand_kw,
-                )
+            pipes_for_calc = {}
+            for pipe_id in self.pipes:
+                pipe_cfg = self.pipes[pipe_id]
+                pipes_for_calc[pipe_id] = {
+                    'length_m': pipe_cfg.get('length_m', 100),
+                    'u_value_w_per_m_k': pipe_cfg.get('u_value_w_per_m_k', 0.5),
+                }
 
-                logger.info(f"  Using physics-based temperature drops (demand={total_demand_mw:.1f} MW)")
-                for pipe_id, drops in pipe_temp_drops.items():
-                    logger.debug(f"    {pipe_id}: supply_drop={drops['supply_drop_c']:.2f}°C, "
-                               f"return_drop={drops['return_drop_c']:.2f}°C")
+            pipe_temp_drops = calculate_pipe_temp_drops(
+                pipes_config=pipes_for_calc,
+                supply_temp_c=supply_temp,
+                return_temp_c=return_temp,
+                ground_temp_c=ground_temp,
+                total_heat_demand_kw=total_demand_kw,
+            )
+            logger.info(f"  Using physics-based temperature drops (demand={total_demand_mw:.1f} MW)")
+            for pipe_id, drops in pipe_temp_drops.items():
+                logger.debug(f"    {pipe_id}: supply_drop={drops['supply_drop_c']:.2f}°C, "
+                           f"return_drop={drops['return_drop_c']:.2f}°C")
+        else:
+            pipe_temp_drops = None
+            logger.info(f"  Using constant temperature drop: {default_temp_drop}°C/pipe")
+
+        pipe_hop_counts = {}
+        for pipe_id, pipe_comp in pipe_components.items():
+            from_node = pipe_comp['from_node']
+            from_node_comp = node_components.get(from_node, {})
+            from_node_type = from_node_comp.get('type', 'unknown')
+
+            if from_node_type == 'plant':
+                pipe_hop_counts[pipe_id] = 0
             else:
-                pipe_temp_drops = None
-                logger.info(f"  Using constant temperature drop: {default_temp_drop}°C/pipe")
+                incoming_to_from = from_node_comp.get('incoming_pipes', [])
+                pipe_hop_counts[pipe_id] = len(incoming_to_from) if incoming_to_from else 1
 
-            # Check if using time-varying supply temperatures (heating curve)
-            supply_temp_dict = getattr(model, 'supply_temp_series', None)
-            if supply_temp_dict is None:
-                supply_temp_dict = {t: supply_temp for t in time_set}
+        for pipe_id, pipe_comp in pipe_components.items():
+            from_node = pipe_comp['from_node']
+            to_node = pipe_comp['to_node']
+            from_node_comp = node_components.get(from_node, {})
+            to_node_comp = node_components.get(to_node, {})
+            from_node_type = from_node_comp.get('type', 'unknown')
+            to_node_type = to_node_comp.get('type', 'unknown')
 
-            # Pre-calculate pipe hop counts for temperature cascade
-            pipe_hop_counts = {}
-            for pipe_id, pipe_comp in pipe_components.items():
-                from_node = pipe_comp['from_node']
-                from_node_comp = node_components.get(from_node, {})
-                from_node_type = from_node_comp.get('type', 'unknown')
+            pipe_prefix = pipe_id.upper().replace('-', '_')
+            T_supply_in = getattr(model, f'{pipe_prefix}_T_supply_in')
+            T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+            T_return_in = getattr(model, f'{pipe_prefix}_T_return_in')
+            T_return_out = getattr(model, f'{pipe_prefix}_T_return_out')
+
+            hop_count = pipe_hop_counts[pipe_id]
+
+            if pipe_temp_drops and pipe_id in pipe_temp_drops:
+                supply_drop = pipe_temp_drops[pipe_id]['supply_drop_c']
+                return_drop = pipe_temp_drops[pipe_id]['return_drop_c']
+            else:
+                supply_drop = default_temp_drop
+                return_drop = default_temp_drop
+
+            cumulative_supply_drop = 0.0
+            if hop_count > 0 and pipe_temp_drops:
+                upstream_drops = [d['supply_drop_c'] for d in pipe_temp_drops.values()]
+                avg_upstream_drop = sum(upstream_drops) / len(upstream_drops) if upstream_drops else default_temp_drop
+                cumulative_supply_drop = avg_upstream_drop * hop_count
+            else:
+                cumulative_supply_drop = default_temp_drop * hop_count
+
+            for t in time_set:
+                base_supply_temp = supply_temp_dict[t]
 
                 if from_node_type == 'plant':
-                    pipe_hop_counts[pipe_id] = 0
+                    inlet_temp_t = base_supply_temp
+                    outlet_temp_t = base_supply_temp - supply_drop
                 else:
-                    incoming_to_from = from_node_comp.get('incoming_pipes', [])
-                    pipe_hop_counts[pipe_id] = len(incoming_to_from) if incoming_to_from else 1
+                    inlet_temp_t = base_supply_temp - cumulative_supply_drop
+                    outlet_temp_t = inlet_temp_t - supply_drop
 
-            for pipe_id, pipe_comp in pipe_components.items():
-                from_node = pipe_comp['from_node']
-                to_node = pipe_comp['to_node']
-                from_node_comp = node_components.get(from_node, {})
-                to_node_comp = node_components.get(to_node, {})
-                from_node_type = from_node_comp.get('type', 'unknown')
-                to_node_type = to_node_comp.get('type', 'unknown')
+                T_supply_in[t].fix(inlet_temp_t)
+                T_supply_out[t].fix(outlet_temp_t)
 
-                pipe_prefix = pipe_id.upper().replace('-', '_')
-                T_supply_in = getattr(model, f'{pipe_prefix}_T_supply_in')
-                T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
-                T_return_in = getattr(model, f'{pipe_prefix}_T_return_in')
-                T_return_out = getattr(model, f'{pipe_prefix}_T_return_out')
-
-                hop_count = pipe_hop_counts[pipe_id]
-
-                # Get pipe-specific temperature drop (physics-based or constant fallback)
-                if pipe_temp_drops and pipe_id in pipe_temp_drops:
-                    supply_drop = pipe_temp_drops[pipe_id]['supply_drop_c']
-                    return_drop = pipe_temp_drops[pipe_id]['return_drop_c']
-                else:
-                    supply_drop = default_temp_drop
-                    return_drop = default_temp_drop
-
-                # Cumulative supply drop for cascaded pipes (sum of upstream drops)
-                cumulative_supply_drop = 0.0
-                if hop_count > 0 and pipe_temp_drops:
-                    # Sum up drops from upstream pipes (simplified: use average)
-                    upstream_drops = [d['supply_drop_c'] for d in pipe_temp_drops.values()]
-                    avg_upstream_drop = sum(upstream_drops) / len(upstream_drops) if upstream_drops else default_temp_drop
-                    cumulative_supply_drop = avg_upstream_drop * hop_count
-                else:
-                    cumulative_supply_drop = default_temp_drop * hop_count
-
-                # === SUPPLY TEMPERATURE (time-varying with heating curve) ===
-                for t in time_set:
-                    base_supply_temp = supply_temp_dict[t]
-
-                    if from_node_type == 'plant':
-                        # Pipe from plant: inlet at supply temp (from heating curve)
-                        inlet_temp_t = base_supply_temp
-                        outlet_temp_t = base_supply_temp - supply_drop
-                    else:
-                        # Pipe from consumer/junction: cascade temperature drop
-                        inlet_temp_t = base_supply_temp - cumulative_supply_drop
-                        outlet_temp_t = inlet_temp_t - supply_drop
-
-                    T_supply_in[t].fix(inlet_temp_t)
-                    T_supply_out[t].fix(outlet_temp_t)
-
-                # Log summary (using average if time-varying)
-                if use_heating_curve:
-                    avg_inlet = sum(supply_temp_dict[t] - cumulative_supply_drop for t in time_set) / len(list(time_set))
-                    logger.info(
-                        f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
-                        f"T_supply_in=heating_curve (avg {avg_inlet:.1f}°C), ΔT_supply={supply_drop:.2f}°C"
-                    )
-                else:
-                    inlet_temp = supply_temp - cumulative_supply_drop
-                    outlet_temp = inlet_temp - supply_drop
-                    logger.info(
-                        f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
-                        f"T_supply_in={inlet_temp:.1f}°C, T_supply_out={outlet_temp:.1f}°C (ΔT={supply_drop:.2f}°C)"
-                    )
-
-                # === RETURN TEMPERATURE (fixed, not affected by heating curve) ===
-                if to_node_type == 'consumer':
-                    to_node_cfg = self.nodes.get(to_node, {})
-                    consumer_return_temp = to_node_cfg.get('return_temp_c', return_temp)
-                    pipe_return_in_temp = consumer_return_temp
-                    pipe_return_out_temp = consumer_return_temp - return_drop
-                    logger.info(
-                        f"      T_return_in={pipe_return_in_temp}°C (from consumer), "
-                        f"T_return_out={pipe_return_out_temp}°C"
-                    )
-                else:
-                    pipe_return_in_temp = return_temp
-                    pipe_return_out_temp = return_temp - return_drop
-
-                # Fix return temperatures (constant over time)
-                for t in time_set:
-                    T_return_in[t].fix(pipe_return_in_temp)
-                    T_return_out[t].fix(pipe_return_out_temp)
-
-            logger.info(f"  ✓ Fixed temperatures for {len(pipe_components)} pipes")
             if use_heating_curve:
-                logger.info(f"    (Using time-varying supply temperatures from heating curve)")
+                avg_inlet = sum(supply_temp_dict[t] - cumulative_supply_drop for t in time_set) / len(list(time_set))
+                logger.info(
+                    f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
+                    f"T_supply_in=heating_curve (avg {avg_inlet:.1f}°C), ΔT_supply={supply_drop:.2f}°C"
+                )
+            else:
+                inlet_temp = supply_temp - cumulative_supply_drop
+                outlet_temp = inlet_temp - supply_drop
+                logger.info(
+                    f"    {pipe_id}: {'plant' if from_node_type == 'plant' else 'cascade'} pipe, "
+                    f"T_supply_in={inlet_temp:.1f}°C, T_supply_out={outlet_temp:.1f}°C (ΔT={supply_drop:.2f}°C)"
+                )
 
-            # Also fix NODE temperatures in brownfield mode!
-            logger.info(f"\nFixing node temperatures for brownfield mode...")
+            if to_node_type == 'consumer':
+                to_node_cfg = self.nodes.get(to_node, {})
+                consumer_return_temp = to_node_cfg.get('return_temp_c', return_temp)
+                pipe_return_in_temp = consumer_return_temp
+                pipe_return_out_temp = consumer_return_temp - return_drop
+                logger.info(
+                    f"      T_return_in={pipe_return_in_temp}°C (from consumer), "
+                    f"T_return_out={pipe_return_out_temp}°C"
+                )
+            else:
+                pipe_return_in_temp = return_temp
+                pipe_return_out_temp = return_temp - return_drop
 
-            for node_id, node_comp in node_components.items():
-                node_type = node_comp['type']
-                node_prefix = node_id.upper().replace('-', '_')
+            for t in time_set:
+                T_return_in[t].fix(pipe_return_in_temp)
+                T_return_out[t].fix(pipe_return_out_temp)
 
-                if node_type == 'plant':
-                    # Plant return needs fixing
-                    T_return = node_comp['T_return']
-                    if isinstance(T_return, pyo.Var):
+        logger.info(f"  ✓ Fixed temperatures for {len(pipe_components)} pipes")
+        if use_heating_curve:
+            logger.info(f"    (Using time-varying supply temperatures from heating curve)")
+
+        logger.info(f"\nFixing node temperatures for brownfield mode...")
+
+        for node_id, node_comp in node_components.items():
+            node_type = node_comp['type']
+
+            if node_type == 'plant':
+                T_return = node_comp['T_return']
+                if isinstance(T_return, pyo.Var):
+                    for t in time_set:
+                        T_return[t].fix(return_temp)
+                    logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
+
+            elif node_type == 'consumer':
+                T_supply = node_comp['T_supply']
+                incoming_pipes = node_comp.get('incoming_pipes', [])
+
+                if incoming_pipes and isinstance(T_supply, pyo.Var):
+                    first_pipe = incoming_pipes[0]
+                    pipe_prefix = first_pipe.upper().replace('-', '_')
+                    pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+
+                    first_t = next(iter(time_set))
+                    consumer_supply_temp = pyo.value(pipe_T_supply_out[first_t])
+
+                    for t in time_set:
+                        T_supply[t].fix(consumer_supply_temp)
+                    logger.info(
+                        f"    {node_id}: Fixed supply temp to "
+                        f"{consumer_supply_temp}°C (from pipe {first_pipe})"
+                    )
+
+            elif node_type == 'junction':
+                T_supply = node_comp['T_supply']
+                T_return = node_comp['T_return']
+
+                incoming_pipes = node_comp.get('incoming_pipes', [])
+                if incoming_pipes:
+                    first_pipe = incoming_pipes[0]
+                    pipe_prefix = first_pipe.upper().replace('-', '_')
+                    pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+
+                    first_t = next(iter(time_set))
+                    junction_supply_temp = pyo.value(pipe_T_supply_out[first_t])
+
+                    if isinstance(T_supply, pyo.Var):
                         for t in time_set:
-                            T_return[t].fix(return_temp)
-                        logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
-
-                elif node_type == 'consumer':
-                    # Consumer: T_supply from incoming pipe
-                    T_supply = node_comp['T_supply']
-                    incoming_pipes = node_comp.get('incoming_pipes', [])
-
-                    if incoming_pipes and isinstance(T_supply, pyo.Var):
-                        # Use the outlet temperature of the first incoming pipe
-                        first_pipe = incoming_pipes[0]
-                        pipe_prefix = first_pipe.upper().replace('-', '_')
-                        pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
-
-                        first_t = next(iter(time_set))
-                        consumer_supply_temp = pyo.value(pipe_T_supply_out[first_t])
-
-                        for t in time_set:
-                            T_supply[t].fix(consumer_supply_temp)
+                            T_supply[t].fix(junction_supply_temp)
                         logger.info(
                             f"    {node_id}: Fixed supply temp to "
-                            f"{consumer_supply_temp}°C (from pipe {first_pipe})"
+                            f"{junction_supply_temp}°C"
                         )
 
-                elif node_type == 'junction':
-                    # Junction: fix both temps
-                    T_supply = node_comp['T_supply']
-                    T_return = node_comp['T_return']
+                if isinstance(T_return, pyo.Var):
+                    for t in time_set:
+                        T_return[t].fix(return_temp)
+                    logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
 
-                    incoming_pipes = node_comp.get('incoming_pipes', [])
-                    if incoming_pipes:
-                        first_pipe = incoming_pipes[0]
-                        pipe_prefix = first_pipe.upper().replace('-', '_')
-                        pipe_T_supply_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+        logger.info(f"  ✓ Fixed temperatures for {len(node_components)} nodes")
 
-                        first_t = next(iter(time_set))
-                        junction_supply_temp = pyo.value(pipe_T_supply_out[first_t])
-
-                        if isinstance(T_supply, pyo.Var):
-                            for t in time_set:
-                                T_supply[t].fix(junction_supply_temp)
-                            logger.info(
-                                f"    {node_id}: Fixed supply temp to "
-                                f"{junction_supply_temp}°C"
-                            )
-
-                    if isinstance(T_return, pyo.Var):
-                        for t in time_set:
-                            T_return[t].fix(return_temp)
-                        logger.info(f"    {node_id}: Fixed return temp to {return_temp}°C")
-
-            logger.info(f"  ✓ Fixed temperatures for {len(node_components)} nodes")
-
-        # ========================================
-        # PHASE 4: Connect demands to pipes
-        # ========================================
+    def _link_consumer_demands(self, model, time_set, temp_setup, pipe_components, node_components) -> None:
+        """Phase 4: Connect consumer heat demands to incoming pipe flow variables."""
+        brownfield_mode = temp_setup['brownfield_mode']
+        supply_temp = temp_setup['supply_temp']
+        return_temp = temp_setup['return_temp']
+        ground_temp = temp_setup['ground_temp']
 
         logger.info(f"\nConnecting consumer demands to pipes...")
 
-        # In brownfield mode: Use simplified flow linking based on demand fractions
         if brownfield_mode:
             logger.info("  [Brownfield mode: using simplified demand-based flow linking]")
 
-            # Calculate service fraction for each pipe, accounting for multi-source consumers
-            pipe_service_fractions = {}
-
-            # First, get consumer info (demand fraction, number of incoming pipes)
             consumer_info = {}
             for node_id, node_comp in node_components.items():
                 if node_comp['type'] == 'consumer':
@@ -802,9 +785,7 @@ class NetworkManager:
                         'incoming_pipes': incoming
                     }
 
-            # For each pipe, calculate total downstream demand fraction
             def get_downstream_demand(pipe_id, visited=None):
-                """Recursively calculate total demand fraction served by this pipe."""
                 if visited is None:
                     visited = set()
                 if pipe_id in visited:
@@ -820,14 +801,12 @@ class NetworkManager:
                 incoming_count = len(node_comp.get('incoming_pipes', [pipe_id]))
                 split_factor = 1.0 / max(1, incoming_count)
 
-                # Demand at destination node (split among incoming pipes)
                 if to_node in consumer_info:
                     info = consumer_info[to_node]
                     local_demand = info['demand_fraction'] * split_factor
                 else:
                     local_demand = 0.0
 
-                # Demand from outgoing pipes (downstream), auch gesplittet
                 outgoing = node_comp.get('outgoing_pipes', [])
                 downstream_demand = sum(
                     get_downstream_demand(out_pipe, visited.copy())
@@ -836,13 +815,13 @@ class NetworkManager:
 
                 return local_demand + downstream_demand
 
+            pipe_service_fractions = {}
             for pipe_id in pipe_components.keys():
                 pipe_service_fractions[pipe_id] = get_downstream_demand(pipe_id)
                 logger.info(
                     f"    {pipe_id}: serves {pipe_service_fractions[pipe_id]*100:.1f}% of demand"
                 )
 
-            # Verify total adds up (sollte ~100% über alle Plant-Outgoing-Pipes sein)
             plant_pipe_total = sum(
                 pipe_service_fractions.get(pid, 0)
                 for pid, pc in pipe_components.items()
@@ -852,19 +831,14 @@ class NetworkManager:
                 f"  Total from plant pipes: {plant_pipe_total*100:.1f}% (should be ~100%)"
             )
 
-            # Flow-Parameter für Brownfield
-            cp_water = self.parameters.get('cp_water_kj_per_kg_k', 4.186)  # kJ/(kg·K)
-            delta_T = supply_temp - return_temp  # K
-
+            cp_water = self.parameters.get('cp_water_kj_per_kg_k', 4.186)
+            delta_T = supply_temp - return_temp
             logger.info(f"  Creating brownfield flow constraints (delta_T = {delta_T}K)...")
             logger.info(f"  Calculating physical network losses (Q = U × L × ΔT)...")
-
-            ground_temp = self.parameters.get('ground_temp_default_c', 10.0)  # °C
 
             total_network_loss_mw = 0.0
             pipe_losses = {}
 
-            # Physikalische Verluste pro Leitung berechnen (Vorlauf + Rücklauf)
             for pipe_id, pipe_config in self.pipes.items():
                 length_m = pipe_config.get('length_m', 0.0)
                 u_supply = pipe_config.get('u_value_supply_w_per_m_k', 0.28)
@@ -886,7 +860,6 @@ class NetworkManager:
                     'length_m': length_m,
                 }
                 total_network_loss_mw += loss_data['total_mw']
-
                 logger.info(
                     f"    {pipe_id}: L={length_m:.0f}m, "
                     f"U_s={u_supply:.2f}, U_r={u_return:.2f} → "
@@ -899,242 +872,196 @@ class NetworkManager:
                 f"  Total network heat loss: {total_network_loss_mw:.3f} MW (constant)"
             )
 
-            # Store data for later use in PHASE 6 and get_results()
-            model._brownfield_total_loss_mw = total_network_loss_mw  # Constant loss [MW]
-            model._brownfield_pipe_losses = pipe_losses  # Per-pipe breakdown
-            model._brownfield_pipe_service_fractions = pipe_service_fractions  # For flow calc
-            model._brownfield_delta_T = delta_T  # Temperature difference for flow calc
-            model._brownfield_cp_water = cp_water  # Specific heat capacity
+            model._brownfield_total_loss_mw = total_network_loss_mw
+            model._brownfield_pipe_losses = pipe_losses
+            model._brownfield_pipe_service_fractions = pipe_service_fractions
+            model._brownfield_delta_T = delta_T
+            model._brownfield_cp_water = cp_water
             model._brownfield_ground_temp = ground_temp
+            return
 
-        # Greenfield: vollständige Kopplung zwischen Pipes und Demand
+        # Greenfield: full coupling between pipes and demand
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] == 'consumer' and not brownfield_mode:
-                incoming_pipes = node_comp.get('incoming_pipes', [])
-                outgoing_pipes = node_comp.get('outgoing_pipes', [])
+            if node_comp['type'] != 'consumer':
+                continue
+            incoming_pipes = node_comp.get('incoming_pipes', [])
+            outgoing_pipes = node_comp.get('outgoing_pipes', [])
+            has_outgoing = len(outgoing_pipes) > 0
 
-                has_outgoing = len(outgoing_pipes) > 0
+            if len(incoming_pipes) == 1 and not has_outgoing:
+                pipe_id = incoming_pipes[0]
+                pipe_comp = pipe_components[pipe_id]
+                pipe_m_dot = pipe_comp['m_dot']
+                node_m_dot = node_comp['m_dot_demand']
 
-                if len(incoming_pipes) == 1 and not has_outgoing:
-                    pipe_id = incoming_pipes[0]
-                    pipe_comp = pipe_components[pipe_id]
+                setattr(model, f"link_demand_{node_id}_to_pipe_{pipe_id}",
+                        pyo.Constraint(time_set, rule=lambda m, t, _p=pipe_m_dot, _n=node_m_dot: _p[t] == _n[t]))
 
-                    pipe_m_dot = pipe_comp['m_dot']
-                    node_m_dot = node_comp['m_dot_demand']
+                pipe_Q_delivered = pipe_comp['Q_delivered']
+                node_Q_demand = node_comp['Q_demand']
 
-                    constraint_name = f"link_demand_{node_id}_to_pipe_{pipe_id}"
+                def demand_heat_rule(m, t, _Q_del=pipe_Q_delivered, _Q_dem=node_Q_demand):
+                    if isinstance(_Q_dem, pyo.Param):
+                        return _Q_del[t] == pyo.value(_Q_dem[t])
+                    else:
+                        return _Q_del[t] == _Q_dem[t]
 
-                    def demand_flow_rule(m, t):
-                        return pipe_m_dot[t] == node_m_dot[t]
+                setattr(model, f"link_heat_demand_{node_id}_to_pipe_{pipe_id}",
+                        pyo.Constraint(time_set, rule=demand_heat_rule))
+                logger.info(f"  ✓ {node_id} demand ← pipe {pipe_id}")
 
-                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=demand_flow_rule))
+            elif len(incoming_pipes) == 1 and has_outgoing:
+                pipe_id = incoming_pipes[0]
+                pipe_comp = pipe_components[pipe_id]
+                pipe_m_dot = pipe_comp['m_dot']
+                node_m_dot = node_comp['m_dot_demand']
 
-                    pipe_Q_delivered = pipe_comp['Q_delivered']
-                    node_Q_demand = node_comp['Q_demand']
+                def passthrough_flow_rule(m, t, _pipe=pipe_m_dot, _node=node_m_dot, _out=outgoing_pipes):
+                    outgoing_flow = sum(pipe_components[pid]['m_dot'][t] for pid in _out)
+                    return _pipe[t] == _node[t] + outgoing_flow
 
-                    constraint_name_q = f"link_heat_demand_{node_id}_to_pipe_{pipe_id}"
+                setattr(model, f"link_demand_{node_id}_passthrough_flow",
+                        pyo.Constraint(time_set, rule=passthrough_flow_rule))
+                logger.info(
+                    f"  ✓ {node_id} passthrough: incoming={pipe_id}, "
+                    f"outgoing={len(outgoing_pipes)} pipes"
+                )
 
-                    def demand_heat_rule(m, t):
-                        if isinstance(node_Q_demand, pyo.Param):
-                            return pipe_Q_delivered[t] == pyo.value(node_Q_demand[t])
-                        else:
-                            return pipe_Q_delivered[t] == node_Q_demand[t]
+            elif len(incoming_pipes) > 1:
+                node_m_dot = node_comp['m_dot_demand']
+                node_Q_demand = node_comp['Q_demand']
 
-                    setattr(model, constraint_name_q, pyo.Constraint(time_set, rule=demand_heat_rule))
-
-                    logger.info(f"  ✓ {node_id} demand ← pipe {pipe_id}")
-
-                elif len(incoming_pipes) == 1 and has_outgoing:
-                    pipe_id = incoming_pipes[0]
-                    pipe_comp = pipe_components[pipe_id]
-                    pipe_m_dot = pipe_comp['m_dot']
-                    node_m_dot = node_comp['m_dot_demand']
-
-                    constraint_name = f"link_demand_{node_id}_passthrough_flow"
-
-                    def passthrough_flow_rule(m, t, _pipe=pipe_m_dot, _node=node_m_dot, _out=outgoing_pipes):
-                        outgoing_flow = sum(
-                            pipe_components[pid]['m_dot'][t]
-                            for pid in _out
-                        )
-                        return _pipe[t] == _node[t] + outgoing_flow
-
-                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=passthrough_flow_rule))
-
-                    node_Q_demand = node_comp['Q_demand']
+                if has_outgoing:
                     logger.info(
-                        f"  ✓ {node_id} passthrough: incoming={pipe_id}, "
-                        f"outgoing={len(outgoing_pipes)} pipes"
+                        f"  ✓ {node_id} has {len(incoming_pipes)} incoming, "
+                        f"{len(outgoing_pipes)} outgoing pipes - passthrough hub"
                     )
 
-                elif len(incoming_pipes) > 1:
-                    node_m_dot = node_comp['m_dot_demand']
-                    node_Q_demand = node_comp['Q_demand']
+                    def multi_passthrough_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes, _node=node_m_dot):
+                        total_inflow = sum(pipe_components[pid]['m_dot'][t] for pid in _in)
+                        total_outflow = sum(pipe_components[pid]['m_dot'][t] for pid in _out)
+                        return total_inflow == _node[t] + total_outflow
 
-                    if has_outgoing:
-                        logger.info(
-                            f"  ✓ {node_id} has {len(incoming_pipes)} incoming, "
-                            f"{len(outgoing_pipes)} outgoing pipes - passthrough hub"
-                        )
-
-                        constraint_name_flow = f"link_demand_{node_id}_multi_passthrough_flow"
-
-                        def multi_passthrough_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes, _node=node_m_dot):
-                            total_inflow = sum(
-                                pipe_components[pid]['m_dot'][t]
-                                for pid in _in
-                            )
-                            total_outflow = sum(
-                                pipe_components[pid]['m_dot'][t]
-                                for pid in _out
-                            )
-                            return total_inflow == _node[t] + total_outflow
-
-                        setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_passthrough_flow_rule))
-
-                        logger.info(f"    ← incoming: {', '.join(incoming_pipes)}")
-                        logger.info(f"    → outgoing: {', '.join(outgoing_pipes)}")
-
-                    else:
-                        logger.info(
-                            f"  ✓ {node_id} has {len(incoming_pipes)} incoming pipes - "
-                            f"creating multi-pipe flow balance"
-                        )
-
-                        constraint_name_flow = f"link_demand_{node_id}_multi_pipe_flow"
-
-                        def multi_pipe_flow_rule(m, t, _incoming=incoming_pipes, _node=node_m_dot):
-                            total_inflow = sum(
-                                pipe_components[pid]['m_dot'][t]
-                                for pid in _incoming
-                            )
-                            return total_inflow == _node[t]
-
-                        setattr(model, constraint_name_flow, pyo.Constraint(time_set, rule=multi_pipe_flow_rule))
-
-                        constraint_name_heat = f"link_demand_{node_id}_multi_pipe_heat"
-
-                        def multi_pipe_heat_rule(m, t, _incoming=incoming_pipes, _Q=node_Q_demand):
-                            total_heat = sum(
-                                pipe_components[pid]['Q_delivered'][t]
-                                for pid in _incoming
-                            )
-                            if isinstance(_Q, pyo.Param):
-                                return total_heat >= pyo.value(_Q[t]) * 0.99
-                            else:
-                                return total_heat >= _Q[t] * 0.99
-
-                        setattr(model, constraint_name_heat, pyo.Constraint(time_set, rule=multi_pipe_heat_rule))
-
-                        logger.info(f"    ← pipes: {', '.join(incoming_pipes)}")
+                    setattr(model, f"link_demand_{node_id}_multi_passthrough_flow",
+                            pyo.Constraint(time_set, rule=multi_passthrough_flow_rule))
+                    logger.info(f"    ← incoming: {', '.join(incoming_pipes)}")
+                    logger.info(f"    → outgoing: {', '.join(outgoing_pipes)}")
 
                 else:
-                    logger.warning(f"  ⚠ {node_id} has no incoming pipes!")
-
-        # ========================================
-        # PHASE 4b: Junction flow balance
-        # ========================================
-
-        logger.info(f"\nSetting up junction flow balance constraints...")
-
-        if brownfield_mode:
-            logger.info("  [Brownfield mode: junction flows determined by brownfield_flow_rule]")
-        else:
-            for node_id, node_comp in node_components.items():
-                if node_comp['type'] == 'junction':
-                    incoming_pipes = node_comp.get('incoming_pipes', [])
-                    outgoing_pipes = node_comp.get('outgoing_pipes', [])
-
-                    if not incoming_pipes or not outgoing_pipes:
-                        logger.warning(
-                            f"  ⚠ Junction {node_id} incomplete: "
-                            f"{len(incoming_pipes)} in, {len(outgoing_pipes)} out"
-                        )
-                        continue
-
-                    constraint_name = f"junction_{node_id}_flow_balance"
-
-                    def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
-                        total_in = sum(
-                            pipe_components[pid]['m_dot'][t]
-                            for pid in _in
-                        )
-                        total_out = sum(
-                            pipe_components[pid]['m_dot'][t]
-                            for pid in _out
-                        )
-                        return total_in == total_out
-
-                    setattr(model, constraint_name, pyo.Constraint(time_set, rule=junction_flow_rule))
                     logger.info(
-                        f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out"
+                        f"  ✓ {node_id} has {len(incoming_pipes)} incoming pipes - "
+                        f"creating multi-pipe flow balance"
                     )
 
-        # ========================================
-        # PHASE 5: Plant return temperature mixing
-        # ========================================
+                    def multi_pipe_flow_rule(m, t, _incoming=incoming_pipes, _node=node_m_dot):
+                        total_inflow = sum(pipe_components[pid]['m_dot'][t] for pid in _incoming)
+                        return total_inflow == _node[t]
+
+                    setattr(model, f"link_demand_{node_id}_multi_pipe_flow",
+                            pyo.Constraint(time_set, rule=multi_pipe_flow_rule))
+
+                    def multi_pipe_heat_rule(m, t, _incoming=incoming_pipes, _Q=node_Q_demand):
+                        total_heat = sum(pipe_components[pid]['Q_delivered'][t] for pid in _incoming)
+                        if isinstance(_Q, pyo.Param):
+                            return total_heat >= pyo.value(_Q[t]) * 0.99
+                        else:
+                            return total_heat >= _Q[t] * 0.99
+
+                    setattr(model, f"link_demand_{node_id}_multi_pipe_heat",
+                            pyo.Constraint(time_set, rule=multi_pipe_heat_rule))
+                    logger.info(f"    ← pipes: {', '.join(incoming_pipes)}")
+
+            else:
+                logger.warning(f"  ⚠ {node_id} has no incoming pipes!")
+
+    def _link_junction_flows(self, model, time_set, pipe_components, node_components) -> None:
+        """Phase 4b: Setup flow balance constraints for junction nodes (greenfield only)."""
+        logger.info(f"\nSetting up junction flow balance constraints...")
+
+        if self.brownfield_mode:
+            logger.info("  [Brownfield mode: junction flows determined by brownfield_flow_rule]")
+            return
+
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] != 'junction':
+                continue
+            incoming_pipes = node_comp.get('incoming_pipes', [])
+            outgoing_pipes = node_comp.get('outgoing_pipes', [])
+
+            if not incoming_pipes or not outgoing_pipes:
+                logger.warning(
+                    f"  ⚠ Junction {node_id} incomplete: "
+                    f"{len(incoming_pipes)} in, {len(outgoing_pipes)} out"
+                )
+                continue
+
+            def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
+                total_in = sum(pipe_components[pid]['m_dot'][t] for pid in _in)
+                total_out = sum(pipe_components[pid]['m_dot'][t] for pid in _out)
+                return total_in == total_out
+
+            setattr(model, f"junction_{node_id}_flow_balance",
+                    pyo.Constraint(time_set, rule=junction_flow_rule))
+            logger.info(
+                f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out"
+            )
+
+    def _link_plant_return_temps(self, model, time_set, temp_setup, pipe_components, node_components) -> None:
+        """Phase 5+5b: Setup plant return temperature constraints and plant-to-network heat linkage."""
+        return_temp = temp_setup['return_temp']
+        supply_temp = temp_setup['supply_temp']
+        brownfield_mode = temp_setup['brownfield_mode']
 
         logger.info(f"\nSetting up plant return temperature constraints...")
 
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] == 'plant':
-                return_pipes = node_comp.get('return_pipes', [])
-                node_T_return = node_comp['T_return']
+            if node_comp['type'] != 'plant':
+                continue
+            return_pipes = node_comp.get('return_pipes', [])
+            node_T_return = node_comp['T_return']
 
-                if len(return_pipes) == 0:
-                    logger.warning(f"  ⚠ Plant {node_id} has no return pipes!")
-                elif len(return_pipes) == 1:
-                    pipe_id = return_pipes[0]
-                    pipe_comp = pipe_components[pipe_id]
-                    pipe_T_return_out = pipe_comp['T_return_out']
-                    pipe_m_dot = pipe_comp['m_dot']
+            if len(return_pipes) == 0:
+                logger.warning(f"  ⚠ Plant {node_id} has no return pipes!")
+            elif len(return_pipes) == 1:
+                pipe_id = return_pipes[0]
+                pipe_comp = pipe_components[pipe_id]
+                pipe_T_return_out = pipe_comp['T_return_out']
 
-                    if brownfield_mode:
-                        logger.info(
-                            f"  ✓ {node_id} return temp fixed (brownfield - skipping link to pipe {pipe_id})"
-                        )
-                    else:
-                        constraint_name = f"plant_{node_id}_return_temp_single"
-
-                        def single_return_rule(m, t):
-                            return node_T_return[t] == pipe_T_return_out[t]
-
-                        setattr(model, constraint_name, pyo.Constraint(time_set, rule=single_return_rule))
-                        logger.info(f"  ✓ {node_id} return temp ← pipe {pipe_id}")
-
+                if brownfield_mode:
+                    logger.info(
+                        f"  ✓ {node_id} return temp fixed (brownfield - skipping link to pipe {pipe_id})"
+                    )
                 else:
-                    if brownfield_mode:
-                        logger.info(
-                            f"  ✓ {node_id} return temp fixed to {return_temp}°C (brownfield mode)"
-                        )
-                        for t in time_set:
-                            node_T_return[t].fix(return_temp)
-                    else:
-                        constraint_name = f"plant_{node_id}_return_temp_mixing"
+                    def single_return_rule(m, t, _node=node_T_return, _pipe=pipe_T_return_out):
+                        return _node[t] == _pipe[t]
 
-                        def multi_return_rule(m, t):
-                            total_return_flow = 0
-                            weighted_temp = 0
+                    setattr(model, f"plant_{node_id}_return_temp_single",
+                            pyo.Constraint(time_set, rule=single_return_rule))
+                    logger.info(f"  ✓ {node_id} return temp ← pipe {pipe_id}")
 
-                            for p_id in return_pipes:
-                                pipe_comp = pipe_components[p_id]
-                                pipe_m_dot = pipe_comp['m_dot']
-                                pipe_T_return_out = pipe_comp['T_return_out']
+            else:
+                if brownfield_mode:
+                    logger.info(
+                        f"  ✓ {node_id} return temp fixed to {return_temp}°C (brownfield mode)"
+                    )
+                    for t in time_set:
+                        node_T_return[t].fix(return_temp)
+                else:
+                    def multi_return_rule(m, t, _pipes=return_pipes, _node=node_T_return):
+                        total_return_flow = 0
+                        weighted_temp = 0
+                        for p_id in _pipes:
+                            pc = pipe_components[p_id]
+                            total_return_flow += pc['m_dot'][t]
+                            weighted_temp += pc['T_return_out'][t] * pc['m_dot'][t]
+                        return _node[t] * total_return_flow == weighted_temp
 
-                                total_return_flow += pipe_m_dot[t]
-                                weighted_temp += pipe_T_return_out[t] * pipe_m_dot[t]
-
-                            return node_T_return[t] * total_return_flow == weighted_temp
-
-                        setattr(model, constraint_name, pyo.Constraint(time_set, rule=multi_return_rule))
-                        logger.info(
-                            f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes "
-                            f"(BILINEAR - needs QP solver)"
-                        )
-
-        # ========================================
-        # PHASE 5b: Plant-to-Network Heat Linkage
-        # ========================================
+                    setattr(model, f"plant_{node_id}_return_temp_mixing",
+                            pyo.Constraint(time_set, rule=multi_return_rule))
+                    logger.info(
+                        f"  ✓ {node_id} return temp mixing ← {len(return_pipes)} pipes "
+                        f"(BILINEAR - needs QP solver)"
+                    )
 
         logger.info(f"\nSetting up plant-to-network heat linkage...")
 
@@ -1146,43 +1073,28 @@ class NetworkManager:
                 logger.info(f"  Plant {node_id}: {len(outgoing)} outgoing pipes")
 
         if plant_outgoing_pipes and hasattr(model, 'heatd'):
-            network_delta_t = supply_temp - return_temp  # K
-            cp_water = 4.186  # kJ/(kg·K)
-
+            network_delta_t = supply_temp - return_temp
             logger.info(
                 f"  Network ΔT: {network_delta_t}K, {len(plant_outgoing_pipes)} plant pipes total"
             )
-
             logger.info(
                 "  ℹ Network heat linkage: relying on system-level heat balance (no redundant constraint)"
             )
         else:
             logger.warning("  ⚠ No plant outgoing pipes or heatd not found - skipping linkage")
 
-        # ========================================
-        # PHASE 6: Calculate network costs
-        # ========================================
+    def _setup_network_losses(self, model, time_set, temp_setup, pipe_components) -> None:
+        """Phase 6: Create per-timestep network heat loss variable and binding constraint."""
+        brownfield_mode = temp_setup['brownfield_mode']
 
         logger.info(f"\nCalculating network costs...")
 
         if hasattr(model, 'pipe_capex_costs'):
             total_pipe_capex = sum(model.pipe_capex_costs.values())
             logger.info(f"  Total pipe CAPEX (annualized): {total_pipe_capex}")
-        else:
-            total_pipe_capex = 0
-
-        total_heat_loss_expr = sum(
-            sum(pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t] for t in time_set)
-            for pipe_comp in pipe_components.values()
-        )
-
-        # ========================================
-        # CRITICAL: Create per-timestep network heat losses
-        # ========================================
 
         logger.info(f"\nCreating per-timestep network heat losses...")
 
-        # Bounds für network_Q_loss_per_timestep aus Parametern
         loss_bounds = self.parameters.get('network_Q_loss_bounds_mw', (0, 50))
         try:
             loss_min, loss_max = loss_bounds
@@ -1195,13 +1107,11 @@ class NetworkManager:
             bounds=(loss_min, loss_max),
         )
 
-        # In brownfield mode, nutze physikalische Referenzverluste und skaliere mit der Last
         if brownfield_mode and hasattr(model, '_brownfield_total_loss_mw'):
-            total_loss_mw = model._brownfield_total_loss_mw  # Referenzverlust bei Q_ref
+            total_loss_mw = model._brownfield_total_loss_mw
             loss_model = self.parameters.get('brownfield_loss_model', 'constant')
             ref_heat_mw = self.parameters.get('brownfield_loss_ref_heat_mw', None)
 
-            # heatd[t] ist im Modell in kW
             if (
                 loss_model == 'demand_proportional'
                 and hasattr(model, 'heatd')
@@ -1209,7 +1119,6 @@ class NetworkManager:
                 and ref_heat_mw > 0
             ):
                 def brownfield_network_loss_rule(m, t):
-                    # heatd[t] [kW] → [MW] und Skalierung mit Referenzlast
                     return m.network_Q_loss_per_timestep[t] == total_loss_mw * (m.heatd[t] / 1000.0) / ref_heat_mw
 
                 model.brownfield_network_loss = pyo.Constraint(
@@ -1220,7 +1129,6 @@ class NetworkManager:
                     f"network_Q_loss_per_timestep scaled with heatd / {ref_heat_mw} MW"
                 )
             else:
-                # Fallback: konstante Verluste wie bisher
                 def brownfield_network_loss_rule(m, t):
                     return m.network_Q_loss_per_timestep[t] == total_loss_mw
 
@@ -1237,7 +1145,6 @@ class NetworkManager:
                         "Falle auf konstantes Verlustmodell zurück."
                     )
         else:
-            # Greenfield: network_Q_loss_per_timestep[t] = Summe aus Pipe-Verlustvariablen
             def network_loss_per_timestep_rule(m, t):
                 total_loss = sum(
                     pipe_comp['Q_loss_supply'][t] + pipe_comp['Q_loss_return'][t]
@@ -1251,24 +1158,6 @@ class NetworkManager:
             )
             logger.info(f"  ✓ Greenfield: network_Q_loss_per_timestep from pipe losses")
 
-        # ========================================
-        # FINAL: Return results dictionary
-        # ========================================
-        logger.info(f"\n" + "=" * 60)
-        logger.info(f"THERMAL NETWORK ATTACHED SUCCESSFULLY")
-        logger.info(f"  Pipes: {len(pipe_components)}")
-        logger.info(f"  Nodes: {len(node_components)}")
-        logger.info("=" * 60)
-
-        return {
-            'pipes': pipe_components,
-            'nodes': node_components,
-            'parameters': self.parameters,
-            'brownfield_mode': brownfield_mode,
-            'supply_temp': supply_temp,
-            'return_temp': return_temp,
-            'ground_temp': ground_temp,
-        }
 
     def get_results(self, model, time_set) -> Dict[str, Any]:
         """
