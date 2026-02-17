@@ -22,6 +22,9 @@ from energis.io.plot_utils import (
     prettify_label_en,
     save_figure as _save_figure_util,
 )
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 try:  # pragma: no cover - optional dependency
     import matplotlib
@@ -187,11 +190,11 @@ def export_publication_plots(
     """
 
     if not HAVE_MATPLOTLIB:
-        print("[EXPORT] Matplotlib not available - skipping publication plots.")
+        logger.info("[EXPORT] Matplotlib not available - skipping publication plots.")
         return {}
 
     if not table.index:
-        print("[EXPORT] No time series data - skipping publication plots.")
+        logger.info("[EXPORT] No time series data - skipping publication plots.")
         return {}
 
     os.makedirs(outdir, exist_ok=True)
@@ -264,7 +267,7 @@ def export_publication_plots(
                 if files:
                     generated[plot_type] = files
             except Exception as e:
-                print(f"[EXPORT] Warning: Failed to generate {plot_type}: {e}")
+                logger.info(f"[EXPORT] Warning: Failed to generate {plot_type}: {e}")
 
     return generated
 

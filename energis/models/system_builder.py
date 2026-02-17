@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Dict, Any, List, Optional, Sequence
 import math
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:
     import pyomo.environ as pyo
     HAVE_PYOMO = True
@@ -55,6 +59,12 @@ from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
 from .network_manager import NetworkManager
+from .investment_calculator import (
+    InvestmentCalculator,
+    ComponentInvestmentConfig,
+    StorageInvestmentConfig,
+)
+from .emissions_calculator import EmissionsCalculator, aggregate_emission_results
 from pathlib import Path
 
 
@@ -183,6 +193,25 @@ def build_model(
     include_tie_breaker_costs = bool(costs.get("include_tie_breaker_costs", True))
     include_storage_install_costs = bool(costs.get("include_storage_installation_costs", True))
 
+    # Investment calculator service - centralizes annualization and cost flag logic
+    inv_calc = InvestmentCalculator(
+        period_frac=period_frac,
+        include_capex=include_capex_costs,
+        include_activation=include_activation_costs,
+        include_tie_breaker=include_tie_breaker_costs,
+        include_storage_install=include_storage_install_costs,
+    )
+
+    # Emissions calculator service - centralizes CO2 tracking logic
+    # Uses 0-indexed grid CO2 series (matches table indexing used in original code)
+    grid_co2_series_dict = {i: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
+    co2_calc = EmissionsCalculator(
+        co2_price_param=m.co2_price,
+        grid_co2_series=grid_co2_series_dict,
+        dt_h=dt_h,
+        time_set=m.t,
+    )
+
     fuels = cfg.get("fuels", {})
 
     def pfuel(key: str, default: float = 0.0) -> float:
@@ -229,17 +258,16 @@ def build_model(
     m.co2_component_costs = {}
 
     # ========== DEBUG: Check HP config before processing ==========
-    print(f"\n[BUILD DEBUG] Raw HP config from syscfg:")
+    logger.debug("Raw HP config from syscfg:")
     for hp_raw in syscfg.get("heat_pumps", []):
-        print(f"  {hp_raw.get('id')}: enabled={hp_raw.get('enabled')}, "
-              f"max_th_mw={hp_raw.get('max_th_mw')}, "
-              f"inv.enabled={hp_raw.get('investment', {}).get('enabled')}")
-    
-    print(f"\n[BUILD DEBUG] After apply_heat_pump_defaults:")
+        logger.debug(f"  {hp_raw.get('id')}: enabled={hp_raw.get('enabled')}, "
+                     f"max_th_mw={hp_raw.get('max_th_mw')}, "
+                     f"inv.enabled={hp_raw.get('investment', {}).get('enabled')}")
+
+    logger.debug("After apply_heat_pump_defaults:")
     for hp_check in apply_heat_pump_defaults(syscfg):
-        print(f"  {hp_check.get('id')}: enabled={hp_check.get('enabled')}, "
-              f"max_th_mw={hp_check.get('max_th_mw')}")
-    print()
+        logger.debug(f"  {hp_check.get('id')}: enabled={hp_check.get('enabled')}, "
+                     f"max_th_mw={hp_check.get('max_th_mw')}")
     # ========== END DEBUG ==========
 
     for hp in apply_heat_pump_defaults(syscfg):
@@ -299,63 +327,36 @@ def build_model(
         
         # Debug: Show HP parameters
         if name == "HP1":
-            print(f"\n[BUILD DEBUG] HP1 parameters:")
-            print(f"  - capacity: {cap_min:.1f} - {cap_max:.1f} MW (init: {cap_init:.1f})")
-            print(f"  - investable: {invest_enabled}")
-            print(f"  - min_load: {min_load}")
-            print(f"  - COP series: min={min(COP_series):.2f}, max={max(COP_series):.2f}, avg={sum(COP_series)/len(COP_series):.2f}")
-            print(f"  - WRG caps: {'None' if wrg_caps is None else f'provided ({len(wrg_caps)} values)'}")
+            logger.debug("HP1 parameters:")
+            logger.info(f"  - capacity: {cap_min:.1f} - {cap_max:.1f} MW (init: {cap_init:.1f})")
+            logger.info(f"  - investable: {invest_enabled}")
+            logger.info(f"  - min_load: {min_load}")
+            logger.info(f"  - COP series: min={min(COP_series):.2f}, max={max(COP_series):.2f}, avg={sum(COP_series)/len(COP_series):.2f}")
+            logger.info(f"  - WRG caps: {'None' if wrg_caps is None else f'provided ({len(wrg_caps)} values)'}")
 
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
         if cap_var is not None and build_var is not None:
-            lifetime = float(inv_cfg.get("lifetime_years", hp_inv_defaults.get("lifetime_years", DEFAULT_LIFETIME_YEARS)))
-            capex = float(inv_cfg.get("capex_eur_per_mw", hp_inv_defaults.get("capex_eur_per_mw", 0.0)))
-            activation = float(inv_cfg.get("activation_cost_eur", hp_inv_defaults.get("activation_cost_eur", 0.0)))
-            tie_breaker = float(inv_cfg.get("tie_breaker_eur_per_mw", hp_inv_defaults.get("tie_breaker_eur_per_mw", 0.0)))
-            if lifetime > 0:
-                annual_factor = period_frac / lifetime
-            else:
-                annual_factor = 0.0
-            if include_capex_costs:
-                capex_terms.append(cap_var * capex * annual_factor)
-            if include_activation_costs:
-                activation_terms.append(build_var * activation * annual_factor)
-            if tie_breaker and include_tie_breaker_costs:
-                tie_breaker_terms.append(cap_var * tie_breaker)
+            hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
+            hp_inv_terms = inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
+            capex_terms.extend(hp_inv_terms.capex)
+            activation_terms.extend(hp_inv_terms.activation)
+            tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
 
-        # Calculate CO2 costs for heat pump
-        # HP consumes electricity → indirect emissions from grid
-        hp_p_el = fs["P_el_in"]
-        hp_co2_kg = sum(
-            hp_p_el[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h
-            for t in m.t
-        )
-        hp_co2_cost_eur = (m.co2_price / 1000.0) * hp_co2_kg
-
-        # Store for export
-        m.co2_component_costs[name] = {
-            'heat_kg': 0,  # HP produces heat, but CO2 comes from electricity
-            'elec_kg': hp_co2_kg,  # Electricity consumption → Grid emissions
-            'heat_eur': 0,
-            'elec_eur': hp_co2_cost_eur,
-            'total_kg': hp_co2_kg,
-            'total_eur': hp_co2_cost_eur,
-            'type': 'heat_pump'
-        }
-
-        # Add to totals
-        co2_kg_elec_terms.append(hp_co2_kg)
-        co2_cost_elec_terms.append(hp_co2_cost_eur)
-        co2_kg_grid_to_elec.append(hp_co2_kg)  # HP consumes grid electricity
+        # Calculate CO2 costs for heat pump (grid electricity → emissions)
+        hp_co2 = co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "heat_pump")
+        m.co2_component_costs[name] = hp_co2.to_dict()
+        co2_kg_elec_terms.append(hp_co2.elec_kg)
+        co2_cost_elec_terms.append(hp_co2.elec_eur)
+        co2_kg_grid_to_elec.append(hp_co2.elec_kg)
 
     sto_cfg = syscfg.get("storage", {"enabled": False})
     # Normalize storage config to handle new config structure (technical_limits, defaults, costs)
     if isinstance(sto_cfg, dict):
         sto_cfg = normalize_storage_config(sto_cfg)
-    print(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
+    logger.info(f"[BUILD] Storage config: enabled={sto_cfg.get('enabled', False)}")
     if sto_cfg.get("enabled", False):
-        print(f"[BUILD] Building storage component...")
+        logger.info(f"[BUILD] Building storage component...")
         storage_defaults = cfg.get("storage", {})
         sto_defaults = storage_defaults.get("investment_defaults", {})
         sto_inv = dict(sto_defaults)
@@ -458,11 +459,11 @@ def build_model(
             terminal_target_val = float(terminal_target_override)
 
         # Debug logging
-        print(f"[BUILD] Storage terminal configuration:")
-        print(f"  - terminal_state: {terminal_state}")
-        print(f"  - terminal_policy: {terminal_policy}")
-        print(f"  - soc_init: {soc_init}")
-        print(f"  - terminal_target_val: {terminal_target_val}")
+        logger.info(f"[BUILD] Storage terminal configuration:")
+        logger.info(f"  - terminal_state: {terminal_state}")
+        logger.info(f"  - terminal_policy: {terminal_policy}")
+        logger.info(f"  - soc_init: {soc_init}")
+        logger.info(f"  - terminal_target_val: {terminal_target_val}")
 
         coupling_factor = storage_defaults.get("power_energy_coupling")
         if "power_energy_coupling" in sto_cfg:
@@ -480,7 +481,7 @@ def build_model(
 
         if storage_type == "stratified":
             # Use advanced stratified storage with thermal zones
-            print(f"[BUILD] Using stratified storage (2-zone thermocline model)")
+            logger.info(f"[BUILD] Using stratified storage (2-zone thermocline model)")
 
             # Stratified storage specific parameters
             T_hot_C = float(sto_cfg.get("T_hot_C", 90.0))
@@ -535,7 +536,7 @@ def build_model(
             )
         else:
             # Use simple storage (existing code)
-            print(f"[BUILD] Using simple storage (single-zone model)")
+            logger.info(f"[BUILD] Using simple storage (single-zone model)")
 
             block = StorageBlock(
                 "TES",
@@ -610,8 +611,8 @@ def build_model(
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] >= getattr(m, "TES_terminal_target")),
                 )
-                print(f"[BUILD] Created terminal constraint: TES_terminal")
-                print(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
+                logger.info(f"[BUILD] Created terminal constraint: TES_terminal")
+                logger.info(f"  - SOC[{last_t}] >= {terminal_target_val} MWh (policy: geq)")
 
             elif terminal_policy == "equal":
                 # Hard constraint: SOC == target
@@ -620,8 +621,8 @@ def build_model(
                     "TES_terminal",
                     pyo.Constraint(expr=fs["SOC"][last_t] == getattr(m, "TES_terminal_target")),
                 )
-                print(f"[BUILD] Created terminal constraint: TES_terminal")
-                print(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
+                logger.info(f"[BUILD] Created terminal constraint: TES_terminal")
+                logger.info(f"  - SOC[{last_t}] == {terminal_target_val} MWh (policy: equal)")
 
             elif terminal_policy == "value":
                 # Salvage value approach: reward stored energy at end of horizon
@@ -657,17 +658,17 @@ def build_model(
                     # Value function: reward stored energy with diminishing returns
                     terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
 
-                    print(f"[BUILD] Using DIMINISHING terminal value function")
-                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh")
-                    print(f"  - Decay factor: {decay:.2f}")
-                    print(f"  - Threshold: {threshold:.1f} MWh (50% of {soc_max:.1f})")
-                    print(f"  - Price below threshold: {price_low:.2f} EUR/MWh")
-                    print(f"  - Price above threshold: {price_high:.2f} EUR/MWh")
+                    logger.info(f"[BUILD] Using DIMINISHING terminal value function")
+                    logger.info(f"  - Base price: {salvage_price:.2f} EUR/MWh")
+                    logger.info(f"  - Decay factor: {decay:.2f}")
+                    logger.info(f"  - Threshold: {threshold:.1f} MWh (50% of {soc_max:.1f})")
+                    logger.info(f"  - Price below threshold: {price_low:.2f} EUR/MWh")
+                    logger.info(f"  - Price above threshold: {price_high:.2f} EUR/MWh")
                 else:
                     # Constant/linear value function (original behavior)
                     terminal_value_term = -salvage_price * fs["SOC"][last_t]
-                    print(f"[BUILD] Using CONSTANT terminal value function")
-                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+                    logger.info(f"[BUILD] Using CONSTANT terminal value function")
+                    logger.info(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
 
             elif terminal_policy == "soft":
                 # Soft constraint: penalize deviation from target
@@ -684,9 +685,9 @@ def build_model(
                 )
                 # Penalize deviation (asymmetric: being below target is worse)
                 terminal_value_term = soft_penalty * m.TES_terminal_slack_neg + (soft_penalty * 0.5) * m.TES_terminal_slack_pos
-                print(f"[BUILD] Created soft terminal constraint: TES_terminal_soft")
-                print(f"  - Target: {terminal_target_val} MWh, Penalty: {soft_penalty:.2f} EUR/MWh")
-                print(f"  - Always feasible (deviation is penalized, not forbidden)")
+                logger.info(f"[BUILD] Created soft terminal constraint: TES_terminal_soft")
+                logger.info(f"  - Target: {terminal_target_val} MWh, Penalty: {soft_penalty:.2f} EUR/MWh")
+                logger.info(f"  - Always feasible (deviation is penalized, not forbidden)")
 
         else:
             # No terminal constraint (free policy or value policy without target)
@@ -701,11 +702,11 @@ def build_model(
                 decay = float(terminal_defs.get("diminishing_decay", 0.3))
 
                 # Debug: show capacity parameters
-                print(f"[BUILD] Value function capacity params:")
-                print(f"  - invest_enabled: {invest_enabled}")
-                print(f"  - e_cap_init: {e_cap_init:.1f} MWh")
-                print(f"  - e_cap_max: {e_cap_max:.1f} MWh")
-                print(f"  - soc_init: {soc_init:.1f} MWh")
+                logger.info(f"[BUILD] Value function capacity params:")
+                logger.info(f"  - invest_enabled: {invest_enabled}")
+                logger.info(f"  - e_cap_init: {e_cap_init:.1f} MWh")
+                logger.info(f"  - e_cap_max: {e_cap_max:.1f} MWh")
+                logger.info(f"  - soc_init: {soc_init:.1f} MWh")
 
                 if value_func_type == "diminishing" and decay > 0:
                     # Piecewise linear diminishing returns
@@ -714,8 +715,8 @@ def build_model(
 
                     # Safety check: ensure initial SOC fits within capacity
                     if soc_init > soc_max:
-                        print(f"[BUILD] WARNING: soc_init ({soc_init:.1f}) > soc_max ({soc_max:.1f})!")
-                        print(f"[BUILD] This may cause infeasibility. Adjusting soc_max.")
+                        logger.info(f"[BUILD] WARNING: soc_init ({soc_init:.1f}) > soc_max ({soc_max:.1f})!")
+                        logger.info(f"[BUILD] This may cause infeasibility. Adjusting soc_max.")
                         soc_max = max(soc_max, soc_init * 1.1)  # Add 10% margin
                         threshold = 0.5 * soc_max
 
@@ -729,15 +730,15 @@ def build_model(
                     price_high = salvage_price * (1 - decay)
                     terminal_value_term = -(price_low * m.TES_soc_low + price_high * m.TES_soc_high)
 
-                    print(f"[BUILD] Using DIMINISHING terminal value function (no target)")
-                    print(f"  - soc_max: {soc_max:.1f} MWh, threshold: {threshold:.1f} MWh")
-                    print(f"  - Base price: {salvage_price:.2f} EUR/MWh, Decay: {decay:.2f}")
+                    logger.info(f"[BUILD] Using DIMINISHING terminal value function (no target)")
+                    logger.info(f"  - soc_max: {soc_max:.1f} MWh, threshold: {threshold:.1f} MWh")
+                    logger.info(f"  - Base price: {salvage_price:.2f} EUR/MWh, Decay: {decay:.2f}")
                 else:
                     terminal_value_term = -salvage_price * fs["SOC"][last_t]
-                    print(f"[BUILD] Using CONSTANT terminal value function (no target)")
-                    print(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
+                    logger.info(f"[BUILD] Using CONSTANT terminal value function (no target)")
+                    logger.info(f"  - salvage_price: {salvage_price:.2f} EUR/MWh")
             else:
-                print(f"[BUILD] No terminal constraint (policy: free)")
+                logger.info(f"[BUILD] No terminal constraint (policy: free)")
 
         # Store terminal value term for later addition to objective
         m.terminal_value_term = terminal_value_term
@@ -745,31 +746,12 @@ def build_model(
         cap_var = fs.get("cap_energy")
         pow_var = fs.get("cap_power")
         build_var = fs.get("build")
-        lifetime = float(sto_inv.get("lifetime_years", sto_defaults.get("lifetime_years", DEFAULT_LIFETIME_YEARS)))
-        e_capex = float(sto_inv.get("energy_capex_eur_per_mwh", sto_defaults.get("energy_capex_eur_per_mwh", 0.0)))
-        p_capex = float(sto_inv.get("power_capex_eur_per_mw", sto_defaults.get("power_capex_eur_per_mw", 0.0)))
-        activation = float(sto_inv.get("activation_cost_eur", sto_defaults.get("activation_cost_eur", 0.0)))
-        tie_breaker = float(sto_inv.get("tie_breaker_eur_per_mwh", sto_defaults.get("tie_breaker_eur_per_mwh", 0.0)))
-        install_share = float(sto_inv.get("installation_cost_share", sto_defaults.get("installation_cost_share", 0.0)))
-        if lifetime > 0:
-            annual_factor = period_frac / lifetime
-        else:
-            annual_factor = 0.0
-        install_components: List = []
-        if cap_var is not None:
-            if include_capex_costs:
-                capex_terms.append(cap_var * e_capex * annual_factor)
-            install_components.append(cap_var * e_capex)
-            if tie_breaker and include_tie_breaker_costs:
-                tie_breaker_terms.append(cap_var * tie_breaker)
-        if pow_var is not None:
-            if include_capex_costs:
-                capex_terms.append(pow_var * p_capex * annual_factor)
-            install_components.append(pow_var * p_capex)
-        if build_var is not None and include_activation_costs:
-            activation_terms.append(build_var * activation * annual_factor)
-        if install_share and install_components and include_storage_install_costs:
-            storage_install_terms.append(sum(install_components) * install_share * annual_factor)
+        sto_inv_config = InvestmentCalculator.extract_storage_config(sto_inv, sto_defaults)
+        sto_inv_terms = inv_calc.calculate_storage_costs(cap_var, pow_var, build_var, sto_inv_config)
+        capex_terms.extend(sto_inv_terms.capex)
+        activation_terms.extend(sto_inv_terms.activation)
+        tie_breaker_terms.extend(sto_inv_terms.tie_breaker)
+        storage_install_terms.extend(sto_inv_terms.storage_install)
 
     gens = syscfg.get("generators", {})
     fuel_cost_terms: List = []
@@ -799,28 +781,12 @@ def build_model(
             el_in.append(fs["P_el_in"])
             ht_out.append(fs["Q_th_out"])
 
-            # Calculate CO2 costs for P2H
-            # P2H consumes electricity → indirect emissions from grid
-            p2h_p_el = fs["P_el_in"]
-            p2h_co2_kg = sum(
-                p2h_p_el[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h
-                for t in m.t
-            )
-            p2h_co2_cost_eur = (m.co2_price / 1000.0) * p2h_co2_kg
-
-            m.co2_component_costs["P2H"] = {
-                'heat_kg': 0,  # Heat from electricity, CO2 attributed to electricity
-                'elec_kg': p2h_co2_kg,
-                'heat_eur': 0,
-                'elec_eur': p2h_co2_cost_eur,
-                'total_kg': p2h_co2_kg,
-                'total_eur': p2h_co2_cost_eur,
-                'type': 'p2h'
-            }
-
-            co2_kg_elec_terms.append(p2h_co2_kg)
-            co2_cost_elec_terms.append(p2h_co2_cost_eur)
-            co2_kg_grid_to_elec.append(p2h_co2_kg)  # P2H consumes grid electricity
+            # Calculate CO2 costs for P2H (grid electricity → emissions)
+            p2h_co2 = co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "p2h")
+            m.co2_component_costs["P2H"] = p2h_co2.to_dict()
+            co2_kg_elec_terms.append(p2h_co2.elec_kg)
+            co2_cost_elec_terms.append(p2h_co2.elec_eur)
+            co2_kg_grid_to_elec.append(p2h_co2.elec_kg)
 
             continue
 
@@ -855,87 +821,44 @@ def build_model(
         fuel_cost_expr = sum(fs["fuel_in"][t] * price * dt_h for t in m.t)
         fuel_cost_terms.append(fuel_cost_expr)
 
-        # CO2 from fuel with heat/electricity breakdown
+        # CO2 from fuel combustion (heat-only or CHP)
         comp_name = key.upper()
-        fuel_co2_kg = sum(fs["fuel_in"][t] * ef * dt_h for t in m.t)
-
-        # Check if CHP (has electrical output)
         is_chp = fs.get("P_el_out") is not None
+        th_eff = float(gpar.get("th_eff", 0.9))
+        el_eff = float(gpar.get("el_eff", 0.0)) if is_chp else 0.0
 
-        if not is_chp:
-            # Pure heat generator → All CO2 → Heat
-            co2_heat_kg = fuel_co2_kg
-            co2_elec_kg = 0
-            co2_heat_cost = (m.co2_price / 1000.0) * co2_heat_kg
-            co2_elec_cost = 0
+        gen_co2 = co2_calc.calculate_fuel_emissions(
+            fuel_var=fs["fuel_in"],
+            fuel_ef_kg_per_mwh=ef,
+            is_chp=is_chp,
+            th_eff=th_eff,
+            el_eff=el_eff,
+            fuel_bus=fuel_bus,
+        )
+        # Store with additional generator metadata for export/analysis
+        gen_co2_dict = gen_co2.to_dict()
+        gen_co2_dict.update({'th_eff': th_eff, 'el_eff': el_eff if is_chp else None, 'fuel_bus': fuel_bus})
+        m.co2_component_costs[comp_name] = gen_co2_dict
 
-            m.co2_component_costs[comp_name] = {
-                'heat_kg': co2_heat_kg,
-                'elec_kg': 0,
-                'heat_eur': co2_heat_cost,
-                'elec_eur': 0,
-                'total_kg': fuel_co2_kg,
-                'total_eur': co2_heat_cost,
-                'type': 'thermal_generator',
-                'th_eff': float(gpar.get("th_eff", 0.9)),
-                'el_eff': None,
-                'fuel_bus': fuel_bus
-            }
-
-            co2_kg_heat_terms.append(co2_heat_kg)
-            co2_cost_heat_terms.append(co2_heat_cost)
-            co2_kg_fuel_to_heat.append(co2_heat_kg)  # Fuel → Heat
-        else:
-            # CHP → Energy-based split by efficiency
-            th_eff = float(gpar.get("th_eff", 0.9))
-            el_eff = float(gpar.get("el_eff", 0.0))
-            total_eff = th_eff + el_eff
-
-            if total_eff > 0:
-                # Split: CO2 proportional to efficiency
-                heat_fraction = th_eff / total_eff
-                elec_fraction = el_eff / total_eff
-            else:
-                heat_fraction = 1.0
-                elec_fraction = 0.0
-
-            # Split CO2 [kg]
-            co2_heat_kg = fuel_co2_kg * heat_fraction
-            co2_elec_kg = fuel_co2_kg * elec_fraction
-
-            # Split CO2 costs [EUR]
-            co2_heat_cost = (m.co2_price / 1000.0) * co2_heat_kg
-            co2_elec_cost = (m.co2_price / 1000.0) * co2_elec_kg
-
-            m.co2_component_costs[comp_name] = {
-                'heat_kg': co2_heat_kg,
-                'elec_kg': co2_elec_kg,
-                'heat_eur': co2_heat_cost,
-                'elec_eur': co2_elec_cost,
-                'total_kg': fuel_co2_kg,
-                'total_eur': (m.co2_price / 1000.0) * fuel_co2_kg,
-                'type': 'chp',
-                'th_eff': th_eff,
-                'el_eff': el_eff,
-                'fuel_bus': fuel_bus
-            }
-
-            co2_kg_heat_terms.append(co2_heat_kg)
-            co2_kg_elec_terms.append(co2_elec_kg)
-            co2_cost_heat_terms.append(co2_heat_cost)
-            co2_cost_elec_terms.append(co2_elec_cost)
-            co2_kg_fuel_to_heat.append(co2_heat_kg)  # Fuel → Heat (CHP portion)
-            co2_kg_fuel_to_elec.append(co2_elec_kg)  # Fuel → Electricity (CHP portion)
+        # Add to tracking lists
+        if gen_co2.heat_kg != 0:
+            co2_kg_heat_terms.append(gen_co2.heat_kg)
+            co2_cost_heat_terms.append(gen_co2.heat_eur)
+            co2_kg_fuel_to_heat.append(gen_co2.heat_kg)
+        if is_chp and gen_co2.elec_kg != 0:
+            co2_kg_elec_terms.append(gen_co2.elec_kg)
+            co2_cost_elec_terms.append(gen_co2.elec_eur)
+            co2_kg_fuel_to_elec.append(gen_co2.elec_kg)
 
         # For legacy compatibility: Total CO2 in kg
-        fuel_co2_terms.append(fuel_co2_kg)
+        fuel_co2_terms.append(gen_co2.total_kg)
 
     if not ht_out:
         raise RuntimeError(
             "No thermal generator connected to heat bus (ht_out empty). Please check system configuration."
         )
 
-    print(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
+    logger.info(f"[BUILD] #el_in={len(el_in)}, #el_out={len(el_out)}, #ht_out={len(ht_out)}, #ht_in={len(ht_in)}")
 
     # ========================================
     # THERMAL NETWORK INTEGRATION
@@ -945,7 +868,7 @@ def build_model(
     network_enabled = network_cfg.get('enabled', False)
 
     if network_enabled:
-        print("[BUILD] Integrating thermal network...")
+        logger.info("[BUILD] Integrating thermal network...")
 
         # Get config directory from cfg if available, otherwise use current directory
         config_dir = cfg.get('_config_dir', Path.cwd())
@@ -957,9 +880,9 @@ def build_model(
         if has_outdoor_temp:
             # Enable outdoor temperature usage in network config
             network_cfg.setdefault('use_outdoor_temperature', True)
-            print("[BUILD] Outdoor temperature available - heating curve enabled")
+            logger.info("[BUILD] Outdoor temperature available - heating curve enabled")
         else:
-            print("[BUILD] No outdoor temperature data - using fixed supply temperature")
+            logger.info("[BUILD] No outdoor temperature data - using fixed supply temperature")
 
         # Inject normalized network config back into cfg for NetworkManager
         cfg_with_network = dict(cfg)
@@ -970,8 +893,8 @@ def build_model(
 
             # Check if network was actually loaded successfully
             if not network_mgr.network_enabled:
-                print(f"[BUILD] WARNING: Thermal network failed to load (check topology file)")
-                print(f"[BUILD] Continuing without thermal network...")
+                logger.info(f"[BUILD] WARNING: Thermal network failed to load (check topology file)")
+                logger.info(f"[BUILD] Continuing without thermal network...")
                 m._network_enabled = False
             else:
                 # Create buses dict for network integration
@@ -988,23 +911,23 @@ def build_model(
                     # Store network manager for results extraction
                     m._network_manager = network_mgr
                     m._network_enabled = True
-                    print(f"[BUILD] Thermal network integrated successfully:")
+                    logger.info(f"[BUILD] Thermal network integrated successfully:")
                     print(f"         {len(network_results.get('pipes', {}))} pipes, "
                           f"{len(network_results.get('nodes', {}))} nodes")
                 else:
-                    print(f"[BUILD] WARNING: Thermal network returned no components")
-                    print(f"[BUILD] Continuing without thermal network...")
+                    logger.info(f"[BUILD] WARNING: Thermal network returned no components")
+                    logger.info(f"[BUILD] Continuing without thermal network...")
                     m._network_enabled = False
 
         except Exception as e:
-            print(f"[BUILD] ERROR: Failed to integrate thermal network: {e}")
-            print(f"[BUILD] Continuing without thermal network...")
+            logger.info(f"[BUILD] ERROR: Failed to integrate thermal network: {e}")
+            logger.info(f"[BUILD] Continuing without thermal network...")
             m._network_enabled = False
             import traceback
             traceback.print_exc()
     else:
         m._network_enabled = False
-        print("[BUILD] Thermal network disabled")
+        logger.info("[BUILD] Thermal network disabled")
 
     # ========================================
     # BUS BALANCE CONSTRAINTS

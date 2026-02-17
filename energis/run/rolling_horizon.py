@@ -22,6 +22,10 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Set
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
     HAVE_PYOMO = True
@@ -46,6 +50,26 @@ from energis.design import (
     validate_design,
 )
 import time
+
+from .rh_utilities import (
+    _slice_table,
+    _parse_ts,
+    _apply_horizon,
+    _hours_to_steps,
+    _slugify,
+    _extract_pyomo_series,
+    _env_str,
+    _env_float,
+    _env_bool,
+    _parse_float_list,
+    _gather_env_overrides,
+    _assert_capacity_vs_demand,
+)
+from .rh_utilities.env_overrides import (
+    _OverrideValues,
+    _normalise_run_mode,
+    _parse_run_mode,
+)
 
 
 @dataclass
@@ -199,31 +223,6 @@ def _json_safe(value: Any) -> Any:
     if HAVE_PYOMO and value.__class__.__name__ == "UndefinedData":  # pragma: no cover - depends on Pyomo
         return None
     return str(value)
-
-
-def _estimate_max_thermal_capacity(cfg: dict) -> float:
-    from energis.utils.config_utils import apply_heat_pump_defaults
-    syscfg = cfg.get("system", {})
-    cap = 0.0
-    for hp in apply_heat_pump_defaults(syscfg):
-        if hp.get("enabled", True):
-            cap += float(hp.get("max_th_mw", 0.0))
-    gens = syscfg.get("generators", {})
-    for _, par in gens.items():
-        if par.get("enabled", False):
-            cap += float(par.get("cap_th_mw", 0.0))
-    return cap
-
-
-def _assert_capacity_vs_demand(table: TimeSeriesTable, cfg: dict, safety: float = 1.1) -> None:
-    from energis.constants import CAPACITY_SAFETY_FACTOR
-    safety = CAPACITY_SAFETY_FACTOR
-    peak_demand = max(table["waermebedarf_MWth"])
-    cap = _estimate_max_thermal_capacity(cfg)
-    if cap < safety * peak_demand and peak_demand > 0:
-        raise RuntimeError(
-            "Thermische Maximalleistung zu gering für den Demand-Peak. Bitte Kapazitäten erhöhen."
-        )
 
 
 def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -1191,239 +1190,6 @@ def _collect_timeseries_and_summary(
     return series, summary_sections, flat
 
 
-def _slugify(value: str | None) -> str:
-    import re
-    if not value:
-        return "scenario"
-    slug = re.sub(r"[^0-9a-zA-Z_-]+", "-", value.strip())
-    slug = re.sub(r"-+", "-", slug).strip("-_")
-    return slug or "scenario"
-
-
-def _slice_table(table: TimeSeriesTable, indices: List[int]) -> TimeSeriesTable:
-    new_index = [table.index[i] for i in indices]
-    new_data = {col: [table[col][i] for i in indices] for col in table.columns}
-    return TimeSeriesTable(new_index, table.columns[:], new_data)
-
-
-def _parse_ts(value: Any) -> datetime:
-    from datetime import datetime
-    if isinstance(value, datetime):
-        return value
-    text = str(value).strip()
-    if not text:
-        raise ValueError("Leerwert kann nicht als Datum interpretiert werden")
-    try:
-        return datetime.fromisoformat(text)
-    except ValueError:
-        pass
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d", "%d.%m.%Y %H:%M", "%d.%m.%Y"):
-        try:
-            return datetime.strptime(text, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"Kann Datum/Uhrzeit nicht interpretieren: {value!r}")
-
-
-def _apply_horizon(table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: float) -> TimeSeriesTable:
-    import calendar
-    from energis.constants import HOURS_PER_YEAR, HOURS_PER_LEAP_YEAR
-    horizon = scenario_cfg.get("horizon")
-    if not isinstance(horizon, dict):
-        return table
-
-    htype = str(horizon.get("type", "")).lower()
-    if htype == "full_year":
-        year = horizon.get("year")
-        if year is None:
-            if not table.index:
-                raise RuntimeError("Zeitscheiben leer – kein Jahr auswählbar")
-            year = table.index[0].year
-        year = int(year)
-        enforce = bool(horizon.get("enforce", True))
-        indices = [i for i, ts in enumerate(table.index) if ts.year == year]
-        if not indices:
-            raise RuntimeError(f"Im Jahr {year} wurden keine Zeitschritte gefunden.")
-        subset = _slice_table(table, indices)
-        subset.ensure_frequency(dt_h)
-        expected_hours = HOURS_PER_LEAP_YEAR if calendar.isleap(year) else HOURS_PER_YEAR
-        actual_hours = len(subset) * dt_h
-        diff = abs(actual_hours - expected_hours)
-        if diff > 1e-6 and enforce:
-            raise RuntimeError(
-                f"Zeitraum deckt nicht das komplette Jahr {year} ab (erwartet {expected_hours} Stunden, gefunden {actual_hours})."
-            )
-        if diff > 1e-6 and not enforce:
-            print(
-                f"[SCENARIO] Hinweis: Daten decken nur {actual_hours} von {expected_hours} Stunden ab (enforce=false)."
-            )
-        print(f"[SCENARIO] Volles Jahr {year}: {len(subset)} Schritte ({subset.index[0]} → {subset.index[-1]})")
-        return subset
-
-    start = horizon.get("start")
-    end = horizon.get("end")
-    if start is None and end is None:
-        return table
-
-    start_dt = _parse_ts(start) if start is not None else None
-    end_dt = _parse_ts(end) if end is not None else None
-    if start_dt and end_dt and start_dt > end_dt:
-        raise RuntimeError("Ungültiger Zeithorizont: Start liegt nach dem Ende")
-    indices = []
-    for i, ts in enumerate(table.index):
-        if start_dt and ts < start_dt:
-            continue
-        if end_dt and ts > end_dt:
-            continue
-        indices.append(i)
-    if not indices:
-        raise RuntimeError("Zeithorizont enthält keine Zeitschritte")
-    subset = _slice_table(table, indices)
-    subset.ensure_frequency(dt_h)
-    print(f"[SCENARIO] Zeitraum {subset.index[0]} → {subset.index[-1]} ({len(subset)} Schritte)")
-    return subset
-
-
-def _extract_pyomo_series(var: Any, times: Sequence[Any], name: str, tolerance: float = 1e-9) -> List[float]:
-    values: List[float] = []
-    for t in times:
-        try:
-            raw = pyo.value(var[t])
-        except Exception as exc:  # pragma: no cover - requires Pyomo specific failures
-            logger.warning("Konnte Pyomo-Wert %s[%s] nicht auslesen: %s", name, t, exc)
-            values.append(0.0)
-            continue
-
-        if raw is None:
-            logger.warning("Pyomo-Wert %s[%s] ist None", name, t)
-            values.append(0.0)
-            continue
-
-        try:
-            number = float(raw)
-        except (TypeError, ValueError) as exc:
-            logger.warning(
-                "Pyomo-Wert %s[%s] kann nicht in float umgewandelt werden: %s", name, t, exc
-            )
-            values.append(0.0)
-            continue
-
-        if not math.isfinite(number):
-            logger.warning("Pyomo-Wert %s[%s] ist nicht endlich (%s)", name, t, number)
-            values.append(0.0)
-            continue
-
-        if abs(number) < tolerance:
-            number = 0.0
-
-        values.append(number)
-
-    return values
-
-
-# ============================================================================
-# End of migrated helper functions
-# ============================================================================
-
-
-_RUN_MODE_ALIASES = {
-    "PF": "PF_ONLY",
-    "PF_ONLY": "PF_ONLY",
-    "PF_THEN_RH": "PF_THEN_RH",
-    "PF_AND_RH": "PF_THEN_RH",
-    "RH": "RH_ONLY",
-    "RH_ONLY": "RH_ONLY",
-}
-
-
-def _normalise_run_mode(value: str | None) -> str | None:
-    if value is None:
-        return None
-    key = str(value).strip().upper()
-    if not key:
-        return None
-    return _RUN_MODE_ALIASES.get(key, key)
-
-
-def _parse_run_mode(value: str) -> str:
-    normalised = _normalise_run_mode(value)
-    if normalised is None:
-        raise argparse.ArgumentTypeError("run mode must not be empty")
-    if normalised not in {"PF_ONLY", "RH_ONLY", "PF_THEN_RH"}:
-        raise argparse.ArgumentTypeError(
-            "run mode must be one of PF_ONLY, RH_ONLY or PF_THEN_RH"
-        )
-    return normalised
-
-
-def _env_str(name: str) -> str | None:
-    value = os.environ.get(name)
-    if value is None:
-        return None
-    value = str(value).strip()
-    return value or None
-
-
-def _env_float(name: str) -> float | None:
-    raw = _env_str(name)
-    if raw is None:
-        return None
-    try:
-        return float(raw)
-    except ValueError as exc:  # pragma: no cover - guarded by tests
-        raise ValueError(f"Invalid float for {name}: {raw!r}") from exc
-
-
-def _env_bool(name: str) -> bool | None:
-    raw = _env_str(name)
-    if raw is None:
-        return None
-    lowered = raw.lower()
-    if lowered in {"1", "true", "yes", "on"}:
-        return True
-    if lowered in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"Invalid boolean for {name}: {raw!r}")
-
-
-def _parse_float_list(value: str) -> List[float]:
-    try:
-        return [float(item) for item in value.replace(";", ",").split(",") if item.strip()]
-    except ValueError as exc:  # pragma: no cover - guarded by argparse
-        raise argparse.ArgumentTypeError(f"Invalid float list: {value}") from exc
-
-
-@dataclass
-class _OverrideValues:
-    """Merged CLI/environment overrides for a single run."""
-
-    run_mode: str | None = None
-    fix_design: bool | None = None
-    horizon_hours: float | None = None
-    step_hours: float | None = None
-    overlap_hours: float | None = None
-    terminal_policy: str | None = None
-    design_json: str | None = None
-    include_gridcost: bool | None = None
-    include_demand_charge: bool | None = None
-    include_co2_cost: bool | None = None
-
-
-def _gather_env_overrides() -> _OverrideValues:
-    return _OverrideValues(
-        run_mode=_normalise_run_mode(_env_str("RUN_MODE")),
-        horizon_hours=_env_float("HEAT_HORIZON_HOURS"),
-        step_hours=_env_float("STEP_HOURS"),
-        overlap_hours=_env_float("OVERLAP_HOURS"),
-        terminal_policy=_env_str("TERMINAL_POLICY"),
-        fix_design=_env_bool("FIX_DESIGN"),
-        include_gridcost=_env_bool("INCLUDE_GRIDCOST_IN_ENERGY"),
-        include_demand_charge=_env_bool("INCLUDE_DEMAND_CHARGE_IN_RH"),
-        include_co2_cost=_env_bool("INCLUDE_CO2_COST_IN_OBJECTIVE"),
-        design_json=_env_str("PF_DESIGN_JSON"),
-    )
-
-
 def _merge_cli_and_env(
     args: argparse.Namespace, env_values: _OverrideValues
 ) -> tuple[_OverrideValues, float | None, float | None, float | None]:
@@ -2222,14 +1988,14 @@ def _recompute_objective_costs(costs: MutableMapping[str, float]) -> None:
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
     soc_series = series.get("TES_SOC_MWh")
     if soc_series is None or commit_len <= 0:
-        print(f"[RH] _next_soc: No SOC series or invalid commit_len, using fallback={fallback}")
+        logger.info(f"[RH] _next_soc: No SOC series or invalid commit_len, using fallback={fallback}")
         return fallback
     idx = min(commit_len - 1, len(soc_series) - 1)
     soc_value = float(soc_series[idx]) if idx >= 0 else fallback
-    print(f"[RH] _next_soc: Extracting SOC at index {idx} (commit_len={commit_len})")
-    print(f"  - SOC value: {soc_value} MWh")
+    logger.info(f"[RH] _next_soc: Extracting SOC at index {idx} (commit_len={commit_len})")
+    logger.info(f"  - SOC value: {soc_value} MWh")
     if len(soc_series) > 0:
-        print(f"  - SOC range in window: [{min(soc_series):.1f}, {max(soc_series):.1f}] MWh")
+        logger.info(f"  - SOC range in window: [{min(soc_series):.1f}, {max(soc_series):.1f}] MWh")
     return soc_value
 
 
@@ -2254,9 +2020,9 @@ def _solve_scenario(
         try:
             lp_filename = "debug_model.lp"
             model.write(lp_filename, io_options={'symbolic_solver_labels': True})
-            print(f"[DEBUG] LP file written to: {lp_filename}")
+            logger.info(f"[DEBUG] LP file written to: {lp_filename}")
         except Exception as e:
-            print(f"[DEBUG] Could not write LP file: {e}")
+            logger.info(f"[DEBUG] Could not write LP file: {e}")
     solver_meta: Dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
@@ -2362,7 +2128,7 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "capacity_mw": capacity,
                 "build_binary": build,
             }
-            print(f"[DESIGN] Extracted HP {hp_id}: capacity={capacity:.1f} MW, build={build:.1f}")
+            logger.info(f"[DESIGN] Extracted HP {hp_id}: capacity={capacity:.1f} MW, build={build:.1f}")
         elif key.startswith("storage_"):
             storage = {
                 "name": key.split("storage_", 1)[1],
@@ -2424,16 +2190,6 @@ def _load_cost_plan(cfg: Mapping[str, Any], fix_design: bool) -> _CostAggregatio
     )
 
 
-def _hours_to_steps(hours: float, dt_h: float, name: str) -> int:
-    if hours <= 0:
-        raise ValueError(f"{name} must be positive")
-    ratio = hours / dt_h
-    rounded = round(ratio)
-    if not math.isclose(ratio, rounded, rel_tol=1e-6, abs_tol=1e-6):
-        raise ValueError(f"{name} must be a multiple of dt_h")
-    return max(1, int(rounded))
-
-
 def _initial_soc(cfg: Mapping[str, Any]) -> Optional[float]:
     system = cfg.get("system", {}) if isinstance(cfg.get("system"), dict) else {}
     storage = system.get("storage", {}) if isinstance(system.get("storage"), dict) else {}
@@ -2457,8 +2213,8 @@ def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
 
 def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
     """Set initial SOC for next RH window in all relevant config locations."""
-    print(f"[RH] _set_initial_soc: Setting initial SOC for next window")
-    print(f"  - soc0_mwh: {soc} MWh")
+    logger.info(f"[RH] _set_initial_soc: Setting initial SOC for next window")
+    logger.info(f"  - soc0_mwh: {soc} MWh")
 
     # Set in inputs (for backward compatibility)
     inputs = cfg.setdefault("inputs", {})
@@ -2506,18 +2262,18 @@ def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
             terminal.pop("target", None)  # Remove legacy key too
             storage.pop("terminal_soc_mwh", None)  # Remove legacy key
             storage["terminal_state"] = "free"  # Legacy key
-            print(f"[TERMINAL] Set to '{policy}' (state=free, no target)")
+            logger.info(f"[TERMINAL] Set to '{policy}' (state=free, no target)")
         elif policy in ("equal", "geq", "soft"):
             terminal["state"] = "cyclic"
             # Keep target if set, otherwise will use soc_init
-            print(f"[TERMINAL] Set to '{policy}' (state=cyclic)")
+            logger.info(f"[TERMINAL] Set to '{policy}' (state=cyclic)")
 
 def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]:
     """Apply design from PF to RH/MPC."""
     cfg_copy = copy.deepcopy(cfg)
     system = cfg_copy.setdefault("system", {})
     
-    print(f"[DESIGN_FIX] Brownfield generators: {list(system.get('generators', {}).keys())}")
+    logger.info(f"[DESIGN_FIX] Brownfield generators: {list(system.get('generators', {}).keys())}")
     
     # Fix greenfield heat pump capacities
     heat_pumps = system.get("heat_pumps")
@@ -2546,10 +2302,10 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
             
             if build_binary >= 0.5:
                 hp_cfg["enabled"] = True
-                print(f"[DESIGN_FIX] ✓ HP {hp_id} ENABLED: {capacity:.1f} MW")
+                logger.info(f"[DESIGN_FIX] ✓ HP {hp_id} ENABLED: {capacity:.1f} MW")
             else:
                 hp_cfg["enabled"] = False
-                print(f"[DESIGN_FIX] ✗ HP {hp_id} DISABLED")
+                logger.info(f"[DESIGN_FIX] ✗ HP {hp_id} DISABLED")
     
     # Fix storage
     storage_cfg = system.get("storage")
@@ -2560,11 +2316,11 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
         
         if actual_power <= 0 and actual_capacity > 0:
             actual_power = actual_capacity * 0.25
-            print(f"[DESIGN_FIX] Storage power calculated: {actual_power:.1f} MW")
+            logger.info(f"[DESIGN_FIX] Storage power calculated: {actual_power:.1f} MW")
         
         if build_binary >= 0.5:
             storage_cfg["enabled"] = True
-            print(f"[DESIGN_FIX] ✓ Storage ENABLED: {actual_capacity:.1f} MWh / {actual_power:.1f} MW")
+            logger.info(f"[DESIGN_FIX] ✓ Storage ENABLED: {actual_capacity:.1f} MWh / {actual_power:.1f} MW")
         else:
             storage_cfg["enabled"] = False
             
@@ -2579,7 +2335,7 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
         terminal_cfg.pop("target", None)
         storage_cfg.pop("terminal_soc_mwh", None)
         storage_cfg["terminal_state"] = "free"
-        print(f"[DESIGN_FIX] Storage terminal → FREE")
+        logger.info(f"[DESIGN_FIX] Storage terminal → FREE")
         
         # ✅ FIX: Set ALL storage investment values consistently!
         invest_cfg = storage_cfg.setdefault("investment", {})
@@ -2800,7 +2556,7 @@ def export_workflow_results(
             )
             plot_files.extend(pf_plots)
     except Exception as exc:
-        print(f"[EXPORT] Plot export skipped: {exc}")
+        logger.info(f"[EXPORT] Plot export skipped: {exc}")
 
     # Prepare return dictionary
     result_dict = {
@@ -2930,26 +2686,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):
         if len(runs) > 1:
-            print(f"[workflow] Sweep run {idx}/{len(runs)}: horizon={horizon}, step={step}, overlap={overlap}")
+            logger.info(f"[workflow] Sweep run {idx}/{len(runs)}: horizon={horizon}, step={step}, overlap={overlap}")
         result = run_workflow(args.configs, overrides=override_cfg or None)
         steps = " -> ".join(result.plan.steps)
-        print(f"[workflow] Executed steps: {steps}")
+        logger.info(f"[workflow] Executed steps: {steps}")
 
         if result.pf_result is not None:
             pf_obj = result.pf_result.costs.get("objective.OBJ_value_EUR") if result.pf_result.costs else None
-            print(f"  • PF time steps: {len(result.pf_result.table)}")
+            logger.info(f"  • PF time steps: {len(result.pf_result.table)}")
             if pf_obj is not None:
-                print(f"  • PF objective: {pf_obj}")
+                logger.info(f"  • PF objective: {pf_obj}")
 
         if result.rh_result is not None:
-            print(f"  • RH windows: {len(result.rh_result.windows)}")
-            print(f"  • RH committed steps: {len(result.rh_result.table)}")
+            logger.info(f"  • RH windows: {len(result.rh_result.windows)}")
+            logger.info(f"  • RH committed steps: {len(result.rh_result.table)}")
 
         if args.print_design and result.design is not None:
             hp_parts = ", ".join(sorted(result.design.heat_pumps.keys())) or "none"
-            print(f"  • Design heat pumps: {hp_parts}")
+            logger.info(f"  • Design heat pumps: {hp_parts}")
             if result.design.storage is not None:
-                print(f"  • Storage design: {result.design.storage}")
+                logger.info(f"  • Storage design: {result.design.storage}")
 
     return 0
 
