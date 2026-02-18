@@ -261,18 +261,17 @@ class HeatExchangerBlock(BaseComponent):
                     pyo.Constraint(time_set, rule=active_build_rule))
 
         # ============================================================
-        # FIX NOMINAL TEMPERATURES (brownfield mode)
+        # FIX NOMINAL TEMPERATURES (initial values for network coupling)
         # ============================================================
+        # Temperatures are fixed to nominal values here as initial starting
+        # points.  The network_manager will overwrite these with constraint-
+        # based links once all components are attached.
 
-        brownfield_mode = config.get('brownfield_mode', True)
+        for t in time_set:
+            T_prim_in[t].fix(T_prim_in_nominal)
+            T_sec_in[t].fix(T_sec_in_nominal)
 
-        if brownfield_mode:
-            # Fix temperatures to nominal values (will be overwritten by network coupling)
-            for t in time_set:
-                T_prim_in[t].fix(T_prim_in_nominal)
-                T_sec_in[t].fix(T_sec_in_nominal)
-
-            logger.info(f"  Brownfield: T_prim_in={T_prim_in_nominal}°C, T_sec_in={T_sec_in_nominal}°C")
+        logger.info(f"  T_prim_in={T_prim_in_nominal}°C, T_sec_in={T_sec_in_nominal}°C (initial, network will link)")
 
         # ============================================================
         # RETURN REFERENCES

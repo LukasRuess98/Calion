@@ -9,6 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,10 +172,10 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     diagnosis : dict
         Diagnostic results from diagnose_workflow()
     """
-    print(f"\nDashboard Diagnosis:")
+    logger.info(f"\nDashboard Diagnosis:")
     print(f"  Available Results: PF={diagnosis.get('has_pf', False)}, "
           f"RH={diagnosis.get('has_rh', False)}, MPC={diagnosis.get('has_mpc', False)}")
-    print(f"  Primary Result: {diagnosis['primary_result_type']}")
+    logger.info(f"  Primary Result: {diagnosis['primary_result_type']}")
     print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
           else f"  ✗ Timeseries: No data")
     print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
@@ -180,12 +184,11 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
           else f"  ✗ Design: No data")
 
     if diagnosis['issues']:
-        print(f"\nWARNUNG: Issues found:")
+        logger.info(f"\nWARNUNG: Issues found:")
         for issue in diagnosis['issues']:
-            print(f"         • {issue}")
+            logger.info(f"         • {issue}")
 
     if diagnosis['recommendations']:
-        print(f"\nHINWEIS: Recommendations:")
+        logger.info(f"\nHINWEIS: Recommendations:")
         for rec in diagnosis['recommendations']:
-            print(f"         • {rec}")
-    print()
+            logger.info(f"         • {rec}")

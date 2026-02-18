@@ -1,0 +1,123 @@
+# =============================================================================
+# TEST SCENARIO: Minimal 3-Node District Heating Network
+# =============================================================================
+# Self-contained smoke-test: no external data files required.
+# Run: python -m energis.run configs/scenarios/test_3node_network.yaml
+#
+# Topology:
+#   plant_node  (producer, 1 generator, Q_max = 10 MW)
+#       │── pipe_1 (500 m, DN200) ──► substation_A  (consumer, 60 %)
+#       └── pipe_2 (800 m, DN150) ──► substation_B  (consumer, 40 %)
+#
+# 8 timesteps, Δt = 1 h, sinusoidal demand 3–9 MW
+# Expected solve time: < 60 s on any hardware (HiGHS / CBC / Gurobi)
+# =============================================================================
+
+scenario:
+  name: "3-Node DHN Smoke Test"
+  description: "Minimal multi-node district heating network for regression testing"
+  version: "1.0"
+
+  # ── Time horizon ────────────────────────────────────────────────────────────
+  time:
+    n_timesteps: 8
+    dt_h: 1.0
+    # Synthetic demand — no real data file needed
+    use_synthetic_demand: true
+    synthetic_demand_type: sinusoidal
+    synthetic_demand_peak_mw: 9.0
+    synthetic_demand_min_mw: 3.0
+
+  # ── Thermal network (inline topology — no external YAML) ────────────────────
+  thermal_network:
+    enabled: true
+    bilinear_mixing: false          # Big-M dominant-flow (MILP-compatible)
+
+    parameters:
+      supply_temp_nominal_c: 90.0
+      return_temp_nominal_c: 50.0
+      ground_temp_default_c: 10.0
+      cp_water_kj_per_kg_k: 4.186
+      rho_water_kg_per_m3: 983.0
+      max_velocity_m_s: 2.5
+      pressure_nominal_bar: 10.0
+      demand_slack_penalty_eur_per_mwh: 1000000
+
+    nodes:
+      - id: plant_node
+        type: producer
+        name: "Heat Plant"
+        components:
+          GEN1:
+            type: generator
+            Q_max_mw: 10.0
+            Q_min_mw: 0.0
+            fuel: natural_gas
+            fuel_cost_eur_per_mwh: 45.0
+            efficiency_heat: 0.90
+        pressure:
+          setpoint_bar: 10.0
+          min_bar: 8.0
+          max_bar: 12.0
+
+      - id: substation_A
+        type: consumer
+        name: "Substation A"
+        demand_fraction: 0.6
+        pressure:
+          min_required_bar: 2.0
+
+      - id: substation_B
+        type: consumer
+        name: "Substation B"
+        demand_fraction: 0.4
+        pressure:
+          min_required_bar: 2.0
+
+    pipes:
+      - id: pipe_1
+        from_node: plant_node
+        to_node: substation_A
+        length_m: 500
+        current_diameter_supply_mm: 200
+        current_diameter_return_mm: 200
+        u_value_supply_w_per_m_k: 0.3
+        u_value_return_w_per_m_k: 0.3
+        max_mass_flow_kg_s: 50.0
+
+      - id: pipe_2
+        from_node: plant_node
+        to_node: substation_B
+        length_m: 800
+        current_diameter_supply_mm: 150
+        current_diameter_return_mm: 150
+        u_value_supply_w_per_m_k: 0.25
+        u_value_return_w_per_m_k: 0.25
+        max_mass_flow_kg_s: 35.0
+
+  # ── Optimization ─────────────────────────────────────────────────────────────
+  optimization:
+    mode: dispatch
+    objective: minimize_total_cost
+    costs:
+      include_fuel: true
+      include_electricity_purchase: false
+      include_co2: false
+      include_capex: false
+
+  # ── Solver ──────────────────────────────────────────────────────────────────
+  solver:
+    name: highs                     # Free MILP solver — no license required
+    timelimit_s: 60
+    mip_gap: 0.01
+
+  # ── Economics ────────────────────────────────────────────────────────────────
+  economics:
+    co2_price_eur_per_tonne: 0.0
+    discount_rate: 0.05
+
+  # ── Output ──────────────────────────────────────────────────────────────────
+  output:
+    results_dir: "results/test_3node"
+    save_hourly_results: true
+    create_plots: false

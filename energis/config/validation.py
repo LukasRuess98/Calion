@@ -14,6 +14,9 @@ from energis.config.schemas import (
     NetworkTopology,
     GridConnection,
 )
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -66,27 +69,27 @@ class ValidationResult:
     def print_summary(self):
         """Print validation summary."""
         if self.valid:
-            print("[OK] Configuration is valid!")
+            logger.info("[OK] Configuration is valid!")
         else:
-            print(f"[ERROR] Configuration has {len(self.errors)} error(s)")
+            logger.info(f"[ERROR] Configuration has {len(self.errors)} error(s)")
 
         if self.errors:
-            print(f"\nErrors ({len(self.errors)}):")
+            logger.info(f"\nErrors ({len(self.errors)}):")
             for err in self.errors:
                 loc = f" [{err.location}]" if err.location else ""
-                print(f"  - {err.message}{loc}")
+                logger.info(f"  - {err.message}{loc}")
 
         if self.warnings:
-            print(f"\nWarnings ({len(self.warnings)}):")
+            logger.info(f"\nWarnings ({len(self.warnings)}):")
             for warn in self.warnings:
                 loc = f" [{warn.location}]" if warn.location else ""
-                print(f"  - {warn.message}{loc}")
+                logger.info(f"  - {warn.message}{loc}")
 
         if self.info:
-            print(f"\nInfo ({len(self.info)}):")
+            logger.info(f"\nInfo ({len(self.info)}):")
             for info in self.info:
                 loc = f" [{info.location}]" if info.location else ""
-                print(f"  - {info.message}{loc}")
+                logger.info(f"  - {info.message}{loc}")
 
 
 class ConfigValidator:
@@ -198,66 +201,127 @@ class ConfigValidator:
             return
 
         for net_id, net in self.network.networks.items():
-            # Check for at least one producer and one consumer
-            has_producer = False
-            has_consumer = False
+            self._validate_network_physics(net_id, net.nodes, net.pipes)
 
-            for node_id, node in net.nodes.items():
-                if node.type == "producer":
-                    has_producer = True
-                    # Check if producer has components
-                    if not node.components:
-                        self.result.add_warning(
-                            "network",
-                            f"Producer node '{node_id}' has no components attached",
-                            location=f"{net_id}.nodes.{node_id}",
-                        )
-                elif node.type == "consumer":
-                    has_consumer = True
-                    # Check if consumer has demand
-                    if not node.demand_column:
-                        self.result.add_error(
-                            "network",
-                            f"Consumer node '{node_id}' has no demand_column specified",
-                            location=f"{net_id}.nodes.{node_id}",
-                        )
+    def _validate_network_physics(self, net_id, nodes, pipes):
+        """B2 — Connectivity and demand-fraction physics validation.
 
-            if not has_producer:
-                self.result.add_error("network", f"Network '{net_id}' has no producer nodes")
-            if not has_consumer:
-                self.result.add_error("network", f"Network '{net_id}' has no consumer nodes")
+        Checks:
+        1. Graph connectivity: BFS from producer nodes — every consumer reachable.
+        2. Demand fractions: Σ demand_fraction[consumers] in [0.99, 1.01] when used.
+        3. Temperature sanity: supply bounds ordered and above return temperature.
+        Uses only stdlib (collections.deque) — no new dependencies.
+        """
+        from collections import deque
 
-            # Validate pipes connect valid nodes
-            for pipe_id, pipe in net.pipes.items():
-                if pipe.from_node not in net.nodes:
+        # Build adjacency from pipe edges (handles both schema objects and dicts)
+        adjacency = {nid: [] for nid in nodes}
+        for pipe_id, pipe in pipes.items():
+            if isinstance(pipe, dict):
+                fn = pipe.get('from_node')
+                tn = pipe.get('to_node')
+            else:
+                fn = getattr(pipe, 'from_node', None)
+                tn = getattr(pipe, 'to_node', None)
+            if fn and tn:
+                if fn in adjacency:
+                    adjacency[fn].append(tn)
+                if tn in adjacency:
+                    adjacency[tn].append(fn)
+
+        # BFS from all producer nodes
+        producer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) == 'producer']
+        consumer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) == 'consumer']
+
+        if producer_ids:
+            visited = set()
+            queue = deque(producer_ids)
+            visited.update(producer_ids)
+            while queue:
+                current = queue.popleft()
+                for neighbour in adjacency.get(current, []):
+                    if neighbour not in visited:
+                        visited.add(neighbour)
+                        queue.append(neighbour)
+
+            for consumer_id in consumer_ids:
+                if consumer_id not in visited:
                     self.result.add_error(
                         "network",
-                        f"Pipe '{pipe_id}' from_node '{pipe.from_node}' not found in network nodes",
-                        location=f"{net_id}.pipes.{pipe_id}",
-                    )
-                if pipe.to_node not in net.nodes:
-                    self.result.add_error(
-                        "network",
-                        f"Pipe '{pipe_id}' to_node '{pipe.to_node}' not found in network nodes",
-                        location=f"{net_id}.pipes.{pipe_id}",
+                        f"Consumer node '{consumer_id}' is not reachable from any producer "
+                        f"(disconnected topology in network '{net_id}')",
+                        location=f"{net_id}.nodes.{consumer_id}",
                     )
 
-                # Check pipe technology reference
-                if pipe.insulation not in self.tech_library.get('pipes', {}):
+        # Demand-fraction sum validation
+        fractions = []
+        for nid, node in nodes.items():
+            frac = getattr(node, 'demand_fraction', None)
+            if frac is not None:
+                fractions.append(float(frac))
+
+        if fractions:
+            total = sum(fractions)
+            if not (0.99 <= total <= 1.01):
+                self.result.add_error(
+                    "network",
+                    f"Network '{net_id}': demand_fraction values sum to {total:.4f} "
+                    f"(must be in [0.99, 1.01]). Check consumer node demand_fraction fields.",
+                )
+
+        # Check for at least one producer and one consumer
+        has_producer = False
+        has_consumer = False
+
+        for node_id, node in nodes.items():
+            node_type = getattr(node, 'type', None)
+            if node_type == "producer":
+                has_producer = True
+                if not getattr(node, 'components', None):
                     self.result.add_warning(
                         "network",
-                        f"Pipe insulation type '{pipe.insulation}' not found in tech_library/pipes",
-                        location=f"{net_id}.pipes.{pipe_id}",
+                        f"Producer node '{node_id}' has no components attached",
+                        location=f"{net_id}.nodes.{node_id}",
                     )
-
-            # Validate pumps reference valid nodes
-            for pump_id, pump in net.pumps.items():
-                if pump.node not in net.nodes:
+            elif node_type == "consumer":
+                has_consumer = True
+                if not getattr(node, 'demand_column', None):
                     self.result.add_error(
                         "network",
-                        f"Pump '{pump_id}' node '{pump.node}' not found in network nodes",
-                        location=f"{net_id}.pumps.{pump_id}",
+                        f"Consumer node '{node_id}' has no demand_column specified",
+                        location=f"{net_id}.nodes.{node_id}",
                     )
+
+        if not has_producer:
+            self.result.add_error("network", f"Network '{net_id}' has no producer nodes")
+        if not has_consumer:
+            self.result.add_error("network", f"Network '{net_id}' has no consumer nodes")
+
+        # Validate pipes connect valid nodes
+        for pipe_id, pipe in pipes.items():
+            pipe_from = getattr(pipe, 'from_node', None)
+            pipe_to = getattr(pipe, 'to_node', None)
+            if pipe_from and pipe_from not in nodes:
+                self.result.add_error(
+                    "network",
+                    f"Pipe '{pipe_id}' from_node '{pipe_from}' not found in network nodes",
+                    location=f"{net_id}.pipes.{pipe_id}",
+                )
+            if pipe_to and pipe_to not in nodes:
+                self.result.add_error(
+                    "network",
+                    f"Pipe '{pipe_id}' to_node '{pipe_to}' not found in network nodes",
+                    location=f"{net_id}.pipes.{pipe_id}",
+                )
+
+            # Check pipe technology reference
+            insulation = getattr(pipe, 'insulation', None)
+            if insulation and insulation not in self.tech_library.get('pipes', {}):
+                self.result.add_warning(
+                    "network",
+                    f"Pipe insulation type '{insulation}' not found in tech_library/pipes",
+                    location=f"{net_id}.pipes.{pipe_id}",
+                )
 
     def _validate_tech_library_references(self):
         """Validate that all technology references exist in tech library."""

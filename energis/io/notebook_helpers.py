@@ -28,6 +28,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from energis.logging_config import get_logger
+
 __all__ = [
     "setup_notebook_environment",
     "save_workflow_run",
@@ -38,6 +40,8 @@ __all__ = [
     "create_and_display_dashboard",
     "diagnose_dashboard_data",
 ]
+
+logger = get_logger(__name__)
 
 
 def setup_notebook_environment(
@@ -105,7 +109,7 @@ def setup_notebook_environment(
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    print(f"✅ Projekt-Root: {project_root}")
+    logger.info(f"✅ Projekt-Root: {project_root}")
 
     # Configure matplotlib
     if configure_matplotlib:
@@ -116,15 +120,15 @@ def setup_notebook_environment(
             # Server mode: use Agg backend (no display required)
             if server_mode:
                 matplotlib.use('Agg')
-                print("✅ Matplotlib konfiguriert (Agg backend für Server)")
+                logger.info("✅ Matplotlib konfiguriert (Agg backend für Server)")
             else:
                 # Try to detect if we're in a headless environment
                 import os
                 if not os.environ.get('DISPLAY') and sys.platform != 'win32':
                     matplotlib.use('Agg')
-                    print("✅ Matplotlib konfiguriert (Agg backend - kein Display erkannt)")
+                    logger.info("✅ Matplotlib konfiguriert (Agg backend - kein Display erkannt)")
                 else:
-                    print("✅ Matplotlib konfiguriert (Standard backend)")
+                    logger.info("✅ Matplotlib konfiguriert (Standard backend)")
 
             plt.style.use('seaborn-v0_8-darkgrid')
         except ImportError:
@@ -135,12 +139,12 @@ def setup_notebook_environment(
         pd.set_option('display.max_columns', None)
         pd.set_option('display.max_rows', 100)
         pd.set_option('display.float_format', '{:.2f}'.format)
-        print("✅ Pandas konfiguriert")
+        logger.info("✅ Pandas konfiguriert")
 
     # Suppress warnings
     if suppress_warnings:
         warnings.filterwarnings('ignore')
-        print("✅ Warnings unterdrückt")
+        logger.info("✅ Warnings unterdrückt")
 
     return project_root
 
@@ -213,7 +217,7 @@ def save_workflow_run(
 
     # Step 1: Export results (this creates the export directory)
     if export_first:
-        print("📦 Exportiere Ergebnisse (CSV, PDF, SVG)...")
+        logger.info("📦 Exportiere Ergebnisse (CSV, PDF, SVG)...")
         export_meta = rh.export_workflow_results(workflow)
         export_dir = Path(export_meta['outdir'])
     else:
@@ -224,14 +228,14 @@ def save_workflow_run(
         export_dir.mkdir(parents=True, exist_ok=True)
         export_meta = {'outdir': str(export_dir)}
 
-    print(f"📁 Speicherverzeichnis: {export_dir}")
+    logger.info(f"📁 Speicherverzeichnis: {export_dir}")
 
     # Step 2: Save workflow object as pickle
     workflow_pkl = export_dir / 'workflow.pkl'
-    print("💾 Speichere Workflow-Objekt...")
+    logger.info("💾 Speichere Workflow-Objekt...")
     with open(workflow_pkl, 'wb') as f:
         pickle.dump(workflow, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print(f"✅ Workflow gespeichert: {workflow_pkl.name}")
+    logger.info(f"✅ Workflow gespeichert: {workflow_pkl.name}")
 
     # Step 3: Create comprehensive metadata
     metadata = _build_metadata(
@@ -243,34 +247,33 @@ def save_workflow_run(
     )
 
     metadata_json = export_dir / 'metadata.json'
-    print("📝 Erstelle Metadaten...")
+    logger.info("📝 Erstelle Metadaten...")
     with open(metadata_json, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
-    print(f"✅ Metadaten gespeichert: {metadata_json.name}")
+    logger.info(f"✅ Metadaten gespeichert: {metadata_json.name}")
 
     # Step 4: Move to saved_workflows if export was in exports/
     if export_first and 'exports' in str(export_dir):
         # Move from exports/ to saved_workflows/
         target_dir = save_path / export_dir.name
         if not target_dir.exists():
-            print(f"🔄 Verschiebe nach {save_path.name}/...")
+            logger.info(f"🔄 Verschiebe nach {save_path.name}/...")
             import shutil
             shutil.move(str(export_dir), str(target_dir))
             export_dir = target_dir
-            print(f"✅ Verschoben nach: {export_dir}")
+            logger.info(f"✅ Verschoben nach: {export_dir}")
 
-    print("\n" + "="*70)
-    print("✅ WORKFLOW ERFOLGREICH GESPEICHERT")
-    print("="*70)
-    print(f"📂 Verzeichnis: {export_dir}")
-    print(f"📊 Dateien:")
-    print(f"   • workflow.pkl    - Workflow-Objekt")
-    print(f"   • metadata.json   - Metadaten")
-    print(f"   • *.csv           - Zeitreihen")
-    print(f"   • *.pdf, *.svg    - Plots")
+    logger.info("✅ WORKFLOW ERFOLGREICH GESPEICHERT")
+    logger.info("="*70)
+    logger.info(f"📂 Verzeichnis: {export_dir}")
+    logger.info(f"📊 Dateien:")
+    logger.info(f"   • workflow.pkl    - Workflow-Objekt")
+    logger.info(f"   • metadata.json   - Metadaten")
+    logger.info(f"   • *.csv           - Zeitreihen")
+    logger.info(f"   • *.pdf, *.svg    - Plots")
     if (export_dir / 'design.json').exists():
-        print(f"   • design.json     - Anlagen-Design")
-    print("="*70)
+        logger.info(f"   • design.json     - Anlagen-Design")
+    logger.info("="*70)
 
     return export_dir
 
@@ -390,7 +393,7 @@ def list_saved_workflows(
     --------
     >>> workflows = list_saved_workflows()
     >>> for wf in workflows:
-    ...     print(f"{wf['name']}: {wf['costs']:.0f} EUR")
+    ...     logger.info(f"{wf['name']}: {wf['costs']:.0f} EUR")
     """
 
     # Convert to absolute path if relative
@@ -404,7 +407,7 @@ def list_saved_workflows(
                 break
         save_path = project_root / save_dir
     if not save_path.exists():
-        print(f"⚠️  Verzeichnis {save_dir} existiert nicht")
+        logger.info(f"⚠️  Verzeichnis {save_dir} existiert nicht")
         return []
 
     workflows = []
@@ -435,7 +438,7 @@ def list_saved_workflows(
                     'scenario': metadata.get('scenario', {}).get('name', 'unknown'),
                 })
             except Exception as e:
-                print(f"⚠️  Fehler beim Laden von {metadata_file}: {e}")
+                logger.info(f"⚠️  Fehler beim Laden von {metadata_file}: {e}")
         else:
             # Fallback: use directory name
             workflows.append({
@@ -498,20 +501,20 @@ def load_workflow_from_saved(
         raise FileNotFoundError(f"workflow.pkl nicht gefunden in {workflow_dir}")
 
     if verbose:
-        print(f"📂 Lade Workflow: {workflow_dir.name}")
+        logger.info(f"📂 Lade Workflow: {workflow_dir.name}")
 
     # Load workflow
     with open(workflow_pkl, 'rb') as f:
         workflow = pickle.load(f)
 
     if verbose:
-        print("✅ Workflow geladen!")
-        print(f"   Steps: {' → '.join(workflow.plan.steps)}")
+        logger.info("✅ Workflow geladen!")
+        logger.info(f"   Steps: {' → '.join(workflow.plan.steps)}")
 
         # Show timesteps
         primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
         if primary_result:
-            print(f"   Zeitschritte: {len(primary_result.table):,}")
+            logger.info(f"   Zeitschritte: {len(primary_result.table):,}")
 
     return workflow
 
@@ -538,30 +541,29 @@ def display_workflow_summary(
     >>> display_workflow_summary(workflow)
     """
 
-    print("\n" + "="*70)
-    print("📊 WORKFLOW-ZUSAMMENFASSUNG")
-    print("="*70)
+    logger.info("📊 WORKFLOW-ZUSAMMENFASSUNG")
+    logger.info("="*70)
 
-    print(f"\n🔄 Workflow: {' → '.join(workflow.plan.steps)}")
+    logger.info(f"🔄 Workflow: {' → '.join(workflow.plan.steps)}")
 
     # Show which results are available
     has_pf = workflow.pf_result is not None
     has_rh = workflow.rh_result is not None
     has_mpc = workflow.mpc_result is not None
 
-    print(f"\n📦 Verfügbare Ergebnisse:")
-    print(f"   {'✅' if has_pf else '❌'} Perfect Forecast (PF)")
-    print(f"   {'✅' if has_rh else '❌'} Rolling Horizon (RH)")
-    print(f"   {'✅' if has_mpc else '❌'} Model Predictive Control (MPC)")
+    logger.info("📦 Verfügbare Ergebnisse:")
+    logger.info(f"   {'✅' if has_pf else '❌'} Perfect Forecast (PF)")
+    logger.info(f"   {'✅' if has_rh else '❌'} Rolling Horizon (RH)")
+    logger.info(f"   {'✅' if has_mpc else '❌'} Model Predictive Control (MPC)")
 
     # Show costs
     if show_costs:
         primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
         if primary_result and primary_result.costs:
-            print(f"\n💰 Kosten:")
+            logger.info("💰 Kosten:")
 
             total_cost = primary_result.costs.get('objective.OBJ_value_EUR', 0.0)
-            print(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
+            logger.info(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
 
             # Breakdown
             elec = primary_result.costs.get('objective.Grid_energy_cost_EUR', 0.0)
@@ -569,27 +571,27 @@ def display_workflow_summary(
             capex = primary_result.costs.get('objective.Capex_cost_EUR', 0.0)
 
             if elec > 1e-3:
-                print(f"   • Strom:       {elec:>15,.0f} EUR  ({elec/total_cost*100:>5.1f}%)")
+                logger.info(f"   • Strom:       {elec:>15,.0f} EUR  ({elec/total_cost*100:>5.1f}%)")
             if fuel > 1e-3:
-                print(f"   • Brennstoff:  {fuel:>15,.0f} EUR  ({fuel/total_cost*100:>5.1f}%)")
+                logger.info(f"   • Brennstoff:  {fuel:>15,.0f} EUR  ({fuel/total_cost*100:>5.1f}%)")
             if capex > 1e-3:
-                print(f"   • CAPEX:       {capex:>15,.0f} EUR  ({capex/total_cost*100:>5.1f}%)")
+                logger.info(f"   • CAPEX:       {capex:>15,.0f} EUR  ({capex/total_cost*100:>5.1f}%)")
 
     # Show design
     if show_design and workflow.design:
-        print(f"\n🏭 Anlagen-Design:")
+        logger.info("🏭 Anlagen-Design:")
 
         if workflow.design.heat_pumps:
-            print(f"   Wärmepumpen:")
+            logger.info(f"   Wärmepumpen:")
             for hp_id, hp_data in sorted(workflow.design.heat_pumps.items()):
                 capacity = hp_data.get('capacity_mw', 0.0)
-                print(f"      {hp_id}: {capacity:>6.2f} MW")
+                logger.info(f"      {hp_id}: {capacity:>6.2f} MW")
 
         if workflow.design.storage:
             storage_cap = workflow.design.storage.get('capacity_mwh', 0.0)
-            print(f"   Speicher:   {storage_cap:>6.2f} MWh")
+            logger.info(f"   Speicher:   {storage_cap:>6.2f} MWh")
 
-    print("\n" + "="*70)
+    logger.info("="*70)
 
 
 def display_kpi_summary(
@@ -611,14 +613,13 @@ def display_kpi_summary(
     >>> display_kpi_summary(workflow)
     """
 
-    print("\n" + "="*70)
-    print("📊 KEY PERFORMANCE INDICATORS")
-    print("="*70)
+    logger.info("📊 KEY PERFORMANCE INDICATORS")
+    logger.info("="*70)
 
     primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
 
     if not primary_result:
-        print("⚠️  Keine Ergebnisse verfügbar")
+        logger.info("⚠️  Keine Ergebnisse verfügbar")
         return
 
     # Create dataframe if not provided
@@ -633,60 +634,61 @@ def display_kpi_summary(
 
     # Costs
     if primary_result.costs:
-        print(f"\n💰 Wirtschaftlichkeit:")
+        logger.info("💰 Wirtschaftlichkeit:")
 
         total_cost = primary_result.costs.get('objective.OBJ_value_EUR', 0.0)
         peak_power = primary_result.costs.get('objective.P_buy_peak_MW', 0.0)
 
-        print(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
+        logger.info(f"   Gesamtkosten:  {total_cost:>15,.0f} EUR")
         if peak_power > 0:
-            print(f"   Peak-Leistung: {peak_power:>15,.2f} MW")
+            logger.info(f"   Peak-Leistung: {peak_power:>15,.2f} MW")
 
         # Detailed breakdown (same as in scenario_studio)
         _display_detailed_cost_breakdown(primary_result.costs)
 
     # Energy balance
-    print(f"\n⚡ Elektrische Energie:")
+    logger.info("⚡ Elektrische Energie:")
 
     p_buy_col = next((c for c in ['P_buy_MW', 'P_buy'] if c in ts.columns), None)
     p_sell_col = next((c for c in ['P_sell_MW', 'P_sell'] if c in ts.columns), None)
 
     if p_buy_col:
         e_buy = ts[p_buy_col].sum()
-        print(f"   Netzbezug:     {e_buy:>15,.0f} MWh")
+        logger.info(f"   Netzbezug:     {e_buy:>15,.0f} MWh")
 
     if p_sell_col:
         e_sell = ts[p_sell_col].sum()
-        print(f"   Einspeisung:   {e_sell:>15,.0f} MWh")
+        logger.info(f"   Einspeisung:   {e_sell:>15,.0f} MWh")
 
     # Component utilization
-    print(f"\n🏭 Komponenten-Auslastung:")
+    logger.info("🏭 Komponenten-Auslastung:")
 
     # Heat pumps
     hp_cols = [c for c in ts.columns if c.startswith('HP') and c.endswith('_Q_th_MW')]
     if hp_cols:
-        print(f"\n   Wärmepumpen:")
+        logger.info("   Wärmepumpen:")
         for col in sorted(hp_cols):
             hp_id = col.replace('_Q_th_MW', '')
             avg = ts[col].mean()
             max_val = ts[col].max()
             hours_on = (ts[col] > 0.01).sum()
-            print(f"      {hp_id:8s}: Ø {avg:6.2f} MW | Max {max_val:6.2f} MW | {hours_on:5d} h aktiv")
+            logger.info(f"      {hp_id:8s}: Ø {avg:6.2f} MW | Max {max_val:6.2f} MW | {hours_on:5d} h aktiv")
 
     # Storage
     tes_soc_col = next((c for c in ['TES_SOC_MWh', 'TES_SOC'] if c in ts.columns), None)
     if tes_soc_col:
-        print(f"\n   Speicher:")
-        print(f"      Max SOC:       {ts[tes_soc_col].max():>10.2f} MWh")
-        print(f"      Ø SOC:         {ts[tes_soc_col].mean():>10.2f} MWh")
+        logger.info("   Speicher:")
+        logger.info(f"      Max SOC:       {ts[tes_soc_col].max():>10.2f} MWh")
+        logger.info(f"      Ø SOC:         {ts[tes_soc_col].mean():>10.2f} MWh")
 
-    print("\n" + "="*70)
+    logger.info("="*70)
 
 
 def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
     """Display detailed cost breakdown (helper for display_kpi_summary)."""
+    logger = get_logger(__name__)
 
-    print(f"\n   💶 Detaillierte Aufschlüsselung:")
+    logger.info("   💶 Detaillierte Aufschlüsselung:")
 
     # Electricity costs
     elec_total = costs.get('objective.Grid_energy_cost_EUR', 0.0)
@@ -696,20 +698,20 @@ def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
     demand_charge = costs.get('objective.Demand_charge_cost_EUR', 0.0)
 
     if elec_total > 1e-3:
-        print(f"      Stromkosten:           {elec_total:>15,.0f} EUR")
+        logger.info(f"      Stromkosten:           {elec_total:>15,.0f} EUR")
         if elec_base > 1e-3:
-            print(f"         • Spotpreis:        {elec_base:>15,.0f} EUR  ({elec_base/elec_total*100:>5.1f}%)")
+            logger.info(f"         • Spotpreis:        {elec_base:>15,.0f} EUR  ({elec_base/elec_total*100:>5.1f}%)")
         if elec_fee > 1e-3:
-            print(f"         • Energy Fee:       {elec_fee:>15,.0f} EUR  ({elec_fee/elec_total*100:>5.1f}%)")
+            logger.info(f"         • Energy Fee:       {elec_fee:>15,.0f} EUR  ({elec_fee/elec_total*100:>5.1f}%)")
         if elec_grid > 1e-3:
-            print(f"         • Netzentgelte:     {elec_grid:>15,.0f} EUR  ({elec_grid/elec_total*100:>5.1f}%)")
+            logger.info(f"         • Netzentgelte:     {elec_grid:>15,.0f} EUR  ({elec_grid/elec_total*100:>5.1f}%)")
         if demand_charge > 1e-3:
-            print(f"         • Leistungspreis:   {demand_charge:>15,.0f} EUR")
+            logger.info(f"         • Leistungspreis:   {demand_charge:>15,.0f} EUR")
 
     # Fuel costs
     fuel_total = costs.get('objective.Fuel_cost_EUR', 0.0)
     if fuel_total > 1e-3:
-        print(f"      Brennstoffkosten:      {fuel_total:>15,.0f} EUR")
+        logger.info(f"      Brennstoffkosten:      {fuel_total:>15,.0f} EUR")
 
     # Investment costs
     capex_total = costs.get('objective.Capex_cost_EUR', 0.0)
@@ -717,11 +719,11 @@ def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
     capex_sto = costs.get('objective.Capex_storage_EUR', 0.0)
 
     if capex_total > 1e-3:
-        print(f"      Investitionskosten:    {capex_total:>15,.0f} EUR")
+        logger.info(f"      Investitionskosten:    {capex_total:>15,.0f} EUR")
         if capex_hp > 1e-3:
-            print(f"         • Wärmepumpen:      {capex_hp:>15,.0f} EUR  ({capex_hp/capex_total*100:>5.1f}%)")
+            logger.info(f"         • Wärmepumpen:      {capex_hp:>15,.0f} EUR  ({capex_hp/capex_total*100:>5.1f}%)")
         if capex_sto > 1e-3:
-            print(f"         • Speicher:         {capex_sto:>15,.0f} EUR  ({capex_sto/capex_total*100:>5.1f}%)")
+            logger.info(f"         • Speicher:         {capex_sto:>15,.0f} EUR  ({capex_sto/capex_total*100:>5.1f}%)")
 
 
 def diagnose_dashboard_data(workflow: Any) -> None:
@@ -750,34 +752,33 @@ def diagnose_dashboard_data(workflow: Any) -> None:
     """
     from energis.io.dashboard import diagnose_workflow
 
-    print("\n" + "="*70)
-    print("🔍 DASHBOARD DATA DIAGNOSIS")
-    print("="*70)
+    logger.info("🔍 DASHBOARD DATA DIAGNOSIS")
+    logger.info("="*70)
 
     diagnosis = diagnose_workflow(workflow)
 
     # Status overview
-    print(f"\n📊 Status:")
-    print(f"  Primary Result: {diagnosis['primary_result_type']}")
-    print(f"  {'✓' if diagnosis['has_timeseries'] else '✗'} Timeseries: {diagnosis.get('series_count', 0)} series")
-    print(f"  {'✓' if diagnosis['has_costs'] else '✗'} Costs: {diagnosis.get('cost_entries', 0)} entries")
-    print(f"  {'✓' if diagnosis['has_design'] else '✗'} Design: {diagnosis.get('design_components', 0)} components")
+    logger.info("📊 Status:")
+    logger.info(f"  Primary Result: {diagnosis['primary_result_type']}")
+    logger.info(f"  {'✓' if diagnosis['has_timeseries'] else '✗'} Timeseries: {diagnosis.get('series_count', 0)} series")
+    logger.info(f"  {'✓' if diagnosis['has_costs'] else '✗'} Costs: {diagnosis.get('cost_entries', 0)} entries")
+    logger.info(f"  {'✓' if diagnosis['has_design'] else '✗'} Design: {diagnosis.get('design_components', 0)} components")
 
     # Issues
     if diagnosis['issues']:
-        print(f"\n⚠️  Issues Found ({len(diagnosis['issues'])}):")
+        logger.info(f"⚠️  Issues Found ({len(diagnosis['issues'])}):")
         for i, issue in enumerate(diagnosis['issues'], 1):
-            print(f"  {i}. {issue}")
+            logger.info(f"  {i}. {issue}")
 
     # Recommendations
     if diagnosis['recommendations']:
-        print(f"\n💡 Recommendations ({len(diagnosis['recommendations'])}):")
+        logger.info(f"💡 Recommendations ({len(diagnosis['recommendations'])}):")
         for i, rec in enumerate(diagnosis['recommendations'], 1):
-            print(f"  {i}. {rec}")
+            logger.info(f"  {i}. {rec}")
     else:
-        print(f"\n✅ No issues detected - dashboard should display correctly!")
+        logger.info("✅ No issues detected - dashboard should display correctly!")
 
-    print("\n" + "="*70)
+    logger.info("="*70)
 
     return diagnosis
 
@@ -822,8 +823,8 @@ def create_and_display_dashboard(
     from energis.io.dashboard import create_dashboard, HAVE_PANEL
 
     if not HAVE_PANEL:
-        print("❌ Panel nicht installiert!")
-        print("   Installation: pip install panel holoviews bokeh plotly")
+        logger.info("❌ Panel nicht installiert!")
+        logger.info("   Installation: pip install panel holoviews bokeh plotly")
         return None
 
     # Auto-generate title
@@ -831,18 +832,18 @@ def create_and_display_dashboard(
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         title = f"EnerGIS Dashboard - {timestamp}"
 
-    print("🎛️ Erstelle interaktives Dashboard...")
+    logger.info("🎛️ Erstelle interaktives Dashboard...")
 
     dashboard = create_dashboard(workflow, title=title, diagnose=diagnose)
 
-    print("✅ Dashboard erfolgreich erstellt!")
-    print("\n💡 Verwendung:")
-    print("   • Im Notebook: Evaluiere 'dashboard' in einer Zelle")
-    print("   • Als Webapp: panel serve notebook.ipynb --show")
-    print("   • Features: Tabs, interaktive Plots, Zoom/Pan/Hover")
-    print("\n💡 Troubleshooting:")
-    print("   • Wenn Daten nicht angezeigt werden: diagnose_dashboard_data(workflow)")
-    print("   • VS-Code: Panel funktioniert am besten im Browser")
+    logger.info("✅ Dashboard erfolgreich erstellt!")
+    logger.info("💡 Verwendung:")
+    logger.info("   • Im Notebook: Evaluiere 'dashboard' in einer Zelle")
+    logger.info("   • Als Webapp: panel serve notebook.ipynb --show")
+    logger.info("   • Features: Tabs, interaktive Plots, Zoom/Pan/Hover")
+    logger.info("💡 Troubleshooting:")
+    logger.info("   • Wenn Daten nicht angezeigt werden: diagnose_dashboard_data(workflow)")
+    logger.info("   • VS-Code: Panel funktioniert am besten im Browser")
 
     if auto_display:
         return dashboard

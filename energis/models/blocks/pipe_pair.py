@@ -2,17 +2,19 @@
 Pipe Pair Component for District Heating Networks
 
 Models supply and return pipes with:
-- Temperature-dependent heat losses
-- Outdoor temperature coupling
-- Discrete diameter selection
-- Investment optimization
+- Temperature-dependent heat losses (Darcy-Weisbach)
+- Piecewise-linear pressure drop (MILP-compatible, 3-segment PWL)
+- Transport time delay (linearised with 3-bucket SOS2 binary selection)
+- Investment optimization (optional diameter/insulation upgrade)
+
+Unified physics — no brownfield/greenfield distinction.
 
 Author: EnerGIS Development Team
-Date: 2025-12-10
 """
 
 from typing import Dict, Any, Optional, List
 import logging
+import math
 
 try:
     import pyomo.environ as pyo
@@ -23,8 +25,11 @@ except ImportError:
 
 from ..component import BaseComponent
 from ..registry import register_component
+from ..network_physics import compute_delay_buckets
 
 logger = logging.getLogger(__name__)
+
+pi = math.pi
 
 
 @register_component("pipe_pair")
@@ -36,15 +41,19 @@ class PipePairBlock(BaseComponent):
     - Heat losses dependent on pipe temperature and ground temperature
     - Temperature propagation along pipes
     - Mass flow balance
+    - Piecewise-linear (PWL) pressure drop (3-segment, MILP-compatible)
+    - 3-bucket SOS2 transport delay (see comment block below for details)
     - Optional diameter selection and insulation upgrade
-    - Investment decisions
 
     Variables (per timestep t):
         - m_dot[t]: Mass flow through pipes (kg/s)
         - T_supply_in[t], T_supply_out[t]: Supply temperatures (°C)
         - T_return_in[t], T_return_out[t]: Return temperatures (°C)
         - Q_loss_supply[t], Q_loss_return[t]: Heat losses (MW)
-        - Q_delivered[t]: Net heat delivered (MW)
+        - Q_delivered[t]: Heat entering supply pipe at source side (MW)
+        - Q_consumer[t]: Heat delivered to consumer (delayed) (MW)
+        - z_delay[n, t]: Binary bucket selector for transport delay
+        - w_delay[n, t]: Linearisation auxiliary for z_delay × Q_delivered
         - diameter_choice[d]: Binary for diameter selection (if investable)
         - insulation_choice[i]: Binary for insulation type (if upgradeable)
     """
@@ -60,9 +69,10 @@ class PipePairBlock(BaseComponent):
         if config['length_m'] <= 0:
             raise ValueError(f"Pipe {config['id']}: length must be positive")
 
-        # Check diameter configuration
         if 'current_diameter_supply_mm' not in config and 'diameter_options' not in config:
-            raise ValueError(f"Pipe {config['id']}: must specify either current_diameter or diameter_options")
+            raise ValueError(
+                f"Pipe {config['id']}: must specify either current_diameter or diameter_options"
+            )
 
     @staticmethod
     def attach(model, time_set, config: Dict[str, Any], buses: Dict) -> Dict[str, Any]:
@@ -92,21 +102,19 @@ class PipePairBlock(BaseComponent):
         to_node = config['to_node']
 
         # Fluid properties (water)
-        cp_water = 4.186  # kJ/(kg·K)
-        density_water = 1000  # kg/m³
+        cp_water = 4.186       # kJ/(kg·K)
+        density_water = 1000   # kg/m³
+        mu_water = 0.0004      # Dynamic viscosity at 80°C [Pa·s]
 
         # Temperature parameters
         supply_temp_nominal_c = config.get('supply_temp_nominal_c', 90.0)
         return_temp_nominal_c = config.get('return_temp_nominal_c', 50.0)
-        network_delta_t_k = supply_temp_nominal_c - return_temp_nominal_c
 
         # Ground/ambient temperature
         use_outdoor_temp = config.get('use_outdoor_temperature', False)
         if use_outdoor_temp and hasattr(model, 'outdoor_temp'):
-            # Use time-varying outdoor temperature from model
             T_ground = model.outdoor_temp
         else:
-            # Fixed ground temperature
             fixed_ground_temp = config.get('ground_temp_c', 10.0)
             T_ground = {t: fixed_ground_temp for t in time_set}
 
@@ -122,14 +130,16 @@ class PipePairBlock(BaseComponent):
         # Investment/upgrade options
         upgrade_config = config.get('upgrade_options', {})
         upgrade_enabled = upgrade_config.get('enabled', False)
-        diameter_options = upgrade_config.get('diameter_options', [current_diam_supply] if current_diam_supply else [200])
+        diameter_options = upgrade_config.get(
+            'diameter_options', [current_diam_supply] if current_diam_supply else [200]
+        )
         insulation_options = upgrade_config.get('insulation_options', ['standard'])
 
         # Pipe catalog for costs
         pipe_catalog = config.get('pipe_catalog', {})
 
         # ============================================================
-        # SETS
+        # SETS (investment only)
         # ============================================================
 
         if upgrade_enabled:
@@ -139,489 +149,270 @@ class PipePairBlock(BaseComponent):
                     pyo.Set(initialize=insulation_options))
 
         # ============================================================
-        # VARIABLES
+        # PIPE GEOMETRY
         # ============================================================
 
-        # Mass flow (kg/s) - same for supply and return
-        setattr(model, f'{prefix}_m_dot',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(0, 500)))  # Max 500 kg/s = 180 m³/h
+        max_velocity = config.get('max_velocity_m_s', 2.5)
+        max_pressure_drop = config.get('max_pressure_drop_bar', 2.0)
+        pipe_roughness = config.get('pipe_roughness_mm', 0.05)
+        pipe_max_flow = config.get('max_flow_kg_s', None)
 
-        # Temperature bounds based on network parameters
-        # Supply: from (nominal - 30) to (nominal + 10), at least 60-130°C range
+        if current_diam_supply:
+            d_inner_m = current_diam_supply / 1000.0 * 0.94
+            d_inner_mm = current_diam_supply * 0.94
+            area_m2 = pi * (d_inner_m / 2.0) ** 2
+            v_max_calc = area_m2 * max_velocity * density_water
+            effective_max_flow = min(pipe_max_flow, v_max_calc) if pipe_max_flow else v_max_calc
+        else:
+            d_inner_m = 0.2
+            d_inner_mm = 200.0
+            area_m2 = pi * (d_inner_m / 2.0) ** 2
+            effective_max_flow = pipe_max_flow if pipe_max_flow else 500.0
+
+        # ============================================================
+        # TEMPERATURE / HEAT BOUNDS
+        # ============================================================
+
         supply_temp_min = min(60, supply_temp_nominal_c - 30)
         supply_temp_max = max(130, supply_temp_nominal_c + 10)
-        # Return: from 30°C to (nominal + 20), at least 30-90°C range
         return_temp_min = 30
         return_temp_max = max(90, return_temp_nominal_c + 20)
 
-        # Supply pipe temperatures (°C)
-        setattr(model, f'{prefix}_T_supply_in',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(supply_temp_min, supply_temp_max)))
-        setattr(model, f'{prefix}_T_supply_out',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(supply_temp_min, supply_temp_max)))
+        delta_t_nom = supply_temp_nominal_c - return_temp_nominal_c
+        max_heat_delivered_mw = max(effective_max_flow * cp_water * delta_t_nom / 1000 * 1.2, 100.0)
 
-        # Return pipe temperatures (°C)
-        setattr(model, f'{prefix}_T_return_in',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(return_temp_min, return_temp_max)))
-        setattr(model, f'{prefix}_T_return_out',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(return_temp_min, return_temp_max)))
+        # ============================================================
+        # FLOW VARIABLE
+        # ============================================================
 
-        # Heat losses (MW) - bounded to prevent unbounded solutions
-        # Max heat loss estimate: U × L × ΔT_max / 1e6
-        # Conservative bound: 5 MW per pipe (even for longest pipes)
+        m_dot = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, effective_max_flow))
+        setattr(model, f'{prefix}_m_dot', m_dot)
+
+        logger.info(
+            f"Pipe {pipe_id}: max flow = {effective_max_flow:.2f} kg/s "
+            f"(v_max={max_velocity} m/s, D={current_diam_supply or 'unspec'} mm)"
+        )
+
+        # ============================================================
+        # TEMPERATURE VARIABLES
+        # ============================================================
+
+        T_supply_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                              bounds=(supply_temp_min, supply_temp_max))
+        T_supply_out = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                               bounds=(supply_temp_min, supply_temp_max))
+        T_return_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                              bounds=(return_temp_min, return_temp_max))
+        T_return_out = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                               bounds=(return_temp_min, return_temp_max))
+
+        setattr(model, f'{prefix}_T_supply_in', T_supply_in)
+        setattr(model, f'{prefix}_T_supply_out', T_supply_out)
+        setattr(model, f'{prefix}_T_return_in', T_return_in)
+        setattr(model, f'{prefix}_T_return_out', T_return_out)
+
+        # ============================================================
+        # HEAT LOSS VARIABLES
+        # ============================================================
+
         max_heat_loss_mw = 5.0
-        setattr(model, f'{prefix}_Q_loss_supply',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(0, max_heat_loss_mw)))
-        setattr(model, f'{prefix}_Q_loss_return',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(0, max_heat_loss_mw)))
+        Q_loss_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_loss_mw))
+        Q_loss_return = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_loss_mw))
+        Q_delivered = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_delivered_mw))
 
-        # Heat delivered (MW) - bounded by max pipe capacity
-        # Max heat: max_flow × cp × ΔT / 1000
-        # Use conservative upper bound (500 kg/s max flow * 40K delta_T)
-        delta_t_max = supply_temp_nominal_c - return_temp_nominal_c
-        max_flow_estimate = 500.0  # kg/s - will be refined later based on diameter
-        max_heat_delivered_mw = max_flow_estimate * cp_water * delta_t_max / 1000 * 1.2  # 20% margin
-        max_heat_delivered_mw = max(max_heat_delivered_mw, 100.0)  # At least 100 MW
-        setattr(model, f'{prefix}_Q_delivered',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(0, max_heat_delivered_mw)))
+        setattr(model, f'{prefix}_Q_loss_supply', Q_loss_supply)
+        setattr(model, f'{prefix}_Q_loss_return', Q_loss_return)
+        setattr(model, f'{prefix}_Q_delivered', Q_delivered)
 
-        # Investment variables (if upgrade enabled)
+        # ============================================================
+        # INVESTMENT VARIABLES (optional)
+        # ============================================================
+
         if upgrade_enabled:
             setattr(model, f'{prefix}_diameter_choice',
-                    pyo.Var(getattr(model, f'{prefix}_diameter_options'),
-                           domain=pyo.Binary))
+                    pyo.Var(getattr(model, f'{prefix}_diameter_options'), domain=pyo.Binary))
             setattr(model, f'{prefix}_insulation_choice',
-                    pyo.Var(getattr(model, f'{prefix}_insulation_options'),
-                           domain=pyo.Binary))
-
-        # Retrieve variables for constraint definition
-        m_dot = getattr(model, f'{prefix}_m_dot')
-        T_supply_in = getattr(model, f'{prefix}_T_supply_in')
-        T_supply_out = getattr(model, f'{prefix}_T_supply_out')
-        T_return_in = getattr(model, f'{prefix}_T_return_in')
-        T_return_out = getattr(model, f'{prefix}_T_return_out')
-        Q_loss_supply = getattr(model, f'{prefix}_Q_loss_supply')
-        Q_loss_return = getattr(model, f'{prefix}_Q_loss_return')
-        Q_delivered = getattr(model, f'{prefix}_Q_delivered')
+                    pyo.Var(getattr(model, f'{prefix}_insulation_options'), domain=pyo.Binary))
 
         # ============================================================
-        # BROWNFIELD MODE: Temperature fixing moved to network_manager.py
-        # ============================================================
-        # In brownfield mode, temperatures are fixed by network_manager AFTER
-        # all pipes and nodes are attached. This ensures consistent temperatures
-        # based on the actual network topology (plant nodes vs consumer nodes).
-        #
-        # NOTE: Do NOT fix temperatures here! network_manager.py handles this
-        # in PHASE 3b to avoid conflicts between pipe inlet temps and node temps.
-
-        brownfield_mode = config.get('brownfield_mode', False)
-        if brownfield_mode:
-            logger.info(f"    {pipe_id}: Brownfield mode - temps will be fixed by network_manager")
-
-        # ============================================================
-        # CONSTRAINTS
+        # CONSTRAINTS — INVESTMENT
         # ============================================================
 
-        # (1) Diameter selection constraint (if upgrade enabled)
         if upgrade_enabled:
             diameter_choice = getattr(model, f'{prefix}_diameter_choice')
             insulation_choice = getattr(model, f'{prefix}_insulation_choice')
 
-            def one_diameter_rule(m):
-                return sum(diameter_choice[d] for d in diameter_options) == 1
-
             setattr(model, f'{prefix}_one_diameter',
-                    pyo.Constraint(rule=one_diameter_rule))
-
-            def one_insulation_rule(m):
-                return sum(insulation_choice[i] for i in insulation_options) == 1
-
+                    pyo.Constraint(rule=lambda m: sum(diameter_choice[d] for d in diameter_options) == 1))
             setattr(model, f'{prefix}_one_insulation',
-                    pyo.Constraint(rule=one_insulation_rule))
+                    pyo.Constraint(rule=lambda m: sum(insulation_choice[i] for i in insulation_options) == 1))
 
-        # (2) Heat loss calculation (supply pipe)
-        # Q_loss = U * Length * (T_avg - T_ground)
-        # where T_avg = (T_in + T_out) / 2
-        #
-        # NOTE: In brownfield mode, we SKIP these constraints!
-        # Reason: With fixed temperatures, both heat_loss and temp_drop constraints
-        # would overdetermine the system (inconsistent m_dot values).
-        # Instead, we let Q_loss be determined by the temp_drop constraints alone.
+        # ============================================================
+        # CONSTRAINTS — HEAT LOSSES
+        # Q_loss = U × L × (T_avg - T_ground) / 1e6  [MW]
+        # ============================================================
 
-        if not brownfield_mode:
-            def heat_loss_supply_rule(m, t):
-                # Get effective U-value
-                if upgrade_enabled:
-                    insulation_choice = getattr(m, f'{prefix}_insulation_choice')
-                    u_eff = 0
-                    for insul_type in insulation_options:
-                        if insul_type == 'standard':
-                            u_val = u_value_supply
-                        elif insul_type == 'enhanced':
-                            u_val = upgrade_config.get('enhanced_u_value', 0.18)
-                        else:
-                            u_val = u_value_supply
-                        u_eff += insulation_choice[insul_type] * u_val
-                else:
-                    u_eff = u_value_supply
+        def heat_loss_supply_rule(m, t):
+            if upgrade_enabled:
+                ins_choice = getattr(m, f'{prefix}_insulation_choice')
+                u_eff = sum(
+                    ins_choice[insul] * (
+                        upgrade_config.get('enhanced_u_value', 0.18)
+                        if insul == 'enhanced' else u_value_supply
+                    )
+                    for insul in insulation_options
+                )
+            else:
+                u_eff = u_value_supply
+            T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
+            return Q_loss_supply[t] == (u_eff * length_m * (T_avg - T_ground[t])) / 1e6
 
-                # Average temperature in pipe
-                T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
+        setattr(model, f'{prefix}_heat_loss_supply',
+                pyo.Constraint(time_set, rule=heat_loss_supply_rule))
 
-                # Temperature difference to ground
-                delta_T = T_avg - T_ground[t]
+        def heat_loss_return_rule(m, t):
+            if upgrade_enabled:
+                ins_choice = getattr(m, f'{prefix}_insulation_choice')
+                u_eff = sum(
+                    ins_choice[insul] * (
+                        upgrade_config.get('enhanced_u_value', 0.20)
+                        if insul == 'enhanced' else u_value_return
+                    )
+                    for insul in insulation_options
+                )
+            else:
+                u_eff = u_value_return
+            T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
+            return Q_loss_return[t] == (u_eff * length_m * (T_avg - T_ground[t])) / 1e6
 
-                # Heat loss in MW: (W/(m·K)) * m * K / 1e6
-                q_loss_mw = (u_eff * length_m * delta_T) / 1e6
+        setattr(model, f'{prefix}_heat_loss_return',
+                pyo.Constraint(time_set, rule=heat_loss_return_rule))
 
-                return Q_loss_supply[t] == q_loss_mw
-
-            setattr(model, f'{prefix}_heat_loss_supply',
-                    pyo.Constraint(time_set, rule=heat_loss_supply_rule))
-
-            # (3) Heat loss calculation (return pipe)
-            def heat_loss_return_rule(m, t):
-                # Get effective U-value
-                if upgrade_enabled:
-                    insulation_choice = getattr(m, f'{prefix}_insulation_choice')
-                    u_eff = 0
-                    for insul_type in insulation_options:
-                        if insul_type == 'standard':
-                            u_val = u_value_return
-                        elif insul_type == 'enhanced':
-                            u_val = upgrade_config.get('enhanced_u_value', 0.20)
-                        else:
-                            u_val = u_value_return
-                        u_eff += insulation_choice[insul_type] * u_val
-                else:
-                    u_eff = u_value_return
-
-                # Average temperature in return pipe
-                T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
-
-                # Temperature difference (can be negative if return < ground)
-                delta_T = T_avg - T_ground[t]
-
-                # Heat loss/gain in MW
-                # Note: If delta_T < 0, this becomes negative (heat gain)
-                # For simplicity in Phase 1, we assume T_return > T_ground always
-                q_loss_mw = (u_eff * length_m * delta_T) / 1e6
-
-                return Q_loss_return[t] == q_loss_mw
-
-            setattr(model, f'{prefix}_heat_loss_return',
-                    pyo.Constraint(time_set, rule=heat_loss_return_rule))
-        else:
-            logger.info(f"    {pipe_id}: Brownfield mode - skipping heat loss calc constraints (using temp drop only)")
-
-        # (4) Temperature drop in supply pipe
-        # Energy balance: m_dot * c_p * (T_in - T_out) = Q_loss
-        # T_out = T_in - Q_loss / (m_dot * c_p)
+        # ============================================================
+        # CONSTRAINTS — TEMPERATURE DROP (energy balance)
+        # m_dot × c_p × (T_in − T_out) = Q_loss × 1000  (MW→kW)
+        # ============================================================
 
         def temp_drop_supply_rule(m, t):
-            # Avoid division by zero: use small epsilon or conditional
-            # For MILP, we use: m_dot * c_p * (T_in - T_out) = Q_loss * 1000 (MW to kW)
             return m_dot[t] * cp_water * (T_supply_in[t] - T_supply_out[t]) == Q_loss_supply[t] * 1000
 
         setattr(model, f'{prefix}_temp_drop_supply',
                 pyo.Constraint(time_set, rule=temp_drop_supply_rule))
 
-        # (5) Temperature rise in return pipe (heat loss means temp drops)
-        # T_out = T_in - Q_loss / (m_dot * c_p)
-        # But for return: we're going backwards, so T_out (at plant) < T_in (from consumer)
-
         def temp_drop_return_rule(m, t):
-            # Return pipe loses heat as it goes back to plant
-            # T_return_out (at plant) = T_return_in (at consumer) - loss
             return m_dot[t] * cp_water * (T_return_in[t] - T_return_out[t]) == Q_loss_return[t] * 1000
 
         setattr(model, f'{prefix}_temp_drop_return',
                 pyo.Constraint(time_set, rule=temp_drop_return_rule))
 
-        # (6) Heat delivered to consumer
-        # Q = m_dot * c_p * (T_supply_out - T_return_in)
-        # This is the heat extracted by the consumer
+        # ============================================================
+        # CONSTRAINTS — HEAT DELIVERED (source side)
+        # Q_delivered = heat entering supply pipe at plant end
+        # Q_delivered × 1000 = m_dot × c_p × (T_supply_in − T_return_out)
+        # ============================================================
 
         def heat_delivered_rule(m, t):
-            # Heat delivered in MW
-            return Q_delivered[t] * 1000 == m_dot[t] * cp_water * (T_supply_out[t] - T_return_in[t])
+            return Q_delivered[t] * 1000 == m_dot[t] * cp_water * (T_supply_in[t] - T_return_out[t])
 
         setattr(model, f'{prefix}_heat_delivered',
                 pyo.Constraint(time_set, rule=heat_delivered_rule))
-
-        # (7) Minimum flow constraint (avoid division by zero in temp calculations)
-        # When there's demand, ensure minimum flow
-
-        def min_flow_rule(m, t):
-            # If Q_delivered > 0, then m_dot >= 0.1 kg/s
-            # This is a soft constraint to avoid numerical issues
-            # Can be refined with indicator constraints in Phase 2
-            return m_dot[t] >= 0.0  # Placeholder
-
-        # Skip for now - handle in Phase 2 with better logic
-
-        # ============================================================
-        # HYDRAULIC CONSTRAINTS - PRESSURE DROP MODELING
-        # ============================================================
-        # Implements Darcy-Weisbach pressure drop calculation for
-        # realistic hydraulic analysis required by grid operators
-
-        # Get hydraulic parameters
-        max_velocity = config.get('max_velocity_m_s', 2.5)  # Default 2.5 m/s
-        max_pressure_drop = config.get('max_pressure_drop_bar', 2.0)  # Max ΔP per pipe
-        pipe_roughness = config.get('pipe_roughness_mm', 0.05)  # Surface roughness (steel: 0.05mm)
-
-        # Fluid properties
-        mu_water = 0.0004  # Dynamic viscosity at 80°C [Pa·s]
-
-        # Pipe-specific max flow limit (if defined)
-        pipe_max_flow = config.get('max_flow_kg_s', None)
-
-        import math
-        pi = math.pi
-
-        # Calculate pipe geometry
-        if current_diam_supply:
-            # Inner diameter (DN pipes: inner ≈ 94% of nominal)
-            d_inner_m = current_diam_supply / 1000.0 * 0.94  # Convert mm to m
-            d_inner_mm = current_diam_supply * 0.94
-
-            # Cross-sectional area
-            area_m2 = pi * (d_inner_m / 2.0) ** 2
-
-            # Max flow for given velocity
-            v_max_calculated = area_m2 * max_velocity * density_water  # kg/s
-
-            # Use either calculated or specified limit
-            if pipe_max_flow:
-                effective_max_flow = min(pipe_max_flow, v_max_calculated)
-            else:
-                effective_max_flow = v_max_calculated
-        else:
-            # No diameter specified
-            d_inner_m = 0.2  # Default 200mm
-            d_inner_mm = 200.0
-            area_m2 = pi * (d_inner_m / 2.0) ** 2
-            effective_max_flow = pipe_max_flow if pipe_max_flow else 500.0
-
-        # Update variable bounds with pipe-specific limit
-        for t in time_set:
-            m_dot[t].setub(effective_max_flow)
-
-        logger.info(f"Pipe {pipe_id}: max flow = {effective_max_flow:.2f} kg/s "
-                   f"(v_max={max_velocity} m/s, D={current_diam_supply or 'unspec'} mm)")
 
         # ============================================================
         # PRESSURE DROP VARIABLES
         # ============================================================
 
-        # Velocity in pipe [m/s]
         velocity = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_velocity * 1.5))
+        delta_p_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                 bounds=(0, max_pressure_drop * 2))
+        delta_p_return = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                 bounds=(0, max_pressure_drop * 2))
+        delta_p_total = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                bounds=(0, max_pressure_drop * 4))
+
         setattr(model, f'{prefix}_velocity', velocity)
-
-        # Pressure drop in supply pipe [bar]
-        delta_p_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 2))
         setattr(model, f'{prefix}_delta_p_supply', delta_p_supply)
-
-        # Pressure drop in return pipe [bar]
-        delta_p_return = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 2))
         setattr(model, f'{prefix}_delta_p_return', delta_p_return)
-
-        # Total pressure drop for this pipe pair [bar]
-        delta_p_total = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_pressure_drop * 4))
         setattr(model, f'{prefix}_delta_p_total', delta_p_total)
 
         # ============================================================
-        # PRESSURE DROP CONSTRAINTS
+        # CONSTRAINTS — PRESSURE DROP (Darcy-Weisbach, PWL)
+        # ΔP = f × (L/D) × (ρ/2) × v²  [Pa] / 100000 → [bar]
+        #
+        # Piecewise-linear approximation (3 segments):
+        #   Segment 0: 0–30% flow
+        #   Segment 1: 30–70% flow
+        #   Segment 2: 70–100% flow
+        # Each segment linearised at its midpoint (tangent slope).
+        # This reduces error from ~50% (single linear) to ~10% (PWL).
         # ============================================================
 
-        # (8) Velocity calculation: v = m_dot / (ρ * A)
-        def velocity_rule(m, t):
-            # v = m_dot / (density * area)
-            # To avoid division, use: v * density * area = m_dot
-            return velocity[t] * density_water * area_m2 == m_dot[t]
-
+        # Velocity: v × ρ × A = m_dot
         setattr(model, f'{prefix}_velocity_calc',
-                pyo.Constraint(time_set, rule=velocity_rule))
+                pyo.Constraint(time_set,
+                               rule=lambda m, t: velocity[t] * density_water * area_m2 == m_dot[t]))
 
-        # (9) Pressure drop calculation (Darcy-Weisbach with linearized friction)
-        # ΔP = f * (L/D) * (ρ * v² / 2)
-        #
-        # For district heating (turbulent flow, Re > 4000):
-        # Using Swamee-Jain approximation for friction factor:
-        # f ≈ 0.25 / [log10(ε/3.7D + 5.74/Re^0.9)]²
-        #
-        # For typical DH conditions (Re ≈ 50000-500000), f ≈ 0.015-0.025
-        # We use a linearized approximation for MILP compatibility:
-        # ΔP ≈ k * L * v^1.85  (empirical Hazen-Williams style)
-        #
-        # For pure quadratic (more accurate but requires QP solver):
-        # ΔP = f * (L/D) * (ρ/2) * v² / 100000 [bar]
-
-        # Friction coefficient (typical for DH steel pipes)
         f_friction = config.get('friction_factor', 0.02)
-
-        # Pressure drop coefficient: k = f * (L/D) * (ρ/2) / 100000
-        # Units: [bar] when v in [m/s]
+        # ΔP coefficient: k = f × (L/D) × (ρ/2) / 100000  [bar/(m/s)²]
         k_pressure = f_friction * (length_m / d_inner_m) * (density_water / 2.0) / 100000.0
+        # Combined coefficient for flow: k_flow = k_pressure / (ρ × A)²
+        k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
 
-        # Linearized pressure drop (piecewise or conservative linear bound)
-        # For MILP, we use: ΔP ≤ k * v_max * v (linear upper bound)
-        # This is conservative but MILP-compatible
+        if effective_max_flow > 0:
+            # Breakpoints at 0%, 30%, 70%, 100% of max flow
+            bp_fracs = [0.0, 0.3, 0.7, 1.0]
+            bp_flows = [f * effective_max_flow for f in bp_fracs]
+            bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
 
-        brownfield_mode = config.get('brownfield_mode', False)
-        use_pwl_pressure = config.get('use_pwl_pressure', True)  # Piecewise-linear by default
+            # Tangent slope at each segment midpoint
+            slopes = [2 * k_flow * (bp_flows[s] + bp_flows[s + 1]) / 2 for s in range(3)]
+            intercepts = [bp_dp[s] - slopes[s] * bp_flows[s] for s in range(3)]
 
-        if brownfield_mode:
-            if use_pwl_pressure and effective_max_flow > 0:
-                # ============================================================
-                # PIECEWISE-LINEAR PRESSURE DROP (MILP-Compatible, More Accurate)
-                # ============================================================
-                # Real: ΔP = k * v² ∝ m_dot²
-                # PWL approximation with 3 segments for better accuracy:
-                #   Segment 1: 0-30% flow (low flow regime)
-                #   Segment 2: 30-70% flow (typical operation)
-                #   Segment 3: 70-100% flow (high flow regime)
-                #
-                # Each segment linearized at its midpoint:
-                #   ΔP_segment = k_i * (m_dot - m_dot_i_start) + ΔP_i_start
-                #
-                # This reduces error from ~50% (single linear) to ~10% (PWL)
-                # ============================================================
+            pwl_seg = pyo.Var(time_set, range(3), domain=pyo.Binary)
+            pwl_flow = pyo.Var(time_set, range(3), domain=pyo.NonNegativeReals)
+            setattr(model, f'{prefix}_pwl_segment', pwl_seg)
+            setattr(model, f'{prefix}_pwl_flow', pwl_flow)
 
-                # Flow breakpoints (fraction of max flow)
-                bp_fractions = [0.0, 0.3, 0.7, 1.0]
-                bp_flows = [f * effective_max_flow for f in bp_fractions]
+            M_flow = effective_max_flow * 1.1
 
-                # Calculate quadratic ΔP at each breakpoint
-                # ΔP = k_pressure * v², where v = m_dot / (density * area)
-                v_at_max = effective_max_flow / (density_water * area_m2) if area_m2 > 0 else max_velocity
-                k_flow_to_dp = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
+            setattr(model, f'{prefix}_pwl_one_segment',
+                    pyo.Constraint(time_set,
+                                   rule=lambda m, t: sum(pwl_seg[t, s] for s in range(3)) == 1))
+            setattr(model, f'{prefix}_pwl_flow_sum',
+                    pyo.Constraint(time_set,
+                                   rule=lambda m, t: m_dot[t] == sum(pwl_flow[t, s] for s in range(3))))
 
-                bp_dp = [k_flow_to_dp * (f * effective_max_flow) ** 2 for f in bp_fractions]
+            def seg_flow_lb_rule(m, t, s):
+                return pwl_flow[t, s] >= bp_flows[s] * pwl_seg[t, s]
 
-                # Linear slopes for each segment (dΔP/dm_dot at segment midpoint)
-                # Derivative of ΔP = k * m_dot² is dΔP/dm_dot = 2 * k * m_dot
-                slopes = []
-                for i in range(3):
-                    mid_flow = (bp_flows[i] + bp_flows[i + 1]) / 2
-                    slope = 2 * k_flow_to_dp * mid_flow  # Tangent at midpoint
-                    slopes.append(slope)
+            def seg_flow_ub_rule(m, t, s):
+                return pwl_flow[t, s] <= bp_flows[s + 1] * pwl_seg[t, s] + M_flow * (1 - pwl_seg[t, s])
 
-                # Store for logging
-                pipe_pwl_info = {
-                    'breakpoints': bp_flows,
-                    'dp_at_bp': bp_dp,
-                    'slopes': slopes,
-                }
+            setattr(model, f'{prefix}_pwl_seg_lb',
+                    pyo.Constraint(time_set, range(3), rule=seg_flow_lb_rule))
+            setattr(model, f'{prefix}_pwl_seg_ub',
+                    pyo.Constraint(time_set, range(3), rule=seg_flow_ub_rule))
 
-                logger.debug(f"Pipe {pipe_id} PWL pressure drop:")
-                logger.debug(f"  Breakpoints (kg/s): {[f'{x:.2f}' for x in bp_flows]}")
-                logger.debug(f"  ΔP at breakpoints (bar): {[f'{x:.4f}' for x in bp_dp]}")
-                logger.debug(f"  Segment slopes: {[f'{x:.6f}' for x in slopes]}")
-
-                # Binary variables for segment selection (exactly one active)
-                pwl_seg = pyo.Var(time_set, range(3), domain=pyo.Binary)
-                setattr(model, f'{prefix}_pwl_segment', pwl_seg)
-
-                # Continuous auxiliary for flow within segment
-                pwl_flow = pyo.Var(time_set, range(3), domain=pyo.NonNegativeReals)
-                setattr(model, f'{prefix}_pwl_flow', pwl_flow)
-
-                # Constraint: Exactly one segment active per timestep
-                def one_segment_rule(m, t):
-                    return sum(pwl_seg[t, s] for s in range(3)) == 1
-                setattr(model, f'{prefix}_pwl_one_segment',
-                        pyo.Constraint(time_set, rule=one_segment_rule))
-
-                # Constraint: Flow equals sum of segment flows
-                def flow_sum_rule(m, t):
-                    return m_dot[t] == sum(pwl_flow[t, s] for s in range(3))
-                setattr(model, f'{prefix}_pwl_flow_sum',
-                        pyo.Constraint(time_set, rule=flow_sum_rule))
-
-                # Constraint: Segment flow bounds (big-M formulation)
-                M_flow = effective_max_flow * 1.1
-
-                def seg_flow_lb_rule(m, t, s):
-                    return pwl_flow[t, s] >= bp_flows[s] * pwl_seg[t, s]
-                setattr(model, f'{prefix}_pwl_seg_lb',
-                        pyo.Constraint(time_set, range(3), rule=seg_flow_lb_rule))
-
-                def seg_flow_ub_rule(m, t, s):
-                    return pwl_flow[t, s] <= bp_flows[s + 1] * pwl_seg[t, s] + M_flow * (1 - pwl_seg[t, s])
-                setattr(model, f'{prefix}_pwl_seg_ub',
-                        pyo.Constraint(time_set, range(3), rule=seg_flow_ub_rule))
-
-                # PWL pressure drop constraint
-                # ΔP = Σ_s [ΔP_at_start_s + slope_s * (flow_s - bp_start_s)] * seg_s
-                # Simplified: ΔP = Σ_s [slope_s * flow_s + (ΔP_start_s - slope_s * bp_start_s) * seg_s]
-                intercepts = [bp_dp[s] - slopes[s] * bp_flows[s] for s in range(3)]
-
-                def pwl_pressure_drop_supply_rule(m, t):
-                    return delta_p_supply[t] == sum(
-                        slopes[s] * pwl_flow[t, s] + intercepts[s] * pwl_seg[t, s]
-                        for s in range(3)
-                    )
-
-                def pwl_pressure_drop_return_rule(m, t):
-                    return delta_p_return[t] == sum(
-                        slopes[s] * pwl_flow[t, s] + intercepts[s] * pwl_seg[t, s]
-                        for s in range(3)
-                    )
-
-                setattr(model, f'{prefix}_pressure_drop_supply',
-                        pyo.Constraint(time_set, rule=pwl_pressure_drop_supply_rule))
-                setattr(model, f'{prefix}_pressure_drop_return',
-                        pyo.Constraint(time_set, rule=pwl_pressure_drop_return_rule))
-
-            else:
-                # Simple linear approximation (original brownfield behavior)
-                # ΔP ≈ k_linear * m_dot
-                # Calibrated at max flow: k_linear = k_pressure * v_max² / m_dot_max
-                k_linear = k_pressure * max_velocity * max_velocity / effective_max_flow if effective_max_flow > 0 else 0
-
-                def pressure_drop_supply_rule(m, t):
-                    return delta_p_supply[t] == k_linear * m_dot[t]
-
-                def pressure_drop_return_rule(m, t):
-                    return delta_p_return[t] == k_linear * m_dot[t]
-
-                setattr(model, f'{prefix}_pressure_drop_supply',
-                        pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
-                setattr(model, f'{prefix}_pressure_drop_return',
-                        pyo.Constraint(time_set, rule=pressure_drop_return_rule))
-        else:
-            # Quadratic pressure drop (requires QP/MIQP solver like Gurobi)
-            def pressure_drop_supply_rule(m, t):
-                # Darcy-Weisbach: ΔP = k * v²
-                return delta_p_supply[t] == k_pressure * velocity[t] * velocity[t]
-
-            def pressure_drop_return_rule(m, t):
-                return delta_p_return[t] == k_pressure * velocity[t] * velocity[t]
+            def pwl_dp_rule(m, t):
+                return sum(
+                    slopes[s] * pwl_flow[t, s] + intercepts[s] * pwl_seg[t, s]
+                    for s in range(3)
+                )
 
             setattr(model, f'{prefix}_pressure_drop_supply',
-                    pyo.Constraint(time_set, rule=pressure_drop_supply_rule))
-
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_supply[t] == pwl_dp_rule(m, t)))
             setattr(model, f'{prefix}_pressure_drop_return',
-                    pyo.Constraint(time_set, rule=pressure_drop_return_rule))
-
-        # (10) Total pressure drop = supply + return
-        def total_pressure_drop_rule(m, t):
-            return delta_p_total[t] == delta_p_supply[t] + delta_p_return[t]
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_return[t] == pwl_dp_rule(m, t)))
+        else:
+            setattr(model, f'{prefix}_pressure_drop_supply',
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_supply[t] == 0))
+            setattr(model, f'{prefix}_pressure_drop_return',
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_return[t] == 0))
 
         setattr(model, f'{prefix}_pressure_drop_total',
-                pyo.Constraint(time_set, rule=total_pressure_drop_rule))
+                pyo.Constraint(time_set,
+                               rule=lambda m, t: delta_p_total[t] == delta_p_supply[t] + delta_p_return[t]))
 
-        # Store pressure parameters for reporting
+        # Store pressure parameters for results extraction
         pressure_params = {
             'max_pressure_drop_bar': max_pressure_drop,
             'max_velocity_m_s': max_velocity,
@@ -633,9 +424,130 @@ class PipePairBlock(BaseComponent):
             'k_pressure': k_pressure,
             'pipe_roughness_mm': pipe_roughness,
         }
-
-        # Store for results extraction
         setattr(model, f'{prefix}_pressure_params', pressure_params)
+
+        # ── Transport Delay (3-Bucket SOS2 Linearisation) ─────────────────────────
+        #
+        # Physical delay: τ(t) = L × ρ × A / m_dot(t)
+        # This is nonlinear (inversely proportional to mass flow) → incompatible with MILP.
+        #
+        # Linearisation approach — piecewise-constant with 3 flow buckets:
+        #   Bucket 0 (high flow):   m_dot ∈ [m_mid, m_max] → τ₁ timesteps (shortest)
+        #   Bucket 1 (medium flow): m_dot ∈ [m_low, m_mid] → τ₂ timesteps
+        #   Bucket 2 (low flow):    m_dot ∈ [0,     m_low] → τ₃ timesteps (longest)
+        #
+        # Why 3 buckets?
+        #   - 1 bucket = constant delay, ignores flow variation entirely
+        #   - 2 buckets = rough high/low split, misses mid-range operating points
+        #   - 3 buckets = good accuracy at low cost: 3 binaries per pipe per timestep
+        #   - 4+ buckets add binaries but give diminishing accuracy gains for DHN flows
+        #     which typically vary ≤ 40% from design point
+        #
+        # Binary selector z[n,t] ∈ {0,1}: exactly one bucket active per timestep.
+        # SOS2 constraint: Σ_n z[n,t] = 1
+        #
+        # Delayed heat delivery:
+        #   Q_consumer[t] = Σ_{n=0}^{2} w_delay[n,t]
+        #   where w_delay[n,t] linearises z[n,t] × Q_delivered[t − τ_n]
+        #
+        # Big-M flow coupling forces correct bucket selection:
+        #   m_dot[t] ≥ m_n_lower when z[n,t] = 1
+        #   m_dot[t] ≤ m_n_upper + M × (1 − z[n,t])
+        # ─────────────────────────────────────────────────────────────────────────
+
+        delay_info = compute_delay_buckets(
+            length_m=length_m,
+            diameter_mm=d_inner_mm,
+            density_kg_per_m3=density_water,
+            m_max_kg_s=max(effective_max_flow, 0.001),
+        )
+        tau_steps = delay_info['tau_steps']   # [τ₀, τ₁, τ₂], integer timesteps
+        m_bounds = delay_info['m_bounds']     # [(m_lower, m_upper)] per bucket
+        N_BUCKETS = len(tau_steps)            # = 3
+
+        logger.info(
+            f"  Pipe {pipe_id} delay buckets: "
+            f"τ={tau_steps} timesteps, "
+            f"flow bounds={[(f'{lo:.1f}', f'{hi:.1f}') for lo, hi in m_bounds]} kg/s"
+        )
+
+        # Sorted time list needed for delay look-back
+        time_list = sorted(list(time_set))
+        t_idx = {t: i for i, t in enumerate(time_list)}
+
+        # Binary bucket selectors: z_delay[n, t] ∈ {0, 1}
+        z_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.Binary)
+        setattr(model, f'{prefix}_z_delay', z_delay)
+
+        # SOS2 constraint: exactly one bucket active per timestep
+        setattr(model, f'{prefix}_sos2_delay',
+                pyo.Constraint(time_set,
+                               rule=lambda m, t: sum(z_delay[n, t] for n in range(N_BUCKETS)) == 1))
+
+        # Big-M flow coupling: m_dot ∈ [m_lower_n, m_upper_n] when z_n = 1
+        M_FLOW_BIG = effective_max_flow * 1.1
+
+        def delay_flow_lb_rule(m, n, t):
+            m_lower, _ = m_bounds[n]
+            return m_dot[t] >= m_lower * z_delay[n, t]
+
+        def delay_flow_ub_rule(m, n, t):
+            _, m_upper = m_bounds[n]
+            return m_dot[t] <= m_upper + M_FLOW_BIG * (1 - z_delay[n, t])
+
+        setattr(model, f'{prefix}_delay_flow_lb',
+                pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_lb_rule))
+        setattr(model, f'{prefix}_delay_flow_ub',
+                pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_ub_rule))
+
+        # Delayed delivery variable: Q_consumer[t] = heat arriving at consumer at time t
+        Q_consumer = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                             bounds=(0, max_heat_delivered_mw))
+        setattr(model, f'{prefix}_Q_consumer', Q_consumer)
+
+        # Linearise z_delay[n,t] × Q_delivered[t−τ_n] via auxiliary w_delay[n,t].
+        #
+        # Standard big-M linearisation of binary × continuous product:
+        #   w[n,t] ≤ Q_del[t−τ_n]                          (upper bound from Q)
+        #   w[n,t] ≤ M_Q × z[n,t]                          (upper bound from binary)
+        #   w[n,t] ≥ Q_del[t−τ_n] − M_Q × (1 − z[n,t])    (lower bound when z=1)
+        #   w[n,t] ≥ 0
+        #
+        # Then: Q_consumer[t] = Σ_n w_delay[n,t]
+
+        M_Q = max_heat_delivered_mw
+
+        w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
+                          bounds=(0, M_Q))
+        setattr(model, f'{prefix}_w_delay', w_delay)
+
+        def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+            i = _tidx[t]
+            delayed_i = max(0, i - tau_steps[n])
+            delayed_t = _tlist[delayed_i]
+            return w_delay[n, t] <= Q_delivered[delayed_t]
+
+        def w_ub_z_rule(m, n, t):
+            return w_delay[n, t] <= M_Q * z_delay[n, t]
+
+        def w_lb_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+            i = _tidx[t]
+            delayed_i = max(0, i - tau_steps[n])
+            delayed_t = _tlist[delayed_i]
+            return w_delay[n, t] >= Q_delivered[delayed_t] - M_Q * (1 - z_delay[n, t])
+
+        setattr(model, f'{prefix}_w_ub_q',
+                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_q_rule))
+        setattr(model, f'{prefix}_w_ub_z',
+                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_z_rule))
+        setattr(model, f'{prefix}_w_lb',
+                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_lb_rule))
+
+        setattr(model, f'{prefix}_delayed_delivery',
+                pyo.Constraint(time_set,
+                               rule=lambda m, t: Q_consumer[t] == sum(
+                                   w_delay[n, t] for n in range(N_BUCKETS)
+                               )))
 
         # ============================================================
         # COST CALCULATION
@@ -647,72 +559,33 @@ class PipePairBlock(BaseComponent):
             diameter_choice = getattr(model, f'{prefix}_diameter_choice')
             insulation_choice = getattr(model, f'{prefix}_insulation_choice')
 
-            # CAPEX depends on diameter and insulation choices
-            # Base cost: existing pipe
-            # Upgrade cost: additional cost if changing
-
             if existing_pipe:
-                # Cost only if upgrading
                 upgrade_cost_per_m = upgrade_config.get('upgrade_cost_eur_per_m', 200)
-
-                # If changing diameter or insulation, pay upgrade cost
-                # For simplicity: pay full upgrade cost for any change
-                # More sophisticated: only charge if actually changing
-
-                # Define upgrade indicator
-                setattr(model, f'{prefix}_upgrade_indicator',
-                        pyo.Var(domain=pyo.Binary))
+                setattr(model, f'{prefix}_upgrade_indicator', pyo.Var(domain=pyo.Binary))
                 upgrade_ind = getattr(model, f'{prefix}_upgrade_indicator')
-
-                # Upgrade indicator = 1 if NOT choosing current config
-                current_diam_mm = config.get('current_diameter_supply_mm')
-                current_insul = config.get('insulation_type', 'standard')
-
-                # If current choice, upgrade_ind = 0; else = 1
-                # This requires constraints to link choices to indicator
-                # For Phase 1 simplification: assume upgrade cost applies to all choices
-
                 capex_expr = upgrade_ind * upgrade_cost_per_m * length_m
-
-                # Link upgrade indicator to choices (simplified)
-                # upgrade_ind >= 1 - diameter_choice[current_diam_mm] (if current in options)
+                current_diam_mm = config.get('current_diameter_supply_mm')
                 if current_diam_mm in diameter_options:
-                    def upgrade_link_rule(m):
-                        return upgrade_ind >= 1 - diameter_choice[current_diam_mm]
-
                     setattr(model, f'{prefix}_upgrade_link',
-                            pyo.Constraint(rule=upgrade_link_rule))
+                            pyo.Constraint(rule=lambda m: upgrade_ind >= 1 - diameter_choice[current_diam_mm]))
                 else:
-                    # Always upgrading (current not in options)
                     upgrade_ind.fix(1)
-
             else:
-                # New pipe: pay full construction cost
                 for d_mm in diameter_options:
                     dn_label = f"DN{d_mm}"
                     if dn_label in pipe_catalog:
                         cost_per_m = pipe_catalog[dn_label].get('capex_eur_per_m', 1000)
-                        capex_expr += diameter_choice[d_mm] * cost_per_m * length_m
                     else:
-                        # Default cost estimate
-                        cost_per_m = 500 + d_mm * 3  # Rough estimate
-                        capex_expr += diameter_choice[d_mm] * cost_per_m * length_m
+                        cost_per_m = 500 + d_mm * 3
+                    capex_expr += diameter_choice[d_mm] * cost_per_m * length_m
 
-        # Annualize CAPEX
         lifetime_years = config.get('lifetime_years', 40)
         period_years = getattr(model, 'period_years', 1.0)
-        annualization = period_years / lifetime_years
+        annual_capex = capex_expr * (period_years / lifetime_years)
 
-        annual_capex = capex_expr * annualization
-
-        # Store in model
         if not hasattr(model, 'pipe_capex_costs'):
             model.pipe_capex_costs = {}
         model.pipe_capex_costs[pipe_id] = annual_capex
-
-        # Store heat loss penalty in objective (OPEX)
-        # Heat losses valued at marginal generation cost
-        # Will be added to objective in system_builder
 
         # ============================================================
         # RETURN REFERENCES
@@ -731,9 +604,12 @@ class PipePairBlock(BaseComponent):
             'Q_loss_supply': Q_loss_supply,
             'Q_loss_return': Q_loss_return,
             'Q_delivered': Q_delivered,
+            'Q_consumer': Q_consumer,
             'capex': annual_capex,
             'existing': existing_pipe,
-            'upgrade_enabled': upgrade_enabled
+            'upgrade_enabled': upgrade_enabled,
+            'tau_steps': tau_steps,
+            'delay_buckets': N_BUCKETS,
         }
 
     @staticmethod
@@ -742,7 +618,6 @@ class PipePairBlock(BaseComponent):
         pipe_id = config.get('id') or config.get('pipe_id')
         prefix = pipe_id.upper().replace('-', '_')
 
-        # Retrieve variables
         m_dot = getattr(model, f'{prefix}_m_dot')
         T_supply_in = getattr(model, f'{prefix}_T_supply_in')
         T_supply_out = getattr(model, f'{prefix}_T_supply_out')
@@ -751,10 +626,9 @@ class PipePairBlock(BaseComponent):
         Q_loss_supply = getattr(model, f'{prefix}_Q_loss_supply')
         Q_loss_return = getattr(model, f'{prefix}_Q_loss_return')
         Q_delivered = getattr(model, f'{prefix}_Q_delivered')
+        Q_consumer = getattr(model, f'{prefix}_Q_consumer', None)
 
-        # Extract time series (with error handling)
         def safe_value(var, t, default=0.0):
-            """Safely get value, return default if uninitialized."""
             try:
                 val = pyo.value(var[t])
                 return val if val is not None else default
@@ -766,12 +640,13 @@ class PipePairBlock(BaseComponent):
         t_supply_out_series = [safe_value(T_supply_out, t, 85.0) for t in time_set]
         t_return_in_series = [safe_value(T_return_in, t, 50.0) for t in time_set]
         t_return_out_series = [safe_value(T_return_out, t, 45.0) for t in time_set]
-        # Q_loss is stored in MW internally, convert to kW for dashboard/export
-        q_loss_supply_series_kw = [safe_value(Q_loss_supply, t, 0.0) * 1000 for t in time_set]
-        q_loss_return_series_kw = [safe_value(Q_loss_return, t, 0.0) * 1000 for t in time_set]
+        q_loss_supply_kw = [safe_value(Q_loss_supply, t, 0.0) * 1000 for t in time_set]
+        q_loss_return_kw = [safe_value(Q_loss_return, t, 0.0) * 1000 for t in time_set]
         q_delivered_series = [safe_value(Q_delivered, t, 0.0) for t in time_set]
+        q_consumer_series = (
+            [safe_value(Q_consumer, t, 0.0) for t in time_set] if Q_consumer else q_delivered_series
+        )
 
-        # Extract hydraulic results (pressure drop, velocity)
         velocity_var = getattr(model, f'{prefix}_velocity', None)
         delta_p_supply_var = getattr(model, f'{prefix}_delta_p_supply', None)
         delta_p_return_var = getattr(model, f'{prefix}_delta_p_return', None)
@@ -782,43 +657,32 @@ class PipePairBlock(BaseComponent):
         delta_p_return_series = [safe_value(delta_p_return_var, t, 0.0) for t in time_set] if delta_p_return_var else []
         delta_p_total_series = [safe_value(delta_p_total_var, t, 0.0) for t in time_set] if delta_p_total_var else []
 
-        # Get pressure parameters
         pressure_params = getattr(model, f'{prefix}_pressure_params', {})
 
-        # Calculate totals
         dt_h = getattr(model, 'dt_h', 1.0)
         total_heat_delivered_mwh = sum(q_delivered_series) * dt_h
-        # Convert kW to MWh: kW * h / 1000 = MWh
-        total_heat_loss_supply_mwh = sum(q_loss_supply_series_kw) * dt_h / 1000
-        total_heat_loss_return_mwh = sum(q_loss_return_series_kw) * dt_h / 1000
+        total_heat_loss_supply_mwh = sum(q_loss_supply_kw) * dt_h / 1000
+        total_heat_loss_return_mwh = sum(q_loss_return_kw) * dt_h / 1000
         total_heat_loss_mwh = total_heat_loss_supply_mwh + total_heat_loss_return_mwh
 
-        # Loss percentage
-        if total_heat_delivered_mwh > 0:
-            loss_percentage = (total_heat_loss_mwh / total_heat_delivered_mwh) * 100
-        else:
-            loss_percentage = 0.0
+        loss_percentage = (
+            (total_heat_loss_mwh / total_heat_delivered_mwh) * 100
+            if total_heat_delivered_mwh > 0 else 0.0
+        )
 
-        # Investment results (if applicable)
         upgrade_config = config.get('upgrade_options', {})
         upgrade_enabled = upgrade_config.get('enabled', False)
-
         selected_diameter = None
         selected_insulation = None
 
         if upgrade_enabled:
             diameter_choice = getattr(model, f'{prefix}_diameter_choice')
             insulation_choice = getattr(model, f'{prefix}_insulation_choice')
-
-            diameter_options = upgrade_config.get('diameter_options', [])
-            insulation_options = upgrade_config.get('insulation_options', ['standard'])
-
-            for d in diameter_options:
+            for d in upgrade_config.get('diameter_options', []):
                 if pyo.value(diameter_choice[d]) > 0.5:
                     selected_diameter = d
                     break
-
-            for i in insulation_options:
+            for i in upgrade_config.get('insulation_options', ['standard']):
                 if pyo.value(insulation_choice[i]) > 0.5:
                     selected_insulation = i
                     break
@@ -829,36 +693,39 @@ class PipePairBlock(BaseComponent):
             'to_node': config['to_node'],
             'length_m': config['length_m'],
 
-            # Time series - thermal
+            # Time series — thermal
             'flow_kg_s': flow_series,
             'T_supply_in_c': t_supply_in_series,
             'T_supply_out_c': t_supply_out_series,
             'T_return_in_c': t_return_in_series,
             'T_return_out_c': t_return_out_series,
-            'Q_loss_supply_kw': q_loss_supply_series_kw,  # kW for dashboard
-            'Q_loss_return_kw': q_loss_return_series_kw,  # kW for dashboard
+            'Q_loss_supply_kw': q_loss_supply_kw,
+            'Q_loss_return_kw': q_loss_return_kw,
             'Q_delivered_mw': q_delivered_series,
+            'Q_consumer_mw': q_consumer_series,
 
-            # Time series - hydraulic
+            # Time series — hydraulic
             'velocity_m_s': velocity_series,
             'delta_p_supply_bar': delta_p_supply_series,
             'delta_p_return_bar': delta_p_return_series,
             'delta_p_total_bar': delta_p_total_series,
 
-            # Aggregates - thermal
+            # Aggregates — thermal
             'total_heat_delivered_mwh': total_heat_delivered_mwh,
             'total_heat_loss_mwh': total_heat_loss_mwh,
             'total_heat_loss_supply_mwh': total_heat_loss_supply_mwh,
             'total_heat_loss_return_mwh': total_heat_loss_return_mwh,
             'loss_percentage': loss_percentage,
 
-            # Aggregates - hydraulic
+            # Aggregates — hydraulic
             'max_velocity_m_s': max(velocity_series) if velocity_series else 0,
             'avg_velocity_m_s': sum(velocity_series) / len(velocity_series) if velocity_series else 0,
             'max_delta_p_total_bar': max(delta_p_total_series) if delta_p_total_series else 0,
-            'avg_delta_p_total_bar': sum(delta_p_total_series) / len(delta_p_total_series) if delta_p_total_series else 0,
+            'avg_delta_p_total_bar': (
+                sum(delta_p_total_series) / len(delta_p_total_series) if delta_p_total_series else 0
+            ),
 
-            # Averages - thermal
+            # Averages — thermal
             'avg_flow_kg_s': sum(flow_series) / len(flow_series) if flow_series else 0,
             'avg_supply_temp_in_c': sum(t_supply_in_series) / len(t_supply_in_series) if t_supply_in_series else 0,
             'avg_return_temp_out_c': sum(t_return_out_series) / len(t_return_out_series) if t_return_out_series else 0,
@@ -872,5 +739,8 @@ class PipePairBlock(BaseComponent):
             'selected_diameter_mm': selected_diameter,
             'selected_insulation': selected_insulation,
             'current_diameter_mm': config.get('current_diameter_supply_mm'),
-            'upgrade_recommended': selected_diameter != config.get('current_diameter_supply_mm') if selected_diameter else False,
+            'upgrade_recommended': (
+                selected_diameter != config.get('current_diameter_supply_mm')
+                if selected_diameter else False
+            ),
         }

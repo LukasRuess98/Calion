@@ -37,6 +37,15 @@ scenario:
     network: "../assets/stadtbach/network_topology.yaml"
 
   # ===========================================================================
+  # THERMAL NETWORK (B1: enable multi-node DHN physics)
+  # ===========================================================================
+  thermal_network:
+    enabled: true
+    topology_file: "configs/assets/stadtbach/network_topology.yaml"
+    use_simplified_network_model: false
+    bilinear_mixing: false                # Big-M dominant-flow (MILP-compatible)
+
+  # ===========================================================================
   # OPTIMIZATION SETTINGS
   # ===========================================================================
   optimization:

@@ -2015,14 +2015,6 @@ def _solve_scenario(
         soc_init_override=soc_init_override,
         terminal_target_override=terminal_target_override,
     )
-     # ✅ DEBUG: Export LP file for infeasibility analysis
-    if model is not None and HAVE_PYOMO:
-        try:
-            lp_filename = "debug_model.lp"
-            model.write(lp_filename, io_options={'symbolic_solver_labels': True})
-            logger.info(f"[DEBUG] LP file written to: {lp_filename}")
-        except Exception as e:
-            logger.info(f"[DEBUG] Could not write LP file: {e}")
     solver_meta: Dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
@@ -2359,9 +2351,84 @@ def _register_default_steps() -> None:
 _register_default_steps()
 
 
+def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dict[str, str]:
+    """Write thermal network results from solver_meta['network_data'] to outdir.
+
+    Creates:
+      {outdir}/thermal_network/nodes_timeseries.csv  — T_supply, T_return per node
+      {outdir}/thermal_network/pipes_timeseries.csv  — m_dot, delta_p, velocity per pipe
+      {outdir}/thermal_network/network_summary.json  — averages and topology
+
+    Returns dict of written file paths.
+    """
+    import json as _json
+    import pandas as _pd
+
+    if not network_data:
+        return {}
+
+    net_dir = os.path.join(outdir, "thermal_network")
+    os.makedirs(net_dir, exist_ok=True)
+    written: Dict[str, str] = {}
+
+    # ── Node timeseries ──────────────────────────────────────────────────────
+    node_ts: Dict[str, list] = {}
+    node_summary: Dict[str, Dict] = {}
+    for node_id, node_info in network_data.get('nodes', {}).items():
+        for key in ('T_supply_series', 'T_return_series'):
+            col = f"{node_id}_{key.replace('_series', '')}"
+            if key in node_info:
+                node_ts[col] = node_info[key]
+        node_summary[node_id] = {
+            k: v for k, v in node_info.items()
+            if not k.endswith('_series') and k not in ('id',)
+        }
+
+    if node_ts:
+        node_csv = os.path.join(net_dir, "nodes_timeseries.csv")
+        _pd.DataFrame(node_ts).to_csv(node_csv, sep=';', index=True)
+        written['nodes_timeseries'] = node_csv
+        logger.info("[EXPORT] Thermal network nodes -> %s", node_csv)
+
+    # ── Pipe timeseries ──────────────────────────────────────────────────────
+    pipe_ts: Dict[str, list] = {}
+    pipe_summary: Dict[str, Dict] = {}
+    for pipe_id, pipe_info in network_data.get('pipes', {}).items():
+        for key in ('m_dot_series', 'velocity_series', 'delta_p_series',
+                    'Q_loss_series', 'T_supply_out_series', 'T_return_out_series'):
+            col = f"{pipe_id}_{key.replace('_series', '')}"
+            if key in pipe_info:
+                pipe_ts[col] = pipe_info[key]
+        pipe_summary[pipe_id] = {
+            k: v for k, v in pipe_info.items()
+            if not k.endswith('_series') and k not in ('id',)
+        }
+
+    if pipe_ts:
+        pipe_csv = os.path.join(net_dir, "pipes_timeseries.csv")
+        _pd.DataFrame(pipe_ts).to_csv(pipe_csv, sep=';', index=True)
+        written['pipes_timeseries'] = pipe_csv
+        logger.info("[EXPORT] Thermal network pipes  -> %s", pipe_csv)
+
+    # ── Summary JSON ─────────────────────────────────────────────────────────
+    summary = {
+        'nodes': node_summary,
+        'pipes': pipe_summary,
+        'network': network_data.get('summary', {}),
+    }
+    summary_path = os.path.join(net_dir, "network_summary.json")
+    with open(summary_path, 'w', encoding='utf-8') as f:
+        _json.dump(summary, f, indent=2, default=str)
+    written['network_summary'] = summary_path
+    logger.info("[EXPORT] Thermal network summary -> %s", summary_path)
+
+    return written
+
+
 def export_workflow_results(
     workflow: "WorkflowResult",
     outdir: Optional[str] = None,
+    save_lp: bool = False,
 ) -> Dict[str, Any]:
     """Export workflow results to files (Excel, CSV, plots, JSON).
 
@@ -2374,6 +2441,9 @@ def export_workflow_results(
         The workflow result from run_workflow()
     outdir : str, optional
         Output directory path. If None, creates timestamped directory in exports/
+    save_lp : bool, optional
+        Copy the MILP model LP file (written by the solver step) into
+        {outdir}/solver/model.lp for post-hoc debugging. Default: False.
 
     Returns
     -------
@@ -2558,6 +2628,42 @@ def export_workflow_results(
     except Exception as exc:
         logger.info(f"[EXPORT] Plot export skipped: {exc}")
 
+    # ── Fix 1: Thermal-Network-CSV in main outdir ────────────────────────────
+    network_files: Dict[str, str] = {}
+    active_result = workflow.mpc_result or workflow.rh_result or workflow.pf_result
+    if active_result is not None:
+        network_data = active_result.solver.get('network_data', {})
+        if network_data:
+            try:
+                network_files = _write_network_data_to_dir(network_data, outdir)
+                logger.info(
+                    "[EXPORT] Thermal network: %d files written to %s/thermal_network/",
+                    len(network_files), outdir,
+                )
+            except Exception as exc:
+                logger.warning("[EXPORT] Thermal network CSV export failed: %s", exc)
+
+    # ── Fix 2: Optional LP file copy into main outdir ────────────────────────
+    lp_path_in_result: Optional[str] = None
+    if save_lp and active_result is not None:
+        src_lp = active_result.solver.get('export_files', {}).get('solver_lp_file')
+        if src_lp and os.path.isfile(src_lp):
+            import shutil as _shutil
+            solver_dir = os.path.join(outdir, "solver")
+            os.makedirs(solver_dir, exist_ok=True)
+            dest_lp = os.path.join(solver_dir, "model.lp")
+            try:
+                _shutil.copy2(src_lp, dest_lp)
+                lp_path_in_result = dest_lp
+                logger.info("[EXPORT] LP model copied → %s", dest_lp)
+            except Exception as exc:
+                logger.warning("[EXPORT] Could not copy LP file: %s", exc)
+        else:
+            logger.warning(
+                "[EXPORT] --save-lp requested but no LP file found in solver results. "
+                "Set output.export_solver_solution: true in config to generate it."
+            )
+
     # Prepare return dictionary
     result_dict = {
         "outdir": outdir,
@@ -2567,6 +2673,8 @@ def export_workflow_results(
         "meta_json": bundle_paths.get("meta_json"),
         "manifest_json": bundle_paths.get("manifest_json"),
         "plots": plot_files,
+        "network_files": network_files,
+        "lp_file": lp_path_in_result,
         "costs": {},
     }
 

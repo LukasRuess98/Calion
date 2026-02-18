@@ -12,6 +12,10 @@ from typing import Dict, List, Any, Callable
 from dataclasses import dataclass, field
 import copy
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class ParameterVariation:
@@ -102,7 +106,7 @@ def create_standard_sensitivity_study() -> List[ParameterVariation]:
     Example:
         >>> variations = create_standard_sensitivity_study()
         >>> for var in variations:
-        ...     print(f"{var.description}: {var.get_labels()}")
+        ...     logger.info(f"{var.description}: {var.get_labels()}")
         P2H efficiency: ['95% of baseline', 'baseline', '105% of baseline']
         Heat pump COP: ['90% of baseline', 'baseline', '110% of baseline']
         ...
@@ -268,9 +272,9 @@ def run_sensitivity_analysis(
         >>>
         >>> # Analyze results
         >>> for param_path, result_list in results.items():
-        ...     print(f"Parameter: {param_path}")
+        ...     logger.info(f"Parameter: {param_path}")
         ...     for res in result_list:
-        ...         print(f"  {res.variation_label}: {res.objective_value:.2f}")
+        ...         logger.info(f"  {res.variation_label}: {res.objective_value:.2f}")
 
     Note:
         Results are suitable for:
@@ -423,7 +427,7 @@ def calculate_sensitivity_indices(
     Example:
         >>> indices = calculate_sensitivity_indices(results)
         >>> for param, index in sorted(indices.items(), key=lambda x: x[1], reverse=True):
-        ...     print(f"{param}: {index:.3f}")
+        ...     logger.info(f"{param}: {index:.3f}")
         fuels.gas.price_eur_mwh: 0.156
         storage.hourly_loss: 0.023
         generators.p2h.el_to_th_eff: 0.012

@@ -12,7 +12,7 @@ Example usage:
     ...     base_configs=["configs/base.yaml", "configs/system.yaml"],
     ...     output_dir="exports/sensitivity"
     ... )
-    >>> print(f"Generated files: {results.generated_files}")
+    >>> logger.info(f"Generated files: {results.generated_files}")
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Callable
 
 from energis.analysis.sensitivity import (
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
     ParameterVariation,
     SensitivityResult,
     run_sensitivity_analysis,

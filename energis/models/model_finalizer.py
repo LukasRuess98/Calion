@@ -80,6 +80,69 @@ class CostFlags:
         )
 
 
+# ─── Pre-flight Check ─────────────────────────────────────────────────────────
+
+def _preflight_network_check(network_mgr) -> None:
+    """B3 — Raise ValueError with descriptive message if network is fundamentally infeasible.
+
+    Checks performed (all use already-loaded data — no file I/O):
+    - At least one producer node exists
+    - All pipe endpoints reference existing nodes
+    - All pipe diameters are positive
+    - Consumer nodes have demand_column or demand_fraction specified
+    """
+    issues = []
+    nodes = network_mgr.nodes
+    pipes = network_mgr.pipes
+
+    # 1. At least one producer node
+    producer_ids = [nid for nid, n in nodes.items() if n.get('type') == 'producer']
+    if not producer_ids:
+        issues.append("No producer node found in topology (need at least one)")
+
+    # 2. Pipe endpoints reference existing nodes
+    for pipe_id, pipe_cfg in pipes.items():
+        fn = pipe_cfg.get('from_node')
+        tn = pipe_cfg.get('to_node')
+        if fn and fn not in nodes:
+            issues.append(f"Pipe '{pipe_id}': from_node '{fn}' not in node list")
+        if tn and tn not in nodes:
+            issues.append(f"Pipe '{pipe_id}': to_node '{tn}' not in node list")
+
+        # 3. Positive diameters
+        diam = pipe_cfg.get('current_diameter_supply_mm') or pipe_cfg.get('diameter_mm', 0)
+        if float(diam or 0) <= 0:
+            issues.append(
+                f"Pipe '{pipe_id}': diameter is {diam!r} (must be > 0)"
+            )
+
+    # 4. Consumer demand info
+    for node_id, node_cfg in nodes.items():
+        if node_cfg.get('type') != 'consumer':
+            continue
+        has_demand = (
+            node_cfg.get('demand_column')
+            or node_cfg.get('demand_fraction') is not None
+            or node_cfg.get('Q_demand') is not None
+        )
+        if not has_demand:
+            issues.append(
+                f"Consumer node '{node_id}': missing demand_column, demand_fraction, or Q_demand"
+            )
+
+    if issues:
+        raise ValueError(
+            f"Network preflight failed ({len(issues)} issue(s)):\n"
+            + "\n".join(f"  - {i}" for i in issues)
+        )
+
+    logger.info(
+        "[PREFLIGHT] Network OK: %d nodes, %d pipes",
+        len(nodes),
+        len(pipes),
+    )
+
+
 # ─── Model Finalizer ──────────────────────────────────────────────────────────
 
 class ModelFinalizer:
@@ -152,13 +215,21 @@ class ModelFinalizer:
                 self.m._network_enabled = False
                 return
 
+            # B3: Pre-flight feasibility check before building / solving
+            _preflight_network_check(network_mgr)
+
             buses_dict = {
                 "heat": {"in": self.buses.ht_in, "out": self.buses.ht_out},
                 "electricity": {"in": self.buses.el_in, "out": self.buses.el_out},
             }
+            # Store dt_h on model so get_results() can compute correct MWh totals
+            self.m.dt_h = self.dt_h
+
             network_results = network_mgr.attach_to_model(self.m, self.m.t, buses_dict)
 
-            if network_results and len(network_results.get("pipes", {})) > 0:
+            # Accept single-node fallback (pipes=0) as well as multi-pipe topologies
+            has_nodes = len(network_results.get("nodes", {})) > 0
+            if network_results and has_nodes:
                 self.m._network_manager = network_mgr
                 self.m._network_enabled = True
                 logger.info(
@@ -167,7 +238,7 @@ class ModelFinalizer:
                     len(network_results.get("nodes", {})),
                 )
             else:
-                logger.info("[FINALIZE] WARNING: Thermal network returned no components")
+                logger.info("[FINALIZE] WARNING: Thermal network returned no nodes")
                 logger.info("[FINALIZE] Continuing without thermal network...")
                 self.m._network_enabled = False
 

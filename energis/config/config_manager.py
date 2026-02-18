@@ -10,6 +10,10 @@ from pathlib import Path
 from energis.config.loader_v2 import load_config_v2, ConfigLoaderV2
 from energis.config.validation import validate_config, ValidationResult
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 class ConfigManager:
     """
@@ -45,32 +49,32 @@ class ConfigManager:
         if not self.scenario_path.exists():
             raise FileNotFoundError(f"Scenario file not found: {self.scenario_path}")
 
-        print(f"[ConfigManager] Loading configuration from {self.scenario_path}")
+        logger.info(f"[ConfigManager] Loading configuration from {self.scenario_path}")
 
         # Load configuration
         self.config = load_config_v2(str(self.scenario_path))
 
-        print(f"[ConfigManager] Configuration loaded successfully")
-        print(f"  - Scenario: {self.config['scenario']['name']}")
-        print(f"  - Components: {len(self.config['_schemas']['components'])}")
-        print(f"  - Networks: {len(self.config['_schemas']['network'].networks)}")
+        logger.info(f"[ConfigManager] Configuration loaded successfully")
+        logger.info(f"  - Scenario: {self.config['scenario']['name']}")
+        logger.info(f"  - Components: {len(self.config['_schemas']['components'])}")
+        logger.info(f"  - Networks: {len(self.config['_schemas']['network'].networks)}")
 
         # Validate if requested
         if self._validate:
             self.validation_result = validate_config(self.config)
 
             if not self.validation_result.valid:
-                print(f"\n[ConfigManager] Configuration has {len(self.validation_result.errors)} error(s)")
+                logger.info(f"\n[ConfigManager] Configuration has {len(self.validation_result.errors)} error(s)")
                 self.validation_result.print_summary()
                 raise ValueError("Configuration validation failed")
 
             if self.validation_result.warnings:
-                print(f"\n[ConfigManager] Configuration has {len(self.validation_result.warnings)} warning(s)")
+                logger.info(f"\n[ConfigManager] Configuration has {len(self.validation_result.warnings)} warning(s)")
                 for warning in self.validation_result.warnings:
                     loc = f" [{warning.location}]" if warning.location else ""
-                    print(f"  - {warning.message}{loc}")
+                    logger.info(f"  - {warning.message}{loc}")
 
-            print(f"[ConfigManager] Validation passed")
+            logger.info(f"[ConfigManager] Validation passed")
 
         return self.config
 
@@ -142,48 +146,48 @@ class ConfigManager:
     def print_summary(self):
         """Print configuration summary."""
         if not self.config:
-            print("[ConfigManager] No configuration loaded")
+            logger.info("[ConfigManager] No configuration loaded")
             return
 
-        print("\n" + "=" * 60)
-        print("CONFIGURATION SUMMARY")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("CONFIGURATION SUMMARY")
+        logger.info("="*70)
 
         # Scenario info
         scenario = self.scenario
-        print(f"\nScenario: {scenario.name}")
-        print(f"  Version: {scenario.version}")
-        print(f"  Mode: {scenario.optimization.mode}")
+        logger.info(f"\nScenario: {scenario.name}")
+        logger.info(f"  Version: {scenario.version}")
+        logger.info(f"  Mode: {scenario.optimization.mode}")
 
         # Components
-        print(f"\nComponents ({len(self.components)}):")
+        logger.info(f"\nComponents ({len(self.components)}):")
         for comp_id, comp in self.components.items():
             capacity = comp.existing.thermal_capacity_mw
             expansion_text = ""
             if comp.expansion.enabled:
                 expansion_text = f" [+{comp.expansion.min_additional_capacity_mw:.0f}-{comp.expansion.max_additional_capacity_mw:.0f} MW expansion]"
-            print(f"  - {comp_id}: {capacity:.1f} MW ({comp.technology}){expansion_text}")
+            logger.info(f"  - {comp_id}: {capacity:.1f} MW ({comp.technology}){expansion_text}")
 
         # Network
         if self.network:
-            print(f"\nNetworks ({len(self.network.networks)}):")
+            logger.info(f"\nNetworks ({len(self.network.networks)}):")
             for net_id, net in self.network.networks.items():
-                print(f"  - {net_id}: {len(net.nodes)} nodes, {len(net.pipes)} pipes")
+                logger.info(f"  - {net_id}: {len(net.nodes)} nodes, {len(net.pipes)} pipes")
 
         # Economics
         econ = scenario.economics
-        print(f"\nEconomics:")
-        print(f"  - CO2 price: {econ.co2_price_eur_per_tonne:.0f} EUR/t")
-        print(f"  - Discount rate: {econ.discount_rate*100:.1f}%")
+        logger.info(f"\nEconomics:")
+        logger.info(f"  - CO2 price: {econ.co2_price_eur_per_tonne:.0f} EUR/t")
+        logger.info(f"  - Discount rate: {econ.discount_rate*100:.1f}%")
 
         # Solver
         solver = scenario.solver
-        print(f"\nSolver:")
-        print(f"  - Name: {solver.name}")
-        print(f"  - Time limit: {solver.timelimit_s}s")
-        print(f"  - MIP gap: {solver.mip_gap*100:.1f}%")
+        logger.info(f"\nSolver:")
+        logger.info(f"  - Name: {solver.name}")
+        logger.info(f"  - Time limit: {solver.timelimit_s}s")
+        logger.info(f"  - MIP gap: {solver.mip_gap*100:.1f}%")
 
-        print("=" * 60 + "\n")
+        logger.info("=" * 60)
 
 
 def load_and_validate_config(scenario_path: str, validate: bool = True) -> Dict[str, Any]:

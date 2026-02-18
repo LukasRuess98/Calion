@@ -9,6 +9,10 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from energis.utils.timeseries import TimeSeriesTable
 from energis.io.plot_utils import has_content, prettify_label_de
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:  # pragma: no cover - optional dependency
     import matplotlib
 
@@ -60,11 +64,11 @@ def export_plots(
     """
 
     if not HAVE_MATPLOTLIB:
-        print("[EXPORT] Matplotlib nicht verfügbar – Diagramme werden übersprungen.")
+        logger.info("[EXPORT] Matplotlib nicht verfügbar – Diagramme werden übersprungen.")
         return []
 
     if not table.index:
-        print("[EXPORT] Keine Zeitschrittdaten vorhanden – Diagramme werden übersprungen.")
+        logger.info("[EXPORT] Keine Zeitschrittdaten vorhanden – Diagramme werden übersprungen.")
         return []
 
     os.makedirs(outdir, exist_ok=True)

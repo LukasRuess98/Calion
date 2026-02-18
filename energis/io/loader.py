@@ -11,6 +11,10 @@ from typing import Any, Dict, List, Optional
 from energis.utils.xlsx import read_xlsx
 from energis.utils.timeseries import TimeSeriesTable, fill_gaps
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -270,9 +274,9 @@ def load_input_excel(
     outdoor_temp: List[float] = []
     if outdoor_temp_col:
         outdoor_temp = [_to_float(rec.get(outdoor_temp_col)) for rec in records]
-        print(f"[LOAD] Außentemperatur gefunden: Spalte '{outdoor_temp_col}'")
+        logger.info(f"[LOAD] Außentemperatur gefunden: Spalte '{outdoor_temp_col}'")
     else:
-        print("[LOAD] Keine Außentemperatur-Spalte gefunden (Heizkurve deaktiviert)")
+        logger.info("[LOAD] Keine Außentemperatur-Spalte gefunden (Heizkurve deaktiviert)")
 
     data: Dict[str, List[float]] = {
         "strompreis_EUR_MWh": price,

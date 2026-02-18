@@ -9,6 +9,10 @@ import logging
 from typing import List, Optional, Dict
 import math
 import numpy as np
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 logger = logging.getLogger(__name__)
 
 # Check for matplotlib

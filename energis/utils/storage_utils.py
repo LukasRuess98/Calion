@@ -10,6 +10,10 @@ from __future__ import annotations
 from typing import List, Sequence
 import math
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def calculate_temp_dependent_loss_series(
     ambient_temp_series_K: Sequence[float],

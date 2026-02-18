@@ -19,6 +19,10 @@ from typing import Any, Dict, List, Optional
 
 from energis.utils.xlsx import read_xlsx, list_sheet_names, read_all_sheets
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 

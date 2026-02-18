@@ -19,6 +19,10 @@ import sys
 from pathlib import Path
 from energis.run import rolling_horizon as rh
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def main():
     """Main CLI entry point."""
@@ -74,29 +78,39 @@ Examples:
         help='Custom output directory'
     )
 
+    parser.add_argument(
+        '--save-lp',
+        action='store_true',
+        default=False,
+        help=(
+            'Copy the solved MILP model as model.lp into {outdir}/solver/ '
+            'for post-hoc debugging and infeasibility analysis. '
+            'Requires output.export_solver_solution: true in config (default).'
+        ),
+    )
+
     args = parser.parse_args()
 
     # Validate paths
     for path in args.configs:
         if not Path(path).exists():
-            print(f"Error: Config file not found: {path}")
+            logger.info(f"Error: Config file not found: {path}")
             sys.exit(1)
 
-    print("=" * 70)
-    print("EnerGIS - District Heating Optimization")
-    print("=" * 70)
-    print(f"\nConfig files ({len(args.configs)}):")
+    logger.info("="*70)
+    logger.info("EnerGIS - District Heating Optimization")
+    logger.info("="*70)
+    logger.info(f"\nConfig files ({len(args.configs)}):")
     for path in args.configs:
-        print(f"  - {path}")
+        logger.info(f"  - {path}")
 
     if args.dashboard:
-        print(f"\nDashboard export: ENABLED")
+        logger.info(f"\nDashboard export: ENABLED")
         if args.name:
-            print(f"  Name: {args.name}")
+            logger.info(f"  Name: {args.name}")
         if args.desc:
-            print(f"  Description: {args.desc}")
+            logger.info(f"  Description: {args.desc}")
 
-    print()
 
     try:
         # Run optimization
@@ -106,7 +120,7 @@ Examples:
         def _print_cost_block(label, costs):
             if not costs:
                 return
-            print(f"\n=== {label} COSTS (objective.*) ===")
+            logger.info(f"\n=== {label} COSTS (objective.*) ===")
             for k, v in sorted(costs.items()):
                 # Nur objective.*-Keys und nur numerische Werte ausgeben
                 if not k.startswith("objective."):
@@ -115,7 +129,7 @@ Examples:
                     continue
                 if abs(v) <= 1e-3:
                     continue
-                print(f"{k:40s}: {v:,.2f}")
+                logger.info(f"{k:40s}: {v:,.2f}")
                 
         if workflow.pf_result and workflow.pf_result.costs:
             _print_cost_block("PF", workflow.pf_result.costs)
@@ -136,27 +150,36 @@ Examples:
                 config_paths=args.configs,
                 save_dir=save_dir,
             )
-            print(f"\n" + "=" * 70)
-            print(f"SUCCESS! Results saved for dashboard:")
-            print(f"  {output_dir}")
-            print(f"\nView in dashboard:")
-            print(f"  python start_dashboard.py")
-            print("=" * 70)
+            logger.info("=" * 70)
+            logger.info(f"SUCCESS! Results saved for dashboard:")
+            logger.info(f"  {output_dir}")
+            logger.info(f"\nView in dashboard:")
+            logger.info(f"  python start_dashboard.py")
+            logger.info("="*70)
         else:
             # Standard export to exports/
-            result = rh.export_workflow_results(workflow)
-            print(f"\n" + "=" * 70)
-            print(f"SUCCESS! Results exported to:")
-            print(f"  {result['outdir']}")
-            print(f"\nTip: Use --dashboard flag to save for dashboard visualization")
-            print("=" * 70)
+            result = rh.export_workflow_results(
+                workflow,
+                outdir=args.dir,
+                save_lp=args.save_lp,
+            )
+            logger.info("=" * 70)
+            logger.info(f"SUCCESS! Results exported to:")
+            logger.info(f"  {result['outdir']}")
+            if result.get('network_files'):
+                logger.info(f"  Thermal network: {result['outdir']}/thermal_network/")
+            if result.get('lp_file'):
+                logger.info(f"  LP model:        {result['lp_file']}")
+            logger.info(f"\nTip: Use --dashboard flag to save for dashboard visualization")
+            logger.info(f"Tip: Use --save-lp to export solver model for debugging")
+            logger.info("="*70)
 
         sys.exit(0)
 
     except Exception as e:
-        print(f"\n" + "=" * 70)
-        print(f"ERROR: {e}")
-        print("=" * 70)
+        logger.info("=" * 70)
+        logger.info(f"ERROR: {e}")
+        logger.info("="*70)
         import traceback
         traceback.print_exc()
         sys.exit(1)

@@ -81,8 +81,8 @@ def export_solver_solution(
                         val = pyo.value(var[idx])
                         if val is not None and abs(val) > 1e-9:
                             f.write(f"{var_name}[{idx}] {val}\n")
-                    except:
-                        pass
+                    except Exception:
+                        pass  # Skip non-numeric or uninitialized variables
 
         files['sol_file'] = sol_path
         logger.info(f"  Exported SOL file: {sol_path}")
@@ -230,8 +230,8 @@ def _export_node_results(
                     node_summary['Q_demand_total_mwh'] = sum(Q_vals) * dt_h
                     node_summary['Q_demand_peak_mw'] = max(Q_vals)
                     node_timeseries[f'{node_id}_Q_demand'] = Q_vals
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not export Q_demand for {node_id}: {e}")
 
         # Extract pressure if available
         P_var = getattr(model, f'{node_prefix}_P', None)
@@ -240,8 +240,8 @@ def _export_node_results(
                 P_vals = [pyo.value(P_var[t]) for t in time_set]
                 node_summary['P_avg_bar'] = sum(P_vals) / len(P_vals)
                 node_timeseries[f'{node_id}_P'] = P_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export pressure for {node_id}: {e}")
 
         all_nodes_data.append(node_summary)
         logger.info(f"  ✓ {node_id} ({node_type})")
@@ -300,8 +300,8 @@ def _export_pipe_results(
                 pipe_summary['m_dot_avg_kg_s'] = sum(m_dot_vals) / len(m_dot_vals)
                 pipe_summary['m_dot_max_kg_s'] = max(m_dot_vals)
                 pipe_timeseries[f'{pipe_id}_m_dot'] = m_dot_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export m_dot for {pipe_id}: {e}")
 
         # Velocity
         velocity_var = getattr(model, f'{pipe_prefix}_velocity', None)
@@ -311,8 +311,8 @@ def _export_pipe_results(
                 pipe_summary['velocity_avg_m_s'] = sum(v_vals) / len(v_vals)
                 pipe_summary['velocity_max_m_s'] = max(v_vals)
                 pipe_timeseries[f'{pipe_id}_velocity'] = v_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export velocity for {pipe_id}: {e}")
 
         # Pressure drops
         delta_p_supply = getattr(model, f'{pipe_prefix}_delta_p_supply', None)
@@ -325,8 +325,8 @@ def _export_pipe_results(
                 pipe_summary['delta_p_supply_avg_bar'] = sum(dp_s_vals) / len(dp_s_vals)
                 pipe_summary['delta_p_supply_max_bar'] = max(dp_s_vals)
                 pipe_timeseries[f'{pipe_id}_delta_p_supply'] = dp_s_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export delta_p_supply for {pipe_id}: {e}")
 
         if delta_p_return is not None:
             try:
@@ -334,8 +334,8 @@ def _export_pipe_results(
                 pipe_summary['delta_p_return_avg_bar'] = sum(dp_r_vals) / len(dp_r_vals)
                 pipe_summary['delta_p_return_max_bar'] = max(dp_r_vals)
                 pipe_timeseries[f'{pipe_id}_delta_p_return'] = dp_r_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export delta_p_return for {pipe_id}: {e}")
 
         if delta_p_total is not None:
             try:
@@ -343,8 +343,8 @@ def _export_pipe_results(
                 pipe_summary['delta_p_total_avg_bar'] = sum(dp_t_vals) / len(dp_t_vals)
                 pipe_summary['delta_p_total_max_bar'] = max(dp_t_vals)
                 pipe_timeseries[f'{pipe_id}_delta_p_total'] = dp_t_vals
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not export delta_p_total for {pipe_id}: {e}")
 
         # Temperature variables
         for temp_var in ['T_supply_in', 'T_supply_out', 'T_return_in', 'T_return_out']:
@@ -354,41 +354,35 @@ def _export_pipe_results(
                     vals = [pyo.value(var[t]) for t in time_set]
                     pipe_summary[f'{temp_var}_avg_c'] = sum(vals) / len(vals)
                     pipe_timeseries[f'{pipe_id}_{temp_var}'] = vals
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not export {temp_var} for {pipe_id}: {e}")
 
-        # Heat losses
-        Q_loss_supply = getattr(model, f'{pipe_prefix}_Q_loss_supply', None)
-        Q_loss_return = getattr(model, f'{pipe_prefix}_Q_loss_return', None)
-
-        if Q_loss_supply is not None:
-            try:
-                ql_s_vals = [pyo.value(Q_loss_supply[t]) for t in time_set]
-                pipe_summary['Q_loss_supply_total_mwh'] = sum(ql_s_vals) * dt_h
-                pipe_timeseries[f'{pipe_id}_Q_loss_supply'] = ql_s_vals
-            except:
-                pass
-
-        if Q_loss_return is not None:
-            try:
-                ql_r_vals = [pyo.value(Q_loss_return[t]) for t in time_set]
-                pipe_summary['Q_loss_return_total_mwh'] = sum(ql_r_vals) * dt_h
-                pipe_timeseries[f'{pipe_id}_Q_loss_return'] = ql_r_vals
-            except:
-                pass
+        # Heat losses and delay-aware consumer delivery
+        for heat_var, summary_key in [
+            ('Q_loss_supply', 'Q_loss_supply_total_mwh'),
+            ('Q_loss_return', 'Q_loss_return_total_mwh'),
+            ('Q_consumer',    'Q_consumer_total_mwh'),
+        ]:
+            var = getattr(model, f'{pipe_prefix}_{heat_var}', None)
+            if var is not None:
+                try:
+                    vals = [pyo.value(var[t]) for t in time_set]
+                    pipe_summary[summary_key] = sum(vals) * dt_h
+                    pipe_timeseries[f'{pipe_id}_{heat_var}'] = vals
+                except Exception as e:
+                    logger.debug(f"Could not export {heat_var} for {pipe_id}: {e}")
 
         # PWL segment info (if available)
         pwl_segment = getattr(model, f'{pipe_prefix}_pwl_segment', None)
         if pwl_segment is not None:
             pipe_summary['uses_pwl_pressure_drop'] = True
-            # Count segment usage
             segment_usage = {0: 0, 1: 0, 2: 0}
             for t in time_set:
                 for s in range(3):
                     try:
                         if pyo.value(pwl_segment[t, s]) > 0.5:
                             segment_usage[s] += 1
-                    except:
+                    except Exception:
                         pass
             pipe_summary['pwl_segment_usage'] = segment_usage
         else:
@@ -460,8 +454,8 @@ def _export_network_summary(
             summary['energy']['total_network_loss_mwh'] = sum(loss_vals) * dt_h
             summary['energy']['avg_network_loss_mw'] = sum(loss_vals) / len(loss_vals)
             summary['energy']['max_network_loss_mw'] = max(loss_vals)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not export network_Q_loss_per_timestep: {e}")
 
     # Brownfield specific data
     if hasattr(model, '_brownfield_total_loss_mw'):
@@ -590,8 +584,8 @@ def _export_storage_results(
         storage_data['summary']['SOC_avg_MWh'] = sum(soc_vals) / len(soc_vals)
         storage_data['summary']['SOC_min_MWh'] = min(soc_vals)
         storage_data['summary']['SOC_max_MWh'] = max(soc_vals)
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not export TES_SOC: {e}")
 
     # Charge/discharge
     if hasattr(model, 'TES_Q_charge'):
@@ -599,16 +593,16 @@ def _export_storage_results(
             charge_vals = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
             storage_data['timeseries']['Q_charge_MW'] = charge_vals
             storage_data['summary']['total_charge_MWh'] = sum(charge_vals) * dt_h
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not export TES_Q_charge: {e}")
 
     if hasattr(model, 'TES_Q_discharge'):
         try:
             discharge_vals = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
             storage_data['timeseries']['Q_discharge_MW'] = discharge_vals
             storage_data['summary']['total_discharge_MWh'] = sum(discharge_vals) * dt_h
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not export TES_Q_discharge: {e}")
 
     # Losses
     if hasattr(model, 'TES_Q_loss'):
@@ -617,8 +611,8 @@ def _export_storage_results(
             storage_data['timeseries']['Q_loss_MW'] = loss_vals
             storage_data['summary']['total_loss_MWh'] = sum(loss_vals) * dt_h
             storage_data['summary']['avg_loss_MW'] = sum(loss_vals) / len(loss_vals)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not export TES_Q_loss: {e}")
 
     # PWL loss info
     if hasattr(model, 'TES_pwl_lambda'):
@@ -749,9 +743,9 @@ def _export_unified_timeseries(
     try:
         all_data = {'timestep': list(time_set)}
 
-        # Heat demand
+        # Heat demand (model.heatd is already in MWth — no conversion needed)
         if hasattr(model, 'heatd'):
-            all_data['heat_demand_MW'] = [pyo.value(model.heatd[t]) / 1000 for t in time_set]
+            all_data['heat_demand_MW'] = [pyo.value(model.heatd[t]) for t in time_set]
 
         # Network loss
         if hasattr(model, 'network_Q_loss_per_timestep'):
@@ -769,29 +763,29 @@ def _export_unified_timeseries(
 
         # Network pipes
         if network_manager and hasattr(network_manager, 'pipes'):
-            for pipe_id in list(network_manager.pipes.keys())[:10]:  # Limit to first 10 pipes
+            for pipe_id in network_manager.pipes:
                 prefix = pipe_id.upper().replace('-', '_')
 
-                for var_name in ['m_dot', 'velocity', 'delta_p_total']:
+                for var_name in ['m_dot', 'velocity', 'delta_p_total', 'Q_consumer']:
                     var = getattr(model, f'{prefix}_{var_name}', None)
                     if var is not None:
                         try:
                             all_data[f'{pipe_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Could not export {pipe_id}/{var_name}: {e}")
 
         # Network nodes
         if network_manager and hasattr(network_manager, 'nodes'):
-            for node_id in list(network_manager.nodes.keys())[:10]:  # Limit to first 10 nodes
+            for node_id in network_manager.nodes:
                 prefix = node_id.upper().replace('-', '_')
 
-                for var_name in ['T_supply', 'T_return']:
+                for var_name in ['T_supply', 'T_return', 'Q_demand', 'm_dot_demand']:
                     var = getattr(model, f'{prefix}_{var_name}', None)
                     if var is not None:
                         try:
                             all_data[f'{node_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Could not export {node_id}/{var_name}: {e}")
 
         # Create DataFrame and save
         df = pd.DataFrame(all_data)

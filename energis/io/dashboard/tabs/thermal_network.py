@@ -88,7 +88,7 @@ def create_thermal_network_tab(
                     "**Config:**\n"
                     f"- `thermal_network.enabled`: {thermal_enabled}\n"
                     f"- `thermal_network.topology_file`: {thermal_cfg.get('topology_file', 'nicht angegeben')}\n"
-                    f"- `thermal_network.brownfield_mode`: {thermal_cfg.get('brownfield_mode', False)}"
+                    f"- `thermal_network.topology_nodes`: {len(thermal_cfg.get('nodes', []))}"
                 ),
                 sizing_mode='stretch_width'
             )

@@ -3,6 +3,10 @@ Data preparation module for the EnerGIS Dashboard.
 
 Contains classes and functions for extracting and preparing data
 from workflow results for visualization.
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 """
 
 from __future__ import annotations
@@ -193,11 +197,11 @@ def prepare_dashboard_data(
         downsampled = True
         downsample_factor = step
 
-        print(f"\nHINWEIS: Performance-Optimierung:")
-        print(f"         Datensatz wurde von {original_length:,} auf {len(df):,} Punkte reduziert (Faktor {step})")
-        print(f"         Dies verbessert die Dashboard-Performance erheblich.")
-        print(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
-        print(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
+        logger.info(f"\nHINWEIS: Performance-Optimierung:")
+        logger.info(f"         Datensatz wurde von {original_length:,} auf {len(df):,} Punkte reduziert (Faktor {step})")
+        logger.info(f"         Dies verbessert die Dashboard-Performance erheblich.")
+        logger.info(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
+        logger.info(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
 
     # Re-identify component types after downsampling
     heat_components = [col for col in df.columns if col.endswith('_Q_th_MW')]
