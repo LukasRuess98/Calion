@@ -177,9 +177,9 @@ def build_model(
     buses = assembler.buses
 
     if not buses.ht_out:
-        raise RuntimeError(
+        logger.warning(
             "No thermal generator connected to heat bus (ht_out empty). "
-            "Please check system configuration."
+            "Heat balance constraints will be trivially satisfied."
         )
     logger.info("[BUILD] #el_in=%d, #el_out=%d, #ht_out=%d, #ht_in=%d",
                 len(buses.el_in), len(buses.el_out), len(buses.ht_out), len(buses.ht_in))

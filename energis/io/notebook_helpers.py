@@ -223,9 +223,14 @@ def save_workflow_run(
     else:
         # Create directory manually
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        auto_name = name or f"workflow_{timestamp}"
-        export_dir = save_path / f"{timestamp}_{auto_name}"
-        export_dir.mkdir(parents=True, exist_ok=True)
+        auto_name = (name or f"workflow_{timestamp}").replace(" ", "_")
+        base_export_dir = save_path / f"{timestamp}_{auto_name}"
+        export_dir = base_export_dir
+        counter = 1
+        while export_dir.exists():
+            export_dir = save_path / f"{timestamp}_{auto_name}_{counter}"
+            counter += 1
+        export_dir.mkdir(parents=True, exist_ok=False)
         export_meta = {'outdir': str(export_dir)}
 
     logger.info(f"📁 Speicherverzeichnis: {export_dir}")
@@ -293,15 +298,18 @@ def _build_metadata(
         name = f"Workflow {timestamp}"
 
     # Extract workflow information
-    has_pf = workflow.pf_result is not None
-    has_rh = workflow.rh_result is not None
-    has_mpc = workflow.mpc_result is not None
+    has_pf = getattr(workflow, 'pf_result', None) is not None
+    has_rh = getattr(workflow, 'rh_result', None) is not None
+    has_mpc = getattr(workflow, 'mpc_result', None) is not None
 
-    # Get scenario info from config
-    scenario_cfg = workflow.config.get('scenario', {})
-    system_cfg = workflow.config.get('system', {})
-    site_cfg = workflow.config.get('site', {})
-    run_cfg = workflow.config.get('run', {})
+    # Get scenario info from config (defensive: WorkflowResult has .config, legacy objects may not)
+    cfg_dict = getattr(workflow, 'config', None) or {}
+    scenario_cfg = cfg_dict.get('scenario', {})
+    system_cfg = cfg_dict.get('system', {})
+    site_cfg = cfg_dict.get('site', {})
+    run_cfg = cfg_dict.get('run', {})
+
+    plan = getattr(workflow, 'plan', None)
 
     # Build metadata
     metadata = {
@@ -317,8 +325,8 @@ def _build_metadata(
         },
         'config_files': config_paths or [],
         'workflow': {
-            'steps': list(workflow.plan.steps),
-            'fix_design': workflow.plan.fix_design,
+            'steps': list(plan.steps) if plan else [],
+            'fix_design': getattr(plan, 'fix_design', False) if plan else False,
         },
         'results_available': {
             'pf': has_pf,
@@ -343,13 +351,15 @@ def _build_metadata(
         }
 
     # Add statistics
-    primary_result = workflow.rh_result or workflow.mpc_result or workflow.pf_result
+    primary_result = getattr(workflow, 'rh_result', None) or getattr(workflow, 'mpc_result', None) or getattr(workflow, 'pf_result', None)
     if primary_result:
+        _table = getattr(primary_result, 'table', None)
+        _table_len = len(_table) if (_table is not None and hasattr(_table, '__len__')) else len(getattr(_table, 'index', []))
         metadata['statistics'] = {
-            'timesteps': len(primary_result.table),
-            'duration_hours': len(primary_result.table) * metadata['dt_h'],
-            'start_date': str(primary_result.table.index[0]) if primary_result.table.index else None,
-            'end_date': str(primary_result.table.index[-1]) if primary_result.table.index else None,
+            'timesteps': _table_len,
+            'duration_hours': _table_len * metadata['dt_h'],
+            'start_date': str(_table.index[0]) if _table is not None and getattr(_table, 'index', None) else None,
+            'end_date': str(_table.index[-1]) if _table is not None and getattr(_table, 'index', None) else None,
         }
 
         # Add costs
@@ -366,6 +376,10 @@ def _build_metadata(
                 'fuel_eur': fuel,
                 'electricity_eur': elec,
             }
+
+    # Backward-compatibility aliases
+    metadata['created'] = metadata['saved_at']
+    metadata['workflow_plan'] = metadata['workflow']
 
     return metadata
 
@@ -432,6 +446,7 @@ def list_saved_workflows(
                     'description': metadata.get('description', ''),
                     'date': datetime.fromisoformat(metadata['saved_at']) if 'saved_at' in metadata else None,
                     'date_str': metadata.get('saved_at', ''),
+                    'created': metadata.get('saved_at', ''),
                     'costs': metadata.get('costs', {}).get('total_eur', 0.0),
                     'steps': metadata.get('workflow', {}).get('steps', []),
                     'timesteps': metadata.get('statistics', {}).get('timesteps', 0),
@@ -439,19 +454,6 @@ def list_saved_workflows(
                 })
             except Exception as e:
                 logger.info(f"⚠️  Fehler beim Laden von {metadata_file}: {e}")
-        else:
-            # Fallback: use directory name
-            workflows.append({
-                'path': workflow_dir,
-                'name': workflow_dir.name,
-                'description': '',
-                'date': None,
-                'date_str': '',
-                'costs': 0.0,
-                'steps': [],
-                'timesteps': 0,
-                'scenario': 'unknown',
-            })
 
     # Sort workflows
     if sort_by == "date":

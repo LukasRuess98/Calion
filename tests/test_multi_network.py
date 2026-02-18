@@ -293,7 +293,7 @@ class TestMultiNetworkExports:
             latex_dir = os.path.join(multi_dir, "latex")
             assert os.path.exists(latex_dir)
 
-            networks_tex = os.path.join(latex_dir, "networks.tex")
+            networks_tex = os.path.join(latex_dir, "multi_network_comparison.tex")
             assert os.path.exists(networks_tex)
 
             hx_tex = os.path.join(latex_dir, "heat_exchangers.tex")
@@ -303,7 +303,7 @@ class TestMultiNetworkExports:
             with open(networks_tex) as f:
                 content = f.read()
                 assert r"\begin{table}" in content
-                assert "hochtemp" in content
+                assert "Hochtemperatur" in content
 
             print("Export test passed!")
             print(f"Generated files: {list(result.generated_files.keys())}")

@@ -332,7 +332,7 @@ def load_input_excel(
         raise RuntimeError("Wärmebedarf ist überall 0. Bitte Spaltenzuordnung prüfen.")
 
     print(
-        f"[LOAD] {os.path.basename(path)} → {len(table)} Schritte von {table.index[0]} bis {table.index[-1]}"
+        f"[LOAD] {os.path.basename(path)} -> {len(table)} Schritte von {table.index[0]} bis {table.index[-1]}"
     )
 
     return table

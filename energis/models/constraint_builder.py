@@ -143,11 +143,13 @@ def create_objective(
     if not HAVE_PYOMO:
         raise ImportError("Pyomo is required for objective creation")
 
-    # Store cost expressions on model for reporting
-    model.capex_cost_expr = capex_cost
-    model.activation_cost_expr = activation_cost
-    model.tie_break_cost_expr = tie_break_cost
-    model.storage_install_cost_expr = storage_install_cost
+    # Store cost expressions on model for reporting.
+    # Wrap each value in pyo.Expression so Pyomo adds a fresh component instead of
+    # trying to re-register an existing variable under a different name.
+    model.capex_cost_expr = pyo.Expression(expr=capex_cost)
+    model.activation_cost_expr = pyo.Expression(expr=activation_cost)
+    model.tie_break_cost_expr = pyo.Expression(expr=tie_break_cost)
+    model.storage_install_cost_expr = pyo.Expression(expr=storage_install_cost)
 
     model.obj = pyo.Objective(
         expr=(

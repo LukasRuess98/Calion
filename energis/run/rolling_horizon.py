@@ -910,8 +910,7 @@ def _collect_timeseries_and_summary(
             if pel > 1e-9:
                 cop_series.append(float(heat / pel))
             else:
-                # NaN for inactive timesteps - physically COP is undefined when HP is off
-                cop_series.append(float('nan'))
+                cop_series.append(0.0)
             # WRG ratio: how much of heat comes from waste recovery vs fallback
             if heat > 1e-9:
                 wrg_ratio_series.append(float(q_wrg / heat))
@@ -1851,11 +1850,16 @@ def _run_rolling_horizon(
         window_idx += 1
 
         # Extract design from window 0 if in optimize mode and no design yet
+        had_design_state = design_state is not None
         if design_state is None:
             design_state = _extract_design_data(window_result.summary)
 
-        # For "optimize" mode: extract DesignSpec after first window
-        if design_mode == "optimize" and active_design_spec is None and window_idx == 1:
+        # For "optimize" mode: extract DesignSpec after first window, but only when
+        # there was no pre-existing design (e.g. from a PF step).  When a PF design
+        # already exists in design_state we keep using the legacy _apply_design_fix
+        # path for all windows so that we don't accidentally override it with the
+        # (possibly empty) summary of the first RH window.
+        if design_mode == "optimize" and active_design_spec is None and window_idx == 1 and not had_design_state:
             active_design_spec = extract_design_from_summary(window_result.summary)
             errors = validate_design(active_design_spec)
             if errors:
@@ -2290,7 +2294,7 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
                 invest_cfg["initial_capacity_mw"] = capacity  # ✅ CRITICAL!
             
             hp_cfg["max_th_mw"] = capacity
-            hp_cfg["min_th_mw"] = 0.0
+            hp_cfg["min_th_mw"] = capacity
             
             if build_binary >= 0.5:
                 hp_cfg["enabled"] = True
@@ -2545,6 +2549,7 @@ def export_workflow_results(
 
     # Prepare design export
     design_export: Dict[str, Any] = {}
+    design_json_path: Optional[str] = None
     if workflow.design:
         design_export["heat_pumps"] = workflow.design.heat_pumps
         if workflow.design.storage:
@@ -2669,7 +2674,7 @@ def export_workflow_results(
         "outdir": outdir,
         "scenario_xlsx": bundle_paths.get("scenario_xlsx"),
         "costs_json": bundle_paths.get("costs_json"),
-        "design_json": bundle_paths.get("design_json"),
+        "design_json": design_json_path or bundle_paths.get("design_json") or bundle_paths.get("pf_design_json"),
         "meta_json": bundle_paths.get("meta_json"),
         "manifest_json": bundle_paths.get("manifest_json"),
         "plots": plot_files,

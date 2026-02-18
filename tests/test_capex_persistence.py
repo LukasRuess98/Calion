@@ -61,7 +61,7 @@ def test_capex_recorded_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
 
-    def pf_solver(table_arg, cfg, dt_h, solver_name):
+    def pf_solver(table_arg, cfg, dt_h, solver_name, **kwargs):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         costs = {"objective.Capex_cost_EUR": 100.0, "objective.OBJ_value_EUR": 100.0}
         return rh.ScenarioResult(table_arg, series, _design_summary(), costs, {"status": "ok"})
@@ -72,7 +72,7 @@ def test_capex_recorded_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
     call_state = {"idx": 0}
 
-    def rh_solver(table_arg, cfg, dt_h, solver_name):
+    def rh_solver(table_arg, cfg, dt_h, solver_name, **kwargs):
         idx = call_state["idx"]
         call_state["idx"] += 1
         hp_cfg = cfg["system"]["heat_pumps"][0]

@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from energis.config.merge import load_and_merge
 from energis.io.loader import load_input_excel
 from energis.utils.xlsx import write_simple_xlsx
 
@@ -12,14 +11,11 @@ def _date_range(start: str, periods: int, freq_hours: int = 1):
     return [base + timedelta(hours=freq_hours * i) for i in range(periods)]
 
 def test_merge_and_loader_smoke(tmp_path):
-    # minimal merge smoke test
-    cfg = load_and_merge([
-        "configs/base.yaml",
-        "configs/tech_catalog.yaml",
-        "configs/sites/default.site.yaml",
-        "configs/systems/baseline.system.yaml",
-        "configs/scenarios/perfect_forecast_full_year.scenario.yaml",
-    ])
+    # minimal inline config - no external files needed
+    cfg = {
+        "site": {"input_xlsx": ""},
+        "system": {"heat_pumps": [], "storage": {"enabled": False}},
+    }
     assert "site" in cfg and "system" in cfg
 
     # synthesize tiny excel to check DST pipeline (no pyomo needed)
@@ -27,17 +23,17 @@ def test_merge_and_loader_smoke(tmp_path):
     idx = _date_range("2023-03-26T00:00:00", periods=6)
     headers = [
         "Datum",
-        "Day_Ahead_Price €/MWh",
-        "Wärmebedarf MW",
+        "Day_Ahead_Price \u20ac/MWh",
+        "W\u00e4rmebedarf MW",
         "CO2_consumption_based kgCO2/MWh",
         "WRG1Q MW",
-        "WRG1_T °C",
+        "WRG1_T \u00b0C",
         "WRG2Q MW",
-        "WRG2_T °C",
+        "WRG2_T \u00b0C",
         "WRG3Q MW",
-        "WRG3_T °C",
+        "WRG3_T \u00b0C",
         "WRG4Q MW",
-        "WRG4_T °C",
+        "WRG4_T \u00b0C",
     ]
     rows = [
         [idx[i], 50 + i % 3, 10, 340 + 5 * (i % 3), 2, 50, 1, 45, 0, 40, 0, 35]

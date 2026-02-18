@@ -1,0 +1,27 @@
+# =============================================================================
+# EXAMPLE: Multi-Temperature Network Configuration
+# =============================================================================
+# Demonstrates coupling of high-temperature and low-temperature district
+# heating networks via heat exchangers.
+# =============================================================================
+
+networks:
+  - id: hochtemp
+    name: "Hochtemperatur-Netz"
+    supply_temp_c: 90
+    return_temp_c: 60
+    temperature_level: high
+
+  - id: niedertemp
+    name: "Niedertemperatur-Netz"
+    supply_temp_c: 55
+    return_temp_c: 35
+    temperature_level: low
+
+heat_exchangers:
+  - id: cascade_hx
+    name: "Kaskaden-Wärmetauscher"
+    primary_network: hochtemp
+    secondary_network: niedertemp
+    effectiveness: 0.85
+    max_power_mw: 5.0

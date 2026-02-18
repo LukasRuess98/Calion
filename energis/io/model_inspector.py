@@ -120,14 +120,20 @@ def inspect_pyomo_model(model: Any) -> Dict[str, Any]:
 
     # Extract Sets
     for component in model.component_objects(pyo.Set, active=True):
+        def _is_finite(c):
+            # Pyomo renamed is_finite() to isfinite() in newer versions
+            if hasattr(c, "isfinite"):
+                return c.isfinite()
+            return c.is_finite()
+
         set_info = {
             "name": str(component.name),
-            "size": len(component) if component.is_finite() else "infinite",
+            "size": len(component) if _is_finite(component) else "infinite",
             "type": "Set",
         }
 
         # For small sets, show elements
-        if component.is_finite() and len(component) <= 20:
+        if _is_finite(component) and len(component) <= 20:
             set_info["elements"] = list(component)
 
         inspection["sets"].append(set_info)

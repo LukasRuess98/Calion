@@ -421,36 +421,31 @@ def test_list_saved_workflows_ignores_invalid_directories(tmp_path: Path, mock_w
 # ============================================================================
 
 
-def test_display_workflow_summary_runs_without_error(mock_workflow, capsys):
+def test_display_workflow_summary_runs_without_error(mock_workflow, caplog):
     """Test that display_workflow_summary executes without errors."""
-    # Should not raise any exceptions
-    display_workflow_summary(mock_workflow, show_costs=True, show_design=True)
+    with caplog.at_level("INFO"):
+        display_workflow_summary(mock_workflow, show_costs=True, show_design=True)
 
-    # Capture output
-    captured = capsys.readouterr()
-
-    # Check that some expected content is in output
-    assert "PF" in captured.out or "RH" in captured.out
+    # Check that some expected content is in log output
+    assert "PF" in caplog.text or "RH" in caplog.text
 
 
-def test_display_workflow_summary_shows_costs(mock_workflow, capsys):
+def test_display_workflow_summary_shows_costs(mock_workflow, caplog):
     """Test that costs are displayed when show_costs=True."""
-    display_workflow_summary(mock_workflow, show_costs=True, show_design=False)
-
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        display_workflow_summary(mock_workflow, show_costs=True, show_design=False)
 
     # Should show cost information
-    assert "CAPEX" in captured.out or "OPEX" in captured.out or "EUR" in captured.out
+    assert "EUR" in caplog.text
 
 
-def test_display_workflow_summary_shows_design(mock_workflow, capsys):
+def test_display_workflow_summary_shows_design(mock_workflow, caplog):
     """Test that design is displayed when show_design=True."""
-    display_workflow_summary(mock_workflow, show_costs=False, show_design=True)
-
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        display_workflow_summary(mock_workflow, show_costs=False, show_design=True)
 
     # Should show design information
-    assert "HP1" in captured.out or "capacity" in captured.out.lower()
+    assert "HP1" in caplog.text or "capacity" in caplog.text.lower()
 
 
 # ============================================================================
@@ -458,16 +453,13 @@ def test_display_workflow_summary_shows_design(mock_workflow, capsys):
 # ============================================================================
 
 
-def test_display_kpi_summary_runs_without_error(mock_workflow, capsys):
+def test_display_kpi_summary_runs_without_error(mock_workflow, caplog):
     """Test that display_kpi_summary executes without errors."""
-    # Should not raise any exceptions
-    display_kpi_summary(mock_workflow)
+    with caplog.at_level("INFO"):
+        display_kpi_summary(mock_workflow)
 
-    # Capture output
-    captured = capsys.readouterr()
-
-    # Should have some output
-    assert len(captured.out) > 0
+    # Should have some output in log
+    assert len(caplog.text) > 0
 
 
 def test_display_kpi_summary_handles_workflow_without_costs(capsys):

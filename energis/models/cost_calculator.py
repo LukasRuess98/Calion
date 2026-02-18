@@ -52,15 +52,18 @@ def calculate_energy_costs(
         addition = energy_fee + grid_cost
         buy_price = [bp + addition for bp in base_prices]
 
-    # Sell price calculation (with haircut and spread)
+    # Sell price calculation: apply spread+floor first, then haircut, then fee/premium
     def _sell_price(bp: float) -> float:
         sell_floor = float(model.sell_floor.value) if hasattr(model, 'sell_floor') else 0.0
         sell_haircut = float(model.sell_haircut.value) if hasattr(model, 'sell_haircut') else 0.0
         sell_spread = float(model.sell_spread.value) if hasattr(model, 'sell_spread') else 0.0
         sell_fee = float(model.sell_fee.value) if hasattr(model, 'sell_fee') else 0.0
+        sell_premium = float(model.sell_premium.value) if hasattr(model, 'sell_premium') else 0.0
 
-        price = bp * (1 - sell_haircut) - sell_spread - sell_fee
-        return max(price, sell_floor)
+        price = max(bp - sell_spread, sell_floor)
+        price = price * max(0.0, 1.0 - sell_haircut)
+        price = price - sell_fee + sell_premium
+        return max(price, 0.0)
 
     sell_price = [_sell_price(bp) for bp in base_prices]
 

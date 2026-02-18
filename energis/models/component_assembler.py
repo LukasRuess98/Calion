@@ -467,7 +467,17 @@ class ComponentAssembler:
         if terminal_target_cfg is None and "terminal_soc_mwh" in sto_cfg:
             terminal_target_cfg = float(sto_cfg["terminal_soc_mwh"])
         if not terminal_state:
-            terminal_state = "free" if not enforce_terminal else "cyclic"
+            # If policy is explicitly "free", always respect it
+            if terminal_policy_raw == "free":
+                terminal_state = "free"
+            # If an explicit binding policy and target are given, treat as "target"
+            elif terminal_policy_raw in {"equal", "geq", "soft"} and terminal_target_cfg is not None:
+                terminal_state = "target"
+            else:
+                terminal_state = "free" if not enforce_terminal else "cyclic"
+        # Also override: if policy is explicitly "free" and state wasn't set to target/cyclic, force free
+        elif terminal_policy_raw == "free" and terminal_state in {"cyclic"}:
+            terminal_state = "free"
         if terminal_state not in {"free", "cyclic", "target"}:
             raise ValueError("storage.terminal.state/terminal_state must be one of: free, cyclic, target")
         if terminal_policy_raw and terminal_policy_raw not in {"equal", "geq", "free", "value", "soft"}:
