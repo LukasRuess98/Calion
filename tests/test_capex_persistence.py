@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import pytest
 
 from energis.run import rolling_horizon as rh
+from energis.run import workflow as _wf
+from energis.run import rh_engine as _rhe
 from energis.utils.timeseries import TimeSeriesTable
 
 
@@ -59,14 +61,15 @@ def test_capex_recorded_once(monkeypatch: pytest.MonkeyPatch) -> None:
         "rolling_horizon": {"heat_horizon_hours": 2.0, "step_hours": 1.0},
     }
 
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def pf_solver(table_arg, cfg, dt_h, solver_name, **kwargs):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         costs = {"objective.Capex_cost_EUR": 100.0, "objective.OBJ_value_EUR": 100.0}
         return rh.ScenarioResult(table_arg, series, _design_summary(), costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", pf_solver)
+    monkeypatch.setattr(_wf, "_solve_scenario", pf_solver)
+    monkeypatch.setattr(_rhe, "_solve_scenario", pf_solver)
     pf_result = rh.run_workflow([], overrides=pf_config)
     assert pf_result.pf_result is not None
 
@@ -88,7 +91,8 @@ def test_capex_recorded_once(monkeypatch: pytest.MonkeyPatch) -> None:
         costs = {"objective.Capex_cost_EUR": capex, "objective.OBJ_value_EUR": capex}
         return rh.ScenarioResult(table_arg, series, _design_summary(), costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", rh_solver)
+    monkeypatch.setattr(_wf, "_solve_scenario", rh_solver)
+    monkeypatch.setattr(_rhe, "_solve_scenario", rh_solver)
     rh_result = rh.run_workflow([], overrides=rh_config)
 
     assert rh_result.rh_result is not None

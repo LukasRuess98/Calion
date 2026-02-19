@@ -14,6 +14,10 @@ from energis.io import exporter
 from energis.io.exporter import write_timeseries_csv
 from energis.utils.timeseries import TimeSeriesTable
 from energis.run import rolling_horizon
+from energis.run import workflow as _wf
+from energis.run import export as _exp
+from energis.run import solver as _slv
+from energis.run.utilities import pyomo_extraction as _pyomo
 
 
 def _build_table() -> TimeSeriesTable:
@@ -71,10 +75,8 @@ def test_fmt_value_falls_back_to_text_for_non_numeric() -> None:
 
 
 def test_extract_pyomo_series_handles_invalid_data(monkeypatch, caplog) -> None:
-    from energis.run import rolling_horizon
-
-    monkeypatch.setattr(rolling_horizon, "HAVE_PYOMO", True)
-    monkeypatch.setattr(rolling_horizon, "pyo", SimpleNamespace(value=lambda obj: obj))
+    monkeypatch.setattr(_pyomo, "HAVE_PYOMO", True)
+    monkeypatch.setattr(_pyomo, "pyo", SimpleNamespace(value=lambda obj: obj))
 
     class DummyVar:
         def __init__(self):
@@ -94,7 +96,7 @@ def test_extract_pyomo_series_handles_invalid_data(monkeypatch, caplog) -> None:
 
     times = [0, 1, 2, 3]
     with caplog.at_level("WARNING"):
-        result = rolling_horizon._extract_pyomo_series(DummyVar(), times, "dummy")
+        result = _pyomo._extract_pyomo_series(DummyVar(), times, "dummy")
 
     assert result == [1.0, 0.0, 0.0, 0.0]
     assert "dummy[1]" in caplog.text
@@ -135,15 +137,15 @@ def test_run_all_creates_export_bundle(tmp_path: Path, monkeypatch: pytest.Monke
     )
     costs = {"objective.OBJ_value_EUR": 1.0}
 
-    monkeypatch.setattr(rolling_horizon, "load_and_merge", lambda *_args: config)
-    monkeypatch.setattr(rolling_horizon, "load_input_excel", lambda *args, **kwargs: table)
-    monkeypatch.setattr(rolling_horizon, "build_model", lambda *args, **kwargs: None)
+    monkeypatch.setattr(_wf, "load_and_merge", lambda *_args: config)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_slv, "build_model", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        rolling_horizon,
+        _slv,
         "_collect_timeseries_and_summary",
         lambda *args, **kwargs: (series, summary, costs),
     )
-    monkeypatch.setattr(rolling_horizon, "export_plots", lambda *args, **kwargs: [])
+    monkeypatch.setattr(_exp, "export_plots", lambda *args, **kwargs: [])
 
     workflow = rolling_horizon.run_workflow([])
     result = rolling_horizon.export_workflow_results(workflow)

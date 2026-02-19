@@ -10,6 +10,8 @@ from typing import List
 import pytest
 
 from energis.run import rolling_horizon as rh
+from energis.run import workflow as _wf
+from energis.run import rh_engine as _rhe
 from energis.utils.timeseries import TimeSeriesTable
 
 
@@ -78,8 +80,9 @@ def test_pf_only_workflow(monkeypatch: pytest.MonkeyPatch, simple_config: dict) 
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "load_input_excel", fake_loader)
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "load_input_excel", fake_loader)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -100,7 +103,7 @@ def test_rh_only_workflow_aggregates(monkeypatch: pytest.MonkeyPatch, simple_con
 
     table = _make_table(5)
 
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     window_series = [
         OrderedDict({"TES_SOC_MWh": [0.0, 1.0, 2.0, 3.0], "P_buy_MW": [1.0, 1.0, 1.0, 1.0]}),
@@ -122,7 +125,8 @@ def test_rh_only_workflow_aggregates(monkeypatch: pytest.MonkeyPatch, simple_con
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -142,7 +146,7 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
     }
 
     table = _make_table(5)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     pf_summary = OrderedDict(
         {
@@ -198,7 +202,8 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -220,7 +225,7 @@ def test_custom_workflow_sequence(monkeypatch: pytest.MonkeyPatch, simple_config
     }
 
     table = _make_table(4)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     pf_summary = OrderedDict(
         {
@@ -248,7 +253,8 @@ def test_custom_workflow_sequence(monkeypatch: pytest.MonkeyPatch, simple_config
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         return rh.ScenarioResult(table_arg, series, {}, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -262,14 +268,15 @@ def test_workflow_accepts_string(monkeypatch: pytest.MonkeyPatch, simple_config:
     config["scenario"] = {"workflow": "PF"}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.pf_result is not None
@@ -281,14 +288,15 @@ def test_unknown_workflow_step(monkeypatch: pytest.MonkeyPatch, simple_config: d
     config["scenario"] = {"workflow": ["PF", "UNKNOWN"]}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     with pytest.raises(ValueError):
         rh.run_workflow([], overrides=config)
@@ -299,12 +307,12 @@ def test_custom_workflow_registration(monkeypatch: pytest.MonkeyPatch, simple_co
     config["scenario"] = {"workflow": ["CUSTOM"]}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_merge(paths):
         return copy.deepcopy(config)
 
-    monkeypatch.setattr(rh, "load_and_merge", fake_merge)
+    monkeypatch.setattr(_wf, "load_and_merge", fake_merge)
 
     executed: List[str] = []
 
@@ -337,9 +345,10 @@ def test_cli_entrypoint(monkeypatch: pytest.MonkeyPatch, simple_config: dict, ca
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {"objective.OBJ_value_EUR": 0.0}, {})
 
-    monkeypatch.setattr(rh, "load_and_merge", fake_merge)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "load_and_merge", fake_merge)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     with caplog.at_level("INFO"):
         exit_code = rh.main(["configs.yaml", "--print-design"])
@@ -362,7 +371,7 @@ def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCa
             plan=rh.WorkflowPlan(steps=("RH",), fix_design=False),
         )
 
-    monkeypatch.setattr(rh, "run_workflow", fake_run_workflow)
+    monkeypatch.setattr(_wf, "run_workflow", fake_run_workflow)
 
     monkeypatch.setenv("RUN_MODE", "RH_ONLY")
     monkeypatch.setenv("HEAT_HORIZON_HOURS", "6")
@@ -421,7 +430,7 @@ def test_rh_costs_amortised_once(monkeypatch: pytest.MonkeyPatch, simple_config:
     }
 
     table = _make_table(3)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     recorded_cost_flags = []
 
@@ -449,7 +458,8 @@ def test_rh_costs_amortised_once(monkeypatch: pytest.MonkeyPatch, simple_config:
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.rh_result is not None
@@ -475,7 +485,7 @@ def test_rh_investment_opt_out(monkeypatch: pytest.MonkeyPatch, simple_config: d
     }
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     recorded_flags = []
 
@@ -491,7 +501,8 @@ def test_rh_investment_opt_out(monkeypatch: pytest.MonkeyPatch, simple_config: d
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.rh_result is not None
@@ -521,7 +532,7 @@ def test_run_workflow_uses_design_file(
     }
 
     table = _make_table(4)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         hp_cfg = cfg["system"]["heat_pumps"][0]
@@ -538,7 +549,8 @@ def test_run_workflow_uses_design_file(
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -559,14 +571,15 @@ def test_run_workflow_missing_design_file(
     }
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     with caplog.at_level("WARNING"):
         result = rh.run_workflow([], overrides=config)
