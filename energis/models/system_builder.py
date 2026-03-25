@@ -13,7 +13,12 @@ except Exception:  # pragma: no cover - optional dependency
     HAVE_PYOMO = False
     pyo = None
 
-from energis.constants import HOURS_PER_YEAR
+from energis.constants import (
+    BIG_M_GRID_MW,
+    DEFAULT_CO2_PRICE_EUR_PER_T,
+    DEFAULT_DUMP_COST_EUR_PER_MWH_TH,
+    HOURS_PER_YEAR,
+)
 from energis.utils.timeseries import TimeSeriesTable
 from .investment_calculator import InvestmentCalculator
 from .emissions_calculator import EmissionsCalculator
@@ -156,7 +161,7 @@ def _build_model_unified(
     m.sell_spread = pyo.Param(initialize=float(grid.get("sell_spread_eur_mwh", 0.0)))
     m.sell_fee = pyo.Param(initialize=float(grid.get("sell_fee_eur_mwh", 0.0)))
     m.sell_premium = pyo.Param(initialize=float(grid.get("sell_premium_eur_mwh", 0.0)))
-    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", 1e4)))
+    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", BIG_M_GRID_MW)))
     max_import = grid.get("max_import_mw")
     max_export = grid.get("max_export_mw")
     m.max_import = pyo.Param(
@@ -166,8 +171,8 @@ def _build_model_unified(
         initialize=float(max_export if max_export is not None else m.M_GRID.value)
     )
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
-    m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", 100.0)))
-    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", 1.0)))
+    m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", DEFAULT_CO2_PRICE_EUR_PER_T)))
+    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
     flags = CostFlags.from_config(cfg)
@@ -269,7 +274,7 @@ def _build_model_legacy(
     m.sell_spread = pyo.Param(initialize=float(grid.get("sell_spread_eur_mwh", 0.0)))
     m.sell_fee = pyo.Param(initialize=float(grid.get("sell_fee_eur_mwh", 0.0)))
     m.sell_premium = pyo.Param(initialize=float(grid.get("sell_premium_eur_mwh", 0.0)))
-    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", 1e4)))
+    m.M_GRID = pyo.Param(initialize=float(grid.get("big_m_grid_mw", BIG_M_GRID_MW)))
     max_import = grid.get("max_import_mw")
     max_export = grid.get("max_export_mw")
     m.max_import = pyo.Param(
@@ -279,8 +284,8 @@ def _build_model_legacy(
         initialize=float(max_export if max_export is not None else m.M_GRID.value)
     )
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
-    m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", 100.0)))
-    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", 1.0)))
+    m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", DEFAULT_CO2_PRICE_EUR_PER_T)))
+    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
     flags = CostFlags.from_config(cfg)

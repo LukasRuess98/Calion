@@ -20,6 +20,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
+from energis.constants import (
+    DEFAULT_HP_CAPACITY_MW,
+    DEFAULT_STORAGE_ENERGY_MWH,
+    DEFAULT_STORAGE_POWER_MW,
+    STORAGE_POWER_ENERGY_RATIO,
+    STORAGE_POWER_MIN_MW,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -202,7 +210,7 @@ def apply_optimization_config(
                     if capacity is None:
                         # Fall back to defaults from system config
                         defaults = hp_cfg.get("defaults", {})
-                        capacity = defaults.get("capacity_mw", 50.0)
+                        capacity = defaults.get("capacity_mw", DEFAULT_HP_CAPACITY_MW)
 
                     invest_cfg["capacity_min_mw"] = capacity
                     invest_cfg["capacity_max_mw"] = capacity
@@ -241,7 +249,7 @@ def apply_optimization_config(
                 capacity = storage_fixed.get("energy_mwh")
                 if capacity is None:
                     defaults = storage_cfg.get("defaults", {})
-                    capacity = defaults.get("energy_mwh", 500.0)
+                    capacity = defaults.get("energy_mwh", DEFAULT_STORAGE_ENERGY_MWH)
 
                 invest_cfg["energy_capacity_min_mwh"] = capacity
                 invest_cfg["energy_capacity_max_mwh"] = capacity
@@ -253,7 +261,7 @@ def apply_optimization_config(
                 power = storage_fixed.get("power_mw")
                 if power is None:
                     defaults = storage_cfg.get("defaults", {})
-                    power = defaults.get("power_mw", 50.0)
+                    power = defaults.get("power_mw", DEFAULT_STORAGE_POWER_MW)
 
                 invest_cfg["power_capacity_min_mw"] = power
                 invest_cfg["power_capacity_max_mw"] = power
@@ -582,7 +590,7 @@ def apply_design_to_config(cfg: Dict[str, Any], design: DesignSpec) -> Dict[str,
 
         # Safety check: if power is 0 but capacity is not, use a reasonable default
         if actual_power <= 0 and actual_capacity > 0:
-            actual_power = max(actual_capacity / 50.0, 10.0)
+            actual_power = max(actual_capacity / STORAGE_POWER_ENERGY_RATIO, STORAGE_POWER_MIN_MW)
             logger.warning("[DESIGN] power was 0, using fallback: %.1f MW", actual_power)
 
         storage_cfg["enabled"] = design.storage.enabled and design.storage.build_binary >= 0.5

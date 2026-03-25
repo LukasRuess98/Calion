@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
 
 from energis.config.merge import deep_merge, load_and_merge
+from energis.constants import DEFAULT_HORIZON_HOURS
 from energis.design import (
     DesignConfig,
     DesignSpec,
@@ -239,7 +240,7 @@ def _mpc_step(context: WorkflowContext) -> None:
 
     mpc_cfg = context.cfg.get("scenario", {}).get("mpc", {})
     forecast_method = str(mpc_cfg.get("forecast_method", "persistence")).lower()
-    forecast_horizon_hours = float(mpc_cfg.get("forecast_horizon_hours", 168.0))
+    forecast_horizon_hours = float(mpc_cfg.get("forecast_horizon_hours", DEFAULT_HORIZON_HOURS))
     update_frequency_hours = float(mpc_cfg.get("update_frequency_hours", 24.0))
 
     if forecast_method == "persistence":

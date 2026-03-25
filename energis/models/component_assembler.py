@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover - optional dependency
     HAVE_PYOMO = False
     pyo = None
 
-from energis.constants import COP_DEFAULT
+from energis.constants import COP_DEFAULT, DEFAULT_STORAGE_ENERGY_MWH, DEFAULT_STORAGE_POWER_MW
 from energis.utils.config_utils import apply_heat_pump_defaults, normalize_storage_config
 from .cop_calculator import calculate_cop_series
 from .investment_calculator import InvestmentCalculator
@@ -322,8 +322,8 @@ class ComponentAssembler:
         sto_cfg = {
             "enabled": True,
             "type": p.pop("storage_type", "simple"),
-            "max_energy_mwh": p.pop("energy_mwh", 500.0),
-            "max_power_mw": p.pop("power_mw", 50.0),
+            "max_energy_mwh": p.pop("energy_mwh", DEFAULT_STORAGE_ENERGY_MWH),
+            "max_power_mw": p.pop("power_mw", DEFAULT_STORAGE_POWER_MW),
         }
         for key in (
             "eff_charge", "eff_discharge", "loss_hour",
@@ -599,7 +599,7 @@ class ComponentAssembler:
                 "TES",
                 e_min=sto_cfg.get("min_energy_mwh", 0.0),
                 e_max=sto_cfg.get("max_energy_mwh", 50000.0),
-                p_max=sto_cfg.get("max_power_mw", 50.0),
+                p_max=sto_cfg.get("max_power_mw", DEFAULT_STORAGE_POWER_MW),
                 eff_c=eff_charge,
                 eff_d=eff_discharge,
                 hourly_loss=loss,
@@ -732,7 +732,7 @@ class ComponentAssembler:
         e_cap_min = float(sto_inv.get("energy_capacity_min_mwh", sto_cfg.get("min_energy_mwh", 0.0)))
         e_cap_max = float(sto_inv.get("energy_capacity_max_mwh", sto_cfg.get("max_energy_mwh", 50000.0)))
         p_cap_min = float(sto_inv.get("power_capacity_min_mw", sto_cfg.get("min_power_mw", 0.0)))
-        p_cap_max = float(sto_inv.get("power_capacity_max_mw", sto_cfg.get("max_power_mw", 50.0)))
+        p_cap_max = float(sto_inv.get("power_capacity_max_mw", sto_cfg.get("max_power_mw", DEFAULT_STORAGE_POWER_MW)))
         e_cap_init = float(
             sto_inv.get(
                 "initial_energy_capacity_mwh",

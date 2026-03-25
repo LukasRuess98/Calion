@@ -12,6 +12,7 @@ import logging
 from collections import OrderedDict
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Set
 
+from energis.constants import DEFAULT_HORIZON_HOURS
 from energis.design import (
     DesignConfig,
     DesignSpec,
@@ -161,7 +162,7 @@ def _load_rolling_params(cfg: Mapping[str, Any]) -> _RollingParams:
                 return mapping[key]
         return default
 
-    horizon_hours = float(_get(rolling_cfg, "HEAT_HORIZON_HOURS", "heat_horizon_hours", "window_hours", default=168.0))
+    horizon_hours = float(_get(rolling_cfg, "HEAT_HORIZON_HOURS", "heat_horizon_hours", "window_hours", default=DEFAULT_HORIZON_HOURS))
     step_hours = float(_get(rolling_cfg, "STEP_HOURS", "step_hours", default=horizon_hours))
     overlap_hours = float(_get(rolling_cfg, "OVERLAP_HOURS", "overlap_hours", default=0.0))
     terminal_policy = str(_get(rolling_cfg, "terminal_policy", "TERMINAL_POLICY", default="")).strip().lower()
