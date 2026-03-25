@@ -1,15 +1,19 @@
-# Level 3: 30-node detailed network (template)
+# Level 3: 30-node detailed network (TEMPLATE)
 # Same schema as Level 2, just more nodes/pipes/assets.
 #
-# This is a template showing the structure. Real 30-node configs would
-# be generated from GIS data or network planning tools.
+# This is a TEMPLATE showing the structure — it is NOT directly runnable
+# because the required 23-zone demand columns do not exist in Import_Data.xlsx.
+# Real 30-node configs would be generated from GIS data or network planning tools.
 
-data:
-  input_file: "Import_Data.xlsx"
+site:
+  input_xlsx: "Import_Data.xlsx"
   columns:
     datetime: "Datum"
     price: "Day_Ahead_Price EUR/MWh"
     co2_grid: "CO2_consumption_based kgCO2/MWh"
+
+scenario:
+  run_mode: PF_ONLY
 
 network:
   physics:
@@ -190,4 +194,3 @@ costs:
 run:
   dt_h: 1.0
   solver: appsi_highs
-  mode: PF_ONLY

@@ -1,12 +1,15 @@
 # Level 2: 5-node district heating network
 # Distributed assets connected by pipes with thermal losses and pressure drop
 
-data:
-  input_file: "Import_Data.xlsx"
+site:
+  input_xlsx: "Import_Data.xlsx"
   columns:
     datetime: "Datum"
     price: "Day_Ahead_Price EUR/MWh"
     co2_grid: "CO2_consumption_based kgCO2/MWh"
+
+scenario:
+  run_mode: PF_ONLY
 
 network:
   physics:
@@ -101,4 +104,3 @@ costs:
 run:
   dt_h: 1.0
   solver: appsi_highs
-  mode: PF_ONLY
