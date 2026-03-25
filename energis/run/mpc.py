@@ -17,7 +17,7 @@ from collections import OrderedDict
 
 from energis.forecasting.base import ForecastGenerator
 from energis.utils.timeseries import TimeSeriesTable
-from energis.run.rolling_horizon import _slice_table
+from energis.run.utilities import _slice_table
 
 from energis.logging_config import get_logger
 
@@ -61,7 +61,7 @@ def _evaluate_costs_on_actual_data(
     Dictionary of evaluated costs on actual data
     """
     from energis.constants import HOURS_PER_YEAR
-    from energis.run.rolling_horizon import _gather_component_metadata
+    from energis.run.result_collector import _gather_component_metadata
 
     n = len(committed_indices)
     if n == 0:
@@ -340,23 +340,20 @@ def run_mpc(
     Aggregated MPC result
     """
     # Import here to avoid circular dependency
-    from energis.run.rolling_horizon import (
-        RollingHorizonResult,
-        WindowResult,
-        _hours_to_steps,
+    from energis.run.types import RollingHorizonResult, WindowResult
+    from energis.run.utilities import _hours_to_steps
+    from energis.run.rh_engine import (
         _initial_soc,
         _storage_enabled,
         _apply_terminal_policy,
         _set_initial_soc,
-        _apply_design_fix,
-        _solve_scenario,
-        _load_cost_plan,
-        _extract_design_data,
-        _accumulate_costs,
         _extend_series,
         _next_soc,
-        _recompute_objective_costs,
+        _load_cost_plan,
     )
+    from energis.run.design_helpers import _apply_design_fix, _extract_design_data
+    from energis.run.solver import _solve_scenario
+    from energis.run.cost_helpers import _accumulate_costs, _recompute_objective_costs
 
     n = len(historical_data)
     if n == 0:

@@ -17,7 +17,8 @@ Options:
 import argparse
 import sys
 from pathlib import Path
-from energis.run import rolling_horizon as rh
+from energis.run import workflow as rh
+from energis.run.export import export_workflow_results as _export_workflow_results
 
 from energis.logging_config import get_logger
 
@@ -158,7 +159,7 @@ Examples:
             logger.info("="*70)
         else:
             # Standard export to exports/
-            result = rh.export_workflow_results(
+            result = _export_workflow_results(
                 workflow,
                 outdir=args.dir,
                 save_lp=args.save_lp,
