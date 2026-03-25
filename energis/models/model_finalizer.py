@@ -4,19 +4,19 @@ Model finalization for the EnerGIS optimization model.
 Extracts the three post-assembly steps from build_model() into a focused
 ModelFinalizer class:
 
-1. integrate_network()         – attach optional thermal district network
-2. add_balance_constraints()   – bus balance + grid market constraints
-3. build_and_set_objective()   – calculate all costs and set objective
+1. integrate_network()         - attach optional thermal district network
+2. add_balance_constraints()   - bus balance + grid market constraints
+3. build_and_set_objective()   - calculate all costs and set objective
 
-Extracted from system_builder.py to give build_model() a clean
-Setup → Assembly → Finalization structure.
+Supports both legacy (global BusConnections) and unified (per-node
+SystemBusConnections) configurations.
 """
 from __future__ import annotations
 
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from energis.logging_config import get_logger
 
@@ -30,8 +30,13 @@ except Exception:  # pragma: no cover - optional dependency
     pyo = None
 
 from energis.utils.config_utils import normalize_thermal_network_config
-from .component_assembler import BusConnections
-from .constraint_builder import add_bus_balance_constraints, add_grid_market_constraints, create_objective
+from .component_assembler import BusConnections, SystemBusConnections
+from .constraint_builder import (
+    add_bus_balance_constraints,
+    add_grid_market_constraints,
+    add_per_node_heat_balance,
+    create_objective,
+)
 from .cost_calculator import (
     calculate_energy_costs,
     calculate_co2_costs,
@@ -83,24 +88,15 @@ class CostFlags:
 # ─── Pre-flight Check ─────────────────────────────────────────────────────────
 
 def _preflight_network_check(network_mgr) -> None:
-    """B3 — Raise ValueError with descriptive message if network is fundamentally infeasible.
-
-    Checks performed (all use already-loaded data — no file I/O):
-    - At least one producer node exists
-    - All pipe endpoints reference existing nodes
-    - All pipe diameters are positive
-    - Consumer nodes have demand_column or demand_fraction specified
-    """
+    """B3 - Raise ValueError with descriptive message if network is fundamentally infeasible."""
     issues = []
     nodes = network_mgr.nodes
     pipes = network_mgr.pipes
 
-    # 1. At least one producer node
     producer_ids = [nid for nid, n in nodes.items() if n.get('type') == 'producer']
     if not producer_ids:
         issues.append("No producer node found in topology (need at least one)")
 
-    # 2. Pipe endpoints reference existing nodes
     for pipe_id, pipe_cfg in pipes.items():
         fn = pipe_cfg.get('from_node')
         tn = pipe_cfg.get('to_node')
@@ -109,14 +105,10 @@ def _preflight_network_check(network_mgr) -> None:
         if tn and tn not in nodes:
             issues.append(f"Pipe '{pipe_id}': to_node '{tn}' not in node list")
 
-        # 3. Positive diameters
         diam = pipe_cfg.get('current_diameter_supply_mm') or pipe_cfg.get('diameter_mm', 0)
         if float(diam or 0) <= 0:
-            issues.append(
-                f"Pipe '{pipe_id}': diameter is {diam!r} (must be > 0)"
-            )
+            issues.append(f"Pipe '{pipe_id}': diameter is {diam!r} (must be > 0)")
 
-    # 4. Consumer demand info
     for node_id, node_cfg in nodes.items():
         if node_cfg.get('type') != 'consumer':
             continue
@@ -136,11 +128,7 @@ def _preflight_network_check(network_mgr) -> None:
             + "\n".join(f"  - {i}" for i in issues)
         )
 
-    logger.info(
-        "[PREFLIGHT] Network OK: %d nodes, %d pipes",
-        len(nodes),
-        len(pipes),
-    )
+    logger.info("[PREFLIGHT] Network OK: %d nodes, %d pipes", len(nodes), len(pipes))
 
 
 # ─── Model Finalizer ──────────────────────────────────────────────────────────
@@ -148,13 +136,8 @@ def _preflight_network_check(network_mgr) -> None:
 class ModelFinalizer:
     """Finalizes a Pyomo model after component assembly.
 
-    Usage::
-
-        flags = CostFlags.from_config(cfg)
-        finalizer = ModelFinalizer(m, cfg, table, buses, dt_h, flags)
-        finalizer.integrate_network()
-        finalizer.add_balance_constraints()
-        finalizer.build_and_set_objective()
+    Supports both legacy mode (flat BusConnections) and unified mode
+    (per-node SystemBusConnections with optional multi-node network).
     """
 
     def __init__(
@@ -165,6 +148,9 @@ class ModelFinalizer:
         buses: BusConnections,
         dt_h: float,
         flags: CostFlags,
+        *,
+        unified_config: Optional[Any] = None,
+        system_buses: Optional[SystemBusConnections] = None,
     ) -> None:
         self.m = model
         self.cfg = cfg
@@ -173,17 +159,135 @@ class ModelFinalizer:
         self.dt_h = dt_h
         self.flags = flags
         self.T = len(table)
+        self.unified_config = unified_config
+        self.system_buses = system_buses
+
+    @property
+    def _is_unified(self) -> bool:
+        return self.unified_config is not None
+
+    @property
+    def _is_multinode(self) -> bool:
+        return self._is_unified and not self.unified_config.is_copperplate
 
     # ── Network Integration ────────────────────────────────────────────────────
 
     def integrate_network(self) -> None:
         """Attach an optional thermal district network to the model.
 
-        Reads the thermal_network config section, loads the topology if
-        enabled, calls NetworkManager.attach_to_model(), and stores a
-        reference to the manager on the model for later result extraction.
-        Sets m._network_enabled to True/False accordingly.
+        For unified multi-node configs: builds NetworkManager from the unified
+        config's pipes/nodes and attaches per-node bus connections.
+
+        For unified copperplate: skips network integration entirely (no pipes).
+
+        For legacy configs: uses the thermal_network config section as before.
         """
+        if self._is_unified:
+            self._integrate_network_unified()
+        else:
+            self._integrate_network_legacy()
+
+    def _integrate_network_unified(self) -> None:
+        """Network integration for unified config."""
+        ucfg = self.unified_config
+
+        if ucfg.is_copperplate:
+            self.m._network_enabled = False
+            logger.info("[FINALIZE] Copperplate mode — no network physics")
+            return
+
+        # Multi-node: build NetworkManager from unified config pipes/nodes
+        logger.info("[FINALIZE] Integrating multi-node network from unified config...")
+
+        # Convert unified config to thermal_network format for NetworkManager
+        network_cfg = self._unified_to_network_cfg(ucfg)
+        cfg_with_network = dict(self.cfg)
+        cfg_with_network["thermal_network"] = network_cfg
+
+        config_dir = self.cfg.get("_config_dir", Path.cwd())
+        if not isinstance(config_dir, Path):
+            config_dir = Path(config_dir) if config_dir else Path.cwd()
+
+        has_outdoor_temp = hasattr(self.m, "outdoor_temp") and self.m.outdoor_temp is not None
+        if has_outdoor_temp:
+            network_cfg.setdefault("use_outdoor_temperature", True)
+
+        try:
+            network_mgr = NetworkManager(cfg_with_network, config_dir=config_dir)
+
+            if not network_mgr.network_enabled:
+                logger.info("[FINALIZE] Network failed to initialize, continuing without")
+                self.m._network_enabled = False
+                return
+
+            _preflight_network_check(network_mgr)
+
+            # Build buses dict for NetworkManager from per-node connections
+            buses_dict = {
+                "heat": {"in": self.buses.ht_in, "out": self.buses.ht_out},
+                "electricity": {"in": self.buses.el_in, "out": self.buses.el_out},
+            }
+            self.m.dt_h = self.dt_h
+
+            network_results = network_mgr.attach_to_model(self.m, self.m.t, buses_dict)
+
+            has_nodes = len(network_results.get("nodes", {})) > 0
+            if network_results and has_nodes:
+                self.m._network_manager = network_mgr
+                self.m._network_enabled = True
+                logger.info(
+                    "[FINALIZE] Multi-node network integrated: %d pipes, %d nodes",
+                    len(network_results.get("pipes", {})),
+                    len(network_results.get("nodes", {})),
+                )
+            else:
+                self.m._network_enabled = False
+
+        except Exception as exc:
+            logger.info("[FINALIZE] ERROR: Failed to integrate network: %s", exc)
+            self.m._network_enabled = False
+            traceback.print_exc()
+
+    def _unified_to_network_cfg(self, ucfg) -> Dict[str, Any]:
+        """Convert unified config to thermal_network dict for NetworkManager."""
+        nodes_list = []
+        for nid, node in ucfg.nodes.items():
+            node_dict: Dict[str, Any] = {
+                "id": nid,
+                "type": node.type,
+            }
+            if node.demand is not None:
+                node_dict["demand_column"] = node.demand.column
+            if node.assets:
+                node_dict["components"] = {aid: {} for aid in node.assets}
+            nodes_list.append(node_dict)
+
+        pipes_list = []
+        for pid, pipe in ucfg.pipes.items():
+            pipes_list.append({
+                "id": pid,
+                "from_node": pipe.from_node,
+                "to_node": pipe.to_node,
+                "length_m": pipe.length_m,
+                "current_diameter_supply_mm": pipe.diameter_mm,
+                "diameter_mm": pipe.diameter_mm,
+                "u_value_supply_w_per_m_k": pipe.u_value_supply_w_per_m_k,
+                "u_value_return_w_per_m_k": pipe.u_value_return_w_per_m_k,
+            })
+
+        return {
+            "enabled": True,
+            "nodes": nodes_list,
+            "pipes": pipes_list,
+            "parameters": {
+                "supply_temp_nominal_c": ucfg.physics.supply_temp_c,
+                "return_temp_nominal_c": ucfg.physics.return_temp_c,
+                "ground_temp_default_c": ucfg.physics.ground_temp_c,
+            },
+        }
+
+    def _integrate_network_legacy(self) -> None:
+        """Network integration for legacy config (unchanged from original)."""
         network_cfg = normalize_thermal_network_config(self.cfg)
         if not network_cfg.get("enabled", False):
             self.m._network_enabled = False
@@ -215,19 +319,16 @@ class ModelFinalizer:
                 self.m._network_enabled = False
                 return
 
-            # B3: Pre-flight feasibility check before building / solving
             _preflight_network_check(network_mgr)
 
             buses_dict = {
                 "heat": {"in": self.buses.ht_in, "out": self.buses.ht_out},
                 "electricity": {"in": self.buses.el_in, "out": self.buses.el_out},
             }
-            # Store dt_h on model so get_results() can compute correct MWh totals
             self.m.dt_h = self.dt_h
 
             network_results = network_mgr.attach_to_model(self.m, self.m.t, buses_dict)
 
-            # Accept single-node fallback (pipes=0) as well as multi-pipe topologies
             has_nodes = len(network_results.get("nodes", {})) > 0
             if network_results and has_nodes:
                 self.m._network_manager = network_mgr
@@ -251,14 +352,32 @@ class ModelFinalizer:
     # ── Balance Constraints ────────────────────────────────────────────────────
 
     def add_balance_constraints(self) -> None:
-        """Add electricity/heat bus balance and grid market constraints."""
-        add_bus_balance_constraints(
-            self.m,
-            self.buses.el_in,
-            self.buses.el_out,
-            self.buses.ht_in,
-            self.buses.ht_out,
-        )
+        """Add electricity/heat bus balance and grid market constraints.
+
+        For multi-node unified configs: adds per-node heat balance constraints
+        instead of a single global heat balance.
+
+        Electricity balance is always global (single grid connection).
+        """
+        if self._is_multinode and self.system_buses is not None:
+            # Per-node heat balance for multi-node networks
+            add_per_node_heat_balance(
+                self.m,
+                self.system_buses,
+                self.unified_config,
+            )
+            # Global electricity balance (unchanged)
+            from .constraint_builder import _add_electricity_balance
+            _add_electricity_balance(self.m, self.buses.el_in, self.buses.el_out)
+        else:
+            # Copperplate or legacy: global heat + electricity balance
+            add_bus_balance_constraints(
+                self.m,
+                self.buses.el_in,
+                self.buses.el_out,
+                self.buses.ht_in,
+                self.buses.ht_out,
+            )
         add_grid_market_constraints(self.m)
 
     # ── Objective ──────────────────────────────────────────────────────────────

@@ -1,0 +1,48 @@
+# Level 1: Copperplate (single-node) configuration
+# All assets at one virtual node, no pipe physics
+
+data:
+  input_file: "Import_Data.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "Day_Ahead_Price EUR/MWh"
+    co2_grid: "CO2_consumption_based kgCO2/MWh"
+
+network:
+  nodes:
+    system:
+      type: producer
+      assets: [boiler_1, hp_1]
+      demand:
+        column: "Waermebedarf MW"
+
+assets:
+  boiler_1:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 150.0
+    thermal_efficiency: 0.90
+
+  hp_1:
+    type: heat_pump
+    capacity_mw: 80.0
+    min_load: 0.2
+    cop_default: 3.5
+    wrg_sources: [WRG1, WRG2, WRG3, WRG4]
+
+grid:
+  gridcost_eur_mwh: 20.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs
+  mode: PF_ONLY

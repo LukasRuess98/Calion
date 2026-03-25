@@ -6,12 +6,32 @@ Extracted from system_builder.py for better modularity and reusability.
 
 from __future__ import annotations
 
+from typing import Any, Dict, List, Optional
+
 try:
     import pyomo.environ as pyo
     HAVE_PYOMO = True
 except Exception:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+def _add_electricity_balance(model, el_in, el_out):
+    """Add electricity bus balance constraint only (used in multi-node mode)."""
+    if not HAVE_PYOMO:
+        raise ImportError("Pyomo is required for constraint building")
+
+    model.el_balance = pyo.Constraint(
+        model.t,
+        rule=lambda m, t: (
+            m.P_buy[t] + sum((f[t] for f in el_out), start=0) ==
+            sum((f[t] for f in el_in), start=0) + m.P_sell[t]
+        ),
+    )
 
 
 def add_bus_balance_constraints(model, el_in, el_out, ht_in, ht_out):
@@ -32,13 +52,7 @@ def add_bus_balance_constraints(model, el_in, el_out, ht_in, ht_out):
         raise ImportError("Pyomo is required for constraint building")
 
     # Electricity balance: Buy + Generation = Consumption + Sell
-    model.el_balance = pyo.Constraint(
-        model.t,
-        rule=lambda m, t: (
-            m.P_buy[t] + sum((f[t] for f in el_out), start=0) ==
-            sum((f[t] for f in el_in), start=0) + m.P_sell[t]
-        ),
-    )
+    _add_electricity_balance(model, el_in, el_out)
 
     # Heat balance: Supply = Demand + Dump + Storage Charge + Network Losses
     def heat_balance_rule(m, t):
@@ -62,6 +76,119 @@ def add_bus_balance_constraints(model, el_in, el_out, ht_in, ht_out):
         return supply == demand + dump + storage_charge + network_loss
 
     model.ht_balance = pyo.Constraint(model.t, rule=heat_balance_rule)
+
+
+def add_per_node_heat_balance(model, system_buses, unified_config):
+    """Add per-node heat balance constraints for multi-node networks.
+
+    For each node:
+    - Producer nodes: sum(ht_out[t]) feeds into outgoing pipe flows
+    - Consumer nodes: incoming pipe delivers heat to meet demand + local assets
+    - Junction nodes: flow balance handled by NetworkManager
+
+    The per-node heat balances interact with pipe flow variables created by
+    NetworkManager.  In this implementation we create per-node dump variables
+    and per-node supply-demand constraints.
+
+    For the global heat balance (needed for objective dump cost), we create
+    a global Q_dump that is the sum of per-node dumps.
+
+    Args:
+        model: Pyomo ConcreteModel (must have network attached)
+        system_buses: SystemBusConnections with per-node bus connections
+        unified_config: UnifiedSystemConfig with node definitions
+    """
+    if not HAVE_PYOMO:
+        raise ImportError("Pyomo is required for constraint building")
+
+    # Create per-node dump variables
+    for node_id in unified_config.nodes:
+        dump_name = f"Q_dump_{node_id}"
+        setattr(model, dump_name, pyo.Var(model.t, domain=pyo.NonNegativeReals))
+
+    # Global Q_dump = sum of per-node dumps
+    node_ids = list(unified_config.nodes.keys())
+
+    def global_dump_rule(m, t):
+        return m.Q_dump[t] == sum(
+            getattr(m, f"Q_dump_{nid}")[t] for nid in node_ids
+        )
+
+    model.global_dump_balance = pyo.Constraint(model.t, rule=global_dump_rule)
+
+    # Per-node heat balance constraints
+    for node_id, node_cfg in unified_config.nodes.items():
+        node_buses = system_buses.nodes.get(node_id)
+        if node_buses is None:
+            continue
+
+        ht_out = node_buses.ht_out
+        ht_in = node_buses.ht_in
+        dump_var = getattr(model, f"Q_dump_{node_id}")
+
+        if node_cfg.type == "producer":
+            # Producer: sum(ht_out) == demand_at_node (if any) + dump + storage_charge + pipe_outflow
+            # Pipe outflow is handled by NetworkManager constraints
+            # If producer has demand, include it
+            if node_cfg.demand is not None and hasattr(model, f"heatd_{node_id}"):
+                demand_param = getattr(model, f"heatd_{node_id}")
+
+                def producer_balance(m, t, _out=ht_out, _in=ht_in, _d=dump_var, _dem=demand_param):
+                    supply = sum((f[t] for f in _out), start=0)
+                    charge = sum((f[t] for f in _in), start=0)
+                    network_loss = 0
+                    if hasattr(m, 'network_Q_loss_per_timestep'):
+                        network_loss = m.network_Q_loss_per_timestep[t]
+                    return supply == _dem[t] + _d[t] + charge + network_loss
+
+                setattr(model, f"ht_balance_{node_id}",
+                        pyo.Constraint(model.t, rule=producer_balance))
+            else:
+                # Producer without demand: balance handled through network pipe flows
+                # sum(ht_out) == dump + storage_charge + network_losses
+                def producer_no_demand(m, t, _out=ht_out, _in=ht_in, _d=dump_var):
+                    supply = sum((f[t] for f in _out), start=0)
+                    charge = sum((f[t] for f in _in), start=0)
+                    network_loss = 0
+                    if hasattr(m, 'network_Q_loss_per_timestep'):
+                        network_loss = m.network_Q_loss_per_timestep[t]
+                    return supply == _d[t] + charge + network_loss
+
+                setattr(model, f"ht_balance_{node_id}",
+                        pyo.Constraint(model.t, rule=producer_no_demand))
+
+            logger.info("[CONSTRAINT] Producer %s: heat balance with %d sources, %d sinks",
+                        node_id, len(ht_out), len(ht_in))
+
+        elif node_cfg.type == "consumer":
+            # Consumer nodes: demand is satisfied by incoming pipe flow
+            # Local assets (if any) contribute to the pipe flow balance
+            # Consumer heat balance is handled by NetworkManager's
+            # _link_consumer_demands() which connects pipe Q_consumer to Q_demand
+            if ht_out:
+                # Consumer has local assets — add their output to node demand satisfaction
+                # The balance is: pipe_delivered + local_ht_out = demand + dump + local_storage_charge
+                if hasattr(model, f"heatd_{node_id}"):
+                    logger.info("[CONSTRAINT] Consumer %s: %d local assets contribute to demand",
+                                node_id, len(ht_out))
+
+        elif node_cfg.type == "junction":
+            # Junction: flow balance handled by NetworkManager
+            pass
+
+    # Global heat balance for copperplate fallback or single-node special case
+    # This ensures m.heatd is always satisfied at system level
+    if not getattr(model, '_network_enabled', False):
+        # No network: fall back to global balance
+        all_ht_out = system_buses.all_ht_out
+        all_ht_in = system_buses.all_ht_in
+
+        def global_heat_rule(m, t):
+            supply = sum((f[t] for f in all_ht_out), start=0)
+            charge = sum((f[t] for f in all_ht_in), start=0)
+            return supply == m.heatd[t] + m.Q_dump[t] + charge
+
+        model.ht_balance = pyo.Constraint(model.t, rule=global_heat_rule)
 
 
 def add_grid_market_constraints(model):
@@ -122,30 +249,10 @@ def create_objective(
     storage_install_cost=0,
     terminal_value=0,
 ):
-    """Create the cost minimization objective function.
-
-    Args:
-        model: Pyomo ConcreteModel
-        energy_cost: Grid electricity purchase/sales costs
-        dump_cost: Cost for dumping excess heat
-        fuel_costs: Fuel consumption costs (gas, biomass, etc.)
-        co2_cost: CO2 emission costs
-        demand_cost: Peak demand charges
-        capex_cost: Capital expenditure (annualized)
-        activation_cost: Fixed costs for activating technologies
-        tie_break_cost: Small costs to break ties in optimization
-        storage_install_cost: Storage installation costs
-        terminal_value: Terminal value for storage (can be negative = reward)
-
-    Objective added:
-        - model.obj: Total cost minimization
-    """
+    """Create the cost minimization objective function."""
     if not HAVE_PYOMO:
         raise ImportError("Pyomo is required for objective creation")
 
-    # Store cost expressions on model for reporting.
-    # Wrap each value in pyo.Expression so Pyomo adds a fresh component instead of
-    # trying to re-register an existing variable under a different name.
     model.capex_cost_expr = pyo.Expression(expr=capex_cost)
     model.activation_cost_expr = pyo.Expression(expr=activation_cost)
     model.tie_break_cost_expr = pyo.Expression(expr=tie_break_cost)

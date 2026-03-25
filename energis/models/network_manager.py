@@ -190,7 +190,7 @@ class NetworkManager:
             topology_path = self._resolve_path(topology_file)
             logger.info(f"Loading network topology from YAML: {topology_path}")
             try:
-                with open(topology_path, 'r') as f:
+                with open(topology_path, 'r', encoding="utf-8") as f:
                     topology_data = yaml.safe_load(f)
             except FileNotFoundError:
                 logger.error("=" * 70)

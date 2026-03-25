@@ -1,0 +1,104 @@
+# Level 2: 5-node district heating network
+# Distributed assets connected by pipes with thermal losses and pressure drop
+
+data:
+  input_file: "Import_Data.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "Day_Ahead_Price EUR/MWh"
+    co2_grid: "CO2_consumption_based kgCO2/MWh"
+
+network:
+  physics:
+    heat_loss: true
+    pressure_drop: true
+    transport_delay: false
+  supply_temp_c: 90
+  return_temp_c: 55
+  ground_temp_c: 10
+
+  nodes:
+    plant:
+      type: producer
+      assets: [boiler_1, hp_1, tes_1]
+
+    north:
+      type: consumer
+      demand:
+        column: "demand_north_MW"
+
+    south:
+      type: consumer
+      demand:
+        column: "demand_south_MW"
+      assets: [hp_south]
+
+    junction_1:
+      type: junction
+
+    industrial:
+      type: consumer
+      demand:
+        column: "demand_industrial_MW"
+
+  pipes:
+    plant_to_j1:
+      from: plant
+      to: junction_1
+      length_m: 1200
+      diameter_mm: 400
+    j1_to_north:
+      from: junction_1
+      to: north
+      length_m: 2500
+      diameter_mm: 350
+    j1_to_south:
+      from: junction_1
+      to: south
+      length_m: 1800
+      diameter_mm: 300
+    plant_to_ind:
+      from: plant
+      to: industrial
+      length_m: 800
+      diameter_mm: 250
+
+assets:
+  boiler_1:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 150
+    thermal_efficiency: 0.90
+
+  hp_1:
+    type: heat_pump
+    capacity_mw: 80
+    cop_default: 3.5
+    wrg_sources: [WRG1, WRG2]
+
+  tes_1:
+    type: storage
+    energy_mwh: 500
+    power_mw: 50
+
+  hp_south:
+    type: heat_pump
+    capacity_mw: 10
+    cop_default: 4.0
+
+grid:
+  gridcost_eur_mwh: 20.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs
+  mode: PF_ONLY

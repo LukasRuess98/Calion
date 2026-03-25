@@ -39,7 +39,7 @@ from .blocks.thermal_gen import ThermalGeneratorBlock
 from .blocks.p2h import P2HBlock
 
 
-# ─── Bus Connections Container ─────────────────────────────────────────────────
+# ─── Bus Connections Containers ────────────────────────────────────────────────
 
 @dataclass
 class BusConnections:
@@ -47,6 +47,8 @@ class BusConnections:
 
     All lists are extended by assemble_* methods.  The lists are passed
     directly to add_bus_balance_constraints() and the objective builder.
+
+    Also used as NodeBusConnections for per-node heat flows in multi-node mode.
     """
 
     el_in: List = field(default_factory=list)
@@ -69,6 +71,87 @@ class BusConnections:
 
     # Terminal value expression for storage (value/soft policy)
     terminal_value_term: Any = None
+
+
+# Alias for clarity in multi-node context
+NodeBusConnections = BusConnections
+
+
+@dataclass
+class SystemBusConnections:
+    """Aggregates per-node bus connections for the entire system.
+
+    In copperplate mode, there is a single node whose BusConnections is also
+    the system-level aggregation.  In multi-node mode, each node has its own
+    BusConnections for heat flows, while electricity and cost terms are global.
+    """
+
+    nodes: Dict[str, BusConnections] = field(default_factory=dict)
+
+    # Global electricity bus (single grid connection for all nodes)
+    el_in: List = field(default_factory=list)
+    el_out: List = field(default_factory=list)
+
+    # System-wide cost accumulators
+    capex_terms: List = field(default_factory=list)
+    activation_terms: List = field(default_factory=list)
+    tie_breaker_terms: List = field(default_factory=list)
+    storage_install_terms: List = field(default_factory=list)
+
+    # Fuel cost / CO2 accumulation for generators
+    fuel_cost_terms: List = field(default_factory=list)
+    fuel_co2_terms: List = field(default_factory=list)
+
+    # Terminal value expression for storage
+    terminal_value_term: Any = None
+
+    def get_or_create_node(self, node_id: str) -> BusConnections:
+        """Get or create per-node bus connections."""
+        if node_id not in self.nodes:
+            self.nodes[node_id] = BusConnections()
+        return self.nodes[node_id]
+
+    @property
+    def all_ht_out(self) -> List:
+        """Flatten all per-node heat output lists."""
+        result = []
+        for nb in self.nodes.values():
+            result.extend(nb.ht_out)
+        return result
+
+    @property
+    def all_ht_in(self) -> List:
+        """Flatten all per-node heat input lists."""
+        result = []
+        for nb in self.nodes.values():
+            result.extend(nb.ht_in)
+        return result
+
+    def to_flat_bus_connections(self) -> "BusConnections":
+        """Collapse to a single flat BusConnections (for copperplate compatibility).
+
+        Merges all per-node heat flows into one global BusConnections while
+        preserving the system-level electricity and cost terms.
+        """
+        flat = BusConnections(
+            el_in=list(self.el_in),
+            el_out=list(self.el_out),
+            ht_in=list(self.all_ht_in),
+            ht_out=list(self.all_ht_out),
+            capex_terms=list(self.capex_terms),
+            activation_terms=list(self.activation_terms),
+            tie_breaker_terms=list(self.tie_breaker_terms),
+            storage_install_terms=list(self.storage_install_terms),
+            fuel_cost_terms=list(self.fuel_cost_terms),
+            fuel_co2_terms=list(self.fuel_co2_terms),
+            terminal_value_term=self.terminal_value_term,
+        )
+        # Also merge per-node fuel bus lists
+        for nb in self.nodes.values():
+            flat.gas_in.extend(nb.gas_in)
+            flat.bio_in.extend(nb.bio_in)
+            flat.waste_in.extend(nb.waste_in)
+        return flat
 
 
 # ─── Component Assembler ───────────────────────────────────────────────────────
@@ -117,6 +200,234 @@ class ComponentAssembler:
         if name in self.table.columns:
             return [float(self.table[name][i]) for i in range(self.T)]
         return None
+
+    # ── Unified Assembly (new config) ──────────────────────────────────────────
+
+    def assemble_all(self, ucfg) -> SystemBusConnections:
+        """Assemble all components from a UnifiedSystemConfig.
+
+        Iterates over nodes and their assets, attaching each component to the
+        correct per-node bus.  Returns a SystemBusConnections with per-node
+        heat flows and global electricity / cost terms.
+
+        Args:
+            ucfg: A UnifiedSystemConfig instance.
+
+        Returns:
+            SystemBusConnections with per-node and system-level bus connections.
+        """
+        from energis.config.unified_config import UnifiedSystemConfig, unified_generators_defaults
+
+        sys_buses = SystemBusConnections()
+
+        # Build generator defaults lookup for config compatibility
+        gen_defaults = unified_generators_defaults(ucfg)
+
+        for node_id, node_cfg in ucfg.nodes.items():
+            node_buses = sys_buses.get_or_create_node(node_id)
+
+            for asset_id in node_cfg.assets:
+                asset = ucfg.assets.get(asset_id)
+                if asset is None:
+                    logger.warning("Node '%s': asset '%s' not found, skipping", node_id, asset_id)
+                    continue
+
+                if asset.type == "heat_pump":
+                    self._attach_hp_from_unified(asset, node_buses, sys_buses)
+                elif asset.type == "storage":
+                    self._attach_storage_from_unified(asset, node_buses, sys_buses)
+                elif asset.type == "thermal_generator":
+                    self._attach_generator_from_unified(asset, node_buses, sys_buses, gen_defaults)
+                elif asset.type == "p2h":
+                    self._attach_p2h_from_unified(asset, node_buses, sys_buses, gen_defaults)
+                else:
+                    logger.warning("Unknown asset type '%s' for '%s'", asset.type, asset_id)
+
+        return sys_buses
+
+    def _attach_hp_from_unified(self, asset, node_buses, sys_buses):
+        """Attach a heat pump from unified config to per-node buses."""
+        p = dict(asset.params)
+        name = asset.id
+        hp_type = p.get("hp_type", "standard")
+
+        capacity_mw = float(p.get("capacity_mw", 0.0))
+        min_load = float(p.get("min_load", 0.3))
+
+        wrg_col = p.get("wrg_source_column")
+        wrg_sources = p.get("wrg_sources")
+        if wrg_col is None and wrg_sources and isinstance(wrg_sources, list):
+            wrg_col = wrg_sources[0] + "_T"
+        if wrg_col and wrg_col not in self.table.columns and f"{wrg_col}_K" in self.table.columns:
+            wrg_col = f"{wrg_col}_K"
+
+        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type)
+
+        wrg_cap_col = p.get("wrg_capacity_column")
+        if wrg_cap_col is None and wrg_col:
+            prefix = str(wrg_col).split("_T")[0]
+            candidate = f"{prefix}_Q_cap"
+            if candidate in self.table.columns:
+                wrg_cap_col = candidate
+        wrg_caps = None
+        if wrg_cap_col and wrg_cap_col in self.table.columns:
+            wrg_caps = {i + 1: float(self.table[wrg_cap_col][i]) for i in range(self.T)}
+
+        cop_default = float(p.get("cop_default", COP_DEFAULT))
+        if not math.isfinite(cop_default) or cop_default <= 0:
+            cop_default = COP_DEFAULT
+
+        inv_cfg = p.get("investment", {})
+        invest_enabled = bool(inv_cfg.get("enabled", False))
+        cap_min = float(inv_cfg.get("capacity_min_mw", 0.0))
+        cap_max = float(inv_cfg.get("capacity_max_mw", capacity_mw))
+        cap_init = float(inv_cfg.get("initial_capacity_mw", capacity_mw))
+
+        block = HeatPumpBlock(
+            name,
+            min_load=min_load,
+            cop_series=cop_series,
+            capacity_min_mw=cap_min,
+            capacity_max_mw=cap_max,
+            capacity_init_mw=cap_init,
+            investable=invest_enabled,
+            wrg_cap_series=wrg_caps,
+            cop_default=cop_default,
+        )
+        fs = block.attach(self.m, self.t, self.cfg, {})
+
+        # Per-node heat output
+        node_buses.ht_out.append(fs["Q_th_out"])
+        # Global electricity input
+        sys_buses.el_in.append(fs["P_el_in"])
+
+        # Investment costs → system level
+        cap_var = fs.get("capacity")
+        build_var = fs.get("build")
+        if cap_var is not None and build_var is not None:
+            hp_inv_defaults = self.cfg.get("heat_pumps", {}).get("investment_defaults", {})
+            hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
+            hp_inv_terms = self.inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
+            sys_buses.capex_terms.extend(hp_inv_terms.capex)
+            sys_buses.activation_terms.extend(hp_inv_terms.activation)
+            sys_buses.tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
+
+        hp_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "heat_pump")
+        self.m.co2_component_costs[name] = hp_co2.to_dict()
+
+    def _attach_storage_from_unified(self, asset, node_buses, sys_buses):
+        """Attach storage from unified config to per-node buses."""
+        p = dict(asset.params)
+
+        sto_cfg = {
+            "enabled": True,
+            "type": p.pop("storage_type", "simple"),
+            "max_energy_mwh": p.pop("energy_mwh", 500.0),
+            "max_power_mw": p.pop("power_mw", 50.0),
+        }
+        for key in (
+            "eff_charge", "eff_discharge", "loss_hour",
+            "soc0_mwh", "terminal", "investment",
+            "min_energy_mwh", "min_power_mw",
+        ):
+            if key in p:
+                sto_cfg[key] = p.pop(key)
+        sto_cfg.update(p)
+
+        # Temporarily set system config for standard assembly path
+        old_sys = self.cfg.get("system", {})
+        self.cfg.setdefault("system", {})["storage"] = sto_cfg
+        self.assemble_storage()
+        self.cfg["system"] = old_sys
+
+        # Move storage flows from self.buses to per-node / system level
+        if self.buses.ht_out:
+            node_buses.ht_out.extend(self.buses.ht_out)
+            self.buses.ht_out.clear()
+        if self.buses.ht_in:
+            node_buses.ht_in.extend(self.buses.ht_in)
+            self.buses.ht_in.clear()
+        # Transfer cost terms to system level
+        sys_buses.capex_terms.extend(self.buses.capex_terms)
+        sys_buses.activation_terms.extend(self.buses.activation_terms)
+        sys_buses.tie_breaker_terms.extend(self.buses.tie_breaker_terms)
+        sys_buses.storage_install_terms.extend(self.buses.storage_install_terms)
+        sys_buses.terminal_value_term = self.buses.terminal_value_term
+        self.buses.capex_terms.clear()
+        self.buses.activation_terms.clear()
+        self.buses.tie_breaker_terms.clear()
+        self.buses.storage_install_terms.clear()
+
+    def _attach_generator_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
+        """Attach a thermal generator from unified config to per-node buses."""
+        p = dict(asset.params)
+        name = asset.id.upper()
+
+        th_eff = float(p.get("thermal_efficiency", 0.9))
+        el_eff = p.get("el_eff")
+        cap_th = float(p.get("capacity_mw", 10.0))
+
+        block = ThermalGeneratorBlock(
+            name,
+            th_eff=th_eff,
+            el_eff=el_eff,
+            cap_th_mw=cap_th,
+        )
+        fs = block.attach(self.m, self.t, self.cfg, {})
+
+        # Per-node heat output
+        node_buses.ht_out.append(fs["Q_th_out"])
+        # Global electricity output (if CHP)
+        if fs.get("P_el_out") is not None:
+            sys_buses.el_out.append(fs["P_el_out"])
+
+        fuel_bus = p.get("fuel", "gas")
+        price = self._pfuel(fuel_bus, 0.0)
+        ef = self._efuel(fuel_bus, 0.0)
+
+        bus_map = {
+            "gas": node_buses.gas_in,
+            "biomass": node_buses.bio_in,
+            "waste": node_buses.waste_in,
+        }
+        bus_map.get(fuel_bus, node_buses.gas_in).append(fs["fuel_in"])
+
+        fuel_cost_expr = sum(fs["fuel_in"][t] * price * self.dt_h for t in self.t)
+        sys_buses.fuel_cost_terms.append(fuel_cost_expr)
+
+        is_chp = fs.get("P_el_out") is not None
+        el_eff_val = float(el_eff) if el_eff is not None and is_chp else 0.0
+
+        gen_co2 = self.co2_calc.calculate_fuel_emissions(
+            fuel_var=fs["fuel_in"],
+            fuel_ef_kg_per_mwh=ef,
+            is_chp=is_chp,
+            th_eff=th_eff,
+            el_eff=el_eff_val,
+            fuel_bus=fuel_bus,
+        )
+        gen_co2_dict = gen_co2.to_dict()
+        gen_co2_dict.update({"th_eff": th_eff, "el_eff": el_eff_val if is_chp else None, "fuel_bus": fuel_bus})
+        self.m.co2_component_costs[name] = gen_co2_dict
+        sys_buses.fuel_co2_terms.append(gen_co2.total_kg)
+
+    def _attach_p2h_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
+        """Attach a P2H converter from unified config to per-node buses."""
+        p = dict(asset.params)
+        eff = float(p.get("efficiency", 0.99))
+        cap_th = float(p.get("capacity_mw", 10.0))
+        min_load = float(p.get("min_load", 0.0))
+
+        block = P2HBlock("P2H", eff=eff, cap_th_mw=cap_th, min_load=min_load)
+        fs = block.attach(self.m, self.t, self.cfg, {})
+
+        # Per-node heat output
+        node_buses.ht_out.append(fs["Q_th_out"])
+        # Global electricity input
+        sys_buses.el_in.append(fs["P_el_in"])
+
+        p2h_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "p2h")
+        self.m.co2_component_costs["P2H"] = p2h_co2.to_dict()
 
     # ── Heat Pump Assembly ─────────────────────────────────────────────────────
 
