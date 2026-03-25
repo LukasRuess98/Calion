@@ -345,101 +345,13 @@ def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
     )
 
 
-# ─── Helpers: convert unified assets to legacy system config ──────────────────
-
-def unified_assets_to_legacy_system(
-    ucfg: UnifiedSystemConfig,
-) -> Dict[str, Any]:
-    """Convert unified asset definitions to legacy ``system`` dict format.
-
-    This allows the existing ComponentAssembler code to work with minimal
-    changes during the transition.  The returned dict has the same shape as
-    ``cfg["system"]`` in the old format.
-
-    Returns a dict with keys: heat_pumps, storage, generators.
-    """
-    heat_pumps: List[Dict[str, Any]] = []
-    storage_cfg: Dict[str, Any] = {"enabled": False}
-    generators: Dict[str, Dict[str, Any]] = {}
-
-    for asset in ucfg.assets.values():
-        p = dict(asset.params)
-        if asset.type == "heat_pump":
-            hp = {
-                "id": asset.id,
-                "enabled": True,
-                "type": p.pop("hp_type", "standard"),
-                "max_th_mw": p.pop("capacity_mw", 0.0),
-                "min_th_mw": p.pop("capacity_mw", 0.0) * p.pop("min_load", 0.0),
-            }
-            # Pass through known fields
-            for key in ("wrg_source_column", "wrg_sources", "cop_default", "investment"):
-                if key in p:
-                    hp[key] = p.pop(key)
-            # WRG sources → wrg_source_column mapping for multi-source HPs
-            if "wrg_sources" in hp:
-                # Store as list; ComponentAssembler handles multi-source via COP calc
-                wrg_list = hp.pop("wrg_sources")
-                if wrg_list and isinstance(wrg_list, list):
-                    hp["wrg_source_column"] = wrg_list[0] + "_T"
-                    hp["wrg_sources"] = wrg_list
-            hp.update(p)  # pass remaining params through
-            heat_pumps.append(hp)
-
-        elif asset.type == "storage":
-            storage_cfg = {
-                "enabled": True,
-                "type": p.pop("storage_type", "simple"),
-                "max_energy_mwh": p.pop("energy_mwh", 500.0),
-                "max_power_mw": p.pop("power_mw", 50.0),
-            }
-            for key in (
-                "eff_charge", "eff_discharge", "loss_hour",
-                "soc0_mwh", "terminal", "investment",
-                "min_energy_mwh", "min_power_mw",
-            ):
-                if key in p:
-                    storage_cfg[key] = p.pop(key)
-            storage_cfg.update(p)
-
-        elif asset.type == "thermal_generator":
-            gen_key = asset.id.lower()
-            generators[gen_key] = {
-                "enabled": True,
-                "cap_th_mw": p.pop("capacity_mw", 10.0),
-            }
-            # Store generator defaults for config lookup
-            gen_defaults = {
-                "th_eff": p.pop("thermal_efficiency", 0.9),
-                "fuel_bus": p.pop("fuel", "gas"),
-            }
-            if "el_eff" in p:
-                gen_defaults["el_eff"] = p.pop("el_eff")
-            generators[gen_key].update(p)
-            generators[gen_key]["_defaults"] = gen_defaults
-
-        elif asset.type == "p2h":
-            generators["p2h"] = {
-                "enabled": True,
-                "cap_th_mw": p.pop("capacity_mw", 10.0),
-            }
-            p2h_defaults = {
-                "el_to_th_eff": p.pop("efficiency", 0.99),
-            }
-            generators["p2h"].update(p)
-            generators["p2h"]["_defaults"] = p2h_defaults
-
-    return {
-        "heat_pumps": heat_pumps,
-        "storage": storage_cfg,
-        "generators": generators,
-    }
-
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def unified_generators_defaults(ucfg: UnifiedSystemConfig) -> Dict[str, Dict[str, Any]]:
     """Extract generator/p2h defaults for the top-level ``generators`` config key.
 
     Returns a dict keyed by generator id (lowercase) with th_eff, fuel_bus, etc.
+    Used by :mod:`energis.models.component_assembler` during model building.
     """
     result: Dict[str, Dict[str, Any]] = {}
     for asset in ucfg.assets.values():

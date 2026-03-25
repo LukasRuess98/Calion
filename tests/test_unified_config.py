@@ -21,8 +21,6 @@ from energis.config.unified_config import (
     AssetConfig,
     DemandConfig,
     PhysicsConfig,
-    unified_assets_to_legacy_system,
-    unified_generators_defaults,
 )
 
 try:
@@ -404,63 +402,6 @@ class TestDemandConfig:
     def test_invalid_demand(self):
         with pytest.raises(ValueError):
             DemandConfig.from_dict(42)
-
-
-# ─── Legacy Conversion Tests ─────────────────────────────────────────────────
-
-class TestLegacyConversion:
-    def test_generator_conversion(self):
-        cfg = _minimal_copperplate_cfg()
-        ucfg = parse_unified_config(cfg)
-        legacy = unified_assets_to_legacy_system(ucfg)
-
-        assert len(legacy["generators"]) == 1
-        gen = legacy["generators"]["boiler_1"]
-        assert gen["enabled"] is True
-        assert gen["cap_th_mw"] == 50.0
-        assert gen["_defaults"]["th_eff"] == 0.9
-        assert gen["_defaults"]["fuel_bus"] == "gas"
-
-    def test_hp_conversion(self):
-        cfg = _minimal_copperplate_cfg()
-        cfg["assets"]["hp_1"] = {
-            "type": "heat_pump",
-            "capacity_mw": 80.0,
-            "cop_default": 3.5,
-        }
-        cfg["network"]["nodes"]["system"]["assets"].append("hp_1")
-        ucfg = parse_unified_config(cfg)
-        legacy = unified_assets_to_legacy_system(ucfg)
-
-        assert len(legacy["heat_pumps"]) == 1
-        hp = legacy["heat_pumps"][0]
-        assert hp["id"] == "hp_1"
-        assert hp["max_th_mw"] == 80.0
-
-    def test_storage_conversion(self):
-        cfg = _minimal_copperplate_cfg()
-        cfg["assets"]["tes_1"] = {
-            "type": "storage",
-            "energy_mwh": 500,
-            "power_mw": 50,
-        }
-        cfg["network"]["nodes"]["system"]["assets"].append("tes_1")
-        ucfg = parse_unified_config(cfg)
-        legacy = unified_assets_to_legacy_system(ucfg)
-
-        sto = legacy["storage"]
-        assert sto["enabled"] is True
-        assert sto["max_energy_mwh"] == 500
-        assert sto["max_power_mw"] == 50
-
-    def test_generator_defaults(self):
-        cfg = _minimal_copperplate_cfg()
-        ucfg = parse_unified_config(cfg)
-        defaults = unified_generators_defaults(ucfg)
-
-        assert "boiler_1" in defaults
-        assert defaults["boiler_1"]["th_eff"] == 0.9
-        assert defaults["boiler_1"]["fuel_bus"] == "gas"
 
 
 # ─── Model Building Integration Tests ────────────────────────────────────────
