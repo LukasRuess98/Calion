@@ -25,10 +25,6 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Callable
 
 from energis.analysis.sensitivity import (
-
-from energis.logging_config import get_logger
-
-logger = get_logger(__name__)
     ParameterVariation,
     SensitivityResult,
     run_sensitivity_analysis,
@@ -37,7 +33,9 @@ logger = get_logger(__name__)
     apply_parameter_variation,
 )
 
-logger = logging.getLogger(__name__)
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass

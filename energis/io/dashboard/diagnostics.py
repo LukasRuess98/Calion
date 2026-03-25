@@ -13,8 +13,6 @@ from energis.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
-
 
 def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
     """
@@ -176,12 +174,12 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     print(f"  Available Results: PF={diagnosis.get('has_pf', False)}, "
           f"RH={diagnosis.get('has_rh', False)}, MPC={diagnosis.get('has_mpc', False)}")
     logger.info(f"  Primary Result: {diagnosis['primary_result_type']}")
-    print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
-          else f"  ✗ Timeseries: No data")
-    print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
-          else f"  ✗ Costs: No data")
-    print(f"  ✓ Design: {diagnosis['design_components']} components" if diagnosis['has_design']
-          else f"  ✗ Design: No data")
+    print(f"  [OK] Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
+          else "  [!!] Timeseries: No data")
+    print(f"  [OK] Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
+          else "  [!!] Costs: No data")
+    print(f"  [OK] Design: {diagnosis['design_components']} components" if diagnosis['has_design']
+          else "  [!!] Design: No data")
 
     if diagnosis['issues']:
         logger.info(f"\nWARNUNG: Issues found:")

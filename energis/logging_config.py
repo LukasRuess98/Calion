@@ -9,6 +9,7 @@ Usage:
     logger.debug("Technical detail")
 """
 
+import io
 import logging
 import sys
 from typing import Optional
@@ -37,14 +38,22 @@ def setup_logging(
         else:
             format_string = '%(name)s - %(levelname)s - %(message)s'
 
-    # Configure root logger
-    logging.basicConfig(
-        level=level,
-        format=format_string,
-        datefmt='%Y-%m-%d %H:%M:%S',
-        stream=sys.stdout,
-        force=True  # Override any existing configuration
-    )
+    # Use a UTF-8 stream handler so German/emoji characters display correctly
+    # on Windows consoles that default to cp1252.
+    if hasattr(sys.stdout, 'buffer'):
+        utf8_stream = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    else:
+        utf8_stream = sys.stdout
+
+    handler = logging.StreamHandler(utf8_stream)
+    handler.setFormatter(logging.Formatter(format_string, datefmt='%Y-%m-%d %H:%M:%S'))
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Remove existing handlers added by basicConfig to avoid duplicates
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+    root.addHandler(handler)
 
     # Set energis logger to configured level
     energis_logger = logging.getLogger('energis')

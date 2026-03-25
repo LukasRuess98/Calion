@@ -529,7 +529,7 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
                 try:
                     if cell.value and len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
+                except Exception:
                     pass
             adjusted_width = min(max_length + 2, 100)
             ws.column_dimensions[column_letter].width = adjusted_width

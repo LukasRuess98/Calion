@@ -68,7 +68,7 @@ def export_solver_solution(
         sol_path = os.path.join(output_dir, f"{filename}.sol")
 
         # Write solution manually since Pyomo doesn't have direct .sol export
-        with open(sol_path, 'w') as f:
+        with open(sol_path, 'w', encoding="utf-8") as f:
             f.write(f"# Gurobi Solution Export\n")
             f.write(f"# Generated: {datetime.now().isoformat()}\n")
             f.write(f"# Objective Value: {pyo.value(model.OBJ) if hasattr(model, 'OBJ') else 'N/A'}\n\n")

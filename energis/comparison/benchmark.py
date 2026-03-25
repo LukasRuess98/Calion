@@ -277,7 +277,7 @@ class BenchmarkSuite:
     def _save_intermediate(self, results: List[BenchmarkMetrics], output_dir: str, method_name: str):
         """Save intermediate results to JSON."""
         filepath = os.path.join(output_dir, f"intermediate_{method_name}.json")
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding="utf-8") as f:
             json.dump([asdict(r) for r in results], f, indent=2)
         logger.info(f"  Saved intermediate results to {filepath}")
 
@@ -301,7 +301,7 @@ class BenchmarkSuite:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
         # Write CSV
-        with open(output_path, 'w', newline='') as f:
+        with open(output_path, 'w', newline='', encoding="utf-8") as f:
             # Get fieldnames from first result
             fieldnames = [
                 'method', 'run_index',

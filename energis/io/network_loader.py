@@ -23,8 +23,6 @@ from energis.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
-
 
 def _is_empty(value: Any) -> bool:
     """Check if value is empty/NaN."""
