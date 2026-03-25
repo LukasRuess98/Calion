@@ -465,19 +465,15 @@ def _expand_sensitivity_runs(
 
 
 # ---------------------------------------------------------------------------
-# Legacy CLI (was at the end of rolling_horizon.py)
+# CLI argument builder (used by ``__main__.py``)
 # ---------------------------------------------------------------------------
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Simple command line interface for :mod:`energis.run.workflow`."""
+def add_workflow_cli_args(parser: argparse.ArgumentParser) -> None:
+    """Add workflow-specific CLI arguments to *parser*.
 
-    parser = argparse.ArgumentParser(description="Run PF/RH workflows using merged EnerGIS configs")
-    parser.add_argument(
-        "configs",
-        metavar="CONFIG",
-        nargs="+",
-        help="Configuration files passed to load_and_merge in the given order",
-    )
+    This keeps argument definitions in one place while allowing
+    ``energis.run.__main__`` to build a unified CLI.
+    """
     parser.add_argument(
         "--run-mode",
         type=_parse_run_mode,
@@ -560,41 +556,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Print extracted design values when available",
     )
-    args = parser.parse_args(argv)
-
-    try:
-        env_values = _gather_env_overrides()
-    except ValueError as exc:
-        parser.error(str(exc))
-
-    values, horizon_value, step_value, overlap_value = _merge_cli_and_env(args, env_values)
-    base_overrides = _build_override_dict(values)
-    runs = _expand_sensitivity_runs(args, base_overrides, horizon_value, step_value, overlap_value)
-
-    for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):
-        if len(runs) > 1:
-            logger.info(f"[workflow] Sweep run {idx}/{len(runs)}: horizon={horizon}, step={step}, overlap={overlap}")
-        result = run_workflow(args.configs, overrides=override_cfg or None)
-        steps = " -> ".join(result.plan.steps)
-        logger.info(f"[workflow] Executed steps: {steps}")
-
-        if result.pf_result is not None:
-            pf_obj = result.pf_result.costs.get("objective.OBJ_value_EUR") if result.pf_result.costs else None
-            logger.info(f"  • PF time steps: {len(result.pf_result.table)}")
-            if pf_obj is not None:
-                logger.info(f"  • PF objective: {pf_obj}")
-
-        if result.rh_result is not None:
-            logger.info(f"  • RH windows: {len(result.rh_result.windows)}")
-            logger.info(f"  • RH committed steps: {len(result.rh_result.table)}")
-
-        if args.print_design and result.design is not None:
-            hp_parts = ", ".join(sorted(result.design.heat_pumps.keys())) or "none"
-            logger.info(f"  • Design heat pumps: {hp_parts}")
-            if result.design.storage is not None:
-                logger.info(f"  • Storage design: {result.design.storage}")
-
-    return 0
 
 
 __all__ = [
@@ -602,7 +563,7 @@ __all__ = [
     "register_workflow_step",
     "unregister_workflow_step",
     "get_registered_workflow_steps",
-    "main",
+    "add_workflow_cli_args",
     "WorkflowResult",
     "WorkflowContext",
     "WorkflowPlan",

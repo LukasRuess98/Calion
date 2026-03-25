@@ -1,190 +1,242 @@
 #!/usr/bin/env python3
 """
-Command-line interface for EnerGIS framework.
+Unified command-line interface for the EnerGIS framework.
 
 Usage:
     python -m energis.run <config1.yaml> <config2.yaml> ...
-    python -m energis.run configs/scenarios/quick_test.yaml
-    python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard
+    python -m energis.run configs/scenarios/quick_test.yaml --dashboard
+    python -m energis.run configs/examples/level1_copperplate.yaml --run-mode PF_ONLY
 
-Options:
-    --dashboard     Save results for dashboard (to notebooks/saved_workflows/)
-    --name NAME     Name for the simulation run
-    --desc DESC     Description for the simulation run
-    --dir DIR       Custom output directory (default: notebooks/saved_workflows/ with --dashboard)
+All workflow arguments (--run-mode, --sensitivity-*, --fix-design, etc.) and
+export arguments (--dashboard, --save-lp) are available in a single CLI.
 """
 
 import argparse
 import sys
 from pathlib import Path
-from energis.run import workflow as rh
-from energis.run.export import export_workflow_results as _export_workflow_results
 
 from energis.logging_config import get_logger
+from energis.run.export import export_workflow_results as _export_workflow_results
+from energis.run import workflow as _wf
+from energis.run.workflow import (
+    _build_override_dict,
+    _expand_sensitivity_runs,
+    _merge_cli_and_env,
+    add_workflow_cli_args,
+)
+from energis.run.utilities import _gather_env_overrides
 
 logger = get_logger(__name__)
 
 
-def main():
-    """Main CLI entry point."""
+def main(argv=None):
+    """Unified CLI entry point for ``python -m energis.run``.
+
+    Returns 0 on success, 1 on failure.  When invoked as
+    ``python -m energis.run`` the return value is passed to
+    :func:`sys.exit` (see bottom of this module).
+    """
     parser = argparse.ArgumentParser(
-        description='EnerGIS - District Heating Optimization Framework',
+        description="EnerGIS - District Heating Optimization Framework",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog="""\
 Examples:
-  # Quick test
+  # Quick PF run
   python -m energis.run configs/scenarios/quick_test.yaml
 
   # Rolling Horizon with dashboard export
   python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard
 
-  # With custom name
-  python -m energis.run configs/scenarios/rh_full_system.yaml --dashboard --name "Baseline Q1"
+  # Override run mode via CLI
+  python -m energis.run my_config.yaml --run-mode PF_THEN_RH
+
+  # Sensitivity sweep over RH window sizes
+  python -m energis.run my_config.yaml --run-mode RH_ONLY \\
+      --sensitivity-horizon-hours 48,96,168
 
   # Multiple config files
-  python -m energis.run configs/00_base/solver.yaml configs/03_systems/full.yaml configs/04_scenarios/rh_q1_2023.yaml
-        """
+  python -m energis.run base.yaml system.yaml scenario.yaml
+""",
     )
 
+    # -- positional: config files ------------------------------------------
     parser.add_argument(
-        'configs',
-        nargs='+',
-        help='Config file(s) to load and merge'
+        "configs",
+        nargs="+",
+        help="Config file(s) to load and merge",
     )
 
+    # -- export flags ------------------------------------------------------
     parser.add_argument(
-        '--dashboard', '-d',
-        action='store_true',
-        help='Save results for dashboard visualization (to notebooks/saved_workflows/)'
+        "--dashboard", "-d",
+        action="store_true",
+        help="Save results for dashboard visualization (to notebooks/saved_workflows/)",
     )
-
     parser.add_argument(
-        '--name', '-n',
+        "--name", "-n",
         type=str,
         default=None,
-        help='Name for the simulation run'
+        help="Name for the simulation run",
     )
-
     parser.add_argument(
-        '--desc',
+        "--desc",
         type=str,
         default=None,
-        help='Description for the simulation run'
+        help="Description for the simulation run",
     )
-
     parser.add_argument(
-        '--dir',
+        "--dir",
         type=str,
         default=None,
-        help='Custom output directory'
+        help="Custom output directory",
     )
-
     parser.add_argument(
-        '--save-lp',
-        action='store_true',
+        "--save-lp",
+        action="store_true",
         default=False,
         help=(
-            'Copy the solved MILP model as model.lp into {outdir}/solver/ '
-            'for post-hoc debugging and infeasibility analysis. '
-            'Requires output.export_solver_solution: true in config (default).'
+            "Copy the solved MILP model as model.lp into {outdir}/solver/ "
+            "for post-hoc debugging and infeasibility analysis."
         ),
     )
 
-    args = parser.parse_args()
+    # -- workflow / override args (from workflow.py) ------------------------
+    add_workflow_cli_args(parser)
 
-    # Validate paths
-    for path in args.configs:
-        if not Path(path).exists():
-            logger.info(f"Error: Config file not found: {path}")
-            sys.exit(1)
+    args = parser.parse_args(argv)
 
-    logger.info("="*70)
+    # -- resolve overrides (CLI + env) -------------------------------------
+    try:
+        env_values = _gather_env_overrides()
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    values, horizon_value, step_value, overlap_value = _merge_cli_and_env(args, env_values)
+    base_overrides = _build_override_dict(values)
+    runs = _expand_sensitivity_runs(args, base_overrides, horizon_value, step_value, overlap_value)
+
+    is_sweep = len(runs) > 1
+
+    # -- banner ------------------------------------------------------------
+    logger.info("=" * 70)
     logger.info("EnerGIS - District Heating Optimization")
-    logger.info("="*70)
-    logger.info(f"\nConfig files ({len(args.configs)}):")
+    logger.info("=" * 70)
+    logger.info("Config files (%d):", len(args.configs))
     for path in args.configs:
-        logger.info(f"  - {path}")
+        logger.info("  - %s", path)
+    if is_sweep:
+        logger.info("Sensitivity sweep: %d runs", len(runs))
+    if args.dashboard:
+        logger.info("Dashboard export: ENABLED")
+        if args.name:
+            logger.info("  Name: %s", args.name)
+
+    # -- run loop ----------------------------------------------------------
+    for idx, (horizon, step, overlap, override_cfg) in enumerate(runs, start=1):
+        if is_sweep:
+            logger.info(
+                "[workflow] Sweep run %d/%d: horizon=%s, step=%s, overlap=%s",
+                idx, len(runs), horizon, step, overlap,
+            )
+
+        result = _wf.run_workflow(args.configs, overrides=override_cfg or None)
+        steps_label = " -> ".join(result.plan.steps)
+        logger.info("[workflow] Executed steps: %s", steps_label)
+
+        # -- summary -------------------------------------------------------
+        _print_result_summary(result, args)
+
+        # -- export --------------------------------------------------------
+        if args.dashboard or args.dir:
+            sweep_subdir = f"sweep_{idx:03d}" if is_sweep else None
+            _export_result(result, args, sweep_subdir)
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _print_result_summary(result, args):
+    """Log a concise cost / result summary."""
+
+    def _cost_block(label, costs):
+        if not costs:
+            return
+        logger.info("=== %s COSTS (objective.*) ===", label)
+        for k, v in sorted(costs.items()):
+            if not k.startswith("objective."):
+                continue
+            if not isinstance(v, (int, float)):
+                continue
+            if abs(v) <= 1e-3:
+                continue
+            logger.info("%-40s: %,.2f", k, v)
+
+    if result.pf_result is not None:
+        pf_obj = (result.pf_result.costs or {}).get("objective.OBJ_value_EUR")
+        logger.info("  PF time steps: %d", len(result.pf_result.table))
+        if pf_obj is not None:
+            logger.info("  PF objective: %s", pf_obj)
+        _cost_block("PF", result.pf_result.costs)
+
+    if result.rh_result is not None:
+        logger.info("  RH windows: %d", len(result.rh_result.windows))
+        logger.info("  RH committed steps: %d", len(result.rh_result.table))
+
+    if result.mpc_result is not None:
+        _cost_block("MPC", getattr(result.mpc_result, "costs", None))
+
+    if args.print_design and result.design is not None:
+        hp_parts = ", ".join(sorted(result.design.heat_pumps.keys())) or "none"
+        logger.info("  Design heat pumps: %s", hp_parts)
+        if result.design.storage is not None:
+            logger.info("  Storage design: %s", result.design.storage)
+
+
+def _export_result(result, args, sweep_subdir):
+    """Export a single workflow result (dashboard or standard)."""
+    outdir = args.dir
+
+    if sweep_subdir and outdir:
+        outdir = str(Path(outdir) / sweep_subdir)
+    elif sweep_subdir:
+        outdir = str(Path("exports") / sweep_subdir)
 
     if args.dashboard:
-        logger.info(f"\nDashboard export: ENABLED")
-        if args.name:
-            logger.info(f"  Name: {args.name}")
-        if args.desc:
-            logger.info(f"  Description: {args.desc}")
+        from energis.io.notebook_helpers import save_workflow_run
 
-
-    try:
-        # Run optimization
-        workflow = rh.run_workflow(args.configs)
-                # NEU: PF- und MPC-Kostenblock in der Konsole ausgeben
-                # NEU: PF- und MPC-Kostenblock in der Konsole ausgeben
-        def _print_cost_block(label, costs):
-            if not costs:
-                return
-            logger.info(f"\n=== {label} COSTS (objective.*) ===")
-            for k, v in sorted(costs.items()):
-                # Nur objective.*-Keys und nur numerische Werte ausgeben
-                if not k.startswith("objective."):
-                    continue
-                if not isinstance(v, (int, float)):   # Strings, dicts etc. überspringen
-                    continue
-                if abs(v) <= 1e-3:
-                    continue
-                logger.info(f"{k:40s}: {v:,.2f}")
-                
-        if workflow.pf_result and workflow.pf_result.costs:
-            _print_cost_block("PF", workflow.pf_result.costs)
-
-        if workflow.mpc_result and workflow.mpc_result.costs:
-            _print_cost_block("MPC", workflow.mpc_result.costs)
-        
-        # Export results
-        if args.dashboard:
-            # Use save_workflow_run for dashboard compatibility
-            from energis.io.notebook_helpers import save_workflow_run
-
-            save_dir = args.dir or "notebooks/saved_workflows"
-            output_dir = save_workflow_run(
-                workflow,
-                name=args.name or "CLI Simulation",
-                description=args.desc or f"Config: {', '.join(args.configs)}",
-                config_paths=args.configs,
-                save_dir=save_dir,
-            )
-            logger.info("=" * 70)
-            logger.info(f"SUCCESS! Results saved for dashboard:")
-            logger.info(f"  {output_dir}")
-            logger.info(f"\nView in dashboard:")
-            logger.info(f"  python start_dashboard.py")
-            logger.info("="*70)
-        else:
-            # Standard export to exports/
-            result = _export_workflow_results(
-                workflow,
-                outdir=args.dir,
-                save_lp=args.save_lp,
-            )
-            logger.info("=" * 70)
-            logger.info(f"SUCCESS! Results exported to:")
-            logger.info(f"  {result['outdir']}")
-            if result.get('network_files'):
-                logger.info(f"  Thermal network: {result['outdir']}/thermal_network/")
-            if result.get('lp_file'):
-                logger.info(f"  LP model:        {result['lp_file']}")
-            logger.info(f"\nTip: Use --dashboard flag to save for dashboard visualization")
-            logger.info(f"Tip: Use --save-lp to export solver model for debugging")
-            logger.info("="*70)
-
-        sys.exit(0)
-
-    except Exception as e:
+        save_dir = outdir or "notebooks/saved_workflows"
+        output_dir = save_workflow_run(
+            result,
+            name=args.name or "CLI Simulation",
+            description=args.desc or f"Config: {', '.join(args.configs)}",
+            config_paths=args.configs,
+            save_dir=save_dir,
+        )
         logger.info("=" * 70)
-        logger.info(f"ERROR: {e}")
-        logger.info("="*70)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        logger.info("SUCCESS! Results saved for dashboard:")
+        logger.info("  %s", output_dir)
+        logger.info("View in dashboard:  python start_dashboard.py")
+        logger.info("=" * 70)
+    else:
+        export = _export_workflow_results(
+            result,
+            outdir=outdir,
+            save_lp=args.save_lp,
+        )
+        logger.info("=" * 70)
+        logger.info("SUCCESS! Results exported to:")
+        logger.info("  %s", export["outdir"])
+        if export.get("network_files"):
+            logger.info("  Thermal network: %s/thermal_network/", export["outdir"])
+        if export.get("lp_file"):
+            logger.info("  LP model:        %s", export["lp_file"])
+        logger.info("Tip: Use --dashboard flag to save for dashboard visualization")
+        logger.info("Tip: Use --save-lp to export solver model for debugging")
+        logger.info("=" * 70)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

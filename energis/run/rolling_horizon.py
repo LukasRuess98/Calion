@@ -89,8 +89,11 @@ from energis.run.workflow import (  # noqa: F401
     _merge_cli_and_env,
     _build_override_dict,
     _expand_sensitivity_runs,
-    main,
+    add_workflow_cli_args,
 )
+
+# ``main`` now lives in ``energis.run.__main__`` (the unified CLI).
+from energis.run.__main__ import main  # noqa: F401
 
 # --- Utilities (re-exported for callers that did ``from rolling_horizon import _slice_table``) ---
 from energis.run.utilities import (  # noqa: F401
