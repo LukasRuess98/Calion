@@ -194,6 +194,13 @@ def main():
     print("=" * 70)
     print(f"Project root: {PROJECT_ROOT}")
 
+    # Guard: skip when required config is absent
+    config_path = PROJECT_ROOT / 'configs' / 'stadtbach.yaml'
+    if not config_path.exists():
+        print(f"\nSKIPPED: Integration config not available: {config_path}")
+        print("This script requires a site-specific config (not shipped with the repo).")
+        return
+
     # First check WRG data
     data_file = PROJECT_ROOT / 'Import_Data.xlsx'
     check_wrg_data(data_file)
