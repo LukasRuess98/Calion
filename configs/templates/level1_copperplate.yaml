@@ -2,11 +2,11 @@
 # All assets at one virtual node, no pipe physics
 
 site:
-  input_xlsx: "Import_Data.xlsx"
+  input_xlsx: "data/Import_Data.csv"
   columns:
     datetime: "Datum"
-    price: "Day_Ahead_Price EUR/MWh"
-    co2_grid: "CO2_consumption_based kgCO2/MWh"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
 
 scenario:
   run_mode: PF_ONLY
@@ -17,7 +17,7 @@ network:
       type: producer
       assets: [boiler_1, hp_1]
       demand:
-        column: "Waermebedarf MW"
+        column: "waermebedarf_MWth"
 
 assets:
   boiler_1:

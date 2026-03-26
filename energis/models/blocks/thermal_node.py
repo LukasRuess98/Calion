@@ -260,6 +260,17 @@ class ThermalNodeBlock(BaseComponent):
                     f"({len(incoming_pipes)} pipes, bilinear — needs QP solver)"
                 )
 
+        # MILP Mode: Fix T_supply to nominal (linear approximation for multi-pipe)
+        elif incoming_pipes and milp_linearize_temp and len(incoming_pipes) > 1:
+            def multi_temp_milp_rule(m, t):
+                return T_supply[t] == supply_temp_nominal_c
+            
+            setattr(model, f'{prefix}_temp_mixing_milp',
+                    pyo.Constraint(time_set, rule=multi_temp_milp_rule))
+            logger.info(
+                f"    Node {node_id}: multi-pipe MILP mode — T_supply fixed to {supply_temp_nominal_c}°C"
+            )
+
         # (2) Mass balance: Σ m_dot_in[t] = Σ m_dot_out[t] + m_dot_demand[t]
         #
         # For producer nodes: incoming=[], outgoing=[...], m_dot_demand=0

@@ -87,6 +87,7 @@ class NodeConfig:
     type: str  # "producer", "consumer", "junction"
     assets: List[str] = field(default_factory=list)
     demand: Optional[DemandConfig] = None
+    demand_fraction: Optional[float] = None
 
     @staticmethod
     def from_dict(node_id: str, raw: Dict[str, Any]) -> "NodeConfig":
@@ -105,7 +106,9 @@ class NodeConfig:
         if demand_raw is not None:
             demand = DemandConfig.from_dict(demand_raw)
 
-        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand)
+        demand_fraction = raw.get("demand_fraction")
+
+        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demand_fraction=demand_fraction)
 
 
 @dataclass

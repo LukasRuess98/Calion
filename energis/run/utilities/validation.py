@@ -28,10 +28,32 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
     Returns:
         Total thermal capacity in MW
     """
-    from energis.utils.config_utils import apply_heat_pump_defaults
-
-    syscfg = cfg.get("system", {})
     cap = 0.0
+
+    # New structure: sum assets in all network nodes (Level 2, 3, etc.)
+    network_nodes = cfg.get("network", {}).get("nodes", {})
+    asset_cfgs = cfg.get("assets", {})
+
+    for node in network_nodes.values():
+        for asset_name in node.get("assets", []):
+            asset_cfg = asset_cfgs.get(asset_name, {})
+            asset_type = asset_cfg.get("type")
+            if asset_type in ("thermal_generator", "heat_pump"):
+                capacity = asset_cfg.get("capacity_mw", 0.0)
+                cap += float(capacity)
+
+    # Backward compatibility: single-node legacy config under system key
+    system_node = network_nodes.get("system", {})
+    for asset_name in system_node.get("assets", []):
+        asset_cfg = asset_cfgs.get(asset_name, {})
+        asset_type = asset_cfg.get("type")
+        if asset_type in ("thermal_generator", "heat_pump"):
+            capacity = asset_cfg.get("capacity_mw", 0.0)
+            cap += float(capacity)
+
+    # Old structure fallback
+    syscfg = cfg.get("system", {})
+    from energis.utils.config_utils import apply_heat_pump_defaults
 
     for hp in apply_heat_pump_defaults(syscfg):
         if hp.get("enabled", True):

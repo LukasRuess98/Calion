@@ -172,7 +172,7 @@ def _print_result_summary(result, args):
                 continue
             if abs(v) <= 1e-3:
                 continue
-            logger.info("%-40s: %,.2f", k, v)
+            logger.info("%-40s: %s", k, format(v, ",.2f"))
 
     if result.pf_result is not None:
         pf_obj = (result.pf_result.costs or {}).get("objective.OBJ_value_EUR")

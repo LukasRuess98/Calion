@@ -258,6 +258,8 @@ class ModelFinalizer:
             }
             if node.demand is not None:
                 node_dict["demand_column"] = node.demand.column
+            if node.demand_fraction is not None:
+                node_dict["demand_fraction"] = node.demand_fraction
             if node.assets:
                 node_dict["components"] = {aid: {} for aid in node.assets}
             nodes_list.append(node_dict)
@@ -284,6 +286,7 @@ class ModelFinalizer:
                 "return_temp_nominal_c": ucfg.physics.return_temp_c,
                 "ground_temp_default_c": ucfg.physics.ground_temp_c,
             },
+            "milp_linearize": True,
         }
 
     def _integrate_network_legacy(self) -> None:

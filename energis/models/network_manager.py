@@ -61,6 +61,7 @@ import yaml
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from dataclasses import asdict
 
 try:
     import pyomo.environ as pyo
@@ -484,8 +485,9 @@ class NetworkManager:
         milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
 
         for pipe_id, pipe_config in self.pipes.items():
+            pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
             enriched_config = {
-                **pipe_config,
+                **pipe_dict,
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_nominal_c': return_temp,
                 'use_outdoor_temperature': use_outdoor_temp,
@@ -515,8 +517,9 @@ class NetworkManager:
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
 
         for node_id, node_config in self.nodes.items():
+            node_dict = node_config if isinstance(node_config, dict) else node_config.__dict__
             enriched_config = {
-                **node_config,
+                **node_dict,
                 'id': node_id,
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
