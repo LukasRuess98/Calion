@@ -10,6 +10,7 @@ import logging
 from typing import Any, Dict
 
 from energis.logging_config import get_logger
+from energis.models.results import InvestmentDecisions
 from energis.models.system_builder import build_model
 from energis.utils.timeseries import TimeSeriesTable
 
@@ -125,4 +126,5 @@ def _solve_scenario(
         dt_h,
         model if HAVE_PYOMO else None,
     )
-    return ScenarioResult(table, series, summary, costs, solver_meta)
+    investments = InvestmentDecisions.from_summary(summary)
+    return ScenarioResult(table, series, summary, costs, solver_meta, investments)

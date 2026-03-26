@@ -137,12 +137,17 @@ class ThermalNodeBlock(BaseComponent):
         return_temp_min = 30
         return_temp_max = max(90, return_temp_c + 20)
 
-        # T_supply: always a Var for all node types.
-        # - producer: value determined by attached component constraints (system_builder)
-        # - consumer/junction: value set by enthalpy balance constraint below
-        setattr(model, f'{prefix}_T_supply',
-                pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                       bounds=(supply_temp_min, supply_temp_max)))
+        # T_supply: Var by default, but fixed Param in MILP-linearized mode
+        milp_linearize_temp = config.get('milp_linearize', False)
+
+        if milp_linearize_temp and node_type in ('consumer', 'junction'):
+            # MILP mode: fix supply temperature to nominal value → eliminates bilinear products
+            setattr(model, f'{prefix}_T_supply',
+                    pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
+        else:
+            setattr(model, f'{prefix}_T_supply',
+                    pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                           bounds=(supply_temp_min, supply_temp_max)))
         T_supply = getattr(model, f'{prefix}_T_supply')
 
         # T_return: Param for constant consumer return temps, Var otherwise
@@ -221,7 +226,7 @@ class ThermalNodeBlock(BaseComponent):
         # This sets node supply temperature as the flow-weighted average of all
         # incoming pipe supply outlet temperatures.  For a single pipe the
         # constraint reduces to a simple equality (T_node = T_pipe_out).
-        if incoming_pipes:
+        if incoming_pipes and not milp_linearize_temp:
             if len(incoming_pipes) == 1:
                 pipe_id = incoming_pipes[0]
                 pipe_prefix = pipe_id.upper().replace('-', '_')
@@ -263,7 +268,24 @@ class ThermalNodeBlock(BaseComponent):
         #   → Σ m_dot_in == Σ m_dot_out
         # For consumer nodes: m_dot_demand >= 0
         #   → Σ m_dot_in == Σ m_dot_out + m_dot_demand
-        if incoming_pipes or (node_type != 'producer' and outgoing_pipes):
+        #
+        # In MILP mode, skip producer mass balance — the global heat balance already
+        # handles energy conservation, and forcing pipe flow conservation at the plant
+        # can over-constrain ring/loop topologies.
+        #
+        # In MILP mode, also skip consumer mass balance for terminal nodes (no outgoing
+        # pipes).  Transport delay means Q_consumer[t] = Q_delivered[t−τ], so the pipe
+        # flow m_dot[t] must be free to serve *future* demand rather than being pinned
+        # to the *instantaneous* demand.  Demand is enforced via the Q_consumer linkage
+        # in network_manager._link_consumer_demands instead.
+        skip_producer_mass_balance = milp_linearize_temp and node_type == 'producer'
+        skip_consumer_mass_balance = (
+            milp_linearize_temp
+            and node_type == 'consumer'
+            and not outgoing_pipes
+        )
+        skip_mass_balance = skip_producer_mass_balance or skip_consumer_mass_balance
+        if not skip_mass_balance and (incoming_pipes or (node_type != 'producer' and outgoing_pipes)):
             def mass_balance_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
                 total_in = sum(
                     getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
@@ -283,12 +305,36 @@ class ThermalNodeBlock(BaseComponent):
 
         # (3) Heat demand satisfaction (consumer nodes only)
         # Q_demand [MW] = m_dot [kg/s] × c_p [kJ/(kg·K)] × (T_supply - T_return) [K] / 1000
-        if node_type == 'consumer':
-            def heat_demand_rule(m, t):
-                return Q_demand[t] * 1000 == m_dot_demand[t] * cp_water * (T_supply[t] - T_return[t])
+        milp_linearize = config.get('milp_linearize', False)
 
-            setattr(model, f'{prefix}_heat_demand',
-                    pyo.Constraint(time_set, rule=heat_demand_rule))
+        if node_type == 'consumer':
+            if milp_linearize and not outgoing_pipes:
+                # Terminal consumer in MILP mode: demand is enforced through
+                # Q_consumer == Q_demand in the network manager.  The heat_demand
+                # constraint (m_dot_demand ↔ Q_demand) is skipped because transport
+                # delay decouples instantaneous flow from instantaneous demand.
+                logger.info(
+                    f"    Node {node_id}: MILP terminal consumer — "
+                    f"heat_demand constraint skipped (enforced via Q_consumer)"
+                )
+            elif milp_linearize:
+                # MILP passthrough consumer: still needs m_dot_demand for mass balance
+                dT_nominal = supply_temp_nominal_c - return_temp_c
+                if dT_nominal <= 0:
+                    dT_nominal = 35.0  # safe fallback
+
+                def heat_demand_rule_milp(m, t):
+                    return m_dot_demand[t] == Q_demand[t] * 1000 / (cp_water * dT_nominal)
+
+                setattr(model, f'{prefix}_heat_demand',
+                        pyo.Constraint(time_set, rule=heat_demand_rule_milp))
+            else:
+                # Full nonlinear mode (bilinear — requires QP/NLP solver)
+                def heat_demand_rule(m, t):
+                    return Q_demand[t] * 1000 == m_dot_demand[t] * cp_water * (T_supply[t] - T_return[t])
+
+                setattr(model, f'{prefix}_heat_demand',
+                        pyo.Constraint(time_set, rule=heat_demand_rule))
 
             # (3b) Optional load-dependent return temperature
             if return_temp_range is not None and return_temp_load_factor > 0:

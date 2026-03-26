@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from energis.design import DesignConfig, DesignSpec
+from energis.models.results import InvestmentDecisions
 from energis.utils.timeseries import TimeSeriesTable
 
 
@@ -28,22 +29,23 @@ class ScenarioResult:
     summary: Mapping[str, Mapping[str, Any]]
     costs: Dict[str, Any]
     solver: Dict[str, Any]
+    investments: Optional[InvestmentDecisions] = None
 
 
 @dataclass
 class WindowResult(ScenarioResult):
     """Specialised result carrying metadata for RH windows."""
 
-    start_index: int
-    commit_steps: int
+    start_index: int = 0
+    commit_steps: int = 0
 
 
 @dataclass
 class DesignData:
     """Design figures extracted from a PF optimisation.
 
-    DEPRECATED: Use DesignSpec from energis.design instead.
-    Kept for backward compatibility.
+    DEPRECATED: Use :class:`~energis.models.results.InvestmentDecisions` instead.
+    Kept temporarily for backward compatibility during migration.
     """
 
     heat_pumps: Dict[str, Dict[str, float]]
@@ -59,6 +61,7 @@ class RollingHorizonResult:
     costs: Dict[str, Any]
     windows: List[WindowResult]
     design: Optional[DesignData] = None
+    investments: Optional[InvestmentDecisions] = None
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +101,8 @@ class WorkflowContext:
     rh_result: Optional[RollingHorizonResult] = None
     mpc_result: Optional[RollingHorizonResult] = None
     design: Optional[DesignData] = None  # Legacy (deprecated)
-    design_spec: Optional[DesignSpec] = None  # New design specification
+    design_spec: Optional[DesignSpec] = None  # Legacy (deprecated)
+    investments: Optional[InvestmentDecisions] = None  # Structured investment results
 
 
 @dataclass
@@ -111,6 +115,7 @@ class WorkflowResult:
     mpc_result: Optional[RollingHorizonResult]
     design: Optional[DesignData]
     plan: WorkflowPlan
+    investments: Optional[InvestmentDecisions] = None
 
 
 # ---------------------------------------------------------------------------

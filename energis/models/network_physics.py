@@ -392,6 +392,7 @@ def compute_delay_buckets(
     density_kg_per_m3: float,
     m_max_kg_s: float,
     n_buckets: int = 3,
+    dt_h: float = 1.0,
 ) -> Dict[str, Any]:
     """
     Compute integer transport delay constants for piecewise-linear SOS2 linearisation.
@@ -451,8 +452,10 @@ def compute_delay_buckets(
                       for i in range(n_buckets + 1)]
         m_bounds = [(boundaries[i + 1], boundaries[i]) for i in range(n_buckets)]
 
-    # Integer delay per bucket: τ = round(volume_kg / m_rep), minimum 1 timestep
-    tau_steps = [max(1, round(volume_kg / m)) for m in rep_flows]
+    # Integer delay per bucket: τ = round(volume_kg / m_rep / dt_seconds)
+    # volume_kg / m_rep gives seconds; divide by dt to get timesteps
+    dt_seconds = dt_h * 3600.0
+    tau_steps = [max(1, round(volume_kg / m / dt_seconds)) for m in rep_flows]
 
     return {
         'tau_steps': tau_steps,

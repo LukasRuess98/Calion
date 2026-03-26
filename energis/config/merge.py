@@ -8,6 +8,66 @@ from typing import List, Dict, Any
 from energis.utils import simple_yaml
 from energis.config.schema import validate_config_schema
 
+import logging as _logging
+
+_logger = _logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Config key normalisation
+# ---------------------------------------------------------------------------
+
+# Maps (section_path, legacy_key) → canonical_key.
+# Applied once at load time so downstream code only needs to check one name.
+_KEY_ALIASES: List[tuple] = [
+    # SOC initial value: canonical = soc_init_mwh
+    ("system.storage", "SOC_init", "soc_init_mwh"),
+    ("system.storage", "soc0_mwh", "soc_init_mwh"),
+    # Rolling horizon: canonical = lowercase
+    ("scenario.rolling_horizon", "HEAT_HORIZON_HOURS", "heat_horizon_hours"),
+    ("scenario.rolling_horizon", "STEP_HOURS", "step_hours"),
+    ("scenario.rolling_horizon", "OVERLAP_HOURS", "overlap_hours"),
+    ("scenario.rolling_horizon", "TERMINAL_POLICY", "terminal_policy"),
+    ("scenario.rolling_horizon", "window_hours", "heat_horizon_hours"),
+]
+
+
+def _navigate(cfg: dict, dotpath: str) -> dict | None:
+    """Traverse nested dicts by dot-separated path, returning the leaf dict."""
+    node = cfg
+    for key in dotpath.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node if isinstance(node, dict) else None
+
+
+def normalise_config_keys(cfg: dict) -> dict:
+    """Copy legacy alias values to their canonical keys.
+
+    This runs **in-place** on *cfg* after merge but before consumption.
+    Both legacy and canonical keys are kept so that code which still reads
+    the old name continues to work during the migration period.
+    """
+    for dotpath, legacy, canonical in _KEY_ALIASES:
+        section = _navigate(cfg, dotpath)
+        if section is None:
+            continue
+        if legacy in section and canonical not in section:
+            section[canonical] = section[legacy]
+            _logger.debug(
+                "Config alias: %s.%s → %s.%s",
+                dotpath, legacy, dotpath, canonical,
+            )
+
+    # Also normalise inputs.SOC_init → inputs.soc_init_mwh
+    inputs = cfg.get("inputs")
+    if isinstance(inputs, dict):
+        if "SOC_init" in inputs and "soc_init_mwh" not in inputs:
+            inputs["soc_init_mwh"] = inputs["SOC_init"]
+
+    return cfg
+
 
 def deep_merge(a: dict, b: dict) -> dict:
     """Recursively merge mapping ``b`` into ``a`` without mutating inputs."""
@@ -158,4 +218,5 @@ def load_and_merge(paths: List[str], enable_inheritance: bool = True) -> Dict[st
     cfg["meta"]["inheritance_enabled"] = enable_inheritance
 
     validate_config_schema(cfg)
+    normalise_config_keys(cfg)
     return cfg

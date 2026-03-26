@@ -1,10 +1,11 @@
 """Tests for energis.run.utilities.timeseries_utils."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
 from energis.run.utilities.timeseries_utils import (
+    _apply_horizon,
     _hours_to_steps,
     _parse_ts,
     _slice_table,
@@ -128,3 +129,98 @@ class TestSlugify:
 
     def test_already_clean(self):
         assert _slugify("my-scenario") == "my-scenario"
+
+
+# ---------------------------------------------------------------------------
+# _apply_horizon
+# ---------------------------------------------------------------------------
+
+def _make_year_table(year=2023, dt_h=1.0):
+    """Create a full-year table at hourly resolution."""
+    start = datetime(year, 1, 1)
+    n = 8760  # non-leap year
+    index = [start + timedelta(hours=i) for i in range(n)]
+    data = {"load": [1.0] * n}
+    return TimeSeriesTable(index, ["load"], data)
+
+
+class TestApplyHorizon:
+    def test_no_horizon(self):
+        t = _make_table(10)
+        result = _apply_horizon(t, {}, 1.0)
+        assert len(result) == 10  # unchanged
+
+    def test_non_dict_horizon(self):
+        t = _make_table(10)
+        result = _apply_horizon(t, {"horizon": "not_dict"}, 1.0)
+        assert len(result) == 10
+
+    def test_full_year(self):
+        t = _make_year_table(2023)
+        result = _apply_horizon(t, {"horizon": {"type": "full_year", "year": 2023}}, 1.0)
+        assert len(result) == 8760
+
+    def test_full_year_auto_year(self):
+        t = _make_year_table(2023)
+        result = _apply_horizon(t, {"horizon": {"type": "full_year"}}, 1.0)
+        assert len(result) == 8760
+
+    def test_full_year_wrong_year(self):
+        t = _make_year_table(2023)
+        with pytest.raises(RuntimeError, match="keine Zeitschritte"):
+            _apply_horizon(t, {"horizon": {"type": "full_year", "year": 2025}}, 1.0)
+
+    def test_date_range(self):
+        t = _make_year_table(2023)
+        result = _apply_horizon(
+            t,
+            {"horizon": {"start": "2023-01-01", "end": "2023-01-02 23:00"}},
+            1.0,
+        )
+        assert len(result) == 48
+
+    def test_start_after_end_raises(self):
+        t = _make_year_table(2023)
+        with pytest.raises(RuntimeError, match="Start liegt nach"):
+            _apply_horizon(
+                t,
+                {"horizon": {"start": "2023-02-01", "end": "2023-01-01"}},
+                1.0,
+            )
+
+    def test_empty_range_raises(self):
+        t = _make_year_table(2023)
+        with pytest.raises(RuntimeError, match="keine Zeitschritte"):
+            _apply_horizon(
+                t,
+                {"horizon": {"start": "2025-01-01", "end": "2025-12-31"}},
+                1.0,
+            )
+
+    def test_start_only(self):
+        t = _make_year_table(2023)
+        result = _apply_horizon(
+            t, {"horizon": {"start": "2023-12-30"}}, 1.0
+        )
+        assert len(result) == 48  # Dec 30 + Dec 31
+
+    def test_end_only(self):
+        t = _make_year_table(2023)
+        result = _apply_horizon(
+            t, {"horizon": {"end": "2023-01-01 04:00"}}, 1.0
+        )
+        assert len(result) == 5  # 00:00 through 04:00
+
+    def test_full_year_enforce_false(self):
+        # Partial year with enforce=false should warn, not raise
+        start = datetime(2024, 1, 1)
+        n = 48
+        index = [start + timedelta(hours=i) for i in range(n)]
+        data = {"temp": list(range(n)), "load": [10.0 * i for i in range(n)]}
+        t = TimeSeriesTable(index, ["temp", "load"], data)
+        result = _apply_horizon(
+            t,
+            {"horizon": {"type": "full_year", "year": 2024, "enforce": False}},
+            1.0,
+        )
+        assert len(result) == 48

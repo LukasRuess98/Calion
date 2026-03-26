@@ -361,11 +361,21 @@ class NetworkManager:
         pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup)
         node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
 
+        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+
         self._link_pipe_temperatures(model, time_set, pipe_components, node_components)
-        self._link_pressure_propagation(model, time_set, pipe_components, node_components)
         self._link_consumer_demands(model, time_set, pipe_components, node_components)
-        self._link_junction_flows(model, time_set, pipe_components, node_components)
-        self._link_plant_return_temps(model, time_set, temp_setup, pipe_components, node_components)
+        self._link_pressure_propagation(model, time_set, pipe_components, node_components)
+
+        if not milp_linearize:
+            # Full physics: junction temp mixing + plant return temp (bilinear)
+            self._link_junction_flows(model, time_set, pipe_components, node_components)
+            self._link_plant_return_temps(model, time_set, temp_setup, pipe_components, node_components)
+        else:
+            # MILP mode: junction mass balance only (no temp mixing — temps are fixed Params)
+            self._link_junction_flows_simple(model, time_set, pipe_components, node_components)
+            logger.info("MILP mode: skipped temperature mixing + plant return temps (temps are fixed Params)")
+
         self._setup_network_losses(model, time_set, pipe_components)
 
         logger.info("\n" + "=" * 60)
@@ -470,6 +480,9 @@ class NetworkManager:
         pipe_components: Dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
+        # Propagate milp_linearize flag from thermal_network config
+        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+
         for pipe_id, pipe_config in self.pipes.items():
             enriched_config = {
                 **pipe_config,
@@ -477,6 +490,7 @@ class NetworkManager:
                 'return_temp_nominal_c': return_temp,
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
+                'milp_linearize': milp_linearize,
                 **self.parameters,
             }
             PipePairBlock.validate_config(enriched_config)
@@ -494,6 +508,9 @@ class NetworkManager:
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
+        # Propagate milp_linearize flag from thermal_network config
+        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+
         node_components: Dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
 
@@ -503,6 +520,7 @@ class NetworkManager:
                 'id': node_id,
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
+                'milp_linearize': milp_linearize,
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
@@ -523,6 +541,7 @@ class NetworkManager:
         - T_return_in  linked to to_node.T_return   (consumer/junction sets return temp)
         Also tracks which pipes return to each producer node.
         """
+        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
         logger.info(f"\nConnecting pipe temperatures to nodes...")
 
         for pipe_id, pipe_comp in pipe_components.items():
@@ -532,7 +551,8 @@ class NetworkManager:
             pipe_T_return_in = pipe_comp['T_return_in']
 
             # Link supply inlet to from_node supply temperature
-            if from_node in node_components:
+            # Skip in MILP-linearized mode (all temps are fixed Params)
+            if from_node in node_components and not milp_linearize:
                 from_node_comp = node_components[from_node]
                 node_T_supply = from_node_comp['T_supply']
                 constraint_name = f"link_pipe_{pipe_id}_supply_in_to_node_{from_node}"
@@ -545,7 +565,7 @@ class NetworkManager:
                 logger.info(f"    {pipe_id}.T_supply_in ← {from_node}.T_supply")
 
             # Link return inlet to to_node return temperature
-            if to_node in node_components:
+            if to_node in node_components and not milp_linearize:
                 to_node_comp = node_components[to_node]
                 node_T_return = to_node_comp['T_return']
                 constraint_name = f"link_pipe_{pipe_id}_return_in_to_node_{to_node}"
@@ -717,6 +737,29 @@ class NetworkManager:
                     model, time_set, node_id, incoming_pipes, node_components, pipe_components
                 )
 
+    def _link_junction_flows_simple(self, model, time_set, pipe_components, node_components) -> None:
+        """MILP-mode simplified junction flow balance: supply-side mass balance only."""
+        logger.info(f"\nSetting up simplified junction flow balance (MILP mode)...")
+
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] != 'junction':
+                continue
+
+            incoming_pipes = node_comp.get('incoming_pipes', [])
+            outgoing_pipes = node_comp.get('outgoing_pipes', [])
+
+            if not incoming_pipes or not outgoing_pipes:
+                continue
+
+            def junction_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
+                total_in = sum(pipe_components[pid]['m_dot'][t] for pid in _in)
+                total_out = sum(pipe_components[pid]['m_dot'][t] for pid in _out)
+                return total_in == total_out
+
+            setattr(model, f"junction_{node_id}_flow_balance",
+                    pyo.Constraint(time_set, rule=junction_flow_rule))
+            logger.info(f"  ✓ {node_id}: {len(incoming_pipes)} in = {len(outgoing_pipes)} out")
+
     def _link_plant_return_temps(
         self, model, time_set, temp_setup, pipe_components, node_components
     ) -> None:
@@ -870,12 +913,27 @@ class NetworkManager:
                 f"P_return fixed = {return_setpoint:.1f} bar"
             )
 
+        # Collect producer node IDs (have fixed pressure setpoints)
+        producer_nodes = {
+            nid for nid, nc in node_components.items() if nc['type'] == 'producer'
+        }
+
         # Propagate pressure through pipes
         for pipe_id, pipe_comp in pipe_components.items():
             from_node = pipe_comp['from_node']
             to_node = pipe_comp['to_node']
 
             if from_node not in node_components or to_node not in node_components:
+                continue
+
+            # Skip loop-closing pipes: if to_node is a producer (fixed pressure),
+            # chaining the pressure drop back to it would force the total loop drop
+            # to zero, making any nonzero flow infeasible.
+            if to_node in producer_nodes:
+                logger.info(
+                    f"  ⊘ {pipe_id}: loop-closing pipe ({from_node} → producer {to_node}) "
+                    f"— pressure propagation skipped"
+                )
                 continue
 
             pipe_prefix = pipe_comp.get('prefix', pipe_id.upper().replace('-', '_'))

@@ -138,6 +138,36 @@ class InvestmentDecisions:
         """Return True if any investment decisions were extracted."""
         return bool(self.heat_pumps) or self.storage is not None
 
+    def to_design_spec(self) -> Any:
+        """Convert to legacy ``DesignSpec`` for backward compatibility.
+
+        Import is deferred to avoid circular dependency.
+        This method exists solely to ease migration; new code should use
+        :meth:`to_fixed_values` + ``apply_optimization_config`` instead.
+        """
+        from energis.design import DesignSpec, HeatPumpDesign, StorageDesign
+
+        hp_specs = {
+            hp_id: HeatPumpDesign(
+                id=hp_id,
+                capacity_mw=hp.capacity_mw,
+                enabled=hp.build,
+                build_binary=hp.build_binary,
+            )
+            for hp_id, hp in self.heat_pumps.items()
+        }
+
+        sto_spec = None
+        if self.storage is not None:
+            sto_spec = StorageDesign(
+                capacity_mwh=self.storage.energy_mwh,
+                power_mw=self.storage.power_mw,
+                enabled=self.storage.build,
+                build_binary=self.storage.build_binary,
+            )
+
+        return DesignSpec(heat_pumps=hp_specs, storage=sto_spec)
+
 
 # ---------------------------------------------------------------------------
 # Component summary

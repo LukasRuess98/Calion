@@ -208,18 +208,24 @@ def _export_node_results(
         T_return_var = getattr(model, f'{node_prefix}_T_return', None)
 
         if T_supply_var is not None:
-            T_supply_vals = [pyo.value(T_supply_var[t]) for t in time_set]
-            node_summary['T_supply_avg_c'] = sum(T_supply_vals) / len(T_supply_vals)
-            node_summary['T_supply_min_c'] = min(T_supply_vals)
-            node_summary['T_supply_max_c'] = max(T_supply_vals)
-            node_timeseries[f'{node_id}_T_supply'] = T_supply_vals
+            try:
+                T_supply_vals = [pyo.value(T_supply_var[t]) for t in time_set]
+                node_summary['T_supply_avg_c'] = sum(T_supply_vals) / len(T_supply_vals)
+                node_summary['T_supply_min_c'] = min(T_supply_vals)
+                node_summary['T_supply_max_c'] = max(T_supply_vals)
+                node_timeseries[f'{node_id}_T_supply'] = T_supply_vals
+            except (ValueError, TypeError):
+                pass  # Uninitialized Var (e.g. producer node in MILP mode)
 
         if T_return_var is not None:
-            T_return_vals = [pyo.value(T_return_var[t]) for t in time_set]
-            node_summary['T_return_avg_c'] = sum(T_return_vals) / len(T_return_vals)
-            node_summary['T_return_min_c'] = min(T_return_vals)
-            node_summary['T_return_max_c'] = max(T_return_vals)
-            node_timeseries[f'{node_id}_T_return'] = T_return_vals
+            try:
+                T_return_vals = [pyo.value(T_return_var[t]) for t in time_set]
+                node_summary['T_return_avg_c'] = sum(T_return_vals) / len(T_return_vals)
+                node_summary['T_return_min_c'] = min(T_return_vals)
+                node_summary['T_return_max_c'] = max(T_return_vals)
+                node_timeseries[f'{node_id}_T_return'] = T_return_vals
+            except (ValueError, TypeError):
+                pass
 
         # Extract demand for consumer nodes
         if node_type == 'consumer':
@@ -830,16 +836,22 @@ def _extract_network_data_for_dashboard(
         T_return = getattr(model, f'{prefix}_T_return', None)
 
         if T_supply is not None:
-            vals = [pyo.value(T_supply[t]) for t in time_set]
-            node_data['T_supply_series'] = vals
-            node_data['T_supply_avg'] = sum(vals) / len(vals)
-            dashboard_data['timeseries'][f'{node_id}_T_supply'] = vals
+            try:
+                vals = [pyo.value(T_supply[t]) for t in time_set]
+                node_data['T_supply_series'] = vals
+                node_data['T_supply_avg'] = sum(vals) / len(vals)
+                dashboard_data['timeseries'][f'{node_id}_T_supply'] = vals
+            except (ValueError, TypeError):
+                pass
 
         if T_return is not None:
-            vals = [pyo.value(T_return[t]) for t in time_set]
-            node_data['T_return_series'] = vals
-            node_data['T_return_avg'] = sum(vals) / len(vals)
-            dashboard_data['timeseries'][f'{node_id}_T_return'] = vals
+            try:
+                vals = [pyo.value(T_return[t]) for t in time_set]
+                node_data['T_return_series'] = vals
+                node_data['T_return_avg'] = sum(vals) / len(vals)
+                dashboard_data['timeseries'][f'{node_id}_T_return'] = vals
+            except (ValueError, TypeError):
+                pass
 
         dashboard_data['nodes'][node_id] = node_data
 

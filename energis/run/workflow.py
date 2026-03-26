@@ -25,6 +25,7 @@ from energis.design import (
 )
 from energis.io.loader import load_input_excel
 from energis.logging_config import get_logger
+from energis.models.results import InvestmentDecisions
 from energis.utils.timeseries import TimeSeriesTable
 
 from .cost_helpers import _INVESTMENT_KEYS, _recompute_objective_costs
@@ -170,6 +171,7 @@ def _pf_step(context: WorkflowContext) -> None:
 
     context.pf_result = result
     context.design = _extract_design_data(result.summary)
+    context.investments = result.investments
 
 
 def _rh_step(context: WorkflowContext) -> None:
@@ -204,6 +206,8 @@ def _rh_step(context: WorkflowContext) -> None:
 
     if context.rh_result.design is not None:
         context.design = context.design or context.rh_result.design
+    if context.rh_result.investments is not None:
+        context.investments = context.investments or context.rh_result.investments
 
     if design_config and design_config.save_to and context.rh_result.design is not None:
         extracted_spec = extract_design_from_summary(context.rh_result.costs)
@@ -272,6 +276,8 @@ def _mpc_step(context: WorkflowContext) -> None:
 
     if context.mpc_result.design is not None:
         context.design = context.design or context.mpc_result.design
+    if context.mpc_result.investments is not None:
+        context.investments = context.investments or context.mpc_result.investments
 
     # Transfer investment costs from PF to MPC
     if context.pf_result and context.mpc_result and context.plan.fix_design:
@@ -349,7 +355,15 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
             raise ValueError(f"Unsupported workflow step: {step}")
         handler(context)
 
-    return WorkflowResult(inputs.cfg, context.pf_result, context.rh_result, context.mpc_result, context.design, inputs.plan)
+    return WorkflowResult(
+        inputs.cfg,
+        context.pf_result,
+        context.rh_result,
+        context.mpc_result,
+        context.design,
+        inputs.plan,
+        investments=context.investments,
+    )
 
 
 # ---------------------------------------------------------------------------

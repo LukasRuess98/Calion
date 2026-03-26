@@ -188,28 +188,73 @@ def validate_thermal_network(network_cfg: dict[str, Any]) -> List[str]:
     return warnings
 
 
+def _validate_section_type(cfg: dict[str, Any], key: str, expected: type, path: str = "") -> Any:
+    """Ensure *cfg[key]* is of *expected* type (or missing/None). Return the value."""
+    value = cfg.get(key)
+    if value is None:
+        return value
+    full = f"{path}.{key}" if path else key
+    if not isinstance(value, expected):
+        name = expected.__name__ if isinstance(expected, type) else " or ".join(t.__name__ for t in expected)
+        raise TypeError(
+            f"Expected '{full}' to be {name}, got {type(value).__name__}"
+        )
+    return value
+
+
 def validate_config_schema(cfg: dict[str, Any]) -> None:
     """Light-weight schema validation for known config sections.
 
     The repository ships a minimal YAML loader without external dependencies,
     so this function performs essential type and range checks for keys that are
-    consumed by the optimisation model.
+    consumed by the optimisation model.  Validation runs once at config-load
+    time so that downstream code can trust the structure.
     """
 
+    # ── Top-level section types ────────────────────────────────────────────
+    _validate_section_type(cfg, "system", dict)
+    _validate_section_type(cfg, "grid", dict)
+    _validate_section_type(cfg, "costs", dict)
+    _validate_section_type(cfg, "run", dict)
+    _validate_section_type(cfg, "scenario", dict)
+    _validate_section_type(cfg, "inputs", dict)
+
+    # ── Grid section ───────────────────────────────────────────────────────
     grid = cfg.get("grid", {}) or {}
     for key in ("max_import_mw", "max_export_mw"):
         _require_number(grid.get(key), f"grid.{key}")
 
-    # Validate thermal network if present
-    # Network config can be in system.thermal_network or loaded separately
-    network_cfg = None
+    # ── Run section (dt_h, solver) ─────────────────────────────────────────
+    run_cfg = cfg.get("run", {}) or {}
+    dt_h = run_cfg.get("dt_h")
+    if dt_h is not None:
+        _require_positive(dt_h, "run.dt_h")
+
+    # ── System / storage section ───────────────────────────────────────────
     system = cfg.get("system", {}) or {}
+    _validate_section_type(system, "storage", dict, "system")
+    _validate_section_type(system, "heat_pumps", (dict, list), "system")
+
+    storage = system.get("storage", {}) or {}
+    if storage:
+        _require_number(storage.get("energy_mwh"), "system.storage.energy_mwh")
+        _require_number(storage.get("power_mw"), "system.storage.power_mw")
+        _require_number(storage.get("soc0_mwh"), "system.storage.soc0_mwh")
+
+    # ── Scenario / rolling horizon ─────────────────────────────────────────
+    scenario = cfg.get("scenario", {}) or {}
+    _validate_section_type(scenario, "rolling_horizon", dict, "scenario")
+    rh_cfg = scenario.get("rolling_horizon", {}) or {}
+    for key in ("heat_horizon_hours", "window_hours", "step_hours", "overlap_hours"):
+        val = rh_cfg.get(key)
+        if val is not None:
+            _require_positive(val, f"scenario.rolling_horizon.{key}")
+
+    # ── Thermal network ────────────────────────────────────────────────────
     if system.get("thermal_network", {}).get("enabled"):
-        # Network might be loaded from topology_file
-        # For now, validate if inline config exists
+        # Network might be loaded from topology_file — validate if inline
         pass
 
-    # If network config is provided directly (e.g., from brownfield.yaml)
     if "pipes" in cfg or "production_plants" in cfg:
         warnings = validate_thermal_network(cfg)
         for warning in warnings:

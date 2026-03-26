@@ -21,6 +21,7 @@ from energis.design import (
     validate_design,
 )
 from energis.logging_config import get_logger
+from energis.models.results import InvestmentDecisions
 from energis.utils.timeseries import TimeSeriesTable
 
 from .cost_helpers import _accumulate_costs, _apply_cost_overrides, _recompute_objective_costs
@@ -63,8 +64,13 @@ def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
     return bool(storage.get("enabled", False))
 
 
-def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
-    """Set initial SOC for next RH window in all relevant config locations."""
+def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> MutableMapping[str, Any]:
+    """Set initial SOC for next RH window in all relevant config locations.
+
+    Mutates *cfg* in place **and** returns it for chaining.  Callers should
+    always pass a deep-copied config to avoid unintended side-effects on
+    the base configuration.
+    """
     logger.info(f"[RH] _set_initial_soc: Setting initial SOC for next window")
     logger.info(f"  - soc0_mwh: {soc} MWh")
 
@@ -85,17 +91,23 @@ def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> None:
     if isinstance(root_storage, dict):
         root_storage["soc0_mwh"] = float(soc)
 
+    return cfg
 
-def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
-    """Set terminal policy for storage in RH/MPC windows."""
+
+def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> MutableMapping[str, Any]:
+    """Set terminal policy for storage in RH/MPC windows.
+
+    Mutates *cfg* in place **and** returns it for chaining.  Callers should
+    always pass a deep-copied config.
+    """
     if not policy:
-        return
+        return cfg
     system = cfg.setdefault("system", {})
     if not isinstance(system, dict):
-        return
+        return cfg
     storage = system.setdefault("storage", {})
     if not isinstance(storage, dict):
-        return
+        return cfg
     terminal = storage.setdefault("terminal", {})
     if isinstance(terminal, dict):
         terminal["policy"] = policy
@@ -110,6 +122,8 @@ def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> None:
         elif policy in ("equal", "geq", "soft"):
             terminal["state"] = "cyclic"
             logger.info(f"[TERMINAL] Set to '{policy}' (state=cyclic)")
+
+    return cfg
 
 
 def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
@@ -235,6 +249,7 @@ def _run_rolling_horizon(
     active_design_spec = design_spec
 
     design_state = design
+    investment_decisions: Optional[InvestmentDecisions] = None
     cost_plan = _load_cost_plan(base_cfg, fix_design or design_mode in ("file", "inline", "optimize"))
     once_costs: Set[str] = set()
 
@@ -362,6 +377,11 @@ def _run_rolling_horizon(
         if design_state is None:
             design_state = _extract_design_data(window_result.summary)
 
+        # Capture structured investment decisions from first optimization window
+        if investment_decisions is None and window_result.investments is not None:
+            if window_result.investments.has_decisions():
+                investment_decisions = window_result.investments
+
         if design_mode == "optimize" and active_design_spec is None and window_idx == 1 and not had_design_state:
             active_design_spec = extract_design_from_summary(window_result.summary)
             errors = validate_design(active_design_spec)
@@ -378,4 +398,7 @@ def _run_rolling_horizon(
     _recompute_objective_costs(aggregated_costs)
 
     aggregated_table = _slice_table(table, aggregated_indices)
-    return RollingHorizonResult(aggregated_table, aggregated_series, aggregated_costs, windows, design_state)
+    return RollingHorizonResult(
+        aggregated_table, aggregated_series, aggregated_costs, windows,
+        design_state, investments=investment_decisions,
+    )
