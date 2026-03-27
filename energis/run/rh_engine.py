@@ -14,10 +14,11 @@ from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Set
 
 from energis.constants import DEFAULT_HORIZON_HOURS
 from energis.design import (
-    DesignConfig,
+    OptimizationConfig,
     DesignSpec,
     apply_design_to_config,
-    extract_design_from_summary,
+    convert_to_design_spec,
+    extract_optimization_results,
     validate_design,
 )
 from energis.logging_config import get_logger
@@ -231,7 +232,7 @@ def _run_rolling_horizon(
     fix_design: bool,
     *,
     design_spec: Optional[DesignSpec] = None,
-    design_config: Optional[DesignConfig] = None,
+    design_config: Optional[OptimizationConfig] = None,
 ) -> RollingHorizonResult:
     n = len(table)
     if n == 0:
@@ -243,14 +244,23 @@ def _run_rolling_horizon(
     aggregated_costs: Dict[str, float] = {}
     windows: List[WindowResult] = []
 
-    design_mode = design_config.mode if design_config else "none"
-    apply_from_window = design_config.apply_from_window if design_config else 1
+    # Translate OptimizationConfig to the two scalars the loop needs:
+    # - has_fix_schedule: True when capacities will be fixed after a window
+    # - apply_from_window: first window index where the extracted design is applied
+    has_fix_schedule = design_config is not None and (
+        design_config.fix_after_window is not None or design_config.fixed_values is not None
+    )
+    apply_from_window = (
+        (design_config.fix_after_window + 1)
+        if design_config and design_config.fix_after_window is not None
+        else 1
+    )
 
     active_design_spec = design_spec
 
     design_state = design
     investment_decisions: Optional[InvestmentDecisions] = None
-    cost_plan = _load_cost_plan(base_cfg, fix_design or design_mode in ("file", "inline", "optimize"))
+    cost_plan = _load_cost_plan(base_cfg, fix_design or has_fix_schedule)
     once_costs: Set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
@@ -288,7 +298,8 @@ def _run_rolling_horizon(
         if active_design_spec is not None:
             if window_idx >= apply_from_window:
                 should_apply_design = True
-                logger.debug("[DESIGN] Window %d: Applying design_spec (mode=%s)", window_idx, design_mode)
+                logger.debug("[DESIGN] Window %d: Applying design_spec (fix_after_window=%s)",
+                             window_idx, design_config.fix_after_window if design_config else None)
         elif design_state is not None:
             should_fix_design = bool(
                 fix_design
@@ -382,8 +393,17 @@ def _run_rolling_horizon(
             if window_result.investments.has_decisions():
                 investment_decisions = window_result.investments
 
-        if design_mode == "optimize" and active_design_spec is None and window_idx == 1 and not had_design_state:
-            active_design_spec = extract_design_from_summary(window_result.summary)
+        should_extract = (
+            design_config is not None
+            and design_config.fix_after_window is not None
+            and active_design_spec is None
+            and window_idx == apply_from_window
+            and not had_design_state
+        )
+        if should_extract:
+            active_design_spec = convert_to_design_spec(
+                extract_optimization_results(window_result.summary)
+            )
             errors = validate_design(active_design_spec)
             if errors:
                 logger.warning("[DESIGN] Extracted design has validation issues: %s", errors)

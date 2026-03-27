@@ -11,7 +11,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
-from energis.design import DesignConfig, DesignSpec
+from energis.design import OptimizationConfig, DesignSpec
 from energis.models.results import InvestmentDecisions
 from energis.utils.timeseries import TimeSeriesTable
 
@@ -73,8 +73,8 @@ class WorkflowPlan:
     """Parsed representation of the requested workflow sequence."""
 
     steps: Sequence[str]
-    fix_design: bool  # Legacy flag (deprecated, use design_config instead)
-    design_config: Optional[DesignConfig] = None  # New design configuration
+    fix_design: bool
+    design_config: Optional[OptimizationConfig] = None
 
 
 @dataclass

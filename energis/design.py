@@ -411,112 +411,13 @@ def convert_to_design_spec(results: Dict[str, Any]) -> DesignSpec:
 
 
 # =============================================================================
-# BACKWARD COMPATIBILITY - Old API aliases
+# LEGACY SUPPORT - DesignSpec application helpers
 # =============================================================================
-# These aliases maintain compatibility with rolling_horizon.py and other code
-# that was written against the old design module API.
-
-@dataclass
-class DesignConfig:
-    """DEPRECATED: Use OptimizationConfig instead.
-
-    Legacy design configuration wrapper. Maps to new OptimizationConfig.
-    """
-    mode: str = "none"  # "none", "file", "inline", "optimize"
-    apply_from_window: int = 1
-    save_to: Optional[str] = None
-    file_path: Optional[str] = None
-    inline_spec: Optional[DesignSpec] = None
-
-
-def load_design_config(scenario_cfg: Mapping[str, Any]) -> DesignConfig:
-    """DEPRECATED: Use load_optimization_config instead.
-
-    Load design configuration from scenario config (legacy support).
-    Maps the old 'design' section to the new format.
-    """
-    # Check for new 'optimization' section first
-    opt_cfg = scenario_cfg.get("optimization", {})
-    if opt_cfg:
-        # Map new format to legacy DesignConfig
-        variables = opt_cfg.get("variables", {})
-        fix_after = opt_cfg.get("fix_after_window")
-
-        # Determine mode based on variables settings
-        all_vars_true = (
-            variables.get("heat_pumps", {}).get("capacity", True) and
-            variables.get("heat_pumps", {}).get("build", True) and
-            variables.get("storage", {}).get("capacity", True) and
-            variables.get("storage", {}).get("power", True) and
-            variables.get("storage", {}).get("build", True)
-        )
-
-        if opt_cfg.get("fixed_values"):
-            mode = "inline"
-        elif fix_after is not None:
-            mode = "optimize"
-        elif not all_vars_true:
-            mode = "inline"  # Has fixed values from defaults
-        else:
-            mode = "none"  # Full optimization
-
-        return DesignConfig(
-            mode=mode,
-            apply_from_window=fix_after + 1 if fix_after is not None else 1,
-            save_to=opt_cfg.get("save_result_to"),
-        )
-
-    # Check for old 'design' section
-    design_cfg = scenario_cfg.get("design", {})
-    if not design_cfg:
-        # Check legacy fix_design flag
-        if scenario_cfg.get("fix_design", False):
-            return DesignConfig(mode="optimize", apply_from_window=1)
-        return DesignConfig(mode="none")
-
-    mode = str(design_cfg.get("mode", "none")).lower()
-    apply_from = int(design_cfg.get("apply_from_window", 1))
-    save_to = design_cfg.get("save_to")
-    file_path = design_cfg.get("file")
-
-    return DesignConfig(
-        mode=mode,
-        apply_from_window=apply_from,
-        save_to=save_to,
-        file_path=file_path,
-    )
-
-
-def load_design_for_scenario(
-    design_config: DesignConfig,
-    base_path: Optional[Path] = None,
-) -> Optional[DesignSpec]:
-    """DEPRECATED: Use load_optimization_config + apply_optimization_config instead.
-
-    Load design specification based on design config mode.
-    """
-    if design_config.mode == "none":
-        return None
-
-    if design_config.mode == "inline" and design_config.inline_spec:
-        return design_config.inline_spec
-
-    if design_config.mode == "file" and design_config.file_path:
-        # Load from JSON file
-        file_path = Path(design_config.file_path)
-        if base_path and not file_path.is_absolute():
-            file_path = base_path / file_path
-
-        if file_path.exists():
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return _parse_design_spec(data)
-
-    return None
+# Used by rh_engine when a DesignSpec is applied window-by-window.
 
 
 def _parse_design_spec(data: Dict[str, Any]) -> DesignSpec:
-    """Parse design specification from dictionary."""
+    """Parse design specification from a dictionary (used when loading from file)."""
     heat_pumps = {}
     for hp_id, hp_data in data.get("heat_pumps", {}).items():
         heat_pumps[hp_id] = HeatPumpDesign(
@@ -539,19 +440,10 @@ def _parse_design_spec(data: Dict[str, Any]) -> DesignSpec:
     return DesignSpec(heat_pumps=heat_pumps, storage=storage)
 
 
-def extract_design_from_summary(summary: Mapping[str, Mapping[str, Any]]) -> DesignSpec:
-    """DEPRECATED: Use extract_optimization_results instead.
-
-    Extract design specification from optimization summary.
-    """
-    results = extract_optimization_results(summary)
-    return convert_to_design_spec(results)
-
-
 def apply_design_to_config(cfg: Dict[str, Any], design: DesignSpec) -> Dict[str, Any]:
-    """DEPRECATED: Use apply_optimization_config instead.
+    """Apply a DesignSpec to a window config, fixing all capacities and build decisions.
 
-    Apply design specification to configuration.
+    Used by rh_engine when a pre-loaded or extracted DesignSpec drives the RH loop.
     """
     cfg_copy = copy.deepcopy(cfg)
     system = cfg_copy.setdefault("system", {})
@@ -610,46 +502,8 @@ def apply_design_to_config(cfg: Dict[str, Any], design: DesignSpec) -> Dict[str,
     return cfg_copy
 
 
-def save_design_to_file(design: DesignSpec, path: str | Path) -> Path:
-    """DEPRECATED: Use save_optimization_results instead.
-
-    Save design specification to JSON file.
-    """
-    save_path = Path(path).expanduser()
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-
-    output = {
-        "heat_pumps": {},
-        "storage": None,
-    }
-
-    for hp_id, hp_design in design.heat_pumps.items():
-        output["heat_pumps"][hp_id] = {
-            "capacity_mw": hp_design.capacity_mw,
-            "enabled": hp_design.enabled,
-            "build_binary": hp_design.build_binary,
-        }
-
-    if design.storage:
-        output["storage"] = {
-            "capacity_mwh": design.storage.capacity_mwh,
-            "power_mw": design.storage.power_mw,
-            "enabled": design.storage.enabled,
-            "build_binary": design.storage.build_binary,
-        }
-
-    with open(save_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
-
-    logger.info("[DESIGN] Saved design to %s", save_path)
-    return save_path
-
-
 def validate_design(design: DesignSpec) -> List[str]:
-    """DEPRECATED: Validate design specification.
-
-    Returns list of validation errors (empty if valid).
-    """
+    """Validate a DesignSpec. Returns a list of error strings (empty if valid)."""
     errors = []
 
     if design.storage:

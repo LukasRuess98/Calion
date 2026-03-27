@@ -16,12 +16,12 @@ from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional,
 from energis.config.merge import deep_merge, load_and_merge
 from energis.constants import DEFAULT_HORIZON_HOURS
 from energis.design import (
-    DesignConfig,
+    OptimizationConfig,
+    OptimizationVariables,
     DesignSpec,
-    extract_design_from_summary,
-    load_design_config,
-    load_design_for_scenario,
-    save_design_to_file,
+    extract_optimization_results,
+    load_optimization_config,
+    save_optimization_results,
 )
 from energis.io.loader import load_input_excel
 from energis.logging_config import get_logger
@@ -110,16 +110,19 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
     if not steps_upper:
         raise ValueError("Workflow must contain at least one step")
 
-    design_config = load_design_config(scenario_cfg)
+    opt_config = load_optimization_config(scenario_cfg)
 
     fix_default = run_mode in {"PF_THEN_RH", "PF_AND_RH", "PF_THEN_MPC"} or len(steps_upper) > 1
     fix_design = bool(scenario_cfg.get("fix_design", scenario_cfg.get("fix_design_in_rh", fix_default)))
 
-    if fix_design and design_config.mode == "none":
-        design_config = DesignConfig(mode="optimize", apply_from_window=1)
-        logger.info("[DESIGN] Legacy fix_design=true converted to design.mode=optimize")
+    # If fix_design requested but no explicit optimization schedule, default to
+    # "optimize in window 0, fix for all subsequent windows"
+    is_passthrough = opt_config.fix_after_window is None and opt_config.fixed_values is None
+    if fix_design and is_passthrough:
+        opt_config = OptimizationConfig(variables=OptimizationVariables(), fix_after_window=0)
+        logger.info("[DESIGN] fix_design=true: will optimise capacities in window 0, fix thereafter")
 
-    return WorkflowPlan(steps=steps_upper, fix_design=fix_design, design_config=design_config)
+    return WorkflowPlan(steps=steps_upper, fix_design=fix_design, design_config=opt_config)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +184,12 @@ def _rh_step(context: WorkflowContext) -> None:
     design_config = context.plan.design_config
 
     if context.design_spec is not None:
-        logger.info("[DESIGN] Using pre-loaded design (mode: %s)", design_config.mode if design_config else "unknown")
+        mode_desc = (
+            f"fix_after_window={design_config.fix_after_window}"
+            if design_config and design_config.fix_after_window is not None
+            else "free"
+        )
+        logger.info("[DESIGN] Using pre-loaded design (%s)", mode_desc)
 
     fix_design = context.plan.fix_design and context.design is not None
     if context.plan.fix_design and context.design is None and context.design_spec is None:
@@ -209,10 +217,10 @@ def _rh_step(context: WorkflowContext) -> None:
     if context.rh_result.investments is not None:
         context.investments = context.investments or context.rh_result.investments
 
-    if design_config and design_config.save_to and context.rh_result.design is not None:
-        extracted_spec = extract_design_from_summary(context.rh_result.costs)
-        save_design_to_file(extracted_spec, design_config.save_to)
-        logger.info("[DESIGN] Saved optimized design to %s", design_config.save_to)
+    if design_config and design_config.save_result_to and context.rh_result.design is not None:
+        extracted_results = extract_optimization_results(context.rh_result.costs)
+        save_optimization_results(extracted_results, design_config.save_result_to)
+        logger.info("[DESIGN] Saved optimized design to %s", design_config.save_result_to)
 
     # Transfer investment costs from PF to RH when fix_design is active
     if context.pf_result and context.rh_result and context.plan.fix_design:
@@ -327,20 +335,6 @@ def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = 
     inputs = _build_workflow_inputs(config_paths, overrides)
 
     context = WorkflowContext(inputs.cfg, inputs.table, inputs.dt_h, inputs.solver_name, inputs.plan)
-
-    design_config = inputs.plan.design_config
-    if design_config:
-        base_path = None
-        if config_paths:
-            base_path = Path(config_paths[0]).parent
-
-        try:
-            context.design_spec = load_design_for_scenario(design_config, base_path)
-            if context.design_spec:
-                logger.info("[DESIGN] Loaded design: %s", design_config.mode)
-        except Exception as e:
-            logger.error("[DESIGN] Failed to load design: %s", e)
-            raise
 
     scenario_cfg = inputs.cfg.get("scenario", {})
     if context.design_spec is None:
