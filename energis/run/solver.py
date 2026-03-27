@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
     HAVE_PYOMO = True
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
 
@@ -53,7 +53,7 @@ def _solve_scenario(
         solver_used = solver_name
         try:
             opt = pyo.SolverFactory(solver_name)
-        except Exception:  # pragma: no cover - solver fallback
+        except (AttributeError, OSError, RuntimeError):  # pragma: no cover - solver fallback
             solver_used = "cbc"
             opt = pyo.SolverFactory("cbc")
 

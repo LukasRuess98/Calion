@@ -95,7 +95,7 @@ def _load_design_override(scenario_cfg: Mapping[str, Any]) -> DesignData | None:
     try:
         with open(design_path, "r", encoding="utf-8") as handle:
             raw = json.load(handle)
-    except Exception as exc:  # pragma: no cover - defensive branch
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:  # pragma: no cover - defensive branch
         logger.warning("Failed to load PF design file %s: %s", design_path, exc)
         return None
     if not isinstance(raw, Mapping):

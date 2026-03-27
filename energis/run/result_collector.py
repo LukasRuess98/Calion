@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
     HAVE_PYOMO = True
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
 
@@ -377,8 +377,8 @@ def _collect_timeseries_and_summary(
                 return
             try:
                 series[key] = _extract_pyomo_series(var, times, key)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning("Fehler beim Verarbeiten der Serie %s: %s", key, exc)
+            except (ValueError, TypeError, KeyError, AttributeError) as exc:  # pragma: no cover - defensive
+                logger.warning("Error processing series %s: %s", key, exc)
 
         _extract(getattr(model, "P_buy", None), "P_buy_MW")
         _extract(getattr(model, "P_sell", None), "P_sell_MW")
@@ -398,7 +398,7 @@ def _collect_timeseries_and_summary(
                     if 0 <= idx < n:
                         try:
                             series[f"{comp}_COP_input"][idx] = float(pyo.value(cop_param[t]))
-                        except Exception:
+                        except (ValueError, TypeError, KeyError):
                             pass
 
         if meta["storage"]:
@@ -620,22 +620,22 @@ def _collect_timeseries_and_summary(
         if capex_expr is not None:
             try:
                 capex_cost = float(pyo.value(capex_expr))
-            except Exception:  # pragma: no cover - defensive
+            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                 capex_cost = 0.0
         if activation_expr is not None:
             try:
                 activation_cost = float(pyo.value(activation_expr))
-            except Exception:  # pragma: no cover - defensive
+            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                 activation_cost = 0.0
         if tie_expr is not None:
             try:
                 tie_break_cost = float(pyo.value(tie_expr))
-            except Exception:  # pragma: no cover - defensive
+            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                 tie_break_cost = 0.0
         if storage_install_expr is not None:
             try:
                 storage_install_cost = float(pyo.value(storage_install_expr))
-            except Exception:  # pragma: no cover - defensive
+            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                 storage_install_cost = 0.0
 
         hp_configs_by_id = {hp_cfg.get("id", f"HP{i}"): hp_cfg
@@ -653,7 +653,7 @@ def _collect_timeseries_and_summary(
                         lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                         annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
                         capex_heat_pumps += cap_value * capex_rate * annual_factor
-                    except Exception:  # pragma: no cover - defensive
+                    except (ValueError, TypeError, KeyError):  # pragma: no cover - defensive
                         pass
 
         if meta["storage"] and meta["storage"].get("invest_enabled", False):
@@ -667,7 +667,7 @@ def _collect_timeseries_and_summary(
                     lifetime = float(inv_cfg.get("lifetime_years", 1.0))
                     annual_factor = period_fraction / lifetime if lifetime > 0 else 0.0
                     capex_storage += cap_e_value * e_capex * annual_factor
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, KeyError):  # pragma: no cover - defensive
                     pass
 
     for hp in meta["heat_pumps"]:
@@ -716,12 +716,12 @@ def _collect_timeseries_and_summary(
             if cap_var is not None:
                 try:
                     cap_value = float(pyo.value(cap_var))
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                     cap_value = float(hp.get("cap_init", hp["max_th"]))
             if build_var is not None:
                 try:
                     build_value = float(pyo.value(build_var))
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                     build_value = 1.0 if cap_value > 0 else 0.0
         full_load = float((heat_mwh / cap_value) if cap_value > 1e-9 else 0.0)
         avg_cop = float((heat_mwh / pel_mwh) if pel_mwh > 1e-9 else 0.0)
@@ -841,17 +841,17 @@ def _collect_timeseries_and_summary(
             if cap_e_var is not None:
                 try:
                     energy_cap = float(pyo.value(cap_e_var))
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                     energy_cap = float(meta["storage"].get("e_cap_init", meta["storage"]["e_max"]))
             if cap_p_var is not None:
                 try:
                     power_cap = float(pyo.value(cap_p_var))
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                     power_cap = float(meta["storage"].get("p_cap_init", meta["storage"]["p_max"]))
             if build_var is not None:
                 try:
                     build_val = float(pyo.value(build_var))
-                except Exception:  # pragma: no cover - defensive
+                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
                     build_val = 1.0 if energy_cap > 0 else 0.0
         storage_section["Charge_MWh"] = float(sum(charge_series) * dt_h)
         storage_section["Discharge_MWh"] = float(sum(discharge_series) * dt_h)
