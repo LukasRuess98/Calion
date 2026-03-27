@@ -154,7 +154,7 @@ def save_workflow_run(
     name: Optional[str] = None,
     description: Optional[str] = None,
     config_paths: Optional[List[str]] = None,
-    save_dir: str = "notebooks/saved_workflows",
+    save_dir: Optional[str] = None,
     export_first: bool = True,
 ) -> Path:
     """
@@ -164,7 +164,7 @@ def save_workflow_run(
     1. Exports results (CSV, PDF, SVG) via export_workflow_results()
     2. Saves workflow object as pickle
     3. Creates comprehensive metadata.json
-    4. Optionally moves everything to saved_workflows/
+    4. Optionally moves everything to outputs/workflows/
 
     Parameters
     ----------
@@ -177,8 +177,8 @@ def save_workflow_run(
         Description of the simulation
     config_paths : list of str, optional
         List of config files used for this run
-    save_dir : str
-        Target directory (default: notebooks/saved_workflows)
+    save_dir : str, optional
+        Target directory (default: outputs/workflows)
         Can be absolute or relative to project root
     export_first : bool
         Whether to run export_workflow_results first (default: True)
@@ -200,9 +200,10 @@ def save_workflow_run(
     """
 
     from energis.run import rolling_horizon as rh
+    from energis.io._output_paths import resolve_workflows_dir
 
-    # Convert save_dir to absolute path if it's relative
-    save_path = Path(save_dir)
+    # Resolve save_dir (supports legacy path detection)
+    save_path = Path(resolve_workflows_dir(save_dir))
     if not save_path.is_absolute():
         # Find project root
         project_root = Path.cwd()
@@ -385,7 +386,7 @@ def _build_metadata(
 
 
 def list_saved_workflows(
-    save_dir: str = "notebooks/saved_workflows",
+    save_dir: Optional[str] = None,
     sort_by: str = "date",
 ) -> List[Dict[str, Any]]:
     """
@@ -393,8 +394,8 @@ def list_saved_workflows(
 
     Parameters
     ----------
-    save_dir : str
-        Directory to search (default: notebooks/saved_workflows)
+    save_dir : str, optional
+        Directory to search (default: outputs/workflows)
     sort_by : str
         Sort by: "date", "name", "cost" (default: date)
 
@@ -410,8 +411,10 @@ def list_saved_workflows(
     ...     logger.info(f"{wf['name']}: {wf['costs']:.0f} EUR")
     """
 
-    # Convert to absolute path if relative
-    save_path = Path(save_dir)
+    # Resolve directory (supports legacy path detection)
+    from energis.io._output_paths import resolve_workflows_dir
+    resolved = resolve_workflows_dir(save_dir)
+    save_path = Path(resolved)
     if not save_path.is_absolute():
         # Find project root
         project_root = Path.cwd()
@@ -419,9 +422,9 @@ def list_saved_workflows(
             if (candidate / 'energis').exists():
                 project_root = candidate
                 break
-        save_path = project_root / save_dir
+        save_path = project_root / resolved
     if not save_path.exists():
-        logger.info(f"⚠️  Verzeichnis {save_dir} existiert nicht")
+        logger.info(f"⚠️  Verzeichnis {resolved} existiert nicht")
         return []
 
     workflows = []

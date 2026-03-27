@@ -5,7 +5,7 @@ EnerGIS Standalone Dashboard
 Startet ein interaktives Dashboard zur Visualisierung gespeicherter Simulationen.
 
 Das Dashboard ist vollständig unabhängig von laufenden Simulationen und lädt
-gespeicherte Workflows aus dem 'saved_workflows/' Verzeichnis.
+gespeicherte Workflows aus dem 'outputs/workflows/' Verzeichnis.
 
 Features:
 - Automatisches Scannen aller gespeicherten Simulationen
@@ -63,8 +63,8 @@ Examples:
     parser.add_argument(
         '--dir',
         type=str,
-        default='notebooks/saved_workflows',
-        help='Verzeichnis mit gespeicherten Workflows (default: notebooks/saved_workflows)'
+        default=None,
+        help='Verzeichnis mit gespeicherten Workflows (default: outputs/workflows)'
     )
 
     parser.add_argument(
@@ -116,7 +116,8 @@ Examples:
         sys.exit(1)
 
     # Check workflows directory
-    workflows_dir = Path(args.dir)
+    from energis.io._output_paths import resolve_workflows_dir
+    workflows_dir = Path(resolve_workflows_dir(args.dir))
     if not workflows_dir.exists():
         logger.warning(f"WARNUNG: Verzeichnis existiert nicht: {workflows_dir}")
         logger.warning("         Dashboard wird trotzdem gestartet (zeigt Hinweis)")

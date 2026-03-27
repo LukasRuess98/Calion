@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
+from energis.io._output_paths import resolve_runs_dir
 from energis.logging_config import get_logger
 from energis.models.results import InvestmentDecisions
 from energis.models.system_builder import build_model
@@ -77,7 +78,10 @@ def _solve_scenario(
             try:
                 from energis.io.thermal_network_exporter import export_all_results
 
-                export_dir = export_cfg.get('export_dir', 'exports/thermal_network_results')
+                export_dir = export_cfg.get(
+                    'export_dir',
+                    resolve_runs_dir() + '/thermal_network_results',
+                )
                 network_mgr = getattr(model, '_network_manager', None)
 
                 export_result = export_all_results(

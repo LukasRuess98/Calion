@@ -24,6 +24,9 @@ test_exports/
 # Experiment outputs (should not be tracked in version control)
 notebooks/exports/
 notebooks/saved_workflows/
+outputs/runs/
+outputs/workflows/
+outputs/dashboard/
 *.xlsx
 !Import_Data.xlsx
 *.png
