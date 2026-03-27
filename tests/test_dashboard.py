@@ -54,10 +54,10 @@ except ImportError as e:
 print("\n4. Checking config files...")
 config_files = [
     'configs/base.yaml',
-    'configs/tech_catalog.yaml',
-    'configs/sites/default.site.yaml',
-    'configs/systems/baseline.system.yaml',
-    'configs/scenarios/pf_then_rh.workflow.scenario.yaml',
+    'configs/scenarios/stadtbach_baseline_2023.yaml',
+    'configs/scenarios/stadtbach_baseline_week_test.yaml',
+    'configs/templates/level1_single_node.yaml',
+    'configs/templates/level2_5node.yaml',
 ]
 
 all_configs_exist = True

@@ -44,7 +44,7 @@ pip install -r requirements.txt
 # Run optimization with configuration file
 python -m energis.run configs/stadtbach.yaml
 
-# Results are exported to exports/
+# Results are written to outputs/runs/
 ```
 
 ### Jupyter Notebook
