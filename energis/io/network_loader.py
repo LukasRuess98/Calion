@@ -20,19 +20,9 @@ from typing import Any, Dict, List, Optional
 from energis.utils.xlsx import read_xlsx, list_sheet_names, read_all_sheets
 
 from energis.logging_config import get_logger
+from energis.io._utils import _is_empty
 
 logger = get_logger(__name__)
-
-
-def _is_empty(value: Any) -> bool:
-    """Check if value is empty/NaN."""
-    if value is None:
-        return True
-    if isinstance(value, float) and math.isnan(value):
-        return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
-    return False
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:

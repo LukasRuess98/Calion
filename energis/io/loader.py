@@ -12,21 +12,12 @@ from energis.utils.xlsx import read_xlsx
 from energis.utils.timeseries import TimeSeriesTable, fill_gaps
 
 from energis.logging_config import get_logger
+from energis.io._utils import _is_empty  # noqa: F401 – re-exported for callers
 
 logger = get_logger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _is_empty(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, float) and math.isnan(value):
-        return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
-    return False
 
 
 def _require(cond: bool, msg: str) -> None:
