@@ -170,7 +170,8 @@ def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any
                     return network_data
 
     # Third try: check default export directory
-    default_export_dir = 'exports/thermal_network_results'
+    from energis.io._output_paths import resolve_runs_dir
+    default_export_dir = resolve_runs_dir() + '/thermal_network_results'
     if os.path.exists(default_export_dir):
         network_data = _read_network_data_from_files(default_export_dir)
         if network_data:

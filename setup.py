@@ -28,7 +28,7 @@ setup(
     author_email="",
     url="https://github.com/LukasRuess98/Planing-Framework-for-Heat",
     packages=find_packages(exclude=["tests", "tests.*", "docs", "examples", "notebooks"]),
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=requirements,
     extras_require={
         "dev": [
@@ -56,10 +56,9 @@ setup(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     entry_points={
         "console_scripts": [

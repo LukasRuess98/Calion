@@ -219,7 +219,7 @@ def plot_solve_time_comparison(
     logger.info(f"Saved solve time plot to {output_path}")
 
 
-def create_benchmark_plots(results: List, output_dir: str = "exports/benchmark/plots"):
+def create_benchmark_plots(results: List, output_dir: str = "outputs/runs/benchmark/plots"):
     """Create all standard benchmark plots.
 
     Parameters

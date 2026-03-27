@@ -5,7 +5,7 @@ Unified command-line interface for the EnerGIS framework.
 Usage:
     python -m energis.run <config1.yaml> <config2.yaml> ...
     python -m energis.run configs/scenarios/quick_test.yaml --dashboard
-    python -m energis.run configs/examples/level1_copperplate.yaml --run-mode PF_ONLY
+    python -m energis.run configs/templates/level1_copperplate.yaml --run-mode PF_ONLY
 
 All workflow arguments (--run-mode, --sensitivity-*, --fix-design, etc.) and
 export arguments (--dashboard, --save-lp) are available in a single CLI.
@@ -70,7 +70,7 @@ Examples:
     parser.add_argument(
         "--dashboard", "-d",
         action="store_true",
-        help="Save results for dashboard visualization (to notebooks/saved_workflows/)",
+        help="Save results for dashboard visualization (to outputs/workflows/)",
     )
     parser.add_argument(
         "--name", "-n",
@@ -202,12 +202,13 @@ def _export_result(result, args, sweep_subdir):
     if sweep_subdir and outdir:
         outdir = str(Path(outdir) / sweep_subdir)
     elif sweep_subdir:
-        outdir = str(Path("exports") / sweep_subdir)
+        from energis.io._output_paths import resolve_runs_dir
+        outdir = str(Path(resolve_runs_dir()) / sweep_subdir)
 
     if args.dashboard:
         from energis.io.notebook_helpers import save_workflow_run
 
-        save_dir = outdir or "notebooks/saved_workflows"
+        save_dir = outdir or None  # None → resolve_workflows_dir() inside save_workflow_run
         output_dir = save_workflow_run(
             result,
             name=args.name or "CLI Simulation",

@@ -10,7 +10,7 @@ Example usage:
     >>> from energis.analysis.sensitivity_runner import run_full_sensitivity_study
     >>> results = run_full_sensitivity_study(
     ...     base_configs=["configs/base.yaml", "configs/system.yaml"],
-    ...     output_dir="exports/sensitivity"
+    ...     output_dir="outputs/runs/sensitivity"
     ... )
     >>> logger.info(f"Generated files: {results.generated_files}")
 """
@@ -237,7 +237,7 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
 def run_full_sensitivity_study(
     base_configs: List[str],
     variations: List[ParameterVariation] = None,
-    output_dir: str = "exports/sensitivity",
+    output_dir: str = "outputs/runs/sensitivity",
     generate_plots: bool = True,
     generate_latex: bool = True,
     parallel: bool = False,
@@ -272,7 +272,7 @@ def run_full_sensitivity_study(
     Example:
         >>> results = run_full_sensitivity_study(
         ...     base_configs=["configs/base.yaml"],
-        ...     output_dir="exports/sensitivity",
+        ...     output_dir="outputs/runs/sensitivity",
         ...     generate_plots=True,
         ... )
         >>> print(results.summary())

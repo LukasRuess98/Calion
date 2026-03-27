@@ -67,7 +67,7 @@ class BenchmarkSuite:
             ("MPC", {"scenario": {"workflow": ["MPC"]}}),
         ]
         results = suite.run(methods, num_runs=1)
-        suite.export_results(results, "exports/benchmark_results.csv")
+        suite.export_results(results, "outputs/runs/benchmark_results.csv")
     """
 
     def __init__(self, base_configs: List[str]):
@@ -86,7 +86,7 @@ class BenchmarkSuite:
         methods: List[Tuple[str, Dict[str, Any]]],
         num_runs: int = 1,
         save_intermediate: bool = True,
-        output_dir: str = "exports/benchmark",
+        output_dir: str = "outputs/runs/benchmark",
     ) -> List[BenchmarkMetrics]:
         """Run benchmark comparison of multiple methods.
 
@@ -376,7 +376,7 @@ def run_method_comparison(
     base_configs: List[str],
     methods: List[Tuple[str, Dict[str, Any]]],
     num_runs: int = 1,
-    output_dir: str = "exports/benchmark",
+    output_dir: str = "outputs/runs/benchmark",
 ) -> List[BenchmarkMetrics]:
     """Convenience function to run method comparison.
 
