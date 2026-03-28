@@ -1,0 +1,297 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.run.types &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.run.types</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.run.types</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Shared data types for the workflow orchestration layer.</span>
+
+<span class="sd">All dataclasses that were previously defined inside ``rolling_horizon.py`` now</span>
+<span class="sd">live here so that every sub-module can import them without pulling in the whole</span>
+<span class="sd">monolith.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.design</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptimizationConfig</span><span class="p">,</span> <span class="n">DesignSpec</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.models.results</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvestmentDecisions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.utils.timeseries</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesTable</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Result containers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="ScenarioResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.ScenarioResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ScenarioResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Container for a single optimisation run.&quot;&quot;&quot;</span>
+
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span>
+    <span class="n">series</span><span class="p">:</span> <span class="n">OrderedDict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span>
+    <span class="n">summary</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="n">costs</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">solver</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">investments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">InvestmentDecisions</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WindowResult</span><span class="p">(</span><span class="n">ScenarioResult</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Specialised result carrying metadata for RH windows.&quot;&quot;&quot;</span>
+
+    <span class="n">start_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">commit_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">DesignData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Design figures extracted from a PF optimisation.</span>
+
+<span class="sd">    DEPRECATED: Use :class:`~energis.models.results.InvestmentDecisions` instead.</span>
+<span class="sd">    Kept temporarily for backward compatibility during migration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">heat_pumps</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
+    <span class="n">storage</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
+
+
+<div class="viewcode-block" id="RollingHorizonResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.RollingHorizonResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RollingHorizonResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Aggregated result for a complete RH simulation.&quot;&quot;&quot;</span>
+
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span>
+    <span class="n">series</span><span class="p">:</span> <span class="n">OrderedDict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span>
+    <span class="n">costs</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">windows</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">WindowResult</span><span class="p">]</span>
+    <span class="n">design</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DesignData</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">investments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">InvestmentDecisions</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Workflow planning / context</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="WorkflowPlan">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.WorkflowPlan">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorkflowPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parsed representation of the requested workflow sequence.&quot;&quot;&quot;</span>
+
+    <span class="n">steps</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">fix_design</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">design_config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">OptimizationConfig</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorkflowInputs</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Prepared artefacts required to execute a workflow.&quot;&quot;&quot;</span>
+
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span>
+    <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">solver_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">WorkflowPlan</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorkflowContext</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mutable state shared between workflow steps.&quot;&quot;&quot;</span>
+
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span>
+    <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">solver_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">WorkflowPlan</span>
+    <span class="n">pf_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ScenarioResult</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">rh_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">RollingHorizonResult</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">mpc_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">RollingHorizonResult</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">design</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DesignData</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Legacy (deprecated)</span>
+    <span class="n">design_spec</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DesignSpec</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Legacy (deprecated)</span>
+    <span class="n">investments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">InvestmentDecisions</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Structured investment results</span>
+
+
+<div class="viewcode-block" id="WorkflowResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.WorkflowResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">WorkflowResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return value for :func:`run_workflow`.&quot;&quot;&quot;</span>
+
+    <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">pf_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ScenarioResult</span><span class="p">]</span>
+    <span class="n">rh_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">RollingHorizonResult</span><span class="p">]</span>
+    <span class="n">mpc_result</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">RollingHorizonResult</span><span class="p">]</span>
+    <span class="n">design</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DesignData</span><span class="p">]</span>
+    <span class="n">plan</span><span class="p">:</span> <span class="n">WorkflowPlan</span>
+    <span class="n">investments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">InvestmentDecisions</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Internal helpers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_RollingParams</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Internal helper capturing rolling horizon parameters.&quot;&quot;&quot;</span>
+
+    <span class="n">horizon_hours</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">step_hours</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">overlap_hours</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">terminal_policy</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">as_steps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return window, commit and overlap lengths measured in simulation steps.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utilities.timeseries_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_hours_to_steps</span>
+
+        <span class="k">if</span> <span class="n">dt_h</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;dt_h must be positive&quot;</span><span class="p">)</span>
+        <span class="n">horizon_steps</span> <span class="o">=</span> <span class="n">_hours_to_steps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">horizon_hours</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="s2">&quot;HEAT_HORIZON_HOURS&quot;</span><span class="p">)</span>
+        <span class="n">step_steps</span> <span class="o">=</span> <span class="n">_hours_to_steps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">step_hours</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="s2">&quot;STEP_HOURS&quot;</span><span class="p">)</span>
+        <span class="n">overlap_steps</span> <span class="o">=</span> <span class="n">_hours_to_steps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">overlap_hours</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="s2">&quot;OVERLAP_HOURS&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">overlap_hours</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">step_steps</span> <span class="o">&gt;</span> <span class="n">horizon_steps</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;STEP_HOURS must not exceed HEAT_HORIZON_HOURS&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">overlap_steps</span> <span class="o">&gt;=</span> <span class="n">step_steps</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;OVERLAP_HOURS must be smaller than STEP_HOURS&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">horizon_steps</span><span class="p">,</span> <span class="n">step_steps</span><span class="p">,</span> <span class="n">overlap_steps</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_CostAggregationPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for rolling-horizon cost handling.&quot;&quot;&quot;</span>
+
+    <span class="n">include_investment</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">amortise_once</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">include_tie_breaker</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">include_installation</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">include_activation</span><span class="p">:</span> <span class="nb">bool</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">investment_active</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_investment</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">amortise_once</span> <span class="ow">and</span> <span class="n">window_idx</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="n">StepHandler</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">WorkflowContext</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;ScenarioResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WindowResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;DesignData&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;RollingHorizonResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowPlan&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowInputs&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowContext&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;_RollingParams&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;_CostAggregationPlan&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;StepHandler&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

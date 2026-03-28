@@ -471,4 +471,4 @@ heat_bus.add_output(Q)
 
 **Last Updated:** 2025-11-18
 **Status:** Alpha - implementation in progress
-**Feedback:** lukas.ruess@example.com
+**Feedback:** lukas.ruess@eep.uni-stuttgart.de

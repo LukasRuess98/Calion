@@ -138,10 +138,10 @@ def prepare_dashboard_data(
     if demand_values is None:
         available_cols = list(result.table.data.keys())
         raise ValueError(
-            f"Dashboard: Keine Wärmebedarf-Spalte gefunden!\n"
-            f"Versuchte Spalten: {demand_col_names}\n"
-            f"Verfügbare Spalten: {available_cols}\n"
-            f"Bitte stelle sicher, dass mindestens eine dieser Spalten in den Daten vorhanden ist."
+            f"Dashboard: No heat demand column found!\n"
+            f"Tried columns: {demand_col_names}\n"
+            f"Available columns: {available_cols}\n"
+            f"Ensure at least one of the listed columns is present in the result data."
         )
 
     # Create main DataFrame

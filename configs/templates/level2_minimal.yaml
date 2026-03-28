@@ -1,0 +1,69 @@
+# Level 2: Two-node test - exact same as level1 but split into 2 nodes
+# Purpose: Isolate if problem is multi-node splitting or MILP mode
+
+site:
+  input_xlsx: "data/Import_Data.csv"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  run_mode: PF_ONLY
+
+network:
+  physics:
+    heat_loss: false
+    pressure_drop: false
+    transport_delay: false
+  supply_temp_nominal_c: 90
+  return_temp_nominal_c: 55
+  ground_temp_c: 10
+
+  nodes:
+    plant:
+      type: producer
+      assets: [boiler_1, hp_1]
+
+    consumer_1:
+      type: consumer
+      demand_fraction: 1.0
+      demand:
+        column: "waermebedarf_MWth"
+
+  pipes:
+    plant_to_consumer:
+      from: plant
+      to: consumer_1
+      length_m: 100
+      diameter_mm: 500
+
+assets:
+  boiler_1:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 150.0
+    thermal_efficiency: 0.90
+
+  hp_1:
+    type: heat_pump
+    capacity_mw: 80.0
+    min_load: 0
+    cop_default: 3.5
+    wrg_sources: []
+
+grid:
+  gridcost_eur_mwh: 20.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs

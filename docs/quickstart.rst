@@ -6,7 +6,7 @@ Installation
 
 .. code-block:: bash
 
-   pip install -e ".[solver]"
+   pip install -e ".[dev]"
 
 This installs EnerGIS with Pyomo. You will also need a solver such as
 `GLPK <https://www.gnu.org/software/glpk/>`_ or
@@ -65,7 +65,7 @@ CLI Usage
 .. code-block:: bash
 
    # Run a scenario from config files
-   python -m energis configs/base.yaml configs/scenario.yaml
+   python -m energis.run configs/base.yaml configs/scenario.yaml
 
    # Or using the installed entry point
    energis configs/base.yaml configs/scenario.yaml

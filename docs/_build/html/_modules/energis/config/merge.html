@@ -1,0 +1,339 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.config.merge &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.config.merge</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.config.merge</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">simple_yaml</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.config.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_config_schema</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_logging</span>
+
+<span class="n">_logger</span> <span class="o">=</span> <span class="n">_logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Config key normalisation</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="c1"># Maps (section_path, legacy_key) → canonical_key.</span>
+<span class="c1"># Applied once at load time so downstream code only needs to check one name.</span>
+<span class="n">_KEY_ALIASES</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># SOC initial value: canonical = soc_init_mwh</span>
+    <span class="p">(</span><span class="s2">&quot;system.storage&quot;</span><span class="p">,</span> <span class="s2">&quot;SOC_init&quot;</span><span class="p">,</span> <span class="s2">&quot;soc_init_mwh&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;system.storage&quot;</span><span class="p">,</span> <span class="s2">&quot;soc0_mwh&quot;</span><span class="p">,</span> <span class="s2">&quot;soc_init_mwh&quot;</span><span class="p">),</span>
+    <span class="c1"># Rolling horizon: canonical = lowercase</span>
+    <span class="p">(</span><span class="s2">&quot;scenario.rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;HEAT_HORIZON_HOURS&quot;</span><span class="p">,</span> <span class="s2">&quot;heat_horizon_hours&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;scenario.rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;STEP_HOURS&quot;</span><span class="p">,</span> <span class="s2">&quot;step_hours&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;scenario.rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;OVERLAP_HOURS&quot;</span><span class="p">,</span> <span class="s2">&quot;overlap_hours&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;scenario.rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;TERMINAL_POLICY&quot;</span><span class="p">,</span> <span class="s2">&quot;terminal_policy&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;scenario.rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;window_hours&quot;</span><span class="p">,</span> <span class="s2">&quot;heat_horizon_hours&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_navigate</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">dotpath</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Traverse nested dicts by dot-separated path, returning the leaf dict.&quot;&quot;&quot;</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">cfg</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">dotpath</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">node</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">node</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="normalise_config_keys">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.normalise_config_keys">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">normalise_config_keys</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Copy legacy alias values to their canonical keys.</span>
+
+<span class="sd">    This runs **in-place** on *cfg* after merge but before consumption.</span>
+<span class="sd">    Both legacy and canonical keys are kept so that code which still reads</span>
+<span class="sd">    the old name continues to work during the migration period.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">dotpath</span><span class="p">,</span> <span class="n">legacy</span><span class="p">,</span> <span class="n">canonical</span> <span class="ow">in</span> <span class="n">_KEY_ALIASES</span><span class="p">:</span>
+        <span class="n">section</span> <span class="o">=</span> <span class="n">_navigate</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">dotpath</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">section</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">legacy</span> <span class="ow">in</span> <span class="n">section</span> <span class="ow">and</span> <span class="n">canonical</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">section</span><span class="p">:</span>
+            <span class="n">section</span><span class="p">[</span><span class="n">canonical</span><span class="p">]</span> <span class="o">=</span> <span class="n">section</span><span class="p">[</span><span class="n">legacy</span><span class="p">]</span>
+            <span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">&quot;Config alias: </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2"> → </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">dotpath</span><span class="p">,</span> <span class="n">legacy</span><span class="p">,</span> <span class="n">dotpath</span><span class="p">,</span> <span class="n">canonical</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="c1"># Also normalise inputs.SOC_init → inputs.soc_init_mwh</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inputs&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;SOC_init&quot;</span> <span class="ow">in</span> <span class="n">inputs</span> <span class="ow">and</span> <span class="s2">&quot;soc_init_mwh&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+            <span class="n">inputs</span><span class="p">[</span><span class="s2">&quot;soc_init_mwh&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">inputs</span><span class="p">[</span><span class="s2">&quot;SOC_init&quot;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">cfg</span></div>
+
+
+
+<div class="viewcode-block" id="deep_merge">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.deep_merge">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">deep_merge</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively merge mapping ``b`` into ``a`` without mutating inputs.&quot;&quot;&quot;</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">out</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">deep_merge</span><span class="p">(</span><span class="n">out</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">out</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="load_yaml">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.load_yaml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_yaml</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load YAML using the light-weight parser.</span>
+
+<span class="sd">    PyYAML is not available in the execution environment.  The configuration</span>
+<span class="sd">    files only rely on a tiny subset of the YAML specification, therefore we</span>
+<span class="sd">    can use :mod:`energis.utils.simple_yaml` which is purposely written for this</span>
+<span class="sd">    repository.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">simple_yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected mapping at document root in </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+
+<div class="viewcode-block" id="load_yaml_with_inheritance">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.load_yaml_with_inheritance">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_yaml_with_inheritance</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">_visited</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load YAML with support for _extends: inheritance.</span>
+
+<span class="sd">    If a config contains &quot;_extends: parent.yaml&quot;, it will:</span>
+<span class="sd">    1. Load the parent config first</span>
+<span class="sd">    2. Merge the current config on top</span>
+<span class="sd">    3. Remove the _extends key from the result</span>
+
+<span class="sd">    Supports both single parent and list of parents:</span>
+<span class="sd">        _extends: base.yaml</span>
+<span class="sd">        _extends: [base.yaml, overrides.yaml]</span>
+
+<span class="sd">    Prevents circular dependencies by tracking visited files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">_visited</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_visited</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="c1"># Prevent circular dependencies</span>
+    <span class="n">abs_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_resolve_config_path</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">abs_path</span> <span class="ow">in</span> <span class="n">_visited</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Circular dependency detected: </span><span class="si">{</span><span class="n">abs_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">_visited</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">abs_path</span><span class="p">)</span>
+
+    <span class="c1"># Load current config</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">load_yaml</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="c1"># Check for _extends key</span>
+    <span class="k">if</span> <span class="s2">&quot;_extends&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="c1"># Get parent config(s)</span>
+    <span class="n">extends</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;_extends&quot;</span><span class="p">)</span>  <span class="c1"># Remove _extends from result</span>
+
+    <span class="c1"># Convert single parent to list</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">extends</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">extends</span> <span class="o">=</span> <span class="p">[</span><span class="n">extends</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">extends</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;_extends must be string or list, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">extends</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Resolve parent paths relative to current config directory</span>
+    <span class="n">config_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span>
+
+    <span class="c1"># Load and merge all parents (left to right)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">parent_path</span> <span class="ow">in</span> <span class="n">extends</span><span class="p">:</span>
+        <span class="c1"># Resolve relative to current config&#39;s directory</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">parent_path</span><span class="p">)</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="n">parent_path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">config_dir</span> <span class="o">/</span> <span class="n">parent_path</span><span class="p">)</span>
+
+        <span class="n">parent_data</span> <span class="o">=</span> <span class="n">load_yaml_with_inheritance</span><span class="p">(</span><span class="n">parent_path</span><span class="p">,</span> <span class="n">_visited</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">deep_merge</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">parent_data</span><span class="p">)</span>
+
+    <span class="c1"># Merge current config on top of parents</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">deep_merge</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<span class="n">PROJECT_ROOT</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_config_path</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve ``path`` to an existing configuration file.</span>
+
+<span class="sd">    Relative paths are first resolved against the current working directory</span>
+<span class="sd">    (allowing callers to keep the old behaviour).  If that fails we fall back</span>
+<span class="sd">    to the project root so that notebooks or scripts executed from nested</span>
+<span class="sd">    directories can continue to refer to configs using repository-relative</span>
+<span class="sd">    paths.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">candidate</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">candidate</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Config not found: </span><span class="si">{</span><span class="n">candidate</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">search_roots</span> <span class="o">=</span> <span class="p">[</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()]</span>
+    <span class="k">if</span> <span class="n">PROJECT_ROOT</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">search_roots</span><span class="p">:</span>
+        <span class="n">search_roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PROJECT_ROOT</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">search_roots</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="p">(</span><span class="n">root</span> <span class="o">/</span> <span class="n">candidate</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">resolved</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">resolved</span>
+
+    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Config not found: </span><span class="si">{</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">candidate</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="load_and_merge">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.load_and_merge">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_and_merge</span><span class="p">(</span><span class="n">paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">enable_inheritance</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span><span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load and merge multiple config files.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        paths: List of config file paths to merge (left to right)</span>
+<span class="sd">        enable_inheritance: If True, support _extends: syntax (default: True)</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Merged configuration dictionary with metadata</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">norm</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">load_fn</span> <span class="o">=</span> <span class="n">load_yaml_with_inheritance</span> <span class="k">if</span> <span class="n">enable_inheritance</span> <span class="k">else</span> <span class="n">load_yaml</span>
+
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">_resolve_config_path</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="n">norm</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">))</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">deep_merge</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">load_fn</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)))</span>
+
+    <span class="c1"># compute hash for provenance</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">norm</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">h</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+
+    <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;meta&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;meta&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;meta&quot;</span><span class="p">][</span><span class="s2">&quot;config_hash&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>
+    <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;meta&quot;</span><span class="p">][</span><span class="s2">&quot;merged_from&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">norm</span>
+    <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;meta&quot;</span><span class="p">][</span><span class="s2">&quot;inheritance_enabled&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">enable_inheritance</span>
+
+    <span class="n">validate_config_schema</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="n">normalise_config_keys</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cfg</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

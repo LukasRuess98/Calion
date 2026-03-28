@@ -47,3 +47,33 @@ class TestValidationResult:
         assert len(vr.errors) == 2
         assert len(vr.warnings) == 1
         assert vr.valid is False
+
+    def test_print_summary_valid(self, caplog):
+        import logging
+        vr = ValidationResult(valid=True, errors=[], warnings=[], info=[])
+        vr.add_info("scenario", "some note")
+        with caplog.at_level(logging.INFO):
+            vr.print_summary()  # must not raise
+
+    def test_print_summary_invalid_with_location(self, caplog):
+        import logging
+        vr = ValidationResult(valid=True, errors=[], warnings=[], info=[])
+        vr.add_error("component", "bad value", location="HP1.capacity")
+        vr.add_warning("network", "check velocity")
+        with caplog.at_level(logging.INFO):
+            vr.print_summary()  # must not raise
+
+    def test_add_error_no_location(self):
+        vr = ValidationResult(valid=True, errors=[], warnings=[], info=[])
+        vr.add_error("component", "some error")
+        assert vr.errors[0].location is None
+
+    def test_add_warning_with_location(self):
+        vr = ValidationResult(valid=True, errors=[], warnings=[], info=[])
+        vr.add_warning("network", "check flow", "N1")
+        assert vr.warnings[0].location == "N1"
+
+    def test_add_info_with_location(self):
+        vr = ValidationResult(valid=True, errors=[], warnings=[], info=[])
+        vr.add_info("scenario", "note", "section.field")
+        assert vr.info[0].location == "section.field"

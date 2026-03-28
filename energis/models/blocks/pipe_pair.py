@@ -457,97 +457,108 @@ class PipePairBlock(BaseComponent):
                              bounds=(0, max_heat_delivered_mw))
         setattr(model, f'{prefix}_Q_consumer', Q_consumer)
 
-        # ── Transport Delay (3-Bucket SOS2 Linearisation) ─────────────────────────
+        # ── Transport Delay ─────────────────────────────────────────────────────────
         #
-        # Physical delay: τ(t) = L × ρ × A / m_dot(t)
-        # Nonlinear (inversely proportional to mass flow) → linearised with 3 flow buckets:
+        # In MILP-linearise mode temperatures are fixed → no bilinear products, and
+        # adding binary z_delay selectors on top makes the already-linear model
+        # unnecessarily hard and can cause presolve infeasibility.  Skip the delay
+        # entirely in that mode and link Q_consumer directly to Q_delivered.
+        #
+        # In full nonlinear mode: 3-Bucket SOS2 piecewise-linear approximation.
         #   Bucket 0 (high flow):   m_dot ∈ [m_mid, m_max] → τ₁ timesteps (shortest)
         #   Bucket 1 (medium flow): m_dot ∈ [m_low, m_mid] → τ₂ timesteps
         #   Bucket 2 (low flow):    m_dot ∈ [0,     m_low] → τ₃ timesteps (longest)
-        #
-        # MILP-compatible: uses binary selectors + Big-M, no bilinear products.
         # ─────────────────────────────────────────────────────────────────────────
 
-        dt_h = getattr(model, 'dt_h', 1.0)
-        delay_info = compute_delay_buckets(
-            length_m=length_m,
-            diameter_mm=d_inner_mm,
-            density_kg_per_m3=density_water,
-            m_max_kg_s=max(effective_max_flow, 0.001),
-            dt_h=dt_h,
-        )
-        tau_steps = delay_info['tau_steps']
-        m_bounds = delay_info['m_bounds']
-        N_BUCKETS = len(tau_steps)
+        if milp_linearize:
+            # MILP-linearise mode: no transport delay — Q_consumer == Q_delivered
+            setattr(model, f'{prefix}_no_delay',
+                    pyo.Constraint(time_set,
+                                   rule=lambda m, t: Q_consumer[t] == Q_delivered[t]))
+            logger.info("  Pipe %s: transport delay skipped (milp_linearize mode)", pipe_id)
+            tau_steps = []
+            N_BUCKETS = 0
+        else:
+            dt_h = getattr(model, 'dt_h', 1.0)
+            delay_info = compute_delay_buckets(
+                length_m=length_m,
+                diameter_mm=d_inner_mm,
+                density_kg_per_m3=density_water,
+                m_max_kg_s=max(effective_max_flow, 0.001),
+                dt_h=dt_h,
+            )
+            tau_steps = delay_info['tau_steps']
+            m_bounds = delay_info['m_bounds']
+            N_BUCKETS = len(tau_steps)
 
-        logger.info(
-            f"  Pipe {pipe_id} delay buckets: "
-            f"τ={tau_steps} timesteps, "
-            f"flow bounds={[(f'{lo:.1f}', f'{hi:.1f}') for lo, hi in m_bounds]} kg/s"
-        )
+            logger.info(
+                f"  Pipe {pipe_id} delay buckets: "
+                f"τ={tau_steps} timesteps, "
+                f"flow bounds={[(f'{lo:.1f}', f'{hi:.1f}') for lo, hi in m_bounds]} kg/s"
+            )
 
-        time_list = sorted(list(time_set))
-        t_idx = {t: i for i, t in enumerate(time_list)}
+            time_list = sorted(list(time_set))
+            t_idx = {t: i for i, t in enumerate(time_list)}
 
-        z_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.Binary)
-        setattr(model, f'{prefix}_z_delay', z_delay)
+            z_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.Binary)
+            setattr(model, f'{prefix}_z_delay', z_delay)
 
-        setattr(model, f'{prefix}_sos2_delay',
-                pyo.Constraint(time_set,
-                               rule=lambda m, t: sum(z_delay[n, t] for n in range(N_BUCKETS)) == 1))
+            setattr(model, f'{prefix}_sos2_delay',
+                    pyo.Constraint(time_set,
+                                   rule=lambda m, t: sum(z_delay[n, t] for n in range(N_BUCKETS)) == 1))
 
-        M_FLOW_BIG = effective_max_flow * 1.1
+            M_FLOW_BIG = effective_max_flow * 1.1
 
-        def delay_flow_lb_rule(m, n, t):
-            m_lower, _ = m_bounds[n]
-            return m_dot[t] >= m_lower * z_delay[n, t]
+            def delay_flow_lb_rule(m, n, t):
+                m_lower, _ = m_bounds[n]
+                return m_dot[t] >= m_lower * z_delay[n, t]
 
-        def delay_flow_ub_rule(m, n, t):
-            _, m_upper = m_bounds[n]
-            return m_dot[t] <= m_upper + M_FLOW_BIG * (1 - z_delay[n, t])
+            def delay_flow_ub_rule(m, n, t):
+                _, m_upper = m_bounds[n]
+                return m_dot[t] <= m_upper + M_FLOW_BIG * (1 - z_delay[n, t])
 
-        setattr(model, f'{prefix}_delay_flow_lb',
-                pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_lb_rule))
-        setattr(model, f'{prefix}_delay_flow_ub',
-                pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_ub_rule))
+            setattr(model, f'{prefix}_delay_flow_lb',
+                    pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_lb_rule))
+            setattr(model, f'{prefix}_delay_flow_ub',
+                    pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_ub_rule))
 
-        M_Q = max_heat_delivered_mw
-        w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
-                          bounds=(0, M_Q))
-        setattr(model, f'{prefix}_w_delay', w_delay)
+            M_Q = max_heat_delivered_mw
+            w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
+                              bounds=(0, M_Q))
+            setattr(model, f'{prefix}_w_delay', w_delay)
 
-        def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
-            i = _tidx[t]
-            if i < tau_steps[n]:
-                # Warm-up period: delay reaches before horizon start.
-                # Let w_delay be free (bounded only by M_Q via w_ub_z).
-                return pyo.Constraint.Skip
-            delayed_t = _tlist[i - tau_steps[n]]
-            return w_delay[n, t] <= Q_delivered[delayed_t]
+            def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+                i = _tidx[t]
+                if i < tau_steps[n]:
+                    # Warm-up period: delay reaches before horizon start.
+                    # Let w_delay be free (bounded only by M_Q via w_ub_z).
+                    return pyo.Constraint.Skip
+                delayed_t = _tlist[i - tau_steps[n]]
+                return w_delay[n, t] <= Q_delivered[delayed_t]
 
-        def w_ub_z_rule(m, n, t):
-            return w_delay[n, t] <= M_Q * z_delay[n, t]
+            def w_ub_z_rule(m, n, t):
+                return w_delay[n, t] <= M_Q * z_delay[n, t]
 
-        def w_lb_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
-            i = _tidx[t]
-            if i < tau_steps[n]:
-                # Warm-up period: no lower bound from Q_delivered.
-                return pyo.Constraint.Skip
-            delayed_t = _tlist[i - tau_steps[n]]
-            return w_delay[n, t] >= Q_delivered[delayed_t] - M_Q * (1 - z_delay[n, t])
+            def w_lb_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+                i = _tidx[t]
+                if i < tau_steps[n]:
+                    # Warm-up period: no lower bound from Q_delivered.
+                    return pyo.Constraint.Skip
+                delayed_t = _tlist[i - tau_steps[n]]
+                return w_delay[n, t] >= Q_delivered[delayed_t] - M_Q * (1 - z_delay[n, t])
 
-        setattr(model, f'{prefix}_w_ub_q',
-                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_q_rule))
-        setattr(model, f'{prefix}_w_ub_z',
-                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_z_rule))
-        setattr(model, f'{prefix}_w_lb',
-                pyo.Constraint(range(N_BUCKETS), time_set, rule=w_lb_rule))
+            setattr(model, f'{prefix}_w_ub_q',
+                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_q_rule))
+            setattr(model, f'{prefix}_w_ub_z',
+                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_z_rule))
+            setattr(model, f'{prefix}_w_lb',
+                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_lb_rule))
 
-        setattr(model, f'{prefix}_delayed_delivery',
-                pyo.Constraint(time_set,
-                               rule=lambda m, t: Q_consumer[t] == sum(
-                                   w_delay[n, t] for n in range(N_BUCKETS)
-                               )))
+            setattr(model, f'{prefix}_delayed_delivery',
+                    pyo.Constraint(time_set,
+                                   rule=lambda m, t: Q_consumer[t] == sum(
+                                       w_delay[n, t] for n in range(N_BUCKETS)
+                                   )))
 
         # ============================================================
         # COST CALCULATION

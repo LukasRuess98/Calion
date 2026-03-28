@@ -1,0 +1,468 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.models.system_builder &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.models.system_builder</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.models.system_builder</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pyo</span>
+    <span class="n">HAVE_PYOMO</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - optional dependency</span>
+    <span class="n">HAVE_PYOMO</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">pyo</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.constants</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BIG_M_GRID_MW</span><span class="p">,</span>
+    <span class="n">DEFAULT_CO2_PRICE_EUR_PER_T</span><span class="p">,</span>
+    <span class="n">DEFAULT_DUMP_COST_EUR_PER_MWH_TH</span><span class="p">,</span>
+    <span class="n">HOURS_PER_YEAR</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.utils.timeseries</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.investment_calculator</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvestmentCalculator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.emissions_calculator</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmissionsCalculator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.component_assembler</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComponentAssembler</span><span class="p">,</span> <span class="n">BusConnections</span><span class="p">,</span> <span class="n">SystemBusConnections</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.model_finalizer</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelFinalizer</span><span class="p">,</span> <span class="n">CostFlags</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.cop_calculator</span><span class="w"> </span><span class="kn">import</span> <span class="n">calculate_cop_series</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_unified_config</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check whether ``cfg`` uses the new unified format (has ``network.nodes`` + ``assets``).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;assets&quot;</span><span class="p">),</span> <span class="nb">dict</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;network&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nodes&quot;</span><span class="p">),</span> <span class="nb">dict</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="build_model">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.build_model">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_model</span><span class="p">(</span>
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">soc_init_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">terminal_target_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a Pyomo ConcreteModel for the energy system optimization.</span>
+
+<span class="sd">    Supports two configuration formats:</span>
+<span class="sd">    - **Unified format** (new): ``assets`` + ``network.nodes`` + optional ``network.pipes``</span>
+<span class="sd">    - **Legacy format**: ``system.heat_pumps`` / ``system.storage`` / ``system.generators``</span>
+
+<span class="sd">    The unified format is auto-detected by the presence of both ``assets`` and</span>
+<span class="sd">    ``network.nodes`` keys.  When detected, assets are attached per-node and</span>
+<span class="sd">    per-node heat balances are created for multi-node topologies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">HAVE_PYOMO</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">_is_unified_config</span><span class="p">(</span><span class="n">cfg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_build_model_unified</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span>
+                                    <span class="n">soc_init_override</span><span class="o">=</span><span class="n">soc_init_override</span><span class="p">,</span>
+                                    <span class="n">terminal_target_override</span><span class="o">=</span><span class="n">terminal_target_override</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_build_model_legacy</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span>
+                               <span class="n">soc_init_override</span><span class="o">=</span><span class="n">soc_init_override</span><span class="p">,</span>
+                               <span class="n">terminal_target_override</span><span class="o">=</span><span class="n">terminal_target_override</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ─── Unified build path (new config) ─────────────────────────────────────────</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_model_unified</span><span class="p">(</span>
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">soc_init_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">terminal_target_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build model from unified config with per-node asset placement.&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">energis.config.unified_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_unified_config</span>
+
+    <span class="n">ucfg</span> <span class="o">=</span> <span class="n">parse_unified_config</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+
+    <span class="n">m</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">ConcreteModel</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;EnerGIS_Unified&quot;</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">RangeSet</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+    <span class="n">period_frac</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">T</span> <span class="o">*</span> <span class="n">dt_h</span> <span class="o">/</span> <span class="n">HOURS_PER_YEAR</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">series_dict</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">column_series</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="c1"># ── Core time series parameters ───────────────────────────────────────</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">price</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">series_dict</span><span class="p">(</span><span class="s2">&quot;strompreis_EUR_MWh&quot;</span><span class="p">),</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_co2</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">series_dict</span><span class="p">(</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">),</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># ── Per-node demand or global demand ──────────────────────────────────</span>
+    <span class="k">if</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">is_copperplate</span><span class="p">:</span>
+        <span class="c1"># Copperplate: single global demand parameter</span>
+        <span class="c1"># Find the demand column from the single node (or nodes with demand)</span>
+        <span class="n">demand_col</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">demand_col</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span><span class="o">.</span><span class="n">column</span>
+                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">demand_col</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Fall back to legacy column name</span>
+            <span class="n">demand_col</span> <span class="o">=</span> <span class="s2">&quot;waermebedarf_MWth&quot;</span>
+
+        <span class="c1"># Map demand column to table column (fuzzy match)</span>
+        <span class="n">actual_col</span> <span class="o">=</span> <span class="n">_find_demand_column</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">demand_col</span><span class="p">)</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">heatd</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span>
+            <span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span>
+            <span class="n">initialize</span><span class="o">=</span><span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">actual_col</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)},</span>
+            <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Multi-node: per-node demand parameters</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">node_demand</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">nid</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">actual_col</span> <span class="o">=</span> <span class="n">_find_demand_column</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span><span class="o">.</span><span class="n">column</span><span class="p">)</span>
+                <span class="n">demand_data</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">actual_col</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+                <span class="n">param_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;heatd_</span><span class="si">{</span><span class="n">nid</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">demand_data</span><span class="p">,</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+                <span class="n">m</span><span class="o">.</span><span class="n">node_demand</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">param_name</span><span class="p">)</span>
+
+        <span class="c1"># Also create global m.heatd as sum of all node demands (for compatibility)</span>
+        <span class="n">all_demand_cols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">actual_col</span> <span class="o">=</span> <span class="n">_find_demand_column</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">demand</span><span class="o">.</span><span class="n">column</span><span class="p">)</span>
+                <span class="n">all_demand_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">actual_col</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">all_demand_cols</span><span class="p">:</span>
+            <span class="n">global_demand</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">col</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">all_demand_cols</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">global_demand</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="mf">0.0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">heatd</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">global_demand</span><span class="p">,</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># ── Outdoor temperature ───────────────────────────────────────────────</span>
+    <span class="n">outdoor_temp_series</span> <span class="o">=</span> <span class="n">column_series</span><span class="p">(</span><span class="s2">&quot;outdoor_temp_C&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">outdoor_temp_series</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">outdoor_temp</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">outdoor_temp_series</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">outdoor_temp</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># ── Grid / cost parameters ────────────────────────────────────────────</span>
+    <span class="n">costs</span> <span class="o">=</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">costs</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">ucfg</span><span class="o">.</span><span class="n">grid</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">energy_fee</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;energy_fee_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_cost</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;gridcost_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_floor</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_floor_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_haircut</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_haircut_fraction&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_spread</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_spread_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_fee</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_fee_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_premium</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_premium_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;big_m_grid_mw&quot;</span><span class="p">,</span> <span class="n">BIG_M_GRID_MW</span><span class="p">)))</span>
+    <span class="n">max_import</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_import_mw&quot;</span><span class="p">)</span>
+    <span class="n">max_export</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_export_mw&quot;</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">max_import</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span>
+        <span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">max_import</span> <span class="k">if</span> <span class="n">max_import</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">max_export</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span>
+        <span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">max_export</span> <span class="k">if</span> <span class="n">max_export</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">year_frac</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;year_fraction&quot;</span><span class="p">,</span> <span class="n">period_frac</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">co2_price</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;co2_price_eur_per_t&quot;</span><span class="p">,</span> <span class="n">DEFAULT_CO2_PRICE_EUR_PER_T</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">dump_cost</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dump_cost_eur_per_mwh_th&quot;</span><span class="p">,</span> <span class="n">DEFAULT_DUMP_COST_EUR_PER_MWH_TH</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">demand_charge_y</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_charge_eur_per_mw_y&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+
+    <span class="n">flags</span> <span class="o">=</span> <span class="n">CostFlags</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="n">inv_calc</span> <span class="o">=</span> <span class="n">InvestmentCalculator</span><span class="p">(</span>
+        <span class="n">period_frac</span><span class="o">=</span><span class="n">period_frac</span><span class="p">,</span>
+        <span class="n">include_capex</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_capex</span><span class="p">,</span>
+        <span class="n">include_activation</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_activation</span><span class="p">,</span>
+        <span class="n">include_tie_breaker</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_tie_breaker</span><span class="p">,</span>
+        <span class="n">include_storage_install</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_storage_install</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">grid_co2_series_dict</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+    <span class="n">co2_calc</span> <span class="o">=</span> <span class="n">EmissionsCalculator</span><span class="p">(</span>
+        <span class="n">co2_price_param</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">co2_price</span><span class="p">,</span>
+        <span class="n">grid_co2_series</span><span class="o">=</span><span class="n">grid_co2_series_dict</span><span class="p">,</span>
+        <span class="n">dt_h</span><span class="o">=</span><span class="n">dt_h</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">m</span><span class="o">.</span><span class="n">P_buy</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">P_sell</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_mode</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">Binary</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">Q_dump</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">co2_component_costs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># ── Component Assembly (unified path) ─────────────────────────────────</span>
+    <span class="n">assembler</span> <span class="o">=</span> <span class="n">ComponentAssembler</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">inv_calc</span><span class="p">,</span> <span class="n">co2_calc</span><span class="p">)</span>
+    <span class="n">sys_buses</span> <span class="o">=</span> <span class="n">assembler</span><span class="o">.</span><span class="n">assemble_all</span><span class="p">(</span><span class="n">ucfg</span><span class="p">)</span>
+
+    <span class="c1"># Store unified config and system buses on model for export/inspection</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">_unified_config</span> <span class="o">=</span> <span class="n">ucfg</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">_system_buses</span> <span class="o">=</span> <span class="n">sys_buses</span>
+
+    <span class="c1"># Flatten for compatibility with ModelFinalizer</span>
+    <span class="n">buses</span> <span class="o">=</span> <span class="n">sys_buses</span><span class="o">.</span><span class="n">to_flat_bus_connections</span><span class="p">()</span>
+
+    <span class="n">n_ht</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nb</span><span class="o">.</span><span class="n">ht_out</span><span class="p">)</span> <span class="k">for</span> <span class="n">nb</span> <span class="ow">in</span> <span class="n">sys_buses</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">n_ht</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No thermal generator connected to any node (ht_out empty).&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s2">&quot;[BUILD-UNIFIED] #el_in=</span><span class="si">%d</span><span class="s2">, #el_out=</span><span class="si">%d</span><span class="s2">, #ht_out(total)=</span><span class="si">%d</span><span class="s2">, #ht_in(total)=</span><span class="si">%d</span><span class="s2">, nodes=</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="nb">len</span><span class="p">(</span><span class="n">sys_buses</span><span class="o">.</span><span class="n">el_in</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys_buses</span><span class="o">.</span><span class="n">el_out</span><span class="p">),</span> <span class="n">n_ht</span><span class="p">,</span>
+        <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nb</span><span class="o">.</span><span class="n">ht_in</span><span class="p">)</span> <span class="k">for</span> <span class="n">nb</span> <span class="ow">in</span> <span class="n">sys_buses</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
+        <span class="nb">len</span><span class="p">(</span><span class="n">ucfg</span><span class="o">.</span><span class="n">nodes</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ── Model Finalization ────────────────────────────────────────────────</span>
+    <span class="n">finalizer</span> <span class="o">=</span> <span class="n">ModelFinalizer</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">buses</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">flags</span><span class="p">,</span>
+                               <span class="n">unified_config</span><span class="o">=</span><span class="n">ucfg</span><span class="p">,</span> <span class="n">system_buses</span><span class="o">=</span><span class="n">sys_buses</span><span class="p">)</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">integrate_network</span><span class="p">()</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">add_balance_constraints</span><span class="p">()</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">build_and_set_objective</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="c1"># ─── Legacy build path (old config format) ───────────────────────────────────</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_model_legacy</span><span class="p">(</span>
+    <span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">soc_init_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">terminal_target_override</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build model from legacy config (system.heat_pumps / generators / storage).&quot;&quot;&quot;</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">ConcreteModel</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;EnerGIS_FuelBus&quot;</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">RangeSet</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">T</span><span class="p">)</span>
+    <span class="n">period_frac</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">T</span> <span class="o">*</span> <span class="n">dt_h</span> <span class="o">/</span> <span class="n">HOURS_PER_YEAR</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">series_dict</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">column_series</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]:</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">m</span><span class="o">.</span><span class="n">price</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">series_dict</span><span class="p">(</span><span class="s2">&quot;strompreis_EUR_MWh&quot;</span><span class="p">),</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">heatd</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">series_dict</span><span class="p">(</span><span class="s2">&quot;waermebedarf_MWth&quot;</span><span class="p">),</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_co2</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">initialize</span><span class="o">=</span><span class="n">series_dict</span><span class="p">(</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">),</span> <span class="n">mutable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">outdoor_temp_series</span> <span class="o">=</span> <span class="n">column_series</span><span class="p">(</span><span class="s2">&quot;outdoor_temp_C&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">outdoor_temp_series</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">outdoor_temp</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">outdoor_temp_series</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Outdoor temperature loaded: </span><span class="si">{</span><span class="nb">min</span><span class="p">(</span><span class="n">outdoor_temp_series</span><span class="p">)</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">°C to </span><span class="si">{</span><span class="nb">max</span><span class="p">(</span><span class="n">outdoor_temp_series</span><span class="p">)</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">°C&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">outdoor_temp</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">costs</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;costs&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;grid&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">energy_fee</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;energy_fee_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_cost</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;gridcost_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_floor</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_floor_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_haircut</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_haircut_fraction&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_spread</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_spread_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_fee</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_fee_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">sell_premium</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;sell_premium_eur_mwh&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;big_m_grid_mw&quot;</span><span class="p">,</span> <span class="n">BIG_M_GRID_MW</span><span class="p">)))</span>
+    <span class="n">max_import</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_import_mw&quot;</span><span class="p">)</span>
+    <span class="n">max_export</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;max_export_mw&quot;</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">max_import</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span>
+        <span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">max_import</span> <span class="k">if</span> <span class="n">max_import</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">max_export</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span>
+        <span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">max_export</span> <span class="k">if</span> <span class="n">max_export</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">m</span><span class="o">.</span><span class="n">M_GRID</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">year_frac</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;year_fraction&quot;</span><span class="p">,</span> <span class="n">period_frac</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">co2_price</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;co2_price_eur_per_t&quot;</span><span class="p">,</span> <span class="n">DEFAULT_CO2_PRICE_EUR_PER_T</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">dump_cost</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dump_cost_eur_per_mwh_th&quot;</span><span class="p">,</span> <span class="n">DEFAULT_DUMP_COST_EUR_PER_MWH_TH</span><span class="p">)))</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">demand_charge_y</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">initialize</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_charge_eur_per_mw_y&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)))</span>
+
+    <span class="n">flags</span> <span class="o">=</span> <span class="n">CostFlags</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="n">inv_calc</span> <span class="o">=</span> <span class="n">InvestmentCalculator</span><span class="p">(</span>
+        <span class="n">period_frac</span><span class="o">=</span><span class="n">period_frac</span><span class="p">,</span>
+        <span class="n">include_capex</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_capex</span><span class="p">,</span>
+        <span class="n">include_activation</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_activation</span><span class="p">,</span>
+        <span class="n">include_tie_breaker</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_tie_breaker</span><span class="p">,</span>
+        <span class="n">include_storage_install</span><span class="o">=</span><span class="n">flags</span><span class="o">.</span><span class="n">include_storage_install</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">grid_co2_series_dict</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)}</span>
+    <span class="n">co2_calc</span> <span class="o">=</span> <span class="n">EmissionsCalculator</span><span class="p">(</span>
+        <span class="n">co2_price_param</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">co2_price</span><span class="p">,</span>
+        <span class="n">grid_co2_series</span><span class="o">=</span><span class="n">grid_co2_series_dict</span><span class="p">,</span>
+        <span class="n">dt_h</span><span class="o">=</span><span class="n">dt_h</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="o">=</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">m</span><span class="o">.</span><span class="n">P_buy</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">P_sell</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">grid_mode</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">Binary</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">Q_dump</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Var</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="n">pyo</span><span class="o">.</span><span class="n">NonNegativeReals</span><span class="p">)</span>
+    <span class="n">m</span><span class="o">.</span><span class="n">co2_component_costs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># ─── Component Assembly (legacy path) ─────────────────────────────────</span>
+    <span class="n">assembler</span> <span class="o">=</span> <span class="n">ComponentAssembler</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">inv_calc</span><span class="p">,</span> <span class="n">co2_calc</span><span class="p">)</span>
+    <span class="n">assembler</span><span class="o">.</span><span class="n">assemble_heat_pumps</span><span class="p">()</span>
+    <span class="n">assembler</span><span class="o">.</span><span class="n">assemble_storage</span><span class="p">(</span><span class="n">soc_init_override</span><span class="p">,</span> <span class="n">terminal_target_override</span><span class="p">)</span>
+    <span class="n">assembler</span><span class="o">.</span><span class="n">assemble_thermal_generators</span><span class="p">()</span>
+
+    <span class="n">buses</span> <span class="o">=</span> <span class="n">assembler</span><span class="o">.</span><span class="n">buses</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">buses</span><span class="o">.</span><span class="n">ht_out</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;No thermal generator connected to heat bus (ht_out empty). &quot;</span>
+            <span class="s2">&quot;Heat balance constraints will be trivially satisfied.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[BUILD] #el_in=</span><span class="si">%d</span><span class="s2">, #el_out=</span><span class="si">%d</span><span class="s2">, #ht_out=</span><span class="si">%d</span><span class="s2">, #ht_in=</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">buses</span><span class="o">.</span><span class="n">el_in</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">buses</span><span class="o">.</span><span class="n">el_out</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">buses</span><span class="o">.</span><span class="n">ht_out</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">buses</span><span class="o">.</span><span class="n">ht_in</span><span class="p">))</span>
+
+    <span class="c1"># ─── Model Finalization ───────────────────────────────────────────────</span>
+    <span class="n">finalizer</span> <span class="o">=</span> <span class="n">ModelFinalizer</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">buses</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">flags</span><span class="p">)</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">integrate_network</span><span class="p">()</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">add_balance_constraints</span><span class="p">()</span>
+    <span class="n">finalizer</span><span class="o">.</span><span class="n">build_and_set_objective</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">m</span>
+
+
+<span class="c1"># ─── Helpers ──────────────────────────────────────────────────────────────────</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_find_demand_column</span><span class="p">(</span><span class="n">table</span><span class="p">:</span> <span class="n">TimeSeriesTable</span><span class="p">,</span> <span class="n">column_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the actual column name in the table, with fuzzy matching.</span>
+
+<span class="sd">    Tries exact match first, then normalized match.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">column_name</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">column_name</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_norm</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;[^a-z0-9]+&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+
+    <span class="n">target</span> <span class="o">=</span> <span class="n">_norm</span><span class="p">(</span><span class="n">column_name</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">_norm</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">col</span>
+        <span class="k">if</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">_norm</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_norm</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="ow">in</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">col</span>
+
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;Demand column &#39;</span><span class="si">{</span><span class="n">column_name</span><span class="si">}</span><span class="s2">&#39; not found in data. &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;Available columns: </span><span class="si">{</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

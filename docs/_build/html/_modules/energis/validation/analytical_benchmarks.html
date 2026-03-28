@@ -1,0 +1,746 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.validation.analytical_benchmarks &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.validation.analytical_benchmarks</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.validation.analytical_benchmarks</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Analytical validation benchmarks for publication-ready verification.</span>
+
+<span class="sd">This module provides test cases with known analytical solutions to validate</span>
+<span class="sd">the optimization framework&#39;s correctness. Essential for peer-reviewed</span>
+<span class="sd">publications in Applied Energy, IEEE Transactions on Sustainable Energy, etc.</span>
+
+<span class="sd">The test cases cover:</span>
+<span class="sd">1. Energy balance verification</span>
+<span class="sd">2. Heat pump COP calculations</span>
+<span class="sd">3. Storage round-trip efficiency</span>
+<span class="sd">4. Merit order dispatch logic</span>
+<span class="sd">5. Network loss calculations</span>
+
+<span class="sd">Reference:</span>
+<span class="sd">- Applied Energy publication standards require validation against</span>
+<span class="sd">  analytical solutions or established benchmarks.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Callable</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="AnalyticalTestCase">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.AnalyticalTestCase">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">AnalyticalTestCase</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Specification for an analytical validation test case.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        name: Unique test case identifier</span>
+<span class="sd">        description: Human-readable description for publications</span>
+<span class="sd">        config_overrides: Configuration modifications for this test</span>
+<span class="sd">        expected_results: Dictionary of expected metric values</span>
+<span class="sd">        tolerance: Relative tolerance for comparison (default: 1%)</span>
+<span class="sd">        validation_func: Optional custom validation function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">config_overrides</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">expected_results</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">tolerance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>  <span class="c1"># 1% relative tolerance</span>
+    <span class="n">validation_func</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">category</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;general&quot;</span>  <span class="c1"># For grouping: energy_balance, cop, storage, merit_order, network</span></div>
+
+
+
+<div class="viewcode-block" id="ValidationResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.ValidationResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ValidationResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Result of a single validation test.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        test_name: Name of the test case</span>
+<span class="sd">        passed: Whether the test passed</span>
+<span class="sd">        expected: Expected value</span>
+<span class="sd">        actual: Actual computed value</span>
+<span class="sd">        relative_error: Relative error (actual - expected) / expected</span>
+<span class="sd">        absolute_error: Absolute error</span>
+<span class="sd">        details: Additional diagnostic information</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">test_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">passed</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">expected</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">actual</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">relative_error</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">absolute_error</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">details</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ValidationResult.to_dict">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.ValidationResult.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert to dictionary for export.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;test_name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_name</span><span class="p">,</span>
+            <span class="s2">&quot;passed&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">passed</span><span class="p">,</span>
+            <span class="s2">&quot;expected&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">expected</span><span class="p">,</span>
+            <span class="s2">&quot;actual&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">actual</span><span class="p">,</span>
+            <span class="s2">&quot;relative_error&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">relative_error</span><span class="p">,</span>
+            <span class="s2">&quot;absolute_error&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">absolute_error</span><span class="p">,</span>
+            <span class="s2">&quot;details&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">details</span><span class="p">,</span>
+        <span class="p">}</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ValidationSuiteResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.ValidationSuiteResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ValidationSuiteResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Aggregate results from running a validation suite.&quot;&quot;&quot;</span>
+
+    <span class="n">results</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">ValidationResult</span><span class="p">]</span>
+    <span class="n">total_tests</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">passed_tests</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">failed_tests</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pass_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate pass rate as percentage.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">passed_tests</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_tests</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_tests</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<div class="viewcode-block" id="ValidationSuiteResult.summary">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.ValidationSuiteResult.summary">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate human-readable summary.&quot;&quot;&quot;</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
+            <span class="s2">&quot;ANALYTICAL VALIDATION SUMMARY&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;Total tests:  </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">total_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;Passed:       </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">passed_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;Failed:       </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">failed_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;Pass rate:    </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pass_rate</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
+        <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;PASS&quot;</span> <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">passed</span> <span class="k">else</span> <span class="s2">&quot;FAIL&quot;</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;  [</span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">test_name</span><span class="si">}</span><span class="s2">: &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;expected=</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">expected</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, actual=</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">actual</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;error=</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">relative_error</span><span class="o">*</span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="create_standard_test_suite">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.create_standard_test_suite">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_standard_test_suite</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">AnalyticalTestCase</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create standard analytical validation test suite.</span>
+
+<span class="sd">    Returns a list of test cases that verify fundamental optimizer behavior:</span>
+
+<span class="sd">    1. Energy Balance Tests</span>
+<span class="sd">       - Verify that heat supply equals demand</span>
+<span class="sd">       - Check storage energy conservation</span>
+
+<span class="sd">    2. Heat Pump COP Tests</span>
+<span class="sd">       - Verify COP calculation under controlled conditions</span>
+<span class="sd">       - Check Carnot efficiency factor application</span>
+
+<span class="sd">    3. Storage Tests</span>
+<span class="sd">       - Round-trip efficiency verification</span>
+<span class="sd">       - Self-discharge loss calculation</span>
+
+<span class="sd">    4. Merit Order Tests</span>
+<span class="sd">       - Verify cheapest source dispatches first</span>
+<span class="sd">       - Check capacity constraints</span>
+
+<span class="sd">    5. Network Loss Tests (if applicable)</span>
+<span class="sd">       - Linear loss model verification</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        List of AnalyticalTestCase objects</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">test_cases</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 1: Constant Demand, Single Heat Pump</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Analytical solution: P_el = Q_th / COP</span>
+    <span class="c1"># With COP = eta_carnot * (T_sink / (T_sink - T_source))</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleHP_ConstantDemand&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies heat pump electricity consumption for constant demand. &quot;</span>
+                <span class="s2">&quot;Expected: P_el = Q_th / COP, where COP = eta * T_sink/(T_sink-T_source)&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="c1"># Simplified system: single HP, no storage, constant demand</span>
+                <span class="s2">&quot;test_mode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;constant_demand_mw&quot;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span>
+                    <span class="s2">&quot;constant_source_temp_c&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span>
+                    <span class="s2">&quot;constant_sink_temp_c&quot;</span><span class="p">:</span> <span class="mf">70.0</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># COP = 0.5 * (70+273)/(70-10) = 0.5 * 343/60 = 2.858</span>
+                <span class="c1"># P_el = 5.0 / 2.858 = 1.749 MW</span>
+                <span class="c1"># Total for 24h: 1.749 * 24 = 41.98 MWh</span>
+                <span class="s2">&quot;hp_electricity_mwh&quot;</span><span class="p">:</span> <span class="mf">41.98</span><span class="p">,</span>
+                <span class="s2">&quot;total_heat_mwh&quot;</span><span class="p">:</span> <span class="mf">120.0</span><span class="p">,</span>  <span class="c1"># 5 MW * 24h</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>  <span class="c1"># 2% tolerance for this complex calculation</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;cop&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 2: Storage Round-Trip Efficiency</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Charge 100 MWh, wait, discharge: should get eff_charge * eff_discharge * 100</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Storage_RoundTrip_Efficiency&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies storage round-trip efficiency. &quot;</span>
+                <span class="s2">&quot;Charge 100 MWh, discharge: expect eta_charge * eta_discharge * 100 MWh&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-02 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;test_mode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;storage_only&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="s2">&quot;charge_period_hours&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                    <span class="s2">&quot;charge_power_mw&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span>  <span class="c1"># 10 MW for 10h = 100 MWh</span>
+                    <span class="s2">&quot;wait_hours&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+                    <span class="s2">&quot;discharge_all&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;storage&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;eff_charge&quot;</span><span class="p">:</span> <span class="mf">0.95</span><span class="p">,</span>
+                    <span class="s2">&quot;eff_discharge&quot;</span><span class="p">:</span> <span class="mf">0.95</span><span class="p">,</span>
+                    <span class="s2">&quot;hourly_loss&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>  <span class="c1"># No self-discharge for this test</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># Round-trip: 100 * 0.95 * 0.95 = 90.25 MWh</span>
+                <span class="s2">&quot;storage_discharged_mwh&quot;</span><span class="p">:</span> <span class="mf">90.25</span><span class="p">,</span>
+                <span class="s2">&quot;round_trip_efficiency&quot;</span><span class="p">:</span> <span class="mf">0.9025</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;storage&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 3: Storage Self-Discharge</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Charge storage, wait for known time, verify SOC decay</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Storage_SelfDischarge&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies storage self-discharge calculation. &quot;</span>
+                <span class="s2">&quot;SOC(t) = SOC_0 * (1 - hourly_loss)^t&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-03 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;test_mode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;storage_only&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="s2">&quot;initial_soc_mwh&quot;</span><span class="p">:</span> <span class="mf">100.0</span><span class="p">,</span>
+                    <span class="s2">&quot;no_dispatch&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># Just observe self-discharge</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;storage&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;eff_charge&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                    <span class="s2">&quot;eff_discharge&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                    <span class="s2">&quot;hourly_loss&quot;</span><span class="p">:</span> <span class="mf">0.001</span><span class="p">,</span>  <span class="c1"># 0.1% per hour</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># After 72 hours: 100 * (1-0.001)^72 = 100 * 0.9305 = 93.05 MWh</span>
+                <span class="s2">&quot;final_soc_mwh&quot;</span><span class="p">:</span> <span class="mf">93.05</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;storage&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 4: Merit Order - HP vs P2H</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># When HP is cheaper, it should dispatch before P2H</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;MeritOrder_HP_vs_P2H&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies merit order dispatch: cheaper source dispatches first. &quot;</span>
+                <span class="s2">&quot;HP with COP=3 should dispatch before P2H with eta=0.99&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;test_mode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;constant_demand_mw&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span>
+                    <span class="s2">&quot;hp_capacity_mw&quot;</span><span class="p">:</span> <span class="mf">8.0</span><span class="p">,</span>  <span class="c1"># HP can cover 8 MW</span>
+                    <span class="s2">&quot;p2h_capacity_mw&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span>  <span class="c1"># P2H available for rest</span>
+                    <span class="s2">&quot;electricity_price_eur_mwh&quot;</span><span class="p">:</span> <span class="mf">100.0</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;heat_pumps&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;HP1&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;capacity_mw&quot;</span><span class="p">:</span> <span class="mf">8.0</span><span class="p">,</span> <span class="s2">&quot;cop_fixed&quot;</span><span class="p">:</span> <span class="mf">3.0</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;generators&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;p2h&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;capacity_mw&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span> <span class="s2">&quot;el_to_th_eff&quot;</span><span class="p">:</span> <span class="mf">0.99</span><span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># HP cost: 100/3 = 33.33 EUR/MWh_th</span>
+                <span class="c1"># P2H cost: 100/0.99 = 101.01 EUR/MWh_th</span>
+                <span class="c1"># HP should run at full 8 MW, P2H covers 2 MW</span>
+                <span class="s2">&quot;hp_output_mwh&quot;</span><span class="p">:</span> <span class="mf">192.0</span><span class="p">,</span>  <span class="c1"># 8 MW * 24h</span>
+                <span class="s2">&quot;p2h_output_mwh&quot;</span><span class="p">:</span> <span class="mf">48.0</span><span class="p">,</span>   <span class="c1"># 2 MW * 24h</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;merit_order&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 5: Energy Balance Verification</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;EnergyBalance_Conservation&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies energy conservation: total generation equals &quot;</span>
+                <span class="s2">&quot;demand plus storage net charge plus network losses&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-07 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># Energy balance: Generation = Demand + Storage_net + Losses + Dump</span>
+                <span class="s2">&quot;energy_balance_error&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>  <span class="c1"># Very tight tolerance for energy balance</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;energy_balance&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># ==========================================================================</span>
+    <span class="c1"># Test 6: P2H Efficiency Verification</span>
+    <span class="c1"># ==========================================================================</span>
+    <span class="n">test_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">AnalyticalTestCase</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">&quot;P2H_Efficiency&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">&quot;Verifies P2H (electrode boiler) efficiency. &quot;</span>
+                <span class="s2">&quot;Q_th = P_el * eta_el_to_th&quot;</span>
+            <span class="p">),</span>
+            <span class="n">config_overrides</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;horizon&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;start&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-01-01 23:00&quot;</span><span class="p">},</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;test_mode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;p2h_only&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                    <span class="s2">&quot;constant_demand_mw&quot;</span><span class="p">:</span> <span class="mf">10.0</span><span class="p">,</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;generators&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;p2h&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;el_to_th_eff&quot;</span><span class="p">:</span> <span class="mf">0.99</span><span class="p">},</span>
+                <span class="p">},</span>
+            <span class="p">},</span>
+            <span class="n">expected_results</span><span class="o">=</span><span class="p">{</span>
+                <span class="c1"># P_el = Q_th / eta = 10 / 0.99 = 10.101 MW</span>
+                <span class="c1"># Total: 10.101 * 24 = 242.42 MWh_el</span>
+                <span class="s2">&quot;p2h_electricity_mwh&quot;</span><span class="p">:</span> <span class="mf">242.42</span><span class="p">,</span>
+                <span class="s2">&quot;p2h_heat_mwh&quot;</span><span class="p">:</span> <span class="mf">240.0</span><span class="p">,</span>  <span class="c1"># 10 MW * 24h</span>
+            <span class="p">},</span>
+            <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+            <span class="n">category</span><span class="o">=</span><span class="s2">&quot;efficiency&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">test_cases</span></div>
+
+
+
+<div class="viewcode-block" id="run_single_test">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.run_single_test">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_single_test</span><span class="p">(</span>
+    <span class="n">test_case</span><span class="p">:</span> <span class="n">AnalyticalTestCase</span><span class="p">,</span>
+    <span class="n">base_configs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">run_func</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">ValidationResult</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run a single analytical test case.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    test_case : AnalyticalTestCase</span>
+<span class="sd">        The test case specification</span>
+<span class="sd">    base_configs : List[str]</span>
+<span class="sd">        Base configuration file paths</span>
+<span class="sd">    run_func : Callable, optional</span>
+<span class="sd">        Custom function to run the optimization.</span>
+<span class="sd">        If None, uses the default workflow runner.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    List[ValidationResult]</span>
+<span class="sd">        Results for each expected metric in the test case</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running test: </span><span class="si">{</span><span class="n">test_case</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Description: </span><span class="si">{</span><span class="n">test_case</span><span class="o">.</span><span class="n">description</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Run optimization with test configuration</span>
+        <span class="k">if</span> <span class="n">run_func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">energis.run.rolling_horizon</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_workflow</span>
+            <span class="n">workflow_result</span> <span class="o">=</span> <span class="n">run_workflow</span><span class="p">(</span><span class="n">base_configs</span><span class="p">,</span> <span class="n">test_case</span><span class="o">.</span><span class="n">config_overrides</span><span class="p">)</span>
+
+            <span class="c1"># Extract actual values based on expected results keys</span>
+            <span class="n">actual_values</span> <span class="o">=</span> <span class="n">_extract_test_metrics</span><span class="p">(</span><span class="n">workflow_result</span><span class="p">,</span> <span class="n">test_case</span><span class="o">.</span><span class="n">expected_results</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">actual_values</span> <span class="o">=</span> <span class="n">run_func</span><span class="p">(</span><span class="n">base_configs</span><span class="p">,</span> <span class="n">test_case</span><span class="o">.</span><span class="n">config_overrides</span><span class="p">)</span>
+
+        <span class="c1"># Compare each expected metric</span>
+        <span class="k">for</span> <span class="n">metric_name</span><span class="p">,</span> <span class="n">expected_value</span> <span class="ow">in</span> <span class="n">test_case</span><span class="o">.</span><span class="n">expected_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">actual_value</span> <span class="o">=</span> <span class="n">actual_values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">metric_name</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+
+            <span class="c1"># Calculate errors</span>
+            <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">expected_value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1e-10</span><span class="p">:</span>
+                <span class="n">relative_error</span> <span class="o">=</span> <span class="p">(</span><span class="n">actual_value</span> <span class="o">-</span> <span class="n">expected_value</span><span class="p">)</span> <span class="o">/</span> <span class="n">expected_value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">relative_error</span> <span class="o">=</span> <span class="n">actual_value</span>  <span class="c1"># For zero expected, use absolute</span>
+
+            <span class="n">absolute_error</span> <span class="o">=</span> <span class="n">actual_value</span> <span class="o">-</span> <span class="n">expected_value</span>
+
+            <span class="c1"># Determine pass/fail</span>
+            <span class="n">passed</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">relative_error</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">test_case</span><span class="o">.</span><span class="n">tolerance</span>
+
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">ValidationResult</span><span class="p">(</span>
+                    <span class="n">test_name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">test_case</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">metric_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">passed</span><span class="o">=</span><span class="n">passed</span><span class="p">,</span>
+                    <span class="n">expected</span><span class="o">=</span><span class="n">expected_value</span><span class="p">,</span>
+                    <span class="n">actual</span><span class="o">=</span><span class="n">actual_value</span><span class="p">,</span>
+                    <span class="n">relative_error</span><span class="o">=</span><span class="n">relative_error</span><span class="p">,</span>
+                    <span class="n">absolute_error</span><span class="o">=</span><span class="n">absolute_error</span><span class="p">,</span>
+                    <span class="n">details</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s2">&quot;tolerance&quot;</span><span class="p">:</span> <span class="n">test_case</span><span class="o">.</span><span class="n">tolerance</span><span class="p">,</span>
+                        <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="n">test_case</span><span class="o">.</span><span class="n">category</span><span class="p">,</span>
+                    <span class="p">},</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;PASS&quot;</span> <span class="k">if</span> <span class="n">passed</span> <span class="k">else</span> <span class="s2">&quot;FAIL&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;  [</span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">metric_name</span><span class="si">}</span><span class="s2">: expected=</span><span class="si">{</span><span class="n">expected_value</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;actual=</span><span class="si">{</span><span class="n">actual_value</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">, error=</span><span class="si">{</span><span class="n">relative_error</span><span class="o">*</span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Error running test </span><span class="si">{</span><span class="n">test_case</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+        <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+
+        <span class="c1"># Create failure result for each expected metric</span>
+        <span class="k">for</span> <span class="n">metric_name</span><span class="p">,</span> <span class="n">expected_value</span> <span class="ow">in</span> <span class="n">test_case</span><span class="o">.</span><span class="n">expected_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">ValidationResult</span><span class="p">(</span>
+                    <span class="n">test_name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">test_case</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">metric_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">passed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">expected</span><span class="o">=</span><span class="n">expected_value</span><span class="p">,</span>
+                    <span class="n">actual</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;nan&#39;</span><span class="p">),</span>
+                    <span class="n">relative_error</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;nan&#39;</span><span class="p">),</span>
+                    <span class="n">absolute_error</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="s1">&#39;nan&#39;</span><span class="p">),</span>
+                    <span class="n">details</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)},</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<div class="viewcode-block" id="run_validation_suite">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.analytical_benchmarks.run_validation_suite">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_validation_suite</span><span class="p">(</span>
+    <span class="n">base_configs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">test_cases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">AnalyticalTestCase</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">run_func</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ValidationSuiteResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run complete analytical validation suite.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    base_configs : List[str], optional</span>
+<span class="sd">        Base configuration file paths. If None, uses default test configs.</span>
+<span class="sd">    test_cases : List[AnalyticalTestCase], optional</span>
+<span class="sd">        Custom test cases. If None, uses standard test suite.</span>
+<span class="sd">    run_func : Callable, optional</span>
+<span class="sd">        Custom optimization function.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ValidationSuiteResult</span>
+<span class="sd">        Aggregate results from all tests</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">test_cases</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">test_cases</span> <span class="o">=</span> <span class="n">create_standard_test_suite</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">base_configs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Use minimal test configuration</span>
+        <span class="n">base_configs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No base configs provided, using default test configuration&quot;</span><span class="p">)</span>
+
+    <span class="n">all_results</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;STARTING ANALYTICAL VALIDATION SUITE&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of test cases: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">test_cases</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">60</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">test_case</span> <span class="ow">in</span> <span class="n">test_cases</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">run_single_test</span><span class="p">(</span><span class="n">test_case</span><span class="p">,</span> <span class="n">base_configs</span><span class="p">,</span> <span class="n">run_func</span><span class="p">)</span>
+        <span class="n">all_results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+
+    <span class="c1"># Calculate summary statistics</span>
+    <span class="n">passed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">all_results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">passed</span><span class="p">)</span>
+    <span class="n">failed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">all_results</span><span class="p">)</span> <span class="o">-</span> <span class="n">passed</span>
+
+    <span class="n">suite_result</span> <span class="o">=</span> <span class="n">ValidationSuiteResult</span><span class="p">(</span>
+        <span class="n">results</span><span class="o">=</span><span class="n">all_results</span><span class="p">,</span>
+        <span class="n">total_tests</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">all_results</span><span class="p">),</span>
+        <span class="n">passed_tests</span><span class="o">=</span><span class="n">passed</span><span class="p">,</span>
+        <span class="n">failed_tests</span><span class="o">=</span><span class="n">failed</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">suite_result</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_test_metrics</span><span class="p">(</span>
+    <span class="n">workflow_result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">metric_keys</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract test metrics from workflow result.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    workflow_result : WorkflowResult</span>
+<span class="sd">        Result from run_workflow</span>
+<span class="sd">    metric_keys : List[str]</span>
+<span class="sd">        Names of metrics to extract</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Dict[str, float]</span>
+<span class="sd">        Extracted metric values</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">metrics</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Get the active result</span>
+    <span class="n">active_result</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">mpc_result</span><span class="p">:</span>
+        <span class="n">active_result</span> <span class="o">=</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">mpc_result</span>
+    <span class="k">elif</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">rh_result</span><span class="p">:</span>
+        <span class="n">active_result</span> <span class="o">=</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">rh_result</span>
+    <span class="k">elif</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">pf_result</span><span class="p">:</span>
+        <span class="n">active_result</span> <span class="o">=</span> <span class="n">workflow_result</span><span class="o">.</span><span class="n">pf_result</span>
+
+    <span class="k">if</span> <span class="n">active_result</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">metrics</span>
+
+    <span class="n">series</span> <span class="o">=</span> <span class="n">active_result</span><span class="o">.</span><span class="n">series</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">active_result</span><span class="p">,</span> <span class="s1">&#39;series&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">active_result</span><span class="o">.</span><span class="n">summary</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">active_result</span><span class="p">,</span> <span class="s1">&#39;summary&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
+
+    <span class="c1"># Extract based on metric name patterns</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">metric_keys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;hp_electricity_mwh&quot;</span><span class="p">:</span>
+            <span class="c1"># Sum all HP electricity consumption</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">for</span> <span class="n">hp_key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;HP1_P_el_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP2_P_el_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP3_P_el_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP4_P_el_MW&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">hp_key</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                    <span class="n">total</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="n">hp_key</span><span class="p">])</span>
+            <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">total</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;total_heat_mwh&quot;</span><span class="p">:</span>
+            <span class="c1"># Sum all heat output</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">for</span> <span class="n">heat_key</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">heat_key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_Q_th_MW&quot;</span><span class="p">):</span>
+                    <span class="n">total</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="n">heat_key</span><span class="p">])</span>
+            <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">total</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;storage_discharged_mwh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;TES_discharge_MW&quot;</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="s2">&quot;TES_discharge_MW&quot;</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;round_trip_efficiency&quot;</span><span class="p">:</span>
+            <span class="n">charged</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TES_charge_MW&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">discharged</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TES_discharge_MW&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">discharged</span> <span class="o">/</span> <span class="n">charged</span> <span class="k">if</span> <span class="n">charged</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;final_soc_mwh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;TES_SOC_MWh&quot;</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">series</span><span class="p">[</span><span class="s2">&quot;TES_SOC_MWh&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;hp_output_mwh&quot;</span><span class="p">:</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">for</span> <span class="n">hp_key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;HP1_Q_th_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP2_Q_th_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP3_Q_th_MW&quot;</span><span class="p">,</span> <span class="s2">&quot;HP4_Q_th_MW&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">hp_key</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                    <span class="n">total</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="n">hp_key</span><span class="p">])</span>
+            <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">total</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;p2h_output_mwh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;P2H_Q_th_MW&quot;</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="s2">&quot;P2H_Q_th_MW&quot;</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;p2h_electricity_mwh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;P2H_P_el_MW&quot;</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="s2">&quot;P2H_P_el_MW&quot;</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;p2h_heat_mwh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;P2H_Q_th_MW&quot;</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="s2">&quot;P2H_Q_th_MW&quot;</span><span class="p">])</span>
+
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;energy_balance_error&quot;</span><span class="p">:</span>
+            <span class="c1"># Calculate energy balance</span>
+            <span class="n">demand</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_mw&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">generation</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">for</span> <span class="n">gen_key</span> <span class="ow">in</span> <span class="n">series</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">gen_key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;_Q_th_MW&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">gen_key</span> <span class="o">==</span> <span class="s2">&quot;TES_discharge_MW&quot;</span><span class="p">:</span>
+                    <span class="n">generation</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="p">[</span><span class="n">gen_key</span><span class="p">])</span>
+
+            <span class="n">storage_net</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TES_charge_MW&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">-</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;TES_discharge_MW&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">dump</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">series</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dump_mw&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+            <span class="c1"># Energy balance: Generation = Demand + Storage_charge + Dump</span>
+            <span class="n">balance_error</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">generation</span> <span class="o">-</span> <span class="n">demand</span> <span class="o">-</span> <span class="n">storage_net</span> <span class="o">-</span> <span class="n">dump</span><span class="p">)</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">demand</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">balance_error</span>
+
+    <span class="k">return</span> <span class="n">metrics</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

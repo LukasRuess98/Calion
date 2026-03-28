@@ -1,0 +1,472 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.models.component &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.models.component</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.models.component</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Component abstraction for EnerGIS framework.</span>
+
+<span class="sd">This module provides the base abstractions for all components in the framework,</span>
+<span class="sd">including protocols, base classes, and flow definitions.</span>
+
+<span class="sd">Inspired by Oemof.solph and PyPSA design patterns.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">runtime_checkable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pyo</span>
+<span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - optional dependency</span>
+    <span class="n">pyo</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="BusType">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BusType">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BusType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Supported bus types in the framework.&quot;&quot;&quot;</span>
+    <span class="n">ELECTRICITY</span> <span class="o">=</span> <span class="s2">&quot;electricity&quot;</span>
+    <span class="n">HEAT</span> <span class="o">=</span> <span class="s2">&quot;heat&quot;</span>
+    <span class="n">COOLING</span> <span class="o">=</span> <span class="s2">&quot;cooling&quot;</span>
+    <span class="n">FUEL_GAS</span> <span class="o">=</span> <span class="s2">&quot;fuel_gas&quot;</span>
+    <span class="n">FUEL_BIOMASS</span> <span class="o">=</span> <span class="s2">&quot;fuel_biomass&quot;</span>
+    <span class="n">FUEL_WASTE</span> <span class="o">=</span> <span class="s2">&quot;fuel_waste&quot;</span>
+    <span class="n">HYDROGEN</span> <span class="o">=</span> <span class="s2">&quot;hydrogen&quot;</span>
+    <span class="n">GENERIC</span> <span class="o">=</span> <span class="s2">&quot;generic&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Flow">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Flow">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Flow</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Flow definition for connections between components and buses.</span>
+
+<span class="sd">    Inspired by Oemof.solph Flow concept - provides explicit declaration</span>
+<span class="sd">    of energy/commodity flows between components and buses.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        bus: Name of the bus this flow connects to</span>
+<span class="sd">        direction: Flow direction (&quot;input&quot; or &quot;output&quot;)</span>
+<span class="sd">        variable: Pyomo variable representing the flow (set during attach)</span>
+<span class="sd">        nominal_value: Maximum flow value (capacity)</span>
+<span class="sd">        min_value: Minimum flow value when active</span>
+<span class="sd">        max_value: Alternative to nominal_value</span>
+<span class="sd">        investment: Whether this flow is investable</span>
+<span class="sd">        variable_costs: Variable costs per unit flow (e.g., EUR/MWh)</span>
+<span class="sd">        flow_type: Type of flow (power, heat, fuel, etc.)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">bus</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span>
+    <span class="n">variable</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># pyo.Var - set during attach</span>
+    <span class="n">nominal_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">min_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">max_value</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">investment</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">variable_costs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">flow_type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="InvestmentResult">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvestmentResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Investment results from optimization.</span>
+
+<span class="sd">    Contains the variables related to investment decisions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># pyo.Var</span>
+    <span class="n">build</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># pyo.Var (binary)</span>
+    <span class="n">capacity_energy</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># For storage</span>
+    <span class="n">capacity_power</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># For storage</span></div>
+
+
+
+<div class="viewcode-block" id="Component">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Component">[docs]</a>
+<span class="nd">@runtime_checkable</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Component</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Protocol for all components in the EnerGIS framework.</span>
+
+<span class="sd">    This defines the interface that all components must implement.</span>
+<span class="sd">    Using typing.Protocol provides runtime type checking while maintaining</span>
+<span class="sd">    duck typing compatibility.</span>
+
+<span class="sd">    All component implementations should provide these methods.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+
+<div class="viewcode-block" id="Component.attach">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Component.attach">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># pyo.ConcreteModel</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># pyo.Set</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">buses</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Attach component to the Pyomo model.</span>
+
+<span class="sd">        This method creates all necessary Pyomo variables, parameters, and</span>
+<span class="sd">        constraints for the component and registers flows with buses.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Pyomo ConcreteModel to attach to</span>
+<span class="sd">            time_set: Pyomo Set representing time indices</span>
+<span class="sd">            config: Configuration dictionary</span>
+<span class="sd">            buses: Dictionary of bus objects</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with standardized keys:</span>
+<span class="sd">            - &#39;flows&#39;: Dict[str, Dict[str, pyo.Var]] - Flow variables by bus and direction</span>
+<span class="sd">            - &#39;investment&#39;: Optional[InvestmentResult] - Investment variables</span>
+<span class="sd">            - &#39;state&#39;: Optional[pyo.Var] - State variables (e.g., SOC for storage)</span>
+<span class="sd">            - &#39;metadata&#39;: Optional[Dict] - Additional component-specific data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+
+
+<div class="viewcode-block" id="Component.get_results">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Component.get_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_results</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>  <span class="c1"># pyo.ConcreteModel</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract results from solved model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Solved Pyomo model</span>
+<span class="sd">            time_set: Time set used in model</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with component results (flows, states, etc.)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+
+
+<div class="viewcode-block" id="Component.validate_config">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Component.validate_config">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate component configuration.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Configuration dictionary to validate</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If configuration is invalid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="BaseComponent">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BaseComponent</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for all components with common functionality.</span>
+
+<span class="sd">    Provides default implementations and helper methods that are shared</span>
+<span class="sd">    across all component types. Subclasses should inherit from this class</span>
+<span class="sd">    and implement the abstract methods.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        name: Unique identifier for the component instance</span>
+<span class="sd">        label: Human-readable label (defaults to name)</span>
+<span class="sd">        flows: List of Flow objects declared by this component</span>
+<span class="sd">        _attached: Whether component has been attached to a model</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="BaseComponent.__init__">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize base component.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Unique component identifier</span>
+<span class="sd">            label: Human-readable label (optional)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="n">label</span> <span class="ow">or</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flows</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Flow</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_attached</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_set</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.attach">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.attach">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">buses</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Attach component to model - must be implemented by subclasses.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Pyomo ConcreteModel</span>
+<span class="sd">            time_set: Pyomo Set for time indices</span>
+<span class="sd">            config: Configuration dictionary</span>
+<span class="sd">            buses: Dictionary of bus objects</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with standardized return values</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.add_flow">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.add_flow">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flow</span><span class="p">:</span> <span class="n">Flow</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Register a flow for this component.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            flow: Flow object to register</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flow</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.get_flows_for_bus">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.get_flows_for_bus">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_flows_for_bus</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bus_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Flow</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get all flows connected to a specific bus.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bus_name: Name of the bus</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            List of Flow objects for that bus</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flows</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">bus</span> <span class="o">==</span> <span class="n">bus_name</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.get_input_flows">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.get_input_flows">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_input_flows</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Flow</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get all input flows.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flows</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;input&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.get_output_flows">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.get_output_flows">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_output_flows</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Flow</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get all output flows.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flows</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.get_results">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.get_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_results</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Default implementation for result extraction.</span>
+
+<span class="sd">        Extracts flow values from the model. Can be overridden by subclasses</span>
+<span class="sd">        for component-specific results.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Solved Pyomo model</span>
+<span class="sd">            time_set: Time set</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with flow results</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s1">&#39;label&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="s1">&#39;flows&#39;</span><span class="p">:</span> <span class="p">{}</span>
+        <span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">flow</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flows</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">flow</span><span class="o">.</span><span class="n">variable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">flow_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">flow</span><span class="o">.</span><span class="n">bus</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">flow</span><span class="o">.</span><span class="n">direction</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">results</span><span class="p">[</span><span class="s1">&#39;flows&#39;</span><span class="p">][</span><span class="n">flow_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="n">t</span><span class="p">:</span> <span class="n">pyo</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">flow</span><span class="o">.</span><span class="n">variable</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">time_set</span>
+                <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">results</span></div>
+
+
+<div class="viewcode-block" id="BaseComponent.validate_config">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.BaseComponent.validate_config">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Default configuration validation.</span>
+
+<span class="sd">        Subclasses can override for specific validation needs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Configuration to validate</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If configuration is invalid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_positive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">allow_zero</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper to validate positive values.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value: Value to check</span>
+<span class="sd">            name: Parameter name for error message</span>
+<span class="sd">            allow_zero: Whether zero is acceptable</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If value is not positive (or non-negative if allow_zero)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">allow_zero</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be non-negative, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be positive, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_range</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">min_val</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">max_val</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper to validate value is in range.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value: Value to check</span>
+<span class="sd">            name: Parameter name for error message</span>
+<span class="sd">            min_val: Minimum allowed value (inclusive)</span>
+<span class="sd">            max_val: Maximum allowed value (inclusive)</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If value is out of range</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">min_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">min_val</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be &gt;= </span><span class="si">{</span><span class="n">min_val</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="n">max_val</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> must be &lt;= </span><span class="si">{</span><span class="n">max_val</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String representation of component.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(name=&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;, label=&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">&#39;)&quot;</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

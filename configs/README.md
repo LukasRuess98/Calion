@@ -3,7 +3,7 @@
 ## 📁 Directory Structure
 
 ```
-configs_new/
+configs/
 ├── tech_library/           # Technology templates (reusable)
 │   ├── heat_pumps.yaml     # HP performance curves, COP models
 │   ├── storage.yaml        # Storage efficiencies, thermal models
@@ -239,6 +239,6 @@ See detailed documentation:
 
 ---
 
-**Version:** 2.0.0-alpha
+**Version:** 1.0.0-alpha
 **Status:** ✅ Complete Implementation
-**Date:** 2026-02-16
+**Date:** 2026-03-28

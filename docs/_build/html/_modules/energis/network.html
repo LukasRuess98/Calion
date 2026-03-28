@@ -1,0 +1,810 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.network &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.network</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.network</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;High-level programmatic API for building energy system models.</span>
+
+<span class="sd">Inspired by PyPSA&#39;s ``Network`` class, this module provides a fluent</span>
+<span class="sd">interface for constructing, solving, and inspecting district heating</span>
+<span class="sd">optimisation models without touching YAML files.</span>
+
+<span class="sd">Typical usage::</span>
+
+<span class="sd">    from energis import Network</span>
+
+<span class="sd">    net = Network(dt_h=1.0, solver=&quot;glpk&quot;)</span>
+<span class="sd">    net.add_bus(&quot;electricity&quot;)</span>
+<span class="sd">    net.add_bus(&quot;heat&quot;)</span>
+
+<span class="sd">    net.add_heat_pump(&quot;HP1&quot;, capacity_mw=10.0, cop=3.5)</span>
+<span class="sd">    net.add_storage(&quot;TES&quot;, energy_mwh=200.0, power_mw=40.0)</span>
+<span class="sd">    net.add_generator(&quot;Boiler&quot;, cap_th_mw=5.0, efficiency=0.90)</span>
+
+<span class="sd">    net.set_demand(&quot;heat&quot;, demand_mw=[...])</span>
+<span class="sd">    net.set_electricity_price(prices_eur_mwh=[...])</span>
+
+<span class="sd">    result = net.optimize()</span>
+<span class="sd">    print(result.costs)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.models.results</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvestmentDecisions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.utils.timeseries</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesTable</span>
+
+
+<div class="viewcode-block" id="Network">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Network</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Programmatic model builder for district heating systems.</span>
+
+<span class="sd">    This class constructs a config dict and time-series table internally,</span>
+<span class="sd">    then delegates to the existing ``build_model`` / ``_solve_scenario``</span>
+<span class="sd">    pipeline.  It is a *convenience wrapper*, not a replacement — all</span>
+<span class="sd">    existing YAML-based workflows remain supported.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dt_h : float</span>
+<span class="sd">        Time step in hours (default 1.0).</span>
+<span class="sd">    solver : str</span>
+<span class="sd">        Solver name passed to Pyomo&#39;s ``SolverFactory`` (default ``&quot;glpk&quot;``).</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Optional scenario name.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">dt_h</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">solver</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;glpk&quot;</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;programmatic&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt_h</span> <span class="o">=</span> <span class="n">dt_h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">=</span> <span class="n">solver</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="c1"># Internal config that will be passed to build_model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generators</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_costs</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fuels</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Network topology</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_network_physics</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_network_temps</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Time series (column name → values)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Component registration</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="Network.add_heat_pump">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.add_heat_pump">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_heat_pump</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">capacity_mw</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">cop</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">3.0</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">investment</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">capacity_min_mw</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">capacity_max_mw</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a heat pump to the system.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        id : str</span>
+<span class="sd">            Unique heat pump identifier (e.g. ``&quot;HP1&quot;``).</span>
+<span class="sd">        capacity_mw : float</span>
+<span class="sd">            Thermal capacity in MW.</span>
+<span class="sd">        cop : float</span>
+<span class="sd">            Coefficient of performance (constant).</span>
+<span class="sd">        enabled : bool</span>
+<span class="sd">            Whether the heat pump is initially enabled.</span>
+<span class="sd">        investment : bool</span>
+<span class="sd">            Whether investment optimisation is enabled for this unit.</span>
+<span class="sd">        capacity_min_mw : float</span>
+<span class="sd">            Minimum capacity bound for investment mode.</span>
+<span class="sd">        capacity_max_mw : float, optional</span>
+<span class="sd">            Maximum capacity bound (defaults to ``capacity_mw``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">hp</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="nb">id</span><span class="p">,</span>
+            <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="n">enabled</span><span class="p">,</span>
+            <span class="s2">&quot;max_th_mw&quot;</span><span class="p">:</span> <span class="n">capacity_mw</span><span class="p">,</span>
+            <span class="s2">&quot;min_th_mw&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="s2">&quot;cop_default&quot;</span><span class="p">:</span> <span class="n">cop</span><span class="p">,</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;standard&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">investment</span><span class="p">:</span>
+            <span class="n">hp</span><span class="p">[</span><span class="s2">&quot;investment&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s2">&quot;capacity_min_mw&quot;</span><span class="p">:</span> <span class="n">capacity_min_mw</span><span class="p">,</span>
+                <span class="s2">&quot;capacity_max_mw&quot;</span><span class="p">:</span> <span class="n">capacity_max_mw</span> <span class="ow">or</span> <span class="n">capacity_mw</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.add_storage">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.add_storage">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_storage</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;TES&quot;</span><span class="p">,</span>
+        <span class="n">energy_mwh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span><span class="p">,</span>
+        <span class="n">power_mw</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">20.0</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">eta_charge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="n">eta_discharge</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="n">soc_init_mwh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">self_discharge_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">investment</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add thermal energy storage.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        id : str</span>
+<span class="sd">            Storage identifier.</span>
+<span class="sd">        energy_mwh : float</span>
+<span class="sd">            Energy capacity in MWh.</span>
+<span class="sd">        power_mw : float</span>
+<span class="sd">            Charge/discharge power limit in MW.</span>
+<span class="sd">        eta_charge, eta_discharge : float</span>
+<span class="sd">            Round-trip efficiencies (0–1).</span>
+<span class="sd">        soc_init_mwh : float</span>
+<span class="sd">            Initial state of charge.</span>
+<span class="sd">        self_discharge_rate : float</span>
+<span class="sd">            Hourly self-discharge fraction (0–1).</span>
+<span class="sd">        investment : bool</span>
+<span class="sd">            Enable investment optimisation for storage sizing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="nb">id</span><span class="p">,</span>
+            <span class="s2">&quot;energy_mwh&quot;</span><span class="p">:</span> <span class="n">energy_mwh</span><span class="p">,</span>
+            <span class="s2">&quot;power_mw&quot;</span><span class="p">:</span> <span class="n">power_mw</span><span class="p">,</span>
+            <span class="s2">&quot;eta_charge&quot;</span><span class="p">:</span> <span class="n">eta_charge</span><span class="p">,</span>
+            <span class="s2">&quot;eta_discharge&quot;</span><span class="p">:</span> <span class="n">eta_discharge</span><span class="p">,</span>
+            <span class="s2">&quot;soc_init_mwh&quot;</span><span class="p">:</span> <span class="n">soc_init_mwh</span><span class="p">,</span>
+            <span class="s2">&quot;self_discharge_rate&quot;</span><span class="p">:</span> <span class="n">self_discharge_rate</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">investment</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">[</span><span class="s2">&quot;investment&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s2">&quot;energy_capacity_max_mwh&quot;</span><span class="p">:</span> <span class="n">energy_mwh</span><span class="p">,</span>
+                <span class="s2">&quot;power_capacity_max_mw&quot;</span><span class="p">:</span> <span class="n">power_mw</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.add_generator">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.add_generator">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_generator</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">cap_th_mw</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">fuel_bus</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;electricity&quot;</span><span class="p">,</span>
+        <span class="n">efficiency</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.99</span><span class="p">,</span>
+        <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a thermal generator (P2H / boiler / CHP).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        id : str</span>
+<span class="sd">            Generator identifier.</span>
+<span class="sd">        cap_th_mw : float</span>
+<span class="sd">            Thermal output capacity in MW.</span>
+<span class="sd">        fuel_bus : str</span>
+<span class="sd">            Fuel bus name (``&quot;electricity&quot;``, ``&quot;gas&quot;``, etc.).</span>
+<span class="sd">        efficiency : float</span>
+<span class="sd">            Thermal efficiency (fuel → heat).</span>
+<span class="sd">        enabled : bool</span>
+<span class="sd">            Whether the generator is initially enabled.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generators</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="n">enabled</span><span class="p">,</span>
+            <span class="s2">&quot;cap_th_mw&quot;</span><span class="p">:</span> <span class="n">cap_th_mw</span><span class="p">,</span>
+            <span class="s2">&quot;fuel_bus&quot;</span><span class="p">:</span> <span class="n">fuel_bus</span><span class="p">,</span>
+            <span class="s2">&quot;th_eff&quot;</span><span class="p">:</span> <span class="n">efficiency</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Network topology</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="Network.set_network_temps">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_network_temps">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_network_temps</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">supply_temp_c</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">90.0</span><span class="p">,</span>
+        <span class="n">return_temp_c</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">55.0</span><span class="p">,</span>
+        <span class="n">ground_temp_c</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set network temperature parameters.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_network_temps</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;supply_temp_c&quot;</span><span class="p">:</span> <span class="n">supply_temp_c</span><span class="p">,</span>
+            <span class="s2">&quot;return_temp_c&quot;</span><span class="p">:</span> <span class="n">return_temp_c</span><span class="p">,</span>
+            <span class="s2">&quot;ground_temp_c&quot;</span><span class="p">:</span> <span class="n">ground_temp_c</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_network_physics">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_network_physics">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_network_physics</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">heat_loss</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">pressure_drop</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">transport_delay</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Enable/disable network physics features.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_network_physics</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;heat_loss&quot;</span><span class="p">:</span> <span class="n">heat_loss</span><span class="p">,</span>
+            <span class="s2">&quot;pressure_drop&quot;</span><span class="p">:</span> <span class="n">pressure_drop</span><span class="p">,</span>
+            <span class="s2">&quot;transport_delay&quot;</span><span class="p">:</span> <span class="n">transport_delay</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.add_node">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.add_node">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_node</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;junction&quot;</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">assets</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">demand_fraction</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">demand_column</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">peak_demand_mw</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a network node (producer, consumer, or junction).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        id : str</span>
+<span class="sd">            Unique node identifier.</span>
+<span class="sd">        type : str</span>
+<span class="sd">            One of ``&quot;producer&quot;``, ``&quot;consumer&quot;``, ``&quot;junction&quot;``.</span>
+<span class="sd">        assets : list of str, optional</span>
+<span class="sd">            Component IDs attached to this node.</span>
+<span class="sd">        demand_fraction : float, optional</span>
+<span class="sd">            Fraction of global heat demand served by this consumer (0–1).</span>
+<span class="sd">            Required for consumer nodes when using network topology.</span>
+<span class="sd">        demand_column : str, optional</span>
+<span class="sd">            Time-series column name for consumer demand.</span>
+<span class="sd">        peak_demand_mw : float, optional</span>
+<span class="sd">            Peak demand for consumer nodes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="nb">type</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">assets</span><span class="p">:</span>
+            <span class="n">node</span><span class="p">[</span><span class="s2">&quot;assets&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">assets</span>
+        <span class="k">if</span> <span class="n">demand_fraction</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">node</span><span class="p">[</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">demand_fraction</span>
+        <span class="k">if</span> <span class="n">demand_column</span> <span class="ow">or</span> <span class="n">peak_demand_mw</span><span class="p">:</span>
+            <span class="n">demand</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="n">demand_column</span><span class="p">:</span>
+                <span class="n">demand</span><span class="p">[</span><span class="s2">&quot;column&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">demand_column</span>
+            <span class="k">if</span> <span class="n">peak_demand_mw</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">demand</span><span class="p">[</span><span class="s2">&quot;peak_demand_mw&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_demand_mw</span>
+            <span class="n">node</span><span class="p">[</span><span class="s2">&quot;demand&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">demand</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.add_pipe">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.add_pipe">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_pipe</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">from_node</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">to_node</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">length_m</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">diameter_mm</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">u_value_w_per_m_k</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">burial_depth_m</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add a pipe connecting two nodes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        id : str</span>
+<span class="sd">            Unique pipe identifier.</span>
+<span class="sd">        from_node, to_node : str</span>
+<span class="sd">            Node IDs at pipe endpoints.</span>
+<span class="sd">        length_m : float</span>
+<span class="sd">            Pipe length in metres.</span>
+<span class="sd">        diameter_mm : float</span>
+<span class="sd">            Inner pipe diameter in mm.</span>
+<span class="sd">        u_value_w_per_m_k : float, optional</span>
+<span class="sd">            Overall heat transfer coefficient [W/(m·K)].</span>
+<span class="sd">        burial_depth_m : float, optional</span>
+<span class="sd">            Pipe burial depth in metres.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pipe</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;from&quot;</span><span class="p">:</span> <span class="n">from_node</span><span class="p">,</span>
+            <span class="s2">&quot;to&quot;</span><span class="p">:</span> <span class="n">to_node</span><span class="p">,</span>
+            <span class="s2">&quot;length_m&quot;</span><span class="p">:</span> <span class="n">length_m</span><span class="p">,</span>
+            <span class="s2">&quot;diameter_mm&quot;</span><span class="p">:</span> <span class="n">diameter_mm</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">u_value_w_per_m_k</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">pipe</span><span class="p">[</span><span class="s2">&quot;u_value_w_per_m_k&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">u_value_w_per_m_k</span>
+        <span class="k">if</span> <span class="n">burial_depth_m</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">pipe</span><span class="p">[</span><span class="s2">&quot;burial_depth_m&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">burial_depth_m</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">pipe</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_fuel">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_fuel">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_fuel</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">price_eur_mwh</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">ef_kg_per_mwh_fuel</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Define a fuel type and its cost/emissions.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fuels</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;price_eur_mwh&quot;</span><span class="p">:</span> <span class="n">price_eur_mwh</span><span class="p">,</span>
+            <span class="s2">&quot;ef_kg_per_mwh_fuel&quot;</span><span class="p">:</span> <span class="n">ef_kg_per_mwh_fuel</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Grid / cost parameters</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="Network.set_grid">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_grid">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_grid</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">max_import_mw</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e4</span><span class="p">,</span>
+        <span class="n">max_export_mw</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e4</span><span class="p">,</span>
+        <span class="n">demand_charge_eur_per_mw_y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configure grid connection parameters.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s2">&quot;max_import_mw&quot;</span><span class="p">:</span> <span class="n">max_import_mw</span><span class="p">,</span>
+            <span class="s2">&quot;max_export_mw&quot;</span><span class="p">:</span> <span class="n">max_export_mw</span><span class="p">,</span>
+            <span class="s2">&quot;demand_charge_eur_per_mw_y&quot;</span><span class="p">:</span> <span class="n">demand_charge_eur_per_mw_y</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_costs">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_costs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_costs</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">co2_price_eur_per_t</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span><span class="p">,</span>
+        <span class="n">dump_cost_eur_per_mwh_th</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configure cost parameters.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_costs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s2">&quot;co2_price_eur_per_t&quot;</span><span class="p">:</span> <span class="n">co2_price_eur_per_t</span><span class="p">,</span>
+            <span class="s2">&quot;dump_cost_eur_per_mwh_th&quot;</span><span class="p">:</span> <span class="n">dump_cost_eur_per_mwh_th</span><span class="p">,</span>
+        <span class="p">})</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Time series</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="Network.set_demand">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_demand">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_demand</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set heat demand time series (MW).&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_series</span><span class="p">(</span><span class="s2">&quot;waermebedarf_MWth&quot;</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_electricity_price">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_electricity_price">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_electricity_price</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set electricity price time series (EUR/MWh).&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_series</span><span class="p">(</span><span class="s2">&quot;strompreis_EUR_MWh&quot;</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_grid_co2">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_grid_co2">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_grid_co2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set grid CO₂ intensity time series (kg/MWh).&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_series</span><span class="p">(</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Network.set_cop_series">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.set_cop_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_cop_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hp_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;Network&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set a time-varying COP series for a specific heat pump.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_series</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;cop_</span><span class="si">{</span><span class="n">hp_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Series &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span><span class="si">}</span><span class="s2"> steps, expected </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">vals</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Build config + table</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assemble the internal config dict.&quot;&quot;&quot;</span>
+        <span class="n">cfg</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;scenario&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s2">&quot;workflow&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span> <span class="s2">&quot;run_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;PF_ONLY&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;run&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;dt_h&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span> <span class="s2">&quot;solver&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="p">},</span>
+            <span class="s2">&quot;grid&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="ow">or</span> <span class="p">{},</span>
+            <span class="s2">&quot;costs&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_costs</span> <span class="ow">or</span> <span class="p">{},</span>
+            <span class="s2">&quot;system&quot;</span><span class="p">:</span> <span class="p">{},</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">][</span><span class="s2">&quot;heat_pumps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">][</span><span class="s2">&quot;storage&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generators</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">][</span><span class="s2">&quot;generators&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generators</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fuels</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;fuels&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fuels</span><span class="p">)</span>
+
+        <span class="c1"># Network topology → thermal_network block for NetworkManager</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="p">:</span>
+            <span class="c1"># Auto-distribute demand fractions among consumers if not set</span>
+            <span class="n">consumers</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">nid</span> <span class="k">for</span> <span class="n">nid</span><span class="p">,</span> <span class="n">nd</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">nd</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;type&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;consumer&quot;</span>
+            <span class="p">]</span>
+            <span class="n">consumers_without_fraction</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">nid</span> <span class="k">for</span> <span class="n">nid</span> <span class="ow">in</span> <span class="n">consumers</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="p">]</span>
+            <span class="k">if</span> <span class="n">consumers_without_fraction</span><span class="p">:</span>
+                <span class="c1"># Compute remaining fraction after explicit fractions</span>
+                <span class="n">used</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">nid</span> <span class="ow">in</span> <span class="n">consumers</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="p">)</span>
+                <span class="n">remaining</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="n">used</span><span class="p">)</span>
+                <span class="n">auto_frac</span> <span class="o">=</span> <span class="n">remaining</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">consumers_without_fraction</span><span class="p">)</span> <span class="k">if</span> <span class="n">consumers_without_fraction</span> <span class="k">else</span> <span class="mf">0.0</span>
+                <span class="k">for</span> <span class="n">nid</span> <span class="ow">in</span> <span class="n">consumers_without_fraction</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">[</span><span class="n">nid</span><span class="p">][</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">auto_frac</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+
+            <span class="n">nodes_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">nid</span><span class="p">,</span> <span class="n">ndata</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">node_entry</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">nid</span><span class="p">,</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">ndata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="s2">&quot;junction&quot;</span><span class="p">),</span>
+                <span class="p">}</span>
+                <span class="c1"># Attach component references for producer nodes</span>
+                <span class="n">assets</span> <span class="o">=</span> <span class="n">ndata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;assets&quot;</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="k">if</span> <span class="n">assets</span><span class="p">:</span>
+                    <span class="n">node_entry</span><span class="p">[</span><span class="s2">&quot;components&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">assets</span>
+                <span class="c1"># Consumer demand fraction (required by ThermalNodeBlock)</span>
+                <span class="k">if</span> <span class="n">ndata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">node_entry</span><span class="p">[</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ndata</span><span class="p">[</span><span class="s2">&quot;demand_fraction&quot;</span><span class="p">]</span>
+                <span class="n">nodes_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node_entry</span><span class="p">)</span>
+
+            <span class="n">pipes_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">pid</span><span class="p">,</span> <span class="n">pdata</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">pipe_entry</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">pid</span><span class="p">,</span>
+                    <span class="s2">&quot;from_node&quot;</span><span class="p">:</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;from&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;to_node&quot;</span><span class="p">:</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;to&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;length_m&quot;</span><span class="p">:</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;length_m&quot;</span><span class="p">],</span>
+                    <span class="s2">&quot;current_diameter_supply_mm&quot;</span><span class="p">:</span> <span class="n">pdata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;diameter_mm&quot;</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span>
+                    <span class="s2">&quot;diameter_mm&quot;</span><span class="p">:</span> <span class="n">pdata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;diameter_mm&quot;</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="s2">&quot;u_value_w_per_m_k&quot;</span> <span class="ow">in</span> <span class="n">pdata</span><span class="p">:</span>
+                    <span class="n">pipe_entry</span><span class="p">[</span><span class="s2">&quot;u_value_supply_w_per_m_k&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;u_value_w_per_m_k&quot;</span><span class="p">]</span>
+                    <span class="n">pipe_entry</span><span class="p">[</span><span class="s2">&quot;u_value_return_w_per_m_k&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;u_value_w_per_m_k&quot;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s2">&quot;burial_depth_m&quot;</span> <span class="ow">in</span> <span class="n">pdata</span><span class="p">:</span>
+                    <span class="n">pipe_entry</span><span class="p">[</span><span class="s2">&quot;burial_depth_m&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pdata</span><span class="p">[</span><span class="s2">&quot;burial_depth_m&quot;</span><span class="p">]</span>
+                <span class="n">pipes_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pipe_entry</span><span class="p">)</span>
+
+            <span class="n">temps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_network_temps</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="n">physics</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_network_physics</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="n">cfg</span><span class="p">[</span><span class="s2">&quot;thermal_network&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s2">&quot;milp_linearize&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="s2">&quot;nodes&quot;</span><span class="p">:</span> <span class="n">nodes_list</span><span class="p">,</span>
+                <span class="s2">&quot;pipes&quot;</span><span class="p">:</span> <span class="n">pipes_list</span><span class="p">,</span>
+                <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;supply_temp_nominal_c&quot;</span><span class="p">:</span> <span class="n">temps</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;supply_temp_c&quot;</span><span class="p">,</span> <span class="mf">90.0</span><span class="p">),</span>
+                    <span class="s2">&quot;return_temp_nominal_c&quot;</span><span class="p">:</span> <span class="n">temps</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;return_temp_c&quot;</span><span class="p">,</span> <span class="mf">55.0</span><span class="p">),</span>
+                    <span class="s2">&quot;ground_temp_default_c&quot;</span><span class="p">:</span> <span class="n">temps</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ground_temp_c&quot;</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;heat_loss_enabled&quot;</span><span class="p">:</span> <span class="n">physics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;heat_loss&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+                <span class="s2">&quot;pressure_drop_enabled&quot;</span><span class="p">:</span> <span class="n">physics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;pressure_drop&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+                <span class="s2">&quot;transport_delay_enabled&quot;</span><span class="p">:</span> <span class="n">physics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;transport_delay&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">cfg</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_table</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TimeSeriesTable</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Assemble the internal TimeSeriesTable.&quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No time series data set. Call set_demand() first.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Ensure required columns exist with defaults</span>
+        <span class="k">if</span> <span class="s2">&quot;waermebedarf_MWth&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Heat demand is required. Call set_demand().&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;strompreis_EUR_MWh&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">[</span><span class="s2">&quot;strompreis_EUR_MWh&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">50.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>  <span class="c1"># default 50 EUR/MWh</span>
+        <span class="k">if</span> <span class="s2">&quot;grid_co2_kg_MWh&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="p">[</span><span class="s2">&quot;grid_co2_kg_MWh&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">400.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>  <span class="c1"># default 400 kg/MWh</span>
+
+        <span class="n">start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2023</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">start</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="n">i</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_h</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">[:]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_series</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="k">return</span> <span class="n">TimeSeriesTable</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Solve</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="Network.optimize">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.Network.optimize">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">optimize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;NetworkResult&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the Pyomo model, solve, and return structured results.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        NetworkResult</span>
+<span class="sd">            Wrapper around :class:`~energis.run.types.ScenarioResult` with</span>
+<span class="sd">            convenience accessors.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        RuntimeError</span>
+<span class="sd">            If the solver is not available or the model is infeasible.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">energis.run.solver</span><span class="w"> </span><span class="kn">import</span> <span class="n">_solve_scenario</span>
+
+        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_config</span><span class="p">()</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_table</span><span class="p">()</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">_solve_scenario</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NetworkResult</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Repr</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;Network(dt_h=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">dt_h</span><span class="si">}</span><span class="s2">, solver=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="si">!r}</span><span class="s2">)&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  heat_pumps: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_heat_pumps</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generators</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  generators: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_generators</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  storage: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_storage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;TES&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  nodes: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  pipes: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pipes</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span><span class="p">:</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  time_steps: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_n_steps</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="NetworkResult">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NetworkResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convenience wrapper around a :class:`ScenarioResult`.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    scenario : ScenarioResult</span>
+<span class="sd">        The underlying raw result object.</span>
+<span class="sd">    costs : dict</span>
+<span class="sd">        Cost breakdown dictionary.</span>
+<span class="sd">    series : OrderedDict</span>
+<span class="sd">        Time series results (column → values).</span>
+<span class="sd">    investments : InvestmentDecisions or None</span>
+<span class="sd">        Structured investment decisions (if applicable).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span> <span class="o">=</span> <span class="n">scenario_result</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">costs</span> <span class="o">=</span> <span class="n">scenario_result</span><span class="o">.</span><span class="n">costs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">series</span> <span class="o">=</span> <span class="n">scenario_result</span><span class="o">.</span><span class="n">series</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="n">scenario_result</span><span class="o">.</span><span class="n">summary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">investments</span> <span class="o">=</span> <span class="n">scenario_result</span><span class="o">.</span><span class="n">investments</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solver</span> <span class="o">=</span> <span class="n">scenario_result</span><span class="o">.</span><span class="n">solver</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_optimal</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return True if the solver found an optimal solution.&quot;&quot;&quot;</span>
+        <span class="n">tc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;termination_condition&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">return</span> <span class="s2">&quot;optimal&quot;</span> <span class="ow">in</span> <span class="n">tc</span>
+
+<div class="viewcode-block" id="NetworkResult.get_series">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.get_series">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get a named time series from the results.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">series</span><span class="p">:</span>
+            <span class="n">available</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">series</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Series &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; not found. Available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">series</span><span class="p">[</span><span class="n">name</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="NetworkResult.total_cost">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.total_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">total_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return total system cost (objective value in EUR).&quot;&quot;&quot;</span>
+        <span class="c1"># Try standard key first, then the objective-prefixed key</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">costs</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;total_cost_eur&quot;</span><span class="p">,</span>
+                   <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;objective.OBJ_value_EUR&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NetworkResult.co2_total_t">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.co2_total_t">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">co2_total_t</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return total CO2 emissions in tonnes.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;grid.Total_CO2_emissions_t&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="NetworkResult.fuel_cost">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.fuel_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fuel_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return total fuel cost.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;objective.Fuel_cost_EUR&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="NetworkResult.grid_cost">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.grid_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">grid_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return grid energy cost.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;objective.Grid_energy_cost_EUR&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="NetworkResult.co2_cost">
+<a class="viewcode-back" href="../../api_reference.html#energis.network.NetworkResult.co2_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">co2_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return CO2 cost.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;objective.CO2_cost_EUR&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;optimal&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_optimal</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;termination_condition&quot;</span><span class="p">,</span> <span class="s2">&quot;?&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;NetworkResult(status=</span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">, cost=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">total_cost</span><span class="p">()</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> EUR)&quot;</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-03-27",
+  "framework": "EnerGIS / Planing Framework for Heat",
+  "test_data": "Stadtbach district heating (1-week synthetic)",
+  "solver": "HiGHS 1.13.1",
+  "tests": {
+    "1-Node (Copperplate)": {
+      "config": "configs/templates/level1_copperplate.yaml",
+      "solver_status": "OPTIMAL",
+      "solver_time_seconds": 10.2,
+      "csv_rows": 168,
+      "csv_columns": 4,
+      "csv_nulls": 0,
+      "annual_demand_gwh": 9.93,
+      "demand_min_mw": 47.2,
+      "demand_max_mw": 76.0,
+      "demand_avg_mw": 59.1,
+      "export_formats": {
+        "csv": true,
+        "json_manifest": true,
+        "lp": false,
+        "mps": false,
+        "sol": false
+      },
+      "verdict": "PRODUCTION_READY"
+    },
+    "5-Node Network": {
+      "config": "configs/templates/level2_5node.yaml",
+      "solver_status": "OPTIMAL",
+      "solver_time_seconds": 14.2,
+      "csv_rows": 168,
+      "csv_columns": 32,
+      "csv_nulls": 0,
+      "annual_demand_gwh": 29.8,
+      "nodes": 5,
+      "export_formats": {
+        "csv": true,
+        "json_manifest": true,
+        "lp": false,
+        "mps": false,
+        "sol": false
+      },
+      "verdict": "PRODUCTION_READY"
+    },
+    "30-Node Network": {
+      "config": "configs/templates/level3_30node_template.yaml",
+      "solver_status": "OPTIMAL",
+      "solver_time_seconds": 35.6,
+      "csv_rows": 168,
+      "csv_columns": 192,
+      "csv_nulls": 0,
+      "annual_demand_gwh": 228.49,
+      "nodes": 30,
+      "links_estimated": 70,
+      "export_formats": {
+        "csv": true,
+        "json_manifest": true,
+        "lp": false,
+        "mps": false,
+        "sol": false
+      },
+      "verdict": "PRODUCTION_READY"
+    }
+  },
+  "summary": {
+    "total_tests": 3,
+    "passed": 3,
+    "failed": 0,
+    "all_optimal": true,
+    "max_solver_time": 35.6,
+    "yearly_projection": {
+      "1_node_estimated_min": 530,
+      "5_node_estimated_min": 12.3,
+      "30_node_estimated_min": 30.8
+    },
+    "overall_verdict": "PRODUCTION_READY"
+  }
+}

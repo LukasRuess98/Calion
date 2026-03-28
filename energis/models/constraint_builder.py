@@ -144,15 +144,27 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=producer_balance))
             else:
-                # Producer without demand: balance handled through network pipe flows
-                # sum(ht_out) == dump + storage_charge + network_losses
-                def producer_no_demand(m, t, _out=ht_out, _in=ht_in, _d=dump_var):
+                # Producer without demand: balance includes consumer demand delivered via network
+                # sum(ht_out) == sum(consumer_Q_demand) + dump + storage_charge + network_losses
+                consumer_demand_params = []
+                if unified_config is not None:
+                    for cnid, cnode in unified_config.nodes.items():
+                        if cnode.type == 'consumer':
+                            attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
+                            q = getattr(model, attr, None)
+                            if q is not None:
+                                consumer_demand_params.append(q)
+
+                def producer_no_demand(
+                    m, t, _out=ht_out, _in=ht_in, _d=dump_var, _qc=consumer_demand_params
+                ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
                     network_loss = 0
                     if hasattr(m, 'network_Q_loss_per_timestep'):
                         network_loss = m.network_Q_loss_per_timestep[t]
-                    return supply == _d[t] + charge + network_loss
+                    consumer_demand = sum(q[t] for q in _qc)
+                    return supply == _d[t] + charge + network_loss + consumer_demand
 
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=producer_no_demand))

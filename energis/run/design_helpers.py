@@ -42,8 +42,10 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
                 "power_mw": float(metrics.get("Power_limit_MW", 0.0)),
                 "build_binary": float(metrics.get("Build_binary", metrics.get("Build", 0.0))),
             }
-            print(f"[DESIGN] Extracted Storage: capacity={storage['capacity_mwh']:.1f} MWh, "
-                  f"power={storage['power_mw']:.1f} MW, build={storage['build_binary']:.1f}")
+            logger.info(
+                "[DESIGN] Extracted Storage: capacity=%.1f MWh, power=%.1f MW, build=%.1f",
+                storage["capacity_mwh"], storage["power_mw"], storage["build_binary"],
+            )
 
     return DesignData(heat_pumps=heat_pumps, storage=storage)
 

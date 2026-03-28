@@ -1,0 +1,445 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.models.bus &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.models.bus</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.models.bus</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Bus abstraction for EnerGIS framework.</span>
+
+<span class="sd">This module provides bus classes for modeling energy/commodity flows.</span>
+<span class="sd">Buses are central connection points where component flows are balanced.</span>
+
+<span class="sd">Inspired by Oemof.solph and PyPSA bus concepts.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pyo</span>
+<span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - optional dependency</span>
+    <span class="n">pyo</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.component</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseComponent</span><span class="p">,</span> <span class="n">BusType</span>
+
+
+<div class="viewcode-block" id="Bus">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Bus</span><span class="p">(</span><span class="n">BaseComponent</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bus class for energy/commodity flows.</span>
+
+<span class="sd">    A bus is a connection point where multiple component flows meet and must</span>
+<span class="sd">    be balanced. In energy system modeling, buses represent:</span>
+<span class="sd">    - Electricity grids</span>
+<span class="sd">    - Heat networks</span>
+<span class="sd">    - Gas pipelines</span>
+<span class="sd">    - Other commodity networks</span>
+
+<span class="sd">    The bus enforces energy/commodity balance:</span>
+<span class="sd">        sum(inputs) * (1 - loss_factor) == sum(outputs)</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        name: Unique bus identifier</span>
+<span class="sd">        bus_type: Type of commodity/energy (electricity, heat, etc.)</span>
+<span class="sd">        capacity: Optional capacity limit for flows through the bus</span>
+<span class="sd">        loss_factor: Fraction of energy lost (0.0 = no losses, 0.1 = 10% loss)</span>
+<span class="sd">        price: Optional time series of prices for this commodity</span>
+<span class="sd">        co2_factor: Optional CO2 emission factor</span>
+<span class="sd">        _inputs: List of input flow variables</span>
+<span class="sd">        _outputs: List of output flow variables</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Bus.__init__">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">bus_type</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">BusType</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">loss_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">price</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">co2_factor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize bus.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Unique bus identifier</span>
+<span class="sd">            bus_type: Type of bus (from BusType enum or string)</span>
+<span class="sd">            capacity: Maximum flow through bus (optional)</span>
+<span class="sd">            loss_factor: Fraction of energy lost (0.0 to 1.0)</span>
+<span class="sd">            price: Time series of commodity prices (optional)</span>
+<span class="sd">            co2_factor: CO2 emission factor (optional)</span>
+<span class="sd">            label: Human-readable label</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">label</span><span class="p">)</span>
+
+        <span class="c1"># Convert string to BusType if needed</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bus_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bus_type</span> <span class="o">=</span> <span class="n">BusType</span><span class="p">(</span><span class="n">bus_type</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="c1"># Allow custom bus types</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bus_type</span> <span class="o">=</span> <span class="n">bus_type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bus_type</span> <span class="o">=</span> <span class="n">bus_type</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="o">=</span> <span class="n">capacity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loss_factor</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">loss_factor</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">price</span> <span class="o">=</span> <span class="n">price</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">co2_factor</span> <span class="o">=</span> <span class="n">co2_factor</span>
+
+        <span class="c1"># Validate parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loss_factor</span><span class="p">,</span> <span class="s2">&quot;loss_factor&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">capacity</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_positive</span><span class="p">(</span><span class="n">capacity</span><span class="p">,</span> <span class="s2">&quot;capacity&quot;</span><span class="p">,</span> <span class="n">allow_zero</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Track connected flows</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># pyo.Var</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># pyo.Var</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_balance_constraint</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="Bus.add_input">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.add_input">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flow</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Register an input flow to this bus.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            flow: Pyomo variable representing input flow</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">flow</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flow</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Bus.add_output">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.add_output">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flow</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Register an output flow from this bus.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            flow: Pyomo variable representing output flow</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">flow</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flow</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Bus.attach">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.attach">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">attach</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">buses</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Attach bus to model by creating balance constraint.</span>
+
+<span class="sd">        Creates the fundamental balance constraint:</span>
+<span class="sd">            sum(inputs) * (1 - loss) == sum(outputs)</span>
+
+<span class="sd">        And optionally capacity constraints.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Pyomo ConcreteModel</span>
+<span class="sd">            time_set: Pyomo Set for time indices</span>
+<span class="sd">            config: Configuration dictionary</span>
+<span class="sd">            buses: Dictionary of all buses (not used for bus itself)</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with constraint references</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pyo</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Pyomo is required to attach buses&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_set</span> <span class="o">=</span> <span class="n">time_set</span>
+
+        <span class="c1"># Create balance constraint</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">balance_rule</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+            <span class="n">inputs_sum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">outputs_sum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span> <span class="k">else</span> <span class="mi">0</span>
+
+            <span class="c1"># Apply loss factor to inputs</span>
+            <span class="n">effective_inputs</span> <span class="o">=</span> <span class="n">inputs_sum</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loss_factor</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">effective_inputs</span> <span class="o">==</span> <span class="n">outputs_sum</span>
+
+        <span class="n">constraint_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_balance&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_balance_constraint</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Constraint</span><span class="p">(</span><span class="n">time_set</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="n">balance_rule</span><span class="p">)</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">constraint_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_balance_constraint</span><span class="p">)</span>
+
+        <span class="c1"># Optional: Capacity constraint</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">capacity_rule</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+                <span class="n">total_flow</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="k">return</span> <span class="n">total_flow</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">capacity</span>
+
+            <span class="n">capacity_constraint_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_capacity&quot;</span>
+            <span class="n">capacity_constraint</span> <span class="o">=</span> <span class="n">pyo</span><span class="o">.</span><span class="n">Constraint</span><span class="p">(</span><span class="n">time_set</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="n">capacity_rule</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">capacity_constraint_name</span><span class="p">,</span> <span class="n">capacity_constraint</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_attached</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;balance_constraint&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_balance_constraint</span><span class="p">,</span>
+            <span class="s1">&#39;inputs_count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">),</span>
+            <span class="s1">&#39;outputs_count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="Bus.get_results">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.get_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_results</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">time_set</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract bus flow results from solved model.</span>
+
+<span class="sd">        Returns aggregated input and output flows.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model: Solved Pyomo model</span>
+<span class="sd">            time_set: Time set</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary with bus results</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s1">&#39;bus_type&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bus_type</span><span class="p">),</span>
+            <span class="s1">&#39;total_inputs&#39;</span><span class="p">:</span> <span class="p">{},</span>
+            <span class="s1">&#39;total_outputs&#39;</span><span class="p">:</span> <span class="p">{},</span>
+            <span class="s1">&#39;net_flow&#39;</span><span class="p">:</span> <span class="p">{}</span>
+        <span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">time_set</span><span class="p">:</span>
+            <span class="n">total_in</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pyo</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span> <span class="k">else</span> <span class="mf">0.0</span>
+            <span class="n">total_out</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pyo</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="n">t</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;total_inputs&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">total_in</span>
+            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;total_outputs&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">total_out</span>
+            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;net_flow&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">total_in</span> <span class="o">-</span> <span class="n">total_out</span>
+
+        <span class="k">return</span> <span class="n">results</span></div>
+
+
+<div class="viewcode-block" id="Bus.validate_config">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.validate_config">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate bus configuration.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Configuration dictionary</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If configuration is invalid</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Currently no additional validation needed</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Bus.get_input_count">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.get_input_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_input_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get number of connected input flows.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Bus.get_output_count">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.get_output_count">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_output_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get number of connected output flows.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Bus.is_balanced">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.Bus.is_balanced">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_balanced</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if bus has at least one input and one output.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;String representation of bus.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Bus(name=&#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;, type=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">bus_type</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;inputs=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_inputs</span><span class="p">)</span><span class="si">}</span><span class="s2">, outputs=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_outputs</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_default_buses</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Bus</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create default buses for a standard energy system.</span>
+
+<span class="sd">    Creates commonly used buses:</span>
+<span class="sd">    - electricity: For electrical power</span>
+<span class="sd">    - heat: For thermal energy</span>
+<span class="sd">    - fuel_gas: For natural gas</span>
+<span class="sd">    - fuel_biomass: For biomass</span>
+<span class="sd">    - fuel_waste: For waste</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary mapping bus names to Bus objects</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">buses</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;electricity&#39;</span><span class="p">:</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;electricity&#39;</span><span class="p">,</span> <span class="n">BusType</span><span class="o">.</span><span class="n">ELECTRICITY</span><span class="p">),</span>
+        <span class="s1">&#39;heat&#39;</span><span class="p">:</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">BusType</span><span class="o">.</span><span class="n">HEAT</span><span class="p">),</span>
+        <span class="s1">&#39;fuel_gas&#39;</span><span class="p">:</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;fuel_gas&#39;</span><span class="p">,</span> <span class="n">BusType</span><span class="o">.</span><span class="n">FUEL_GAS</span><span class="p">),</span>
+        <span class="s1">&#39;fuel_biomass&#39;</span><span class="p">:</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;fuel_biomass&#39;</span><span class="p">,</span> <span class="n">BusType</span><span class="o">.</span><span class="n">FUEL_BIOMASS</span><span class="p">),</span>
+        <span class="s1">&#39;fuel_waste&#39;</span><span class="p">:</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;fuel_waste&#39;</span><span class="p">,</span> <span class="n">BusType</span><span class="o">.</span><span class="n">FUEL_WASTE</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">buses</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_buses_from_config</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Bus</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create buses from configuration dictionary.</span>
+
+<span class="sd">    Expected config format:</span>
+<span class="sd">    {</span>
+<span class="sd">        &quot;buses&quot;: {</span>
+<span class="sd">            &quot;bus_name&quot;: {</span>
+<span class="sd">                &quot;type&quot;: &quot;electricity&quot;,</span>
+<span class="sd">                &quot;capacity&quot;: 100.0,  # optional</span>
+<span class="sd">                &quot;loss_factor&quot;: 0.05  # optional</span>
+<span class="sd">            }</span>
+<span class="sd">        }</span>
+<span class="sd">    }</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        config: Configuration dictionary</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary mapping bus names to Bus objects</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">buses</span> <span class="o">=</span> <span class="n">create_default_buses</span><span class="p">()</span>
+
+    <span class="c1"># Add/override with custom buses from config</span>
+    <span class="n">buses_config</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;buses&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">for</span> <span class="n">bus_name</span><span class="p">,</span> <span class="n">bus_cfg</span> <span class="ow">in</span> <span class="n">buses_config</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">bus_type_str</span> <span class="o">=</span> <span class="n">bus_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;type&#39;</span><span class="p">,</span> <span class="s1">&#39;generic&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Try to convert to BusType, fall back to string</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">bus_type</span> <span class="o">=</span> <span class="n">BusType</span><span class="p">(</span><span class="n">bus_type_str</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">bus_type</span> <span class="o">=</span> <span class="n">bus_type_str</span>
+
+        <span class="n">buses</span><span class="p">[</span><span class="n">bus_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">Bus</span><span class="p">(</span>
+            <span class="n">bus_name</span><span class="p">,</span>
+            <span class="n">bus_type</span><span class="p">,</span>
+            <span class="n">capacity</span><span class="o">=</span><span class="n">bus_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;capacity&#39;</span><span class="p">),</span>
+            <span class="n">loss_factor</span><span class="o">=</span><span class="n">bus_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;loss_factor&#39;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">label</span><span class="o">=</span><span class="n">bus_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;label&#39;</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">buses</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

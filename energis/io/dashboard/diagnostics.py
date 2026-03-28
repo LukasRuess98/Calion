@@ -171,18 +171,28 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
         Diagnostic results from diagnose_workflow()
     """
     logger.info(f"\nDashboard Diagnosis:")
-    print(f"  Available Results: PF={diagnosis.get('has_pf', False)}, "
-          f"RH={diagnosis.get('has_rh', False)}, MPC={diagnosis.get('has_mpc', False)}")
+    logger.info(
+        "  Available Results: PF=%s, RH=%s, MPC=%s",
+        diagnosis.get("has_pf", False),
+        diagnosis.get("has_rh", False),
+        diagnosis.get("has_mpc", False),
+    )
     logger.info(f"  Primary Result: {diagnosis['primary_result_type']}")
-    print(f"  [OK] Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
-          else "  [!!] Timeseries: No data")
-    print(f"  [OK] Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
-          else "  [!!] Costs: No data")
-    print(f"  [OK] Design: {diagnosis['design_components']} components" if diagnosis['has_design']
-          else "  [!!] Design: No data")
+    logger.info(
+        "  [OK] Timeseries: %d series" if diagnosis["has_timeseries"] else "  [!!] Timeseries: No data",
+        *([diagnosis["series_count"]] if diagnosis["has_timeseries"] else []),
+    )
+    logger.info(
+        "  [OK] Costs: %d entries" if diagnosis["has_costs"] else "  [!!] Costs: No data",
+        *([diagnosis["cost_entries"]] if diagnosis["has_costs"] else []),
+    )
+    logger.info(
+        "  [OK] Design: %d components" if diagnosis["has_design"] else "  [!!] Design: No data",
+        *([diagnosis["design_components"]] if diagnosis["has_design"] else []),
+    )
 
     if diagnosis['issues']:
-        logger.info(f"\nWARNUNG: Issues found:")
+        logger.info(f"\nWARNING: Issues found:")
         for issue in diagnosis['issues']:
             logger.info(f"         • {issue}")
 

@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.models.results &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.models.results</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.models.results</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Structured result containers for optimization outputs.</span>
+
+<span class="sd">These dataclasses replace the loose dicts that were previously returned by</span>
+<span class="sd">the result collector and parsed via string-pattern matching in design.py.</span>
+<span class="sd">They provide type-safe access to optimization results, investment decisions,</span>
+<span class="sd">and component summaries.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Investment results (extracted from solved model)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="HeatPumpInvestment">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.HeatPumpInvestment">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">HeatPumpInvestment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Investment result for a single heat pump.&quot;&quot;&quot;</span>
+
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">capacity_mw</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">build</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">build_binary</span><span class="p">:</span> <span class="nb">float</span>  <span class="c1"># raw solver value (0.0–1.0)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">build</span></div>
+
+
+
+<div class="viewcode-block" id="StorageInvestment">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.StorageInvestment">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">StorageInvestment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Investment result for thermal storage.&quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">energy_mwh</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">power_mw</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">build</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">build_binary</span><span class="p">:</span> <span class="nb">float</span>  <span class="c1"># raw solver value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">build</span></div>
+
+
+
+<div class="viewcode-block" id="InvestmentDecisions">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentDecisions">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">InvestmentDecisions</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;All investment decisions extracted from an optimization run.</span>
+
+<span class="sd">    Replaces the string-based extraction in ``design.py`` and</span>
+<span class="sd">    ``design_helpers._extract_design_data()``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">heat_pumps</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">HeatPumpInvestment</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">StorageInvestment</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="InvestmentDecisions.to_fixed_values">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentDecisions.to_fixed_values">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_fixed_values</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert to the dict format expected by ``apply_optimization_config``.</span>
+
+<span class="sd">        Returns a dict with &#39;heat_pumps&#39; and &#39;storage&#39; keys matching</span>
+<span class="sd">        the ``extracted_values`` parameter of</span>
+<span class="sd">        ``design.apply_optimization_config()``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;heat_pumps&quot;</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">&quot;storage&quot;</span><span class="p">:</span> <span class="p">{}}</span>
+
+        <span class="k">for</span> <span class="n">hp_id</span><span class="p">,</span> <span class="n">hp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">heat_pumps</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">result</span><span class="p">[</span><span class="s2">&quot;heat_pumps&quot;</span><span class="p">][</span><span class="n">hp_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;capacity_mw&quot;</span><span class="p">:</span> <span class="n">hp</span><span class="o">.</span><span class="n">capacity_mw</span><span class="p">,</span>
+                <span class="s2">&quot;build&quot;</span><span class="p">:</span> <span class="n">hp</span><span class="o">.</span><span class="n">build</span><span class="p">,</span>
+            <span class="p">}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="s2">&quot;storage&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;energy_mwh&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">energy_mwh</span><span class="p">,</span>
+                <span class="s2">&quot;power_mw&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">power_mw</span><span class="p">,</span>
+                <span class="s2">&quot;build&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">build</span><span class="p">,</span>
+            <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="InvestmentDecisions.from_summary">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentDecisions.from_summary">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_summary</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">summary</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">InvestmentDecisions</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract investment decisions from a result summary dict.</span>
+
+<span class="sd">        Replaces ``design.extract_optimization_results()`` and</span>
+<span class="sd">        ``design_helpers._extract_design_data()`` with a single,</span>
+<span class="sd">        type-safe extraction method.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        summary</span>
+<span class="sd">            The ``summary_sections`` dict returned by</span>
+<span class="sd">            ``_collect_timeseries_and_summary()``, keyed by component</span>
+<span class="sd">            section name (e.g. ``&quot;heat_pump_HP1&quot;``, ``&quot;storage_TES&quot;``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">heat_pumps</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">HeatPumpInvestment</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">storage</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">StorageInvestment</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">metrics</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">metrics</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;heat_pump_&quot;</span><span class="p">):</span>
+                <span class="n">hp_id</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;heat_pump_&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">capacity</span> <span class="o">=</span> <span class="n">_safe_float</span><span class="p">(</span><span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Thermal_capacity_MW&quot;</span><span class="p">))</span>
+                <span class="n">build_val</span> <span class="o">=</span> <span class="n">_safe_float</span><span class="p">(</span>
+                    <span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Build_binary&quot;</span><span class="p">,</span> <span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Build&quot;</span><span class="p">))</span>
+                <span class="p">)</span>
+                <span class="n">heat_pumps</span><span class="p">[</span><span class="n">hp_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">HeatPumpInvestment</span><span class="p">(</span>
+                    <span class="nb">id</span><span class="o">=</span><span class="n">hp_id</span><span class="p">,</span>
+                    <span class="n">capacity_mw</span><span class="o">=</span><span class="n">capacity</span><span class="p">,</span>
+                    <span class="n">build</span><span class="o">=</span><span class="n">build_val</span> <span class="o">&gt;=</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="n">build_binary</span><span class="o">=</span><span class="n">build_val</span><span class="p">,</span>
+                <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;storage_&quot;</span><span class="p">):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;storage_&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">energy</span> <span class="o">=</span> <span class="n">_safe_float</span><span class="p">(</span><span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Capacity_MWh&quot;</span><span class="p">))</span>
+                <span class="n">power</span> <span class="o">=</span> <span class="n">_safe_float</span><span class="p">(</span><span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Power_limit_MW&quot;</span><span class="p">))</span>
+                <span class="n">build_val</span> <span class="o">=</span> <span class="n">_safe_float</span><span class="p">(</span>
+                    <span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Build_binary&quot;</span><span class="p">,</span> <span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Build&quot;</span><span class="p">))</span>
+                <span class="p">)</span>
+                <span class="n">storage</span> <span class="o">=</span> <span class="n">StorageInvestment</span><span class="p">(</span>
+                    <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">energy_mwh</span><span class="o">=</span><span class="n">energy</span><span class="p">,</span>
+                    <span class="n">power_mw</span><span class="o">=</span><span class="n">power</span><span class="p">,</span>
+                    <span class="n">build</span><span class="o">=</span><span class="n">build_val</span> <span class="o">&gt;=</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="n">build_binary</span><span class="o">=</span><span class="n">build_val</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">heat_pumps</span><span class="o">=</span><span class="n">heat_pumps</span><span class="p">,</span> <span class="n">storage</span><span class="o">=</span><span class="n">storage</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="InvestmentDecisions.has_decisions">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentDecisions.has_decisions">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">has_decisions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return True if any investment decisions were extracted.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">heat_pumps</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="InvestmentDecisions.to_design_spec">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.InvestmentDecisions.to_design_spec">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_design_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert to legacy ``DesignSpec`` for backward compatibility.</span>
+
+<span class="sd">        Import is deferred to avoid circular dependency.</span>
+<span class="sd">        This method exists solely to ease migration; new code should use</span>
+<span class="sd">        :meth:`to_fixed_values` + ``apply_optimization_config`` instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">energis.design</span><span class="w"> </span><span class="kn">import</span> <span class="n">DesignSpec</span><span class="p">,</span> <span class="n">HeatPumpDesign</span><span class="p">,</span> <span class="n">StorageDesign</span>
+
+        <span class="n">hp_specs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">hp_id</span><span class="p">:</span> <span class="n">HeatPumpDesign</span><span class="p">(</span>
+                <span class="nb">id</span><span class="o">=</span><span class="n">hp_id</span><span class="p">,</span>
+                <span class="n">capacity_mw</span><span class="o">=</span><span class="n">hp</span><span class="o">.</span><span class="n">capacity_mw</span><span class="p">,</span>
+                <span class="n">enabled</span><span class="o">=</span><span class="n">hp</span><span class="o">.</span><span class="n">build</span><span class="p">,</span>
+                <span class="n">build_binary</span><span class="o">=</span><span class="n">hp</span><span class="o">.</span><span class="n">build_binary</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">hp_id</span><span class="p">,</span> <span class="n">hp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">heat_pumps</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+
+        <span class="n">sto_spec</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">storage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sto_spec</span> <span class="o">=</span> <span class="n">StorageDesign</span><span class="p">(</span>
+                <span class="n">capacity_mwh</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">energy_mwh</span><span class="p">,</span>
+                <span class="n">power_mw</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">power_mw</span><span class="p">,</span>
+                <span class="n">enabled</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">build</span><span class="p">,</span>
+                <span class="n">build_binary</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">storage</span><span class="o">.</span><span class="n">build_binary</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">DesignSpec</span><span class="p">(</span><span class="n">heat_pumps</span><span class="o">=</span><span class="n">hp_specs</span><span class="p">,</span> <span class="n">storage</span><span class="o">=</span><span class="n">sto_spec</span><span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Component summary</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="ComponentSummary">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.ComponentSummary">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ComponentSummary</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Summary metrics for a single component.</span>
+
+<span class="sd">    A thin typed wrapper around the per-component OrderedDict that</span>
+<span class="sd">    ``_collect_timeseries_and_summary()`` already produces.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">metrics</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ComponentSummary.get">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.ComponentSummary.get">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Helpers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_safe_float</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert to float, returning *default* on failure.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">default</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">default</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

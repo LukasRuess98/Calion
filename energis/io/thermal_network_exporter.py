@@ -29,6 +29,11 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _val(obj):
+    """Read a Pyomo Var/Param value without logging errors for uninitialized vars."""
+    return pyo.value(obj, exception=False) if HAVE_PYOMO else None
+
+
 def export_solver_solution(
     model,
     output_dir: str,
@@ -67,27 +72,33 @@ def export_solver_solution(
         # Export SOL file (solution values)
         sol_path = os.path.join(output_dir, f"{filename}.sol")
 
+        # Get objective value (could be obj, OBJ, or other names)
+        obj_val = "N/A"
+        for obj_name in ['obj', 'OBJ', 'objective']:
+            if hasattr(model, obj_name):
+                obj_val = pyo.value(getattr(model, obj_name))
+                break
+
         # Write solution manually since Pyomo doesn't have direct .sol export
         with open(sol_path, 'w', encoding="utf-8") as f:
             f.write(f"# Gurobi Solution Export\n")
             f.write(f"# Generated: {datetime.now().isoformat()}\n")
-            f.write(f"# Objective Value: {pyo.value(model.OBJ) if hasattr(model, 'OBJ') else 'N/A'}\n\n")
+            f.write(f"# Objective Value: {obj_val}\n\n")
 
             # Write all variable values
             for var in model.component_objects(pyo.Var, active=True):
                 var_name = var.name
                 for idx in var:
-                    try:
-                        val = pyo.value(var[idx])
-                        if val is not None and abs(val) > 1e-9:
-                            f.write(f"{var_name}[{idx}] {val}\n")
-                    except Exception:
-                        pass  # Skip non-numeric or uninitialized variables
+                    val = _val(var[idx])
+                    if val is not None and abs(val) > 1e-9:
+                        f.write(f"{var_name}[{idx}] {val}\n")
 
         files['sol_file'] = sol_path
         logger.info(f"  Exported SOL file: {sol_path}")
     except Exception as e:
         logger.warning(f"Could not export SOL file: {e}")
+        import traceback
+        logger.debug(f"SOL export traceback: {traceback.format_exc()}")
 
     try:
         # Export MPS file (standard format)
@@ -97,6 +108,8 @@ def export_solver_solution(
         logger.info(f"  Exported MPS file: {mps_path}")
     except Exception as e:
         logger.warning(f"Could not export MPS file: {e}")
+        import traceback
+        logger.debug(f"MPS export traceback: {traceback.format_exc()}")
 
     return files
 
@@ -208,24 +221,22 @@ def _export_node_results(
         T_return_var = getattr(model, f'{node_prefix}_T_return', None)
 
         if T_supply_var is not None:
-            try:
-                T_supply_vals = [pyo.value(T_supply_var[t]) for t in time_set]
-                node_summary['T_supply_avg_c'] = sum(T_supply_vals) / len(T_supply_vals)
-                node_summary['T_supply_min_c'] = min(T_supply_vals)
-                node_summary['T_supply_max_c'] = max(T_supply_vals)
+            T_supply_vals = [_val(T_supply_var[t]) for t in time_set]
+            finite = [v for v in T_supply_vals if v is not None]
+            if finite:
+                node_summary['T_supply_avg_c'] = sum(finite) / len(finite)
+                node_summary['T_supply_min_c'] = min(finite)
+                node_summary['T_supply_max_c'] = max(finite)
                 node_timeseries[f'{node_id}_T_supply'] = T_supply_vals
-            except (ValueError, TypeError):
-                pass  # Uninitialized Var (e.g. producer node in MILP mode)
 
         if T_return_var is not None:
-            try:
-                T_return_vals = [pyo.value(T_return_var[t]) for t in time_set]
-                node_summary['T_return_avg_c'] = sum(T_return_vals) / len(T_return_vals)
-                node_summary['T_return_min_c'] = min(T_return_vals)
-                node_summary['T_return_max_c'] = max(T_return_vals)
+            T_return_vals = [_val(T_return_var[t]) for t in time_set]
+            finite = [v for v in T_return_vals if v is not None]
+            if finite:
+                node_summary['T_return_avg_c'] = sum(finite) / len(finite)
+                node_summary['T_return_min_c'] = min(finite)
+                node_summary['T_return_max_c'] = max(finite)
                 node_timeseries[f'{node_id}_T_return'] = T_return_vals
-            except (ValueError, TypeError):
-                pass
 
         # Extract demand for consumer nodes
         if node_type == 'consumer':
@@ -749,60 +760,119 @@ def _export_unified_timeseries(
     try:
         all_data = {'timestep': list(time_set)}
 
-        # Heat demand (model.heatd is already in MWth — no conversion needed)
+        # 1. DEMAND DATA
         if hasattr(model, 'heatd'):
-            all_data['heat_demand_MW'] = [pyo.value(model.heatd[t]) for t in time_set]
+            try:
+                all_data['heat_demand_MW'] = [pyo.value(model.heatd[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export heat_demand: {e}")
 
-        # Network loss
+        # 2. ELECTRICITY/GRID
+        if hasattr(model, 'P_buy'):
+            try:
+                all_data['electricity_purchase_MW'] = [pyo.value(model.P_buy[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export P_buy: {e}")
+
+        if hasattr(model, 'grid_co2'):
+            try:
+                all_data['grid_co2_intensity_kgMWh'] = [pyo.value(model.grid_co2[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export grid_co2: {e}")
+
+        # 3. GENERATION DATA
+        if hasattr(model, 'Q_boiler'):
+            try:
+                all_data['boiler_output_MW'] = [pyo.value(model.Q_boiler[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export Q_boiler: {e}")
+
+        if hasattr(model, 'Q_hp'):
+            try:
+                all_data['heat_pump_output_MW'] = [pyo.value(model.Q_hp[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export Q_hp: {e}")
+
+        # 4. NETWORK LOSS
         if hasattr(model, 'network_Q_loss_per_timestep'):
-            all_data['network_loss_MW'] = [
-                pyo.value(model.network_Q_loss_per_timestep[t]) for t in time_set
-            ]
+            try:
+                all_data['network_loss_MW'] = [
+                    pyo.value(model.network_Q_loss_per_timestep[t]) for t in time_set
+                ]
+            except Exception as e:
+                logger.debug(f"Could not export network_loss: {e}")
 
-        # Storage
+        # 5. STORAGE
         if hasattr(model, 'TES_SOC'):
-            all_data['storage_SOC_MWh'] = [pyo.value(model.TES_SOC[t]) for t in time_set]
+            try:
+                all_data['storage_SOC_MWh'] = [pyo.value(model.TES_SOC[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export storage_SOC: {e}")
+                
         if hasattr(model, 'TES_Q_charge'):
-            all_data['storage_charge_MW'] = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
+            try:
+                all_data['storage_charge_MW'] = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export storage_charge: {e}")
+                
         if hasattr(model, 'TES_Q_discharge'):
-            all_data['storage_discharge_MW'] = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
+            try:
+                all_data['storage_discharge_MW'] = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export storage_discharge: {e}")
 
-        # Network pipes
+        # 6. HOURLY COSTS
+        if hasattr(model, 'hourly_cost'):
+            try:
+                all_data['hourly_cost_EUR'] = [pyo.value(model.hourly_cost[t]) for t in time_set]
+            except Exception as e:
+                logger.debug(f"Could not export hourly_cost: {e}")
+
+        # 7. NETWORK PIPES (if network model)
         if network_manager and hasattr(network_manager, 'pipes'):
             for pipe_id in network_manager.pipes:
                 prefix = pipe_id.upper().replace('-', '_')
 
                 for var_name in ['m_dot', 'velocity', 'delta_p_total', 'Q_consumer']:
-                    var = getattr(model, f'{prefix}_{var_name}', None)
-                    if var is not None:
-                        try:
-                            all_data[f'{pipe_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
-                        except Exception as e:
-                            logger.debug(f"Could not export {pipe_id}/{var_name}: {e}")
+                    try:
+                        var = getattr(model, f'{prefix}_{var_name}', None)
+                        if var is not None:
+                            vals = [_val(var[t]) for t in time_set]
+                            if any(v is not None for v in vals):
+                                all_data[f'{pipe_id}_{var_name}'] = vals
+                    except Exception as e:
+                        logger.debug(f"Could not export pipe {pipe_id}.{var_name}: {e}")
 
-        # Network nodes
+        # 8. NETWORK NODES (if network model)
         if network_manager and hasattr(network_manager, 'nodes'):
             for node_id in network_manager.nodes:
                 prefix = node_id.upper().replace('-', '_')
 
                 for var_name in ['T_supply', 'T_return', 'Q_demand', 'm_dot_demand']:
-                    var = getattr(model, f'{prefix}_{var_name}', None)
-                    if var is not None:
-                        try:
-                            all_data[f'{node_id}_{var_name}'] = [pyo.value(var[t]) for t in time_set]
-                        except Exception as e:
-                            logger.debug(f"Could not export {node_id}/{var_name}: {e}")
+                    try:
+                        var = getattr(model, f'{prefix}_{var_name}', None)
+                        if var is not None:
+                            vals = [_val(var[t]) for t in time_set]
+                            if any(v is not None for v in vals):
+                                all_data[f'{node_id}_{var_name}'] = vals
+                    except Exception as e:
+                        logger.debug(f"Could not export node {node_id}.{var_name}: {e}")
 
         # Create DataFrame and save
-        df = pd.DataFrame(all_data)
-        csv_path = os.path.join(output_dir, "unified_timeseries.csv")
-        df.to_csv(csv_path, sep=';', index=False)
-
-        logger.info(f"  Exported unified timeseries: {csv_path}")
-        return csv_path
+        if len(all_data) > 1:  # More than just timestep
+            df = pd.DataFrame(all_data)
+            csv_path = os.path.join(output_dir, "unified_timeseries.csv")
+            df.to_csv(csv_path, sep=';', index=False)
+            logger.info(f"  Exported unified timeseries: {csv_path} ({len(all_data)} columns, {len(df)} rows)")
+            return csv_path
+        else:
+            logger.warning("No timeseries data to export")
+            return None
 
     except Exception as e:
         logger.warning(f"Failed to export unified timeseries: {e}")
+        import traceback
+        logger.debug(f"Unified timeseries export traceback: {traceback.format_exc()}")
         return None
 
 
@@ -836,22 +906,20 @@ def _extract_network_data_for_dashboard(
         T_return = getattr(model, f'{prefix}_T_return', None)
 
         if T_supply is not None:
-            try:
-                vals = [pyo.value(T_supply[t]) for t in time_set]
+            vals = [_val(T_supply[t]) for t in time_set]
+            finite = [v for v in vals if v is not None]
+            if finite:
                 node_data['T_supply_series'] = vals
-                node_data['T_supply_avg'] = sum(vals) / len(vals)
+                node_data['T_supply_avg'] = sum(finite) / len(finite)
                 dashboard_data['timeseries'][f'{node_id}_T_supply'] = vals
-            except (ValueError, TypeError):
-                pass
 
         if T_return is not None:
-            try:
-                vals = [pyo.value(T_return[t]) for t in time_set]
+            vals = [_val(T_return[t]) for t in time_set]
+            finite = [v for v in vals if v is not None]
+            if finite:
                 node_data['T_return_series'] = vals
-                node_data['T_return_avg'] = sum(vals) / len(vals)
+                node_data['T_return_avg'] = sum(finite) / len(finite)
                 dashboard_data['timeseries'][f'{node_id}_T_return'] = vals
-            except (ValueError, TypeError):
-                pass
 
         dashboard_data['nodes'][node_id] = node_data
 

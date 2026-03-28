@@ -28,7 +28,6 @@ outputs/runs/
 outputs/workflows/
 outputs/dashboard/
 *.xlsx
-!Import_Data.xlsx
 *.png
 *.pdf
 

@@ -369,29 +369,28 @@ def create_network_excel_template(output_path: str) -> None:
     logger.info(f"Creating network Excel template at: {output_path}")
 
     # For now, just log the expected format
-    print("""
-Network Excel Format:
-
-Sheet: Network_Parameters
-| Parameter                | Value |
-|--------------------------|-------|
-| supply_temp_nominal_c    | 90    |
-| return_temp_nominal_c    | 50    |
-| ground_temp_default_c    | 10    |
-| design_pressure_bar      | 16    |
-| max_pressure_bar         | 25    |
-| max_velocity_m_s         | 2.5   |
-
-Sheet: Network_Nodes
-| node_id     | name           | type     | elevation_m | supply_temp_c | demand_fraction |
-|-------------|----------------|----------|-------------|---------------|-----------------|
-| plant_main  | Hauptwerk      | plant    | 470         | 100           |                 |
-| zone_nord   | Netzgebiet N   | consumer | 465         |               | 0.4             |
-| zone_sued   | Netzgebiet S   | consumer | 480         |               | 0.6             |
-
-Sheet: Network_Pipes
-| pipe_id    | from_node   | to_node   | length_m | diameter_mm | existing | max_flow_kg_s | max_pressure_bar |
-|------------|-------------|-----------|----------|-------------|----------|---------------|------------------|
-| main_nord  | plant_main  | zone_nord | 1500     | 300         | TRUE     | 200           | 16               |
-| main_sued  | plant_main  | zone_sued | 2000     | 350         | TRUE     | 250           | 25               |
-""")
+    logger.info(
+        "Network Excel Format:\n\n"
+        "Sheet: Network_Parameters\n"
+        "| Parameter                | Value |\n"
+        "|--------------------------|-------|\n"
+        "| supply_temp_nominal_c    | 90    |\n"
+        "| return_temp_nominal_c    | 50    |\n"
+        "| ground_temp_default_c    | 10    |\n"
+        "| design_pressure_bar      | 16    |\n"
+        "| max_pressure_bar         | 25    |\n"
+        "| max_velocity_m_s         | 2.5   |\n\n"
+        "Sheet: Network_Nodes\n"
+        "| node_id     | name        | type     | elevation_m | supply_temp_c | demand_fraction |\n"
+        "|-------------|-------------|----------|-------------|---------------|-----------------|\n"
+        "| plant_main  | Main Plant  | plant    | 470         | 100           |                 |\n"
+        "| zone_nord   | Zone North  | consumer | 465         |               | 0.4             |\n"
+        "| zone_sued   | Zone South  | consumer | 480         |               | 0.6             |\n\n"
+        "Sheet: Network_Pipes\n"
+        "| pipe_id    | from_node   | to_node   | length_m | diameter_mm | existing |"
+        " max_flow_kg_s | max_pressure_bar |\n"
+        "|------------|-------------|-----------|----------|-------------|----------|"
+        "---------------|------------------|\n"
+        "| main_nord  | plant_main  | zone_nord | 1500     | 300         | TRUE     | 200           | 16               |\n"
+        "| main_sued  | plant_main  | zone_sued | 2000     | 350         | TRUE     | 250           | 25               |"
+    )

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "EnerGIS"
 copyright = "2026, EnerGIS Team"
 author = "Lukas Ruess"
-version = "2.0.0-alpha"
+version = "1.0.0-alpha"
 release = version
 
 # -- General configuration ---------------------------------------------------

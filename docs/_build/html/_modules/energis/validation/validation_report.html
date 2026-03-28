@@ -1,0 +1,384 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.validation.validation_report &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.validation.validation_report</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.validation.validation_report</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Validation report generation for publications.</span>
+
+<span class="sd">This module generates publication-ready validation reports including:</span>
+<span class="sd">- LaTeX tables for paper inclusion</span>
+<span class="sd">- JSON summaries for data analysis</span>
+<span class="sd">- Console-formatted summaries</span>
+
+<span class="sd">Designed for Applied Energy, IEEE Transactions, and similar journals.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.validation.analytical_benchmarks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationResult</span><span class="p">,</span> <span class="n">ValidationSuiteResult</span>
+
+
+<div class="viewcode-block" id="generate_validation_report">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.validation_report.generate_validation_report">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_validation_report</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+    <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">include_latex</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">include_json</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">include_csv</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate comprehensive validation report.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    suite_result : ValidationSuiteResult</span>
+<span class="sd">        Results from run_validation_suite()</span>
+<span class="sd">    output_dir : str</span>
+<span class="sd">        Output directory for report files</span>
+<span class="sd">    include_latex : bool</span>
+<span class="sd">        Generate LaTeX table</span>
+<span class="sd">    include_json : bool</span>
+<span class="sd">        Generate JSON summary</span>
+<span class="sd">    include_csv : bool</span>
+<span class="sd">        Generate CSV data file</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Dict[str, str]</span>
+<span class="sd">        Mapping of report type to file path</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">generated_files</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">if</span> <span class="n">include_latex</span><span class="p">:</span>
+        <span class="n">latex_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;validation_results.tex&quot;</span><span class="p">)</span>
+        <span class="n">_generate_latex_table</span><span class="p">(</span><span class="n">suite_result</span><span class="p">,</span> <span class="n">latex_path</span><span class="p">)</span>
+        <span class="n">generated_files</span><span class="p">[</span><span class="s2">&quot;latex&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">latex_path</span>
+
+    <span class="k">if</span> <span class="n">include_json</span><span class="p">:</span>
+        <span class="n">json_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;validation_results.json&quot;</span><span class="p">)</span>
+        <span class="n">_generate_json_report</span><span class="p">(</span><span class="n">suite_result</span><span class="p">,</span> <span class="n">json_path</span><span class="p">)</span>
+        <span class="n">generated_files</span><span class="p">[</span><span class="s2">&quot;json&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">json_path</span>
+
+    <span class="k">if</span> <span class="n">include_csv</span><span class="p">:</span>
+        <span class="n">csv_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;validation_results.csv&quot;</span><span class="p">)</span>
+        <span class="n">_generate_csv_report</span><span class="p">(</span><span class="n">suite_result</span><span class="p">,</span> <span class="n">csv_path</span><span class="p">)</span>
+        <span class="n">generated_files</span><span class="p">[</span><span class="s2">&quot;csv&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">csv_path</span>
+
+    <span class="c1"># Generate summary text file</span>
+    <span class="n">summary_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;validation_summary.txt&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">summary_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">suite_result</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+    <span class="n">generated_files</span><span class="p">[</span><span class="s2">&quot;summary&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">summary_path</span>
+
+    <span class="k">return</span> <span class="n">generated_files</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_generate_latex_table</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate LaTeX table for publication.&quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;% Analytical Validation Results</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">% G</span><span class="s2">enerated by EnerGIS Framework</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;% Timestamp: &quot;</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">usepackage</span><span class="si">{booktabs}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">usepackage</span><span class="si">{xcolor}</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">begin</span><span class="si">{table}</span><span class="s2">[htbp]</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">centering</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">caption{Analytical Validation Benchmark Results}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">label{tab:validation_results}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">begin</span><span class="si">{tabular}{lrrrc}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">toprule</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;Test Case &amp; Expected &amp; Actual &amp; Rel. Error [</span><span class="se">\\</span><span class="s2">%] &amp; Status </span><span class="se">\\\\\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">midrule</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+            <span class="c1"># Shorten test name for display</span>
+            <span class="n">test_name</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">test_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">test_name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">30</span><span class="p">:</span>
+                <span class="n">test_name</span> <span class="o">=</span> <span class="n">test_name</span><span class="p">[:</span><span class="mi">27</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span>
+
+            <span class="c1"># Format values</span>
+            <span class="n">expected_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">expected</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">actual_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">actual</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">error_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">relative_error</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span>
+
+            <span class="c1"># Status with color</span>
+            <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">passed</span><span class="p">:</span>
+                <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">textcolor{green!60!black}{</span><span class="se">\\</span><span class="s2">checkmark}&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">status</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">textcolor</span><span class="si">{red}</span><span class="s2">{</span><span class="se">\\</span><span class="s2">texttimes}&quot;</span>
+
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">test_name</span><span class="si">}</span><span class="s2"> &amp; </span><span class="si">{</span><span class="n">expected_str</span><span class="si">}</span><span class="s2"> &amp; </span><span class="si">{</span><span class="n">actual_str</span><span class="si">}</span><span class="s2"> &amp; </span><span class="si">{</span><span class="n">error_str</span><span class="si">}</span><span class="s2"> &amp; </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2"> </span><span class="se">\\\\\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">bottomrule</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">end</span><span class="si">{tabular}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Add summary</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\\\\</span><span class="s2">[0.5em]</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">footnotesize</span><span class="se">{{</span><span class="s2">Pass rate: </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">pass_rate</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="se">\\</span><span class="s2">% &quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">passed_tests</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">total_tests</span><span class="si">}</span><span class="s2"> tests). &quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Tolerance: 1</span><span class="se">\\</span><span class="s2">% relative error.</span><span class="se">}}\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">end</span><span class="si">{table}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_generate_json_report</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate JSON report for data analysis.&quot;&quot;&quot;</span>
+    <span class="n">report</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;metadata&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;generated_at&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span>
+            <span class="s2">&quot;framework_version&quot;</span><span class="p">:</span> <span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;total_tests&quot;</span><span class="p">:</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">total_tests</span><span class="p">,</span>
+            <span class="s2">&quot;passed_tests&quot;</span><span class="p">:</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">passed_tests</span><span class="p">,</span>
+            <span class="s2">&quot;failed_tests&quot;</span><span class="p">:</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">failed_tests</span><span class="p">,</span>
+            <span class="s2">&quot;pass_rate_percent&quot;</span><span class="p">:</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">pass_rate</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;results&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">result</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span> <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">results</span><span class="p">],</span>
+        <span class="s2">&quot;summary_by_category&quot;</span><span class="p">:</span> <span class="n">_summarize_by_category</span><span class="p">(</span><span class="n">suite_result</span><span class="p">),</span>
+    <span class="p">}</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">report</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_generate_csv_report</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate CSV report for spreadsheet analysis.&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Header</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span>
+            <span class="s2">&quot;Test Name&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Passed&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Expected&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Actual&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Relative Error&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Absolute Error&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Category&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Tolerance&quot;</span><span class="p">,</span>
+        <span class="p">])</span>
+
+        <span class="c1"># Data rows</span>
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">test_name</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">passed</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">expected</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">actual</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">relative_error</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">absolute_error</span><span class="p">,</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tolerance&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_summarize_by_category</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Summarize results by test category.&quot;&quot;&quot;</span>
+    <span class="n">categories</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">ValidationResult</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">results</span><span class="p">:</span>
+        <span class="n">category</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">,</span> <span class="s2">&quot;general&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">category</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">categories</span><span class="p">:</span>
+            <span class="n">categories</span><span class="p">[</span><span class="n">category</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">categories</span><span class="p">[</span><span class="n">category</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+    <span class="n">summary</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">category</span><span class="p">,</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">categories</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">passed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">passed</span><span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+        <span class="n">summary</span><span class="p">[</span><span class="n">category</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;total_tests&quot;</span><span class="p">:</span> <span class="n">total</span><span class="p">,</span>
+            <span class="s2">&quot;passed_tests&quot;</span><span class="p">:</span> <span class="n">passed</span><span class="p">,</span>
+            <span class="s2">&quot;failed_tests&quot;</span><span class="p">:</span> <span class="n">total</span> <span class="o">-</span> <span class="n">passed</span><span class="p">,</span>
+            <span class="s2">&quot;pass_rate_percent&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">passed</span> <span class="o">/</span> <span class="n">total</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span> <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">summary</span>
+
+
+<div class="viewcode-block" id="export_validation_summary">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.validation_report.export_validation_summary">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">export_validation_summary</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Export validation summary as formatted string.</span>
+
+<span class="sd">    Suitable for console output or log files.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    suite_result : ValidationSuiteResult</span>
+<span class="sd">        Results from validation suite</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        Formatted summary string</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">suite_result</span><span class="o">.</span><span class="n">summary</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="format_for_publication">
+<a class="viewcode-back" href="../../../api_reference.html#energis.validation.validation_report.format_for_publication">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">format_for_publication</span><span class="p">(</span>
+    <span class="n">suite_result</span><span class="p">:</span> <span class="n">ValidationSuiteResult</span><span class="p">,</span>
+    <span class="n">journal_style</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;applied_energy&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Format validation results for specific journal style.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    suite_result : ValidationSuiteResult</span>
+<span class="sd">        Results from validation suite</span>
+<span class="sd">    journal_style : str</span>
+<span class="sd">        Target journal: &quot;applied_energy&quot;, &quot;ieee&quot;, &quot;energy&quot;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        Journal-formatted text suitable for methods section</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">journal_style</span> <span class="o">==</span> <span class="s2">&quot;applied_energy&quot;</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;The optimization framework was validated using a suite of&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;analytical benchmark tests. A total of </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">total_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;test cases were executed, covering energy balance verification,&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;heat pump COP calculations, storage round-trip efficiency,&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;and merit order dispatch logic.&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The validation achieved a pass rate of </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">pass_rate</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">passed_tests</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">total_tests</span><span class="si">}</span><span class="s2"> tests)&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;with a tolerance of 1</span><span class="si">% r</span><span class="s2">elative error.&quot;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">journal_style</span> <span class="o">==</span> <span class="s2">&quot;ieee&quot;</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;Validation Results:&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- Total tests: </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">total_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- Passed: </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">passed_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- Failed: </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">failed_tests</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- Pass rate: </span><span class="si">{</span><span class="n">suite_result</span><span class="o">.</span><span class="n">pass_rate</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">%&quot;</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">suite_result</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

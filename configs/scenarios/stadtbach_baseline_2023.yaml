@@ -1,212 +1,85 @@
 # =============================================================================
-# SCENARIO: Stadtbach Baseline 2023
+# SCENARIO: Stadtbach Baseline 2023 - Dispatch Only
 # =============================================================================
-# Dispatch optimization with fixed capacities (no investment)
-# Optimizes hourly operation of existing assets
-# =============================================================================
+# Baseline scenario: dispatch optimization with fixed capacities
+# Using network + assets structure (Level 1: Copperplate)
+
+site:
+  input_xlsx: "data/Import_Data_yearly.csv"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
 
 scenario:
-  name: "Stadtbach Baseline 2023"
-  description: "Dispatch optimization for full year 2023 with existing assets"
-  version: "1.0"
-  author: "EnerGIS Planning Team"
-  date: "2024-01-15"
+  run_mode: PF_ONLY
+  metadata:
+    name: "Stadtbach Baseline 2023"
+    description: "Dispatch-only optimization for Stadtbach district heating"
+    version: "2.0"
+    author: "EnerGIS Planning Team"
+    purpose: "Paper analysis - baseline scenario"
+    created: "2026-03-27"
 
-  # ===========================================================================
-  # TIME HORIZON
-  # ===========================================================================
-  time:
-    # Data source
-    data_file: "../../data/stadtbach_2023_full.xlsx"
-    data_source_config: "../../assets/stadtbach/data_sources.yaml"
+# ===========================================================================
+# NETWORK: Copperplate model (single producer node)
+# ===========================================================================
+network:
+  nodes:
+    system:
+      type: producer
+      assets: [boiler_main, hp_stadtbach, storage_main]
+      demand:
+        column: "waermebedarf_MWth"
 
-    # Time range
-    start: "2023-01-01 00:00:00"
-    end: "2023-12-31 23:00:00"
-    resolution_h: 1.0                       # Hourly resolution
+# ===========================================================================
+# ASSETS: Heat supply technologies
+# ===========================================================================
+assets:
+  boiler_main:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 150.0
+    thermal_efficiency: 0.85
+    min_load_fraction: 0.1
 
-    # Representative periods (optional - use full year)
-    use_representative_periods: false
+  hp_stadtbach:
+    type: heat_pump
+    capacity_mw: 100.0
+    min_load: 0.2
+    cop_default: 3.5
 
-  # ===========================================================================
-  # ASSETS
-  # ===========================================================================
-  assets:
-    components: "../assets/stadtbach/components.yaml"
-    grid: "../assets/stadtbach/grid.yaml"
-    network: "../assets/stadtbach/network_topology.yaml"
+  storage_main:
+    type: thermal_storage
+    energy_capacity_mwh: 500.0
+    power_capacity_mw: 100.0
+    initial_soc_fraction: 0.5
 
-  # ===========================================================================
-  # THERMAL NETWORK (B1: enable multi-node DHN physics)
-  # ===========================================================================
-  thermal_network:
-    enabled: true
-    topology_file: "configs/assets/stadtbach/network_topology.yaml"
-    use_simplified_network_model: false
-    bilinear_mixing: false                # Big-M dominant-flow (MILP-compatible)
+# ===========================================================================
+# GRID CONNECTION
+# ===========================================================================
+grid:
+  gridcost_eur_mwh: 20.0
 
-  # ===========================================================================
-  # OPTIMIZATION SETTINGS
-  # ===========================================================================
-  optimization:
-    mode: dispatch                          # Options: dispatch, capacity_expansion, network_design
+# ===========================================================================
+# FUELS & PRICES
+# ===========================================================================
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
 
-    # Decision variables
-    decision_variables:
-      - component_dispatch                  # Hourly operation schedules
-      # NOT: component_capacities (fixed in baseline)
-      # NOT: pipe_diameters (fixed network)
+# ===========================================================================
+# ECONOMICS & COSTS
+# ===========================================================================
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
 
-    # Objective function
-    objective: minimize_total_cost
+# ===========================================================================
+# SOLVER CONFIGURATION
+# ===========================================================================
+run:
+  dt_h: 1.0
+  solver: appsi_highs
 
-    # Cost components to include
-    costs:
-      include_fuel: true
-      include_electricity_purchase: true
-      include_electricity_sales: true       # Revenue from CHP
-      include_co2: true
-      include_demand_charge: true
-      include_heat_dump_penalty: true
-
-      # Investment costs (not relevant for dispatch-only)
-      include_capex: false
-      include_opex_variable: true           # Variable O&M
-      include_opex_fixed: false             # Fixed costs don't affect dispatch
-
-    # Constraints
-    constraints:
-      # Energy balances
-      enforce_heat_balance: true
-      enforce_power_balance: true
-
-      # Component limits
-      respect_capacity_limits: true
-      respect_min_load: true
-      respect_ramp_rates: true
-
-      # Network constraints (simplified for baseline)
-      enforce_network_losses: true
-      use_simplified_network_model: true    # Brownfield approximation
-
-      # Emissions (no limit for baseline)
-      max_annual_co2_emissions_t: null
-
-      # Reliability
-      n_minus_1_criterion: false            # Not enforced
-
-  # ===========================================================================
-  # INITIAL CONDITIONS
-  # ===========================================================================
-  initial_state:
-    storage:
-      TES1:
-        soc_mwh: 250.0                      # 50% initial SOC
-        hot_zone_fraction: 0.5              # For stratified storage
-
-    network:
-      supply_temp_c: 100.0
-      return_temp_c: 55.0
-      pressure_bar: 10.0
-
-  # ===========================================================================
-  # TERMINAL CONDITIONS (Rolling Horizon)
-  # ===========================================================================
-  terminal_conditions:
-    storage:
-      state: cyclic                         # Options: free, cyclic, target
-      policy: equal                         # Options: equal, geq, soft, value
-
-      # For cyclic: SOC(T) = SOC(0)
-      target_mwh: null                      # null = use initial_state
-
-      # Value function (if policy=value)
-      salvage_price_eur_per_mwh: 50.0       # Storage value at end
-      soft_penalty_eur_per_mwh: 100.0       # Penalty for deviation (if policy=soft)
-
-  # ===========================================================================
-  # ECONOMICS
-  # ===========================================================================
-  economics:
-    # Fuel prices (overrides tech_library defaults)
-    fuel_prices:
-      natural_gas_eur_per_mwh: 45.0         # 2023 average
-      biomass_eur_per_mwh: 28.0
-      waste_heat_eur_per_mwh: 5.0           # Opportunity cost
-      heating_oil_eur_per_mwh: 90.0
-
-    # Carbon pricing
-    co2_price_eur_per_tonne: 100.0          # EU ETS 2023 average
-
-    # Other costs
-    heat_dump_penalty_eur_per_mwh: 10.0     # Penalty for excess production
-
-    # Discount rate (not used in dispatch-only)
-    discount_rate: 0.05
-
-  # ===========================================================================
-  # SOLVER SETTINGS
-  # ===========================================================================
-  solver:
-    name: gurobi                            # Options: gurobi, cplex, glpk, cbc
-    timelimit_s: 7200                       # 2 hours max
-    mip_gap: 0.01                           # 1% optimality gap
-    threads: 8                              # Parallel threads
-
-    # Solver-specific options
-    options:
-      NumericFocus: 1                       # Numerical stability
-      Method: 2                             # Barrier method
-      Crossover: 0                          # No crossover for speed
-
-  # ===========================================================================
-  # OUTPUT SETTINGS
-  # ===========================================================================
-  output:
-    # Results directory
-    results_dir: "../../results/baseline_2023"
-
-    # Output files
-    save_hourly_results: true
-    save_summary_statistics: true
-    save_cost_breakdown: true
-    save_emissions_breakdown: true
-
-    # Visualization
-    create_plots: true
-    plot_formats: [png, pdf]
-
-    # Export formats
-    export_formats:
-      - excel                               # .xlsx with multiple sheets
-      - csv                                 # Separate CSV files
-      - json                                # JSON for APIs
-
-    # Dashboard data
-    export_dashboard_data: true
-    dashboard_format: json
-
-  # ===========================================================================
-  # REPORTING
-  # ===========================================================================
-  reporting:
-    # KPIs to calculate
-    kpis:
-      - total_cost_eur
-      - fuel_cost_eur
-      - electricity_cost_eur
-      - co2_emissions_t
-      - renewable_fraction
-      - cop_average                         # Average heat pump COP
-      - chp_electricity_production_mwh
-      - storage_cycles                      # Full charge-discharge cycles
-
-    # Time aggregations
-    aggregations:
-      - hourly
-      - daily
-      - monthly
-      - annual
-
-    # Comparison to baseline (if available)
-    compare_to_baseline: false

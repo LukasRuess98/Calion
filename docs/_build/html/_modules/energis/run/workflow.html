@@ -1,0 +1,685 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>energis.run.workflow &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a264681e"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">energis.run.workflow</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for energis.run.workflow</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Workflow orchestration — the main entry point for running simulations.</span>
+
+<span class="sd">Provides :func:`run_workflow` (the primary public API), the step-handler</span>
+<span class="sd">registry (:func:`register_workflow_step`, :func:`unregister_workflow_step`),</span>
+<span class="sd">and the CLI ``main()`` function that used to live in ``rolling_horizon.py``.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">MutableMapping</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.config.merge</span><span class="w"> </span><span class="kn">import</span> <span class="n">deep_merge</span><span class="p">,</span> <span class="n">load_and_merge</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.constants</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_HORIZON_HOURS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.design</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">OptimizationConfig</span><span class="p">,</span>
+    <span class="n">OptimizationVariables</span><span class="p">,</span>
+    <span class="n">DesignSpec</span><span class="p">,</span>
+    <span class="n">extract_optimization_results</span><span class="p">,</span>
+    <span class="n">load_optimization_config</span><span class="p">,</span>
+    <span class="n">save_optimization_results</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.io.loader</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_input_excel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.models.results</span><span class="w"> </span><span class="kn">import</span> <span class="n">InvestmentDecisions</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">energis.utils.timeseries</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesTable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.cost_helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">_INVESTMENT_KEYS</span><span class="p">,</span> <span class="n">_recompute_objective_costs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.design_helpers</span><span class="w"> </span><span class="kn">import</span> <span class="n">_extract_design_data</span><span class="p">,</span> <span class="n">_load_design_override</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.rh_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">_load_rolling_params</span><span class="p">,</span> <span class="n">_run_rolling_horizon</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.solver</span><span class="w"> </span><span class="kn">import</span> <span class="n">_solve_scenario</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DesignData</span><span class="p">,</span>
+    <span class="n">StepHandler</span><span class="p">,</span>
+    <span class="n">WorkflowContext</span><span class="p">,</span>
+    <span class="n">WorkflowInputs</span><span class="p">,</span>
+    <span class="n">WorkflowPlan</span><span class="p">,</span>
+    <span class="n">WorkflowResult</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utilities</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_apply_horizon</span><span class="p">,</span>
+    <span class="n">_assert_capacity_vs_demand</span><span class="p">,</span>
+    <span class="n">_gather_env_overrides</span><span class="p">,</span>
+    <span class="n">_parse_float_list</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utilities.env_overrides</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_OverrideValues</span><span class="p">,</span>
+    <span class="n">_normalise_run_mode</span><span class="p">,</span>
+    <span class="n">_parse_run_mode</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Step-handler registry</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="n">_STEP_HANDLERS</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">StepHandler</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">register_workflow_step</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">handler</span><span class="p">:</span> <span class="n">StepHandler</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Register or replace a workflow step handler.&quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Workflow step name must not be empty&quot;</span><span class="p">)</span>
+    <span class="n">_STEP_HANDLERS</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">handler</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unregister_workflow_step</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Remove a workflow step handler if it exists.&quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span><span class="p">:</span>
+        <span class="n">_STEP_HANDLERS</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_registered_workflow_steps</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the currently registered workflow step identifiers.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_STEP_HANDLERS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Workflow plan parsing</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parse_workflow_plan</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">WorkflowPlan</span><span class="p">:</span>
+    <span class="n">run_mode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;run_mode&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">&quot;PF_ONLY&quot;</span>
+    <span class="n">workflow</span> <span class="o">=</span> <span class="n">scenario_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;workflow&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">workflow</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">workflow</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+            <span class="n">steps</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">workflow</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">steps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">workflow</span><span class="p">)</span>
+        <span class="n">steps_upper</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">steps</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;PF_ONLY&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;RH_ONLY&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;RH&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;PF_THEN_RH&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">,</span> <span class="s2">&quot;RH&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;PF_AND_RH&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">,</span> <span class="s2">&quot;RH&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;MPC_ONLY&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;MPC&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;PF_THEN_MPC&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">,</span> <span class="s2">&quot;MPC&quot;</span><span class="p">],</span>
+        <span class="p">}</span>
+        <span class="n">steps_upper</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">run_mode</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;PF&quot;</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">steps_upper</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Workflow must contain at least one step&quot;</span><span class="p">)</span>
+
+    <span class="n">opt_config</span> <span class="o">=</span> <span class="n">load_optimization_config</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="p">)</span>
+
+    <span class="n">fix_default</span> <span class="o">=</span> <span class="n">run_mode</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;PF_THEN_RH&quot;</span><span class="p">,</span> <span class="s2">&quot;PF_AND_RH&quot;</span><span class="p">,</span> <span class="s2">&quot;PF_THEN_MPC&quot;</span><span class="p">}</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">steps_upper</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+    <span class="n">fix_design</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fix_design&quot;</span><span class="p">,</span> <span class="n">scenario_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;fix_design_in_rh&quot;</span><span class="p">,</span> <span class="n">fix_default</span><span class="p">)))</span>
+
+    <span class="c1"># If fix_design requested but no explicit optimization schedule, default to</span>
+    <span class="c1"># &quot;optimize in window 0, fix for all subsequent windows&quot;</span>
+    <span class="n">is_passthrough</span> <span class="o">=</span> <span class="n">opt_config</span><span class="o">.</span><span class="n">fix_after_window</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">opt_config</span><span class="o">.</span><span class="n">fixed_values</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">fix_design</span> <span class="ow">and</span> <span class="n">is_passthrough</span><span class="p">:</span>
+        <span class="n">opt_config</span> <span class="o">=</span> <span class="n">OptimizationConfig</span><span class="p">(</span><span class="n">variables</span><span class="o">=</span><span class="n">OptimizationVariables</span><span class="p">(),</span> <span class="n">fix_after_window</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[DESIGN] fix_design=true: will optimise capacities in window 0, fix thereafter&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">WorkflowPlan</span><span class="p">(</span><span class="n">steps</span><span class="o">=</span><span class="n">steps_upper</span><span class="p">,</span> <span class="n">fix_design</span><span class="o">=</span><span class="n">fix_design</span><span class="p">,</span> <span class="n">design_config</span><span class="o">=</span><span class="n">opt_config</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Workflow input preparation</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_workflow_inputs</span><span class="p">(</span>
+    <span class="n">config_paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">overrides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WorkflowInputs</span><span class="p">:</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">load_and_merge</span><span class="p">(</span><span class="n">config_paths</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">overrides</span><span class="p">:</span>
+        <span class="n">cfg</span> <span class="o">=</span> <span class="n">deep_merge</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">overrides</span><span class="p">)</span>
+
+    <span class="n">run_cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;run&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">scenario_cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">site_cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;site&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+    <span class="n">dt_h</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">run_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dt_h&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">))</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">load_input_excel</span><span class="p">(</span><span class="n">site_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;input_xlsx&quot;</span><span class="p">,</span> <span class="s2">&quot;Import_Data.xlsx&quot;</span><span class="p">),</span> <span class="n">site_cfg</span><span class="p">,</span> <span class="n">dt_hours</span><span class="o">=</span><span class="n">dt_h</span><span class="p">)</span>
+    <span class="n">table</span><span class="o">.</span><span class="n">ensure_frequency</span><span class="p">(</span><span class="n">dt_h</span><span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">_apply_horizon</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">scenario_cfg</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">)</span>
+    <span class="n">_assert_capacity_vs_demand</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+
+    <span class="n">plan</span> <span class="o">=</span> <span class="n">_parse_workflow_plan</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="p">)</span>
+    <span class="n">solver_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">run_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;solver&quot;</span><span class="p">,</span> <span class="s2">&quot;glpk&quot;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">WorkflowInputs</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">dt_h</span><span class="p">,</span> <span class="n">solver_name</span><span class="p">,</span> <span class="n">plan</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Step implementations</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pf_step</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">WorkflowContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">_solve_scenario</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">table</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">solver_name</span><span class="p">)</span>
+
+    <span class="n">term_cond</span> <span class="o">=</span> <span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;termination_condition&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="s2">&quot;infeasible&quot;</span> <span class="ow">in</span> <span class="n">term_cond</span> <span class="ow">or</span> <span class="s2">&quot;unbounded&quot;</span> <span class="ow">in</span> <span class="n">term_cond</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;Perfect Foresight model is </span><span class="si">%s</span><span class="s2">. Cannot proceed. &quot;</span>
+            <span class="s2">&quot;Check: heat demand vs capacity, storage limits, generator constraints.&quot;</span><span class="p">,</span>
+            <span class="n">term_cond</span>
+        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Perfect Foresight optimization failed: </span><span class="si">{</span><span class="n">term_cond</span><span class="si">}</span><span class="s2">. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Hint: Verify generator capacities, storage configuration, and input data.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">costs</span><span class="p">:</span>
+        <span class="n">_recompute_objective_costs</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">costs</span><span class="p">)</span>
+
+    <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span> <span class="o">=</span> <span class="n">result</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="o">=</span> <span class="n">_extract_design_data</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">)</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">investments</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">investments</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rh_step</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">WorkflowContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_load_rolling_params</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="n">horizon_steps</span><span class="p">,</span> <span class="n">step_steps</span><span class="p">,</span> <span class="n">overlap_steps</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">as_steps</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">dt_h</span><span class="p">)</span>
+
+    <span class="n">design_config</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">design_config</span>
+
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">design_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mode_desc</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;fix_after_window=</span><span class="si">{</span><span class="n">design_config</span><span class="o">.</span><span class="n">fix_after_window</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="k">if</span> <span class="n">design_config</span> <span class="ow">and</span> <span class="n">design_config</span><span class="o">.</span><span class="n">fix_after_window</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="s2">&quot;free&quot;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[DESIGN] Using pre-loaded design (</span><span class="si">%s</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">mode_desc</span><span class="p">)</span>
+
+    <span class="n">fix_design</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">design_spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;Design fixation requested but no design data available – proceeding without fixation.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span> <span class="o">=</span> <span class="n">_run_rolling_horizon</span><span class="p">(</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">table</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">solver_name</span><span class="p">,</span>
+        <span class="n">params</span><span class="p">,</span>
+        <span class="n">horizon_steps</span><span class="p">,</span>
+        <span class="n">step_steps</span><span class="p">,</span>
+        <span class="n">overlap_steps</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">design</span><span class="p">,</span>
+        <span class="n">fix_design</span><span class="p">,</span>
+        <span class="n">design_spec</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">design_spec</span><span class="p">,</span>
+        <span class="n">design_config</span><span class="o">=</span><span class="n">design_config</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">or</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">design</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">investments</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">investments</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">investments</span> <span class="ow">or</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">investments</span>
+
+    <span class="k">if</span> <span class="n">design_config</span> <span class="ow">and</span> <span class="n">design_config</span><span class="o">.</span><span class="n">save_result_to</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">extracted_results</span> <span class="o">=</span> <span class="n">extract_optimization_results</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">costs</span><span class="p">)</span>
+        <span class="n">save_optimization_results</span><span class="p">(</span><span class="n">extracted_results</span><span class="p">,</span> <span class="n">design_config</span><span class="o">.</span><span class="n">save_result_to</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[DESIGN] Saved optimized design to </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">design_config</span><span class="o">.</span><span class="n">save_result_to</span><span class="p">)</span>
+
+    <span class="c1"># Transfer investment costs from PF to RH when fix_design is active</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span><span class="p">:</span>
+        <span class="n">pf_costs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span><span class="o">.</span><span class="n">costs</span>
+        <span class="n">rh_costs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="o">.</span><span class="n">costs</span>
+
+        <span class="n">investment_transferred</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">inv_key</span> <span class="ow">in</span> <span class="n">_INVESTMENT_KEYS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">inv_key</span> <span class="ow">in</span> <span class="n">pf_costs</span><span class="p">:</span>
+                <span class="n">pf_value</span> <span class="o">=</span> <span class="n">pf_costs</span><span class="p">[</span><span class="n">inv_key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pf_value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="ow">and</span> <span class="n">pf_value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">rh_costs</span><span class="p">[</span><span class="n">inv_key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">pf_value</span><span class="p">)</span>
+                    <span class="n">investment_transferred</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">investment_transferred</span><span class="p">:</span>
+            <span class="n">_recompute_objective_costs</span><span class="p">(</span><span class="n">rh_costs</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Transferred investment costs from PF to RH result &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(CAPEX: </span><span class="si">{</span><span class="n">rh_costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;objective.Capex_cost_EUR&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> EUR)&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_mpc_step</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">WorkflowContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Model Predictive Control with forecast updates.&quot;&quot;&quot;</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">energis.forecasting.persistence</span><span class="w"> </span><span class="kn">import</span> <span class="n">PersistenceForecast</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">energis.forecasting.perfect_noise</span><span class="w"> </span><span class="kn">import</span> <span class="n">PerfectNoiseForecast</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">energis.run.mpc</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_mpc</span>
+
+    <span class="n">mpc_cfg</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;mpc&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">forecast_method</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">mpc_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;forecast_method&quot;</span><span class="p">,</span> <span class="s2">&quot;persistence&quot;</span><span class="p">))</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">forecast_horizon_hours</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">mpc_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;forecast_horizon_hours&quot;</span><span class="p">,</span> <span class="n">DEFAULT_HORIZON_HOURS</span><span class="p">))</span>
+    <span class="n">update_frequency_hours</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">mpc_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;update_frequency_hours&quot;</span><span class="p">,</span> <span class="mf">24.0</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">forecast_method</span> <span class="o">==</span> <span class="s2">&quot;persistence&quot;</span><span class="p">:</span>
+        <span class="n">forecast_gen</span> <span class="o">=</span> <span class="n">PersistenceForecast</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">forecast_method</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;perfect_noise&quot;</span><span class="p">,</span> <span class="s2">&quot;perfect_with_noise&quot;</span><span class="p">):</span>
+        <span class="n">forecast_gen</span> <span class="o">=</span> <span class="n">PerfectNoiseForecast</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown MPC forecast method: </span><span class="si">{</span><span class="n">forecast_method</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;MPC using forecast method: </span><span class="si">{</span><span class="n">forecast_gen</span><span class="o">.</span><span class="n">get_method_name</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">fix_design</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">&quot;Design fixation requested but no PF design data available – proceeding without fixation.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span> <span class="o">=</span> <span class="n">run_mpc</span><span class="p">(</span>
+        <span class="n">base_cfg</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span>
+        <span class="n">historical_data</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">table</span><span class="p">,</span>
+        <span class="n">dt_h</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span>
+        <span class="n">solver_name</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">solver_name</span><span class="p">,</span>
+        <span class="n">forecast_gen</span><span class="o">=</span><span class="n">forecast_gen</span><span class="p">,</span>
+        <span class="n">forecast_horizon_hours</span><span class="o">=</span><span class="n">forecast_horizon_hours</span><span class="p">,</span>
+        <span class="n">update_frequency_hours</span><span class="o">=</span><span class="n">update_frequency_hours</span><span class="p">,</span>
+        <span class="n">design</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">design</span><span class="p">,</span>
+        <span class="n">fix_design</span><span class="o">=</span><span class="n">fix_design</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="o">.</span><span class="n">design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="ow">or</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="o">.</span><span class="n">design</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="o">.</span><span class="n">investments</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">investments</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">investments</span> <span class="ow">or</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="o">.</span><span class="n">investments</span>
+
+    <span class="c1"># Transfer investment costs from PF to MPC</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">fix_design</span><span class="p">:</span>
+        <span class="n">pf_costs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span><span class="o">.</span><span class="n">costs</span>
+        <span class="n">mpc_costs</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="o">.</span><span class="n">costs</span>
+
+        <span class="n">investment_transferred</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">inv_key</span> <span class="ow">in</span> <span class="n">_INVESTMENT_KEYS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">inv_key</span> <span class="ow">in</span> <span class="n">pf_costs</span><span class="p">:</span>
+                <span class="n">pf_value</span> <span class="o">=</span> <span class="n">pf_costs</span><span class="p">[</span><span class="n">inv_key</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pf_value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="ow">and</span> <span class="n">pf_value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">mpc_costs</span><span class="p">[</span><span class="n">inv_key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">pf_value</span><span class="p">)</span>
+                    <span class="n">investment_transferred</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">investment_transferred</span><span class="p">:</span>
+            <span class="n">_recompute_objective_costs</span><span class="p">(</span><span class="n">mpc_costs</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Transferred investment costs from PF to MPC result &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(CAPEX: </span><span class="si">{</span><span class="n">mpc_costs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;objective.Capex_cost_EUR&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> EUR)&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_register_default_steps</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">register_workflow_step</span><span class="p">(</span><span class="s2">&quot;PF&quot;</span><span class="p">,</span> <span class="n">_pf_step</span><span class="p">)</span>
+    <span class="n">register_workflow_step</span><span class="p">(</span><span class="s2">&quot;RH&quot;</span><span class="p">,</span> <span class="n">_rh_step</span><span class="p">)</span>
+    <span class="n">register_workflow_step</span><span class="p">(</span><span class="s2">&quot;MPC&quot;</span><span class="p">,</span> <span class="n">_mpc_step</span><span class="p">)</span>
+
+
+<span class="n">_register_default_steps</span><span class="p">()</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Main public API</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="run_workflow">
+<a class="viewcode-back" href="../../../api_reference.html#energis.api.run_workflow">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_workflow</span><span class="p">(</span><span class="n">config_paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">overrides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WorkflowResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute the configured workflow (PF, RH, MPC or combinations).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config_paths:</span>
+<span class="sd">        List of configuration file paths that should be merged.</span>
+<span class="sd">    overrides:</span>
+<span class="sd">        Optional dictionary applied on top of the merged configuration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">inputs</span> <span class="o">=</span> <span class="n">_build_workflow_inputs</span><span class="p">(</span><span class="n">config_paths</span><span class="p">,</span> <span class="n">overrides</span><span class="p">)</span>
+
+    <span class="n">context</span> <span class="o">=</span> <span class="n">WorkflowContext</span><span class="p">(</span><span class="n">inputs</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="n">inputs</span><span class="o">.</span><span class="n">table</span><span class="p">,</span> <span class="n">inputs</span><span class="o">.</span><span class="n">dt_h</span><span class="p">,</span> <span class="n">inputs</span><span class="o">.</span><span class="n">solver_name</span><span class="p">,</span> <span class="n">inputs</span><span class="o">.</span><span class="n">plan</span><span class="p">)</span>
+
+    <span class="n">scenario_cfg</span> <span class="o">=</span> <span class="n">inputs</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">design_spec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">design_override</span> <span class="o">=</span> <span class="n">_load_design_override</span><span class="p">(</span><span class="n">scenario_cfg</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">scenario_cfg</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="k">else</span> <span class="p">{})</span>
+        <span class="k">if</span> <span class="n">design_override</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">context</span><span class="o">.</span><span class="n">design</span> <span class="o">=</span> <span class="n">design_override</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;[DESIGN] Loaded legacy design override from pf_design_json&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">inputs</span><span class="o">.</span><span class="n">plan</span><span class="o">.</span><span class="n">steps</span><span class="p">:</span>
+        <span class="n">handler</span> <span class="o">=</span> <span class="n">_STEP_HANDLERS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handler</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported workflow step: </span><span class="si">{</span><span class="n">step</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">handler</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">WorkflowResult</span><span class="p">(</span>
+        <span class="n">inputs</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">pf_result</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">rh_result</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">mpc_result</span><span class="p">,</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">design</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="o">.</span><span class="n">plan</span><span class="p">,</span>
+        <span class="n">investments</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">investments</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Config override helpers (used by legacy CLI ``main()``)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_assign</span><span class="p">(</span><span class="n">target</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">path</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">node</span><span class="p">:</span> <span class="n">MutableMapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">child</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">MutableMapping</span><span class="p">):</span>
+            <span class="n">child</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">node</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">child</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">child</span>
+    <span class="n">node</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_merge_cli_and_env</span><span class="p">(</span>
+    <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">,</span> <span class="n">env_values</span><span class="p">:</span> <span class="n">_OverrideValues</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_OverrideValues</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">_OverrideValues</span><span class="p">(</span>
+        <span class="n">run_mode</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">run_mode</span> <span class="ow">or</span> <span class="n">env_values</span><span class="o">.</span><span class="n">run_mode</span><span class="p">,</span>
+        <span class="n">fix_design</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">fix_design</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">fix_design</span><span class="p">,</span>
+        <span class="n">terminal_policy</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">terminal_policy</span> <span class="ow">or</span> <span class="n">env_values</span><span class="o">.</span><span class="n">terminal_policy</span><span class="p">,</span>
+        <span class="n">design_json</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">pf_design_json</span> <span class="ow">or</span> <span class="n">env_values</span><span class="o">.</span><span class="n">design_json</span><span class="p">,</span>
+        <span class="n">include_gridcost</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">include_gridcost_in_energy</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">include_gridcost_in_energy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">include_gridcost</span>
+        <span class="p">),</span>
+        <span class="n">include_demand_charge</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">include_demand_charge_in_rh</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">include_demand_charge_in_rh</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">include_demand_charge</span>
+        <span class="p">),</span>
+        <span class="n">include_co2_cost</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">include_co2_cost_in_objective</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">include_co2_cost_in_objective</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">include_co2_cost</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="n">horizon_value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">heat_horizon_hours</span>
+    <span class="k">if</span> <span class="n">horizon_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">horizon_value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">rh_window_hours</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">rh_window_hours</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">horizon_hours</span>
+
+    <span class="n">step_value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">step_hours</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">step_hours</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">step_hours</span>
+    <span class="n">overlap_value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">rh_overlap_hours</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">rh_overlap_hours</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">env_values</span><span class="o">.</span><span class="n">overlap_hours</span>
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">horizon_value</span><span class="p">,</span> <span class="n">step_value</span><span class="p">,</span> <span class="n">overlap_value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_override_dict</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">_OverrideValues</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="n">overrides</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">run_mode</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;run_mode&quot;</span><span class="p">],</span> <span class="n">values</span><span class="o">.</span><span class="n">run_mode</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">fix_design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;fix_design&quot;</span><span class="p">],</span> <span class="nb">bool</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">fix_design</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">terminal_policy</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;terminal_policy&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">terminal_policy</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">design_json</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;pf_design_json&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">design_json</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">include_gridcost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;costs&quot;</span><span class="p">,</span> <span class="s2">&quot;include_gridcost_in_energy&quot;</span><span class="p">],</span> <span class="nb">bool</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">include_gridcost</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">include_demand_charge</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;costs&quot;</span><span class="p">,</span> <span class="s2">&quot;include_demand_charge_in_rh&quot;</span><span class="p">],</span> <span class="nb">bool</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">include_demand_charge</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">include_co2_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">_assign</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;costs&quot;</span><span class="p">,</span> <span class="s2">&quot;include_co2_cost_in_objective&quot;</span><span class="p">],</span> <span class="nb">bool</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">include_co2_cost</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">overrides</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_expand_sensitivity_runs</span><span class="p">(</span>
+    <span class="n">args</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">,</span>
+    <span class="n">base_overrides</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">horizon_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">step_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">overlap_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_choices</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">values</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">default</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+
+    <span class="n">horizon_choices</span> <span class="o">=</span> <span class="n">_choices</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">sensitivity_horizon_hours</span><span class="p">,</span> <span class="n">horizon_value</span><span class="p">)</span>
+    <span class="n">step_choices</span> <span class="o">=</span> <span class="n">_choices</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">sensitivity_step_hours</span><span class="p">,</span> <span class="n">step_value</span><span class="p">)</span>
+    <span class="n">overlap_choices</span> <span class="o">=</span> <span class="n">_choices</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">sensitivity_overlap_hours</span><span class="p">,</span> <span class="n">overlap_value</span><span class="p">)</span>
+
+    <span class="n">runs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">horizon</span> <span class="ow">in</span> <span class="n">horizon_choices</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">step_choices</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">overlap</span> <span class="ow">in</span> <span class="n">overlap_choices</span><span class="p">:</span>
+                <span class="n">iter_overrides</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">base_overrides</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">horizon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">_assign</span><span class="p">(</span>
+                        <span class="n">iter_overrides</span><span class="p">,</span>
+                        <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;heat_horizon_hours&quot;</span><span class="p">],</span>
+                        <span class="nb">float</span><span class="p">(</span><span class="n">horizon</span><span class="p">),</span>
+                    <span class="p">)</span>
+                    <span class="n">_assign</span><span class="p">(</span><span class="n">iter_overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;heat_horizon_hours&quot;</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">horizon</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">_assign</span><span class="p">(</span><span class="n">iter_overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;step_hours&quot;</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">step</span><span class="p">))</span>
+                    <span class="n">_assign</span><span class="p">(</span><span class="n">iter_overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;step_hours&quot;</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">step</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">overlap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">_assign</span><span class="p">(</span>
+                        <span class="n">iter_overrides</span><span class="p">,</span>
+                        <span class="p">[</span><span class="s2">&quot;scenario&quot;</span><span class="p">,</span> <span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;overlap_hours&quot;</span><span class="p">],</span>
+                        <span class="nb">float</span><span class="p">(</span><span class="n">overlap</span><span class="p">),</span>
+                    <span class="p">)</span>
+                    <span class="n">_assign</span><span class="p">(</span><span class="n">iter_overrides</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;rolling_horizon&quot;</span><span class="p">,</span> <span class="s2">&quot;overlap_hours&quot;</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">overlap</span><span class="p">))</span>
+                <span class="n">runs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">horizon</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">overlap</span><span class="p">,</span> <span class="n">iter_overrides</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">runs</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># CLI argument builder (used by ``__main__.py``)</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">add_workflow_cli_args</span><span class="p">(</span><span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add workflow-specific CLI arguments to *parser*.</span>
+
+<span class="sd">    This keeps argument definitions in one place while allowing</span>
+<span class="sd">    ``energis.run.__main__`` to build a unified CLI.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--run-mode&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">_parse_run_mode</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;PF_ONLY&quot;</span><span class="p">,</span> <span class="s2">&quot;RH_ONLY&quot;</span><span class="p">,</span> <span class="s2">&quot;PF_THEN_RH&quot;</span><span class="p">],</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Override scenario.run_mode (env: RUN_MODE)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--heat-horizon-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Override rolling horizon window size in hours (env: HEAT_HORIZON_HOURS)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--rh-window-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Alias for --heat-horizon-hours (env: HEAT_HORIZON_HOURS)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--step-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Override rolling horizon commit length in hours (env: STEP_HOURS)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--rh-overlap-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Overlap between consecutive RH windows in hours (env: OVERLAP_HOURS)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--sensitivity-horizon-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">_parse_float_list</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Comma/semicolon separated list of window sizes for a sensitivity sweep&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--sensitivity-step-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">_parse_float_list</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Comma/semicolon separated list of commit lengths for a sensitivity sweep&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--sensitivity-overlap-hours&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="n">_parse_float_list</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Comma/semicolon separated list of RH overlaps for a sensitivity sweep&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--terminal-policy&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Override storage terminal policy for RH windows (env: TERMINAL_POLICY)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--pf-design-json&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to a PF design JSON exported by a previous run (env: PF_DESIGN_JSON)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--fix-design&quot;</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;fix_design&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">BooleanOptionalAction</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable/disable design fixation during RH (env: FIX_DESIGN)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--include-gridcost-in-energy&quot;</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;include_gridcost_in_energy&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">BooleanOptionalAction</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Include grid cost in PF objective (env: INCLUDE_GRIDCOST_IN_ENERGY)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--include-demand-charge-in-rh&quot;</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;include_demand_charge_in_rh&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">BooleanOptionalAction</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Include demand charge during RH runs (env: INCLUDE_DEMAND_CHARGE_IN_RH)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--include-co2-cost-in-objective&quot;</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;include_co2_cost_in_objective&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">BooleanOptionalAction</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Include CO2 pricing in the optimisation objective (env: INCLUDE_CO2_COST_IN_OBJECTIVE)&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--print-design&quot;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Print extracted design values when available&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;run_workflow&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;register_workflow_step&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unregister_workflow_step&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;get_registered_workflow_steps&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;add_workflow_cli_args&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowResult&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowContext&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowPlan&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;WorkflowInputs&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

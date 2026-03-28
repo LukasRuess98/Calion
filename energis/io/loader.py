@@ -212,7 +212,7 @@ def load_input_excel(
             if col:
                 return col
         col = _map_column(header, fallbacks)
-        _require(col is not None, f"Fehlende Spalte für {name}")
+        _require(col is not None, f"Missing column for {name}")
         return col
 
     price_col = pick("price_candidates", ["Day_Ahead_Price €/MWh", "strompreis"])
@@ -265,9 +265,9 @@ def load_input_excel(
     outdoor_temp: List[float] = []
     if outdoor_temp_col:
         outdoor_temp = [_to_float(rec.get(outdoor_temp_col)) for rec in records]
-        logger.info(f"[LOAD] Außentemperatur gefunden: Spalte '{outdoor_temp_col}'")
+        logger.info(f"[LOAD] Outdoor temperature found: column '{outdoor_temp_col}'")
     else:
-        logger.info("[LOAD] Keine Außentemperatur-Spalte gefunden (Heizkurve deaktiviert)")
+        logger.info("[LOAD] No outdoor temperature column found (heating curve disabled)")
 
     data: Dict[str, List[float]] = {
         "strompreis_EUR_MWh": price,
@@ -291,7 +291,7 @@ def load_input_excel(
     # fill missing numbers using simple forward/backward fill
     for key, values in data.items():
         data[key] = fill_gaps(values)
-        _require(all(v == v for v in data[key]), f"NaN in Spalte {key}")
+        _require(all(v == v for v in data[key]), f"NaN in column {key}")
 
     dt_hours = float(dt_hours if dt_hours is not None else site_cfg.get("dt_h", 1.0))
 
@@ -320,10 +320,11 @@ def load_input_excel(
     table = _resample_regular(timestamps, data, dt_hours)
 
     if table.data["waermebedarf_MWth"] and max(table.data["waermebedarf_MWth"]) == 0:
-        raise RuntimeError("Wärmebedarf ist überall 0. Bitte Spaltenzuordnung prüfen.")
+        raise RuntimeError("Heat demand is zero everywhere. Please check column mapping.")
 
-    print(
-        f"[LOAD] {os.path.basename(path)} -> {len(table)} Schritte von {table.index[0]} bis {table.index[-1]}"
+    logger.info(
+        "[LOAD] %s -> %d steps from %s to %s",
+        os.path.basename(path), len(table), table.index[0], table.index[-1],
     )
 
     return table

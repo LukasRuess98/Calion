@@ -470,9 +470,12 @@ def run_mpc(
                     for hp_id, hp_data in design_state.heat_pumps.items():
                         logger.info(f"    {hp_id}: capacity={hp_data.get('capacity_mw', 0):.2f} MW, build={hp_data.get('build_binary', 0):.2f}")
                     if design_state.storage:
-                        print(f"  Storage: capacity={design_state.storage.get('capacity_mwh', 0):.1f} MWh, "
-                              f"power={design_state.storage.get('power_mw', 0):.1f} MW, "
-                              f"build={design_state.storage.get('build_binary', 0):.2f}")
+                        logger.info(
+                            "  Storage: capacity=%.1f MWh, power=%.1f MW, build=%.2f",
+                            design_state.storage.get("capacity_mwh", 0),
+                            design_state.storage.get("power_mw", 0),
+                            design_state.storage.get("build_binary", 0),
+                        )
                     else:
                         logger.info(f"  Storage: None")
             window_cfg = _apply_design_fix(window_cfg, design_state)

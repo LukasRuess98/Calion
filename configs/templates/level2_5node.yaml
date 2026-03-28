@@ -2,11 +2,11 @@
 # Distributed assets connected by pipes with thermal losses and pressure drop
 
 site:
-  input_xlsx: "Import_Data.xlsx"
+  input_xlsx: "data/Import_Data.csv"
   columns:
     datetime: "Datum"
-    price: "Day_Ahead_Price EUR/MWh"
-    co2_grid: "CO2_consumption_based kgCO2/MWh"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
 
 scenario:
   run_mode: PF_ONLY
@@ -16,8 +16,8 @@ network:
     heat_loss: true
     pressure_drop: true
     transport_delay: false
-  supply_temp_c: 90
-  return_temp_c: 55
+  supply_temp_nominal_c: 90
+  return_temp_nominal_c: 55
   ground_temp_c: 10
 
   nodes:
@@ -46,40 +46,39 @@ network:
       demand_fraction: 0.3
       demand:
         column: "waermebedarf_MWth"
-        fraction: 0.3
 
   pipes:
     plant_to_j1:
       from: plant
       to: junction_1
       length_m: 1200
-      diameter_mm: 400
+      diameter_mm: 500    # 433.7 kg/s max — 19% margin over 362.9 kg/s at peak (0.7×demand)
     j1_to_north:
       from: junction_1
       to: north
       length_m: 2500
-      diameter_mm: 350
+      diameter_mm: 350    # 212.5 kg/s max — adequate for 0.3×demand
     j1_to_south:
       from: junction_1
       to: south
       length_m: 1800
-      diameter_mm: 300
+      diameter_mm: 350    # 212.5 kg/s max — 2.5% margin over 207.3 kg/s at peak (0.4×demand)
     plant_to_ind:
       from: plant
       to: industrial
       length_m: 800
-      diameter_mm: 250
+      diameter_mm: 350    # 212.5 kg/s max — 37% margin over 155.5 kg/s at peak (0.3×demand)
 
 assets:
   boiler_1:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 1000
+    capacity_mw: 200
     thermal_efficiency: 0.90
 
   hp_1:
     type: heat_pump
-    capacity_mw: 500
+    capacity_mw: 150
     cop_default: 3.5
     wrg_sources: [WRG1, WRG2]
 
@@ -90,7 +89,7 @@ assets:
 
   hp_south:
     type: heat_pump
-    capacity_mw: 200
+    capacity_mw: 40
     cop_default: 4.0
 
 grid:

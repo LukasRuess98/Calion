@@ -482,7 +482,7 @@ Don't migrate if:
 
 ### Support
 - GitHub Issues: https://github.com/LukasRuess98/Planing-Framework-for-Heat/issues
-- Email: [your-email@example.com]
+- Email: lukas.ruess@eep.uni-stuttgart.de
 
 ### Contributing
 We welcome contributions! To add a new component:
