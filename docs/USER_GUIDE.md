@@ -19,16 +19,16 @@ This guide provides detailed instructions for configuring and running EnerGIS op
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/energis.git
-cd energis
+git clone https://github.com/LukasRuess98/Planing-Framework-for-Heat.git
+cd Planing-Framework-for-Heat
 
 # Create virtual environment (recommended)
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # or: venv\Scripts\activate  # Windows
 
-# Install dependencies
-pip install -r requirements.txt
+# Install with all dependencies
+pip install -e ".[all]"
 ```
 
 ### 1.2 Solver Setup

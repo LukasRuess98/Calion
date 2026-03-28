@@ -143,11 +143,13 @@ pytest tests/ -v --no-cov
 If you use EnerGIS in your research, please cite:
 
 ```bibtex
-@article{energis2024,
-  title={EnerGIS: A Modular MILP Framework for District Heating System Optimization},
-  author={[Authors]},
-  journal={Applied Energy},
-  year={2024}
+@software{ruess2026energis,
+  author       = {Ruess, Lukas},
+  title        = {{EnerGIS: Modular MILP Framework for Industrial Heat Network Planning}},
+  year         = {2026},
+  version      = {1.0.0-alpha},
+  institution  = {Institut für Energieeffizienz in der Produktion (EEP), Universität Stuttgart},
+  url          = {https://github.com/LukasRuess98/Planing-Framework-for-Heat}
 }
 ```
 

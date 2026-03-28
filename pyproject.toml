@@ -4,13 +4,13 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "energis"
-version = "2.0.0-alpha"
+version = "1.0.0-alpha"
 description = "Modular MILP Framework for Industrial Heat Network Planning"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "EnerGIS Team" },
+    { name = "Lukas Ruess", email = "lukas.ruess@eep.uni-stuttgart.de" },
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -24,12 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "pyomo>=6.0",
+    "pyyaml>=6.0",
     "openpyxl>=3.0",
     "typing-extensions>=4.0",
 ]
 
 [project.optional-dependencies]
-solver = ["pyomo>=6.0"]
 plot = ["matplotlib>=3.5"]
 notebooks = [
     "pandas>=1.5",
@@ -49,7 +50,7 @@ docs = [
     "sphinx-rtd-theme>=1.0",
 ]
 all = [
-    "energis[solver,plot,notebooks,dev,docs]",
+    "energis[plot,notebooks,dev,docs]",
 ]
 
 [project.scripts]

@@ -51,8 +51,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install lint tools
+        run: pip install ruff mypy
 
-      - name: Lint
+      - name: Lint (ruff)
         run: ruff check energis/ --output-format=github
+
+      - name: Type check (mypy)
+        run: mypy energis/ --ignore-missing-imports --no-error-summary

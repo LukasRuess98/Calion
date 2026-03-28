@@ -7,10 +7,15 @@ type: software
 authors:
   - family-names: Ruess
     given-names: Lukas
+    email: lukas.ruess@eep.uni-stuttgart.de
+    affiliation: >-
+      Institut für Energieeffizienz in der Produktion (EEP),
+      Universität Stuttgart
 repository-code: "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
+url: "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
 license: MIT
-version: "2.0.0-alpha"
-date-released: "2026-03-25"
+version: "1.0.0-alpha"
+date-released: "2026-03-28"
 keywords:
   - district heating
   - MILP
@@ -19,6 +24,8 @@ keywords:
   - Pyomo
   - heat pump
   - thermal storage
+  - model predictive control
+  - decarbonization
 abstract: >-
   EnerGIS is a modular mixed-integer linear programming (MILP) framework
   for planning and optimizing industrial district heating networks.
