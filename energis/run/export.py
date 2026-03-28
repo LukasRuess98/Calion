@@ -87,7 +87,7 @@ def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dic
     }
     summary_path = os.path.join(net_dir, "network_summary.json")
     with open(summary_path, 'w', encoding='utf-8') as f:
-        _json.dump(summary, f, indent=2, default=str)
+        json.dump(summary, f, indent=2, default=str)
     written['network_summary'] = summary_path
     logger.info("[EXPORT] Thermal network summary -> %s", summary_path)
 
@@ -314,10 +314,24 @@ def export_workflow_results(
                 "Set output.export_solver_solution: true in config to generate it."
             )
 
+    # Write costs.json — flat dict keyed without section prefix (for comparison scripts)
+    costs_json_path = os.path.join(outdir, "costs.json")
+    flat_costs: dict = {}
+    for section, section_costs in cost_sections.items():
+        for key, val in section_costs.items():
+            # Strip "objective." / "grid." prefixes so keys are plain names
+            clean_key = key.split(".", 1)[-1] if "." in key else key
+            flat_costs[clean_key] = val
+    if flat_costs:
+        with open(costs_json_path, "w", encoding="utf-8") as f:
+            json.dump({"PF": flat_costs}, f, indent=2, default=str)
+    else:
+        costs_json_path = None
+
     result_dict = {
         "outdir": outdir,
         "scenario_xlsx": bundle_paths.get("scenario_xlsx"),
-        "costs_json": bundle_paths.get("costs_json"),
+        "costs_json": costs_json_path or bundle_paths.get("costs_json"),
         "design_json": design_json_path or bundle_paths.get("design_json") or bundle_paths.get("pf_design_json"),
         "meta_json": bundle_paths.get("meta_json"),
         "manifest_json": bundle_paths.get("manifest_json"),

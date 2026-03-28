@@ -118,7 +118,7 @@ def main():
     plt.close(fig)
 
     # Console summary
-    print("\n── Storage metrics ────────────────────────────────")
+    print("\n-- Storage metrics ----------------------------------------")
     for tag, m in metrics.items():
         print(f"  {tag}:  avg SOC {m['avg_soc_mwh']:.1f} MWh  "
               f"charge {m['charge_gwh']:.2f} GWh  "

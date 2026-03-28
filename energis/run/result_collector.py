@@ -100,6 +100,57 @@ def _extract_design_from_summary(
 # Component metadata
 # ---------------------------------------------------------------------------
 
+def _gather_component_metadata_unified(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract component metadata from unified (assets-based) config format."""
+    meta: Dict[str, Any] = {"heat_pumps": [], "storage": None, "generators": [], "p2h": None}
+    assets = cfg.get("assets", {})
+    fuels = cfg.get("fuels", {})
+    for asset_id, asset_data in assets.items():
+        atype = asset_data.get("type", "")
+        if atype == "heat_pump":
+            cap = float(asset_data.get("capacity_mw", 0.0))
+            meta["heat_pumps"].append({
+                "id": asset_id,
+                "max_th": cap,
+                "invest_enabled": False,
+                "cap_min": 0.0,
+                "cap_max": cap,
+                "cap_init": cap,
+            })
+        elif atype == "storage":
+            meta["storage"] = {
+                "name": "TES",
+                "e_max": float(asset_data.get("energy_mwh", 0.0)),
+                "p_max": float(asset_data.get("power_mw", 0.0)),
+                "invest_enabled": False,
+                "e_cap_min": 0.0,
+                "e_cap_max": float(asset_data.get("energy_mwh", 0.0)),
+                "p_cap_min": 0.0,
+                "p_cap_max": float(asset_data.get("power_mw", 0.0)),
+                "e_cap_init": float(asset_data.get("energy_mwh", 0.0)),
+                "p_cap_init": float(asset_data.get("power_mw", 0.0)),
+            }
+        elif atype == "thermal_generator":
+            fuel_bus = asset_data.get("fuel", "gas")
+            fuel_info = fuels.get(fuel_bus, {})
+            meta["generators"].append({
+                "key": asset_id,
+                "name": asset_id.upper(),
+                "cap_th": float(asset_data.get("capacity_mw", 0.0)),
+                "fuel_bus": fuel_bus,
+                "fuel_price": float(fuel_info.get("price_eur_mwh", 0.0)),
+                "fuel_emission": float(fuel_info.get("ef_kg_per_mwh_fuel", 0.0)),
+                "has_el": asset_data.get("el_eff") is not None,
+            })
+        elif atype == "p2h":
+            meta["p2h"] = {
+                "name": "P2H",
+                "cap_th": float(asset_data.get("capacity_mw", 0.0)),
+                "eff": float(asset_data.get("efficiency", 0.99)),
+            }
+    return meta
+
+
 def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
     from energis.utils.config_utils import apply_heat_pump_defaults
     meta: Dict[str, Any] = {
@@ -110,6 +161,13 @@ def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     syscfg = cfg.get("system", {})
+
+    # If the config uses the unified format (assets-based), use the dedicated handler
+    has_legacy = (
+        syscfg.get("heat_pumps") or syscfg.get("storage") or syscfg.get("generators")
+    )
+    if not has_legacy and cfg.get("assets"):
+        return _gather_component_metadata_unified(cfg)
 
     for hp in apply_heat_pump_defaults(syscfg):
         if not hp.get("enabled", True):

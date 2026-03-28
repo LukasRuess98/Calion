@@ -25,7 +25,7 @@ import numpy as np
 
 # ── Columns expected in pf_timeseries.csv ────────────────────────────────────
 COL_DEMAND      = "waermebedarf_MWth"
-COL_BOILER      = "boiler_main_Q_th_MW"
+COL_BOILER      = "BOILER_MAIN_Q_th_MW"
 COL_HP          = "hp_main_Q_th_MW"
 COL_TES_DIS     = "TES_discharge_MW"
 COL_TES_CHG     = "TES_charge_MW"

@@ -1,0 +1,88 @@
+{
+  "nodes": {
+    "plant": {
+      "type": "producer",
+      "name": "plant"
+    },
+    "junction_1": {
+      "type": "junction",
+      "name": "junction_1",
+      "T_supply_avg": 90.0
+    },
+    "north": {
+      "type": "consumer",
+      "name": "north",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "south": {
+      "type": "consumer",
+      "name": "south",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "industrial": {
+      "type": "consumer",
+      "name": "industrial",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    }
+  },
+  "pipes": {
+    "plant_to_j1": {
+      "from_node": "plant",
+      "to_node": "junction_1",
+      "length_m": 1200.0,
+      "m_dot_avg": 282.52941829904813,
+      "m_dot_max": 362.88722717718275,
+      "delta_p_avg": 2.1582106959964222,
+      "delta_p_max": 4.539294908447141,
+      "velocity_avg": 1.62846368460557,
+      "velocity_max": 2.0916358891864273,
+      "total_heat_loss_mwh": 205.75108264840074
+    },
+    "j1_to_north": {
+      "from_node": "junction_1",
+      "to_node": "north",
+      "length_m": 2500.0,
+      "m_dot_avg": 121.08403641387774,
+      "m_dot_max": 155.52309736164975,
+      "delta_p_avg": 4.579522572397113,
+      "delta_p_max": 7.998961702045373,
+      "velocity_avg": 1.4243122605879621,
+      "velocity_max": 1.8294191450610153,
+      "total_heat_loss_mwh": 428.6480888508349
+    },
+    "j1_to_south": {
+      "from_node": "junction_1",
+      "to_node": "south",
+      "length_m": 1800.0,
+      "m_dot_avg": 161.44538188517038,
+      "m_dot_max": 207.364129815533,
+      "delta_p_avg": 5.925736297636644,
+      "delta_p_max": 7.990011396087934,
+      "velocity_avg": 1.899083014117283,
+      "velocity_max": 2.4392255267480203,
+      "total_heat_loss_mwh": 308.6266239726011
+    },
+    "plant_to_industrial": {
+      "from_node": "plant",
+      "to_node": "industrial",
+      "length_m": 800.0,
+      "m_dot_avg": 121.08403641387774,
+      "m_dot_max": 155.52309736164975,
+      "delta_p_avg": 1.7512437800799963,
+      "delta_p_max": 3.7025886915139083,
+      "velocity_avg": 1.4243122605879621,
+      "velocity_max": 1.8294191450610153,
+      "total_heat_loss_mwh": 137.16738843226716
+    }
+  },
+  "network": {
+    "total_network_loss_mwh": 1080.193183904104,
+    "avg_network_loss_mw": 0.12364848716851007,
+    "total_pipe_length_m": 6300.0,
+    "num_nodes": 5,
+    "num_pipes": 4
+  }
+}

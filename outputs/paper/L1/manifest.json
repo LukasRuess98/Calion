@@ -10,10 +10,11 @@
     "has_mpc": false,
     "has_design": true
   },
-  "export_timestamp": "20260328_185256",
+  "export_timestamp": "20260328_201617",
   "slug": "PF_ONLY-Workflow",
-  "output_directory": "C:\\Users\\LKR\\Downloads\\tespy-dev\\Planing-Framework-for-Heat\\outputs\\paper\\L1",
+  "output_directory": "outputs/paper/L1",
   "files": {
-    "scenario_xlsx": "scenario.xlsx"
+    "scenario_xlsx": "scenario.xlsx",
+    "pf_design_json": "pf_design.json"
   }
 }

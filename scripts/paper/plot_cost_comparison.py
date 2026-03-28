@@ -24,7 +24,7 @@ import numpy as np
 COST_COMPONENTS = {
     "Grid_energy_cost_EUR":    ("Grid electricity",   "#4c96d7"),
     "Fuel_cost_EUR":           ("Gas fuel",           "#e07b39"),
-    "CO2_cost_EUR":            ("CO₂",                "#78909c"),
+    "CO2_cost_EUR":            ("CO2",                "#78909c"),
     "Demand_charge_cost_EUR":  ("Demand charge",      "#ab47bc"),
     "Dump_cost_EUR":           ("Heat dump",          "#ef5350"),
     "Capex_cost_EUR":          ("CAPEX",              "#26a69a"),
@@ -127,8 +127,8 @@ def main():
     plt.close(fig)
 
     # ── Print summary table to console ───────────────────────────────────────
-    print("\n── Cost summary (EUR) ─────────────────────────────────────")
-    header = f"{'Component':<28} {'L1':>14} {'L2':>14} {'L3':>14}  {'ΔL2-L1%':>9}  {'ΔL3-L1%':>9}"
+    print("\n-- Cost summary (EUR) ---------------------------------------------")
+    header = f"{'Component':<28} {'L1':>14} {'L2':>14} {'L3':>14}  {'dL2-L1%':>9}  {'dL3-L1%':>9}"
     print(header)
     print("-" * len(header))
     for k, (label, _) in COST_COMPONENTS.items():

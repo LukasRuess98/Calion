@@ -24,7 +24,7 @@ DT_H = 1.0
 DEMAND_COL = "waermebedarf_MWth"
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# -- Helpers ------------------------------------------------------------------
 
 def _load_json(path: Path) -> dict:
     if path.exists():
@@ -55,12 +55,12 @@ def _get(d: dict, *keys, default=0.0):
     return default
 
 
-# ── Table 1: Cost breakdown ───────────────────────────────────────────────────
+# -- Table 1: Cost breakdown ---------------------------------------------------
 
 COST_KEYS = [
     ("Grid_energy_cost_EUR",   "Grid electricity [EUR]"),
     ("Fuel_cost_EUR",          "Gas fuel [EUR]"),
-    ("CO2_cost_EUR",           "CO₂ cost [EUR]"),
+    ("CO2_cost_EUR",           "CO2 cost [EUR]"),
     ("Demand_charge_cost_EUR", "Demand charge [EUR]"),
     ("Dump_cost_EUR",          "Heat dump [EUR]"),
     ("Capex_cost_EUR",         "CAPEX [EUR]"),
@@ -77,13 +77,13 @@ def build_table1(costs: list[dict]) -> pd.DataFrame:
                "L1 [EUR]":  f"{vals[0]:,.0f}",
                "L2 [EUR]":  f"{vals[1]:,.0f}",
                "L3 [EUR]":  f"{vals[2]:,.0f}",
-               "ΔL2−L1 [%]": f"{(vals[1]-base)/base*100:+.1f}" if base else "—",
-               "ΔL3−L1 [%]": f"{(vals[2]-base)/base*100:+.1f}" if base else "—"}
+               "dL2-L1 [%]": f"{(vals[1]-base)/base*100:+.1f}" if base else "—",
+               "dL3-L1 [%]": f"{(vals[2]-base)/base*100:+.1f}" if base else "—"}
         rows.append(row)
     return pd.DataFrame(rows)
 
 
-# ── Table 2: Operational KPIs ─────────────────────────────────────────────────
+# -- Table 2: Operational KPIs -------------------------------------------------
 
 def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame:
     rows = []
@@ -94,7 +94,7 @@ def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame
     for tag, df, cost in zip(["L1", "L2", "L3"], ts_list, costs):
         demand_gwh   = _safe_col(df, DEMAND_COL).sum() * DT_H / 1e3
         hp_heat_gwh  = _safe_col(df, "hp_main_Q_th_MW").sum() * DT_H / 1e3
-        boiler_gwh   = _safe_col(df, "boiler_main_Q_th_MW").sum() * DT_H / 1e3
+        boiler_gwh   = _safe_col(df, "BOILER_MAIN_Q_th_MW").sum() * DT_H / 1e3
         tes_dis_gwh  = _safe_col(df, "TES_discharge_MW").sum() * DT_H / 1e3
         p_buy_gwh    = _safe_col(df, "P_buy_MW").sum() * DT_H / 1e3
         p_sell_gwh   = _safe_col(df, "P_sell_MW").sum() * DT_H / 1e3
@@ -121,13 +121,13 @@ def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame
             ("Boiler heat output [GWh]",         f"{boiler_gwh:.1f}"),
             ("Storage discharge [GWh]",          f"{tes_dis_gwh:.1f}"),
             ("HP full-load hours [h]",           f"{fl_hours:.0f}"),
-            ("HP average COP [−]",               f"{avg_cop:.2f}" if avg_cop > 0 else "—"),
+            ("HP average COP [-]",               f"{avg_cop:.2f}" if avg_cop > 0 else "—"),
             ("Storage max SOC [MWh]",            f"{soc_max:.1f}"),
             ("Storage avg SOC [MWh]",            f"{soc_avg:.1f}"),
             ("Grid import [GWh]",                f"{p_buy_gwh:.1f}"),
             ("Grid export [GWh]",                f"{p_sell_gwh:.1f}"),
             ("Heat dump [GWh]",                  f"{dump_gwh:.2f}"),
-            ("Total CO₂ emissions [t]",          f"{co2_total_t:,.0f}"),
+            ("Total CO2 emissions [t]",          f"{co2_total_t:,.0f}"),
         ]
         for metric, val in entries:
             rows.append({"Metric": metric, f"L1" if tag == "L1" else tag: val})
@@ -141,7 +141,7 @@ def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame
         def _s(col): return df[col].fillna(0) if col in df.columns else pd.Series([0.0])
         demand_gwh  = _s(DEMAND_COL).sum() * DT_H / 1e3
         hp_gwh      = _s("hp_main_Q_th_MW").sum() * DT_H / 1e3
-        boil_gwh    = _s("boiler_main_Q_th_MW").sum() * DT_H / 1e3
+        boil_gwh    = _s("BOILER_MAIN_Q_th_MW").sum() * DT_H / 1e3
         tes_dis     = _s("TES_discharge_MW").sum() * DT_H / 1e3
         p_buy       = _s("P_buy_MW").sum() * DT_H / 1e3
         p_sell      = _s("P_sell_MW").sum() * DT_H / 1e3
@@ -159,13 +159,13 @@ def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame
             "Boiler heat output [GWh]":   f"{boil_gwh:.1f}",
             "Storage discharge [GWh]":    f"{tes_dis:.1f}",
             "HP full-load hours [h]":     f"{fl:.0f}",
-            "HP average COP [−]":         f"{avg_cop:.2f}" if avg_cop == avg_cop else "—",
+            "HP average COP [-]":         f"{avg_cop:.2f}" if avg_cop == avg_cop else "—",
             "Storage max SOC [MWh]":      f"{soc_max:.1f}",
             "Storage avg SOC [MWh]":      f"{soc_avg:.1f}",
             "Grid import [GWh]":          f"{p_buy:.1f}",
             "Grid export [GWh]":          f"{p_sell:.1f}",
             "Heat dump [GWh]":            f"{dump:.3f}",
-            "Total CO₂ emissions [t]":    f"{co2:,.0f}",
+            "Total CO2 emissions [t]":    f"{co2:,.0f}",
         }
 
     metrics = list(metric_vals["L1"].keys())
@@ -180,7 +180,7 @@ def build_table2(ts_list: list[pd.DataFrame], costs: list[dict]) -> pd.DataFrame
     return pd.DataFrame(table_rows)
 
 
-# ── Table 3: Network characteristics ─────────────────────────────────────────
+# -- Table 3: Network characteristics -----------------------------------------
 
 NETWORK_STATIC = {
     "L1": {"Nodes": 1,  "Consumer nodes": 0,  "Junction nodes": 0,
@@ -203,24 +203,29 @@ def build_table3(l2_pipes_dir: Path, l3_pipes_dir: Path) -> pd.DataFrame:
                      "L2": NETWORK_STATIC["L2"][k],
                      "L3": NETWORK_STATIC["L3"][k]})
 
-    # Add computed pipe losses
-    for tag, pipes_path in [("L2", l2_pipes_dir / "pipes_timeseries.csv"),
-                             ("L3", l3_pipes_dir / "pipes_timeseries.csv")]:
-        if pipes_path.exists():
-            df = pd.read_csv(pipes_path, sep=";", decimal=",",
-                             index_col=0, parse_dates=True)
-            loss_cols = [c for c in df.columns if c.endswith("_Q_loss")]
-            supply_cols = [c for c in loss_cols if "supply" in c.lower() or
-                           not any(x in c.lower() for x in ["return", "ret"])]
-            total_loss = df[loss_cols].fillna(0).sum(axis=1).sum() * DT_H / 1e3
-            rows.append({"Property": f"Annual total pipe loss [GWh] ({tag})",
-                         "L1": "—", "L2": f"{total_loss:.3f}" if tag == "L2" else "—",
-                         "L3": f"{total_loss:.3f}" if tag == "L3" else "—"})
+    # Add computed pipe losses from network_summary.json
+    import json as _json
+    for tag, pipes_dir in [("L2", l2_pipes_dir), ("L3", l3_pipes_dir)]:
+        summary_path = pipes_dir / "network_summary.json"
+        total_loss_gwh = None
+        if summary_path.exists():
+            with open(summary_path, encoding="utf-8") as f:
+                ns = _json.load(f)
+            total_loss_mwh = sum(
+                float(p.get("total_heat_loss_mwh", 0))
+                for p in ns.get("pipes", {}).values()
+            )
+            total_loss_gwh = total_loss_mwh / 1e3
+        val = f"{total_loss_gwh:.3f}" if total_loss_gwh is not None else "n/a"
+        rows.append({"Property": f"Annual total pipe loss [GWh] ({tag})",
+                     "L1": "—",
+                     "L2": val if tag == "L2" else "—",
+                     "L3": val if tag == "L3" else "—"})
 
     return pd.DataFrame(rows)
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# -- Main ----------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Extract paper tables")
@@ -242,14 +247,14 @@ def main():
     t1 = build_table1(costs)
     p1 = Path(args.outdir) / "table1_cost_breakdown.csv"
     t1.to_csv(p1, index=False, sep=";")
-    print(f"\n── Table 1: Cost breakdown → {p1}")
+    print(f"\n-- Table 1: Cost breakdown -> {p1}")
     print(t1.to_string(index=False))
 
     # Table 2
     t2 = build_table2(ts, costs)
     p2 = Path(args.outdir) / "table2_operational_kpis.csv"
     t2.to_csv(p2, index=False, sep=";")
-    print(f"\n── Table 2: Operational KPIs → {p2}")
+    print(f"\n-- Table 2: Operational KPIs -> {p2}")
     print(t2.to_string(index=False))
 
     # Table 3
@@ -257,7 +262,7 @@ def main():
                       dirs["L3"] / "thermal_network")
     p3 = Path(args.outdir) / "table3_network_characteristics.csv"
     t3.to_csv(p3, index=False, sep=";")
-    print(f"\n── Table 3: Network characteristics → {p3}")
+    print(f"\n-- Table 3: Network characteristics -> {p3}")
     print(t3.to_string(index=False))
 
     print("\nAll tables written.")
