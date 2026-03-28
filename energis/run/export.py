@@ -13,6 +13,8 @@ import time
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
+
 from energis.io.exporter import export_scenario_bundle, write_timeseries_csv
 from energis.io.plotter import export_plots
 from energis.logging_config import get_logger
@@ -31,9 +33,6 @@ except Exception:  # pragma: no cover
 
 def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dict[str, str]:
     """Write thermal network results from solver_meta['network_data'] to outdir."""
-    import json as _json
-    import pandas as _pd
-
     if not network_data:
         return {}
 
@@ -56,7 +55,7 @@ def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dic
 
     if node_ts:
         node_csv = os.path.join(net_dir, "nodes_timeseries.csv")
-        _pd.DataFrame(node_ts).to_csv(node_csv, sep=';', index=True)
+        pd.DataFrame(node_ts).to_csv(node_csv, sep=';', index=True)
         written['nodes_timeseries'] = node_csv
         logger.info("[EXPORT] Thermal network nodes -> %s", node_csv)
 
@@ -76,7 +75,7 @@ def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dic
 
     if pipe_ts:
         pipe_csv = os.path.join(net_dir, "pipes_timeseries.csv")
-        _pd.DataFrame(pipe_ts).to_csv(pipe_csv, sep=';', index=True)
+        pd.DataFrame(pipe_ts).to_csv(pipe_csv, sep=';', index=True)
         written['pipes_timeseries'] = pipe_csv
         logger.info("[EXPORT] Thermal network pipes  -> %s", pipe_csv)
 

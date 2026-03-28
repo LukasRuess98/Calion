@@ -28,13 +28,14 @@ dependencies = [
     "pyyaml>=6.0",
     "openpyxl>=3.0",
     "typing-extensions>=4.0",
+    "pydantic>=2.0",
+    "pandas>=1.5",
+    "numpy>=1.23",
 ]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.5"]
 notebooks = [
-    "pandas>=1.5",
-    "numpy>=1.23",
     "ipykernel>=6.0",
     "ipywidgets>=8.0",
 ]
@@ -58,6 +59,8 @@ energis = "energis.run.__main__:main"
 
 [project.urls]
 Repository = "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
+"Bug Tracker" = "https://github.com/LukasRuess98/Planing-Framework-for-Heat/issues"
+Changelog = "https://github.com/LukasRuess98/Planing-Framework-for-Heat/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["energis*"]
