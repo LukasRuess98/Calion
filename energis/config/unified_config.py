@@ -53,19 +53,22 @@ Example (Level 2 — multi-node with pipes):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, ConfigDict
 
 from energis.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-# ─── Dataclasses ──────────────────────────────────────────────────────────────
+# ─── Pydantic models ──────────────────────────────────────────────────────────
 
-@dataclass
-class DemandConfig:
+class DemandConfig(BaseModel):
     """Demand specification for a consumer (or producer-with-demand) node."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     column: str
 
     @staticmethod
@@ -80,12 +83,14 @@ class DemandConfig:
         raise ValueError(f"Invalid demand config: {raw!r}")
 
 
-@dataclass
-class NodeConfig:
+class NodeConfig(BaseModel):
     """Configuration for a single network node."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     type: str  # "producer", "consumer", "junction"
-    assets: List[str] = field(default_factory=list)
+    assets: List[str] = Field(default_factory=list)
     demand: Optional[DemandConfig] = None
     demand_fraction: Optional[float] = None
 
@@ -111,9 +116,11 @@ class NodeConfig:
         return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demand_fraction=demand_fraction)
 
 
-@dataclass
-class PipeConfig:
+class PipeConfig(BaseModel):
     """Configuration for a single pipe connecting two nodes."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     from_node: str
     to_node: str
@@ -150,12 +157,14 @@ class PipeConfig:
         )
 
 
-@dataclass
-class AssetConfig:
+class AssetConfig(BaseModel):
     """Generic asset configuration — type field routes to HP/Gen/Storage/P2H."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     type: str  # "heat_pump", "thermal_generator", "storage", "p2h"
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: Dict[str, Any] = Field(default_factory=dict)
 
     @staticmethod
     def from_dict(asset_id: str, raw: Dict[str, Any]) -> "AssetConfig":
@@ -166,9 +175,11 @@ class AssetConfig:
         return AssetConfig(id=asset_id, type=asset_type, params=params)
 
 
-@dataclass
-class PhysicsConfig:
+class PhysicsConfig(BaseModel):
     """Network physics settings."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     heat_loss: bool = False
     pressure_drop: bool = False
     transport_delay: bool = False
@@ -189,9 +200,11 @@ class PhysicsConfig:
         )
 
 
-@dataclass
-class UnifiedSystemConfig:
+class UnifiedSystemConfig(BaseModel):
     """Top-level parsed configuration for the entire system."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
     nodes: Dict[str, NodeConfig]
     pipes: Dict[str, PipeConfig]
     assets: Dict[str, AssetConfig]
@@ -204,7 +217,7 @@ class UnifiedSystemConfig:
     is_copperplate: bool
 
     # Raw config preserved for backward-compatible access
-    raw: Dict[str, Any] = field(default_factory=dict)
+    raw: Dict[str, Any] = Field(default_factory=dict)
 
     def node_ids_by_type(self, node_type: str) -> List[str]:
         """Return node IDs of the given type."""

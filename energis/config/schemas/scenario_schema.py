@@ -1,25 +1,27 @@
 """
 Scenario configuration schemas.
 
-Defines dataclasses for optimization scenario configuration.
+Defines Pydantic models for optimization scenario configuration.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Literal, Optional, Any
+
+from pydantic import BaseModel, Field, ConfigDict
 
 
-@dataclass
-class RepresentativePeriods:
+class RepresentativePeriods(BaseModel):
     """Representative period configuration for reducing problem size."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     method: str = "kmeans_clustering"  # kmeans_clustering, manual_selection
-    num_periods: int = 8
+    num_periods: int = Field(default=8, gt=0)
     include_extreme_days: bool = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> RepresentativePeriods:
+    def from_dict(cls, data: Dict[str, Any]) -> "RepresentativePeriods":
         """Create from dictionary."""
         return cls(
             method=str(data.get('method', 'kmeans_clustering')),
@@ -28,9 +30,10 @@ class RepresentativePeriods:
         )
 
 
-@dataclass
-class TimeConfig:
+class TimeConfig(BaseModel):
     """Time horizon configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     # Data source
     data_file: str
@@ -39,14 +42,14 @@ class TimeConfig:
     # Time range
     start: str = "2023-01-01 00:00:00"
     end: str = "2023-12-31 23:00:00"
-    resolution_h: float = 1.0
+    resolution_h: float = Field(default=1.0, gt=0)
 
     # Representative periods (optional)
     use_representative_periods: bool = False
     representative_periods: Optional[RepresentativePeriods] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> TimeConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "TimeConfig":
         """Create from dictionary."""
         rep_periods = None
         if data.get('use_representative_periods', False):
@@ -64,9 +67,10 @@ class TimeConfig:
         )
 
 
-@dataclass
-class CostConfig:
+class CostConfig(BaseModel):
     """Cost components configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     # Which costs to include
     include_capex: bool = False
@@ -81,12 +85,12 @@ class CostConfig:
     include_heat_dump_penalty: bool = True
 
     # Economic parameters (for investment)
-    discount_rate: float = 0.05
-    planning_horizon_yr: float = 15.0
+    discount_rate: float = Field(default=0.05, ge=0, le=1)
+    planning_horizon_yr: float = Field(default=15.0, gt=0)
     annualization_method: str = "simplified"  # simplified, npv, annuity
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> CostConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "CostConfig":
         """Create from dictionary."""
         return cls(
             include_capex=bool(data.get('include_capex', False)),
@@ -105,9 +109,10 @@ class CostConfig:
         )
 
 
-@dataclass
-class ConstraintsConfig:
+class ConstraintsConfig(BaseModel):
     """Optimization constraints configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     # Energy balances
     enforce_heat_balance: bool = True
@@ -123,16 +128,16 @@ class ConstraintsConfig:
     use_simplified_network_model: bool = True
 
     # Emissions constraint (optional)
-    max_annual_co2_emissions_t: Optional[float] = None
+    max_annual_co2_emissions_t: Optional[float] = Field(default=None, ge=0)
 
     # Reliability
     n_minus_1_criterion: bool = False
 
     # Investment constraints
-    max_total_investment_eur: Optional[float] = None
+    max_total_investment_eur: Optional[float] = Field(default=None, ge=0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> ConstraintsConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "ConstraintsConfig":
         """Create from dictionary."""
         return cls(
             enforce_heat_balance=bool(data.get('enforce_heat_balance', True)),
@@ -148,27 +153,28 @@ class ConstraintsConfig:
         )
 
 
-@dataclass
-class OptimizationConfig:
+class OptimizationConfig(BaseModel):
     """Optimization configuration."""
 
-    # Optimization mode
-    mode: str  # dispatch, capacity_expansion, network_design
+    model_config = ConfigDict(populate_by_name=True)
+
+    # Optimization mode — validated against allowed values
+    mode: Literal["dispatch", "capacity_expansion", "network_design"] = "dispatch"
 
     # Decision variables
-    decision_variables: List[str] = field(default_factory=list)
+    decision_variables: List[str] = Field(default_factory=list)
 
     # Objective function
     objective: str = "minimize_total_cost"
 
     # Cost configuration
-    costs: CostConfig = field(default_factory=CostConfig)
+    costs: CostConfig = Field(default_factory=CostConfig)
 
     # Constraints
-    constraints: ConstraintsConfig = field(default_factory=ConstraintsConfig)
+    constraints: ConstraintsConfig = Field(default_factory=ConstraintsConfig)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> OptimizationConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "OptimizationConfig":
         """Create from dictionary."""
         costs_data = data.get('costs', {})
         constraints_data = data.get('constraints', {})
@@ -182,15 +188,16 @@ class OptimizationConfig:
         )
 
 
-@dataclass
-class StorageInitialState:
+class StorageInitialState(BaseModel):
     """Storage initial state."""
 
-    soc_mwh: float = 0.0
-    hot_zone_fraction: float = 0.5
+    model_config = ConfigDict(populate_by_name=True)
+
+    soc_mwh: float = Field(default=0.0, ge=0)
+    hot_zone_fraction: float = Field(default=0.5, ge=0, le=1)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> StorageInitialState:
+    def from_dict(cls, data: Dict[str, Any]) -> "StorageInitialState":
         """Create from dictionary."""
         return cls(
             soc_mwh=float(data.get('soc_mwh', 0.0)),
@@ -198,16 +205,17 @@ class StorageInitialState:
         )
 
 
-@dataclass
-class NetworkInitialState:
+class NetworkInitialState(BaseModel):
     """Network initial state."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     supply_temp_c: float = 100.0
     return_temp_c: float = 55.0
-    pressure_bar: float = 10.0
+    pressure_bar: float = Field(default=10.0, ge=0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> NetworkInitialState:
+    def from_dict(cls, data: Dict[str, Any]) -> "NetworkInitialState":
         """Create from dictionary."""
         return cls(
             supply_temp_c=float(data.get('supply_temp_c', 100.0)),
@@ -216,15 +224,16 @@ class NetworkInitialState:
         )
 
 
-@dataclass
-class InitialState:
+class InitialState(BaseModel):
     """Initial conditions for optimization."""
 
-    storage: Dict[str, StorageInitialState] = field(default_factory=dict)
-    network: NetworkInitialState = field(default_factory=NetworkInitialState)
+    model_config = ConfigDict(populate_by_name=True)
+
+    storage: Dict[str, StorageInitialState] = Field(default_factory=dict)
+    network: NetworkInitialState = Field(default_factory=NetworkInitialState)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> InitialState:
+    def from_dict(cls, data: Dict[str, Any]) -> "InitialState":
         """Create from dictionary."""
         storage_data = data.get('storage', {})
         storage = {sid: StorageInitialState.from_dict(sdata) for sid, sdata in storage_data.items()}
@@ -238,26 +247,27 @@ class InitialState:
         )
 
 
-@dataclass
-class StorageTerminalConditions:
+class StorageTerminalConditions(BaseModel):
     """Storage terminal conditions."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     state: str = "cyclic"  # free, cyclic, target
     policy: str = "equal"  # equal, geq, soft, value
 
     # For target state
-    target_mwh: Optional[float] = None
+    target_mwh: Optional[float] = Field(default=None, ge=0)
 
     # For value function
     value_function_type: str = "constant"  # constant, diminishing
-    salvage_price_eur_per_mwh: float = 50.0
-    diminishing_decay: float = 0.3
+    salvage_price_eur_per_mwh: float = Field(default=50.0, ge=0)
+    diminishing_decay: float = Field(default=0.3, ge=0, le=1)
 
     # For soft constraint
-    soft_penalty_eur_per_mwh: float = 100.0
+    soft_penalty_eur_per_mwh: float = Field(default=100.0, ge=0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> StorageTerminalConditions:
+    def from_dict(cls, data: Dict[str, Any]) -> "StorageTerminalConditions":
         """Create from dictionary."""
         return cls(
             state=str(data.get('state', 'cyclic')),
@@ -270,14 +280,15 @@ class StorageTerminalConditions:
         )
 
 
-@dataclass
-class TerminalConditions:
+class TerminalConditions(BaseModel):
     """Terminal conditions for optimization."""
 
-    storage: StorageTerminalConditions = field(default_factory=StorageTerminalConditions)
+    model_config = ConfigDict(populate_by_name=True)
+
+    storage: StorageTerminalConditions = Field(default_factory=StorageTerminalConditions)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> TerminalConditions:
+    def from_dict(cls, data: Dict[str, Any]) -> "TerminalConditions":
         """Create from dictionary."""
         storage_data = data.get('storage', {})
         storage = StorageTerminalConditions.from_dict(storage_data)
@@ -285,17 +296,18 @@ class TerminalConditions:
         return cls(storage=storage)
 
 
-@dataclass
-class Subsidies:
+class Subsidies(BaseModel):
     """Investment subsidies configuration."""
 
-    heat_pump_subsidy_fraction: float = 0.0
-    storage_subsidy_fraction: float = 0.0
-    p2h_subsidy_fraction: float = 0.0
-    chp_subsidy_fraction: float = 0.0
+    model_config = ConfigDict(populate_by_name=True)
+
+    heat_pump_subsidy_fraction: float = Field(default=0.0, ge=0, le=1)
+    storage_subsidy_fraction: float = Field(default=0.0, ge=0, le=1)
+    p2h_subsidy_fraction: float = Field(default=0.0, ge=0, le=1)
+    chp_subsidy_fraction: float = Field(default=0.0, ge=0, le=1)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Subsidies:
+    def from_dict(cls, data: Dict[str, Any]) -> "Subsidies":
         """Create from dictionary."""
         return cls(
             heat_pump_subsidy_fraction=float(data.get('heat_pump_subsidy_fraction', 0.0)),
@@ -305,27 +317,28 @@ class Subsidies:
         )
 
 
-@dataclass
-class EconomicsConfig:
+class EconomicsConfig(BaseModel):
     """Economics configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     # Fuel prices (overrides tech_library defaults)
-    fuel_prices: Dict[str, float] = field(default_factory=dict)
+    fuel_prices: Dict[str, float] = Field(default_factory=dict)
 
     # Carbon pricing
     co2_price_eur_per_tonne: float = 100.0
 
     # Other costs
-    heat_dump_penalty_eur_per_mwh: float = 10.0
+    heat_dump_penalty_eur_per_mwh: float = Field(default=10.0, ge=0)
 
     # Investment incentives
-    subsidies: Subsidies = field(default_factory=Subsidies)
+    subsidies: Subsidies = Field(default_factory=Subsidies)
 
     # Discount rate (for NPV calculations)
-    discount_rate: float = 0.05
+    discount_rate: float = Field(default=0.05, ge=0, le=1)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> EconomicsConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "EconomicsConfig":
         """Create from dictionary."""
         subsidies_data = data.get('subsidies', {})
         subsidies = Subsidies.from_dict(subsidies_data)
@@ -339,16 +352,17 @@ class EconomicsConfig:
         )
 
 
-@dataclass
-class SensitivityParameter:
+class SensitivityParameter(BaseModel):
     """Sensitivity analysis parameter."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     name: str
     base: float
-    range: List[float]
+    range: List[float] = Field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> SensitivityParameter:
+    def from_dict(cls, data: Dict[str, Any]) -> "SensitivityParameter":
         """Create from dictionary."""
         return cls(
             name=str(data['name']),
@@ -357,15 +371,16 @@ class SensitivityParameter:
         )
 
 
-@dataclass
-class SensitivityConfig:
+class SensitivityConfig(BaseModel):
     """Sensitivity analysis configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     enabled: bool = False
-    parameters: List[SensitivityParameter] = field(default_factory=list)
+    parameters: List[SensitivityParameter] = Field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> SensitivityConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "SensitivityConfig":
         """Create from dictionary."""
         params_data = data.get('parameters', [])
         parameters = [SensitivityParameter.from_dict(p) for p in params_data]
@@ -376,20 +391,22 @@ class SensitivityConfig:
         )
 
 
-@dataclass
-class SolverConfig:
+class SolverConfig(BaseModel):
     """Solver configuration."""
 
-    name: str = "gurobi"  # gurobi, cplex, glpk, cbc
-    timelimit_s: int = 7200
-    mip_gap: float = 0.01
-    threads: int = 8
+    model_config = ConfigDict(populate_by_name=True)
+
+    # Solver name — validated against supported solvers
+    name: Literal["gurobi", "cplex", "glpk", "cbc", "highs", "scip"] = "gurobi"
+    timelimit_s: int = Field(default=7200, gt=0)
+    mip_gap: float = Field(default=0.01, ge=0, le=1)
+    threads: int = Field(default=8, ge=1)
 
     # Solver-specific options
-    options: Dict[str, Any] = field(default_factory=dict)
+    options: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> SolverConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "SolverConfig":
         """Create from dictionary."""
         return cls(
             name=str(data.get('name', 'gurobi')),
@@ -400,9 +417,10 @@ class SolverConfig:
         )
 
 
-@dataclass
-class OutputConfig:
+class OutputConfig(BaseModel):
     """Output configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     results_dir: str = "../../results"
 
@@ -415,17 +433,17 @@ class OutputConfig:
 
     # Visualization
     create_plots: bool = True
-    plot_formats: List[str] = field(default_factory=lambda: ["png", "pdf"])
+    plot_formats: List[str] = Field(default_factory=lambda: ["png", "pdf"])
 
     # Export formats
-    export_formats: List[str] = field(default_factory=lambda: ["excel", "csv", "json"])
+    export_formats: List[str] = Field(default_factory=lambda: ["excel", "csv", "json"])
 
     # Dashboard data
     export_dashboard_data: bool = True
     dashboard_format: str = "json"
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> OutputConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "OutputConfig":
         """Create from dictionary."""
         return cls(
             results_dir=str(data.get('results_dir', '../../results')),
@@ -442,25 +460,26 @@ class OutputConfig:
         )
 
 
-@dataclass
-class ReportingConfig:
+class ReportingConfig(BaseModel):
     """Reporting configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     # KPIs to calculate
-    kpis: List[str] = field(default_factory=list)
+    kpis: List[str] = Field(default_factory=list)
 
     # Time aggregations
-    aggregations: List[str] = field(default_factory=lambda: ["hourly", "daily", "monthly", "annual"])
+    aggregations: List[str] = Field(default_factory=lambda: ["hourly", "daily", "monthly", "annual"])
 
     # Investment summary (for capacity expansion)
-    investment_summary: Dict[str, bool] = field(default_factory=dict)
+    investment_summary: Dict[str, bool] = Field(default_factory=dict)
 
     # Comparison to baseline
     compare_to_baseline: bool = False
     baseline_scenario: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> ReportingConfig:
+    def from_dict(cls, data: Dict[str, Any]) -> "ReportingConfig":
         """Create from dictionary."""
         return cls(
             kpis=data.get('kpis', []),
@@ -471,16 +490,17 @@ class ReportingConfig:
         )
 
 
-@dataclass
-class AssetPaths:
+class AssetPaths(BaseModel):
     """Asset configuration file paths."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     components: str
     grid: str
     network: str
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> AssetPaths:
+    def from_dict(cls, data: Dict[str, Any]) -> "AssetPaths":
         """Create from dictionary."""
         return cls(
             components=str(data['components']),
@@ -489,9 +509,10 @@ class AssetPaths:
         )
 
 
-@dataclass
-class Scenario:
+class Scenario(BaseModel):
     """Complete scenario configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     # Required fields (no defaults)
     name: str
@@ -513,7 +534,7 @@ class Scenario:
     date: str = ""
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Scenario:
+    def from_dict(cls, data: Dict[str, Any]) -> "Scenario":
         """Create from dictionary."""
         scenario_data = data.get('scenario', {})
 

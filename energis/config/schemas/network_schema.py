@@ -1,24 +1,26 @@
 """
 Network topology configuration schemas.
 
-Defines dataclasses for multi-node thermal network topology with physics modeling.
+Defines Pydantic models for multi-node thermal network topology with physics modeling.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
+from pydantic import BaseModel, Field, ConfigDict, AliasChoices
 
-@dataclass
-class NetworkNode:
+
+class NetworkNode(BaseModel):
     """Network node (producer, consumer, or junction)."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     type: str  # producer, consumer, junction
 
     # Components attached to this node
-    components: List[str] = field(default_factory=list)
+    components: List[str] = Field(default_factory=list)
 
     # Demand configuration (for consumer nodes)
     demand_column: Optional[str] = None
@@ -33,10 +35,10 @@ class NetworkNode:
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, node_id: str, data: Dict[str, Any]) -> NetworkNode:
+    def from_dict(cls, node_id: str, data: Dict[str, Any]) -> "NetworkNode":
         """Create from dictionary."""
         demand = data.get('demand', {})
         pressure = data.get('pressure', {})
@@ -56,16 +58,17 @@ class NetworkNode:
         )
 
 
-@dataclass
-class PipeCapacity:
+class PipeCapacity(BaseModel):
     """Existing or expansion pipe capacity."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     installed: bool = False
-    diameter_mm: Optional[float] = None
+    diameter_mm: Optional[float] = Field(default=None, ge=0)
     commissioning_year: Optional[int] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> PipeCapacity:
+    def from_dict(cls, data: Dict[str, Any]) -> "PipeCapacity":
         """Create from dictionary."""
         return cls(
             installed=bool(data.get('installed', False)),
@@ -74,17 +77,18 @@ class PipeCapacity:
         )
 
 
-@dataclass
-class PipeExpansion:
+class PipeExpansion(BaseModel):
     """Pipe expansion/investment potential."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     enabled: bool = False
-    diameter_options_mm: List[float] = field(default_factory=list)
-    capex_eur_per_m: float = 0.0
-    max_length_m: Optional[float] = None
+    diameter_options_mm: List[float] = Field(default_factory=list)
+    capex_eur_per_m: float = Field(default=0.0, ge=0)
+    max_length_m: Optional[float] = Field(default=None, ge=0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> PipeExpansion:
+    def from_dict(cls, data: Dict[str, Any]) -> "PipeExpansion":
         """Create from dictionary."""
         return cls(
             enabled=bool(data.get('enabled', False)),
@@ -94,17 +98,18 @@ class PipeExpansion:
         )
 
 
-@dataclass
-class Pipe:
+class Pipe(BaseModel):
     """Pipe connecting two nodes."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     from_node: str
     to_node: str
 
     # Geometry
-    length_m: float
-    diameter_mm: float
+    length_m: float = Field(gt=0)
+    diameter_mm: float = Field(gt=0)
 
     # Technology reference
     insulation: str  # References tech_library/pipes.yaml
@@ -114,13 +119,13 @@ class Pipe:
     expansion: PipeExpansion
 
     # Operational constraints
-    max_flow_kg_per_s: Optional[float] = None
-    max_velocity_m_per_s: Optional[float] = None
+    max_flow_kg_per_s: Optional[float] = Field(default=None, ge=0)
+    max_velocity_m_per_s: Optional[float] = Field(default=None, ge=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, pipe_id: str, data: Dict[str, Any]) -> Pipe:
+    def from_dict(cls, pipe_id: str, data: Dict[str, Any]) -> "Pipe":
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -140,17 +145,22 @@ class Pipe:
         )
 
 
-@dataclass
-class Pump:
+class Pump(BaseModel):
     """Circulation pump."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     node: str  # Node where pump is located
 
-    # Pump characteristics
-    rated_pressure_bar: float
-    rated_flow_m3_per_h: float
-    efficiency: float = 0.75
+    # Pump characteristics — support both YAML naming conventions via AliasChoices
+    rated_pressure_bar: float = Field(
+        validation_alias=AliasChoices('rated_pressure_bar', 'rated_pressure_rise_bar')
+    )
+    rated_flow_m3_per_h: float = Field(
+        validation_alias=AliasChoices('rated_flow_m3_per_h', 'rated_flow_m3_h')
+    )
+    efficiency: float = Field(default=0.75, ge=0, le=1)
 
     # Technology reference
     technology: Optional[str] = None
@@ -158,10 +168,10 @@ class Pump:
     # Control
     control_mode: str = "constant_pressure"  # constant_pressure, constant_flow, variable
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, pump_id: str, data: Dict[str, Any]) -> Pump:
+    def from_dict(cls, pump_id: str, data: Dict[str, Any]) -> "Pump":
         """Create from dictionary."""
         # Handle both YAML naming conventions
         pressure = data.get('rated_pressure_bar') or data.get('rated_pressure_rise_bar')
@@ -191,18 +201,19 @@ class Pump:
         )
 
 
-@dataclass
-class HeatingCurve:
+class HeatingCurve(BaseModel):
     """Heating curve configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     enabled: bool = False
     outdoor_temp_column: Optional[str] = None
     supply_temp_at_minus20c: Optional[float] = None
     supply_temp_at_plus20c: Optional[float] = None
-    curve_exponent: float = 1.3
+    curve_exponent: float = Field(default=1.3, gt=0)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> HeatingCurve:
+    def from_dict(cls, data: Dict[str, Any]) -> "HeatingCurve":
         """Create from dictionary."""
         return cls(
             enabled=bool(data.get('enabled', False)),
@@ -213,9 +224,10 @@ class HeatingCurve:
         )
 
 
-@dataclass
-class ThermalNetwork:
+class ThermalNetwork(BaseModel):
     """Thermal network configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -242,10 +254,10 @@ class ThermalNetwork:
     model_temperature_loss: bool = True
     model_time_delay: bool = False  # Computationally expensive
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, network_id: str, data: Dict[str, Any]) -> ThermalNetwork:
+    def from_dict(cls, network_id: str, data: Dict[str, Any]) -> "ThermalNetwork":
         """Create from dictionary."""
         temps = data.get('temperatures', {})
         supply_bounds = temps.get('supply_bounds_c', [90, 130])
@@ -287,17 +299,18 @@ class ThermalNetwork:
         )
 
 
-@dataclass
-class NetworkTopology:
+class NetworkTopology(BaseModel):
     """Complete network topology for the system."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     networks: Dict[str, ThermalNetwork]
 
     # Inter-network connections (e.g., heat pumps between networks)
-    inter_network_connections: List[Dict[str, Any]] = field(default_factory=list)
+    inter_network_connections: List[Dict[str, Any]] = Field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> NetworkTopology:
+    def from_dict(cls, data: Dict[str, Any]) -> "NetworkTopology":
         """Create from dictionary."""
         networks_data = data.get('networks', {})
         networks = {nid: ThermalNetwork.from_dict(nid, ndata) for nid, ndata in networks_data.items()}

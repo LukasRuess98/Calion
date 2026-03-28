@@ -1,32 +1,34 @@
 """
 Technology library configuration schemas.
 
-Defines dataclasses for reusable technology templates.
+Defines Pydantic models for reusable technology templates.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
+from pydantic import BaseModel, Field, ConfigDict
 
-@dataclass
-class COPModel:
+
+class COPModel(BaseModel):
     """COP (Coefficient of Performance) model for heat pumps."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     type: str  # lookup_table_2d, polynomial, carnot_factor
 
     # For lookup_table_2d
-    source_temps_K: List[float] = field(default_factory=list)
-    sink_temps_K: List[float] = field(default_factory=list)
-    cop_values: List[List[Optional[float]]] = field(default_factory=list)
+    source_temps_K: List[float] = Field(default_factory=list)
+    sink_temps_K: List[float] = Field(default_factory=list)
+    cop_values: List[List[Optional[float]]] = Field(default_factory=list)
 
     # For polynomial or carnot_factor
-    coefficients: Dict[str, float] = field(default_factory=dict)
+    coefficients: Dict[str, float] = Field(default_factory=dict)
     carnot_efficiency: Optional[float] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> COPModel:
+    def from_dict(cls, data: Dict[str, Any]) -> "COPModel":
         """Create from dictionary."""
         lookup = data.get('lookup_table', {})
 
@@ -40,9 +42,10 @@ class COPModel:
         )
 
 
-@dataclass
-class HeatPumpTechnology:
+class HeatPumpTechnology(BaseModel):
     """Heat pump technology template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -51,7 +54,7 @@ class HeatPumpTechnology:
     cop_model: COPModel
 
     # Operational constraints
-    min_load_fraction: float = 0.30
+    min_load_fraction: float = Field(default=0.30, ge=0, le=1)
     max_modulation_rate_per_h: Optional[float] = None
 
     # Temperature limits
@@ -61,15 +64,15 @@ class HeatPumpTechnology:
     max_sink_temp_K: Optional[float] = None
 
     # Costs
-    capex_eur_per_mw_th: float = 400000.0
-    opex_fixed_eur_per_mw_yr: float = 8000.0
-    opex_variable_eur_per_mwh: float = 0.5
-    lifetime_yr: float = 15.0
+    capex_eur_per_mw_th: float = Field(default=400000.0, ge=0)
+    opex_fixed_eur_per_mw_yr: float = Field(default=8000.0, ge=0)
+    opex_variable_eur_per_mwh: float = Field(default=0.5, ge=0)
+    lifetime_yr: float = Field(default=15.0, gt=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> HeatPumpTechnology:
+    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> "HeatPumpTechnology":
         """Create from dictionary."""
         cop_model_data = data.get('cop_model', {})
         operational = data.get('operational', {})
@@ -94,9 +97,10 @@ class HeatPumpTechnology:
         )
 
 
-@dataclass
-class StorageTechnology:
+class StorageTechnology(BaseModel):
     """Thermal storage technology template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -105,38 +109,38 @@ class StorageTechnology:
     model: str  # two_zone_stratified, single_zone, simplified
 
     # Efficiency
-    charge_efficiency: float = 0.95
-    discharge_efficiency: float = 0.95
-    hourly_loss_factor: float = 0.9999  # (1 - loss_fraction)
+    charge_efficiency: float = Field(default=0.95, ge=0, le=1)
+    discharge_efficiency: float = Field(default=0.95, ge=0, le=1)
+    hourly_loss_factor: float = Field(default=0.9999, ge=0, le=1)
 
     # Thermal properties (for stratified model)
     hot_zone_temp_c: Optional[float] = None
     cold_zone_temp_c: Optional[float] = None
 
     # Heat loss coefficients (W/(m²·K))
-    U_top: float = 0.30
-    U_side: float = 0.20
-    U_bottom: float = 0.15
+    U_top: float = Field(default=0.30, ge=0)
+    U_side: float = Field(default=0.20, ge=0)
+    U_bottom: float = Field(default=0.15, ge=0)
 
     # Geometry (for heat loss calculation)
-    height_to_diameter_ratio: float = 2.0
+    height_to_diameter_ratio: float = Field(default=2.0, gt=0)
 
     # Operational constraints
-    min_soc_fraction: float = 0.05
-    max_soc_fraction: float = 0.95
-    max_charge_rate_fraction: float = 0.25  # Fraction of capacity per hour
-    max_discharge_rate_fraction: float = 0.25
+    min_soc_fraction: float = Field(default=0.05, ge=0, le=1)
+    max_soc_fraction: float = Field(default=0.95, ge=0, le=1)
+    max_charge_rate_fraction: float = Field(default=0.25, ge=0)
+    max_discharge_rate_fraction: float = Field(default=0.25, ge=0)
 
     # Costs
-    capex_eur_per_mwh: float = 50000.0
-    power_capex_eur_per_mw: float = 10000.0  # For charge/discharge capacity
-    opex_fixed_eur_per_mwh_yr: float = 500.0
-    lifetime_yr: float = 30.0
+    capex_eur_per_mwh: float = Field(default=50000.0, ge=0)
+    power_capex_eur_per_mw: float = Field(default=10000.0, ge=0)
+    opex_fixed_eur_per_mwh_yr: float = Field(default=500.0, ge=0)
+    lifetime_yr: float = Field(default=30.0, gt=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> StorageTechnology:
+    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> "StorageTechnology":
         """Create from dictionary."""
         efficiency = data.get('efficiency', {})
         thermal = data.get('thermal', {})
@@ -170,9 +174,10 @@ class StorageTechnology:
         )
 
 
-@dataclass
-class GeneratorTechnology:
+class GeneratorTechnology(BaseModel):
     """Thermal generator (boiler, CHP) technology template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -181,7 +186,7 @@ class GeneratorTechnology:
     type: str  # boiler, chp_extraction, chp_backpressure
 
     # Efficiency
-    thermal_efficiency: float = 0.90
+    thermal_efficiency: float = Field(default=0.90, ge=0, le=1)
     electrical_efficiency: Optional[float] = None  # For CHP
 
     # Power-to-heat ratio (for CHP)
@@ -191,24 +196,24 @@ class GeneratorTechnology:
     fuel_type: str = "natural_gas"  # References tech_library/fuels.yaml
 
     # Operational constraints
-    min_load_fraction: float = 0.40
-    max_ramp_up_per_h: float = 1.0  # Fraction of capacity
-    max_ramp_down_per_h: float = 1.0
-    min_uptime_h: float = 1.0
-    min_downtime_h: float = 1.0
-    startup_time_h: float = 0.5
+    min_load_fraction: float = Field(default=0.40, ge=0, le=1)
+    max_ramp_up_per_h: float = Field(default=1.0, ge=0)
+    max_ramp_down_per_h: float = Field(default=1.0, ge=0)
+    min_uptime_h: float = Field(default=1.0, ge=0)
+    min_downtime_h: float = Field(default=1.0, ge=0)
+    startup_time_h: float = Field(default=0.5, ge=0)
 
     # Costs
-    capex_eur_per_mw_th: float = 200000.0
-    startup_cost_eur: float = 1000.0
-    opex_fixed_eur_per_mw_yr: float = 5000.0
-    opex_variable_eur_per_mwh: float = 0.5
-    lifetime_yr: float = 25.0
+    capex_eur_per_mw_th: float = Field(default=200000.0, ge=0)
+    startup_cost_eur: float = Field(default=1000.0, ge=0)
+    opex_fixed_eur_per_mw_yr: float = Field(default=5000.0, ge=0)
+    opex_variable_eur_per_mwh: float = Field(default=0.5, ge=0)
+    lifetime_yr: float = Field(default=25.0, gt=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> GeneratorTechnology:
+    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> "GeneratorTechnology":
         """Create from dictionary."""
         efficiency = data.get('efficiency', {})
         fuel = data.get('fuel', {})
@@ -242,9 +247,10 @@ class GeneratorTechnology:
         )
 
 
-@dataclass
-class P2HTechnology:
+class P2HTechnology(BaseModel):
     """Power-to-Heat technology template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -253,23 +259,23 @@ class P2HTechnology:
     type: str  # resistance_heater, electrode_boiler
 
     # Efficiency
-    electric_to_thermal_efficiency: float = 0.99
+    electric_to_thermal_efficiency: float = Field(default=0.99, ge=0, le=1)
 
     # Operational constraints
-    min_load_fraction: float = 0.10
-    max_ramp_up_per_h: float = 1.0
-    max_ramp_down_per_h: float = 1.0
+    min_load_fraction: float = Field(default=0.10, ge=0, le=1)
+    max_ramp_up_per_h: float = Field(default=1.0, ge=0)
+    max_ramp_down_per_h: float = Field(default=1.0, ge=0)
 
     # Costs
-    capex_eur_per_mw_th: float = 50000.0
-    opex_fixed_eur_per_mw_yr: float = 1000.0
-    opex_variable_eur_per_mwh: float = 0.2
-    lifetime_yr: float = 20.0
+    capex_eur_per_mw_th: float = Field(default=50000.0, ge=0)
+    opex_fixed_eur_per_mw_yr: float = Field(default=1000.0, ge=0)
+    opex_variable_eur_per_mwh: float = Field(default=0.2, ge=0)
+    lifetime_yr: float = Field(default=20.0, gt=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> P2HTechnology:
+    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> "P2HTechnology":
         """Create from dictionary."""
         efficiency = data.get('efficiency', {})
         operational = data.get('operational', {})
@@ -291,34 +297,35 @@ class P2HTechnology:
         )
 
 
-@dataclass
-class PipeTechnology:
+class PipeTechnology(BaseModel):
     """Pipe technology template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
 
     # Heat transfer coefficients (W/(m·K)) by diameter
-    heat_transfer_coefficients: Dict[str, float] = field(default_factory=dict)
+    heat_transfer_coefficients: Dict[str, float] = Field(default_factory=dict)
 
     # Hydraulic properties
-    roughness_mm: float = 0.05
+    roughness_mm: float = Field(default=0.05, ge=0)
     friction_model: str = "darcy_weisbach"  # darcy_weisbach, hazen_williams
 
     # Material properties
     material: str = "steel"
     insulation_material: str = "mineral_wool"
-    insulation_thickness_mm: float = 100.0
+    insulation_thickness_mm: float = Field(default=100.0, ge=0)
 
     # Costs (per meter)
-    capex_eur_per_m_by_diameter: Dict[str, float] = field(default_factory=dict)
-    opex_eur_per_m_yr: float = 10.0
-    lifetime_yr: float = 40.0
+    capex_eur_per_m_by_diameter: Dict[str, float] = Field(default_factory=dict)
+    opex_eur_per_m_yr: float = Field(default=10.0, ge=0)
+    lifetime_yr: float = Field(default=40.0, gt=0)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> PipeTechnology:
+    def from_dict(cls, tech_id: str, data: Dict[str, Any]) -> "PipeTechnology":
         """Create from dictionary."""
         thermal = data.get('thermal', {})
         hydraulic = data.get('hydraulic', {})
@@ -341,9 +348,10 @@ class PipeTechnology:
         )
 
 
-@dataclass
-class FuelProperties:
+class FuelProperties(BaseModel):
     """Fuel properties template."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str
     description: str
@@ -354,22 +362,22 @@ class FuelProperties:
     hhv_kwh_per_kg: Optional[float] = None  # Higher heating value
 
     # Pricing
-    default_price_eur_per_mwh: float = 40.0
+    default_price_eur_per_mwh: float = Field(default=40.0, ge=0)
     price_unit: str = "eur_per_mwh"  # eur_per_mwh, eur_per_kg, eur_per_m3
 
     # Emissions
-    co2_kg_per_mwh_lhv: float = 0.0
-    nox_kg_per_mwh: float = 0.0
-    particulate_kg_per_mwh: float = 0.0
+    co2_kg_per_mwh_lhv: float = Field(default=0.0, ge=0)
+    nox_kg_per_mwh: float = Field(default=0.0, ge=0)
+    particulate_kg_per_mwh: float = Field(default=0.0, ge=0)
 
     # Availability
     renewable: bool = False
     carbon_neutral: bool = False
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, fuel_id: str, data: Dict[str, Any]) -> FuelProperties:
+    def from_dict(cls, fuel_id: str, data: Dict[str, Any]) -> "FuelProperties":
         """Create from dictionary."""
         energy = data.get('energy_content', {})
         pricing = data.get('pricing', {})
