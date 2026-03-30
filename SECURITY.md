@@ -6,7 +6,7 @@
 |---------|-----------|
 | 1.0.0-alpha | :white_check_mark: |
 
-EnerGIS is a research framework. Security patches are applied to the
+CALION is a research framework. Security patches are applied to the
 latest release on a best-effort basis.
 
 ## Reporting a Vulnerability
@@ -28,7 +28,7 @@ We aim to release a fix or mitigation within **30 days** for confirmed issues.
 
 ## Scope
 
-EnerGIS is an offline optimization tool and does not expose network services,
+CALION is an offline optimization tool and does not expose network services,
 accept external connections, or process untrusted user input in a web context.
 The primary attack surface is:
 

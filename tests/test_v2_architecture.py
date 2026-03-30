@@ -1,5 +1,5 @@
 """
-Comprehensive test suite for EnerGIS v2.0 architecture.
+Comprehensive test suite for CALION v2.0 architecture.
 
 This test validates:
 1. Component registration and discovery
@@ -21,7 +21,7 @@ def test_1_component_registry():
     print("TEST 1: ComponentRegistry Functionality")
     print("="*70)
 
-    from energis.models import ComponentRegistry
+    from calion.models import ComponentRegistry
 
     # Test 1.1: List all registered components
     components = ComponentRegistry.list_components()
@@ -61,7 +61,7 @@ def test_2_component_creation():
     print("TEST 2: Component Creation via Registry")
     print("="*70)
 
-    from energis.models import ComponentRegistry, HeatPumpBlock, StorageBlock
+    from calion.models import ComponentRegistry, HeatPumpBlock, StorageBlock
 
     # Test 2.1: Create heat pump via registry
     print("\n--- Creating Heat Pump via Registry ---")
@@ -145,7 +145,7 @@ def test_3_flow_declarations():
     print("TEST 3: Flow Declarations")
     print("="*70)
 
-    from energis.models import HeatPumpBlock, StorageBlock, P2HBlock
+    from calion.models import HeatPumpBlock, StorageBlock, P2HBlock
 
     # Note: Flows are added during attach(), not __init__
     # So we check that add_flow() method exists and works
@@ -204,7 +204,7 @@ def test_4_bus_functionality():
     print("TEST 4: Bus Functionality")
     print("="*70)
 
-    from energis.models import Bus, BusType, create_default_buses
+    from calion.models import Bus, BusType, create_default_buses
 
     # Test 4.1: Create buses
     print("\n--- Creating Buses ---")
@@ -247,10 +247,10 @@ def test_5_backward_compatibility():
     # Test 5.1: Import old components directly
     print("\n--- Old-Style Imports ---")
     try:
-        from energis.models.blocks.heat_pump import HeatPumpBlock
-        from energis.models.blocks.storage import StorageBlock
-        from energis.models.blocks.thermal_gen import ThermalGeneratorBlock
-        from energis.models.blocks.p2h import P2HBlock
+        from calion.models.blocks.heat_pump import HeatPumpBlock
+        from calion.models.blocks.storage import StorageBlock
+        from calion.models.blocks.thermal_gen import ThermalGeneratorBlock
+        from calion.models.blocks.p2h import P2HBlock
         print("✓ Old-style imports work")
     except Exception as e:
         print(f"✗ FAILED old-style imports: {e}")
@@ -282,7 +282,7 @@ def test_5_backward_compatibility():
     # Test 5.3: Import system_builder (legacy)
     print("\n--- Legacy system_builder ---")
     try:
-        from energis.models import build_model
+        from calion.models import build_model
         print(f"✓ Legacy build_model imported: {build_model}")
         print("✓ Backward compatibility maintained!")
     except Exception as e:
@@ -299,7 +299,7 @@ def test_6_integration_check():
     print("TEST 6: Integration Check")
     print("="*70)
 
-    from energis.models import (
+    from calion.models import (
         ComponentRegistry,
         create_default_buses,
         HeatPumpBlock,
@@ -380,7 +380,7 @@ def test_6_integration_check():
     print(f"\n✓ System created with {len(components)} components and {len(buses)} buses")
 
     # 3. Check that all components are BaseComponent instances
-    from energis.models import BaseComponent
+    from calion.models import BaseComponent
     for comp in components:
         assert isinstance(comp, BaseComponent), f"{comp} is not a BaseComponent!"
     print(f"✓ All components are BaseComponent instances")

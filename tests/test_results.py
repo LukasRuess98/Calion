@@ -1,7 +1,7 @@
-"""Tests for energis.models.results — structured result containers."""
+"""Tests for calion.models.results — structured result containers."""
 
 import pytest
-from energis.models.results import (
+from calion.models.results import (
     HeatPumpInvestment,
     StorageInvestment,
     InvestmentDecisions,

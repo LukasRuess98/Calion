@@ -31,7 +31,7 @@
 
 ## DATENFLUSS: VON PYOMO ZU DASHBOARD
 
-### 1. Pyomo-Modell (energis/models/)
+### 1. Pyomo-Modell (calion/models/)
 
 **Thermische Generatoren** (`thermal_gen.py`):
 ```python
@@ -348,7 +348,7 @@ co2_net_heat = co2_total - co2_credit  # = 13.08 t
 ### Phase 1: BUGFIXES (Priorität HOCH)
 
 #### Fix 1.1: Alle Generatoren in Tabelle anzeigen (auch mit CO₂ = 0)
-**Datei**: `energis/io/dashboard.py:1928-1995`
+**Datei**: `calion/io/dashboard.py:1928-1995`
 
 **Änderung**:
 ```python
@@ -379,7 +379,7 @@ if gen_co2_t > 0.001 or was_active:
 ---
 
 #### Fix 1.2: Alle Quellen initial im Multiselect auswählen
-**Datei**: `energis/io/dashboard.py:1790`
+**Datei**: `calion/io/dashboard.py:1790`
 
 **Änderung**:
 ```python
@@ -410,7 +410,7 @@ value=top_sources
 ### Phase 2: FEATURES (Priorität MITTEL)
 
 #### Feature 2.1: WP/P2H CO₂ separat exportieren
-**Datei**: `energis/run/rolling_horizon.py`
+**Datei**: `calion/run/rolling_horizon.py`
 **Position**: Nach Zeile 799 (nach Generator-Loop)
 
 **Neue Funktion**:
@@ -461,7 +461,7 @@ if meta["p2h"]:
 ---
 
 #### Feature 2.2: KWK-CO₂-Aufteilung (optional)
-**Datei**: `energis/run/rolling_horizon.py`
+**Datei**: `calion/run/rolling_horizon.py`
 **Position**: In Generator-Loop (Zeile 788-799)
 
 **Erweiterung**:
@@ -516,7 +516,7 @@ for gen in meta["generators"]:
 
 #### Validierung 3.1: Prüfe Vollständigkeit der Generatoren
 
-**Neue Funktion** in `energis/run/rolling_horizon.py`:
+**Neue Funktion** in `calion/run/rolling_horizon.py`:
 ```python
 def _validate_co2_completeness(meta, series, df_columns):
     """Prüfe ob alle Generatoren in CO₂-Export enthalten sind."""
@@ -625,25 +625,25 @@ if energy_bought_MWh > 0:
 ### ✅ SOFORT (heute):
 
 1. **Fix 1.1**: Alle Generatoren in Tabelle anzeigen (auch CO₂ = 0)
-   - Datei: `energis/io/dashboard.py:1950`
+   - Datei: `calion/io/dashboard.py:1950`
    - Ändere: `if gen_co2_t > 0.001:` → prüfe auch `was_active`
 
 2. **Fix 1.2**: Alle Quellen initial auswählen
-   - Datei: `energis/io/dashboard.py:1790`
+   - Datei: `calion/io/dashboard.py:1790`
    - Ändere: `[:5]` → alle
 
 3. **Validierung 3.1**: Vollständigkeits-Check implementieren
-   - Datei: `energis/run/rolling_horizon.py`
+   - Datei: `calion/run/rolling_horizon.py`
    - Neue Funktion: `_validate_co2_completeness()`
 
 ### 📅 DIESE WOCHE:
 
 4. **Feature 2.1**: WP/P2H CO₂ separat exportieren
-   - Datei: `energis/run/rolling_horizon.py:800`
+   - Datei: `calion/run/rolling_horizon.py:800`
    - Neue Berechnung nach Generator-Loop
 
 5. **Validierung 3.2**: Konsistenz-Checks
-   - Datei: `energis/run/rolling_horizon.py`
+   - Datei: `calion/run/rolling_horizon.py`
    - Nach CO₂-Berechnung
 
 6. **Testing 4.2**: Unit-Tests schreiben

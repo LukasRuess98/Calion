@@ -1,15 +1,15 @@
-"""Tests for energis.run.design_helpers."""
+"""Tests for calion.run.design_helpers."""
 
 import json
 import pytest
 
-from energis.run.design_helpers import (
+from calion.run.design_helpers import (
     _apply_design_fix,
     _design_from_mapping,
     _extract_design_data,
     _load_design_override,
 )
-from energis.run.types import DesignData
+from calion.run.types import DesignData
 
 
 # ---------------------------------------------------------------------------

@@ -23,13 +23,13 @@ import pandas as pd
 # Add project root to path
 current = Path.cwd()
 for candidate in [current] + list(current.parents):
-    if (candidate / 'energis').exists():
+    if (candidate / 'calion').exists():
         if str(candidate) not in sys.path:
             sys.path.insert(0, str(candidate))
         PROJECT_ROOT = candidate
         break
 
-from energis.run import rolling_horizon as rh
+from calion.run import rolling_horizon as rh
 
 
 def load_config(config_path: Path) -> dict:

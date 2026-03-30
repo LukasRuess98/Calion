@@ -1,10 +1,10 @@
 # Data Format Specification
 
-This document describes the input data requirements for EnerGIS.
+This document describes the input data requirements for CALION.
 
 ## 1. Input Data File
 
-EnerGIS accepts input data in Excel (.xlsx) or CSV format.
+CALION accepts input data in Excel (.xlsx) or CSV format.
 
 ### 1.1 Required Columns
 

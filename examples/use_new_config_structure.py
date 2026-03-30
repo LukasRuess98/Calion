@@ -1,5 +1,5 @@
 """
-Example: Using the new config structure (v2.0) with EnerGIS.
+Example: Using the new config structure (v2.0) with CALION.
 
 This example demonstrates how to:
 1. Load the new config structure
@@ -14,8 +14,8 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from energis.config.config_manager import ConfigManager
-from energis.config.schemas import HeatPumpAsset, StorageAsset
+from calion.config.config_manager import ConfigManager
+from calion.config.schemas import HeatPumpAsset, StorageAsset
 
 
 def main():

@@ -1,7 +1,7 @@
-"""Tests for energis.utils.config_utils — config normalization helpers."""
+"""Tests for calion.utils.config_utils — config normalization helpers."""
 
 import pytest
-from energis.utils.config_utils import (
+from calion.utils.config_utils import (
     apply_heat_pump_defaults,
     _normalize_heat_pump_config,
     normalize_storage_config,

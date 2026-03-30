@@ -11,7 +11,7 @@ This example shows:
 - Geometry calculations for cylindrical tanks
 - Heat loss modeling with piecewise linearization
 - Comparison with simple storage model
-- Integration with the EnerGIS framework
+- Integration with the CALION framework
 
 Usage:
     python examples/stratified_storage_example.py
@@ -22,7 +22,7 @@ import json
 from pathlib import Path
 
 # Import the stratified storage component
-from energis.models.blocks.stratified_storage import (
+from calion.models.blocks.stratified_storage import (
     StratifiedStorageBlock,
     calculate_cylindrical_geometry,
     RHO_WATER,
@@ -30,7 +30,7 @@ from energis.models.blocks.stratified_storage import (
 )
 
 # Import registry for component management
-from energis.models import ComponentRegistry
+from calion.models import ComponentRegistry
 
 
 def print_section(title: str):
@@ -452,7 +452,7 @@ def main():
     print("  4. Compare with traditional storage model")
     print()
     print("For more information, see:")
-    print("  - energis/models/blocks/stratified_storage.py")
+    print("  - calion/models/blocks/stratified_storage.py")
     print("  - examples/custom_component_example.py")
     print()
 

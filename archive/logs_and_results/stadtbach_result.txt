@@ -1,37 +1,37 @@
 [2026-03-27 09:25:23] __main__ - INFO - ======================================================================
-[2026-03-27 09:25:23] __main__ - INFO - EnerGIS - District Heating Optimization
+[2026-03-27 09:25:23] __main__ - INFO - CALION - District Heating Optimization
 [2026-03-27 09:25:23] __main__ - INFO - ======================================================================
 [2026-03-27 09:25:23] __main__ - INFO - Config files (1):
 [2026-03-27 09:25:23] __main__ - INFO -   - configs/scenarios/stadtbach_dispatch_test.yaml
-[2026-03-27 09:25:23] energis.io.loader - INFO - [LOAD] Au├ƒentemperatur gefunden: Spalte 'T_outdoor'
-[2026-03-27 09:25:23] energis.models.system_builder - INFO - Outdoor temperature loaded: 3.1┬░C to 10.9┬░C
+[2026-03-27 09:25:23] calion.io.loader - INFO - [LOAD] Au├ƒentemperatur gefunden: Spalte 'T_outdoor'
+[2026-03-27 09:25:23] calion.models.system_builder - INFO - Outdoor temperature loaded: 3.1┬░C to 10.9┬░C
 Traceback (most recent call last):
   File "<frozen runpy>", line 198, in _run_module_as_main
   File "<frozen runpy>", line 88, in _run_code
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\run\__main__.py", line 242, in <module>
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\run\__main__.py", line 242, in <module>
     raise SystemExit(main())
                      ~~~~^^
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\run\__main__.py", line 142, in main
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\run\__main__.py", line 142, in main
     result = _wf.run_workflow(args.configs, overrides=override_cfg or None)
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\run\workflow.py", line 356, in run_workflow
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\run\workflow.py", line 356, in run_workflow
     handler(context)
     ~~~~~~~^^^^^^^^^
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\run\workflow.py", line 156, in _pf_step
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\run\workflow.py", line 156, in _pf_step
     result = _solve_scenario(context.table, context.cfg, context.dt_h, context.solver_name)
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\run\solver.py", line 39, in _solve_scenario
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\run\solver.py", line 39, in _solve_scenario
     model = build_model(
         table,
     ...<3 lines>...
         terminal_target_override=terminal_target_override,
     )
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\models\system_builder.py", line 63, in build_model
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\models\system_builder.py", line 63, in build_model
     return _build_model_legacy(table, cfg, dt_h,
                                soc_init_override=soc_init_override,
                                terminal_target_override=terminal_target_override)
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\models\system_builder.py", line 316, in _build_model_legacy
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\models\system_builder.py", line 316, in _build_model_legacy
     assembler.assemble_heat_pumps()
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\energis\models\component_assembler.py", line 444, in assemble_heat_pumps
+  File "C:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\calion\models\component_assembler.py", line 444, in assemble_heat_pumps
     hp_raw.get("id"), hp_raw.get("enabled"),
     ^^^^^^^^^^
 AttributeError: 'str' object has no attribute 'get'

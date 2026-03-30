@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick test script for EnerGIS Dashboard.
+Quick test script for CALION Dashboard.
 
 This script tests if the dashboard can be imported and basic functionality works.
 """
@@ -13,13 +13,13 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 print("="*70)
-print("🧪 Testing EnerGIS Dashboard")
+print("🧪 Testing CALION Dashboard")
 print("="*70)
 
 # Test 1: Import dashboard
 print("\n1. Testing dashboard import...")
 try:
-    from energis.io.dashboard import create_dashboard, HAVE_PANEL, HAVE_PLOTLY
+    from calion.io.dashboard import create_dashboard, HAVE_PANEL, HAVE_PLOTLY
     print("   ✅ Dashboard module imported successfully")
 except ImportError as e:
     print(f"   ❌ Failed to import dashboard: {e}")
@@ -44,7 +44,7 @@ else:
 # Test 3: Check if workflow can be run
 print("\n3. Testing workflow import...")
 try:
-    from energis.run import rolling_horizon as rh
+    from calion.run import rolling_horizon as rh
     print("   ✅ Workflow module available")
 except ImportError as e:
     print(f"   ❌ Failed to import workflow: {e}")
@@ -79,8 +79,8 @@ print("="*70)
 
 print("\n📚 Usage examples:")
 print("\n1. In Jupyter Notebook:")
-print("   from energis.run import rolling_horizon as rh")
-print("   from energis.io.dashboard import create_dashboard")
+print("   from calion.run import rolling_horizon as rh")
+print("   from calion.io.dashboard import create_dashboard")
 print("   ")
 print("   workflow = rh.run_workflow(CONFIG_PATHS)")
 print("   dashboard = create_dashboard(workflow)")

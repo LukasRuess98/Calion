@@ -6,21 +6,21 @@
 
 All type-safe configuration schemas have been implemented:
 
-1. **`energis/config/schemas/asset_schema.py`** ✅
+1. **`calion/config/schemas/asset_schema.py`** ✅
    - `AssetCapacity` - existing capacity specification
    - `ExpansionPotential` - investment potential
    - `ComponentAsset` - base class for all components
    - Specialized assets: `HeatPumpAsset`, `StorageAsset`, `GeneratorAsset`, `P2HAsset`
    - `GridConnection` - grid connection and pricing
 
-2. **`energis/config/schemas/network_schema.py`** ✅
+2. **`calion/config/schemas/network_schema.py`** ✅
    - `NetworkNode` - nodes (producer/consumer/junction)
    - `Pipe` - pipe connections with physics
    - `Pump` - circulation pumps
    - `ThermalNetwork` - complete network definition
    - `NetworkTopology` - multi-network system
 
-3. **`energis/config/schemas/tech_library_schema.py`** ✅
+3. **`calion/config/schemas/tech_library_schema.py`** ✅
    - `HeatPumpTechnology` - with COP models
    - `StorageTechnology` - thermal storage models
    - `GeneratorTechnology` - boiler/CHP technologies
@@ -28,7 +28,7 @@ All type-safe configuration schemas have been implemented:
    - `PipeTechnology` - pipe physics
    - `FuelProperties` - fuel database
 
-4. **`energis/config/schemas/scenario_schema.py`** ✅
+4. **`calion/config/schemas/scenario_schema.py`** ✅
    - `TimeConfig` - time horizon and representative periods
    - `OptimizationConfig` - optimization settings
    - `EconomicsConfig` - costs and subsidies
@@ -62,14 +62,14 @@ Complete new config structure created:
 
 Configuration loading infrastructure:
 
-1. **`energis/config/loader_v2.py`** ✅
+1. **`calion/config/loader_v2.py`** ✅
    - `ConfigLoaderV2` class - loads 3-layer config structure
    - Parses YAML into type-safe dataclass objects
    - Builds backward-compatible dict for system_builder.py
    - Handles technology references
    - Resolves relative paths
 
-2. **`energis/config/validation.py`** ✅
+2. **`calion/config/validation.py`** ✅
    - `ConfigValidator` class - validates loaded configuration
    - Checks component configurations
    - Validates network topology
@@ -77,7 +77,7 @@ Configuration loading infrastructure:
    - Checks optimization settings consistency
    - Returns detailed error/warning/info messages
 
-3. **`energis/config/config_manager.py`** ✅
+3. **`calion/config/config_manager.py`** ✅
    - `ConfigManager` class - high-level interface
    - Automatic validation on load
    - Type-safe property access (scenario, components, grid, network)
@@ -108,7 +108,7 @@ Configuration loading infrastructure:
 
 ✅ **Config can be loaded and validated:**
 ```python
-from energis.config.config_manager import ConfigManager
+from calion.config.config_manager import ConfigManager
 
 manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
 config = manager.load()  # Loads and validates
@@ -160,7 +160,7 @@ hp_config = config['system']['heat_pumps'][0]
 capacity = hp_config['max_th_mw']
 
 # Could do:
-from energis.config.schemas import HeatPumpAsset
+from calion.config.schemas import HeatPumpAsset
 hp = config['_schemas']['components']['HP1']  # Type: HeatPumpAsset
 capacity = hp.existing.thermal_capacity_mw  # Type-safe!
 ```
@@ -268,7 +268,7 @@ Based on priorities:
 ### For New Projects
 
 ```python
-from energis.config.config_manager import ConfigManager
+from calion.config.config_manager import ConfigManager
 
 # 1. Create scenario YAML in configs/scenarios/
 # 2. Load and validate
@@ -280,7 +280,7 @@ for comp_id, comp in manager.components.items():
     print(f"{comp_id}: {comp.existing.thermal_capacity_mw} MW")
 
 # 4. OR use with existing code
-from energis.models.system_builder import build_model
+from calion.models.system_builder import build_model
 model = build_model(config, table)  # Works with backward-compatible dict
 ```
 
@@ -288,7 +288,7 @@ model = build_model(config, table)  # Works with backward-compatible dict
 
 Option 1: **Use ConfigManager** (recommended)
 ```python
-from energis.config.config_manager import ConfigManager
+from calion.config.config_manager import ConfigManager
 
 manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
 config = manager.load()
@@ -297,7 +297,7 @@ config = manager.load()
 
 Option 2: **Use load_config_v2** (minimal change)
 ```python
-from energis.config.loader_v2 import load_config_v2
+from calion.config.loader_v2 import load_config_v2
 
 config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
 # Rest of code unchanged
@@ -310,16 +310,16 @@ config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
 ### Created Files
 
 **Schemas (4 files):**
-- `energis/config/schemas/__init__.py`
-- `energis/config/schemas/asset_schema.py`
-- `energis/config/schemas/network_schema.py`
-- `energis/config/schemas/tech_library_schema.py`
-- `energis/config/schemas/scenario_schema.py`
+- `calion/config/schemas/__init__.py`
+- `calion/config/schemas/asset_schema.py`
+- `calion/config/schemas/network_schema.py`
+- `calion/config/schemas/tech_library_schema.py`
+- `calion/config/schemas/scenario_schema.py`
 
 **Config Infrastructure (3 files):**
-- `energis/config/loader_v2.py`
-- `energis/config/validation.py`
-- `energis/config/config_manager.py`
+- `calion/config/loader_v2.py`
+- `calion/config/validation.py`
+- `calion/config/config_manager.py`
 
 **Config Files (13 files):**
 - Tech library (7 files)

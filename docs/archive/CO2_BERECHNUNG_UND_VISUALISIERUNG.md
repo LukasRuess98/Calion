@@ -1,10 +1,10 @@
-# CO₂-Berechnung und Visualisierung im EnerGIS Framework
+# CO₂-Berechnung und Visualisierung im CALION Framework
 
 ## 1. CO₂-BERECHNUNG (Backend)
 
 ### 1.1 Grid CO₂ (Strombezug - INDIREKTE Emissionen)
 
-**Quelle**: `energis/run/rolling_horizon.py:608-610, 634`
+**Quelle**: `calion/run/rolling_horizon.py:608-610, 634`
 
 **Formel pro Zeitschritt**:
 ```python
@@ -31,7 +31,7 @@ grid_co2_t = sum(Grid_CO2_t_per_step[i] for i in range(n))
 
 ### 1.2 Fuel CO₂ (Brennstoffe - DIREKTE Emissionen)
 
-**Quelle**: `energis/run/rolling_horizon.py:788-799`
+**Quelle**: `calion/run/rolling_horizon.py:788-799`
 
 **Formel pro Generator und Zeitschritt**:
 ```python
@@ -109,7 +109,7 @@ Für jeden Generator:
 
 ## 3. WAS WIRD IM DASHBOARD VISUALISIERT
 
-**Quelle**: `energis/io/dashboard.py`
+**Quelle**: `calion/io/dashboard.py`
 
 ### 3.1 KPI-Karten (Oben) - Lines 1729-1736
 
@@ -388,5 +388,5 @@ assert abs(sum(Fuel_CO2_t_per_step) - fuel_co2_t) < 0.01
 ---
 
 **Stand**: 2025-12-04
-**Framework**: EnerGIS Planing-Framework-for-Heat
-**Dateien**: `energis/run/rolling_horizon.py`, `energis/io/dashboard.py`, `configs/tech_catalog.yaml`
+**Framework**: CALION Planing-Framework-for-Heat
+**Dateien**: `calion/run/rolling_horizon.py`, `calion/io/dashboard.py`, `configs/tech_catalog.yaml`

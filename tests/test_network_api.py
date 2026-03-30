@@ -1,7 +1,7 @@
-"""Tests for energis.network — programmatic Network builder."""
+"""Tests for calion.network — programmatic Network builder."""
 
 import pytest
-from energis.network import Network, NetworkResult
+from calion.network import Network, NetworkResult
 
 
 class TestNetworkBuilder:

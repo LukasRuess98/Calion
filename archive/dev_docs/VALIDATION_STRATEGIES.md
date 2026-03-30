@@ -224,10 +224,10 @@ for check, result in results.items():
 
 ```bash
 # Speichere bekannte gute Ergebnisse
-python -m energis.run configs/baseline.yaml > baseline_results.json
+python -m calion.run configs/baseline.yaml > baseline_results.json
 
 # Später: Prüfe ob sich Ergebnisse signifikant ändern
-python -m energis.run configs/baseline.yaml > current_results.json
+python -m calion.run configs/baseline.yaml > current_results.json
 
 # Vergleich
 cost_diff = abs(current - baseline) / baseline
@@ -317,12 +317,12 @@ python analyze_solution_variables.py
 python -m pytest tests/ -v
 
 # 3. Run regression benchmark
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 # → Vergleiche mit EXPORT_VERIFICATION_REPORT.md
 
 # 4. Check sensitivity
 for price in 40 60 80 100; do
-  python -m energis.run --override "costs.co2_price_eur_per_t=$price"
+  python -m calion.run --override "costs.co2_price_eur_per_t=$price"
 done
 ```
 

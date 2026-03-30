@@ -1,10 +1,10 @@
-"""Tests for energis.utils.timeseries — TimeSeriesTable and fill utilities."""
+"""Tests for calion.utils.timeseries — TimeSeriesTable and fill utilities."""
 
 import math
 import pytest
 from datetime import datetime, timedelta
 
-from energis.utils.timeseries import (
+from calion.utils.timeseries import (
     TimeSeriesTable,
     forward_fill,
     backward_fill,

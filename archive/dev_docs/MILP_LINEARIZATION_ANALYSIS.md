@@ -1,4 +1,4 @@
-# MILP-Linearisierungscode Analyse – EnerGIS
+# MILP-Linearisierungscode Analyse – CALION
 
 Gründliche Analyse der Linearisierungsstrategien für bilineare Terme im MILP-Modus.
 

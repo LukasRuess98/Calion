@@ -1,13 +1,13 @@
-"""Tests for energis.run.cost_helpers."""
+"""Tests for calion.run.cost_helpers."""
 
 import pytest
 
-from energis.run.cost_helpers import (
+from calion.run.cost_helpers import (
     _accumulate_costs,
     _apply_cost_overrides,
     _recompute_objective_costs,
 )
-from energis.run.types import _CostAggregationPlan
+from calion.run.types import _CostAggregationPlan
 
 
 def _make_plan(include_investment=True, amortise_once=True):

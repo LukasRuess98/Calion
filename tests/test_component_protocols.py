@@ -2,7 +2,7 @@
 Test suite for component protocol compliance.
 
 Verifies that all existing component blocks properly implement the
-ComponentBlock protocol defined in energis.models.interfaces.
+ComponentBlock protocol defined in calion.models.interfaces.
 
 This ensures:
 1. All components follow the expected interface
@@ -18,7 +18,7 @@ except ImportError:
     HAVE_PYOMO = False
     pyo = None
 
-from energis.models.interfaces import (
+from calion.models.interfaces import (
     ComponentBlock,
     InvestmentStrategy,
     CO2Calculator,
@@ -28,12 +28,12 @@ from energis.models.interfaces import (
     InvestmentConfig,
     EmissionResult,
 )
-from energis.models.component import BaseComponent
-from energis.models.blocks.heat_pump import HeatPumpBlock
-from energis.models.blocks.storage import StorageBlock
-from energis.models.blocks.stratified_storage import StratifiedStorageBlock
-from energis.models.blocks.thermal_gen import ThermalGeneratorBlock
-from energis.models.blocks.p2h import P2HBlock
+from calion.models.component import BaseComponent
+from calion.models.blocks.heat_pump import HeatPumpBlock
+from calion.models.blocks.storage import StorageBlock
+from calion.models.blocks.stratified_storage import StratifiedStorageBlock
+from calion.models.blocks.thermal_gen import ThermalGeneratorBlock
+from calion.models.blocks.p2h import P2HBlock
 
 
 @pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not available")

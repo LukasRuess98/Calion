@@ -1,7 +1,7 @@
 # ✅ REAL DATA VALIDATION - FINAL REPORT
 
 **Validierung durchgeführt:** 2026-03-27  
-**Framework:** EnerGIS / Planing Framework for Heat  
+**Framework:** CALION / Planing Framework for Heat  
 **Test-Daten:** Stadtbach district heating (echte 1-Woche Daten)  
 **Status:** ✅ **PRODUKTIONSREIF**
 
@@ -202,7 +202,7 @@ Diese Validierung hat folgende Dateien generiert:
 
 ### 1. Jahresoptimierung durchführen
 ```bash
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 # Expected: Ähnliche relative Performance (30-100 Sekunden)
 ```
 
@@ -258,7 +258,7 @@ Bei Fragen zu dieser Validierung:
 **Validierungs-Status:** ✅ **ABGESCHLOSSEN - PRODUKTIONSREIF**
 
 **Datum:** 2026-03-27  
-**Framework:** EnerGIS (Current Version)  
+**Framework:** CALION (Current Version)  
 **Solver:** HiGHS 1.13.1  
 **Test-Daten:** Stadtbach 1-Woche synthetisch  
 **Validiert durch:** Automated Multi-Network Suite

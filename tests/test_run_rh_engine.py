@@ -1,8 +1,8 @@
-"""Tests for energis.run.rh_engine – SOC helpers, param/cost-plan loading, series extension."""
+"""Tests for calion.run.rh_engine – SOC helpers, param/cost-plan loading, series extension."""
 
 import pytest
 
-from energis.run.rh_engine import (
+from calion.run.rh_engine import (
     _apply_terminal_policy,
     _extend_series,
     _initial_soc,

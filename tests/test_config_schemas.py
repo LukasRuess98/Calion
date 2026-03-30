@@ -1,6 +1,6 @@
-"""Tests for energis.config.schemas — dataclass schema definitions."""
+"""Tests for calion.config.schemas — dataclass schema definitions."""
 
-from energis.config.schemas.asset_schema import (
+from calion.config.schemas.asset_schema import (
     AssetCapacity,
     ExpansionPotential,
     ComponentAsset,
@@ -10,7 +10,7 @@ from energis.config.schemas.asset_schema import (
     P2HAsset,
     GridConnection,
 )
-from energis.config.schemas.network_schema import (
+from calion.config.schemas.network_schema import (
     NetworkNode,
     PipeCapacity,
     PipeExpansion,
@@ -20,7 +20,7 @@ from energis.config.schemas.network_schema import (
     ThermalNetwork,
     NetworkTopology,
 )
-from energis.config.schemas.tech_library_schema import (
+from calion.config.schemas.tech_library_schema import (
     COPModel,
     HeatPumpTechnology,
     StorageTechnology,
@@ -29,7 +29,7 @@ from energis.config.schemas.tech_library_schema import (
     PipeTechnology,
     FuelProperties,
 )
-from energis.config.schemas.scenario_schema import (
+from calion.config.schemas.scenario_schema import (
     RepresentativePeriods,
     TimeConfig,
     CostConfig,

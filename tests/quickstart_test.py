@@ -4,7 +4,7 @@ This helper mirrors the CI smoke test and keeps the command referenced in the
 README functional. It only executes the lightweight regression suite to avoid
 requiring a full solver stack.
 
-Quick validation that the EnerGIS framework is working correctly without
+Quick validation that the CALION framework is working correctly without
 needing Import_Data.xlsx or a commercial solver.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ def main() -> int:
         0 if tests pass, non-zero otherwise
     """
     print("=" * 70)
-    print("🚀 EnerGIS QUICKSTART TEST")
+    print("🚀 CALION QUICKSTART TEST")
     print("=" * 70)
     print("\n📋 Running regression suite against bundled fixtures...")
     print("   (This validates core optimization without requiring Import_Data.xlsx)\n")

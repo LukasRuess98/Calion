@@ -1,11 +1,11 @@
-"""Tests for energis.io._output_paths — canonical output directory resolution."""
+"""Tests for calion.io._output_paths — canonical output directory resolution."""
 
 import os
 import warnings
 
 import pytest
 
-from energis.io._output_paths import (
+from calion.io._output_paths import (
     DASHBOARD_DIR,
     RUNS_DIR,
     WORKFLOWS_DIR,

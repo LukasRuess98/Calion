@@ -1,8 +1,8 @@
-"""Tests for energis.validation.analytical_benchmarks — pure dataclass/logic tests."""
+"""Tests for calion.validation.analytical_benchmarks — pure dataclass/logic tests."""
 
 import math
 import pytest
-from energis.validation.analytical_benchmarks import (
+from calion.validation.analytical_benchmarks import (
     AnalyticalTestCase,
     ValidationResult,
     ValidationSuiteResult,

@@ -10,7 +10,7 @@ Verifies that:
 """
 import pytest
 
-from energis.models.emissions_calculator import (
+from calion.models.emissions_calculator import (
     EmissionsCalculator,
     CO2Result,
     aggregate_emission_results,

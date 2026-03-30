@@ -212,7 +212,7 @@ def create_stadtbach_synthetic_data(output_file='data/stadtbach_synthetic_2023_1
     print(f"   Dateigröße:   ~{output_path.stat().st_size / 1024:.1f} KB")
 
     print(f"\n🎯 Verwendung:")
-    print(f"   python -m energis.run \\")
+    print(f"   python -m calion.run \\")
     print(f"     configs/base.yaml \\")
     print(f"     configs/tech_catalog.yaml \\")
     print(f"     configs/scenarios/stadtbach_1week.scenario.yaml")

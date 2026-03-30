@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to EnerGIS are documented here.
+All notable changes to CALION are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
@@ -11,12 +11,12 @@ First tagged release. Marks the completion of a major architectural
 refactoring and cleanup pass on the research prototype.
 
 ### Added
-- Unified CLI entry point via `python -m energis.run` (`energis/run/__main__.py`)
-- `energis/io/_output_paths.py` — canonical `outputs/{runs,workflows,dashboard}/`
+- Unified CLI entry point via `python -m calion.run` (`calion/run/__main__.py`)
+- `calion/io/_output_paths.py` — canonical `outputs/{runs,workflows,dashboard}/`
   path resolution with automatic legacy-path detection and `DeprecationWarning`
 - `scripts/migrate_outputs.py` — dry-run/move/copy migration tool for legacy
   `exports/`, `results/`, `saved_workflows/` directories
-- `energis/io/_utils.py` — shared `_is_empty()` helper (consolidates duplicate
+- `calion/io/_utils.py` — shared `_is_empty()` helper (consolidates duplicate
   implementations in `loader.py` and `network_loader.py`)
 - `configs/05_networks/multi_temperature_network.yaml` — example multi-temperature
   network (90/55 °C HT + 60/40 °C LT with heat exchanger)
@@ -29,7 +29,7 @@ refactoring and cleanup pass on the research prototype.
   `outputs/workflows/`
 - **Design API**: removed deprecated `DesignConfig` / `load_design_config` /
   `load_design_for_scenario` / `extract_design_from_summary` / `save_design_to_file`
-  from `energis/design.py`; callers (`workflow.py`, `rh_engine.py`, `types.py`)
+  from `calion/design.py`; callers (`workflow.py`, `rh_engine.py`, `types.py`)
   migrated to `OptimizationConfig` / `load_optimization_config` /
   `extract_optimization_results` / `save_optimization_results`
 - **Exception handling**: all `except Exception` blocks narrowed to specific types

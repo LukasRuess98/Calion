@@ -6,7 +6,7 @@ This script tests that the stratified storage integration works correctly
 by loading both simple and stratified storage configurations.
 """
 
-from energis.run import rolling_horizon as rh
+from calion.run import rolling_horizon as rh
 
 print("=" * 80)
 print("TEST: Stratified Storage Integration")

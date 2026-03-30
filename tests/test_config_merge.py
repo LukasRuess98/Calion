@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from energis.config.merge import (
+from calion.config.merge import (
     PROJECT_ROOT,
     load_and_merge,
     deep_merge,

@@ -22,11 +22,11 @@ contain at least the columns referenced by the config's `site.columns` and
 
 ```bash
 # Level 1 — copperplate
-python -m energis.run configs/templates/level1_copperplate.yaml
+python -m calion.run configs/templates/level1_copperplate.yaml
 
 # Level 2 — 5-node network
-python -m energis.run configs/templates/level2_5node.yaml
+python -m calion.run configs/templates/level2_5node.yaml
 
 # With Rolling Horizon instead of Perfect Foresight
-python -m energis.run configs/templates/level1_copperplate.yaml --run-mode RH_ONLY
+python -m calion.run configs/templates/level1_copperplate.yaml --run-mode RH_ONLY
 ```

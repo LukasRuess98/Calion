@@ -9,10 +9,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from pathlib import Path
-from energis.io.loader import load_input_excel
-from energis.models.system_builder import build_model
-from energis.utils.timeseries import TimeSeriesTable
-from energis.config.merge import load_and_merge
+from calion.io.loader import load_input_excel
+from calion.models.system_builder import build_model
+from calion.utils.timeseries import TimeSeriesTable
+from calion.config.merge import load_and_merge
 
 print("\n" + "=" * 70)
 print("PHASE 4: ASSET CONSTRAINT ANALYSIS")

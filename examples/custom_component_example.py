@@ -1,5 +1,5 @@
 """
-Example: Adding a Custom Component to EnerGIS Framework
+Example: Adding a Custom Component to CALION Framework
 
 This example demonstrates how to add a new component type using the v2.0
 architecture with BaseComponent and ComponentRegistry.
@@ -24,7 +24,7 @@ except Exception:
     pyo = None
 
 # Import the new framework abstractions
-from energis.models import (
+from calion.models import (
     BaseComponent,
     Flow,
     register_component,
@@ -283,7 +283,7 @@ def example_usage():
     )
     print(f"   Created: {solar2}\n")
 
-    print("=== Integration with EnerGIS ===\n")
+    print("=== Integration with CALION ===\n")
     print("To use in a system config (configs/systems/*.yaml):\n")
     print("""
 system:
@@ -309,8 +309,8 @@ if __name__ == "__main__":
     print("=" * 70)
 
     print("\nOLD APPROACH (v1.0):")
-    print("  1. Create energis/models/blocks/solar_thermal.py (100+ lines)")
-    print("  2. Modify energis/models/system_builder.py (+50 lines)")
+    print("  1. Create calion/models/blocks/solar_thermal.py (100+ lines)")
+    print("  2. Modify calion/models/system_builder.py (+50 lines)")
     print("  3. Add to configs/tech_catalog.yaml")
     print("  4. Update configs/systems/*.yaml")
     print("  Total: 4 files changed, ~150+ lines of code\n")

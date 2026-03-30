@@ -1,6 +1,6 @@
 # 🌐 Multi-Network Validation Report
 **Date:** 2026-03-27  
-**Framework:** EnerGIS / Planing Framework for Heat  
+**Framework:** CALION / Planing Framework for Heat  
 **Test Data:** Stadtbach district heating (1-week synthetic)
 
 ---
@@ -279,7 +279,7 @@ Network    Status      Gap    Time    Variables  Constraints
 
 ### 1. Yearly Optimization
 ```bash
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 # Expected: ~30-100 seconds depending on model
 # Generates: LP, MPS, SOL, CSV, JSON
 ```
@@ -318,7 +318,7 @@ python validate_networks_v2.py # Multi-network check (60s)
 ---
 
 **Test Date:** 2026-03-27  
-**Framework Version:** Current (EnerGIS)  
+**Framework Version:** Current (CALION)  
 **Solver:** HiGHS 1.13.1  
 **Test Data:** Stadtbach 1-week synthetic  
 **Validated by:** Automated validation suite

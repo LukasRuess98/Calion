@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from energis.io.loader import load_input_excel
-from energis.utils.xlsx import write_simple_xlsx
+from calion.io.loader import load_input_excel
+from calion.utils.xlsx import write_simple_xlsx
 
 
 def _date_range(start: str, periods: int, freq_hours: int = 1):

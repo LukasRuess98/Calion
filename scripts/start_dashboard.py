@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-EnerGIS Standalone Dashboard
+CALION Standalone Dashboard
 
 Startet ein interaktives Dashboard zur Visualisierung gespeicherter Simulationen.
 
@@ -49,7 +49,7 @@ def setup_logging(debug: bool = False):
 def main():
     """Start the standalone dashboard."""
     parser = argparse.ArgumentParser(
-        description='EnerGIS Standalone Dashboard - Visualisierung gespeicherter Simulationen',
+        description='CALION Standalone Dashboard - Visualisierung gespeicherter Simulationen',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -89,7 +89,7 @@ Examples:
     parser.add_argument(
         '--title',
         type=str,
-        default='EnerGIS Dashboard - Gespeicherte Simulationen',
+        default='CALION Dashboard - Gespeicherte Simulationen',
         help='Dashboard-Titel'
     )
 
@@ -109,14 +109,14 @@ Examples:
 
     # Import dashboard
     try:
-        from energis.io.workflow_browser import create_workflow_browser
+        from calion.io.workflow_browser import create_workflow_browser
     except ImportError as e:
         logger.error(f"FEHLER: Import fehlgeschlagen: {e}")
         logger.error("        Stelle sicher, dass das Skript im Projekt-Root ausgeführt wird")
         sys.exit(1)
 
     # Check workflows directory
-    from energis.io._output_paths import resolve_workflows_dir
+    from calion.io._output_paths import resolve_workflows_dir
     workflows_dir = Path(resolve_workflows_dir(args.dir))
     if not workflows_dir.exists():
         logger.warning(f"WARNUNG: Verzeichnis existiert nicht: {workflows_dir}")
@@ -124,7 +124,7 @@ Examples:
 
     # Print header
     print("\n" + "="*70)
-    print("EnerGIS Standalone Dashboard")
+    print("CALION Standalone Dashboard")
     print("="*70)
     print(f"Workflow-Verzeichnis: {workflows_dir.absolute()}")
     print(f"Port:                 {args.port}")

@@ -1,8 +1,8 @@
-# EnerGIS Config v2.0 - Usage Guide
+# CALION Config v2.0 - Usage Guide
 
 ## Overview
 
-EnerGIS v2.0 introduces a completely redesigned configuration system with:
+CALION v2.0 introduces a completely redesigned configuration system with:
 
 ✅ **Type-Safe Schemas** - Dataclass-based configuration with IDE autocomplete
 ✅ **Unified Asset Model** - No more brownfield/greenfield distinction
@@ -19,7 +19,7 @@ EnerGIS v2.0 introduces a completely redesigned configuration system with:
 ### 1. Basic Usage
 
 ```python
-from energis.config.config_manager import ConfigManager
+from calion.config.config_manager import ConfigManager
 
 # Load and validate configuration
 manager = ConfigManager("configs/scenarios/stadtbach_baseline_2023.yaml")
@@ -38,8 +38,8 @@ manager.print_summary()
 ### 2. Use with Existing Code
 
 ```python
-from energis.config.loader_v2 import load_config_v2
-from energis.models.system_builder import build_model
+from calion.config.loader_v2 import load_config_v2
+from calion.models.system_builder import build_model
 
 # Load new config format
 config = load_config_v2("configs/scenarios/stadtbach_baseline_2023.yaml")
@@ -51,7 +51,7 @@ model = build_model(config, table)
 ### 3. Type-Safe Access
 
 ```python
-from energis.config.schemas import HeatPumpAsset
+from calion.config.schemas import HeatPumpAsset
 
 # Filter components by type
 heat_pumps = {
@@ -237,7 +237,7 @@ heat_pumps:
 Built-in validation checks for:
 
 ```python
-from energis.config.validation import validate_config
+from calion.config.validation import validate_config
 
 # Validate loaded config
 validation_result = validate_config(config)
@@ -268,7 +268,7 @@ All configuration is loaded into type-safe dataclass objects:
 ### Asset Schemas
 
 ```python
-from energis.config.schemas import (
+from calion.config.schemas import (
     AssetCapacity,           # Existing capacity
     ExpansionPotential,      # Investment potential
     ComponentAsset,          # Base class
@@ -289,7 +289,7 @@ print(hp.waste_heat_source['temperature_column'])
 ### Network Schemas
 
 ```python
-from energis.config.schemas import (
+from calion.config.schemas import (
     NetworkNode,             # Node (producer/consumer/junction)
     Pipe,                    # Pipe connection
     Pump,                    # Circulation pump
@@ -306,7 +306,7 @@ for node_id, node in network.nodes.items():
 ### Tech Library Schemas
 
 ```python
-from energis.config.schemas import (
+from calion.config.schemas import (
     HeatPumpTechnology,      # HP technology with COP model
     StorageTechnology,       # Storage technology
     GeneratorTechnology,     # Generator technology
@@ -324,7 +324,7 @@ print(hp_tech.costs.capex_eur_per_mw_th)
 ### Scenario Schemas
 
 ```python
-from energis.config.schemas import (
+from calion.config.schemas import (
     TimeConfig,              # Time horizon
     OptimizationConfig,      # Optimization settings
     EconomicsConfig,         # Economics

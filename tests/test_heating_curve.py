@@ -8,7 +8,7 @@ The heating curve calculates supply temperature based on outdoor temperature:
 """
 
 import pytest
-from energis.models.network_physics import (
+from calion.models.network_physics import (
     calculate_supply_temperature,
     calculate_supply_temperature_series,
     get_heating_curve_parameters,

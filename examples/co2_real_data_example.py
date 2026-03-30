@@ -15,7 +15,7 @@ import pandas as pd
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from energis.analysis import (
+from calion.analysis import (
     analyze_co2_resolution,
     create_comparison_report,
     create_monthly_breakdown,

@@ -1,6 +1,6 @@
 # MILP-Linearisierung: Mathematische Analyse
 
-## Bilineare Terme in EnerGIS
+## Bilineare Terme in CALION
 
 ### Type 1: Konvektion (m_dot × T Produkte)
 
@@ -200,7 +200,7 @@ Wenn $M$ zu groß → Solver-Fehler, Numerik-Instabilität
 | $M = 1e4$ (BIG_M_GRID_MW) | 10000 | ⚠️ Risky |
 | $M = 1e6$ | 1000000 | ❌ Numerically unstable |
 
-**Aktuelles EnerGIS:**
+**Aktuelles CALION:**
 ```python
 BIG_M_GRID_MW = 1e4  # ← Too large! Only used for grid import/export
 M_Q (delay) = max(100, q_nom × 1.2)  # ← Usually < 100, OK

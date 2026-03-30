@@ -1,8 +1,8 @@
-"""Tests for energis.utils.storage_utils — storage modeling utilities."""
+"""Tests for calion.utils.storage_utils — storage modeling utilities."""
 
 import math
 import pytest
-from energis.utils.storage_utils import (
+from calion.utils.storage_utils import (
     calculate_temp_dependent_loss_series,
     calculate_stratification_efficiency_bonus,
     recommend_storage_parameters,

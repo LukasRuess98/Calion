@@ -143,7 +143,7 @@ print(f'Demand: {demand_gwh:.1f} GWh')
 ### 🐛 "Solver gibt Error - was tun?"
 ```bash
 # 1. Error kopieren
-python -m energis.run config.yaml 2>&1 | tail -10
+python -m calion.run config.yaml 2>&1 | tail -10
 
 # 2. Guide öffnen
 code DEBUGGING_GUIDE.md
@@ -166,7 +166,7 @@ python -m pytest tests/ -v
 python -m pytest tests/test_exporter.py -v
 
 # Mit Coverage
-python -m pytest tests/ --cov=energis --cov-report=html
+python -m pytest tests/ --cov=calion --cov-report=html
 ```
 
 ---
@@ -178,7 +178,7 @@ python -m pytest tests/ --cov=energis --cov-report=html
 # Template:
 for price in 30 60 90 120; do
     echo "=== Testing electricity price $price EUR/MWh ==="
-    python -m energis.run config.yaml --override electricity_price=$price
+    python -m calion.run config.yaml --override electricity_price=$price
     python validate_framework.py
 done
 ```
@@ -190,10 +190,10 @@ done
 # Siehe DEBUGGING_GUIDE.md Problem 6
 
 # Speichere Baseline
-python -m energis.run config.yaml > baseline_result.json
+python -m calion.run config.yaml > baseline_result.json
 
 # Nach Code-Änderung
-python -m energis.run config.yaml > current_result.json
+python -m calion.run config.yaml > current_result.json
 
 # Vergleiche
 python -c "
@@ -290,7 +290,7 @@ jobs:
 
 - [ ] VALIDATION_README.md gelesen (10 min)
 - [ ] QA_CHECKLIST.md Phase 1 durchlaufen (5 min)
-- [ ] Erste Optimierung erfolgreich (python -m energis.run)
+- [ ] Erste Optimierung erfolgreich (python -m calion.run)
 - [ ] validate_framework.py ausgeführt (1 min)
 - [ ] VALIDATION_STRATEGIES.md Überblick gelesen (10 min)
 - [ ] DEBUGGING_GUIDE.md durchgeblättert (5 min)

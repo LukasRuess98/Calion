@@ -1,8 +1,8 @@
 # =============================================================================
 # TEST SCENARIO: Smoke Test (3-Node DHN)
 # =============================================================================
-# Self-contained smoke-test for the EnerGIS framework.
-# Run: python -m energis.run configs/scenarios/test_3node_network.yaml
+# Self-contained smoke-test for the CALION framework.
+# Run: python -m calion.run configs/scenarios/test_3node_network.yaml
 #
 # Uses Import_Data.xlsx from the working directory.
 # One Perfect-Foresight solve over the full dataset — typically < 30 s with GLPK.

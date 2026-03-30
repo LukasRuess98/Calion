@@ -1,4 +1,4 @@
-"""Pydantic-specific tests for EnerGIS config schemas.
+"""Pydantic-specific tests for CALION config schemas.
 
 Tests that validate the new Pydantic constraints:
 - Field(ge=0) bounds on capacities and costs
@@ -11,9 +11,9 @@ Tests that validate the new Pydantic constraints:
 import pytest
 from pydantic import ValidationError
 
-from energis.config.schemas.asset_schema import AssetCapacity, ExpansionPotential
-from energis.config.schemas.network_schema import Pump
-from energis.config.schemas.scenario_schema import OptimizationConfig, SolverConfig
+from calion.config.schemas.asset_schema import AssetCapacity, ExpansionPotential
+from calion.config.schemas.network_schema import Pump
+from calion.config.schemas.scenario_schema import OptimizationConfig, SolverConfig
 
 
 # ---------------------------------------------------------------------------

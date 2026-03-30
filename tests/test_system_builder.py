@@ -10,9 +10,9 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     HAVE_PYOMO = False
 
-from energis.models.system_builder import build_model
-from energis.run.rolling_horizon import _collect_timeseries_and_summary
-from energis.utils.timeseries import TimeSeriesTable
+from calion.models.system_builder import build_model
+from calion.run.rolling_horizon import _collect_timeseries_and_summary
+from calion.utils.timeseries import TimeSeriesTable
 
 
 def _table(hours: int, prices: list[float] | None = None, heat: list[float] | None = None) -> TimeSeriesTable:

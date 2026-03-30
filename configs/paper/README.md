@@ -80,12 +80,12 @@ The magnitude of the gaps is the central result of the paper.
 
 ```bash
 # Baseline runs (one per level)
-python -m energis run --config configs/paper/L1_copperplate.yaml --output outputs/paper/L1/
-python -m energis run --config configs/paper/L2_5node.yaml       --output outputs/paper/L2/
-python -m energis run --config configs/paper/L3_30node.yaml      --output outputs/paper/L3/
+python -m calion run --config configs/paper/L1_copperplate.yaml --output outputs/paper/L1/
+python -m calion run --config configs/paper/L2_5node.yaml       --output outputs/paper/L2/
+python -m calion run --config configs/paper/L3_30node.yaml      --output outputs/paper/L3/
 
 # Sensitivity runs (7 parameters × 3 levels — use benchmark script)
-python -m energis sensitivity --config configs/paper/L1_copperplate.yaml --output outputs/paper/sensitivity/L1/
-python -m energis sensitivity --config configs/paper/L2_5node.yaml       --output outputs/paper/sensitivity/L2/
-python -m energis sensitivity --config configs/paper/L3_30node.yaml      --output outputs/paper/sensitivity/L3/
+python -m calion sensitivity --config configs/paper/L1_copperplate.yaml --output outputs/paper/sensitivity/L1/
+python -m calion sensitivity --config configs/paper/L2_5node.yaml       --output outputs/paper/sensitivity/L2/
+python -m calion sensitivity --config configs/paper/L3_30node.yaml      --output outputs/paper/sensitivity/L3/
 ```

@@ -80,7 +80,7 @@ Q_loss = U_top × A_top × (T_hot - T_ambient) +
 ### Grundlegendes Beispiel
 
 ```python
-from energis.models.blocks.stratified_storage import StratifiedStorageBlock
+from calion.models.blocks.stratified_storage import StratifiedStorageBlock
 
 # Fernwärme-Pufferspeicher
 storage = StratifiedStorageBlock(
@@ -329,6 +329,6 @@ Siehe:
 ## Referenzen
 
 Weitere Informationen zur Implementierung:
-- `energis/models/blocks/stratified_storage.py` - Hauptimplementierung
-- `energis/models/blocks/storage.py` - Einfaches Speichermodell (Vergleich)
+- `calion/models/blocks/stratified_storage.py` - Hauptimplementierung
+- `calion/models/blocks/storage.py` - Einfaches Speichermodell (Vergleich)
 - `examples/custom_component_example.py` - Component Registry Pattern

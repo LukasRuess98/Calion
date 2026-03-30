@@ -1,8 +1,8 @@
-"""Tests for energis.design — OptimizationConfig loading, extraction, and legacy DesignSpec."""
+"""Tests for calion.design — OptimizationConfig loading, extraction, and legacy DesignSpec."""
 
 import pytest
 
-from energis.design import (
+from calion.design import (
     DesignSpec,
     FixedValues,
     HeatPumpDesign,

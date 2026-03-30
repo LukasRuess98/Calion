@@ -1,17 +1,17 @@
-"""Tests for energis.run.utilities.timeseries_utils."""
+"""Tests for calion.run.utilities.timeseries_utils."""
 
 from datetime import datetime, timedelta
 
 import pytest
 
-from energis.run.utilities.timeseries_utils import (
+from calion.run.utilities.timeseries_utils import (
     _apply_horizon,
     _hours_to_steps,
     _parse_ts,
     _slice_table,
     _slugify,
 )
-from energis.utils.timeseries import TimeSeriesTable
+from calion.utils.timeseries import TimeSeriesTable
 
 
 # ---------------------------------------------------------------------------

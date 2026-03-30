@@ -1,4 +1,4 @@
-# EnerGIS v2.0 Architecture
+# CALION v2.0 Architecture
 
 **Version:** 2.0.0-alpha
 **Status:** Implementation in progress
@@ -9,7 +9,7 @@
 ## Architecture Overview
 
 ```
-energis/models/
+calion/models/
 ├── component.py          # Core abstractions (Protocol, BaseComponent, Flow)
 ├── bus.py               # Bus abstraction for flow management
 ├── registry.py          # ComponentRegistry for plugin architecture
@@ -273,7 +273,7 @@ All components return:
 
 ## Comparison with Oemof/PyPSA
 
-| Feature | EnerGIS v1.0 | EnerGIS v2.0 | Oemof.solph | PyPSA |
+| Feature | CALION v1.0 | CALION v2.0 | Oemof.solph | PyPSA |
 |---------|-------------|-------------|-------------|-------|
 | **Component Abstraction** | ❌ Duck typing | ✅ Protocol + Base | ✅ Node hierarchy | ✅ DataFrame-based |
 | **Bus Modeling** | ❌ Lists | ✅ Objects | ✅ Bus class | ✅ Bus DataFrame |
@@ -414,7 +414,7 @@ heat_bus.add_output(Q)
 **Decision:** Keep minimal dependencies
 
 **Rationale:**
-- EnerGIS goal: lightweight framework
+- CALION goal: lightweight framework
 - Pandas adds ~100MB dependency
 - Custom TimeSeriesTable is sufficient
 

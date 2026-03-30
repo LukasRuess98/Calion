@@ -1,10 +1,10 @@
 # Technical Methodology
 
-This document provides a detailed description of the mathematical model formulation implemented in EnerGIS.
+This document provides a detailed description of the mathematical model formulation implemented in CALION.
 
 ## 1. Model Overview
 
-EnerGIS implements a Mixed-Integer Linear Program (MILP) for optimal planning and operation of district heating systems. The model simultaneously optimizes:
+CALION implements a Mixed-Integer Linear Program (MILP) for the joint investment planning and operational optimization of electrified industrial heating systems. The model simultaneously optimizes:
 
 - **Operational decisions**: Hourly dispatch of all generation units, storage operation, grid exchange
 - **Investment decisions**: Optimal sizing of heat pumps, thermal storage, and other components

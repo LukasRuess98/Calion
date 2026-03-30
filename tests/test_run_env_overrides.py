@@ -1,10 +1,10 @@
-"""Tests for energis.run.utilities.env_overrides."""
+"""Tests for calion.run.utilities.env_overrides."""
 
 import argparse
 
 import pytest
 
-from energis.run.utilities.env_overrides import (
+from calion.run.utilities.env_overrides import (
     _env_bool,
     _env_float,
     _env_str,

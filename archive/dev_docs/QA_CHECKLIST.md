@@ -56,12 +56,12 @@ print('Input file:', cfg.get('settings', {}).get('input_data', 'NOT SET'))
 - [ ] Alle Dependencies installiert:
   ```bash
   pip install -r requirements.txt
-  python -m pip list | grep -E "pyomo|energis|highs"
+  python -m pip list | grep -E "pyomo|calion|highs"
   ```
 - [ ] HiGHS Solver funktioniert:
   ```bash
   python -c "from pyomo.environ import *; print('✅ Pyomo OK')"
-  python -m energis.run --version 2>&1 | head -1
+  python -m calion.run --version 2>&1 | head -1
   ```
 - [ ] Output-Verzeichnis leer/ready:
   ```bash
@@ -84,7 +84,7 @@ print('Input file:', cfg.get('settings', {}).get('input_data', 'NOT SET'))
 **Command zur Überwachung:**
 ```bash
 # Terminal 1:
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 
 # Terminal 2 (in parallel):
 while true; do
@@ -321,7 +321,7 @@ echo "=== Optimization für $MONTH ==="
 cp data/Import_Data_$MONTH.csv data/Import_Data_current.csv
 
 # 2. Run optimization
-python -m energis.run configs/scenarios/stadtbach_$MONTH.yaml
+python -m calion.run configs/scenarios/stadtbach_$MONTH.yaml
 
 # 3. Validate
 python validate_framework.py
@@ -364,7 +364,7 @@ python compare_results.py reports/report_$(date +%Y%m -d "last month").md \
 → HiGHS Docs: https://github.com/ERGO-Code/HiGHS
 
 **Energy Model Fragen:**
-→ EnerGIS Docs: docs/API_REFERENCE.rst
+→ CALION Docs: docs/API_REFERENCE.rst
 
 **Data Issues:**
 → Check: data/DATA_FORMAT.md
