@@ -1,0 +1,20 @@
+{
+  "scenario_title": "Workflow",
+  "run_mode": "PF_ONLY",
+  "workflow_steps": [
+    "PF"
+  ],
+  "flags": {
+    "has_pf": true,
+    "has_rh": false,
+    "has_mpc": false,
+    "has_design": true
+  },
+  "export_timestamp": "20260328_201617",
+  "slug": "PF_ONLY-Workflow",
+  "output_directory": "outputs/paper/L1",
+  "files": {
+    "scenario_xlsx": "scenario.xlsx",
+    "pf_design_json": "pf_design.json"
+  }
+}

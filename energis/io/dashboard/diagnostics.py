@@ -9,7 +9,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-logger = logging.getLogger(__name__)
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
@@ -168,24 +170,33 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     diagnosis : dict
         Diagnostic results from diagnose_workflow()
     """
-    print(f"\nDashboard Diagnosis:")
-    print(f"  Available Results: PF={diagnosis.get('has_pf', False)}, "
-          f"RH={diagnosis.get('has_rh', False)}, MPC={diagnosis.get('has_mpc', False)}")
-    print(f"  Primary Result: {diagnosis['primary_result_type']}")
-    print(f"  ✓ Timeseries: {diagnosis['series_count']} series" if diagnosis['has_timeseries']
-          else f"  ✗ Timeseries: No data")
-    print(f"  ✓ Costs: {diagnosis['cost_entries']} entries" if diagnosis['has_costs']
-          else f"  ✗ Costs: No data")
-    print(f"  ✓ Design: {diagnosis['design_components']} components" if diagnosis['has_design']
-          else f"  ✗ Design: No data")
+    logger.info(f"\nDashboard Diagnosis:")
+    logger.info(
+        "  Available Results: PF=%s, RH=%s, MPC=%s",
+        diagnosis.get("has_pf", False),
+        diagnosis.get("has_rh", False),
+        diagnosis.get("has_mpc", False),
+    )
+    logger.info(f"  Primary Result: {diagnosis['primary_result_type']}")
+    logger.info(
+        "  [OK] Timeseries: %d series" if diagnosis["has_timeseries"] else "  [!!] Timeseries: No data",
+        *([diagnosis["series_count"]] if diagnosis["has_timeseries"] else []),
+    )
+    logger.info(
+        "  [OK] Costs: %d entries" if diagnosis["has_costs"] else "  [!!] Costs: No data",
+        *([diagnosis["cost_entries"]] if diagnosis["has_costs"] else []),
+    )
+    logger.info(
+        "  [OK] Design: %d components" if diagnosis["has_design"] else "  [!!] Design: No data",
+        *([diagnosis["design_components"]] if diagnosis["has_design"] else []),
+    )
 
     if diagnosis['issues']:
-        print(f"\nWARNUNG: Issues found:")
+        logger.info(f"\nWARNING: Issues found:")
         for issue in diagnosis['issues']:
-            print(f"         • {issue}")
+            logger.info(f"         • {issue}")
 
     if diagnosis['recommendations']:
-        print(f"\nHINWEIS: Recommendations:")
+        logger.info(f"\nHINWEIS: Recommendations:")
         for rec in diagnosis['recommendations']:
-            print(f"         • {rec}")
-    print()
+            logger.info(f"         • {rec}")

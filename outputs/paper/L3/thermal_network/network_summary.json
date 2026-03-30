@@ -1,0 +1,516 @@
+{
+  "nodes": {
+    "plant_main": {
+      "type": "producer",
+      "name": "plant_main"
+    },
+    "j_central": {
+      "type": "junction",
+      "name": "j_central",
+      "T_supply_avg": 90.0
+    },
+    "j_north": {
+      "type": "junction",
+      "name": "j_north",
+      "T_supply_avg": 90.0
+    },
+    "j_south": {
+      "type": "junction",
+      "name": "j_south",
+      "T_supply_avg": 90.0
+    },
+    "j_east": {
+      "type": "junction",
+      "name": "j_east",
+      "T_supply_avg": 90.0
+    },
+    "j_west": {
+      "type": "junction",
+      "name": "j_west",
+      "T_supply_avg": 90.0
+    },
+    "zone_01": {
+      "type": "consumer",
+      "name": "zone_01",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_02": {
+      "type": "consumer",
+      "name": "zone_02",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_03": {
+      "type": "consumer",
+      "name": "zone_03",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_04": {
+      "type": "consumer",
+      "name": "zone_04",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_05": {
+      "type": "consumer",
+      "name": "zone_05",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_06": {
+      "type": "consumer",
+      "name": "zone_06",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_07": {
+      "type": "consumer",
+      "name": "zone_07",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_08": {
+      "type": "consumer",
+      "name": "zone_08",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_09": {
+      "type": "consumer",
+      "name": "zone_09",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_10": {
+      "type": "consumer",
+      "name": "zone_10",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_11": {
+      "type": "consumer",
+      "name": "zone_11",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_12": {
+      "type": "consumer",
+      "name": "zone_12",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_13": {
+      "type": "consumer",
+      "name": "zone_13",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_14": {
+      "type": "consumer",
+      "name": "zone_14",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_15": {
+      "type": "consumer",
+      "name": "zone_15",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_16": {
+      "type": "consumer",
+      "name": "zone_16",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_17": {
+      "type": "consumer",
+      "name": "zone_17",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_18": {
+      "type": "consumer",
+      "name": "zone_18",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_19": {
+      "type": "consumer",
+      "name": "zone_19",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_20": {
+      "type": "consumer",
+      "name": "zone_20",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_21": {
+      "type": "consumer",
+      "name": "zone_21",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_22": {
+      "type": "consumer",
+      "name": "zone_22",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    },
+    "zone_23": {
+      "type": "consumer",
+      "name": "zone_23",
+      "T_supply_avg": 90.0,
+      "T_return_avg": 55.0
+    }
+  },
+  "pipes": {
+    "plant_to_central": {
+      "from_node": "plant_main",
+      "to_node": "j_central",
+      "length_m": 500.0,
+      "m_dot_avg": 403.6134547129259,
+      "m_dot_max": 518.4103245388326,
+      "delta_p_avg": 0.8679884035352072,
+      "delta_p_max": 1.5636349855486458,
+      "velocity_avg": 1.615539369648383,
+      "velocity_max": 2.0750356043516147,
+      "total_heat_loss_mwh": 85.72961777016697
+    },
+    "central_to_north": {
+      "from_node": "j_central",
+      "to_node": "j_north",
+      "length_m": 800.0,
+      "m_dot_avg": 92.83109458397294,
+      "m_dot_max": 119.23437464393147,
+      "delta_p_avg": 0.8909940430252221,
+      "delta_p_max": 1.3563419496616378,
+      "velocity_avg": 0.8360416237930381,
+      "velocity_max": 1.0738309252519602,
+      "total_heat_loss_mwh": 137.16738843226716
+    },
+    "central_to_south": {
+      "from_node": "j_central",
+      "to_node": "j_south",
+      "length_m": 1000.0,
+      "m_dot_avg": 104.93949822536072,
+      "m_dot_max": 134.78668438009646,
+      "delta_p_avg": 1.25676932346317,
+      "delta_p_max": 1.6142231762575725,
+      "velocity_avg": 0.945090531244304,
+      "velocity_max": 1.2138958285456944,
+      "total_heat_loss_mwh": 171.45923554033394
+    },
+    "central_to_east": {
+      "from_node": "j_central",
+      "to_node": "j_east",
+      "length_m": 600.0,
+      "m_dot_avg": 100.90336367823147,
+      "m_dot_max": 129.60258113470812,
+      "delta_p_avg": 1.08230414938295,
+      "delta_p_max": 1.390136128465817,
+      "velocity_avg": 1.1869268838233018,
+      "velocity_max": 1.5245159542175126,
+      "total_heat_loss_mwh": 102.87554132420037
+    },
+    "central_to_west": {
+      "from_node": "j_central",
+      "to_node": "j_west",
+      "length_m": 700.0,
+      "m_dot_avg": 104.93949822536072,
+      "m_dot_max": 134.78668438009646,
+      "delta_p_avg": 1.313195701251313,
+      "delta_p_max": 1.686698502538525,
+      "velocity_avg": 1.234403959176234,
+      "velocity_max": 1.5854965923862134,
+      "total_heat_loss_mwh": 120.02146487823376
+    },
+    "north_to_z01": {
+      "from_node": "j_north",
+      "to_node": "zone_01",
+      "length_m": 300.0,
+      "m_dot_avg": 24.21680728277555,
+      "m_dot_max": 31.104619472329947,
+      "delta_p_avg": 0.47546536212693025,
+      "delta_p_max": 1.0170514459332338,
+      "velocity_avg": 0.8723912596101266,
+      "velocity_max": 1.1205192263498716,
+      "total_heat_loss_mwh": 51.437770662100185
+    },
+    "north_to_z02": {
+      "from_node": "j_north",
+      "to_node": "zone_02",
+      "length_m": 450.0,
+      "m_dot_avg": 20.180672735646297,
+      "m_dot_max": 25.920516226941626,
+      "delta_p_avg": 0.5779955261353247,
+      "delta_p_max": 1.5193752347291842,
+      "velocity_avg": 0.7269927163417723,
+      "velocity_max": 0.9337660219582263,
+      "total_heat_loss_mwh": 77.15665599315028
+    },
+    "north_to_z03": {
+      "from_node": "j_north",
+      "to_node": "zone_03",
+      "length_m": 600.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.886899583805653,
+      "delta_p_max": 2.825580397414965,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 102.87554132420037
+    },
+    "north_to_z04": {
+      "from_node": "j_north",
+      "to_node": "zone_04",
+      "length_m": 500.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.4130327491931527,
+      "delta_p_max": 2.354650331179138,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 85.72961777016697
+    },
+    "north_to_z05": {
+      "from_node": "j_north",
+      "to_node": "zone_05",
+      "length_m": 700.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 2.0407094894311983,
+      "delta_p_max": 3.2965104636507925,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 120.02146487823376
+    },
+    "south_to_z06": {
+      "from_node": "j_south",
+      "to_node": "zone_06",
+      "length_m": 400.0,
+      "m_dot_avg": 24.21680728277555,
+      "m_dot_max": 31.104619472329947,
+      "delta_p_avg": 0.4996937134733315,
+      "delta_p_max": 1.356068594577645,
+      "velocity_avg": 0.8723912596101266,
+      "velocity_max": 1.1205192263498716,
+      "total_heat_loss_mwh": 68.58369421613358
+    },
+    "south_to_z07": {
+      "from_node": "j_south",
+      "to_node": "zone_07",
+      "length_m": 350.0,
+      "m_dot_avg": 20.180672735646297,
+      "m_dot_max": 25.920516226941626,
+      "delta_p_avg": 0.35023633495709017,
+      "delta_p_max": 1.1817362936782547,
+      "velocity_avg": 0.7269927163417723,
+      "velocity_max": 0.9337660219582263,
+      "total_heat_loss_mwh": 60.01073243911688
+    },
+    "south_to_z08": {
+      "from_node": "j_south",
+      "to_node": "zone_08",
+      "length_m": 500.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.4230772721278446,
+      "delta_p_max": 2.354650331179138,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 85.72961777016697
+    },
+    "south_to_z09": {
+      "from_node": "j_south",
+      "to_node": "zone_09",
+      "length_m": 600.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.8869651893278667,
+      "delta_p_max": 2.825580397414965,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 102.87554132420037
+    },
+    "south_to_z10": {
+      "from_node": "j_south",
+      "to_node": "zone_10",
+      "length_m": 450.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.3963439352138303,
+      "delta_p_max": 2.119185298061223,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 77.15665599315028
+    },
+    "south_to_z11": {
+      "from_node": "j_south",
+      "to_node": "zone_11",
+      "length_m": 550.0,
+      "m_dot_avg": 12.108403641387776,
+      "m_dot_max": 15.552309736164974,
+      "delta_p_avg": 1.12012365630986,
+      "delta_p_max": 2.480734215185117,
+      "velocity_avg": 0.7754588974312238,
+      "velocity_max": 0.9960170900887748,
+      "total_heat_loss_mwh": 94.30257954718367
+    },
+    "east_to_z12": {
+      "from_node": "j_east",
+      "to_node": "zone_12",
+      "length_m": 250.0,
+      "m_dot_avg": 24.21680728277555,
+      "m_dot_max": 31.104619472329947,
+      "delta_p_avg": 0.5788909302214171,
+      "delta_p_max": 0.8424435586780991,
+      "velocity_avg": 0.8723912596101266,
+      "velocity_max": 1.1205192263498716,
+      "total_heat_loss_mwh": 42.864808885083484
+    },
+    "east_to_z13": {
+      "from_node": "j_east",
+      "to_node": "zone_13",
+      "length_m": 400.0,
+      "m_dot_avg": 20.180672735646297,
+      "m_dot_max": 25.920516226941626,
+      "delta_p_avg": 0.3869149900772343,
+      "delta_p_max": 1.3505557642037194,
+      "velocity_avg": 0.7269927163417723,
+      "velocity_max": 0.9337660219582263,
+      "total_heat_loss_mwh": 68.58369421613358
+    },
+    "east_to_z14": {
+      "from_node": "j_east",
+      "to_node": "zone_14",
+      "length_m": 350.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.223446200058945,
+      "delta_p_max": 1.6482552318253962,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 60.01073243911688
+    },
+    "east_to_z15": {
+      "from_node": "j_east",
+      "to_node": "zone_15",
+      "length_m": 500.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.4239297175130223,
+      "delta_p_max": 2.354650331179138,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 85.72961777016697
+    },
+    "east_to_z16": {
+      "from_node": "j_east",
+      "to_node": "zone_16",
+      "length_m": 600.0,
+      "m_dot_avg": 12.108403641387776,
+      "m_dot_max": 15.552309736164974,
+      "delta_p_avg": 0.8163328567950116,
+      "delta_p_max": 2.7062555074746726,
+      "velocity_avg": 0.7754588974312238,
+      "velocity_max": 0.9960170900887748,
+      "total_heat_loss_mwh": 102.87554132420037
+    },
+    "east_to_z17": {
+      "from_node": "j_east",
+      "to_node": "zone_17",
+      "length_m": 450.0,
+      "m_dot_avg": 12.108403641387776,
+      "m_dot_max": 15.552309736164974,
+      "delta_p_avg": 0.7501709995963857,
+      "delta_p_max": 2.029691630606005,
+      "velocity_avg": 0.7754588974312238,
+      "velocity_max": 0.9960170900887748,
+      "total_heat_loss_mwh": 77.15665599315028
+    },
+    "west_to_z18": {
+      "from_node": "j_west",
+      "to_node": "zone_18",
+      "length_m": 300.0,
+      "m_dot_avg": 24.21680728277555,
+      "m_dot_max": 31.104619472329947,
+      "delta_p_avg": 0.4773279008007362,
+      "delta_p_max": 1.0170514459332338,
+      "velocity_avg": 0.8723912596101266,
+      "velocity_max": 1.1205192263498716,
+      "total_heat_loss_mwh": 51.437770662100185
+    },
+    "west_to_z19": {
+      "from_node": "j_west",
+      "to_node": "zone_19",
+      "length_m": 400.0,
+      "m_dot_avg": 20.180672735646297,
+      "m_dot_max": 25.920516226941626,
+      "delta_p_avg": 0.36588855969874473,
+      "delta_p_max": 1.3505557642037194,
+      "velocity_avg": 0.7269927163417723,
+      "velocity_max": 0.9337660219582263,
+      "total_heat_loss_mwh": 68.58369421613358
+    },
+    "west_to_z20": {
+      "from_node": "j_west",
+      "to_node": "zone_20",
+      "length_m": 350.0,
+      "m_dot_avg": 20.180672735646297,
+      "m_dot_max": 25.920516226941626,
+      "delta_p_avg": 1.5618651610802279,
+      "delta_p_max": 2.0603190397817452,
+      "velocity_avg": 1.2924314957187064,
+      "velocity_max": 1.6600284834812917,
+      "total_heat_loss_mwh": 60.01073243911688
+    },
+    "west_to_z21": {
+      "from_node": "j_west",
+      "to_node": "zone_21",
+      "length_m": 500.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.4178999378809527,
+      "delta_p_max": 2.354650331179138,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 85.72961777016697
+    },
+    "west_to_z22": {
+      "from_node": "j_west",
+      "to_node": "zone_22",
+      "length_m": 550.0,
+      "m_dot_avg": 16.144538188517036,
+      "m_dot_max": 20.7364129815533,
+      "delta_p_avg": 1.4057693492400603,
+      "delta_p_max": 2.590115364297051,
+      "velocity_avg": 1.033945196574965,
+      "velocity_max": 1.3280227867850334,
+      "total_heat_loss_mwh": 94.30257954718367
+    },
+    "west_to_z23": {
+      "from_node": "j_west",
+      "to_node": "zone_23",
+      "length_m": 600.0,
+      "m_dot_avg": 8.072269094258518,
+      "m_dot_max": 10.36820649077665,
+      "delta_p_avg": 0.491299623946783,
+      "delta_p_max": 2.40174333780272,
+      "velocity_avg": 0.5169725982874825,
+      "velocity_max": 0.6640113933925167,
+      "total_heat_loss_mwh": 102.87554132420037
+    }
+  },
+  "network": {
+    "total_network_loss_mwh": 2443.2941064497586,
+    "avg_network_loss_mw": 0.2796811019287727,
+    "total_pipe_length_m": 14250.0,
+    "num_nodes": 29,
+    "num_pipes": 28
+  }
+}

@@ -1,0 +1,370 @@
+# =============================================================================
+# STADTBACH - THERMAL NETWORK TOPOLOGY
+# =============================================================================
+# Multi-node district heating network with nodes, pipes, and connections
+# Enables detailed hydraulic and thermal modeling
+# =============================================================================
+
+networks:
+  # ===========================================================================
+  # PRIMARY DISTRICT HEATING NETWORK (High Temperature)
+  # ===========================================================================
+  DH_primary:
+    description: "Main district heating network - high temperature (90-120°C)"
+    type: district_heating
+    temperature_level: high
+
+    # Operating temperatures
+    temperatures:
+      supply_bounds_c: [90, 130]            # Supply temperature range
+      return_bounds_c: [40, 70]             # Return temperature range
+      design_supply_c: 110                  # Design condition (winter peak)
+      design_return_c: 55
+
+    # Fluid properties
+    fluid: water                            # Reference to tech_library/fluids.yaml
+
+    # Heating curve (outdoor-dependent supply temperature)
+    heating_curve:
+      enabled: true
+      outdoor_temp_column: "T_outdoor_C"    # From time series
+      model: linear                         # Linear heating curve
+
+      # Parameters
+      supply_temp_at_outdoor_high_c: 90     # Supply at +15°C outdoor
+      supply_temp_at_outdoor_low_c: 120     # Supply at -10°C outdoor
+      outdoor_temp_high_c: 15               # Outdoor temp for min supply
+      outdoor_temp_low_c: -10               # Outdoor temp for max supply
+
+    # ===========================================================================
+    # NETWORK NODES
+    # ===========================================================================
+    nodes:
+      # -------------------------------------------------------------------------
+      # CENTRAL PLANT (Producer Node)
+      # -------------------------------------------------------------------------
+      central_plant:
+        type: producer
+        description: "Central heating plant with all generation assets"
+
+        location:
+          lat: 48.1234
+          lon: 11.5678
+          elevation_m: 520
+
+        # Components connected to this node
+        components:
+          # CHP plants
+          - HKW
+          - GTOST
+          - BMHKW
+          # Boilers
+          - HWS
+          - HWW
+          # Other
+          - P2H1
+          - AVA
+          # Heat pumps (if built)
+          - HP1
+          - HP2
+          - HP3
+          - HP4
+          # Storage
+          - TES1
+
+        # Node pressure setpoint
+        pressure:
+          setpoint_bar: 10.0                # Maintain 10 bar at plant
+          min_bar: 8.0
+          max_bar: 12.0
+
+      # -------------------------------------------------------------------------
+      # CONSUMER NODES
+      # -------------------------------------------------------------------------
+      stadtbach_north:
+        type: consumer
+        description: "North district - residential area"
+
+        location:
+          lat: 48.1456
+          lon: 11.5712
+          elevation_m: 515
+
+        # Heat demand
+        demand:
+          demand_column: "demand_north_MW"  # From time series
+          peak_demand_mw: 60.0              # Design peak load
+          annual_demand_mwh: 180000         # ~3000 full-load hours
+
+        # Substation parameters
+        substation:
+          type: indirect                    # Heat exchanger
+          primary_delta_t_k: 30             # ΔT on DH side
+          secondary_temp_supply_c: 75       # Building system supply
+          secondary_temp_return_c: 45
+
+        pressure:
+          min_required_bar: 2.0             # Minimum for substation operation
+
+      stadtbach_west:
+        type: consumer
+        description: "West district - mixed residential/commercial"
+
+        location:
+          lat: 48.1289
+          lon: 11.5534
+          elevation_m: 518
+
+        demand:
+          demand_column: "demand_west_MW"
+          peak_demand_mw: 80.0
+          annual_demand_mwh: 240000
+
+        substation:
+          type: indirect
+          primary_delta_t_k: 35
+          secondary_temp_supply_c: 70
+          secondary_temp_return_c: 40
+
+        pressure:
+          min_required_bar: 2.0
+
+      stadtbach_east:
+        type: consumer
+        description: "East district - residential"
+
+        location:
+          lat: 48.1298
+          lon: 11.5845
+          elevation_m: 522
+
+        demand:
+          demand_column: "demand_east_MW"
+          peak_demand_mw: 50.0
+          annual_demand_mwh: 150000
+
+        substation:
+          type: indirect
+          primary_delta_t_k: 30
+          secondary_temp_supply_c: 75
+          secondary_temp_return_c: 50
+
+        pressure:
+          min_required_bar: 2.0
+
+      industrial_zone:
+        type: consumer
+        description: "Industrial consumers - process heat"
+
+        location:
+          lat: 48.1178
+          lon: 11.5723
+          elevation_m: 525
+
+        demand:
+          demand_column: "demand_industrial_MW"
+          peak_demand_mw: 40.0
+          annual_demand_mwh: 280000         # Higher full-load hours
+
+        substation:
+          type: direct                      # Direct connection
+          primary_delta_t_k: 40
+
+        pressure:
+          min_required_bar: 3.0             # Higher for industrial
+
+      # -------------------------------------------------------------------------
+      # JUNCTION NODES (Pure distribution)
+      # -------------------------------------------------------------------------
+      junction_1:
+        type: junction
+        description: "Main distribution junction"
+
+        location:
+          lat: 48.1334
+          lon: 11.5689
+          elevation_m: 519
+
+        pressure:
+          min_bar: 4.0
+
+      junction_2:
+        type: junction
+        description: "East distribution junction"
+
+        location:
+          lat: 48.1312
+          lon: 11.5756
+          elevation_m: 520
+
+        pressure:
+          min_bar: 4.0
+
+    # ===========================================================================
+    # PIPES (Connections between nodes)
+    # ===========================================================================
+    pipes:
+      # -------------------------------------------------------------------------
+      # FROM CENTRAL PLANT
+      # -------------------------------------------------------------------------
+      pipe_plant_to_junction1:
+        description: "Main pipe: Plant → Junction 1"
+        from_node: central_plant
+        to_node: junction_1
+
+        # Geometry
+        length_m: 1200
+        diameter_mm: 400                    # DN400
+        burial_depth_m: 1.2
+        insulation: standard_insulated      # Reference to tech_library/pipes.yaml
+
+        # Existing pipe
+        existing:
+          installed: true
+          commissioning_year: 2010
+
+        expansion:
+          enabled: false                    # Cannot change existing
+
+      pipe_plant_to_industrial:
+        description: "Direct connection: Plant → Industrial"
+        from_node: central_plant
+        to_node: industrial_zone
+
+        length_m: 800
+        diameter_mm: 250                    # DN250
+        burial_depth_m: 1.0
+        insulation: standard_insulated
+
+        existing:
+          installed: true
+          commissioning_year: 2015
+
+        expansion:
+          enabled: false
+
+      # -------------------------------------------------------------------------
+      # FROM JUNCTION 1
+      # -------------------------------------------------------------------------
+      pipe_junction1_to_north:
+        description: "Junction 1 → North district"
+        from_node: junction_1
+        to_node: stadtbach_north
+
+        length_m: 2500
+        diameter_mm: 350                    # DN350
+        burial_depth_m: 1.3
+        insulation: standard_insulated
+
+        existing:
+          installed: true
+          commissioning_year: 2008
+
+        expansion:
+          enabled: false
+
+      pipe_junction1_to_west:
+        description: "Junction 1 → West district"
+        from_node: junction_1
+        to_node: stadtbach_west
+
+        length_m: 1800
+        diameter_mm: 400                    # DN400 (large consumer)
+        burial_depth_m: 1.2
+        insulation: standard_insulated
+
+        existing:
+          installed: true
+          commissioning_year: 2008
+
+        expansion:
+          enabled: false
+
+      pipe_junction1_to_junction2:
+        description: "Junction 1 → Junction 2 (distribution)"
+        from_node: junction_1
+        to_node: junction_2
+
+        length_m: 900
+        diameter_mm: 300                    # DN300
+        burial_depth_m: 1.1
+        insulation: standard_insulated
+
+        existing:
+          installed: true
+          commissioning_year: 2012
+
+        expansion:
+          enabled: false
+
+      # -------------------------------------------------------------------------
+      # FROM JUNCTION 2
+      # -------------------------------------------------------------------------
+      pipe_junction2_to_east:
+        description: "Junction 2 → East district"
+        from_node: junction_2
+        to_node: stadtbach_east
+
+        length_m: 1500
+        diameter_mm: 300                    # DN300
+        burial_depth_m: 1.2
+        insulation: standard_insulated
+
+        existing:
+          installed: true
+          commissioning_year: 2012
+
+        expansion:
+          enabled: false
+
+    # ===========================================================================
+    # CIRCULATION PUMPS
+    # ===========================================================================
+    pumps:
+      main_circulation:
+        description: "Main circulation pump at central plant"
+        node: central_plant
+
+        # Pump characteristics
+        rated_pressure_rise_bar: 8.0        # Pressure boost
+        rated_flow_m3_h: 500                # Rated volumetric flow
+
+        # Pump curve (quadratic)
+        # ΔP = a + b*Q + c*Q²
+        pump_curve:
+          a_bar: 10.0
+          b_bar_per_m3h: -0.015
+          c_bar_per_m3h2: -0.00002
+
+        # Efficiency
+        efficiency:
+          design_point: 0.85                # 85% at design point
+          eta_curve_type: quadratic
+
+        # Existing pump
+        existing:
+          installed: true
+          rated_power_kw: 45
+
+        expansion:
+          enabled: false
+
+    # ===========================================================================
+    # BACKWARD COMPATIBILITY (Simplified Brownfield Model)
+    # ===========================================================================
+    brownfield_simplified_model:
+      enabled: false                        # Use detailed multi-node model
+
+      # If enabled: Use old single-bus approximation
+      simplified_params:
+        total_network_length_m: 10000       # Approximate total length
+        average_diameter_mm: 350
+        temp_drop_per_km_c: 0.8             # Simplified temp loss
+        total_loss_bounds_mw: [0, 50]
+        loss_model: demand_proportional     # Proportional to demand
+        reference_heat_load_mw: 230         # Reference load for losses
+
+# ===========================================================================
+# SECONDARY NETWORK (Future expansion - low temperature)
+# ===========================================================================
+# (Not yet implemented - placeholder for future multi-level networks)

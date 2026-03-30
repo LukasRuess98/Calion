@@ -10,6 +10,8 @@ from typing import List
 import pytest
 
 from energis.run import rolling_horizon as rh
+from energis.run import workflow as _wf
+from energis.run import rh_engine as _rhe
 from energis.utils.timeseries import TimeSeriesTable
 
 
@@ -78,8 +80,9 @@ def test_pf_only_workflow(monkeypatch: pytest.MonkeyPatch, simple_config: dict) 
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "load_input_excel", fake_loader)
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "load_input_excel", fake_loader)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -100,7 +103,7 @@ def test_rh_only_workflow_aggregates(monkeypatch: pytest.MonkeyPatch, simple_con
 
     table = _make_table(5)
 
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     window_series = [
         OrderedDict({"TES_SOC_MWh": [0.0, 1.0, 2.0, 3.0], "P_buy_MW": [1.0, 1.0, 1.0, 1.0]}),
@@ -112,17 +115,18 @@ def test_rh_only_workflow_aggregates(monkeypatch: pytest.MonkeyPatch, simple_con
 
     call_state = {"idx": 0}
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         idx = call_state["idx"]
         call_state["idx"] += 1
-        assert cfg["inputs"]["SOC_init"] == pytest.approx(expected_soc[idx])
+        assert kwargs.get("soc_init_override", 0.0) == pytest.approx(expected_soc[idx])
         series = window_series[idx]
         summary = OrderedDict({"objective": OrderedDict()})
         costs = {"objective.OBJ_value_EUR": float(idx)}
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -142,7 +146,7 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
     }
 
     table = _make_table(5)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     pf_summary = OrderedDict(
         {
@@ -172,7 +176,7 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
     expected_soc = [0.0, 1.0, 2.0]
     call_state = {"idx": 0}
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         idx = call_state["idx"]
         call_state["idx"] += 1
         if idx == 0:
@@ -181,7 +185,7 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
             return rh.ScenarioResult(table_arg, series, pf_summary, costs, {"status": "ok"})
 
         window_idx = idx - 1
-        assert cfg["inputs"]["SOC_init"] == pytest.approx(expected_soc[window_idx])
+        assert kwargs.get("soc_init_override", 0.0) == pytest.approx(expected_soc[window_idx])
         hp_cfg = cfg["system"]["heat_pumps"][0]
         assert hp_cfg["investment"]["enabled"] is False
         assert hp_cfg["max_th_mw"] == pytest.approx(5.0)
@@ -198,7 +202,8 @@ def test_pf_then_rh_fix_design(monkeypatch: pytest.MonkeyPatch, simple_config: d
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -220,7 +225,7 @@ def test_custom_workflow_sequence(monkeypatch: pytest.MonkeyPatch, simple_config
     }
 
     table = _make_table(4)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     pf_summary = OrderedDict(
         {
@@ -236,7 +241,7 @@ def test_custom_workflow_sequence(monkeypatch: pytest.MonkeyPatch, simple_config
 
     call_state = {"idx": 0}
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         idx = call_state["idx"]
         call_state["idx"] += 1
         if idx == 0:
@@ -248,7 +253,8 @@ def test_custom_workflow_sequence(monkeypatch: pytest.MonkeyPatch, simple_config
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         return rh.ScenarioResult(table_arg, series, {}, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -262,14 +268,15 @@ def test_workflow_accepts_string(monkeypatch: pytest.MonkeyPatch, simple_config:
     config["scenario"] = {"workflow": "PF"}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.pf_result is not None
@@ -281,14 +288,15 @@ def test_unknown_workflow_step(monkeypatch: pytest.MonkeyPatch, simple_config: d
     config["scenario"] = {"workflow": ["PF", "UNKNOWN"]}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_solve(table_arg, cfg, dt_h, solver_name):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     with pytest.raises(ValueError):
         rh.run_workflow([], overrides=config)
@@ -299,12 +307,12 @@ def test_custom_workflow_registration(monkeypatch: pytest.MonkeyPatch, simple_co
     config["scenario"] = {"workflow": ["CUSTOM"]}
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     def fake_merge(paths):
         return copy.deepcopy(config)
 
-    monkeypatch.setattr(rh, "load_and_merge", fake_merge)
+    monkeypatch.setattr(_wf, "load_and_merge", fake_merge)
 
     executed: List[str] = []
 
@@ -323,7 +331,7 @@ def test_custom_workflow_registration(monkeypatch: pytest.MonkeyPatch, simple_co
     assert result.pf_result is not None
 
 
-def test_cli_entrypoint(monkeypatch: pytest.MonkeyPatch, simple_config: dict, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_entrypoint(monkeypatch: pytest.MonkeyPatch, simple_config: dict, caplog: pytest.LogCaptureFixture) -> None:
     config = copy.deepcopy(simple_config)
     config["scenario"] = {"workflow": ["PF"]}
 
@@ -332,23 +340,24 @@ def test_cli_entrypoint(monkeypatch: pytest.MonkeyPatch, simple_config: dict, ca
     def fake_merge(paths):
         return copy.deepcopy(config)
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {"objective.OBJ_value_EUR": 0.0}, {})
 
-    monkeypatch.setattr(rh, "load_and_merge", fake_merge)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "load_and_merge", fake_merge)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
-    exit_code = rh.main(["configs.yaml", "--print-design"])
-    captured = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        exit_code = rh.main(["configs.yaml", "--print-design"])
 
     assert exit_code == 0
-    assert "[workflow] Executed steps" in captured.out
+    assert "[workflow] Executed steps" in caplog.text
 
 
-def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     captured: dict = {}
 
     def fake_run_workflow(configs, overrides=None):
@@ -357,11 +366,12 @@ def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Captu
             config={},
             pf_result=None,
             rh_result=None,
+            mpc_result=None,
             design=None,
             plan=rh.WorkflowPlan(steps=("RH",), fix_design=False),
         )
 
-    monkeypatch.setattr(rh, "run_workflow", fake_run_workflow)
+    monkeypatch.setattr(_wf, "run_workflow", fake_run_workflow)
 
     monkeypatch.setenv("RUN_MODE", "RH_ONLY")
     monkeypatch.setenv("HEAT_HORIZON_HOURS", "6")
@@ -373,30 +383,29 @@ def test_cli_overrides_env(monkeypatch: pytest.MonkeyPatch, capsys: pytest.Captu
     monkeypatch.setenv("INCLUDE_CO2_COST_IN_OBJECTIVE", "0")
     monkeypatch.setenv("PF_DESIGN_JSON", "/tmp/env_design.json")
 
-    exit_code = rh.main(
-        [
-            "config.yaml",
-            "--run-mode",
-            "PF_THEN_RH",
-            "--heat-horizon-hours",
-            "24",
-            "--step-hours",
-            "12",
-            "--terminal-policy",
-            "free",
-            "--include-gridcost-in-energy",
-            "--no-include-demand-charge-in-rh",
-            "--include-co2-cost-in-objective",
-            "--no-fix-design",
-            "--pf-design-json",
-            "/tmp/cli_design.json",
-        ]
-    )
-
-    captured_out = capsys.readouterr()
+    with caplog.at_level("INFO"):
+        exit_code = rh.main(
+            [
+                "config.yaml",
+                "--run-mode",
+                "PF_THEN_RH",
+                "--heat-horizon-hours",
+                "24",
+                "--step-hours",
+                "12",
+                "--terminal-policy",
+                "free",
+                "--include-gridcost-in-energy",
+                "--no-include-demand-charge-in-rh",
+                "--include-co2-cost-in-objective",
+                "--no-fix-design",
+                "--pf-design-json",
+                "/tmp/cli_design.json",
+            ]
+        )
 
     assert exit_code == 0
-    assert "[workflow] Executed steps" in captured_out.out
+    assert "[workflow] Executed steps" in caplog.text
     overrides = captured.get("overrides")
     assert overrides is not None
     assert overrides["scenario"]["run_mode"] == "PF_THEN_RH"
@@ -421,11 +430,11 @@ def test_rh_costs_amortised_once(monkeypatch: pytest.MonkeyPatch, simple_config:
     }
 
     table = _make_table(3)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     recorded_cost_flags = []
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         window_idx = len(recorded_cost_flags)
         costs_cfg = cfg.get("costs", {})
         recorded_cost_flags.append(
@@ -449,7 +458,8 @@ def test_rh_costs_amortised_once(monkeypatch: pytest.MonkeyPatch, simple_config:
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.rh_result is not None
@@ -475,11 +485,11 @@ def test_rh_investment_opt_out(monkeypatch: pytest.MonkeyPatch, simple_config: d
     }
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
     recorded_flags = []
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         costs_cfg = cfg.get("costs", {})
         recorded_flags.append(costs_cfg.get("include_capex_costs"))
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
@@ -491,7 +501,8 @@ def test_rh_investment_opt_out(monkeypatch: pytest.MonkeyPatch, simple_config: d
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, costs, {"status": "ok"})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
     assert result.rh_result is not None
@@ -521,9 +532,9 @@ def test_run_workflow_uses_design_file(
     }
 
     table = _make_table(4)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         hp_cfg = cfg["system"]["heat_pumps"][0]
         assert hp_cfg["max_th_mw"] == pytest.approx(7.5)
         assert hp_cfg["min_th_mw"] == pytest.approx(7.5)
@@ -538,7 +549,8 @@ def test_run_workflow_uses_design_file(
         solver = {"status": "ok"}
         return rh.ScenarioResult(table_arg, series, summary, costs, solver)
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     result = rh.run_workflow([], overrides=config)
 
@@ -559,14 +571,15 @@ def test_run_workflow_missing_design_file(
     }
 
     table = _make_table(2)
-    monkeypatch.setattr(rh, "load_input_excel", lambda *args, **kwargs: table)
+    monkeypatch.setattr(_wf, "load_input_excel", lambda *args, **kwargs: table)
 
-    def fake_solve(table_arg, cfg, dt_h, solver_name):
+    def fake_solve(table_arg, cfg, dt_h, solver_name, **kwargs):
         series = OrderedDict({"TES_SOC_MWh": [0.0] * len(table_arg)})
         summary = OrderedDict({"objective": OrderedDict()})
         return rh.ScenarioResult(table_arg, series, summary, {}, {})
 
-    monkeypatch.setattr(rh, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_wf, "_solve_scenario", fake_solve)
+    monkeypatch.setattr(_rhe, "_solve_scenario", fake_solve)
 
     with caplog.at_level("WARNING"):
         result = rh.run_workflow([], overrides=config)

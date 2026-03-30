@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from energis.models.system_builder import _cop_series_from_table
+from energis.models.cop_calculator import calculate_cop_series as _cop_series_from_table
 from energis.utils.timeseries import TimeSeriesTable
 
 

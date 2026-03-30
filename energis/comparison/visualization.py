@@ -9,6 +9,10 @@ import logging
 from typing import List, Optional, Dict
 import math
 import numpy as np
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 logger = logging.getLogger(__name__)
 
 # Check for matplotlib
@@ -215,7 +219,7 @@ def plot_solve_time_comparison(
     logger.info(f"Saved solve time plot to {output_path}")
 
 
-def create_benchmark_plots(results: List, output_dir: str = "exports/benchmark/plots"):
+def create_benchmark_plots(results: List, output_dir: str = "outputs/runs/benchmark/plots"):
     """Create all standard benchmark plots.
 
     Parameters
@@ -313,7 +317,7 @@ def print_latex_table(results: List, output_path: Optional[str] = None):
     latex_code = "\n".join(lines)
 
     if output_path:
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding="utf-8") as f:
             f.write(latex_code)
         logger.info(f"Saved LaTeX table to {output_path}")
     else:

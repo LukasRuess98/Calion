@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:
     import panel as pn
     HAVE_PANEL = True

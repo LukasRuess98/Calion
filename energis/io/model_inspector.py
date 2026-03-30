@@ -11,6 +11,10 @@ from typing import Any, Dict, List
 import os
 import json
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:
     import pyomo.environ as pyo
     HAVE_PYOMO = True
@@ -116,14 +120,20 @@ def inspect_pyomo_model(model: Any) -> Dict[str, Any]:
 
     # Extract Sets
     for component in model.component_objects(pyo.Set, active=True):
+        def _is_finite(c):
+            # Pyomo renamed is_finite() to isfinite() in newer versions
+            if hasattr(c, "isfinite"):
+                return c.isfinite()
+            return c.is_finite()
+
         set_info = {
             "name": str(component.name),
-            "size": len(component) if component.is_finite() else "infinite",
+            "size": len(component) if _is_finite(component) else "infinite",
             "type": "Set",
         }
 
         # For small sets, show elements
-        if component.is_finite() and len(component) <= 20:
+        if _is_finite(component) and len(component) <= 20:
             set_info["elements"] = list(component)
 
         inspection["sets"].append(set_info)
@@ -519,7 +529,7 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
                 try:
                     if cell.value and len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
+                except Exception:
                     pass
             adjusted_width = min(max_length + 2, 100)
             ws.column_dimensions[column_letter].width = adjusted_width
@@ -594,9 +604,9 @@ def create_model_plots(
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
         plot_files.append(path)
-        print(f"[PLOT] Created: {os.path.basename(path)}")
+        logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create overview plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create overview plot: {e}")
 
     # Plot 2: Variable Types Distribution
     try:
@@ -635,9 +645,9 @@ def create_model_plots(
             plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             plot_files.append(path)
-            print(f"[PLOT] Created: {os.path.basename(path)}")
+            logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create variable types plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create variable types plot: {e}")
 
     # Plot 3: Constraint Sizes
     try:
@@ -667,9 +677,9 @@ def create_model_plots(
             plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             plot_files.append(path)
-            print(f"[PLOT] Created: {os.path.basename(path)}")
+            logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create constraint sizes plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create constraint sizes plot: {e}")
 
     # Plot 4: Parameter Time Series (if available)
     try:
@@ -719,9 +729,9 @@ def create_model_plots(
             plt.savefig(path, dpi=300, bbox_inches='tight')
             plt.close()
             plot_files.append(path)
-            print(f"[PLOT] Created: {os.path.basename(path)}")
+            logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create parameter time series plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create parameter time series plot: {e}")
 
     # Plot 5: Variable Bounds Overview
     try:
@@ -781,9 +791,9 @@ def create_model_plots(
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
         plot_files.append(path)
-        print(f"[PLOT] Created: {os.path.basename(path)}")
+        logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create variable bounds plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create variable bounds plot: {e}")
 
     # Plot 6: Model Complexity Heatmap
     try:
@@ -856,9 +866,9 @@ def create_model_plots(
         plt.savefig(path, dpi=300, bbox_inches='tight')
         plt.close()
         plot_files.append(path)
-        print(f"[PLOT] Created: {os.path.basename(path)}")
+        logger.info(f"[PLOT] Created: {os.path.basename(path)}")
     except Exception as e:
-        print(f"[PLOT] Warning: Could not create complexity matrix plot: {e}")
+        logger.info(f"[PLOT] Warning: Could not create complexity matrix plot: {e}")
 
     return plot_files
 
@@ -884,7 +894,7 @@ def export_model_structure(
     os.makedirs(output_dir, exist_ok=True)
 
     # Inspect model
-    print(f"[MODEL_EXPORT] Inspecting Pyomo model...")
+    logger.info(f"[MODEL_EXPORT] Inspecting Pyomo model...")
     inspection = inspect_pyomo_model(model)
 
     # Create output paths
@@ -893,36 +903,36 @@ def export_model_structure(
     json_path = os.path.join(output_dir, f"{prefix}.json")
 
     # Export to Excel
-    print(f"[MODEL_EXPORT] Writing Excel report: {excel_path}")
+    logger.info(f"[MODEL_EXPORT] Writing Excel report: {excel_path}")
     _write_excel_report(inspection, excel_path)
 
     # Export to Markdown
-    print(f"[MODEL_EXPORT] Writing Markdown report: {markdown_path}")
+    logger.info(f"[MODEL_EXPORT] Writing Markdown report: {markdown_path}")
     _write_markdown_report(inspection, markdown_path)
 
     # Export to JSON (full inspection data)
-    print(f"[MODEL_EXPORT] Writing JSON report: {json_path}")
+    logger.info(f"[MODEL_EXPORT] Writing JSON report: {json_path}")
     # Make JSON serializable
     json_safe_inspection = json.loads(json.dumps(inspection, default=str))
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(json_safe_inspection, f, indent=2)
 
     summary = inspection.get("summary", {})
-    print(f"[MODEL_EXPORT] Model exported successfully:")
-    print(f"  - Variables: {summary.get('num_variables', 0)}")
-    print(f"  - Constraints: {summary.get('num_constraints', 0)}")
-    print(f"  - Parameters: {summary.get('num_parameters', 0)}")
-    print(f"  - Objectives: {summary.get('num_objectives', 0)}")
+    logger.info(f"[MODEL_EXPORT] Model exported successfully:")
+    logger.info(f"  - Variables: {summary.get('num_variables', 0)}")
+    logger.info(f"  - Constraints: {summary.get('num_constraints', 0)}")
+    logger.info(f"  - Parameters: {summary.get('num_parameters', 0)}")
+    logger.info(f"  - Objectives: {summary.get('num_objectives', 0)}")
 
     # Create visualization plots
     plot_paths = []
     try:
-        print(f"[MODEL_EXPORT] Creating visualization plots...")
+        logger.info(f"[MODEL_EXPORT] Creating visualization plots...")
         plot_paths = create_model_plots(model, inspection, output_dir, prefix=prefix)
         if plot_paths:
-            print(f"[MODEL_EXPORT] Created {len(plot_paths)} visualization plots")
+            logger.info(f"[MODEL_EXPORT] Created {len(plot_paths)} visualization plots")
     except Exception as exc:
-        print(f"[MODEL_EXPORT] Warning: Could not create plots: {exc}")
+        logger.info(f"[MODEL_EXPORT] Warning: Could not create plots: {exc}")
 
     return {
         "excel_path": excel_path,

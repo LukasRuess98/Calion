@@ -1,0 +1,84 @@
+# =============================================================================
+# TEST SCENARIO: Smoke Test (3-Node DHN)
+# =============================================================================
+# Self-contained smoke-test for the EnerGIS framework.
+# Run: python -m energis.run configs/scenarios/test_3node_network.yaml
+#
+# Uses Import_Data.xlsx from the working directory.
+# One Perfect-Foresight solve over the full dataset — typically < 30 s with GLPK.
+# =============================================================================
+
+# ── Data source ───────────────────────────────────────────────────────────────
+site:
+  input_xlsx: "Import_Data.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "Day_Ahead_Price \u20ac/MWh"
+    heat_demand: "W\u00e4rmebedarf MW"
+    co2_grid: "CO2_consumption_based kgCO2/MWh"
+    wrg_sources:
+      WRG1: {q_col: "WRG1Q MW", t_col: "WRG1_ T \u00b0C"}
+      WRG2: {q_col: "WRG2Q MW", t_col: "WRG2_T \u00b0C"}
+      WRG3: {q_col: "WRG3Q MW", t_col: "WRG3_T \u00b0C"}
+      WRG4: {q_col: "WRG4Q MW", t_col: "WRG4_T \u00b0C"}
+
+# ── System components ─────────────────────────────────────────────────────────
+system:
+  heat_pumps:
+    - id: HP1
+      enabled: true
+      type: standard
+      min_load: 0.2
+      cop_default: 3.5
+      min_th_mw: 0.0
+      max_th_mw: 80.0
+      wrg_sources: [WRG1, WRG2, WRG3, WRG4]
+      investment:
+        enabled: false
+        initial_capacity_mw: 80.0
+        capacity_min_mw: 80.0
+        capacity_max_mw: 80.0
+
+  storage:
+    enabled: false
+
+  generators:
+    gas_boiler:
+      enabled: true
+      cap_th_mw: 150.0
+      th_eff: 0.90
+      fuel_bus: gas
+
+# ── Grid / electricity ────────────────────────────────────────────────────────
+grid:
+  energy_fee_eur_mwh: 0.0
+  gridcost_eur_mwh: 20.0
+  demand_charge_eur_per_mw_y: 0.0
+  sell_floor_eur_mwh: 0.0
+  sell_haircut_fraction: 0.0
+  sell_spread_eur_mwh: 0.0
+  sell_fee_eur_mwh: 0.0
+  sell_premium_eur_mwh: 0.0
+
+# ── Costs ─────────────────────────────────────────────────────────────────────
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+  include_co2_cost_in_objective: true
+  include_gridcost_in_energy: true
+  include_demand_charge_in_rh: false
+
+# ── Fuels ─────────────────────────────────────────────────────────────────────
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+# ── Run settings ─────────────────────────────────────────────────────────────
+run:
+  dt_h: 1.0
+  solver: appsi_highs
+
+# ── Scenario / workflow ───────────────────────────────────────────────────────
+scenario:
+  run_mode: PF_ONLY

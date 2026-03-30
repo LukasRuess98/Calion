@@ -2,12 +2,12 @@
 Interactive browser for saved workflow simulations.
 
 This module provides a Panel-based dashboard that allows browsing and
-visualizing previously saved workflow results from saved_workflows/.
+visualizing previously saved workflow results from outputs/workflows/.
 
 Usage:
     from energis.io.workflow_browser import create_workflow_browser
 
-    browser = create_workflow_browser(saved_workflows_dir="saved_workflows")
+    browser = create_workflow_browser(saved_workflows_dir="outputs/workflows")
     browser.show()  # Or use: panel serve notebook.ipynb --show
 """
 
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_workflow_browser(
-    saved_workflows_dir: str = "saved_workflows",
+    saved_workflows_dir: str | None = None,
     title: str = "EnerGIS Workflow Browser"
 ) -> Any:
     """
@@ -55,8 +55,8 @@ def create_workflow_browser(
 
     Parameters
     ----------
-    saved_workflows_dir : str
-        Directory containing saved workflows (default: "saved_workflows")
+    saved_workflows_dir : str, optional
+        Directory containing saved workflows (default: "outputs/workflows")
     title : str
         Browser title
 
@@ -85,8 +85,12 @@ def create_workflow_browser(
     # Initialize Panel
     pn.extension('plotly', 'tabulator', sizing_mode='stretch_width')
 
+    # Resolve directory (supports legacy path detection)
+    from energis.io._output_paths import resolve_workflows_dir
+    resolved_dir = resolve_workflows_dir(saved_workflows_dir)
+
     # Create browser instance
-    browser = WorkflowBrowser(saved_workflows_dir, title)
+    browser = WorkflowBrowser(resolved_dir, title)
 
     return browser.create()
 
@@ -249,7 +253,7 @@ class WorkflowBrowser:
                     f"**Erstelle Workflows mit:**\n"
                     f"- `notebooks/scenario_studio.ipynb`\n"
                     f"- `notebooks/runner.ipynb`\n\n"
-                    f"Workflows werden automatisch in `saved_workflows/` gespeichert."
+                    f"Workflows werden automatisch in `outputs/workflows/` gespeichert."
                 )
             )
 

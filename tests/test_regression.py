@@ -23,6 +23,12 @@ CONFIG_PATHS = [
     "configs/scenarios/pf_then_rh.workflow.scenario.yaml",
 ]
 
+_CONFIGS_AVAILABLE = all(
+    Path(p).exists() or (Path(__file__).parent.parent / p).exists()
+    for p in CONFIG_PATHS
+    if p != "configs/base.yaml"  # base.yaml is always created
+)
+
 
 @pytest.fixture(scope="module")
 def reference() -> Dict:
@@ -78,6 +84,7 @@ def _compare_dict_subset(actual: Dict, expected: Dict, keys: Iterable[str]) -> N
         assert actual[key] == pytest.approx(expected[key])
 
 
+@pytest.mark.skipif(not _CONFIGS_AVAILABLE, reason="Integration config files not available")
 def test_regression_against_reference(reference: Dict, overrides: Dict) -> None:
     result = rh.run_workflow(CONFIG_PATHS, overrides=overrides)
 

@@ -1,0 +1,104 @@
+[2026-03-27 09:25:12] __main__ - INFO - ======================================================================
+[2026-03-27 09:25:12] __main__ - INFO - EnerGIS - District Heating Optimization
+[2026-03-27 09:25:12] __main__ - INFO - ======================================================================
+[2026-03-27 09:25:12] __main__ - INFO - Config files (1):
+[2026-03-27 09:25:12] __main__ - INFO -   - configs/examples/level1_copperplate.yaml
+[2026-03-27 09:25:12] energis.io.loader - INFO - [LOAD] Au├ƒentemperatur gefunden: Spalte 'T_outdoor'
+[2026-03-27 09:25:12] energis.config.unified_config - INFO - [CONFIG] Copperplate mode (no pipes) ÔÇö single-node model
+[2026-03-27 09:25:12] energis.models.system_builder - INFO - [BUILD-UNIFIED] #el_in=1, #el_out=0, #ht_out(total)=2, #ht_in(total)=0, nodes=1
+[2026-03-27 09:25:12] energis.models.model_finalizer - INFO - [FINALIZE] Copperplate mode ÔÇö no network physics
+[LOAD] Import_Data.csv -> 168 Schritte von 2023-01-01 00:00:00 bis 2023-01-07 23:00:00
+[2026-03-27 09:25:12] pyomo.contrib.appsi.solvers.highs - INFO - Running HiGHS 1.13.1 (git hash: 1d267d9): Copyright (c) 2026 under MIT licence terms
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - MIP has 2186 rows; 1683 cols; 4368 nonzeros; 337 integer variables (336 binary)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Coefficient ranges:
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Matrix  [2e-01, 1e+04]
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Cost    [9e+00, 1e+02]
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Bound   [1e+00, 8e+01]
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   RHS     [1e+00, 1e+04]
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Presolving model
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 1176 rows, 1512 cols, 3024 nonzeros  0s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 840 rows, 1176 cols, 2688 nonzeros  0s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 661 rows, 829 cols, 1961 nonzeros  0s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 493 rows, 650 cols, 1457 nonzeros  0s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Presolve reductions: rows 493(-1693); columns 650(-1033); nonzeros 1457(-2911) 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Solving MIP model with:
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -    493 rows
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -    650 cols (168 binary, 0 integer, 0 implied int., 482 continuous, 0 domain fixed)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -    1457 nonzeros
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Src: B => Branching; C => Central rounding; F => Feasibility pump; H => Heuristic;
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -      I => Shifting; J => Feasibility jump; L => Sub-MIP; P => Empty MIP; R => Randomized rounding;
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -      S => Solve LP; T => Evaluate node; U => Unbounded; X => User solution; Y => HiGHS solution;
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -      Z => ZI Round; l => Trivial lower; p => Trivial point; u => Trivial upper; z => Trivial zero
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -         Nodes      |    B&B Tree     |            Objective Bounds              |  Dynamic Constraints |       Work      
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Src  Proc. InQueue |  Leaves   Expl. | BestBound       BestSol              Gap |   Cuts   InLp Confl. | LpIters     Time
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -  J       0       0         0   0.00%   -inf            710301.81623       Large        0      0      0         0     0.0s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -  R       0       0         0   0.00%   306259.812312   378472.403089     19.08%        0      0      0       325     0.1s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -  C       0       0         0   0.00%   306259.812312   306259.812312      0.00%      157    147      0       472     0.1s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -          1       0         1 100.00%   306259.812312   306259.812312      0.00%      157    147      0       472     0.1s
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - 
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - Solving report
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Status            Optimal
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Primal bound      306259.812312
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Dual bound        306259.812312
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Gap               0% (tolerance: 0.01%)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   P-D integral      0.0116828847368
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Solution status   feasible
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     306259.812312 (objective)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (bound viol.)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (int. viol.)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (row viol.)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Timing            0.07
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Max sub-MIP depth 0
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Nodes             1
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   Repair LPs        0
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -   LP iterations     472
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (strong br.)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     147 (separation)
+[2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (heuristics)
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - COMPREHENSIVE RESULTS EXPORT
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - Output directory: exports/thermal_network_results
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported LP file: exports/thermal_network_results\solver\gurobi_solution.lp
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported SOL file: exports/thermal_network_results\solver\gurobi_solution.sol
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported MPS file: exports/thermal_network_results\solver\gurobi_solution.mps
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported unified timeseries: exports/thermal_network_results\unified_timeseries.csv
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - 
+============================================================
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - EXPORT COMPLETE: 5 files
+[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] energis.run.solver - INFO - [EXPORT] Exported 5 files to exports/thermal_network_results
+[2026-03-27 09:25:13] __main__ - INFO - [workflow] Executed steps: PF
+[2026-03-27 09:25:13] __main__ - INFO -   PF time steps: 168
+[2026-03-27 09:25:13] __main__ - INFO -   PF objective: 306259.8123117187
+[2026-03-27 09:25:13] __main__ - INFO - === PF COSTS (objective.*) ===
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_cost_EUR                  : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_elec_total_cost_EUR       : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_elec_total_kg             : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_elec_total_kg_gross       : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_fuel_to_elec_selfuse_fraction: 1.00
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_grid_to_elec_kg           : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_elec_cost_EUR        : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_elec_cost_EUR_gross  : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_elec_kg              : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_elec_kg_gross        : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_total_cost_EUR       : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_total_cost_EUR_gross : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_total_kg             : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_hp_1_total_kg_gross       : 992,428.80
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_price_EUR_per_t           : 100.00
+[2026-03-27 09:25:13] __main__ - INFO - objective.CO2_total_cost_EUR            : 99,242.88
+[2026-03-27 09:25:13] __main__ - INFO - objective.Demand_charge_year_fraction   : 0.02
+[2026-03-27 09:25:13] __main__ - INFO - objective.Electricity_base_cost_EUR     : 207,016.93
+[2026-03-27 09:25:13] __main__ - INFO - objective.Electricity_grid_fee_EUR      : 49,621.93
+[2026-03-27 09:25:13] __main__ - INFO - objective.Grid_energy_cost_EUR          : 207,016.93
+[2026-03-27 09:25:13] __main__ - INFO - objective.Grid_net_cost_EUR             : 207,016.93
+[2026-03-27 09:25:13] __main__ - INFO - objective.Include_CO2_in_objective      : 1.00
+[2026-03-27 09:25:13] __main__ - INFO - objective.Model_OBJ_value_EUR           : 306,259.81
+[2026-03-27 09:25:13] __main__ - INFO - objective.OBJ_value_EUR                 : 306,259.81
+[2026-03-27 09:25:13] __main__ - INFO - objective.P_buy_peak_MW                 : 18.97
+[2026-03-27 09:25:13] __main__ - INFO - objective.Period_fraction_of_year       : 0.02

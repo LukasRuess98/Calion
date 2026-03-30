@@ -19,7 +19,8 @@ COP_MAX_HEATPUMP = 10.0
 COP_MAX_SYSTEM_BUILDER = 12.0
 
 # Default/fallback COP when calculation fails or data is missing
-COP_DEFAULT = 1.0
+# Must be >= COP_MIN (1.01) to pass HeatPumpBlock validation
+COP_DEFAULT = 2.0
 
 # Default temperature difference for COP calculation (Kelvin)
 COP_DELTA_T_K = 20.0
@@ -68,3 +69,46 @@ FLOAT_EPSILON = 1e-9
 
 # Tolerance for optimization solver
 SOLVER_TOLERANCE = 1e-6
+
+
+# ==========================================
+# Grid / Economic Defaults
+# ==========================================
+
+# Big-M for grid import/export linearization (MW)
+# Must be large enough to never bind, but not so large as to cause numerical issues
+BIG_M_GRID_MW = 1e4
+
+# Default CO₂ price when not specified in config (EUR/tCO₂)
+DEFAULT_CO2_PRICE_EUR_PER_T = 100.0
+
+# Default dump (curtailment) cost (EUR/MWh_th)
+DEFAULT_DUMP_COST_EUR_PER_MWH_TH = 1.0
+
+
+# ==========================================
+# Component Sizing Defaults
+# ==========================================
+
+# Default heat pump thermal capacity when not optimizing (MW)
+DEFAULT_HP_CAPACITY_MW = 50.0
+
+# Default storage energy capacity when not optimizing (MWh)
+DEFAULT_STORAGE_ENERGY_MWH = 500.0
+
+# Default storage power capacity when not optimizing (MW)
+DEFAULT_STORAGE_POWER_MW = 50.0
+
+# Minimum fallback storage power as fraction of energy capacity (MW = MWh / ratio)
+STORAGE_POWER_ENERGY_RATIO = 50.0
+
+# Minimum fallback storage power floor (MW)
+STORAGE_POWER_MIN_MW = 10.0
+
+
+# ==========================================
+# Rolling Horizon / MPC Defaults
+# ==========================================
+
+# Default rolling-horizon window length (hours)
+DEFAULT_HORIZON_HOURS = 168.0

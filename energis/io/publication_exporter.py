@@ -605,12 +605,14 @@ def export_kpi_summary(
     if objective:
         kpis["economic"] = {
             "total_cost_EUR": _safe_float(objective.get("OBJ_value_EUR")),
-            "energy_cost_EUR": _safe_float(objective.get("Energy_EUR")),
-            "fuel_cost_EUR": _safe_float(objective.get("Fuel_EUR")),
-            "investment_cost_EUR": _safe_float(objective.get("Invest_EUR")),
-            "installation_cost_EUR": _safe_float(objective.get("Install_EUR")),
-            "co2_cost_EUR": _safe_float(objective.get("CO2_EUR")),
-            "demand_charge_EUR": _safe_float(objective.get("Demand_charge_EUR")),
+            "energy_cost_EUR": _safe_float(objective.get("Grid_energy_cost_EUR")),
+            "fuel_cost_EUR": _safe_float(objective.get("Fuel_cost_EUR")),
+            "investment_cost_EUR": _safe_float(objective.get("Capex_cost_EUR")),
+            "installation_cost_EUR": _safe_float(objective.get("Storage_installation_cost_EUR")),
+            "co2_cost_EUR": _safe_float(objective.get("CO2_cost_EUR")),
+            "demand_charge_EUR": _safe_float(objective.get("Demand_charge_cost_EUR")),
+            "dump_cost_EUR": _safe_float(objective.get("Dump_cost_EUR")),
+            "activation_cost_EUR": _safe_float(objective.get("Activation_cost_EUR")),
         }
 
     # Environmental metrics

@@ -5,11 +5,16 @@ Models network nodes where:
 - Multiple pipes connect
 - Heat producers inject heat
 - Heat consumers extract heat
-- Temperatures are mixed
-- Mass flow is balanced
+- Temperatures are mixed via enthalpy balance
+- Mass flow is balanced at every node
+
+Unified physics — no brownfield/greenfield distinction:
+- T_supply and T_return are always Var (calculated, never fixed params)
+- pressure_supply and pressure_return are Var (propagated from upstream)
+- All node types (producer, consumer, junction) use the same constraint structure
+- Node type only controls which component variables are linked
 
 Author: EnerGIS Development Team
-Date: 2025-12-10
 """
 
 from typing import Dict, Any, List, Optional
@@ -34,22 +39,23 @@ class ThermalNodeBlock(BaseComponent):
     Node in thermal network representing a connection point.
 
     Node Types:
-    - plant: Heat production (HPs, generators)
-    - consumer: Heat consumption (demand zones)
-    - junction: Pipe branching point
+    - producer (or plant): Heat production (HPs, generators) — no incoming pipes
+    - consumer: Heat consumption (demand zones) — linked to Q_demand timeseries
+    - junction: Pipe branching point — no demand, only mass balance
 
-    Models:
-    - Mass flow balance (inflows = outflows)
-    - Temperature mixing from multiple inflows
-    - Heat balance for consumers
-    - Optional pressure variables (Phase 3)
+    Unified Physics (identical for all node types):
+    - Mass balance:     Σ m_dot_in[t] = Σ m_dot_out[t] + m_dot_demand[t]
+    - Enthalpy balance: T_supply[t] × Σ m_dot_in[t] = Σ (m_dot_in[t] × T_supply_out_pipe[t])
+      (linearised mixing law — valid for constant cp)
+    - Pressure: pressure_supply and pressure_return are Var, linked by network_manager
 
     Variables (per timestep t):
-        - m_dot_in[pipe, t]: Mass flow from each incoming pipe (kg/s)
-        - m_dot_out[pipe, t]: Mass flow to each outgoing pipe (kg/s)
-        - T_supply[t]: Supply temperature at node (°C)
-        - T_return[t]: Return temperature at node (°C)
-        - Q_demand[t]: Heat demand at consumer nodes (MW)
+        - T_supply[t]:        Supply temperature at node (°C) — always a Var
+        - T_return[t]:        Return temperature at node (°C) — always a Var (or Param for consumer)
+        - pressure_supply[t]: Supply pressure at node (bar) — Var
+        - pressure_return[t]: Return pressure at node (bar) — Var
+        - m_dot_demand[t]:    Consumer mass flow demand (kg/s) — consumer nodes only
+        - Q_demand[t]:        Consumer heat demand (MW) — consumer nodes only (Param)
     """
 
     @staticmethod
@@ -60,14 +66,16 @@ class ThermalNodeBlock(BaseComponent):
             if field not in config:
                 raise ValueError(f"ThermalNode config missing required field: {field}")
 
-        valid_types = ['plant', 'consumer', 'junction']
+        # Accept 'plant' as an alias for 'producer' (backward compatibility)
+        valid_types = ['producer', 'plant', 'consumer', 'junction']
         if config['type'] not in valid_types:
             raise ValueError(f"Node {config['id']}: type must be one of {valid_types}")
 
-        # Consumer nodes must have demand info
         if config['type'] == 'consumer':
             if 'demand_fraction' not in config and 'demand_profile' not in config:
-                raise ValueError(f"Consumer node {config['id']}: must specify demand_fraction or demand_profile")
+                raise ValueError(
+                    f"Consumer node {config['id']}: must specify demand_fraction or demand_profile"
+                )
 
     @staticmethod
     def attach(model, time_set, config: Dict[str, Any], buses: Dict, network_pipes: Dict) -> Dict[str, Any]:
@@ -86,7 +94,10 @@ class ThermalNodeBlock(BaseComponent):
         """
         node_id = config['id']
         prefix = node_id.upper().replace('-', '_')
+        # Normalise 'plant' → 'producer' for unified handling
         node_type = config['type']
+        if node_type == 'plant':
+            node_type = 'producer'
 
         logger.info(f"Attaching thermal node: {node_id} (type: {node_type})")
 
@@ -94,32 +105,15 @@ class ThermalNodeBlock(BaseComponent):
         # PARAMETERS
         # ============================================================
 
-        # Fluid properties
         cp_water = 4.186  # kJ/(kg·K)
-
-        # Temperature parameters
         supply_temp_nominal_c = config.get('supply_temp_nominal_c', 90.0)
         return_temp_c = config.get('return_temp_c', 50.0)
+        pressure_nominal_bar = config.get('pressure_nominal_supply_bar', 10.0)
 
         # ============================================================
-        # ENHANCED RETURN TEMPERATURE MODELING
+        # IDENTIFY CONNECTED PIPES
         # ============================================================
-        # Options for time-varying/load-dependent return temperature:
-        #
-        # 1. return_temp_profile: Dict[t, float] - explicit profile per timestep
-        # 2. return_temp_range: [T_min, T_max] - bounds for load-dependent
-        # 3. return_temp_load_factor: float - sensitivity to load (0=none, 1=full)
-        #
-        # Formula: T_return[t] = T_base + load_factor * (load[t]/load_max - 0.5) * ΔT_range
-        # At 50% load: T_return = T_base
-        # At 100% load: T_return = T_base + 0.5 * load_factor * ΔT_range
-        # At 0% load: T_return = T_base - 0.5 * load_factor * ΔT_range
-        # ============================================================
-        return_temp_profile = config.get('return_temp_profile', None)
-        return_temp_range = config.get('return_temp_range', None)  # [T_min, T_max]
-        return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
 
-        # Identify connected pipes
         incoming_pipes = []
         outgoing_pipes = []
 
@@ -129,82 +123,94 @@ class ThermalNodeBlock(BaseComponent):
             if pipe_info['from_node'] == node_id:
                 outgoing_pipes.append(pipe_id)
 
-        logger.info(f"  Node {node_id}: {len(incoming_pipes)} incoming, {len(outgoing_pipes)} outgoing pipes")
+        logger.info(
+            f"  Node {node_id}: {len(incoming_pipes)} incoming, {len(outgoing_pipes)} outgoing pipes"
+        )
 
         # ============================================================
         # VARIABLES
         # ============================================================
 
-        # Temperature bounds based on network parameters
+        # Temperature bounds
         supply_temp_min = min(60, supply_temp_nominal_c - 30)
         supply_temp_max = max(130, supply_temp_nominal_c + 10)
         return_temp_min = 30
         return_temp_max = max(90, return_temp_c + 20)
 
-        # Supply temperature at node (°C)
-        # For plant: fixed or decision variable
-        # For consumers/junctions: mixed from incoming pipes
-        if node_type == 'plant':
-            # Plant nodes have fixed supply temperature
+        # T_supply: Var by default, but fixed Param in MILP-linearized mode
+        milp_linearize_temp = config.get('milp_linearize', False)
+
+        if milp_linearize_temp and node_type in ('consumer', 'junction'):
+            # MILP mode: fix supply temperature to nominal value → eliminates bilinear products
             setattr(model, f'{prefix}_T_supply',
                     pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
-            T_supply = getattr(model, f'{prefix}_T_supply')
         else:
-            # Consumer and junction nodes: temperature from pipes
             setattr(model, f'{prefix}_T_supply',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
                            bounds=(supply_temp_min, supply_temp_max)))
-            T_supply = getattr(model, f'{prefix}_T_supply')
+        T_supply = getattr(model, f'{prefix}_T_supply')
 
-        # Return temperature at node (°C)
-        if node_type == 'consumer':
-            # Consumer nodes: return temperature can be constant, profiled, or load-dependent
-            if return_temp_profile is not None:
-                # Option 1: Explicit time-varying profile
-                def return_temp_init(m, t):
-                    return return_temp_profile.get(t, return_temp_c)
-                setattr(model, f'{prefix}_T_return',
-                        pyo.Param(time_set, initialize=return_temp_init, mutable=True))
-                logger.info(f"    Node {node_id}: using return temp profile "
-                           f"(range: {min(return_temp_profile.values()):.1f}-{max(return_temp_profile.values()):.1f}°C)")
+        # T_return: Param for constant consumer return temps, Var otherwise
+        return_temp_profile = config.get('return_temp_profile', None)
+        return_temp_range = config.get('return_temp_range', None)
+        return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
 
-            elif return_temp_range is not None and return_temp_load_factor > 0:
-                # Option 2: Load-dependent return temperature (variable, linearized)
-                # T_return bounded by [T_min, T_max], linked to load via constraint
-                T_ret_min, T_ret_max = return_temp_range
-                setattr(model, f'{prefix}_T_return',
-                        pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                               bounds=(T_ret_min, T_ret_max)))
-                logger.info(f"    Node {node_id}: load-dependent return temp "
-                           f"(range: {T_ret_min:.1f}-{T_ret_max:.1f}°C, factor: {return_temp_load_factor})")
-
-            else:
-                # Option 3: Constant return temperature (original behavior)
-                setattr(model, f'{prefix}_T_return',
-                        pyo.Param(time_set, initialize=return_temp_c, mutable=True))
-
-            T_return = getattr(model, f'{prefix}_T_return')
+        if node_type == 'consumer' and return_temp_profile is not None:
+            # Explicit time-varying profile → Param
+            def return_temp_init(m, t):
+                return return_temp_profile.get(t, return_temp_c)
+            setattr(model, f'{prefix}_T_return',
+                    pyo.Param(time_set, initialize=return_temp_init, mutable=True))
+            logger.info(
+                f"    Node {node_id}: using return temp profile "
+                f"(range: {min(return_temp_profile.values()):.1f}-"
+                f"{max(return_temp_profile.values()):.1f}°C)"
+            )
+        elif node_type == 'consumer' and return_temp_range is None and return_temp_load_factor == 0:
+            # Constant return temperature → Param
+            setattr(model, f'{prefix}_T_return',
+                    pyo.Param(time_set, initialize=return_temp_c, mutable=True))
         else:
-            # Plant and junction nodes: return temperature from pipes
+            # Variable return temperature (load-dependent or all non-consumer nodes)
+            T_ret_min = return_temp_range[0] if return_temp_range else return_temp_min
+            T_ret_max = return_temp_range[1] if return_temp_range else return_temp_max
             setattr(model, f'{prefix}_T_return',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                           bounds=(return_temp_min, return_temp_max)))
-            T_return = getattr(model, f'{prefix}_T_return')
+                           bounds=(T_ret_min, T_ret_max)))
+        T_return = getattr(model, f'{prefix}_T_return')
 
-        # Heat demand at consumer nodes (MW)
+        # Pressure variables — always Var, values propagated by network_manager
+        setattr(model, f'{prefix}_pressure_supply',
+                pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                       bounds=(0, pressure_nominal_bar * 2.0)))
+        setattr(model, f'{prefix}_pressure_return',
+                pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                       bounds=(0, pressure_nominal_bar * 2.0)))
+        pressure_supply = getattr(model, f'{prefix}_pressure_supply')
+        pressure_return = getattr(model, f'{prefix}_pressure_return')
+
+        # Demand variables (consumer nodes only)
+        Q_demand = None
+        m_dot_demand = None
+
         if node_type == 'consumer':
-            # Get demand profile
             demand_fraction = config.get('demand_fraction', 0.0)
 
-            if hasattr(model, 'heatd'):
-                # Use existing heat demand and scale by fraction
+            _node_heatd_attr = f'heatd_{node_id}'
+            if hasattr(model, _node_heatd_attr):
+                # Prefer node-specific demand param (avoids triple-counting when multiple
+                # consumer nodes reference the same demand column — m.heatd is their sum)
+                _node_heatd = getattr(model, _node_heatd_attr)
+                def demand_init(m, t, _h=_node_heatd):
+                    return pyo.value(_h[t]) * demand_fraction
+                setattr(model, f'{prefix}_Q_demand',
+                        pyo.Param(time_set, initialize=demand_init))
+            elif hasattr(model, 'heatd'):
                 def demand_init(m, t):
                     return pyo.value(m.heatd[t]) * demand_fraction
-
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_init))
             elif 'demand_profile' in config:
-                # Use explicitly provided demand profile
                 demand_profile = config['demand_profile']
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_profile))
@@ -212,98 +218,169 @@ class ThermalNodeBlock(BaseComponent):
                 raise ValueError(f"Consumer node {node_id}: no demand data available")
 
             Q_demand = getattr(model, f'{prefix}_Q_demand')
-        else:
-            Q_demand = None
 
-        # Mass flow at node (kg/s)
-        # For consumer nodes, calculate from heat demand
-        if node_type == 'consumer':
             setattr(model, f'{prefix}_m_dot_demand',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals))
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
-        else:
-            m_dot_demand = None
 
         # ============================================================
         # CONSTRAINTS
         # ============================================================
 
-        # (1) Temperature mixing at node (for non-plant nodes)
-        # Note: Full bilinear temperature mixing (T * m_dot) causes non-convex QP issues
-        # For brownfield scenarios, we simplify by fixing supply temp or using first pipe
-        brownfield_mode = config.get('brownfield_mode', False)
-
-        if node_type != 'plant' and incoming_pipes:
-            if brownfield_mode:
-                # Brownfield: DO NOT fix temperatures here!
-                # network_manager.py PHASE 3b handles all temperature fixing
-                # to ensure consistency across the entire network topology.
-                # The linking constraints will propagate pipe outlet temps to nodes.
-                logger.info(f"    Node {node_id}: brownfield - temps handled by network_manager")
-            elif len(incoming_pipes) == 1:
-                # Single pipe: simple temperature link
+        # (1) Enthalpy balance (temperature mixing) for nodes with incoming pipes.
+        #
+        # Linearised mixing law (valid for constant cp):
+        #   T_supply[t] × Σ_in m_dot_in[t] = Σ_in (m_dot_in[t] × T_supply_out_pipe[t])
+        #
+        # This sets node supply temperature as the flow-weighted average of all
+        # incoming pipe supply outlet temperatures.  For a single pipe the
+        # constraint reduces to a simple equality (T_node = T_pipe_out).
+        if incoming_pipes and not milp_linearize_temp:
+            if len(incoming_pipes) == 1:
                 pipe_id = incoming_pipes[0]
                 pipe_prefix = pipe_id.upper().replace('-', '_')
 
-                def single_temp_rule(m, t, _prefix=pipe_prefix):
-                    pipe_T_out = getattr(m, f'{_prefix}_T_supply_out')
+                def single_temp_rule(m, t, _pp=pipe_prefix):
+                    pipe_T_out = getattr(m, f'{_pp}_T_supply_out')
                     return T_supply[t] == pipe_T_out[t]
 
                 setattr(model, f'{prefix}_temp_mixing',
                         pyo.Constraint(time_set, rule=single_temp_rule))
+                logger.info(f"    Node {node_id}: single-pipe temperature link")
+
             else:
-                # Multiple pipes, greenfield: fix at nominal (this creates bilinear constraints)
-                logger.info(f"    Node {node_id}: fixing supply temp to {supply_temp_nominal_c}°C (multi-pipe)")
-                for t in time_set:
-                    T_supply[t].fix(supply_temp_nominal_c)
+                # Multi-pipe enthalpy balance: bilinear mixing (handled by QP/MIQP solver)
+                def multi_temp_rule(m, t, _pipes=incoming_pipes):
+                    total_m = sum(
+                        getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
+                        for p in _pipes
+                    )
+                    weighted_T = sum(
+                        getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t] *
+                        getattr(m, f'{p.upper().replace("-", "_")}_T_supply_out')[t]
+                        for p in _pipes
+                    )
+                    return T_supply[t] * total_m == weighted_T
 
-        # (2) Mass flow balance at node - handled by network manager
-        # Note: Node-level flow balance is now managed in network_manager.py
-        # to ensure proper pipe references and avoid issues with pyo.value() on uninitialized vars
+                setattr(model, f'{prefix}_temp_mixing',
+                        pyo.Constraint(time_set, rule=multi_temp_rule))
+                logger.info(
+                    f"    Node {node_id}: multi-pipe enthalpy balance "
+                    f"({len(incoming_pipes)} pipes, bilinear — needs QP solver)"
+                )
 
-        # (3) Heat demand satisfaction (consumer nodes)
+        # MILP Mode: Fix T_supply to nominal (linear approximation for multi-pipe)
+        elif incoming_pipes and milp_linearize_temp and len(incoming_pipes) > 1:
+            def multi_temp_milp_rule(m, t):
+                return T_supply[t] == supply_temp_nominal_c
+            
+            setattr(model, f'{prefix}_temp_mixing_milp',
+                    pyo.Constraint(time_set, rule=multi_temp_milp_rule))
+            logger.info(
+                f"    Node {node_id}: multi-pipe MILP mode — T_supply fixed to {supply_temp_nominal_c}°C"
+            )
+
+        # (2) Mass balance: Σ m_dot_in[t] = Σ m_dot_out[t] + m_dot_demand[t]
+        #
+        # For producer nodes: incoming=[], outgoing=[...], m_dot_demand=0
+        #   → trivial 0 == Σ m_dot_out (not a useful constraint; skip for producers)
+        # For junction nodes: m_dot_demand=0
+        #   → Σ m_dot_in == Σ m_dot_out
+        # For consumer nodes: m_dot_demand >= 0
+        #   → Σ m_dot_in == Σ m_dot_out + m_dot_demand
+        #
+        # In MILP mode, skip producer mass balance — the global heat balance already
+        # handles energy conservation, and forcing pipe flow conservation at the plant
+        # can over-constrain ring/loop topologies.
+        #
+        # In MILP mode, also skip consumer mass balance for terminal nodes (no outgoing
+        # pipes).  Transport delay means Q_consumer[t] = Q_delivered[t−τ], so the pipe
+        # flow m_dot[t] must be free to serve *future* demand rather than being pinned
+        # to the *instantaneous* demand.  Demand is enforced via the Q_consumer linkage
+        # in network_manager._link_consumer_demands instead.
+        skip_producer_mass_balance = milp_linearize_temp and node_type == 'producer'
+        skip_consumer_mass_balance = (
+            milp_linearize_temp
+            and node_type == 'consumer'
+            and not outgoing_pipes
+        )
+        skip_mass_balance = skip_producer_mass_balance or skip_consumer_mass_balance
+        if not skip_mass_balance and (incoming_pipes or (node_type != 'producer' and outgoing_pipes)):
+            def mass_balance_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
+                total_in = sum(
+                    getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
+                    for p in _in
+                )
+                total_out = sum(
+                    getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
+                    for p in _out
+                )
+                if node_type == 'consumer':
+                    demand_var = getattr(m, f'{prefix}_m_dot_demand')
+                    return total_in == total_out + demand_var[t]
+                return total_in == total_out
+
+            setattr(model, f'{prefix}_mass_balance',
+                    pyo.Constraint(time_set, rule=mass_balance_rule))
+
+        # (3) Heat demand satisfaction (consumer nodes only)
+        # Q_demand [MW] = m_dot [kg/s] × c_p [kJ/(kg·K)] × (T_supply - T_return) [K] / 1000
+        milp_linearize = config.get('milp_linearize', False)
+
         if node_type == 'consumer':
-            def heat_demand_rule(m, t):
-                # Q_demand = m_dot * c_p * (T_supply - T_return)
-                # In MW: m_dot[kg/s] * c_p[kJ/kg-K] * delta_T[K] / 1000
-                return Q_demand[t] * 1000 == m_dot_demand[t] * cp_water * (T_supply[t] - T_return[t])
+            if milp_linearize and not outgoing_pipes:
+                # Terminal consumer in MILP mode: demand is enforced through
+                # Q_consumer == Q_demand in the network manager.  The heat_demand
+                # constraint (m_dot_demand ↔ Q_demand) is skipped because transport
+                # delay decouples instantaneous flow from instantaneous demand.
+                logger.info(
+                    f"    Node {node_id}: MILP terminal consumer — "
+                    f"heat_demand constraint skipped (enforced via Q_consumer)"
+                )
+            elif milp_linearize:
+                # MILP passthrough consumer: still needs m_dot_demand for mass balance
+                dT_nominal = supply_temp_nominal_c - return_temp_c
+                if dT_nominal <= 0:
+                    dT_nominal = 35.0  # safe fallback
 
-            setattr(model, f'{prefix}_heat_demand',
-                    pyo.Constraint(time_set, rule=heat_demand_rule))
+                def heat_demand_rule_milp(m, t):
+                    return m_dot_demand[t] == Q_demand[t] * 1000 / (cp_water * dT_nominal)
 
-            # (3b) Load-dependent return temperature constraint (optional)
-            # Links T_return to demand level for more realistic modeling
-            # T_return = T_base + load_factor * (Q/Q_max - 0.5) * ΔT_range
+                setattr(model, f'{prefix}_heat_demand',
+                        pyo.Constraint(time_set, rule=heat_demand_rule_milp))
+            else:
+                # Full nonlinear mode (bilinear — requires QP/NLP solver)
+                def heat_demand_rule(m, t):
+                    return Q_demand[t] * 1000 == m_dot_demand[t] * cp_water * (T_supply[t] - T_return[t])
+
+                setattr(model, f'{prefix}_heat_demand',
+                        pyo.Constraint(time_set, rule=heat_demand_rule))
+
+            # (3b) Optional load-dependent return temperature
             if return_temp_range is not None and return_temp_load_factor > 0:
-                T_ret_min, T_ret_max = return_temp_range
-                T_ret_base = (T_ret_min + T_ret_max) / 2  # Midpoint at 50% load
-                delta_T_range = T_ret_max - T_ret_min
+                T_ret_min_v, T_ret_max_v = return_temp_range
+                T_ret_base = (T_ret_min_v + T_ret_max_v) / 2
+                delta_T_range = T_ret_max_v - T_ret_min_v
 
-                # Get peak demand from config or estimate from heatd
                 peak_demand_mw = config.get('peak_demand_mw', None)
                 if peak_demand_mw is None and hasattr(model, 'heatd'):
-                    # Estimate peak demand from total demand * fraction
                     demand_frac = config.get('demand_fraction', 0.0)
                     peak_demand_mw = max(pyo.value(model.heatd[t]) for t in time_set) * demand_frac
 
                 if peak_demand_mw and peak_demand_mw > 0:
-                    # Linear constraint: T_return = T_base + k * (Q - 0.5*Q_max)
-                    # where k = load_factor * ΔT_range / Q_max
                     k_ret_temp = return_temp_load_factor * delta_T_range / peak_demand_mw
 
                     def return_temp_load_rule(m, t):
-                        # T_return = T_base + k * (Q_demand - 0.5 * Q_max)
-                        return T_return[t] == T_ret_base + k_ret_temp * (Q_demand[t] - 0.5 * peak_demand_mw)
+                        return T_return[t] == T_ret_base + k_ret_temp * (
+                            Q_demand[t] - 0.5 * peak_demand_mw
+                        )
 
                     setattr(model, f'{prefix}_return_temp_load',
                             pyo.Constraint(time_set, rule=return_temp_load_rule))
-
-                    logger.info(f"    Node {node_id}: load-dependent T_return constraint "
-                               f"(k={k_ret_temp:.4f} °C/MW, Q_max={peak_demand_mw:.2f} MW)")
-
-        # (4) Connect node temperatures to connected pipes
-        # This is handled by linking pipe variables directly
-        # Store references for system builder to create connections
+                    logger.info(
+                        f"    Node {node_id}: load-dependent T_return constraint "
+                        f"(k={k_ret_temp:.4f} °C/MW, Q_max={peak_demand_mw:.2f} MW)"
+                    )
 
         # ============================================================
         # RETURN REFERENCES
@@ -314,6 +391,8 @@ class ThermalNodeBlock(BaseComponent):
             'type': node_type,
             'T_supply': T_supply,
             'T_return': T_return,
+            'pressure_supply': pressure_supply,
+            'pressure_return': pressure_return,
             'incoming_pipes': incoming_pipes,
             'outgoing_pipes': outgoing_pipes,
         }
@@ -323,7 +402,7 @@ class ThermalNodeBlock(BaseComponent):
             result['m_dot_demand'] = m_dot_demand
             result['demand_fraction'] = config.get('demand_fraction', 0.0)
 
-        if node_type == 'plant':
+        if node_type == 'producer':
             result['components'] = config.get('components', {})
 
         return result
@@ -334,12 +413,13 @@ class ThermalNodeBlock(BaseComponent):
         node_id = config.get('id') or config.get('node_id')
         prefix = node_id.upper().replace('-', '_')
         node_type = config['type']
+        # Normalise alias
+        if node_type == 'plant':
+            node_type = 'producer'
 
-        # Retrieve variables
         T_supply = getattr(model, f'{prefix}_T_supply')
         T_return = getattr(model, f'{prefix}_T_return')
 
-        # Extract time series (with error handling for uninitialized vars)
         def safe_value(var, t, default=None):
             """Safely get value, return default if uninitialized."""
             try:
@@ -367,13 +447,12 @@ class ThermalNodeBlock(BaseComponent):
             'avg_return_temp_c': sum(t_return_series) / len(t_return_series),
         }
 
-        # Consumer-specific results
         if node_type == 'consumer':
             Q_demand = getattr(model, f'{prefix}_Q_demand')
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 
             q_demand_series = [pyo.value(Q_demand[t]) for t in time_set]
-            m_dot_series = [pyo.value(m_dot_demand[t]) for t in time_set]
+            m_dot_series = [safe_value(m_dot_demand, t, 0.0) for t in time_set]
 
             dt_h = getattr(model, 'dt_h', 1.0)
             total_demand_mwh = sum(q_demand_series) * dt_h

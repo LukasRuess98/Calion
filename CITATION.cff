@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+title: "EnerGIS: Modular MILP Framework for Industrial Heat Network Planning"
+message: >-
+  If you use this software in your research, please cite it using
+  the metadata from this file.
+type: software
+authors:
+  - family-names: Ruess
+    given-names: Lukas
+    email: lukas.ruess@eep.uni-stuttgart.de
+    affiliation: >-
+      Institut für Energieeffizienz in der Produktion (EEP),
+      Universität Stuttgart
+repository-code: "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
+url: "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
+license: MIT
+version: "1.0.0-alpha"
+date-released: "2026-03-28"
+keywords:
+  - district heating
+  - MILP
+  - energy system optimization
+  - rolling horizon
+  - Pyomo
+  - heat pump
+  - thermal storage
+  - model predictive control
+  - decarbonization
+abstract: >-
+  EnerGIS is a modular mixed-integer linear programming (MILP) framework
+  for planning and optimizing industrial district heating networks.
+  It supports heat pumps, thermal storage, thermal generators, and
+  network loss modeling with rolling horizon and model predictive
+  control workflows.

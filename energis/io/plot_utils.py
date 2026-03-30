@@ -7,6 +7,10 @@ to avoid code duplication.
 from typing import Sequence
 from datetime import datetime
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 try:
     import matplotlib.pyplot as plt
     from matplotlib.axes import Axes

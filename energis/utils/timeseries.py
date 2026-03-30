@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Dict, Iterator, List, Sequence
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 
 def _ensure_length(values: Dict[str, List[float]]) -> int:
     lengths = {len(v) for v in values.values()}
@@ -67,13 +69,13 @@ class TimeSeriesTable:
         series = self.data[name]
         if not series:
             return {"name": name, "n": 0, "min": 0.0, "max": 0.0, "mean": 0.0}
-        total = sum(series)
+        s = pd.Series(series)
         return {
             "name": name,
             "n": len(series),
-            "min": float(min(series)),
-            "max": float(max(series)),
-            "mean": float(total / len(series)),
+            "min": float(s.min()),
+            "max": float(s.max()),
+            "mean": float(s.mean()),
         }
 
 

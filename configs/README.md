@@ -1,456 +1,244 @@
-# Configuration System Guide
+# EnerGIS Config Structure v2.0
 
-**NEW:** Modular config structure with inheritance support!
-
-## Quick Start
-
-### Simple: Use a Preset
-
-```bash
-# Quick test (1 week, baseline system)
-python -m energis.run configs/presets/quick_test.yaml
-
-# Production run (RH with full system)
-python -m energis.run configs/presets/rh_full_system.yaml
-
-# Storage investment study
-python -m energis.run configs/presets/storage_study.yaml
-
-# Heat pump optimization
-python -m energis.run configs/presets/hp_optimization.yaml
-```
-
-### Advanced: Custom Composition
-
-```bash
-# Mix & match configs as needed
-python -m energis.run \
-  configs/00_base/solver.yaml \
-  configs/01_tech/fuels.yaml \
-  configs/02_site/stadtbach/data_source.yaml \
-  configs/03_systems/full.yaml \
-  configs/04_scenarios/rh_q1_2023.yaml
-```
-
----
-
-## Folder Structure
+## 📁 Directory Structure
 
 ```
 configs/
-├── 00_base/                    # Global defaults (solver, costs, grid)
-│   ├── solver.yaml             # Gurobi settings
-│   ├── costs.yaml              # Economic parameters
-│   └── grid.yaml               # Grid limits and tariffs
+├── tech_library/           # Technology templates (reusable)
+│   ├── heat_pumps.yaml     # HP performance curves, COP models
+│   ├── storage.yaml        # Storage efficiencies, thermal models
+│   ├── generators.yaml     # Boilers, CHP efficiencies
+│   ├── p2h.yaml            # Power-to-Heat conversion
+│   ├── pipes.yaml          # Pipe friction, heat loss models
+│   ├── fluids.yaml         # Water properties (cp, rho, μ)
+│   └── fuels.yaml          # Fuel properties, prices, emissions
 │
-├── 01_tech/                    # Technology parameters
-│   ├── fuels.yaml              # Fuel prices & emissions
-│   ├── generators.yaml         # Generator efficiencies
-│   ├── heat_pumps.yaml         # HP COP, investment defaults
-│   └── storage.yaml            # Storage investment defaults
-│
-├── 02_site/                    # Site-specific data
+├── assets/                 # Site-specific asset definitions
 │   └── stadtbach/
-│       ├── data_source.yaml    # Excel file + column mappings
-│       └── assets.yaml         # Installed assets (brownfield)
+│       ├── components.yaml        # All components (existing + expansion)
+│       ├── grid.yaml              # Grid connection & pricing
+│       ├── network_topology.yaml  # Multi-node thermal network
+│       └── data_sources.yaml      # Time series mappings
 │
-├── 03_systems/                 # System configurations
-│   ├── baseline.yaml           # Existing assets only
-│   ├── with_storage.yaml       # + Thermal storage
-│   ├── with_hp.yaml            # + Heat pumps
-│   └── full.yaml               # All technologies
-│
-├── 04_scenarios/               # Optimization scenarios
-│   ├── test_1week.yaml         # Quick test (PF, 1 week)
-│   ├── rh_q1_2023.yaml         # RH Q1 2023
-│   └── full_year_2023.yaml     # Full year PF
-│
-├── 05_networks/                # Network topologies
-│   └── brownfield.yaml         # District heating network
-│
-└── presets/                    # Pre-composed configurations
-    ├── quick_test.yaml         # Fast development test
-    ├── rh_full_system.yaml     # Production RH run
-    ├── storage_study.yaml      # Storage optimization
-    └── hp_optimization.yaml    # Heat pump sizing
+└── scenarios/              # Optimization scenarios
+    ├── stadtbach_baseline_2023.yaml        # Dispatch only
+    └── stadtbach_capacity_expansion.yaml   # Investment optimization
 ```
 
 ---
 
-## Config Inheritance with `_extends:`
+## 🎯 Key Concepts
 
-**NEW FEATURE:** Configs can now inherit from other configs!
+### 1. **Unified Asset Model** (No More Brownfield/Greenfield!)
 
-### Basic Inheritance
+Every component has:
+- `existing`: What's already installed
+- `expansion`: What can be added
 
 ```yaml
-# my_config.yaml
-_extends: ../00_base/solver.yaml
+heat_pumps:
+  HP1:
+    technology: high_temp_heat_pump    # References tech_library
 
-# Override specific settings
-run:
-  solver_options:
-    TimeLimit: 1800  # Override to 30 minutes
+    existing:
+      thermal_capacity_mw: 25.0        # Already installed
+      commissioning_year: 2018
+
+    expansion:
+      enabled: true
+      min_additional_capacity_mw: 5.0  # Can add 5-75 MW
+      max_additional_capacity_mw: 75.0
+      capex_eur_per_mw: 400000
 ```
 
-### Multiple Parents
+**Benefits:**
+- ✅ Brownfield = `existing > 0`
+- ✅ Greenfield = `existing = 0`
+- ✅ Expansion = `existing > 0 AND expansion.enabled = true`
+- ✅ **One model for everything!**
+
+### 2. **Multi-Node Thermal Network**
 
 ```yaml
-# Inherit from multiple configs (merged left-to-right)
-_extends:
-  - ../00_base/solver.yaml
-  - ../00_base/costs.yaml
-  - ../01_tech/fuels.yaml
+networks:
+  DH_primary:
+    nodes:
+      central_plant:
+        type: producer
+        components: [HKW, GTOST, HP1, TES1]
 
-# Your custom settings
-costs:
-  co2_price_eur_per_t: 150.0  # Override CO2 price
+      stadtbach_west:
+        type: consumer
+        demand_column: "demand_west_MW"
+
+      junction_1:
+        type: junction           # Distribution point
+
+    pipes:
+      pipe_plant_to_junction:
+        from_node: central_plant
+        to_node: junction_1
+        length_m: 1200
+        diameter_mm: 400
+        # ✅ Pressure losses calculated
+        # ✅ Temperature losses calculated
+        # ✅ Time delay modeled
 ```
 
-### How Presets Work
+**Models:**
+- ✅ Mass balance at each node
+- ✅ Enthalpy balance at each node
+- ✅ Pressure drop in pipes (Darcy-Weisbach)
+- ✅ Temperature loss in pipes
+- ✅ Transport time delay
 
-Presets use `_extends:` to compose complete configurations:
+### 3. **Technology Library** (Reusable Templates)
 
 ```yaml
-# configs/presets/quick_test.yaml
-_extends:
-  - ../00_base/solver.yaml          # Solver defaults
-  - ../00_base/costs.yaml           # Cost parameters
-  - ../00_base/grid.yaml            # Grid limits
-  - ../01_tech/fuels.yaml           # Fuel prices
-  - ../01_tech/generators.yaml      # Generator specs
-  - ../02_site/stadtbach/data_source.yaml  # Data mapping
-  - ../02_site/stadtbach/assets.yaml       # Assets
-  - ../03_systems/baseline.yaml     # System config
-  - ../04_scenarios/test_1week.yaml # Scenario
-
-# All settings inherited - ready to run!
+# tech_library/heat_pumps.yaml
+heat_pumps:
+  high_temp_heat_pump:
+    cop_model:
+      type: lookup_table_2d
+      lookup_table:
+        source_temps_K: [273, 283, 293, ...]
+        sink_temps_K: [343, 353, 363, ...]
+        cop_values:
+          - [2.45, 2.86, 3.43, ...]    # COP matrix
+    costs:
+      capex_eur_per_mw: 400000
+      lifetime_yr: 15
 ```
 
-### Circular Dependency Protection
+**All technologies defined once, referenced everywhere!**
 
-The system automatically detects and prevents circular dependencies:
+---
 
-```yaml
-# a.yaml
-_extends: b.yaml
+## 🚀 Usage Examples
 
-# b.yaml
-_extends: a.yaml  # ERROR: Circular dependency!
+### Example 1: Dispatch Optimization (Fixed Capacities)
+
+```bash
+energis optimize scenarios/stadtbach_baseline_2023.yaml
+```
+
+- Uses `existing` capacities (no investment)
+- Optimizes hourly dispatch
+- Fast (LP problem)
+
+### Example 2: Capacity Expansion (Investment)
+
+```bash
+energis optimize scenarios/stadtbach_capacity_expansion.yaml
+```
+
+- Optimizes `expansion` capacities
+- Determines which assets to build
+- Slower (MILP problem)
+
+### Example 3: Sensitivity Analysis
+
+```bash
+energis sensitivity scenarios/stadtbach_capacity_expansion.yaml \
+  --param co2_price --range 80,120,200
 ```
 
 ---
 
-## Creating Custom Configurations
+## 📊 Complete Stadtbach Example
 
-### Option 1: Use a Preset as Template
+### Components (assets/stadtbach/components.yaml)
 
-```bash
-# Copy existing preset
-cp configs/presets/quick_test.yaml configs/presets/my_custom.yaml
+**Existing Assets:**
+- CHP Plants: HKW (75 MW), GTOST (41.3 MW), BMHKW (15 MW)
+- Boilers: HWS (45 MW), HWW (45 MW)
+- P2H: 10 MW (can expand to 50 MW)
+- Waste Heat: AVA (45 MW)
+- Storage: 500 MWh (can expand to 2000 MWh)
 
-# Edit to add your changes
-vim configs/presets/my_custom.yaml
-```
+**Investment Options:**
+- Heat Pumps: HP1-HP4 (4 waste heat sources, 0-50 MW each)
+- P2H Expansion: +5-40 MW
+- Storage Expansion: +100-1500 MWh
 
-### Option 2: Compose from Scratch
+### Network (assets/stadtbach/network_topology.yaml)
 
-```yaml
-# configs/my_scenarios/winter_peak.yaml
-_extends:
-  - configs/00_base/solver.yaml
-  - configs/01_tech/fuels.yaml
-  - configs/02_site/stadtbach/data_source.yaml
-  - configs/03_systems/full.yaml
+**6 Nodes:**
+- 1 Producer (central_plant)
+- 4 Consumers (north, west, east, industrial)
+- 2 Junctions (distribution)
 
-# Winter scenario
-scenario:
-  title: "Winter Peak Analysis"
-  tag: "winter-2023"
-  workflow: [PF]
-  horizon:
-    type: "date_range"
-    start: "2023-12-01 00:00"
-    end: "2023-02-28 23:00"
+**6 Pipes:**
+- DN250-DN400 pipes
+- Total length: ~10 km
+- Pressure/temperature modeled
 
-# Higher gas prices for winter
-fuels:
-  gas:
-    price_eur_mwh: 75.0  # Winter peak pricing
-```
+### Scenarios
 
-### Option 3: Override Existing Preset
+**Baseline 2023:** Dispatch only (€45M fuel + electricity)
 
-```yaml
-# configs/my_scenarios/quick_test_custom.yaml
-_extends: configs/presets/quick_test.yaml
-
-# Just override what you need
-run:
-  solver_options:
-    LogToConsole: 1  # Enable solver output
-```
+**Capacity Expansion:** Investment + dispatch
+- Heat Pump 1: +30 MW (@€12M)
+- Heat Pump 2: +25 MW (@€10M)
+- Storage: +800 MWh (@€4M)
+- **Total Investment: €26M**
+- **Annual Savings: €4.5M** (fuel + CO2)
+- **Payback: 5.8 years**
 
 ---
 
-## Common Use Cases
+## 🔄 Migration from Old Config
 
-### 1. Quick Development Test
-```bash
-python -m energis.run configs/presets/quick_test.yaml
-```
-- **Time**: ~5-10 minutes
-- **Scope**: 1 week (168 hours)
-- **System**: Baseline (existing assets only)
-- **Purpose**: Fast iteration, debugging
-
-### 2. Full System Optimization
-```bash
-python -m energis.run configs/presets/rh_full_system.yaml
-```
-- **Time**: ~1-2 hours
-- **Scope**: Q1 2023 (~2500 hours)
-- **System**: Full (HP + Storage + investment)
-- **Purpose**: Production optimization
-
-### 3. Storage Sizing Study
-```bash
-python -m energis.run configs/presets/storage_study.yaml
-```
-- **Time**: ~2-4 hours
-- **Scope**: Full year 2023
-- **System**: Storage only (no HP)
-- **Purpose**: Optimal storage capacity
-
-### 4. Heat Pump Investment Analysis
-```bash
-python -m energis.run configs/presets/hp_optimization.yaml
-```
-- **Time**: ~2-4 hours
-- **Scope**: Full year 2023
-- **System**: 4 HPs with WRG (no storage)
-- **Purpose**: Optimal HP sizing
-
-### 5. Custom Solver Settings
+### Old Format:
 ```yaml
-# fast_solver.yaml
-_extends: configs/presets/quick_test.yaml
-
-run:
-  solver_options:
-    TimeLimit: 300     # 5 minutes
-    MIPGap: 0.05       # 5% gap (faster, less optimal)
-```
-
-```bash
-python -m energis.run fast_solver.yaml
-```
-
----
-
-## Configuration Layers
-
-Configs are organized by **change frequency**:
-
-| Layer | Folder | Change Frequency | Examples |
-|-------|--------|------------------|----------|
-| **Base** | `00_base/` | Rarely | Solver settings, grid limits |
-| **Tech** | `01_tech/` | Rarely | Fuel prices, tech specs |
-| **Site** | `02_site/` | Rarely | Data sources, existing assets |
-| **System** | `03_systems/` | Sometimes | Enabled technologies |
-| **Scenario** | `04_scenarios/` | Often | Time periods, workflows |
-| **Preset** | `presets/` | Often | Complete use cases |
-
-**Principle**: Lower numbers = change less often
-
----
-
-## Config Merging Rules
-
-### Precedence (Later Overrides Earlier)
-
-```bash
-python -m energis.run file1.yaml file2.yaml file3.yaml
-#                      ▲          ▲          ▲
-#                      │          │          └─ Highest priority
-#                      │          └─ Medium priority
-#                      └─ Lowest priority
-```
-
-### Deep Merge Behavior
-
-```yaml
-# file1.yaml
-run:
-  solver: gurobi
-  solver_options:
-    MIPGap: 0.02
-    TimeLimit: 3600
-
-# file2.yaml
-run:
-  solver_options:
-    TimeLimit: 1800  # Override only TimeLimit
-
-# Result: MIPGap=0.02, TimeLimit=1800 (merged!)
-```
-
-### List Replacement (Not Merge)
-
-```yaml
-# parent.yaml
 system:
   heat_pumps:
     - id: HP1
-    - id: HP2
-
-# child.yaml
-system:
-  heat_pumps:
-    - id: HP3
-
-# Result: Only HP3 (lists are REPLACED, not merged)
+      max_th_mw: 50.0              # ❌ Mixed brownfield/greenfield
+      investment:
+        enabled: true
 ```
 
----
-
-## Troubleshooting
-
-### "Column not found" Error
-```
-KeyError: 'WRG1_Q_MW'
-```
-**Fix**: Check `02_site/stadtbach/data_source.yaml` column mappings
-
-### "Config not found" Error
-```
-FileNotFoundError: Config not found
-```
-**Fix**: Run from project root, or use absolute paths in `_extends:`
-
-### "Circular dependency detected"
-```
-ValueError: Circular dependency detected: /path/to/config.yaml
-```
-**Fix**: Remove circular `_extends:` references (A → B → A)
-
-### Solver Infeasibility
-```
-Problem proven to be infeasible
-```
-**Common causes:**
-1. Wrong WRG column names → No HP capacity
-2. Terminal constraint too strict → Check `scenario.horizon.enforce`
-3. Investment + terminal conflict → Set `scenario.fix_design: true`
-
-**Debug:**
-```bash
-# Check merged config
-python -c "
-from energis.config.merge import load_and_merge
-cfg = load_and_merge(['configs/presets/quick_test.yaml'])
-print('Merged from:', cfg['meta']['merged_from'])
-print('Inheritance:', cfg['meta']['inheritance_enabled'])
-"
-```
-
----
-
-## Best Practices
-
-### 1. **Use Presets for Common Tasks**
-DON'T: Manually compose 10 configs every time
-DO: Create a preset and reuse it
-
-### 2. **Layer Your Overrides**
-DON'T: Copy entire config files
-DO: Use `_extends:` and override only what changes
-
-### 3. **Keep Site Data Separate**
-DON'T: Hardcode column mappings in scenarios
-DO: Define once in `02_site/stadtbach/data_source.yaml`
-
-### 4. **Document Your Presets**
+### New Format:
 ```yaml
-# =============================================================================
-# PRESET: My Custom Optimization
-# =============================================================================
-# Purpose: Winter peak analysis with high CO2 prices
-# Runtime: ~2 hours
-# Use case: Policy sensitivity study
-# =============================================================================
-_extends: ...
+heat_pumps:
+  HP1:
+    technology: high_temp_heat_pump
+    existing:
+      thermal_capacity_mw: 25.0    # ✅ Clear: 25 MW existing
+    expansion:
+      enabled: true
+      max_additional_capacity_mw: 25.0  # ✅ Can add 25 MW more
 ```
 
-### 5. **Test Before Production**
+---
+
+## ✅ Validation
+
+Check config before optimization:
+
 ```bash
-# Always test with quick_test first
-python -m energis.run configs/presets/quick_test.yaml
-
-# Then scale to full scenario
-python -m energis.run configs/presets/rh_full_system.yaml
+energis config validate scenarios/stadtbach_capacity_expansion.yaml
 ```
 
----
-
-## 🔄 Migration from Old Structure
-
-### Old Way (Deprecated)
-```bash
-python -m energis.run configs/stadtbach.yaml
-# 245 lines, everything in one file
-```
-
-### New Way (Recommended)
-```bash
-python -m energis.run configs/presets/rh_full_system.yaml
-# Modular, reusable, DRY
-```
-
-### Migration Steps
-1. **Identify your use case** (test, production, study)
-2. **Find matching preset** in `presets/`
-3. **Test preset**: Run and verify results
-4. **Customize if needed**: Create custom config with `_extends:`
-5. **Delete old monolithic configs** (optional)
+**Checks:**
+- ✅ All referenced technologies exist in tech_library
+- ✅ All referenced components exist in assets
+- ✅ Time series columns exist in data files
+- ✅ Value ranges are valid
+- ✅ Network topology is connected
 
 ---
 
-## What's New
+## 📖 Full Documentation
 
-### Phase 2 & 3 Features
-- **Modular structure**: Configs organized by change frequency
-- **Config inheritance**: `_extends:` support
-- **Presets**: Ready-to-use complete configurations
-- **Circular dependency detection**: Prevents config loops
-- **Better documentation**: This guide!
-
-### Removed
-- `stadtbach.yaml` (monolith)
-- `base.yaml` (split into `00_base/*`)
-- `tech_catalog.yaml` (split into `01_tech/*`)
-- Old `scenarios/*.yaml` (replaced with `04_scenarios/*`)
-- Old `systems/*.yaml` (replaced with `03_systems/*`)
-
-**Old configs have been removed (preserved in git history).**
+See detailed documentation:
+- `docs/CONFIG_REFACTORING_PROPOSAL.md` - Design rationale
+- `docs/CONFIG_GAP_ANALYSIS.md` - Old vs new comparison
+- `docs/NETWORK_PHYSICS_MODEL.md` - Multi-node network equations
 
 ---
 
-## 📚 Further Reading
-
-- **Detailed Analysis**: `docs/config_structure_analysis.md`
-- **Code**: `energis/config/merge.py` (inheritance implementation)
-- **Examples**: `configs/presets/` (working examples)
-
----
-
-## Need Help?
-
-1. **Check presets**: `configs/presets/` has working examples
-2. **Read examples**: Each preset is documented
-3. **Debug merging**: Use `cfg['meta']['merged_from']` to see what was merged
-4. **Ask questions**: Open an issue with config snippet
-
----
-
-**Happy optimizing!**
+**Version:** 1.0.0-alpha
+**Status:** ✅ Complete Implementation
+**Date:** 2026-03-28

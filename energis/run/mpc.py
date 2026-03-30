@@ -17,7 +17,11 @@ from collections import OrderedDict
 
 from energis.forecasting.base import ForecastGenerator
 from energis.utils.timeseries import TimeSeriesTable
-from energis.run.rolling_horizon import _slice_table
+from energis.run.utilities import _slice_table
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +61,7 @@ def _evaluate_costs_on_actual_data(
     Dictionary of evaluated costs on actual data
     """
     from energis.constants import HOURS_PER_YEAR
-    from energis.run.rolling_horizon import _gather_component_metadata
+    from energis.run.result_collector import _gather_component_metadata
 
     n = len(committed_indices)
     if n == 0:
@@ -67,9 +71,9 @@ def _evaluate_costs_on_actual_data(
     meta = _gather_component_metadata(cfg)
 
     # DEBUG: Show generator metadata
-    print(f"\n[MPC DEBUG] Generator metadata from _gather_component_metadata:")
+    logger.info(f"\n[MPC DEBUG] Generator metadata from _gather_component_metadata:")
     for gen in meta["generators"]:
-        print(f"  {gen['name']}: fuel_bus={gen['fuel_bus']}, price={gen['fuel_price']:.2f}€/MWh, emission={gen['fuel_emission']:.1f}kg/MWh")
+        logger.info(f"  {gen['name']}: fuel_bus={gen['fuel_bus']}, price={gen['fuel_price']:.2f}€/MWh, emission={gen['fuel_emission']:.1f}kg/MWh")
 
     # =========================================================================
     # 1. EXTRACT ACTUAL DATA FOR COMMITTED PERIOD
@@ -79,9 +83,9 @@ def _evaluate_costs_on_actual_data(
     grid_co2_series = actual_data.data.get("grid_co2_kg_MWh", [0.0] * len(actual_data))
 
     # DEBUG: Show data availability
-    print(f"[MPC DEBUG] Actual data columns: {list(actual_data.data.keys())[:10]}...")
-    print(f"[MPC DEBUG] Price series length: {len(price_series)}, first 3 values: {price_series[:3]}")
-    print(f"[MPC DEBUG] Committed indices: n={n}, range=[{committed_indices[0] if committed_indices else 'N/A'}..{committed_indices[-1] if committed_indices else 'N/A'}]")
+    logger.info(f"[MPC DEBUG] Actual data columns: {list(actual_data.data.keys())[:10]}...")
+    logger.info(f"[MPC DEBUG] Price series length: {len(price_series)}, first 3 values: {price_series[:3]}")
+    logger.info(f"[MPC DEBUG] Committed indices: n={n}, range=[{committed_indices[0] if committed_indices else 'N/A'}..{committed_indices[-1] if committed_indices else 'N/A'}]")
 
     # Extract prices for committed indices
     actual_elec_prices = []
@@ -104,18 +108,18 @@ def _evaluate_costs_on_actual_data(
     q_dump = series.get("Q_dump_MWth", [0.0] * n)[:n]
 
     # DEBUG: Show series values
-    print(f"[MPC DEBUG] Series keys: {list(series.keys())[:15]}...")
-    print(f"[MPC DEBUG] P_buy_MW: len={len(p_buy)}, sum={sum(p_buy):.1f}, max={max(p_buy) if p_buy else 0:.1f}")
-    print(f"[MPC DEBUG] P_sell_MW: len={len(p_sell)}, sum={sum(p_sell):.1f}")
+    logger.info(f"[MPC DEBUG] Series keys: {list(series.keys())[:15]}...")
+    logger.info(f"[MPC DEBUG] P_buy_MW: len={len(p_buy)}, sum={sum(p_buy):.1f}, max={max(p_buy) if p_buy else 0:.1f}")
+    logger.info(f"[MPC DEBUG] P_sell_MW: len={len(p_sell)}, sum={sum(p_sell):.1f}")
 
     # Check fuel series
     for gen in meta["generators"]:
         fuel_key = f"{gen['name']}_fuel_MW"
         if fuel_key in series:
             fuel_vals = series[fuel_key][:n]
-            print(f"[MPC DEBUG] {fuel_key}: sum={sum(fuel_vals):.1f} MW")
+            logger.info(f"[MPC DEBUG] {fuel_key}: sum={sum(fuel_vals):.1f} MW")
         else:
-            print(f"[MPC DEBUG] {fuel_key}: NOT FOUND in series!")
+            logger.info(f"[MPC DEBUG] {fuel_key}: NOT FOUND in series!")
 
     # =========================================================================
     # 3. GRID ELECTRICITY COSTS (identical to PF calculation)
@@ -336,23 +340,20 @@ def run_mpc(
     Aggregated MPC result
     """
     # Import here to avoid circular dependency
-    from energis.run.rolling_horizon import (
-        RollingHorizonResult,
-        WindowResult,
-        _hours_to_steps,
+    from energis.run.types import RollingHorizonResult, WindowResult
+    from energis.run.utilities import _hours_to_steps
+    from energis.run.rh_engine import (
         _initial_soc,
         _storage_enabled,
         _apply_terminal_policy,
         _set_initial_soc,
-        _apply_design_fix,
-        _solve_scenario,
-        _load_cost_plan,
-        _extract_design_data,
-        _accumulate_costs,
         _extend_series,
         _next_soc,
-        _recompute_objective_costs,
+        _load_cost_plan,
     )
+    from energis.run.design_helpers import _apply_design_fix, _extract_design_data
+    from energis.run.solver import _solve_scenario
+    from energis.run.cost_helpers import _accumulate_costs, _recompute_objective_costs
 
     n = len(historical_data)
     if n == 0:
@@ -410,23 +411,23 @@ def run_mpc(
 
         # Debug: show forecast data for first window
         if window_idx == 0:
-            print(f"\n[MPC DEBUG] First window forecast data:")
-            print(f"  - Length: {len(forecast_table)} steps")
-            print(f"  - Columns: {list(forecast_table.data.keys())[:8]}...")
+            logger.info(f"\n[MPC DEBUG] First window forecast data:")
+            logger.info(f"  - Length: {len(forecast_table)} steps")
+            logger.info(f"  - Columns: {list(forecast_table.data.keys())[:8]}...")
             if "waermebedarf_MWth" in forecast_table.data:
                 demand = forecast_table.data["waermebedarf_MWth"]
-                print(f"  - Heat demand: min={min(demand):.1f}, max={max(demand):.1f}, avg={sum(demand)/len(demand):.1f} MWth")
+                logger.info(f"  - Heat demand: min={min(demand):.1f}, max={max(demand):.1f}, avg={sum(demand)/len(demand):.1f} MWth")
 
             # Show generator capacities
             gen_cfg = base_cfg.get("system", {}).get("generators", {})
             total_cap = 0.0
-            print(f"[MPC DEBUG] Generator capacities:")
+            logger.info(f"[MPC DEBUG] Generator capacities:")
             for name, cfg_val in gen_cfg.items():
                 if isinstance(cfg_val, dict) and cfg_val.get("enabled", False):
                     cap = float(cfg_val.get("cap_th_mw", 0.0))
                     total_cap += cap
-                    print(f"  - {name}: {cap:.1f} MWth")
-            print(f"  - TOTAL generators: {total_cap:.1f} MWth")
+                    logger.info(f"  - {name}: {cap:.1f} MWth")
+            logger.info(f"  - TOTAL generators: {total_cap:.1f} MWth")
 
             # Show heat pump capacities
             hp_cfg = base_cfg.get("system", {}).get("heat_pumps", [])
@@ -436,14 +437,14 @@ def run_mpc(
                     if isinstance(hp, dict) and hp.get("enabled", True):
                         cap = float(hp.get("max_th_mw", 0.0))
                         hp_cap += cap
-                        print(f"  - {hp.get('id', 'HP')}: {cap:.1f} MWth")
-            print(f"  - TOTAL heat pumps: {hp_cap:.1f} MWth")
-            print(f"  - GRAND TOTAL: {total_cap + hp_cap:.1f} MWth")
+                        logger.info(f"  - {hp.get('id', 'HP')}: {cap:.1f} MWth")
+            logger.info(f"  - TOTAL heat pumps: {hp_cap:.1f} MWth")
+            logger.info(f"  - GRAND TOTAL: {total_cap + hp_cap:.1f} MWth")
 
             if "waermebedarf_MWth" in forecast_table.data:
                 peak = max(demand)
                 total_available = total_cap + hp_cap
-                print(f"  - Peak demand: {peak:.1f} MWth {'(OK)' if total_available >= peak else '(INSUFFICIENT!)'}")
+                logger.info(f"  - Peak demand: {peak:.1f} MWth {'(OK)' if total_available >= peak else '(INSUFFICIENT!)'}")
 
         # 2. Prepare window configuration
         window_cfg = copy.deepcopy(base_cfg)
@@ -463,17 +464,20 @@ def run_mpc(
         if should_fix_design:
             # Debug: show design being applied
             if window_idx == 0:
-                print(f"\n[MPC DEBUG] Applying design fix from PF:")
+                logger.info(f"\n[MPC DEBUG] Applying design fix from PF:")
                 if design_state:
-                    print(f"  Heat Pumps:")
+                    logger.info(f"  Heat Pumps:")
                     for hp_id, hp_data in design_state.heat_pumps.items():
-                        print(f"    {hp_id}: capacity={hp_data.get('capacity_mw', 0):.2f} MW, build={hp_data.get('build_binary', 0):.2f}")
+                        logger.info(f"    {hp_id}: capacity={hp_data.get('capacity_mw', 0):.2f} MW, build={hp_data.get('build_binary', 0):.2f}")
                     if design_state.storage:
-                        print(f"  Storage: capacity={design_state.storage.get('capacity_mwh', 0):.1f} MWh, "
-                              f"power={design_state.storage.get('power_mw', 0):.1f} MW, "
-                              f"build={design_state.storage.get('build_binary', 0):.2f}")
+                        logger.info(
+                            "  Storage: capacity=%.1f MWh, power=%.1f MW, build=%.2f",
+                            design_state.storage.get("capacity_mwh", 0),
+                            design_state.storage.get("power_mw", 0),
+                            design_state.storage.get("build_binary", 0),
+                        )
                     else:
-                        print(f"  Storage: None")
+                        logger.info(f"  Storage: None")
             window_cfg = _apply_design_fix(window_cfg, design_state)
 
         # 3. Solve optimization with forecast
@@ -567,10 +571,10 @@ def run_mpc(
         )
 
     # Debug-Ausgabe (optional)
-    print(f"\n[MPC DEBUG] Evaluated costs from actual data:")
+    logger.info(f"\n[MPC DEBUG] Evaluated costs from actual data:")
     for k, v in sorted(evaluated_costs.items()):
         if abs(v) > 0.01:
-            print(f"  {k}: {v:,.2f}")
+            logger.info(f"  {k}: {v:,.2f}")
 
     # OPEX durch tatsächliche Kosten ersetzen, CAPEX aus Aggregation beibehalten
     for key, value in evaluated_costs.items():
@@ -579,11 +583,10 @@ def run_mpc(
     # Gesamtes Ziel neu berechnen (OPEX + CAPEX)
     _recompute_objective_costs(aggregated_costs)
 
-    print(f"\n[MPC DEBUG] Final costs AFTER recompute:")
+    logger.info(f"\n[MPC DEBUG] Final costs AFTER recompute:")
     for k, v in sorted(aggregated_costs.items()):
         if "objective" in k.lower() and abs(v) > 0.01:
-            print(f"  {k}: {v:,.2f}")
-    print()
+            logger.info(f"  {k}: {v:,.2f}")
 
     # Finale Ergebnis-Tabelle: echte Zeitschiene, nur die committeten Indizes
     result_table = _slice_table(historical_data, aggregated_indices)

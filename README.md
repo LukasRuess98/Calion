@@ -1,6 +1,6 @@
 # EnerGIS: Modular District Heating Optimization Framework
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A modular Mixed-Integer Linear Programming (MILP) framework for optimal planning and operation of district heating systems with thermal network integration.
@@ -19,11 +19,14 @@ EnerGIS provides a transparent, modular approach to district heating optimizatio
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/energis.git
-cd energis
+git clone https://github.com/LukasRuess98/Planing-Framework-for-Heat.git
+cd Planing-Framework-for-Heat
 
-# Install dependencies
-pip install -r requirements.txt
+# Install in editable mode (includes core dependencies)
+pip install -e .
+
+# Install with all optional dependencies (solver, plots, notebooks, dev tools)
+pip install -e ".[all]"
 
 # Optional: Install Gurobi solver (recommended for large problems)
 # Framework falls back to GLPK if Gurobi is unavailable
@@ -31,7 +34,7 @@ pip install -r requirements.txt
 
 ### Requirements
 
-- Python 3.9+
+- Python 3.10+
 - Pyomo (optimization modeling)
 - Gurobi or GLPK solver
 - pandas, numpy, pyyaml, openpyxl
@@ -41,10 +44,10 @@ pip install -r requirements.txt
 ### Command Line
 
 ```bash
-# Run optimization with configuration file
-python -m energis.run configs/stadtbach.yaml
+# Run optimization with a scenario config
+python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
 
-# Results are exported to exports/
+# Results are written to outputs/runs/
 ```
 
 ### Jupyter Notebook
@@ -60,15 +63,17 @@ The notebook provides interactive access to:
 
 ## Configuration
 
-EnerGIS uses YAML configuration files. See `configs/stadtbach.yaml` for a complete example:
+EnerGIS uses YAML configuration files layered on top of `configs/base.yaml`.
+See `configs/scenarios/stadtbach_baseline_2023.yaml` for a complete example:
 
 ```yaml
 scenario:
   title: "District Heating Optimization"
   workflow: [PF]
-  horizon:
+  time:
     start: "2023-01-01 00:00"
     end: "2023-12-31 23:00"
+    freq: "1h"
 
 system:
   heat_pumps:
@@ -82,7 +87,7 @@ system:
 
 thermal_network:
   enabled: true
-  topology_file: configs/networks/brownfield.yaml
+  topology_file: configs/05_networks/brownfield.yaml
 
 costs:
   co2_price_eur_per_t: 100.0
@@ -91,16 +96,30 @@ costs:
 ## Project Structure
 
 ```
-energis/              # Python module
+energis/              # Python package
   models/             # Pyomo model components
   run/                # Optimization orchestration
   io/                 # Input/output utilities
   config/             # Configuration handling
+  analysis/           # Sensitivity and post-processing
+  comparison/         # Benchmarking tools
 
-configs/              # Configuration files
+configs/              # YAML configuration files
+  base.yaml           # Shared defaults
+  scenarios/          # Ready-to-run scenarios
+  templates/          # Minimal templates (level1–3)
+  assets/             # Asset/technology definitions
+  05_networks/        # Thermal network topologies
+
+data/                 # Input time-series (CSV)
+outputs/              # Runtime results (gitignored)
+  runs/               # Per-run CSVs, plots, solver files
+  workflows/          # Saved notebook workflows
+scripts/              # Utilities (migrate_outputs, start_dashboard)
 notebooks/            # Jupyter notebooks
 tests/                # Test suite
 docs/                 # Documentation
+archive/              # Development artifacts (not active code)
 ```
 
 ## Documentation
@@ -112,11 +131,11 @@ docs/                 # Documentation
 ## Testing
 
 ```bash
-# Run comprehensive system test
-python tests/test_full_system.py
-
 # Run all unit tests
 pytest tests/ -v
+
+# Run without coverage (faster)
+pytest tests/ -v --no-cov
 ```
 
 ## Citation
@@ -124,11 +143,13 @@ pytest tests/ -v
 If you use EnerGIS in your research, please cite:
 
 ```bibtex
-@article{energis2024,
-  title={EnerGIS: A Modular MILP Framework for District Heating System Optimization},
-  author={[Authors]},
-  journal={Applied Energy},
-  year={2024}
+@software{ruess2026energis,
+  author       = {Ruess, Lukas},
+  title        = {{EnerGIS: Modular MILP Framework for Industrial Heat Network Planning}},
+  year         = {2026},
+  version      = {1.0.0-alpha},
+  institution  = {Institut für Energieeffizienz in der Produktion (EEP), Universität Stuttgart},
+  url          = {https://github.com/LukasRuess98/Planing-Framework-for-Heat}
 }
 ```
 

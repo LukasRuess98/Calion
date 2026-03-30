@@ -11,18 +11,13 @@ from typing import Any, Dict, List, Optional
 from energis.utils.xlsx import read_xlsx
 from energis.utils.timeseries import TimeSeriesTable, fill_gaps
 
+from energis.logging_config import get_logger
+from energis.io._utils import _is_empty  # noqa: F401 – re-exported for callers
+
+logger = get_logger(__name__)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _is_empty(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, float) and math.isnan(value):
-        return True
-    if isinstance(value, str) and value.strip() == "":
-        return True
-    return False
 
 
 def _require(cond: bool, msg: str) -> None:
@@ -137,7 +132,7 @@ def _find_time_column(header: List[str]) -> str:
     for cand in candidates:
         if cand in norm:
             return norm[cand]
-    raise RuntimeError("Zeitspalte nicht gefunden (z.B. 'Datum').")
+    raise RuntimeError("Time column not found (e.g., 'Datum', 'Date', 'Time').")
 
 
 def _map_column(header: List[str], candidates: List[str]) -> Optional[str]:
@@ -177,12 +172,12 @@ def load_input_excel(
 ) -> TimeSeriesTable:
     resolved_path = _resolve_input_path(path, site_cfg)
     header, rows = _read_tabular(resolved_path, site_cfg.get("sheet_name"))
-    _require(header, f"Eingabedatei {resolved_path} enthält keine Daten")
+    _require(header, f"Input file {resolved_path} contains no data")
     records = _build_records(header, rows)
 
     time_col = _find_time_column(header)
     records = [rec for rec in records if not _is_empty(rec.get(time_col))]
-    _require(records, f"Zeitspalte '{time_col}' enthält keine gültigen Werte.")
+    _require(records, f"Time column '{time_col}' contains no valid values.")
     timestamps = [_parse_datetime(rec[time_col]) for rec in records]
 
     year_target = site_cfg.get("year_target")
@@ -217,7 +212,7 @@ def load_input_excel(
             if col:
                 return col
         col = _map_column(header, fallbacks)
-        _require(col is not None, f"Fehlende Spalte für {name}")
+        _require(col is not None, f"Missing column for {name}")
         return col
 
     price_col = pick("price_candidates", ["Day_Ahead_Price €/MWh", "strompreis"])
@@ -270,9 +265,9 @@ def load_input_excel(
     outdoor_temp: List[float] = []
     if outdoor_temp_col:
         outdoor_temp = [_to_float(rec.get(outdoor_temp_col)) for rec in records]
-        print(f"[LOAD] Außentemperatur gefunden: Spalte '{outdoor_temp_col}'")
+        logger.info(f"[LOAD] Outdoor temperature found: column '{outdoor_temp_col}'")
     else:
-        print("[LOAD] Keine Außentemperatur-Spalte gefunden (Heizkurve deaktiviert)")
+        logger.info("[LOAD] No outdoor temperature column found (heating curve disabled)")
 
     data: Dict[str, List[float]] = {
         "strompreis_EUR_MWh": price,
@@ -296,7 +291,7 @@ def load_input_excel(
     # fill missing numbers using simple forward/backward fill
     for key, values in data.items():
         data[key] = fill_gaps(values)
-        _require(all(v == v for v in data[key]), f"NaN in Spalte {key}")
+        _require(all(v == v for v in data[key]), f"NaN in column {key}")
 
     dt_hours = float(dt_hours if dt_hours is not None else site_cfg.get("dt_h", 1.0))
 
@@ -325,10 +320,11 @@ def load_input_excel(
     table = _resample_regular(timestamps, data, dt_hours)
 
     if table.data["waermebedarf_MWth"] and max(table.data["waermebedarf_MWth"]) == 0:
-        raise RuntimeError("Wärmebedarf ist überall 0. Bitte Spaltenzuordnung prüfen.")
+        raise RuntimeError("Heat demand is zero everywhere. Please check column mapping.")
 
-    print(
-        f"[LOAD] {os.path.basename(path)} → {len(table)} Schritte von {table.index[0]} bis {table.index[-1]}"
+    logger.info(
+        "[LOAD] %s -> %d steps from %s to %s",
+        os.path.basename(path), len(table), table.index[0], table.index[-1],
     )
 
     return table

@@ -9,6 +9,10 @@ import time
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Tuple, Any, Optional
 
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +67,7 @@ class BenchmarkSuite:
             ("MPC", {"scenario": {"workflow": ["MPC"]}}),
         ]
         results = suite.run(methods, num_runs=1)
-        suite.export_results(results, "exports/benchmark_results.csv")
+        suite.export_results(results, "outputs/runs/benchmark_results.csv")
     """
 
     def __init__(self, base_configs: List[str]):
@@ -82,7 +86,7 @@ class BenchmarkSuite:
         methods: List[Tuple[str, Dict[str, Any]]],
         num_runs: int = 1,
         save_intermediate: bool = True,
-        output_dir: str = "exports/benchmark",
+        output_dir: str = "outputs/runs/benchmark",
     ) -> List[BenchmarkMetrics]:
         """Run benchmark comparison of multiple methods.
 
@@ -273,7 +277,7 @@ class BenchmarkSuite:
     def _save_intermediate(self, results: List[BenchmarkMetrics], output_dir: str, method_name: str):
         """Save intermediate results to JSON."""
         filepath = os.path.join(output_dir, f"intermediate_{method_name}.json")
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding="utf-8") as f:
             json.dump([asdict(r) for r in results], f, indent=2)
         logger.info(f"  Saved intermediate results to {filepath}")
 
@@ -297,7 +301,7 @@ class BenchmarkSuite:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
         # Write CSV
-        with open(output_path, 'w', newline='') as f:
+        with open(output_path, 'w', newline='', encoding="utf-8") as f:
             # Get fieldnames from first result
             fieldnames = [
                 'method', 'run_index',
@@ -330,7 +334,7 @@ class BenchmarkSuite:
             results = self.results
 
         if not results:
-            print("No results to display")
+            logger.info("No results to display")
             return
 
         # Group by method
@@ -341,11 +345,11 @@ class BenchmarkSuite:
             methods[r.method].append(r)
 
         # Print header
-        print("\n" + "="*100)
-        print("BENCHMARK RESULTS SUMMARY")
-        print("="*100)
-        print(f"{'Method':<15} {'Runs':>5} {'Total Cost':>15} {'vs PF':>10} {'CAPEX':>12} {'OPEX':>12} {'Time':>10}")
-        print("-"*100)
+        logger.info("="*70)
+        logger.info("BENCHMARK RESULTS SUMMARY")
+        logger.info("="*70)
+        logger.info(f"{'Method':<15} {'Runs':>5} {'Total Cost':>15} {'vs PF':>10} {'CAPEX':>12} {'OPEX':>12} {'Time':>10}")
+        logger.info("-"*70)
 
         # Print each method
         for method_name in sorted(methods.keys()):
@@ -365,14 +369,14 @@ class BenchmarkSuite:
             print(f"{method_name:<15} {n:>5} {avg_cost:>15,.0f} {vs_pf_str:>10} "
                   f"{avg_capex:>12,.0f} {avg_opex:>12,.0f} {avg_time:>8.1f}s")
 
-        print("="*100 + "\n")
+        logger.info("="*100)
 
 
 def run_method_comparison(
     base_configs: List[str],
     methods: List[Tuple[str, Dict[str, Any]]],
     num_runs: int = 1,
-    output_dir: str = "exports/benchmark",
+    output_dir: str = "outputs/runs/benchmark",
 ) -> List[BenchmarkMetrics]:
     """Convenience function to run method comparison.
 

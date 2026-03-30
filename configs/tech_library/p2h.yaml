@@ -1,0 +1,115 @@
+# =============================================================================
+# POWER-TO-HEAT TECHNOLOGY LIBRARY
+# =============================================================================
+# Electric heaters and electrode boilers
+# =============================================================================
+
+p2h:
+  # ===========================================================================
+  # ELECTRODE BOILER
+  # ===========================================================================
+  electrode_boiler:
+    description: "High-power electrode boiler for grid balancing and heat production"
+
+    # Conversion efficiency
+    efficiency:
+      electric_to_thermal: 0.99      # 99% conversion (resistive heating)
+
+    # Operational constraints
+    operational:
+      min_load_fraction: 0.0         # Can modulate to zero
+      max_starts_per_day: null       # Unlimited (solid-state)
+      min_runtime_hours: 0.0         # No minimum
+      min_downtime_hours: 0.0
+      ramp_rate_per_min: 10.0        # Very fast (100% in 10s)
+      response_time_s: 1             # Near-instantaneous
+
+    # Power quality
+    power_quality:
+      power_factor: 0.98             # High power factor
+      harmonic_distortion_thd: 0.05  # Low THD (5%)
+
+    # Default costs
+    costs:
+      capex_eur_per_mw_th: 50000     # Very cheap (simple technology)
+      opex_fixed_eur_per_mw_th_yr: 500
+      opex_variable_eur_per_mwh_th: 0.1
+      activation_cost_eur: 20000     # Minimal installation
+      decommissioning_cost_eur: 5000
+      lifetime_yr: 25                # Long lifetime (no moving parts)
+
+    # Environmental
+    emissions:
+      direct_emissions: 0            # No direct emissions (electricity-based)
+      noise_db_at_10m: 60            # Low noise
+
+  # ===========================================================================
+  # ELECTRIC HEATING COIL (HEAT EXCHANGER)
+  # ===========================================================================
+  electric_heating_coil:
+    description: "Electric heating element in heat exchanger (smaller scale)"
+
+    efficiency:
+      electric_to_thermal: 0.98      # Slightly lower (heat losses)
+
+    operational:
+      min_load_fraction: 0.10        # Some minimum load
+      max_starts_per_day: null
+      min_runtime_hours: 0.0
+      min_downtime_hours: 0.0
+      ramp_rate_per_min: 5.0         # Still very fast
+      response_time_s: 5
+
+    power_quality:
+      power_factor: 0.95
+      harmonic_distortion_thd: 0.08
+
+    costs:
+      capex_eur_per_mw_th: 35000     # Even cheaper
+      opex_fixed_eur_per_mw_th_yr: 300
+      opex_variable_eur_per_mwh_th: 0.05
+      activation_cost_eur: 10000
+      decommissioning_cost_eur: 2000
+      lifetime_yr: 20
+
+    emissions:
+      direct_emissions: 0
+      noise_db_at_10m: 55
+
+  # ===========================================================================
+  # HEAT PUMP + ELECTRIC BACKUP (Hybrid)
+  # ===========================================================================
+  hp_with_electric_backup:
+    description: "Heat pump with integrated electric heater for peak loads"
+
+    efficiency:
+      # Primary mode: heat pump (see heat_pumps.yaml for COP)
+      electric_to_thermal_backup: 0.99  # Backup heater efficiency
+
+    operational:
+      # HP mode
+      hp_min_load_fraction: 0.30
+      hp_ramp_rate_per_min: 0.10
+
+      # Backup mode
+      backup_min_load_fraction: 0.0
+      backup_ramp_rate_per_min: 10.0
+
+      # Switchover
+      hp_cutoff_temp_c: -10.0        # Below this, use backup
+      backup_fraction_of_total: 0.30 # 30% backup, 70% HP
+
+    costs:
+      # Combined costs (HP + backup)
+      capex_eur_per_mw_th_total: 450000  # HP + electric
+      capex_breakdown:
+        heat_pump_fraction: 0.85
+        electric_heater_fraction: 0.15
+      opex_fixed_eur_per_mw_th_yr: 9000
+      opex_variable_eur_per_mwh_th: 2.5
+      activation_cost_eur: 300000
+      lifetime_yr: 15
+
+    emissions:
+      direct_emissions: 0
+      noise_db_at_10m: 65            # From HP compressor

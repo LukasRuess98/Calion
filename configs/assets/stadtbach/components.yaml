@@ -1,0 +1,240 @@
+# =============================================================================
+# STADTBACH DISTRICT HEATING SYSTEM - COMPONENTS
+# =============================================================================
+# All assets (generators, storage, heat pumps) with existing + expansion
+# Based on real Stadtbach system (~276 MW total installed capacity)
+# =============================================================================
+
+# ===========================================================================
+# COMBINED HEAT AND POWER (CHP) PLANTS
+# ===========================================================================
+chp_plants:
+  HKW:
+    description: "Heizkraftwerk - Main gas CHP plant"
+    technology: gas_chp_extraction            # Reference to tech_library
+
+    # Existing asset
+    existing:
+      thermal_capacity_mw: 75.0
+      electrical_capacity_mw: 17.6            # From H/P ratio ~4.2
+      commissioning_year: 2005
+      remaining_lifetime_yr: 11               # Until 2036
+
+    # Expansion potential
+    expansion:
+      enabled: false                          # Keep existing, no expansion
+
+  GTOST:
+    description: "Gasturbine Ost - Gas turbine CHP"
+    technology: gas_chp_motor
+
+    existing:
+      thermal_capacity_mw: 41.3
+      electrical_capacity_mw: 32.0            # Higher el. efficiency (motor)
+      commissioning_year: 2010
+      remaining_lifetime_yr: 16
+
+    expansion:
+      enabled: false
+
+  BMHKW:
+    description: "Biomasse-Heizkraftwerk - Biomass CHP"
+    technology: biomass_chp
+
+    existing:
+      thermal_capacity_mw: 15.0
+      electrical_capacity_mw: 5.5
+      commissioning_year: 2015
+      remaining_lifetime_yr: 21
+
+    expansion:
+      enabled: false
+
+# ===========================================================================
+# HEAT-ONLY BOILERS
+# ===========================================================================
+boilers:
+  HWS:
+    description: "Heizwerk Süd - South gas boiler"
+    technology: gas_condensing_boiler
+
+    existing:
+      thermal_capacity_mw: 45.0
+      commissioning_year: 2012
+      remaining_lifetime_yr: 18
+
+    expansion:
+      enabled: false
+
+  HWW:
+    description: "Heizwerk West - West gas boiler"
+    technology: gas_condensing_boiler
+
+    existing:
+      thermal_capacity_mw: 45.0
+      commissioning_year: 2012
+      remaining_lifetime_yr: 18
+
+    expansion:
+      enabled: false
+
+# ===========================================================================
+# POWER-TO-HEAT
+# ===========================================================================
+p2h:
+  P2H1:
+    description: "Elektrodenkessel - Electrode boiler for grid balancing"
+    technology: electrode_boiler
+
+    existing:
+      thermal_capacity_mw: 10.0
+      commissioning_year: 2020
+      remaining_lifetime_yr: 26
+
+    expansion:
+      enabled: true                           # Can expand P2H
+      min_additional_capacity_mw: 5.0
+      max_additional_capacity_mw: 40.0        # Up to 50 MW total
+      capex_eur_per_mw: 50000                 # From tech_library
+      opex_eur_per_mw_yr: 500
+      activation_cost_eur: 20000
+      lifetime_yr: 25
+
+# ===========================================================================
+# WASTE HEAT RECOVERY
+# ===========================================================================
+waste_heat_recovery:
+  AVA:
+    description: "Abwärmenutzung AVA - Industrial waste heat recovery"
+    technology: waste_heat_recovery
+
+    existing:
+      thermal_capacity_mw: 45.0
+      commissioning_year: 2018
+      remaining_lifetime_yr: 23
+
+    expansion:
+      enabled: false                          # Depends on industrial process
+
+# ===========================================================================
+# HEAT PUMPS (Investment Options)
+# ===========================================================================
+heat_pumps:
+  HP1:
+    description: "High-temp heat pump - WRG source 1"
+    technology: high_temp_heat_pump
+
+    # Waste heat source configuration
+    waste_heat_source:
+      temperature_column: "WRG1_T_K"          # Source temperature [K]
+      available_power_column: "WRG1_Q_MW"     # Available heat [MW]
+
+    # Not yet built (greenfield)
+    existing:
+      thermal_capacity_mw: 0.0
+
+    # Investment option
+    expansion:
+      enabled: true
+      min_additional_capacity_mw: 5.0         # Minimum economical size
+      max_additional_capacity_mw: 50.0        # Technical limit
+      capex_eur_per_mw: 400000                # 400k EUR/MW
+      opex_eur_per_mw_yr: 8000
+      activation_cost_eur: 250000             # Installation, piping, controls
+      lifetime_yr: 15
+
+  HP2:
+    description: "High-temp heat pump - WRG source 2"
+    technology: high_temp_heat_pump
+
+    waste_heat_source:
+      temperature_column: "WRG2_T_K"
+      available_power_column: "WRG2_Q_MW"
+
+    existing:
+      thermal_capacity_mw: 0.0
+
+    expansion:
+      enabled: true
+      min_additional_capacity_mw: 5.0
+      max_additional_capacity_mw: 50.0
+      capex_eur_per_mw: 400000
+      opex_eur_per_mw_yr: 8000
+      activation_cost_eur: 250000
+      lifetime_yr: 15
+
+  HP3:
+    description: "High-temp heat pump - WRG source 3"
+    technology: high_temp_heat_pump
+
+    waste_heat_source:
+      temperature_column: "WRG3_T_K"
+      available_power_column: "WRG3_Q_MW"
+
+    existing:
+      thermal_capacity_mw: 0.0
+
+    expansion:
+      enabled: true
+      min_additional_capacity_mw: 5.0
+      max_additional_capacity_mw: 50.0
+      capex_eur_per_mw: 400000
+      opex_eur_per_mw_yr: 8000
+      activation_cost_eur: 250000
+      lifetime_yr: 15
+
+  HP4:
+    description: "High-temp heat pump - WRG source 4"
+    technology: high_temp_heat_pump
+
+    waste_heat_source:
+      temperature_column: "WRG4_T_K"
+      available_power_column: "WRG4_Q_MW"
+
+    existing:
+      thermal_capacity_mw: 0.0
+
+    expansion:
+      enabled: true
+      min_additional_capacity_mw: 5.0
+      max_additional_capacity_mw: 50.0
+      capex_eur_per_mw: 400000
+      opex_eur_per_mw_yr: 8000
+      activation_cost_eur: 250000
+      lifetime_yr: 15
+
+# ===========================================================================
+# THERMAL ENERGY STORAGE
+# ===========================================================================
+thermal_storage:
+  TES1:
+    description: "Stratified hot water storage tank"
+    technology: stratified_tank               # Reference to tech_library
+
+    # Existing storage
+    existing:
+      energy_capacity_mwh: 500.0
+      power_capacity_mw: 50.0                 # Charge/discharge power
+      commissioning_year: 2015
+      remaining_lifetime_yr: 21
+
+    # Expansion potential
+    expansion:
+      enabled: true
+
+      # Energy capacity expansion
+      min_additional_energy_mwh: 100.0
+      max_additional_energy_mwh: 1500.0       # Up to 2000 MWh total
+      energy_capex_eur_per_mwh: 5000
+
+      # Power capacity expansion
+      min_additional_power_mw: 10.0
+      max_additional_power_mw: 150.0          # Up to 200 MW total
+      power_capex_eur_per_mw: 50000
+
+      # Coupling ratio (optional constraint)
+      power_energy_coupling: 0.10             # P = 0.1 * E (MW = 0.1 * MWh)
+
+      # Fixed costs
+      activation_cost_eur: 100000             # Foundation, piping
+      lifetime_yr: 25

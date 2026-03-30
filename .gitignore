@@ -10,16 +10,24 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 
-# Experiment outputs (should not be tracked in version control)
-notebooks/exports/
-*.xlsx
-!Import_Data.xlsx
-*.png
+# Virtual environments
+HeatGrid/
+
+# Coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
+
+# Test artifacts
+test_exports/
 
 # Experiment outputs (should not be tracked in version control)
+notebooks/exports/
 notebooks/saved_workflows/
+outputs/runs/
+outputs/workflows/
+outputs/dashboard/
 *.xlsx
-!Import_Data.xlsx
 *.png
 *.pdf
 
@@ -36,9 +44,5 @@ exports/
 *.log
 *.lp
 
-echo "__pycache__/
-*.pyc
-exports/
-htmlcov/
-*.egg-info/
-.pytest_cache/" 
+# Claude Code files
+.claude/

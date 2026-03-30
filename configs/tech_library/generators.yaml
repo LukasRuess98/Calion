@@ -1,0 +1,226 @@
+# =============================================================================
+# THERMAL GENERATOR TECHNOLOGY LIBRARY
+# =============================================================================
+# Boilers, CHP plants, and other thermal generators
+# =============================================================================
+
+generators:
+  # ===========================================================================
+  # COMBINED HEAT AND POWER (CHP) PLANTS
+  # ===========================================================================
+
+  gas_chp_extraction:
+    description: "Gas-fired CHP with extraction steam turbine"
+    type: chp                        # Combined heat and power
+    fuel_type: natural_gas
+
+    # Efficiencies (based on lower heating value)
+    efficiency:
+      thermal: 0.743                 # 74.3% thermal efficiency
+      electrical: 0.177              # 17.7% electrical efficiency
+      total: 0.920                   # 92% total efficiency
+
+    # Operational constraints
+    operational:
+      min_load_fraction: 0.40        # 40% minimum load
+      max_starts_per_day: 3          # Limited cycling
+      min_runtime_hours: 4.0         # Minimum continuous operation
+      min_downtime_hours: 2.0        # Minimum offline time
+      ramp_rate_per_min: 0.05        # 5% per minute
+      heat_to_power_ratio: 4.20      # Typical H/P ratio (74.3/17.7)
+
+    # Emissions
+    emissions:
+      nox_mg_per_nm3: 100            # NOx emissions
+      co_mg_per_nm3: 50              # CO emissions
+      pm_mg_per_nm3: 5               # Particulate matter
+
+    # Default costs
+    costs:
+      capex_eur_per_mw_el: 1200000   # Capital cost per MW electrical
+      capex_eur_per_mw_th: 250000    # Or per MW thermal (alternative)
+      opex_fixed_eur_per_mw_el_yr: 30000
+      opex_variable_eur_per_mwh_el: 5.0
+      activation_cost_eur: 500000
+      lifetime_yr: 20
+
+  gas_chp_motor:
+    description: "Gas engine CHP (reciprocating engine)"
+    type: chp
+    fuel_type: natural_gas
+
+    efficiency:
+      thermal: 0.466
+      electrical: 0.360
+      total: 0.826
+
+    operational:
+      min_load_fraction: 0.50
+      max_starts_per_day: 10         # More flexible than turbine
+      min_runtime_hours: 1.0
+      min_downtime_hours: 0.5
+      ramp_rate_per_min: 0.10        # Faster ramping
+      heat_to_power_ratio: 1.29      # Lower H/P ratio
+
+    emissions:
+      nox_mg_per_nm3: 150
+      co_mg_per_nm3: 100
+      pm_mg_per_nm3: 10
+
+    costs:
+      capex_eur_per_mw_el: 900000
+      opex_fixed_eur_per_mw_el_yr: 25000
+      opex_variable_eur_per_mwh_el: 8.0
+      activation_cost_eur: 200000
+      lifetime_yr: 15
+
+  biomass_chp:
+    description: "Biomass CHP plant (ORC or steam turbine)"
+    type: chp
+    fuel_type: biomass
+
+    efficiency:
+      thermal: 0.485
+      electrical: 0.177
+      total: 0.662
+
+    operational:
+      min_load_fraction: 0.60        # Biomass needs stable operation
+      max_starts_per_day: 1          # Long startup time
+      min_runtime_hours: 12.0        # Very long minimum runtime
+      min_downtime_hours: 6.0
+      ramp_rate_per_min: 0.02        # Slow ramping
+      heat_to_power_ratio: 2.74
+
+    emissions:
+      nox_mg_per_nm3: 200
+      co_mg_per_nm3: 250
+      pm_mg_per_nm3: 30              # Higher PM from biomass
+
+    costs:
+      capex_eur_per_mw_el: 3500000   # Much higher for biomass
+      opex_fixed_eur_per_mw_el_yr: 80000
+      opex_variable_eur_per_mwh_el: 12.0
+      activation_cost_eur: 1000000
+      lifetime_yr: 20
+
+  # ===========================================================================
+  # HEAT-ONLY BOILERS
+  # ===========================================================================
+
+  gas_condensing_boiler:
+    description: "High-efficiency natural gas condensing boiler"
+    type: boiler                     # Heat-only
+    fuel_type: natural_gas
+
+    efficiency:
+      thermal: 0.936                 # 93.6% (condensing mode)
+      electrical: null               # No power generation
+
+    operational:
+      min_load_fraction: 0.20        # Very flexible
+      max_starts_per_day: 20
+      min_runtime_hours: 0.5
+      min_downtime_hours: 0.25
+      ramp_rate_per_min: 0.20        # Fast response
+
+    emissions:
+      nox_mg_per_nm3: 80             # Low-NOx burner
+      co_mg_per_nm3: 40
+      pm_mg_per_nm3: 2
+
+    costs:
+      capex_eur_per_mw_th: 80000     # Cheap
+      opex_fixed_eur_per_mw_th_yr: 2000
+      opex_variable_eur_per_mwh_th: 1.0
+      activation_cost_eur: 50000
+      lifetime_yr: 20
+
+  gas_standard_boiler:
+    description: "Standard (non-condensing) natural gas boiler"
+    type: boiler
+    fuel_type: natural_gas
+
+    efficiency:
+      thermal: 0.924                 # 92.4% (non-condensing)
+      electrical: null
+
+    operational:
+      min_load_fraction: 0.25
+      max_starts_per_day: 15
+      min_runtime_hours: 0.5
+      min_downtime_hours: 0.25
+      ramp_rate_per_min: 0.15
+
+    emissions:
+      nox_mg_per_nm3: 100
+      co_mg_per_nm3: 50
+      pm_mg_per_nm3: 3
+
+    costs:
+      capex_eur_per_mw_th: 60000     # Even cheaper
+      opex_fixed_eur_per_mw_th_yr: 1500
+      opex_variable_eur_per_mwh_th: 0.8
+      activation_cost_eur: 40000
+      lifetime_yr: 20
+
+  oil_boiler:
+    description: "Heating oil boiler (backup/peak load)"
+    type: boiler
+    fuel_type: heating_oil
+
+    efficiency:
+      thermal: 0.890                 # Lower than gas
+      electrical: null
+
+    operational:
+      min_load_fraction: 0.30
+      max_starts_per_day: 10
+      min_runtime_hours: 1.0
+      min_downtime_hours: 0.5
+      ramp_rate_per_min: 0.12
+
+    emissions:
+      nox_mg_per_nm3: 150
+      co_mg_per_nm3: 80
+      pm_mg_per_nm3: 15              # Higher PM from oil
+
+    costs:
+      capex_eur_per_mw_th: 70000
+      opex_fixed_eur_per_mw_th_yr: 2500
+      opex_variable_eur_per_mwh_th: 2.0
+      activation_cost_eur: 45000
+      lifetime_yr: 25
+
+  # ===========================================================================
+  # WASTE HEAT RECOVERY
+  # ===========================================================================
+
+  waste_heat_recovery:
+    description: "Waste heat recovery from industrial process"
+    type: heat_recovery
+    fuel_type: waste_heat            # No fuel consumption
+
+    efficiency:
+      thermal: 1.00                  # 100% recovery (no conversion)
+      electrical: null
+      recovery_factor: 0.85          # 85% of available waste heat captured
+
+    operational:
+      min_load_fraction: 0.0         # Can be zero (process-dependent)
+      max_starts_per_day: null       # Continuous operation
+      min_runtime_hours: 0.0
+      min_downtime_hours: 0.0
+      ramp_rate_per_min: null        # Follows process load
+
+    emissions:
+      nox_mg_per_nm3: 0              # No emissions (heat recovery)
+      co_mg_per_nm3: 0
+      pm_mg_per_nm3: 0
+
+    costs:
+      capex_eur_per_mw_th: 150000    # Heat exchangers, piping
+      opex_fixed_eur_per_mw_th_yr: 3000
+      opex_variable_eur_per_mwh_th: 0.5
+      activation_cost_eur: 100000
+      lifetime_yr: 20

@@ -38,7 +38,7 @@ def main():
     print("    Konfiguration: HP_only.yaml (Wärmepumpen-System)")
     print("    Zeitraum: 1 Woche (Januar 2023)")
 
-    config_paths = ["configs/presets/HP_only.yaml"]
+    config_paths = ["configs/scenarios/HP_only.yaml"]
     # Override to use shorter time horizon for faster testing
     overrides = {
         "scenario": {

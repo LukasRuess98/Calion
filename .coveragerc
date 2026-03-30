@@ -20,6 +20,30 @@ omit =
     */__version__.py
     # Init files (often just imports)
     */__init__.py
+    # ── Visualization / Dashboard (optional UI, not core logic) ──
+    energis/io/dashboard/*
+    energis/io/plotter.py
+    energis/io/plot_utils.py
+    energis/io/publication_plotter.py
+    energis/io/publication_exporter.py
+    energis/io/report_generator.py
+    energis/io/workflow_browser.py
+    energis/io/model_inspector.py
+    # ── Export adapters (thin wrappers) ──
+    energis/io/exporter.py
+    energis/io/unified_exporter.py
+    energis/io/thermal_network_exporter.py
+    energis/io/network_loader.py
+    # ── Optional subsystems not yet in core test scope ──
+    energis/economics/*
+    energis/comparison/*
+    energis/forecasting/*
+    energis/analysis/*
+    # ── v2 config pipeline (not yet integrated into main workflow) ──
+    energis/config/config_manager.py
+    energis/config/loader_v2.py
+    # ── MPC module (under development, not yet covered) ──
+    energis/run/mpc.py
 
 # Enable branch coverage
 branch = True

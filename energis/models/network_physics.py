@@ -11,7 +11,11 @@ Physical calculations for district heating networks:
 """
 
 import math
-from typing import Dict, List, Union, Sequence
+from typing import Any, Dict, List, Union, Sequence
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 def heat_kw_to_mdot_kg_s(
     Q_kw: float,
@@ -382,6 +386,88 @@ def get_heating_curve_parameters(
     }
 
 
+def compute_delay_buckets(
+    length_m: float,
+    diameter_mm: float,
+    density_kg_per_m3: float,
+    m_max_kg_s: float,
+    n_buckets: int = 3,
+    dt_h: float = 1.0,
+) -> Dict[str, Any]:
+    """
+    Compute integer transport delay constants for piecewise-linear SOS2 linearisation.
+
+    Physical delay: τ(t) = L × ρ × A / m_dot(t) is nonlinear in mass flow.
+    This function precomputes n_buckets integer delays (in timesteps) for n_buckets
+    flow bands, enabling a MILP-compatible 3-bucket SOS2 approximation.
+
+    Default n_buckets=3 gives a good accuracy/complexity trade-off for district
+    heating networks where flow rarely varies more than ±40% from design point.
+
+    Bucket layout (n_buckets=3):
+      Bucket 0 (high flow):   m_dot ∈ [m_mid, m_max] → τ₁ timesteps (shortest delay)
+      Bucket 1 (medium flow): m_dot ∈ [m_low, m_mid] → τ₂ timesteps
+      Bucket 2 (low flow):    m_dot ∈ [0,     m_low] → τ₃ timesteps (longest delay)
+    where m_mid = (m_max + m_min) / 2 and m_min = 0.1 × m_max.
+
+    Args:
+        length_m: Pipe length [m]
+        diameter_mm: Pipe inner diameter [mm]
+        density_kg_per_m3: Fluid density [kg/m³]
+        m_max_kg_s: Maximum mass flow rate [kg/s]
+        n_buckets: Number of flow buckets (default 3)
+
+    Returns:
+        Dict with:
+          - tau_steps: List[int] of n_buckets integer delays (shortest first, in timesteps)
+          - m_bounds: List[Tuple[float, float]] of (m_lower, m_upper) per bucket
+          - volume_kg: Pipe fluid mass = L × ρ × A [kg]
+          - length_m, diameter_mm, area_m2, m_max_kg_s: echo of inputs
+    """
+    if m_max_kg_s <= 0:
+        m_max_kg_s = 0.001  # Avoid division by zero
+
+    d_m = diameter_mm / 1000.0
+    area_m2 = math.pi * (d_m / 2.0) ** 2
+    volume_kg = length_m * density_kg_per_m3 * area_m2  # [kg]
+
+    # Minimum flow representative: 10% of max flow
+    m_min_kg_s = m_max_kg_s * 0.1
+
+    if n_buckets == 3:
+        # Representative flow per bucket (bucket 0 = high, bucket 2 = low)
+        m_mid = (m_max_kg_s + m_min_kg_s) / 2.0
+        rep_flows = [m_max_kg_s, m_mid, m_min_kg_s]
+        # Flow bounds: [m_lower, m_upper] inclusive per bucket
+        m_bounds = [
+            (m_mid, m_max_kg_s),    # Bucket 0: high flow
+            (m_min_kg_s, m_mid),    # Bucket 1: medium flow
+            (0.0, m_min_kg_s),      # Bucket 2: low flow
+        ]
+    else:
+        # General case: n evenly-spaced bands from m_max down to m_min
+        step = (m_max_kg_s - m_min_kg_s) / max(n_buckets - 1, 1)
+        rep_flows = [m_max_kg_s - i * step for i in range(n_buckets)]
+        boundaries = [m_max_kg_s - i * (m_max_kg_s - m_min_kg_s) / n_buckets
+                      for i in range(n_buckets + 1)]
+        m_bounds = [(boundaries[i + 1], boundaries[i]) for i in range(n_buckets)]
+
+    # Integer delay per bucket: τ = round(volume_kg / m_rep / dt_seconds)
+    # volume_kg / m_rep gives seconds; divide by dt to get timesteps
+    dt_seconds = dt_h * 3600.0
+    tau_steps = [max(1, round(volume_kg / m / dt_seconds)) for m in rep_flows]
+
+    return {
+        'tau_steps': tau_steps,
+        'm_bounds': m_bounds,
+        'volume_kg': volume_kg,
+        'length_m': length_m,
+        'diameter_mm': diameter_mm,
+        'area_m2': area_m2,
+        'm_max_kg_s': m_max_kg_s,
+    }
+
+
 def plot_heating_curve(
     T_supply_min_c: float = 80.0,
     T_supply_max_c: float = 120.0,
@@ -522,7 +608,7 @@ def plot_heating_curve(
     # Save if path provided
     if save_path:
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Heating curve plot saved to: {save_path}")
+        logger.info(f"Heating curve plot saved to: {save_path}")
 
     # Show if requested
     if show:

@@ -1,0 +1,178 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quickstart Guide &mdash; EnerGIS 1.0.0-alpha documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=a264681e"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API Reference" href="api_reference.html" />
+    <link rel="prev" title="EnerGIS Documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            EnerGIS
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#programmatic-usage-network-api">Programmatic Usage (Network API)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#yaml-based-usage">YAML-Based Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cli-usage">CLI Usage</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">EnerGIS</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Quickstart Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/quickstart.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quickstart-guide">
+<h1>Quickstart Guide<a class="headerlink" href="#quickstart-guide" title="Link to this heading"></a></h1>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[solver]&quot;</span>
+</pre></div>
+</div>
+<p>This installs EnerGIS with Pyomo. You will also need a solver such as
+<a class="reference external" href="https://www.gnu.org/software/glpk/">GLPK</a> or
+<a class="reference external" href="https://github.com/coin-or/Cbc">CBC</a>.</p>
+</section>
+<section id="programmatic-usage-network-api">
+<h2>Programmatic Usage (Network API)<a class="headerlink" href="#programmatic-usage-network-api" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">Network</span></code> class provides a PyPSA-inspired interface for building
+and solving optimisation models entirely from Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">energis</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+
+<span class="c1"># 1. Create a network with hourly resolution</span>
+<span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="p">(</span><span class="n">dt_h</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">solver</span><span class="o">=</span><span class="s2">&quot;glpk&quot;</span><span class="p">)</span>
+
+<span class="c1"># 2. Add components</span>
+<span class="n">net</span><span class="o">.</span><span class="n">add_heat_pump</span><span class="p">(</span><span class="s2">&quot;HP1&quot;</span><span class="p">,</span> <span class="n">capacity_mw</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">cop</span><span class="o">=</span><span class="mf">3.5</span><span class="p">)</span>
+<span class="n">net</span><span class="o">.</span><span class="n">add_heat_pump</span><span class="p">(</span><span class="s2">&quot;HP2&quot;</span><span class="p">,</span> <span class="n">capacity_mw</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">cop</span><span class="o">=</span><span class="mf">4.0</span><span class="p">)</span>
+<span class="n">net</span><span class="o">.</span><span class="n">add_storage</span><span class="p">(</span><span class="s2">&quot;TES&quot;</span><span class="p">,</span> <span class="n">energy_mwh</span><span class="o">=</span><span class="mf">200.0</span><span class="p">,</span> <span class="n">power_mw</span><span class="o">=</span><span class="mf">40.0</span><span class="p">,</span> <span class="n">eta_charge</span><span class="o">=</span><span class="mf">0.95</span><span class="p">)</span>
+<span class="n">net</span><span class="o">.</span><span class="n">add_generator</span><span class="p">(</span><span class="s2">&quot;Boiler&quot;</span><span class="p">,</span> <span class="n">cap_th_mw</span><span class="o">=</span><span class="mf">20.0</span><span class="p">,</span> <span class="n">efficiency</span><span class="o">=</span><span class="mf">0.90</span><span class="p">)</span>
+
+<span class="c1"># 3. Set time series (24 hours)</span>
+<span class="n">net</span><span class="o">.</span><span class="n">set_demand</span><span class="p">([</span><span class="mf">8.0</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">,</span> <span class="mf">7.0</span><span class="p">,</span> <span class="mf">6.5</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">,</span> <span class="mf">7.0</span><span class="p">,</span> <span class="mf">9.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">,</span>
+                 <span class="mf">14.0</span><span class="p">,</span> <span class="mf">13.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">,</span> <span class="mf">11.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">9.5</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">,</span> <span class="mf">11.0</span><span class="p">,</span>
+                 <span class="mf">13.0</span><span class="p">,</span> <span class="mf">14.0</span><span class="p">,</span> <span class="mf">13.0</span><span class="p">,</span> <span class="mf">11.0</span><span class="p">,</span> <span class="mf">9.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">,</span> <span class="mf">7.5</span><span class="p">,</span> <span class="mf">7.0</span><span class="p">])</span>
+<span class="n">net</span><span class="o">.</span><span class="n">set_electricity_price</span><span class="p">([</span><span class="mf">40.0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">+</span> <span class="p">[</span><span class="mf">80.0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">+</span> <span class="p">[</span><span class="mf">40.0</span><span class="p">]</span> <span class="o">*</span> <span class="mi">8</span><span class="p">)</span>
+
+<span class="c1"># 4. Solve</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">optimize</span><span class="p">()</span>
+
+<span class="c1"># 5. Inspect results</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total cost: </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">total_cost</span><span class="p">()</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> EUR&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Solver status: </span><span class="si">{</span><span class="s1">&#39;optimal&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">result</span><span class="o">.</span><span class="n">is_optimal</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;check&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="yaml-based-usage">
+<h2>YAML-Based Usage<a class="headerlink" href="#yaml-based-usage" title="Link to this heading"></a></h2>
+<p>For more complex setups, use YAML configuration files:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">energis.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span><span class="p">,</span> <span class="n">run_workflow</span>
+
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">([</span><span class="s2">&quot;configs/base.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;configs/scenario.yaml&quot;</span><span class="p">])</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">run_workflow</span><span class="p">([</span><span class="s2">&quot;configs/base.yaml&quot;</span><span class="p">,</span> <span class="s2">&quot;configs/scenario.yaml&quot;</span><span class="p">])</span>
+
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">pf_result</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">pf_result</span><span class="o">.</span><span class="n">costs</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="cli-usage">
+<h2>CLI Usage<a class="headerlink" href="#cli-usage" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run a scenario from config files</span>
+python<span class="w"> </span>-m<span class="w"> </span>energis<span class="w"> </span>configs/base.yaml<span class="w"> </span>configs/scenario.yaml
+
+<span class="c1"># Or using the installed entry point</span>
+energis<span class="w"> </span>configs/base.yaml<span class="w"> </span>configs/scenario.yaml
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="EnerGIS Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="api_reference.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, EnerGIS Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

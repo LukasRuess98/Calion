@@ -16,15 +16,23 @@ import sys
 sys.path.insert(0, '.')
 
 from pathlib import Path
+import pytest
+
+# Test configuration
+CONFIG_PATH = 'configs/stadtbach.yaml'
+TOLERANCE = 1e-6
+
+# Skip all tests in this module if the config file doesn't exist
+pytestmark = pytest.mark.skipif(
+    not Path(CONFIG_PATH).exists() and not (Path(__file__).parent.parent / CONFIG_PATH).exists(),
+    reason=f"Integration config file not available: {CONFIG_PATH}"
+)
+
 from energis.config.merge import load_and_merge
 from energis.io.loader import load_input_excel
 from energis.models.system_builder import build_model
 from energis.models.network_manager import NetworkManager
 import pyomo.environ as pyo
-
-# Test configuration
-CONFIG_PATH = 'configs/stadtbach.yaml'
-TOLERANCE = 1e-6
 
 def test_configuration_parsing():
     """Test 1: Verify configuration is parsed correctly."""

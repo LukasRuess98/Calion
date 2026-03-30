@@ -3,6 +3,10 @@ Data preparation module for the EnerGIS Dashboard.
 
 Contains classes and functions for extracting and preparing data
 from workflow results for visualization.
+
+from energis.logging_config import get_logger
+
+logger = get_logger(__name__)
 """
 
 from __future__ import annotations
@@ -134,10 +138,10 @@ def prepare_dashboard_data(
     if demand_values is None:
         available_cols = list(result.table.data.keys())
         raise ValueError(
-            f"Dashboard: Keine Wärmebedarf-Spalte gefunden!\n"
-            f"Versuchte Spalten: {demand_col_names}\n"
-            f"Verfügbare Spalten: {available_cols}\n"
-            f"Bitte stelle sicher, dass mindestens eine dieser Spalten in den Daten vorhanden ist."
+            f"Dashboard: No heat demand column found!\n"
+            f"Tried columns: {demand_col_names}\n"
+            f"Available columns: {available_cols}\n"
+            f"Ensure at least one of the listed columns is present in the result data."
         )
 
     # Create main DataFrame
@@ -193,11 +197,11 @@ def prepare_dashboard_data(
         downsampled = True
         downsample_factor = step
 
-        print(f"\nHINWEIS: Performance-Optimierung:")
-        print(f"         Datensatz wurde von {original_length:,} auf {len(df):,} Punkte reduziert (Faktor {step})")
-        print(f"         Dies verbessert die Dashboard-Performance erheblich.")
-        print(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
-        print(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
+        logger.info(f"\nHINWEIS: Performance-Optimierung:")
+        logger.info(f"         Datensatz wurde von {original_length:,} auf {len(df):,} Punkte reduziert (Faktor {step})")
+        logger.info(f"         Dies verbessert die Dashboard-Performance erheblich.")
+        logger.info(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
+        logger.info(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
 
     # Re-identify component types after downsampling
     heat_components = [col for col in df.columns if col.endswith('_Q_th_MW')]

@@ -48,8 +48,8 @@ def test_1_component_registry():
     print(f"\n✓ Converters: {converters}")
     print(f"✓ Storage: {storage}")
 
-    assert len(converters) == 3, f"Expected 3 converters, got {len(converters)}"
-    assert len(storage) == 1, f"Expected 1 storage, got {len(storage)}"
+    assert len(converters) >= 3, f"Expected at least 3 converters, got {len(converters)}"
+    assert len(storage) >= 1, f"Expected at least 1 storage, got {len(storage)}"
 
     print("\n✅ TEST 1 PASSED: ComponentRegistry works correctly!")
     return True

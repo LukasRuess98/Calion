@@ -38,7 +38,7 @@ __all__ = [
 def _ensure_lengths(data: Mapping[str, Sequence[float]], expected: int) -> None:
     for key, values in data.items():
         if len(values) != expected:
-            raise ValueError(f"Serie {key!r} hat Länge {len(values)} statt {expected}")
+            raise ValueError(f"Series {key!r} has length {len(values)} instead of {expected}")
 
 
 def write_timeseries_csv(
@@ -380,7 +380,8 @@ def _app_xml(sheet_names: Sequence[str]) -> str:
 
 
 def _core_xml() -> str:
-    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    from datetime import timezone
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     return (
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         "<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">"
