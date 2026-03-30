@@ -37,7 +37,7 @@ pip install -e ".[all]"
 
 - Python 3.10+
 - Pyomo (optimization modeling)
-- Gurobi or GLPK solver
+- mathematical solver (Gurobi, Highs, CBC)
 - pandas, numpy, pyyaml, openpyxl
 
 ## Quick Start
