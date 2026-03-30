@@ -42,12 +42,12 @@ try:
     HAVE_PUBLICATION_EXPORTS = True
 except ImportError:
     HAVE_PUBLICATION_EXPORTS = False
-    export_publication_plots = None
-    export_publication_bundle = None
-    export_kpi_summary = None
-    export_latex_tables = None
-    PublicationConfig = None
-    format_number = None
+    export_publication_plots = None  # type: ignore[assignment]
+    export_publication_bundle = None  # type: ignore[assignment]
+    export_kpi_summary = None  # type: ignore[assignment]
+    export_latex_tables = None  # type: ignore[assignment]
+    PublicationConfig = None  # type: ignore[assignment,misc]
+    format_number = None  # type: ignore[assignment]
 
 __all__ = [
     "HAVE_MATPLOTLIB",
