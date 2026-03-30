@@ -418,7 +418,8 @@ class ComponentAssembler:
         cap_th = float(p.get("capacity_mw", 10.0))
         min_load = float(p.get("min_load", 0.0))
 
-        block = P2HBlock("P2H", eff=eff, cap_th_mw=cap_th, min_load=min_load)
+        p2h_name = asset.id.upper()
+        block = P2HBlock(p2h_name, eff=eff, cap_th_mw=cap_th, min_load=min_load)
         fs = block.attach(self.m, self.t, self.cfg, {})
 
         # Per-node heat output
@@ -427,7 +428,7 @@ class ComponentAssembler:
         sys_buses.el_in.append(fs["P_el_in"])
 
         p2h_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "p2h")
-        self.m.co2_component_costs["P2H"] = p2h_co2.to_dict()
+        self.m.co2_component_costs[p2h_name] = p2h_co2.to_dict()
 
     # ── Heat Pump Assembly ─────────────────────────────────────────────────────
 

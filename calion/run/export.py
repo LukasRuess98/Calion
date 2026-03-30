@@ -281,8 +281,14 @@ def export_workflow_results(
     # Thermal network CSV
     network_files: Dict[str, str] = {}
     active_result = workflow.mpc_result or workflow.rh_result or workflow.pf_result
+    # RollingHorizonResult has no solver field; fall back to the last window's solver dict
     if active_result is not None:
-        network_data = active_result.solver.get('network_data', {})
+        _active_solver: Dict[str, Any] = getattr(active_result, 'solver', None) or {}
+        if not _active_solver:
+            from .types import RollingHorizonResult as _RHR
+            if isinstance(active_result, _RHR) and active_result.windows:
+                _active_solver = active_result.windows[-1].solver or {}
+        network_data = _active_solver.get('network_data', {})
         if network_data:
             try:
                 network_files = _write_network_data_to_dir(network_data, outdir)
@@ -296,7 +302,7 @@ def export_workflow_results(
     # Optional LP file copy
     lp_path_in_result: Optional[str] = None
     if save_lp and active_result is not None:
-        src_lp = active_result.solver.get('export_files', {}).get('solver_lp_file')
+        src_lp = _active_solver.get('export_files', {}).get('solver_lp_file')
         if src_lp and os.path.isfile(src_lp):
             import shutil as _shutil
             solver_dir = os.path.join(outdir, "solver")
