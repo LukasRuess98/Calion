@@ -38,7 +38,7 @@ class NetworkValidator:
         try:
             # Einfacher Subprocess-Aufruf ohne capture_output
             proc = subprocess.Popen(
-                [sys.executable, "-m", "energis.run", str(config_path)],
+                [sys.executable, "-m", "calion.run", str(config_path)],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=False,  # Binary mode

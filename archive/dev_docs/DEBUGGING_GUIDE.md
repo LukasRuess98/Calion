@@ -13,14 +13,14 @@ Status: infeasible / unbounded / error
 ```python
 # Schritt 1: Prüfe ob Model gebaut wurde
 python -c "
-from energis.run import build_from_config
+from calion.run import build_from_config
 config = build_from_config('config.yaml')
 print(f'Variables: {len(config.model.component_data_objects(ctype=pyo.Var))}')
 print(f'Constraints: {len(config.model.component_data_objects(ctype=pyo.Constraint))}')
 "
 
 # Schritt 2: Exportiere LP für Analyse
-python -m energis.run config.yaml --export-lp-only
+python -m calion.run config.yaml --export-lp-only
 # → star_debug.lp (prüfe constraints auf logische Fehler)
 
 # Schritt 3: Versuche relaxierte Version (alle 0-1 zu 0-1 real)
@@ -88,16 +88,16 @@ grep -i "optimal\|infeasible" mpc_log.txt
 python -c "
 import logging
 logging.basicConfig(level=logging.DEBUG)
-from energis.run import main
+from calion.run import main
 main(['config.yaml'])
 " 2>&1 | grep -i "export\|error\|warning"
 
 # 3. Check ob Spalteninformationen im Code richtig sind
-grep -n "_export_unified_timeseries" energis/io/thermal_network_exporter.py | head -3
+grep -n "_export_unified_timeseries" calion/io/thermal_network_exporter.py | head -3
 
 # 4. Manueller Test: Kann die Spalte extrahiert werden?
 python -c "
-from energis.run import build_from_config, solve
+from calion.run import build_from_config, solve
 config = build_from_config('config.yaml')
 model, results = solve(config)
 print('Available variables:')
@@ -166,7 +166,7 @@ for component, cost in sorted(cost_breakdown.items(), key=lambda x: -x[1]):
 
 ```bash
 # Profile solver performance
-time python -m energis.run config.yaml
+time python -m calion.run config.yaml
 
 # real: 0m58.234s → OK für yearly
 # real: 5m12.123s → Zu langsam - optimierungsbedürftig
@@ -203,7 +203,7 @@ network:
 4. **Presolve aktivieren** (entfernt redundante Constraints)
 ```python
 # In config.yaml oder per CLI
-python -m energis.run config.yaml --solver-presolve true
+python -m calion.run config.yaml --solver-presolve true
 ```
 
 ---
@@ -212,10 +212,10 @@ python -m energis.run config.yaml --solver-presolve true
 
 ```bash
 # Run 1: Baseline
-python -m energis.run config.yaml > baseline.json
+python -m calion.run config.yaml > baseline.json
 
 # Nach Code-Änderungen
-python -m energis.run config.yaml > current.json
+python -m calion.run config.yaml > current.json
 
 # Vergleich
 python -c "
@@ -237,14 +237,14 @@ else:
 
 ```bash
 # 1. Welche Zeilen wurden geändert?
-git diff energis/ --stat
+git diff calion/ --stat
 
 # 2. Unit-Tests für betroffene Module
 python -m pytest tests/test_[affected_module].py -v
 
 # 3. Config manuell validieren
 python -c "
-from energis.config import load_config
+from calion.config import load_config
 cfg = load_config('config.yaml')
 # Prüfe auf Unterschiede in den Input-Parametern
 print(cfg['costs'])
@@ -331,7 +331,7 @@ logging.basicConfig(
     ]
 )
 
-from energis.run import main
+from calion.run import main
 main(['config.yaml'])
 " 2>&1 | tee full_debug.log
 ```
@@ -375,13 +375,13 @@ Wenn Sie ein Entwickler fragen, bitte mitteilen:
 
 1. **Fehlertext (vollständig):**
    ```bash
-   python -m energis.run config.yaml 2>&1 | tail -30
+   python -m calion.run config.yaml 2>&1 | tail -30
    ```
 
 2. **System-Info:**
    ```bash
    python --version
-   python -m pip list | grep -E "pyomo|energis|highs"
+   python -m pip list | grep -E "pyomo|calion|highs"
    ```
 
 3. **Config (wenn möglich):**
@@ -414,7 +414,7 @@ python -m pytest tests/test_exporter.py -v
 python -m pytest tests/test_system_builder.py -v
 
 # Mit Coverage-Report
-python -m pytest tests/ --cov=energis --cov-report=html
+python -m pytest tests/ --cov=calion --cov-report=html
 ```
 
 Tests bestanden = Ihr Framework funktioniert! ✅

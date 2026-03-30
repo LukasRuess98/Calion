@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import pyomo.environ as pyo
 from pyomo.contrib.appsi.solvers.highs import Highs
 from scripts.run_network_scenarios_programmatic import build_ring
-from energis.models.system_builder import build_model
+from calion.models.system_builder import build_model
 
 net = build_ring()
 cfg = net._build_config()

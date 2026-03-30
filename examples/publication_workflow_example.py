@@ -91,7 +91,7 @@ def main():
     # =========================================================================
     print("[1/3] Running simulation...")
 
-    from energis.run.rolling_horizon import run_workflow
+    from calion.run.rolling_horizon import run_workflow
 
     config_paths = [p.strip() for p in CONFIG_PATHS if p.strip()]
     if not config_paths:
@@ -119,7 +119,7 @@ def main():
     print()
     print("[2/3] Exporting results...")
 
-    from energis.io.unified_exporter import UnifiedExporter, ExportConfig
+    from calion.io.unified_exporter import UnifiedExporter, ExportConfig
 
     export_config = ExportConfig(
         export_excel=True,
@@ -155,7 +155,7 @@ def main():
         print("[3/3] Running sensitivity analysis...")
 
         try:
-            from energis.analysis.sensitivity_runner import (
+            from calion.analysis.sensitivity_runner import (
                 run_full_sensitivity_study,
                 create_publication_sensitivity_study,
             )

@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from energis.run import rolling_horizon as rh
-from energis.run import workflow as _wf
-from energis.run import rh_engine as _rhe
-from energis.utils.timeseries import TimeSeriesTable
+from calion.run import rolling_horizon as rh
+from calion.run import workflow as _wf
+from calion.run import rh_engine as _rhe
+from calion.utils.timeseries import TimeSeriesTable
 
 
 def _make_table(n_steps: int) -> TimeSeriesTable:

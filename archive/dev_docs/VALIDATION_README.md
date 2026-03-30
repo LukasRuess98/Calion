@@ -86,7 +86,7 @@ python validate_framework.py
   ☐ Python Environment ready
   
 # Schritt 2: Run
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 
 # Schritt 3: Nach ~2 min, validiere
 python validate_framework.py
@@ -103,7 +103,7 @@ python validate_framework.py
 
 ```bash
 # Fehlermeldung kopieren
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml 2>&1 | tail -20
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml 2>&1 | tail -20
 
 # Öffne: DEBUGGING_GUIDE.md
 # Suche nach Fehlertyp in "Häufige Probleme"

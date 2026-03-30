@@ -1,6 +1,6 @@
-"""Tests for energis.config.validation — config validation dataclasses."""
+"""Tests for calion.config.validation — config validation dataclasses."""
 
-from energis.config.validation import ValidationError, ValidationResult
+from calion.config.validation import ValidationError, ValidationResult
 
 
 class TestValidationError:

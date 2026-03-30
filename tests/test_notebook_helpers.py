@@ -1,4 +1,4 @@
-"""Tests for energis.io.notebook_helpers module."""
+"""Tests for calion.io.notebook_helpers module."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ from typing import Any, Dict
 
 import pytest
 
-from energis.io.notebook_helpers import (
+from calion.io.notebook_helpers import (
     setup_notebook_environment,
     save_workflow_run,
     load_workflow_from_saved,

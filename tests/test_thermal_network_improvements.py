@@ -89,7 +89,7 @@ def test_physics_temp_drop():
     print("TEST 2: Physikbasierte Temperaturabfälle (network_physics.py)")
     print("="*70)
 
-    from energis.models.network_physics import (
+    from calion.models.network_physics import (
         pipe_temperature_drop_c,
         calculate_pipe_temp_drops,
     )
@@ -146,11 +146,11 @@ def test_heating_curve():
     print("TEST 3: Heizkurve mit Profil-System (network_physics.py)")
     print("="*70)
 
-    from energis.models.network_physics import (
+    from calion.models.network_physics import (
         calculate_supply_temperature,
         get_heating_curve_parameters,
     )
-    from energis.utils.config_utils import (
+    from calion.utils.config_utils import (
         load_heating_curves,
         resolve_heating_curve_profile,
     )
@@ -246,7 +246,7 @@ def test_pwl_storage_losses():
     print("TEST 5: PWL Speicherverluste (stratified_storage.py)")
     print("="*70)
 
-    from energis.models.blocks.stratified_storage import StratifiedStorageBlock
+    from calion.models.blocks.stratified_storage import StratifiedStorageBlock
 
     # Speicher erstellen (korrekte Parameter-Namen)
     storage = StratifiedStorageBlock(

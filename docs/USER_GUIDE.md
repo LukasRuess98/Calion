@@ -1,6 +1,6 @@
 # User Guide
 
-This guide provides detailed instructions for configuring and running EnerGIS optimizations.
+This guide provides detailed instructions for configuring and running CALION optimizations.
 
 ## Table of Contents
 
@@ -46,7 +46,7 @@ pip install -e ".[all]"
 
 ```bash
 # Run with example configuration
-python -m energis.run configs/stadtbach.yaml
+python -m calion.run configs/stadtbach.yaml
 
 # Check results
 ls exports/stadtbach/
@@ -56,7 +56,7 @@ ls exports/stadtbach/
 
 ## 2. Configuration Reference
 
-EnerGIS uses YAML configuration files. All settings can be specified in a single file.
+CALION uses YAML configuration files. All settings can be specified in a single file.
 
 ### 2.1 Scenario Settings
 
@@ -231,22 +231,22 @@ thermal_network:
 
 ```bash
 # Basic run
-python -m energis.run configs/stadtbach.yaml
+python -m calion.run configs/stadtbach.yaml
 
 # Override settings with additional config
-python -m energis.run configs/stadtbach.yaml configs/high_co2_price.yaml
+python -m calion.run configs/stadtbach.yaml configs/high_co2_price.yaml
 
 # Specify output directory
-python -m energis.run configs/stadtbach.yaml --output exports/custom_run/
+python -m calion.run configs/stadtbach.yaml --output exports/custom_run/
 ```
 
 ### 3.2 Jupyter Notebook
 
 ```python
-from energis.config.merge import load_and_merge
-from energis.io.loader import load_input_excel
-from energis.models.system_builder import build_model
-from energis.run.rolling_horizon import perfect_foresight
+from calion.config.merge import load_and_merge
+from calion.io.loader import load_input_excel
+from calion.models.system_builder import build_model
+from calion.run.rolling_horizon import perfect_foresight
 
 # Load configuration
 cfg = load_and_merge(['configs/stadtbach.yaml'])
@@ -316,7 +316,7 @@ After running, results are saved in `exports/<tag>/`:
 The Jupyter notebook includes built-in visualizations:
 
 ```python
-from energis.io.plotter import plot_heat_balance, plot_costs
+from calion.io.plotter import plot_heat_balance, plot_costs
 
 # Heat balance over time
 plot_heat_balance(results, start="2023-01-01", end="2023-01-07")
@@ -366,7 +366,7 @@ system:
 Run multiple scenarios programmatically:
 
 ```python
-from energis.analysis.sensitivity import run_sensitivity
+from calion.analysis.sensitivity import run_sensitivity
 
 parameters = {
     'costs.co2_price_eur_per_t': [50, 100, 150, 200],

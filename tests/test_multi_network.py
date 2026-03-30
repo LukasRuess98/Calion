@@ -30,23 +30,23 @@ class TestHeatExchangerBlock:
 
     def test_import(self):
         """Test that HeatExchangerBlock can be imported."""
-        from energis.models.blocks.heat_exchanger import HeatExchangerBlock
+        from calion.models.blocks.heat_exchanger import HeatExchangerBlock
         assert HeatExchangerBlock is not None
 
     def test_component_registration(self):
         """Test that heat_exchanger is registered in component registry."""
         try:
-            from energis.models.registry import COMPONENT_REGISTRY
+            from calion.models.registry import COMPONENT_REGISTRY
             assert 'heat_exchanger' in COMPONENT_REGISTRY
         except ImportError:
             # Registry may not be directly accessible
-            from energis.models.blocks.heat_exchanger import HeatExchangerBlock
+            from calion.models.blocks.heat_exchanger import HeatExchangerBlock
             assert HeatExchangerBlock is not None
             print("  [NOTE] Registry imported via HeatExchangerBlock")
 
     def test_config_validation(self):
         """Test HeatExchangerBlock config validation."""
-        from energis.models.blocks.heat_exchanger import HeatExchangerBlock
+        from calion.models.blocks.heat_exchanger import HeatExchangerBlock
 
         # Valid config
         valid_config = {
@@ -74,7 +74,7 @@ class TestHeatExchangerBlock:
         except ImportError:
             print("  [SKIP] pyomo not available")
             return
-        from energis.models.blocks.heat_exchanger import HeatExchangerBlock
+        from calion.models.blocks.heat_exchanger import HeatExchangerBlock
 
         # Create simple model
         model = pyo.ConcreteModel()
@@ -98,7 +98,7 @@ class TestHeatExchangerBlock:
 
     def test_effectiveness_validation(self):
         """Test that effectiveness is validated in config."""
-        from energis.models.blocks.heat_exchanger import HeatExchangerBlock
+        from calion.models.blocks.heat_exchanger import HeatExchangerBlock
 
         # Valid effectiveness values
         for eff in [0.1, 0.5, 0.85, 1.0]:
@@ -130,12 +130,12 @@ class TestMultiNetworkManager:
 
     def test_import(self):
         """Test that MultiNetworkManager can be imported."""
-        from energis.models.multi_network_manager import MultiNetworkManager
+        from calion.models.multi_network_manager import MultiNetworkManager
         assert MultiNetworkManager is not None
 
     def test_initialization_empty(self):
         """Test MultiNetworkManager with minimal config."""
-        from energis.models.multi_network_manager import MultiNetworkManager
+        from calion.models.multi_network_manager import MultiNetworkManager
 
         config = {
             'multi_network': {
@@ -150,7 +150,7 @@ class TestMultiNetworkManager:
 
     def test_network_registration(self):
         """Test registering networks."""
-        from energis.models.multi_network_manager import MultiNetworkManager
+        from calion.models.multi_network_manager import MultiNetworkManager
 
         config = {
             'multi_network': {
@@ -179,7 +179,7 @@ class TestMultiNetworkManager:
 
     def test_heat_exchanger_coupling(self):
         """Test heat exchanger coupling configuration."""
-        from energis.models.multi_network_manager import MultiNetworkManager
+        from calion.models.multi_network_manager import MultiNetworkManager
 
         config = {
             'multi_network': {
@@ -208,7 +208,7 @@ class TestMultiNetworkExports:
 
     def test_export_config_has_multi_network(self):
         """Test ExportConfig has multi-network option."""
-        from energis.io.unified_exporter import ExportConfig
+        from calion.io.unified_exporter import ExportConfig
 
         config = ExportConfig()
         assert hasattr(config, 'export_multi_network')
@@ -216,7 +216,7 @@ class TestMultiNetworkExports:
 
     def test_export_result_metadata(self):
         """Test ExportResult includes multi-network metadata."""
-        from energis.io.unified_exporter import ExportResult
+        from calion.io.unified_exporter import ExportResult
 
         result = ExportResult(
             output_dir="/tmp/test",
@@ -227,7 +227,7 @@ class TestMultiNetworkExports:
 
     def test_standalone_multi_network_export(self):
         """Test standalone multi-network export function."""
-        from energis.io.unified_exporter import export_multi_network_results
+        from calion.io.unified_exporter import export_multi_network_results
 
         multi_results = {
             'networks': {
@@ -314,7 +314,7 @@ class TestMultiNetworkDashboard:
 
     def test_import_dashboard_tab(self):
         """Test that multi-network tab can be imported."""
-        from energis.io.dashboard.tabs import (
+        from calion.io.dashboard.tabs import (
             create_multi_network_tab,
             has_multi_network_data
         )
@@ -323,7 +323,7 @@ class TestMultiNetworkDashboard:
 
     def test_has_multi_network_data_function(self):
         """Test has_multi_network_data detection."""
-        from energis.io.dashboard.tabs.multi_network import has_multi_network_data
+        from calion.io.dashboard.tabs.multi_network import has_multi_network_data
         import pandas as pd
         from dataclasses import dataclass
 
@@ -402,12 +402,12 @@ class TestPublicationPlotter:
 
     def test_export_function_exists(self):
         """Test that export_multi_network_plots exists."""
-        from energis.io.publication_plotter import export_multi_network_plots
+        from calion.io.publication_plotter import export_multi_network_plots
         assert export_multi_network_plots is not None
 
     def test_plot_functions_exist(self):
         """Test that individual plot functions exist."""
-        from energis.io import publication_plotter
+        from calion.io import publication_plotter
 
         # Check for multi-network plot functions
         assert hasattr(publication_plotter, '_multi_network_temperature_publication')

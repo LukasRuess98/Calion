@@ -1,4 +1,4 @@
-# Migration Guide: EnerGIS v1.0 → v2.0
+# Migration Guide: CALION v1.0 → v2.0
 
 **Version:** 2.0.0-alpha
 **Date:** 2025-11-18
@@ -7,7 +7,7 @@
 
 ## Overview
 
-EnerGIS v2.0 introduces a new component architecture based on:
+CALION v2.0 introduces a new component architecture based on:
 - **Component Protocol & BaseComponent** - Type-safe component development
 - **Bus Abstraction** - Explicit flow management
 - **ComponentRegistry** - Plugin architecture
@@ -34,7 +34,7 @@ class HeatPumpBlock:
 
 **v2.0 (New):**
 ```python
-from energis.models import BaseComponent, Flow, register_component
+from calion.models import BaseComponent, Flow, register_component
 
 @register_component("heat_pump", category="converter")
 class HeatPumpBlock(BaseComponent):
@@ -94,7 +94,7 @@ el_in.append(fs["P_el_in"])
 **v2.0 (New):**
 ```python
 # Buses are objects
-from energis.models import Bus, BusType
+from calion.models import Bus, BusType
 
 heat_bus = Bus("heat", BusType.HEAT)
 elec_bus = Bus("electricity", BusType.ELECTRICITY)
@@ -138,7 +138,7 @@ component = ComponentRegistry.create("heat_pump", name="HP1", ...)
 **No changes needed!** The old `system_builder.build_model()` still works exactly as before.
 
 ```python
-from energis.models import build_model
+from calion.models import build_model
 
 # This still works!
 model = build_model(table, config, dt_h=1.0)
@@ -155,14 +155,14 @@ Use v2.0 components alongside v1.0 system_builder:
 ```python
 # Your existing components work as-is
 # Just import from new location
-from energis.models import (
+from calion.models import (
     HeatPumpBlock,     # Now has BaseComponent, but API unchanged
     StorageBlock,
     build_model        # Old builder still available
 )
 
 # New components use registry
-from energis.models import ComponentRegistry
+from calion.models import ComponentRegistry
 
 # List available components
 components = ComponentRegistry.list_components()
@@ -180,11 +180,11 @@ hp = ComponentRegistry.create("heat_pump", name="HP1", ...)
 
 ```python
 # Old
-from energis.models.blocks.heat_pump import HeatPumpBlock
-from energis.models.blocks.storage import StorageBlock
+from calion.models.blocks.heat_pump import HeatPumpBlock
+from calion.models.blocks.storage import StorageBlock
 
 # New
-from energis.models import (
+from calion.models import (
     HeatPumpBlock,
     StorageBlock,
     ComponentRegistry,
@@ -196,7 +196,7 @@ from energis.models import (
 **Step 2: Use Bus objects (optional)**
 
 ```python
-from energis.models import create_default_buses
+from calion.models import create_default_buses
 
 # Create buses
 buses = create_default_buses()
@@ -235,8 +235,8 @@ hp = ComponentRegistry.create(
 
 ### v1.0 Approach (Still Works)
 
-1. Create `energis/models/blocks/my_component.py`
-2. Modify `energis/models/system_builder.py` (+50 lines)
+1. Create `calion/models/blocks/my_component.py`
+2. Modify `calion/models/system_builder.py` (+50 lines)
 3. Update configs
 4. **Total: 3-4 files changed**
 
@@ -250,7 +250,7 @@ hp = ComponentRegistry.create(
 
 ```python
 # my_component.py
-from energis.models import BaseComponent, Flow, register_component
+from calion.models import BaseComponent, Flow, register_component
 
 @register_component("my_component", category="converter")
 class MyComponent(BaseComponent):
@@ -293,7 +293,7 @@ No deprecations yet. v1.0 API will be supported for at least 2 major versions.
 
 ```python
 # Component abstraction
-from energis.models import (
+from calion.models import (
     Component,          # Protocol
     BaseComponent,      # Base class
     Flow,              # Flow object
@@ -302,14 +302,14 @@ from energis.models import (
 )
 
 # Bus abstraction
-from energis.models import (
+from calion.models import (
     Bus,
     create_default_buses,
     create_buses_from_config
 )
 
 # Registry
-from energis.models import (
+from calion.models import (
     ComponentRegistry,
     register_component,
     get_component,
@@ -318,7 +318,7 @@ from energis.models import (
 )
 
 # Utility functions
-from energis.models import (
+from calion.models import (
     list_registered_components,
     get_component_info
 )
@@ -339,7 +339,7 @@ pytest tests/
 ### New Test Patterns
 
 ```python
-from energis.models import ComponentRegistry, HeatPumpBlock
+from calion.models import ComponentRegistry, HeatPumpBlock
 
 def test_component_registration():
     # Component is auto-registered
@@ -437,7 +437,7 @@ Don't migrate if:
 
 ### Q: Where's the old system_builder.py?
 
-**A:** Still there! `energis/models/system_builder.py` is unchanged and fully supported.
+**A:** Still there! `calion/models/system_builder.py` is unchanged and fully supported.
 
 ### Q: Will v1.0 be removed?
 
@@ -506,4 +506,4 @@ We welcome contributions! To add a new component:
 ---
 
 **Last Updated:** 2025-11-18
-**Authors:** EnerGIS Development Team
+**Authors:** CALION Development Team

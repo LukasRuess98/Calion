@@ -1,19 +1,20 @@
-# EnerGIS: Modular District Heating Optimization Framework
+# CALION: Integrated Optimization for Electrified Industrial Heating
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A modular Mixed-Integer Linear Programming (MILP) framework for optimal planning and operation of district heating systems with thermal network integration.
+A Python framework for the joint investment planning and operational optimization of electrified industrial heating systems, based on Mixed-Integer Linear Programming (MILP).
 
 ## Overview
 
-EnerGIS provides a transparent, modular approach to district heating optimization, addressing key challenges in the decarbonization of heating networks:
+CALION co-optimizes investment decisions and operational dispatch for industrial heat networks undergoing electrification — replacing fossil-fuel-based supply with heat pumps, power-to-heat, and sector-coupled technologies:
 
+- **Joint investment and operation**: Simultaneous capacity sizing and hourly dispatch in a single MILP — no sequential approximation
+- **Electrification focus**: Heat pumps with temperature-dependent COP, power-to-heat, and flexible electricity market coupling
 - **Multi-stage optimization**: Perfect Foresight (PF) for design optimization and Rolling Horizon (RH) for operational simulation
-- **Physical network modeling**: Brownfield networks with physical heat loss calculation (Q = U x L x dT)
-- **Investment optimization**: Capacity sizing for heat pumps, thermal storage, and generators
-- **Comprehensive component library**: Heat pumps with COP modeling, CHP units, stratified storage, P2H, biomass boilers
-- **Multi-fuel support**: Explicit fuel buses (electricity, gas, biomass, waste) with CO2 tracking
+- **Physical network modeling**: Industrial heat networks with physical heat loss calculation (Q = U × L × ΔT)
+- **Comprehensive component library**: Heat pumps, CHP units, stratified thermal storage, P2H, biomass boilers
+- **Multi-energy carrier support**: Explicit buses for electricity, gas, biomass, and waste heat with CO₂ tracking
 
 ## Installation
 
@@ -45,7 +46,7 @@ pip install -e ".[all]"
 
 ```bash
 # Run optimization with a scenario config
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 
 # Results are written to outputs/runs/
 ```
@@ -53,7 +54,7 @@ python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
 ### Jupyter Notebook
 
 ```bash
-jupyter notebook notebooks/energis.ipynb
+jupyter notebook notebooks/calion.ipynb
 ```
 
 The notebook provides interactive access to:
@@ -63,7 +64,7 @@ The notebook provides interactive access to:
 
 ## Configuration
 
-EnerGIS uses YAML configuration files layered on top of `configs/base.yaml`.
+CALION uses YAML configuration files layered on top of `configs/base.yaml`.
 See `configs/scenarios/stadtbach_baseline_2023.yaml` for a complete example:
 
 ```yaml
@@ -96,7 +97,7 @@ costs:
 ## Project Structure
 
 ```
-energis/              # Python package
+calion/              # Python package
   models/             # Pyomo model components
   run/                # Optimization orchestration
   io/                 # Input/output utilities
@@ -140,12 +141,12 @@ pytest tests/ -v --no-cov
 
 ## Citation
 
-If you use EnerGIS in your research, please cite:
+If you use CALION in your research, please cite:
 
 ```bibtex
-@software{ruess2026energis,
+@software{ruess2026calion,
   author       = {Ruess, Lukas},
-  title        = {{EnerGIS: Modular MILP Framework for Industrial Heat Network Planning}},
+  title        = {{CALION: Integrated Optimization for Electrified Industrial Heating}},
   year         = {2026},
   version      = {1.0.0-alpha},
   institution  = {Institut für Energieeffizienz in der Produktion (EEP), Universität Stuttgart},

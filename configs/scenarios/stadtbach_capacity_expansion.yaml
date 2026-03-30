@@ -9,7 +9,7 @@ scenario:
   name: "Stadtbach Capacity Expansion 2024-2030"
   description: "Optimize investments in heat pumps, P2H, and storage for 2024-2030 planning horizon"
   version: "1.0"
-  author: "EnerGIS Planning Team"
+  author: "CALION Planning Team"
   date: "2024-01-15"
 
   # ===========================================================================

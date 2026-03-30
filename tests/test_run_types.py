@@ -1,8 +1,8 @@
-"""Tests for energis.run.types – _RollingParams and _CostAggregationPlan."""
+"""Tests for calion.run.types – _RollingParams and _CostAggregationPlan."""
 
 import pytest
 
-from energis.run.types import _CostAggregationPlan, _RollingParams
+from calion.run.types import _CostAggregationPlan, _RollingParams
 
 
 # ---------------------------------------------------------------------------

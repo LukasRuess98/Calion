@@ -4,7 +4,7 @@
 
 ### Problem 1: Multi-Pipe Junctions in MILP sind NICHT konsistent
 
-**Datei:** `energis/models/blocks/thermal_node.py` **Zeile 229**
+**Datei:** `calion/models/blocks/thermal_node.py` **Zeile 229**
 
 **Aktueller Code:**
 ```python
@@ -54,7 +54,7 @@ if incoming_pipes:
 
 ### Problem 2: Temperatur-Bounds sind zu HART coded
 
-**Datei:** `energis/models/blocks/pipe_pair.py` **Zeilen 166–174**
+**Datei:** `calion/models/blocks/pipe_pair.py` **Zeilen 166–174**
 
 **Aktueller Code:**
 ```python
@@ -85,7 +85,7 @@ supply_temp_max = config.get('supply_temp_max_c', max(130, supply_temp_nominal_c
 
 ### Problem 3: Big-M für Transport-Delay ZU SCHWACH
 
-**Datei:** `energis/models/blocks/pipe_pair.py` **Linie 525–543**
+**Datei:** `calion/models/blocks/pipe_pair.py` **Linie 525–543**
 
 **Aktueller Code:**
 ```python
@@ -117,7 +117,7 @@ w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
 
 ### Problem 4: Terminal Consumer m_dot ist UNKONTROLLIERT
 
-**Datei:** `energis/models/blocks/thermal_node.py` **Linie 311–318**
+**Datei:** `calion/models/blocks/thermal_node.py` **Linie 311–318**
 
 **Aktueller Code:**
 ```python
@@ -160,7 +160,7 @@ if node_type == 'consumer':
 
 ### Problem 5: Heat-Loss nutzt NOMINALE Temperatur (Approximation)
 
-**Datei:** `energis/models/blocks/pipe_pair.py` **Linie 263–278**
+**Datei:** `calion/models/blocks/pipe_pair.py` **Linie 263–278**
 
 **Aktueller Code:**
 ```python

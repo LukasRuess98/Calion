@@ -3,9 +3,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
-name = "energis"
+name = "calion"
 version = "1.0.0-alpha"
-description = "Modular MILP Framework for Industrial Heat Network Planning"
+description = "MILP framework for investment and operation optimization of electrified industrial heating systems"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -51,11 +51,11 @@ docs = [
     "sphinx-rtd-theme>=1.0",
 ]
 all = [
-    "energis[plot,notebooks,dev,docs]",
+    "calion[plot,notebooks,dev,docs]",
 ]
 
 [project.scripts]
-energis = "energis.run.__main__:main"
+calion = "calion.run.__main__:main"
 
 [project.urls]
 Repository = "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
@@ -63,35 +63,35 @@ Repository = "https://github.com/LukasRuess98/Planing-Framework-for-Heat"
 Changelog = "https://github.com/LukasRuess98/Planing-Framework-for-Heat/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
-include = ["energis*"]
+include = ["calion*"]
 exclude = ["tests*", "docs*", "examples*", "notebooks*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=energis --cov-report=term-missing --cov-fail-under=60"
+addopts = "--cov=calion --cov-report=term-missing --cov-fail-under=60"
 
 [tool.coverage.run]
-source = ["energis"]
+source = ["calion"]
 omit = [
     # Visualization / dashboard — optional UI, not core logic
-    "energis/io/dashboard/*",
-    "energis/io/plotter.py",
-    "energis/io/plot_utils.py",
-    "energis/io/publication_plotter.py",
-    "energis/io/publication_exporter.py",
-    "energis/io/report_generator.py",
-    "energis/io/workflow_browser.py",
-    "energis/io/model_inspector.py",
+    "calion/io/dashboard/*",
+    "calion/io/plotter.py",
+    "calion/io/plot_utils.py",
+    "calion/io/publication_plotter.py",
+    "calion/io/publication_exporter.py",
+    "calion/io/report_generator.py",
+    "calion/io/workflow_browser.py",
+    "calion/io/model_inspector.py",
     # Export adapters — thin wrappers, tested via integration
-    "energis/io/exporter.py",
-    "energis/io/unified_exporter.py",
-    "energis/io/thermal_network_exporter.py",
-    "energis/io/network_loader.py",
+    "calion/io/exporter.py",
+    "calion/io/unified_exporter.py",
+    "calion/io/thermal_network_exporter.py",
+    "calion/io/network_loader.py",
     # Optional subsystems not yet in core test scope
-    "energis/economics/*",
-    "energis/comparison/*",
-    "energis/forecasting/*",
-    "energis/analysis/*",
+    "calion/economics/*",
+    "calion/comparison/*",
+    "calion/forecasting/*",
+    "calion/analysis/*",
 ]
 
 [tool.coverage.report]

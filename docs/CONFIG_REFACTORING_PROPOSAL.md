@@ -446,7 +446,7 @@ scenario:
 ### Phase 1: Core Schema Migration (Week 1-2)
 
 **Files to Create:**
-1. `energis/config/schemas/asset_schema.py`
+1. `calion/config/schemas/asset_schema.py`
    ```python
    @dataclass
    class AssetCapacity:
@@ -469,7 +469,7 @@ scenario:
        metadata: Dict[str, Any] = field(default_factory=dict)
    ```
 
-2. `energis/config/schemas/network_schema.py`
+2. `calion/config/schemas/network_schema.py`
    ```python
    @dataclass
    class NetworkNode:
@@ -508,7 +508,7 @@ scenario:
 
 ### Phase 2: Network Physics Model (Week 3-4)
 
-**New Module:** `energis/models/network_physics.py`
+**New Module:** `calion/models/network_physics.py`
 ```python
 class HydraulicNetwork:
     """Multi-node hydraulic network with pressure/temperature/delay."""
@@ -538,7 +538,7 @@ class HydraulicNetwork:
 
 1. Migration guide: `docs/CONFIG_MIGRATION.md`
 2. Example configs for each scenario type
-3. Validation tool: `energis config validate <file>`
+3. Validation tool: `calion config validate <file>`
 
 ---
 

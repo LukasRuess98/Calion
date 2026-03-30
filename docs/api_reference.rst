@@ -4,65 +4,65 @@ API Reference
 High-Level API
 --------------
 
-.. automodule:: energis.api
+.. automodule:: calion.api
    :members:
 
 Network Builder
 ---------------
 
-.. autoclass:: energis.network.Network
+.. autoclass:: calion.network.Network
    :members:
    :undoc-members:
 
-.. autoclass:: energis.network.NetworkResult
+.. autoclass:: calion.network.NetworkResult
    :members:
 
 Configuration
 -------------
 
-.. automodule:: energis.config
+.. automodule:: calion.config
    :members:
 
-.. automodule:: energis.config.merge
+.. automodule:: calion.config.merge
    :members: load_and_merge, deep_merge, load_yaml
 
-.. automodule:: energis.config.schema
+.. automodule:: calion.config.schema
    :members: validate_config_schema
 
 Workflow Execution
 ------------------
 
-.. automodule:: energis.run
+.. automodule:: calion.run
    :members:
 
-.. autofunction:: energis.run.workflow.run_workflow
+.. autofunction:: calion.run.workflow.run_workflow
 
 Result Containers
 -----------------
 
-.. automodule:: energis.models.results
+.. automodule:: calion.models.results
    :members:
 
-.. autoclass:: energis.run.types.ScenarioResult
+.. autoclass:: calion.run.types.ScenarioResult
    :members:
 
-.. autoclass:: energis.run.types.WorkflowResult
+.. autoclass:: calion.run.types.WorkflowResult
    :members:
 
 Component System
 ----------------
 
-.. automodule:: energis.models.component
+.. automodule:: calion.models.component
    :members: Component, BaseComponent, Flow, BusType
 
-.. automodule:: energis.models.registry
+.. automodule:: calion.models.registry
    :members: register_component, ComponentRegistry
 
 Validation
 ----------
 
-.. automodule:: energis.validation.analytical_benchmarks
+.. automodule:: calion.validation.analytical_benchmarks
    :members:
 
-.. automodule:: energis.validation.validation_report
+.. automodule:: calion.validation.validation_report
    :members:

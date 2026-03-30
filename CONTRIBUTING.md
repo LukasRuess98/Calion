@@ -1,6 +1,6 @@
-# Contributing to EnerGIS
+# Contributing to CALION
 
-Thank you for considering a contribution to EnerGIS! This document explains
+Thank you for considering a contribution to CALION! This document explains
 how to set up a development environment, run tests, and submit changes.
 
 ## Development Setup
@@ -29,7 +29,7 @@ python -m pytest tests/
 python -m pytest tests/test_results.py -v
 
 # Run with coverage report
-python -m pytest tests/ --cov=energis --cov-report=html
+python -m pytest tests/ --cov=calion --cov-report=html
 ```
 
 The CI pipeline requires a minimum of 30 % line coverage.
@@ -39,8 +39,8 @@ The CI pipeline requires a minimum of 30 % line coverage.
 We use [Ruff](https://docs.astral.sh/ruff/) for linting:
 
 ```bash
-ruff check energis/
-ruff format energis/   # auto-format
+ruff check calion/
+ruff format calion/   # auto-format
 ```
 
 Key conventions:
@@ -52,7 +52,7 @@ Key conventions:
 ## Project Structure
 
 ```
-energis/
+calion/
 ├── api.py                  # High-level convenience API
 ├── network.py              # Programmatic Network builder (PyPSA-style)
 ├── constants.py            # Centralised physical constants
@@ -77,20 +77,20 @@ energis/
 
 ## Adding a New Component
 
-1. Create a file in `energis/models/blocks/` (e.g. `my_component.py`).
+1. Create a file in `calion/models/blocks/` (e.g. `my_component.py`).
 2. Subclass `BaseComponent` and implement the `Component` protocol.
 3. Decorate with `@register_component("my_component")`.
-4. Import the class in `energis/models/__init__.py` so the decorator fires.
+4. Import the class in `calion/models/__init__.py` so the decorator fires.
 5. Add tests in `tests/test_my_component.py`.
 
-See `energis/models/blocks/heat_pump.py` for a reference implementation.
+See `calion/models/blocks/heat_pump.py` for a reference implementation.
 
 ## Submitting Changes
 
 1. Create a feature branch: `git checkout -b feature/my-feature`
 2. Write tests for new functionality.
 3. Ensure `pytest` passes and coverage does not decrease.
-4. Run `ruff check energis/` — no errors allowed.
+4. Run `ruff check calion/` — no errors allowed.
 5. Open a Pull Request against `main`.
 
 ## Reporting Issues
@@ -103,12 +103,12 @@ with one of the following labels:
 
 ## Citation
 
-If you use EnerGIS in academic work, please cite:
+If you use CALION in academic work, please cite:
 
 ```bibtex
-@software{energis2026,
+@software{calion2026,
   author  = {Ruess, Lukas},
-  title   = {EnerGIS: Modular MILP Framework for Industrial Heat Network Planning},
+  title   = {CALION: Modular MILP Framework for Industrial Heat Network Planning},
   year    = {2026},
   url     = {https://github.com/LukasRuess98/Planing-Framework-for-Heat}
 }

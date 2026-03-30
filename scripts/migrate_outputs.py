@@ -39,8 +39,8 @@ def migrate(dry_run: bool, copy: bool) -> int:
     """Run the migration. Returns exit code (0 = ok, 1 = errors)."""
     root = Path.cwd()
     # Verify we are in the project root
-    if not (root / "energis").is_dir():
-        print("ERROR: Run this script from the project root (directory containing energis/).")
+    if not (root / "calion").is_dir():
+        print("ERROR: Run this script from the project root (directory containing calion/).")
         return 1
 
     action = "copy" if copy else "move"

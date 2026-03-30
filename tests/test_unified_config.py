@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from energis.config.unified_config import (
+from calion.config.unified_config import (
     parse_unified_config,
     UnifiedSystemConfig,
     NodeConfig,
@@ -29,7 +29,7 @@ try:
 except Exception:
     HAVE_PYOMO = False
 
-from energis.utils.timeseries import TimeSeriesTable
+from calion.utils.timeseries import TimeSeriesTable
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -410,7 +410,7 @@ class TestDemandConfig:
 class TestUnifiedModelBuilding:
     def test_copperplate_builds(self):
         """A copperplate unified config should build a valid Pyomo model."""
-        from energis.models.system_builder import build_model
+        from calion.models.system_builder import build_model
 
         table = _table(hours=4, demand=10.0)
         cfg = _minimal_copperplate_cfg()
@@ -424,7 +424,7 @@ class TestUnifiedModelBuilding:
 
     def test_copperplate_with_hp_builds(self):
         """Copperplate with HP + generator builds and has correct variables."""
-        from energis.models.system_builder import build_model
+        from calion.models.system_builder import build_model
 
         table = _table(hours=2, demand=5.0)
         cfg = _minimal_copperplate_cfg()
@@ -443,7 +443,7 @@ class TestUnifiedModelBuilding:
 
     def test_unified_config_stored_on_model(self):
         """Unified config reference is stored on the model for export."""
-        from energis.models.system_builder import build_model
+        from calion.models.system_builder import build_model
 
         table = _table(hours=2, demand=5.0)
         cfg = _minimal_copperplate_cfg()
@@ -454,7 +454,7 @@ class TestUnifiedModelBuilding:
 
     def test_legacy_config_still_works(self):
         """Legacy config format should still work via the old path."""
-        from energis.models.system_builder import build_model
+        from calion.models.system_builder import build_model
 
         table = _table(hours=2, demand=0.0)
         cfg = {

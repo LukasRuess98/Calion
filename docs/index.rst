@@ -1,7 +1,7 @@
-EnerGIS Documentation
+CALION Documentation
 =====================
 
-**EnerGIS** is a modular MILP framework for planning and optimizing
+**CALION** is a modular MILP framework for planning and optimizing
 industrial district heating networks, built on top of Pyomo.
 
 .. toctree::
@@ -17,7 +17,7 @@ Quickstart
 
 .. code-block:: python
 
-   from energis import Network
+   from calion import Network
 
    net = Network(dt_h=1.0, solver="glpk")
    net.add_heat_pump("HP1", capacity_mw=10.0, cop=3.5)

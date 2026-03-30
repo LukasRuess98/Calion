@@ -1,12 +1,12 @@
-# EXECUTIVE SUMMARY: EnerGIS MILP-Linearisierung
+# EXECUTIVE SUMMARY: CALION MILP-Linearisierung
 
 ## Analyse Abgeschlossen ✅
 
 Gründliches Code-Audit durchgeführt auf:
-- `energis/models/blocks/pipe_pair.py` (Rohrleitungen, Wärmeverluste, Transport-Delay)
-- `energis/models/blocks/thermal_node.py` (Temperatur-Mischung, Wärmenachfrage)
-- `energis/models/network_physics.py` (Delay-Bucket-Berechnung)
-- `energis/constants.py` (Big-M Parameter)
+- `calion/models/blocks/pipe_pair.py` (Rohrleitungen, Wärmeverluste, Transport-Delay)
+- `calion/models/blocks/thermal_node.py` (Temperatur-Mischung, Wärmenachfrage)
+- `calion/models/network_physics.py` (Delay-Bucket-Berechnung)
+- `calion/constants.py` (Big-M Parameter)
 
 ---
 

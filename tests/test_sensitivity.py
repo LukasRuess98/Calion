@@ -1,11 +1,11 @@
-"""Tests for energis.analysis.sensitivity — pure-logic functions only.
+"""Tests for calion.analysis.sensitivity — pure-logic functions only.
 
 No solver required; all tested functions are deterministic computations.
 """
 
 import pytest
 
-from energis.analysis.sensitivity import (
+from calion.analysis.sensitivity import (
     ParameterVariation,
     SensitivityResult,
     apply_parameter_variation,

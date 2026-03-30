@@ -18,8 +18,8 @@ from datetime import datetime
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from energis.run.rolling_horizon import run_workflow
-from energis.analysis import (
+from calion.run.rolling_horizon import run_workflow
+from calion.analysis import (
     analyze_co2_resolution,
     create_comparison_report,
     create_monthly_breakdown,

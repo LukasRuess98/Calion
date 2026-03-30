@@ -6,7 +6,7 @@
 * **Files:** `synthetic_load_profile.csv`
 * **Content:** 24 hourly timestamps for 2023-01-01 with day-ahead power prices, aggregated heat demand, CO₂ intensity, and a single waste-heat recovery source (thermal potential and source temperature).
 
-The dataset is generated from smooth sinusoidal patterns and does **not** contain customer or operational data. Values are scaled to sit comfortably within the default EnerGIS component capacities so that PF→RH runs succeed out-of-the-box. The data are stored as CSV (no binary Excel artefacts) so diffs remain text-only.
+The dataset is generated from smooth sinusoidal patterns and does **not** contain customer or operational data. Values are scaled to sit comfortably within the default CALION component capacities so that PF→RH runs succeed out-of-the-box. The data are stored as CSV (no binary Excel artefacts) so diffs remain text-only.
 
 ## Anonymisation approach
 

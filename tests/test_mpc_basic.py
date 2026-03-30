@@ -1,9 +1,9 @@
 """Basic tests for MPC implementation."""
 
 import pytest
-from energis.forecasting.base import ForecastGenerator
-from energis.forecasting.persistence import PersistenceForecast
-from energis.forecasting.perfect_noise import PerfectNoiseForecast
+from calion.forecasting.base import ForecastGenerator
+from calion.forecasting.persistence import PersistenceForecast
+from calion.forecasting.perfect_noise import PerfectNoiseForecast
 
 
 def test_forecast_generator_interface():
@@ -23,7 +23,7 @@ def test_forecast_generator_interface():
 
 def test_mpc_workflow_registration():
     """Test that MPC workflow step is registered."""
-    from energis.run.rolling_horizon import get_registered_workflow_steps
+    from calion.run.rolling_horizon import get_registered_workflow_steps
 
     steps = get_registered_workflow_steps()
     assert "MPC" in steps
@@ -33,7 +33,7 @@ def test_mpc_workflow_registration():
 
 def test_workflow_result_has_mpc_field():
     """Ensure WorkflowResult has mpc_result field."""
-    from energis.run.rolling_horizon import WorkflowResult
+    from calion.run.rolling_horizon import WorkflowResult
 
     result = WorkflowResult(
         config={},
@@ -51,7 +51,7 @@ def test_workflow_result_has_mpc_field():
 
 def test_workflow_context_has_mpc_field():
     """Ensure WorkflowContext has mpc_result field."""
-    from energis.run.rolling_horizon import WorkflowContext, WorkflowPlan
+    from calion.run.rolling_horizon import WorkflowContext, WorkflowPlan
 
     context = WorkflowContext(
         cfg={},
@@ -69,7 +69,7 @@ def test_workflow_context_has_mpc_field():
 
 def test_mpc_run_modes():
     """Test that MPC run modes are recognized."""
-    from energis.run.rolling_horizon import _parse_workflow_plan
+    from calion.run.rolling_horizon import _parse_workflow_plan
 
     # Test MPC_ONLY
     plan = _parse_workflow_plan({"run_mode": "MPC_ONLY"})

@@ -14,7 +14,7 @@ CO₂-Kosten sollen **im Pyomo-Modell** pro Komponente berechnet werden:
 
 ## AKTUELLE IMPLEMENTIERUNG (Status Quo)
 
-### 1. Pyomo-Modell (`energis/models/system_builder.py`)
+### 1. Pyomo-Modell (`calion/models/system_builder.py`)
 
 **Zeile 740-741**: CO₂ pro Generator (aggregiert)
 ```python
@@ -297,7 +297,7 @@ m.obj = pyo.Objective(
 
 ---
 
-### 2. Export-Anpassungen (`energis/run/rolling_horizon.py`)
+### 2. Export-Anpassungen (`calion/run/rolling_horizon.py`)
 
 #### 2.1 Export CO₂-Kosten pro Komponente
 
@@ -392,7 +392,7 @@ if co2_components and "P2H" in co2_components:
 
 ---
 
-### 3. Dashboard-Anpassungen (`energis/io/dashboard.py`)
+### 3. Dashboard-Anpassungen (`calion/io/dashboard.py`)
 
 #### 3.1 Neue KPI-Karten
 
@@ -530,7 +530,7 @@ self._create_co2_costs_table(),
 
 ## ZUSAMMENFASSUNG: ÄNDERUNGEN
 
-### Pyomo-Modell (`energis/models/system_builder.py`)
+### Pyomo-Modell (`calion/models/system_builder.py`)
 
 | Zeile | Änderung | Beschreibung |
 |-------|----------|--------------|
@@ -540,7 +540,7 @@ self._create_co2_costs_table(),
 | 714-741 | **Ersetzt** | Generatoren: CO₂-Aufteilung Wärme/Strom |
 | 791-793 | **Ersetzt** | CO₂-Summen aus Komponenten |
 
-### Export (`energis/run/rolling_horizon.py`)
+### Export (`calion/run/rolling_horizon.py`)
 
 | Zeile | Änderung | Beschreibung |
 |-------|----------|--------------|
@@ -549,7 +549,7 @@ self._create_co2_costs_table(),
 | 784 | **Erweitert** | Generator-summary: CO₂-Kosten |
 | 808 | **Erweitert** | P2H-summary: CO₂-Kosten |
 
-### Dashboard (`energis/io/dashboard.py`)
+### Dashboard (`calion/io/dashboard.py`)
 
 | Zeile | Änderung | Beschreibung |
 |-------|----------|--------------|

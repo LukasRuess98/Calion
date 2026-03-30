@@ -16,9 +16,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from energis.run.workflow import run_workflow
-from energis.run.export import export_workflow_results
-from energis.logging_config import get_logger
+from calion.run.workflow import run_workflow
+from calion.run.export import export_workflow_results
+from calion.logging_config import get_logger
 
 logger = get_logger(__name__)
 

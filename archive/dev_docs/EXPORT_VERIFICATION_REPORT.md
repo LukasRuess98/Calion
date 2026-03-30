@@ -127,7 +127,7 @@ timestep;heat_demand_MW
 
 ### Usage
 ```bash
-python -m energis.run configs/scenarios/stadtbach_baseline_2023.yaml
+python -m calion.run configs/scenarios/stadtbach_baseline_2023.yaml
 # Results → outputs/runs/thermal_network_results/
 ```
 

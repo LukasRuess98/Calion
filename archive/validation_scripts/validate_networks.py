@@ -35,7 +35,7 @@ class NetworkValidator:
         
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "energis.run", str(config_file)],
+                [sys.executable, "-m", "calion.run", str(config_file)],
                 capture_output=True,
                 text=True,
                 errors='replace',  # Handle encoding errors gracefully

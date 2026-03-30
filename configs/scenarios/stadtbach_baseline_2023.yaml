@@ -17,7 +17,7 @@ scenario:
     name: "Stadtbach Baseline 2023"
     description: "Dispatch-only optimization for Stadtbach district heating"
     version: "2.0"
-    author: "EnerGIS Planning Team"
+    author: "CALION Planning Team"
     purpose: "Paper analysis - baseline scenario"
     created: "2026-03-27"
 

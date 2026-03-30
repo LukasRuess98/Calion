@@ -1,11 +1,11 @@
-"""Tests for energis.validation.validation_report — report generation."""
+"""Tests for calion.validation.validation_report — report generation."""
 
 import json
 import os
 import pytest
 
-from energis.validation.analytical_benchmarks import ValidationResult, ValidationSuiteResult
-from energis.validation.validation_report import (
+from calion.validation.analytical_benchmarks import ValidationResult, ValidationSuiteResult
+from calion.validation.validation_report import (
     generate_validation_report,
     export_validation_summary,
     format_for_publication,

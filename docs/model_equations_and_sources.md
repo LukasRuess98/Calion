@@ -1,7 +1,7 @@
-# Mathematical Model Documentation — EnerGIS District Heating Optimization Framework
+# Mathematical Model Documentation — CALION District Heating Optimization Framework
 
 > **Purpose:** This document catalogs all mathematical equations, physical models, and cost formulations
-> implemented in EnerGIS, together with their scientific sources and assumptions.
+> implemented in CALION, together with their scientific sources and assumptions.
 > Intended as supporting material for academic publication.
 
 ---
@@ -29,7 +29,7 @@
 
 ## 1. Model Overview and Problem Statement
 
-EnerGIS solves a **Mixed-Integer Linear Program (MILP)** for the optimal dispatch and capacity expansion
+CALION solves a **Mixed-Integer Linear Program (MILP)** for the optimal dispatch and capacity expansion
 of district heating systems. The formulation follows the *unit-commitment with investment decisions*
 paradigm [1, 2]:
 
@@ -50,7 +50,7 @@ annual optimization or sub-hourly for short-horizon studies).
 
 ## 2. Objective Function
 
-**Source file:** `energis/models/cost_calculator.py`, `energis/models/investment_calculator.py`
+**Source file:** `calion/models/cost_calculator.py`, `calion/models/investment_calculator.py`
 
 The model minimizes the total annualized system cost over the optimization horizon:
 
@@ -104,7 +104,7 @@ See Section 12.
 
 ## 3. Energy Bus Balance Constraints
 
-**Source file:** `energis/models/constraint_builder.py`
+**Source file:** `calion/models/constraint_builder.py`
 
 ### 3.1 Heat Bus (Copperplate / Single Node)
 
@@ -140,7 +140,7 @@ law applied to energy networks [10, 11].
 
 ## 4. Heat Pump Model
 
-**Source file:** `energis/models/blocks/heat_pump.py`
+**Source file:** `calion/models/blocks/heat_pump.py`
 
 ### 4.1 Heat Output Balance
 
@@ -188,7 +188,7 @@ are the minimum and maximum investable capacities [1, 15].
 
 ## 5. COP Calculation
 
-**Source file:** `energis/models/cop_calculator.py`
+**Source file:** `calion/models/cop_calculator.py`
 
 ### 5.1 Analytical Thermodynamic COP Model
 
@@ -243,7 +243,7 @@ $$\text{COP} \in [\text{COP}_{\min},\; \text{COP}_{\max}] = [0.5,\; 15.0]$$
 
 ## 6. Thermal Storage Model
 
-**Source file:** `energis/models/blocks/storage.py`
+**Source file:** `calion/models/blocks/storage.py`
 
 ### 6.1 Energy Balance (State-of-Charge Dynamics)
 
@@ -310,7 +310,7 @@ The initial state-of-charge is a parameter $E_0$ that must not exceed capacity.
 
 ## 7. Power-to-Heat (P2H) Model
 
-**Source file:** `energis/models/blocks/p2h.py`
+**Source file:** `calion/models/blocks/p2h.py`
 
 ### 7.1 Efficiency-Based Heat Output
 
@@ -331,7 +331,7 @@ $$Q_t \geq \phi_{\min} \cdot \hat{Q} \cdot u_t \quad \forall t \tag{P2H-3}$$
 
 ## 8. Thermal Generator and CHP Model
 
-**Source file:** `energis/models/blocks/thermal_gen.py`
+**Source file:** `calion/models/blocks/thermal_gen.py`
 
 ### 8.1 Boiler: Thermal Output from Fuel
 
@@ -366,7 +366,7 @@ $$Q^{\text{th}}_t \leq \hat{Q}^{\text{th}} \quad \forall t \tag{GEN-4}$$
 
 ## 9. Pipe Heat Loss and Network Physics
 
-**Source file:** `energis/models/network_physics.py`, `energis/models/blocks/pipe_pair.py`
+**Source file:** `calion/models/network_physics.py`, `calion/models/blocks/pipe_pair.py`
 
 ### 9.1 Steady-State Pipe Heat Loss
 
@@ -465,7 +465,7 @@ Special Ordered Sets of type 2 (SOS2) with 3 breakpoints [34]:
 
 ## 10. Heat Exchanger Model
 
-**Source file:** `energis/models/blocks/heat_exchanger.py`
+**Source file:** `calion/models/blocks/heat_exchanger.py`
 
 ### 10.1 Energy Balances
 
@@ -498,7 +498,7 @@ where $\Delta T_{\text{pp}}$ is the minimum approach temperature [K] and $M$ is 
 
 ## 11. Electricity Market Model
 
-**Source file:** `energis/models/constraint_builder.py`
+**Source file:** `calion/models/constraint_builder.py`
 
 ### 11.1 Buy/Sell Exclusivity
 
@@ -526,7 +526,7 @@ without requiring auxiliary binary variables [38].
 
 ## 12. Investment and Annuity Model
 
-**Source file:** `energis/models/investment_calculator.py`
+**Source file:** `calion/models/investment_calculator.py`
 
 ### 12.1 Annualization Factor
 
@@ -579,7 +579,7 @@ $$C_{\text{tie},i} = \hat{Q}_i \cdot \epsilon_i \tag{INV-7}$$
 
 ## 13. CO₂ Emissions Model
 
-**Source file:** `energis/models/emissions_calculator.py`
+**Source file:** `calion/models/emissions_calculator.py`
 
 ### 13.1 Grid Electricity Emissions
 
@@ -635,7 +635,7 @@ Tranberg et al. [41].
 
 ## 14. Sensitivity Analysis
 
-**Source file:** `energis/analysis/sensitivity.py`
+**Source file:** `calion/analysis/sensitivity.py`
 
 ### 14.1 Parameter Variation Modes
 
@@ -945,4 +945,4 @@ Parallelizing the dual revised simplex method.
 
 ---
 
-*Document generated: 2026-03-28 | Framework: EnerGIS v1.0 | Branch: feature/refactoring-framework-cleanup*
+*Document generated: 2026-03-28 | Framework: CALION v1.0 | Branch: feature/refactoring-framework-cleanup*

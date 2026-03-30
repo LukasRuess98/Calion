@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 try:
     import pyomo.environ as pyo
-    from energis.io.model_inspector import export_model_structure, inspect_pyomo_model
+    from calion.io.model_inspector import export_model_structure, inspect_pyomo_model
     print("[TEST] Imports successful!")
 except ImportError as e:
     print(f"[ERROR] Import failed: {e}")

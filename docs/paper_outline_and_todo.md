@@ -51,7 +51,7 @@
 - The copperplate assumption: ubiquitous but unvalidated [Ref: 4, 5]
 - Research gap: no systematic comparison across resolution levels for the same case
 - Contributions:
-  1. A unified MILP framework (EnerGIS) that solves the same problem at three spatial resolutions
+  1. A unified MILP framework (CALION) that solves the same problem at three spatial resolutions
   2. Quantification of copperplate error for investment and operational decisions
   3. Guidelines for practitioners: when is a simplified model sufficient?
 - Paper outline
@@ -129,7 +129,7 @@ isolates the effect of spatial resolution from forecast uncertainty.
 **Justification:** Perfect forecast is the standard for investment planning studies [5, 7, 15].
 
 #### 4.4 Solver and Implementation
-- Framework: EnerGIS (Python, Pyomo)
+- Framework: CALION (Python, Pyomo)
 - Solver: Gurobi [or HiGHS if open-source] with MIP gap ≤ 1%
 - Hardware: [fill in — CPU, RAM]
 - Time horizon: 8,760 hours (full year 2023)
@@ -324,14 +324,14 @@ Run sensitivity analysis (Section 14 of equations doc) for each level:
 
 - [ ] **Run all 3 levels on full 1-year horizon** with PF mode
   - Record: total cost, cost breakdown, investment decisions, solve time
-  - Use: `python -m energis run --config configs/templates/levelX.yaml --output outputs/runs/levelX/`
+  - Use: `python -m calion run --config configs/templates/levelX.yaml --output outputs/runs/levelX/`
 
 - [ ] **Extract and compare KPIs** using BenchmarkSuite
-  - Script: use `energis/comparison/benchmark.py`
+  - Script: use `calion/comparison/benchmark.py`
   - Export: `outputs/comparison/level_comparison.csv`
 
 - [ ] **Run sensitivity analysis** for all 3 levels
-  - Use `energis/analysis/sensitivity.py` → `create_standard_sensitivity_study()`
+  - Use `calion/analysis/sensitivity.py` → `create_standard_sensitivity_study()`
   - 7 parameters × 3 levels × 3 variations = 63 model runs
 
 - [ ] **Generate network loss timeseries** for Level 2 and 3
@@ -364,7 +364,7 @@ Run sensitivity analysis (Section 14 of equations doc) for each level:
 
 - [ ] **Check journal requirements** (figure format, reference style, word count)
 - [ ] **Ethics/data statement:** Synthetic data → no issues; real data → check permissions
-- [ ] **Code/data availability statement:** EnerGIS as open-source? Zenodo DOI?
+- [ ] **Code/data availability statement:** CALION as open-source? Zenodo DOI?
 - [ ] **Nomenclature table** — use `docs/model_equations_and_sources.md` §15
 - [ ] **Proofread equations** — verify all equation labels in paper match equations doc
 
@@ -407,23 +407,23 @@ Cost(Level 1) < Cost(Level 2) ≈ Cost(Level 3)
 
 ```bash
 # Run all three levels
-python -m energis run --config configs/templates/level1_copperplate.yaml \
+python -m calion run --config configs/templates/level1_copperplate.yaml \
     --output outputs/runs/level1/ --horizon 8760
 
-python -m energis run --config configs/templates/level2_5node.yaml \
+python -m calion run --config configs/templates/level2_5node.yaml \
     --output outputs/runs/level2/ --horizon 8760
 
-python -m energis run --config configs/templates/level3_30node_template.yaml \
+python -m calion run --config configs/templates/level3_30node_template.yaml \
     --output outputs/runs/level3/ --horizon 8760
 
 # Compare results
-python -m energis compare \
+python -m calion compare \
     outputs/runs/level1/ outputs/runs/level2/ outputs/runs/level3/ \
     --labels "1-node" "5-node" "30-node" \
     --output outputs/comparison/
 
 # Sensitivity analysis
-python -m energis sensitivity --config configs/templates/level1_copperplate.yaml \
+python -m calion sensitivity --config configs/templates/level1_copperplate.yaml \
     --output outputs/sensitivity/level1/
 ```
 

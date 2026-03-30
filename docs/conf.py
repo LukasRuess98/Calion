@@ -1,4 +1,4 @@
-"""Sphinx configuration for EnerGIS documentation."""
+"""Sphinx configuration for CALION documentation."""
 
 import os
 import sys
@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 
-project = "EnerGIS"
-copyright = "2026, EnerGIS Team"
+project = "CALION"
+copyright = "2026, CALION Team"
 author = "Lukas Ruess"
 version = "1.0.0-alpha"
 release = version

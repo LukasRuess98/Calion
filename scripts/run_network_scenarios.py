@@ -46,7 +46,7 @@ TOPOLOGY_SCENARIOS = {
 
 def _load_config(scenario_name: str) -> Dict[str, Any]:
     """Load and merge a scenario config file."""
-    from energis.config.merge import load_and_merge
+    from calion.config.merge import load_and_merge
 
     fname = TOPOLOGY_SCENARIOS.get(scenario_name)
     if fname is None:
@@ -111,8 +111,8 @@ def _total_pipe_length(config: Dict[str, Any]) -> float:
 
 def run_scenario(scenario_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
     """Run a single scenario and return summary metrics."""
-    from energis.run.solver import _solve_scenario
-    from energis.utils.timeseries import TimeSeriesTable
+    from calion.run.solver import _solve_scenario
+    from calion.utils.timeseries import TimeSeriesTable
 
     log.info(f"--- Running scenario: {scenario_name} ---")
 
@@ -130,7 +130,7 @@ def run_scenario(scenario_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
 
     # Load data via the standard pipeline
     try:
-        from energis.run.utilities.timeseries_utils import _load_and_prepare_table
+        from calion.run.utilities.timeseries_utils import _load_and_prepare_table
         table = _load_and_prepare_table(config, str(PROJECT_ROOT))
     except Exception as e:
         log.warning(f"Could not load table via pipeline: {e}")

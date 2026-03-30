@@ -12,7 +12,7 @@ Expected runtime WITHOUT fix: >30 minutes (or timeout)
 import time
 from pathlib import Path
 
-from energis.run import rolling_horizon as rh
+from calion.run import rolling_horizon as rh
 
 
 def test_rh_solver_options():

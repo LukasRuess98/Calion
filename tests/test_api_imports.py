@@ -1,11 +1,11 @@
-"""Tests for energis.api — verify public API surface is importable."""
+"""Tests for calion.api — verify public API surface is importable."""
 
 
 def test_api_imports():
-    from energis.api import (
+    from calion.api import (
         load_config,
         validate_config_schema,
-        EnerGISConfig,
+        CALIONConfig,
         run_workflow,
         ScenarioResult,
         RollingHorizonResult,
@@ -27,6 +27,6 @@ def test_api_imports():
 
 
 def test_top_level_network():
-    from energis import Network
+    from calion import Network
     net = Network()
     assert net.dt_h == 1.0

@@ -1,8 +1,8 @@
-"""Tests for energis.run.workflow – plan parsing, step registry, sensitivity expansion."""
+"""Tests for calion.run.workflow – plan parsing, step registry, sensitivity expansion."""
 
 import pytest
 
-from energis.run.workflow import (
+from calion.run.workflow import (
     _parse_workflow_plan,
     get_registered_workflow_steps,
     register_workflow_step,

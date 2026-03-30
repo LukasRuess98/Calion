@@ -1,6 +1,6 @@
-"""Tests for energis.config.model_settings — reference documentation dicts."""
+"""Tests for calion.config.model_settings — reference documentation dicts."""
 
-from energis.config.model_settings import ROLLING_HORIZON, GRID_LIMITS, STORAGE_POLICIES
+from calion.config.model_settings import ROLLING_HORIZON, GRID_LIMITS, STORAGE_POLICIES
 
 
 class TestModelSettings:

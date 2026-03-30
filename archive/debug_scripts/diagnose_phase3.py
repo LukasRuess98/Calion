@@ -98,7 +98,7 @@ print("\n[2] Running isolation test...")
 print("-" * 70)
 
 result = subprocess.run(
-    [sys.executable, "-m", "energis.run", str(isolation_config)],
+    [sys.executable, "-m", "calion.run", str(isolation_config)],
     capture_output=True,
     text=True,
     timeout=60

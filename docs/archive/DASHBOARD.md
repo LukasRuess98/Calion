@@ -1,10 +1,10 @@
-# 🎛️ EnerGIS Dashboard
+# 🎛️ CALION Dashboard
 
 Standalone Dashboard zur Visualisierung gespeicherter Simulationsergebnisse.
 
 ## 🎯 Übersicht
 
-Das EnerGIS Dashboard ist eine unabhängige Webanwendung zur interaktiven Visualisierung und Analyse gespeicherter Workflow-Simulationen. Es läuft **unabhängig** von aktiven Simulationen und lädt automatisch alle verfügbaren Ergebnisse aus dem `saved_workflows/` Verzeichnis.
+Das CALION Dashboard ist eine unabhängige Webanwendung zur interaktiven Visualisierung und Analyse gespeicherter Workflow-Simulationen. Es läuft **unabhängig** von aktiven Simulationen und lädt automatisch alle verfügbaren Ergebnisse aus dem `saved_workflows/` Verzeichnis.
 
 ### ✨ Features
 
@@ -92,7 +92,7 @@ Das Dashboard benötigt mindestens einen gespeicherten Workflow in `saved_workfl
 **Workflows erstellen:**
 - Mit `notebooks/runner.ipynb` - Standard-Optimierungsläufe
 - Mit `notebooks/scenario_studio.ipynb` - Interaktive Szenario-Analysen
-- Via CLI: `python -m energis.run.rolling_horizon --config ...`
+- Via CLI: `python -m calion.run.rolling_horizon --config ...`
 
 Jeder Workflow wird automatisch in `saved_workflows/` mit folgendem Inhalt gespeichert:
 ```
@@ -307,10 +307,10 @@ python start_dashboard.py --port 5008
 ```
 start_dashboard.py
     ↓
-energis/io/workflow_browser.py
+calion/io/workflow_browser.py
     ↓
-    ├── energis/io/dashboard.py       (Dashboard-Erstellung)
-    ├── energis/io/notebook_helpers.py (Workflow-Laden)
+    ├── calion/io/dashboard.py       (Dashboard-Erstellung)
+    ├── calion/io/notebook_helpers.py (Workflow-Laden)
     └── Panel/Plotly/Holoviews         (Visualisierung)
 ```
 
@@ -327,7 +327,7 @@ energis/io/workflow_browser.py
 
 ### Eigene Dashboard-Tabs hinzufügen
 
-Editiere `energis/io/dashboard.py`:
+Editiere `calion/io/dashboard.py`:
 
 ```python
 def create_custom_tab(workflow):
@@ -359,7 +359,7 @@ nohup panel serve start_dashboard.py --port 5007 &
 
 - **Panel Docs**: https://panel.holoviz.org/
 - **Plotly Docs**: https://plotly.com/python/
-- **EnerGIS Docs**: `README.md`, `ARCHITECTURE_V2.md`
+- **CALION Docs**: `README.md`, `ARCHITECTURE_V2.md`
 
 ## 🎓 Best Practices
 

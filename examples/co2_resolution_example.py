@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 import pandas as pd
-from energis.analysis import (
+from calion.analysis import (
     analyze_co2_resolution,
     create_comparison_report,
     create_monthly_breakdown,

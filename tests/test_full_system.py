@@ -1,5 +1,5 @@
 """
-Comprehensive System Test for EnerGIS
+Comprehensive System Test for CALION
 ======================================
 
 Tests all aspects of the optimization system:
@@ -28,10 +28,10 @@ pytestmark = pytest.mark.skipif(
     reason=f"Integration config file not available: {CONFIG_PATH}"
 )
 
-from energis.config.merge import load_and_merge
-from energis.io.loader import load_input_excel
-from energis.models.system_builder import build_model
-from energis.models.network_manager import NetworkManager
+from calion.config.merge import load_and_merge
+from calion.io.loader import load_input_excel
+from calion.models.system_builder import build_model
+from calion.models.network_manager import NetworkManager
 import pyomo.environ as pyo
 
 def test_configuration_parsing():
@@ -94,7 +94,7 @@ def test_configuration_parsing():
 
 def slice_table(table, n_rows):
     """Slice a TimeSeriesTable to first n_rows."""
-    from energis.utils.timeseries import TimeSeriesTable
+    from calion.utils.timeseries import TimeSeriesTable
     return TimeSeriesTable(
         index=table.index[:n_rows],
         columns=table.columns[:],

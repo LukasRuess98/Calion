@@ -12,7 +12,7 @@ Das thermische Netzwerk ist **vollständig integriert**:
 
 - ✅ Core MIQP-Modell (Temperatur-abhängige Verluste, bilineare Terme)
 - ✅ Alle Workflows (PF, RH, MPC)
-- ✅ CLI Runner (`python -m energis.run`)
+- ✅ CLI Runner (`python -m calion.run`)
 - ✅ Jupyter Notebooks mit Visualisierung
 - ✅ Automatische CSV/JSON Exports
 - ✅ Stadtbach-Netzwerk konfiguriert (12 Knoten, 11 Rohre)
@@ -75,7 +75,7 @@ with open('configs/scenarios/demo_6h.scenario.yaml', 'w') as f:
 "
 
 # Run
-python -m energis.run \
+python -m calion.run \
   configs/base.yaml \
   configs/tech_catalog.yaml \
   configs/scenarios/demo_6h.scenario.yaml
@@ -100,7 +100,7 @@ exports/20251210_123456_thermal-network-demo/
 python scripts/prepare_stadtbach_data.py  # Daten vorbereiten
 
 # Run 1 Woche
-python -m energis.run \
+python -m calion.run \
   configs/base.yaml \
   configs/tech_catalog.yaml \
   configs/scenarios/stadtbach_1week.scenario.yaml

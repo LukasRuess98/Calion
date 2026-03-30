@@ -9,9 +9,9 @@ try:
 except Exception:
     HAVE_PYOMO = False
 
-from energis.io.loader import load_input_excel
-from energis.models.system_builder import build_model
-from energis.utils.xlsx import write_simple_xlsx
+from calion.io.loader import load_input_excel
+from calion.models.system_builder import build_model
+from calion.utils.xlsx import write_simple_xlsx
 
 
 def _date_range(start: str, periods: int, freq_hours: int = 1):

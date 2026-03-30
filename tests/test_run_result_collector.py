@@ -1,8 +1,8 @@
-"""Tests for energis.run.result_collector – small helpers only."""
+"""Tests for calion.run.result_collector – small helpers only."""
 
 import pytest
 
-from energis.run.result_collector import (
+from calion.run.result_collector import (
     _as_float,
     _extract_design_from_summary,
     _flatten_summary,

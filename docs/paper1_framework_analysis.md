@@ -38,7 +38,7 @@
 │ ├── CO2 kg/MWh            → grid_co2[t] in Pyomo                           │
 │ └── Außentemperatur °C    → outdoor_temp[t] → Heizkurve                    │
 │                                                                             │
-│ Kontrolle: energis/io/loader.py:223-270                                     │
+│ Kontrolle: calion/io/loader.py:223-270                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -65,7 +65,7 @@
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ SYSTEM BUILDER (energis/models/system_builder.py)                           │
+│ SYSTEM BUILDER (calion/models/system_builder.py)                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │ 1. Lädt Zeitreihen (Zeile 314-324):                                         │
@@ -86,7 +86,7 @@
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ NETWORK MANAGER (energis/models/network_manager.py)                         │
+│ NETWORK MANAGER (calion/models/network_manager.py)                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │ PHASE 1: Heizkurve berechnen (Zeile 368-410)                                │
@@ -127,7 +127,7 @@
 
 ```python
 # Test 1: Funktion direkt testen
-from energis.models.network_physics import (
+from calion.models.network_physics import (
     calculate_supply_temperature,
     get_heating_curve_parameters,
     plot_heating_curve
@@ -165,7 +165,7 @@ cat configs/05_networks/brownfield.yaml | grep -A 10 "heating_curve"
 ### 3.3 Datenladung verifizieren
 
 ```python
-from energis.io.loader import load_stadtbach
+from calion.io.loader import load_stadtbach
 
 # Daten laden
 table = load_stadtbach(site_cfg={}, path="data/stadtbach/stadtbach_2023.xlsx")
@@ -474,4 +474,4 @@ outdoor to \SI{120}{\celsius} at \SI{-10}{\celsius} outdoor.
 ---
 
 *Analyse erstellt: 2026-01-22*
-*Framework-Version: EnerGIS mit Heizkurve*
+*Framework-Version: CALION mit Heizkurve*

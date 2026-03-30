@@ -10,14 +10,14 @@ import json
 
 import pytest
 
-from energis.io import exporter
-from energis.io.exporter import write_timeseries_csv
-from energis.utils.timeseries import TimeSeriesTable
-from energis.run import rolling_horizon
-from energis.run import workflow as _wf
-from energis.run import export as _exp
-from energis.run import solver as _slv
-from energis.run.utilities import pyomo_extraction as _pyomo
+from calion.io import exporter
+from calion.io.exporter import write_timeseries_csv
+from calion.utils.timeseries import TimeSeriesTable
+from calion.run import rolling_horizon
+from calion.run import workflow as _wf
+from calion.run import export as _exp
+from calion.run import solver as _slv
+from calion.run.utilities import pyomo_extraction as _pyomo
 
 
 def _build_table() -> TimeSeriesTable:

@@ -29,7 +29,7 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest tests/ \
-            --cov=energis \
+            --cov=calion \
             --cov-report=xml \
             --cov-report=term-missing \
             --cov-fail-under=60 \
@@ -55,7 +55,7 @@ jobs:
         run: pip install ruff mypy
 
       - name: Lint (ruff)
-        run: ruff check energis/ --output-format=github
+        run: ruff check calion/ --output-format=github
 
       - name: Type check (mypy)
-        run: mypy energis/ --ignore-missing-imports --no-error-summary
+        run: mypy calion/ --ignore-missing-imports --no-error-summary

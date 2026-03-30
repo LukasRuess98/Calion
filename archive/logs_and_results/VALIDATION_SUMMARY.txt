@@ -50,7 +50,7 @@
 │     ✓ Environment ready? (Python + HiGHS)                                │
 │                                                                           │
 │  SCHRITT 2: Optimierung starten                                          │
-│  ├─ Terminal: python -m energis.run configs/...yaml                      │
+│  ├─ Terminal: python -m calion.run configs/...yaml                      │
 │  └─ Warten bis "OPTIMAL FOUND" erscheint (~2 Minuten)                    │
 │                                                                           │
 │  SCHRITT 3: Nach Lauf validieren                                         │
@@ -181,7 +181,7 @@
 │    → 8/8 PASSED (alle Export-Formate OK)                                  │
 │                                                                            │
 │  Mit Code-Coverage:                                                       │
-│  $ python -m pytest tests/ --cov=energis --cov-report=html                │
+│  $ python -m pytest tests/ --cov=calion --cov-report=html                │
 │    → siehe htmlcov/index.html                                             │
 │                                                                            │
 │  Ergebnisse Schnell-Check:                                                │

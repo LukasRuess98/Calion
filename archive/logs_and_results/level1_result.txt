@@ -1,12 +1,12 @@
 [2026-03-27 09:25:12] __main__ - INFO - ======================================================================
-[2026-03-27 09:25:12] __main__ - INFO - EnerGIS - District Heating Optimization
+[2026-03-27 09:25:12] __main__ - INFO - CALION - District Heating Optimization
 [2026-03-27 09:25:12] __main__ - INFO - ======================================================================
 [2026-03-27 09:25:12] __main__ - INFO - Config files (1):
 [2026-03-27 09:25:12] __main__ - INFO -   - configs/examples/level1_copperplate.yaml
-[2026-03-27 09:25:12] energis.io.loader - INFO - [LOAD] Au├ƒentemperatur gefunden: Spalte 'T_outdoor'
-[2026-03-27 09:25:12] energis.config.unified_config - INFO - [CONFIG] Copperplate mode (no pipes) ÔÇö single-node model
-[2026-03-27 09:25:12] energis.models.system_builder - INFO - [BUILD-UNIFIED] #el_in=1, #el_out=0, #ht_out(total)=2, #ht_in(total)=0, nodes=1
-[2026-03-27 09:25:12] energis.models.model_finalizer - INFO - [FINALIZE] Copperplate mode ÔÇö no network physics
+[2026-03-27 09:25:12] calion.io.loader - INFO - [LOAD] Au├ƒentemperatur gefunden: Spalte 'T_outdoor'
+[2026-03-27 09:25:12] calion.config.unified_config - INFO - [CONFIG] Copperplate mode (no pipes) ÔÇö single-node model
+[2026-03-27 09:25:12] calion.models.system_builder - INFO - [BUILD-UNIFIED] #el_in=1, #el_out=0, #ht_out(total)=2, #ht_in(total)=0, nodes=1
+[2026-03-27 09:25:12] calion.models.model_finalizer - INFO - [FINALIZE] Copperplate mode ÔÇö no network physics
 [LOAD] Import_Data.csv -> 168 Schritte von 2023-01-01 00:00:00 bis 2023-01-07 23:00:00
 [2026-03-27 09:25:12] pyomo.contrib.appsi.solvers.highs - INFO - Running HiGHS 1.13.1 (git hash: 1d267d9): Copyright (c) 2026 under MIT licence terms
 [2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO - MIP has 2186 rows; 1683 cols; 4368 nonzeros; 337 integer variables (336 binary)
@@ -59,19 +59,19 @@
 [2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (strong br.)
 [2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     147 (separation)
 [2026-03-27 09:25:13] pyomo.contrib.appsi.solvers.highs - INFO -                     0 (heuristics)
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - COMPREHENSIVE RESULTS EXPORT
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - Output directory: exports/thermal_network_results
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported LP file: exports/thermal_network_results\solver\gurobi_solution.lp
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported SOL file: exports/thermal_network_results\solver\gurobi_solution.sol
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported MPS file: exports/thermal_network_results\solver\gurobi_solution.mps
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO -   Exported unified timeseries: exports/thermal_network_results\unified_timeseries.csv
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - 
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - COMPREHENSIVE RESULTS EXPORT
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - Output directory: exports/thermal_network_results
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO -   Exported LP file: exports/thermal_network_results\solver\gurobi_solution.lp
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO -   Exported SOL file: exports/thermal_network_results\solver\gurobi_solution.sol
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO -   Exported MPS file: exports/thermal_network_results\solver\gurobi_solution.mps
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO -   Exported unified timeseries: exports/thermal_network_results\unified_timeseries.csv
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - 
 ============================================================
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - EXPORT COMPLETE: 5 files
-[2026-03-27 09:25:13] energis.io.thermal_network_exporter - INFO - ============================================================
-[2026-03-27 09:25:13] energis.run.solver - INFO - [EXPORT] Exported 5 files to exports/thermal_network_results
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - EXPORT COMPLETE: 5 files
+[2026-03-27 09:25:13] calion.io.thermal_network_exporter - INFO - ============================================================
+[2026-03-27 09:25:13] calion.run.solver - INFO - [EXPORT] Exported 5 files to exports/thermal_network_results
 [2026-03-27 09:25:13] __main__ - INFO - [workflow] Executed steps: PF
 [2026-03-27 09:25:13] __main__ - INFO -   PF time steps: 168
 [2026-03-27 09:25:13] __main__ - INFO -   PF objective: 306259.8123117187

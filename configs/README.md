@@ -1,4 +1,4 @@
-# EnerGIS Config Structure v2.0
+# CALION Config Structure v2.0
 
 ## 📁 Directory Structure
 
@@ -119,7 +119,7 @@ heat_pumps:
 ### Example 1: Dispatch Optimization (Fixed Capacities)
 
 ```bash
-energis optimize scenarios/stadtbach_baseline_2023.yaml
+calion optimize scenarios/stadtbach_baseline_2023.yaml
 ```
 
 - Uses `existing` capacities (no investment)
@@ -129,7 +129,7 @@ energis optimize scenarios/stadtbach_baseline_2023.yaml
 ### Example 2: Capacity Expansion (Investment)
 
 ```bash
-energis optimize scenarios/stadtbach_capacity_expansion.yaml
+calion optimize scenarios/stadtbach_capacity_expansion.yaml
 ```
 
 - Optimizes `expansion` capacities
@@ -139,7 +139,7 @@ energis optimize scenarios/stadtbach_capacity_expansion.yaml
 ### Example 3: Sensitivity Analysis
 
 ```bash
-energis sensitivity scenarios/stadtbach_capacity_expansion.yaml \
+calion sensitivity scenarios/stadtbach_capacity_expansion.yaml \
   --param co2_price --range 80,120,200
 ```
 
@@ -218,7 +218,7 @@ heat_pumps:
 Check config before optimization:
 
 ```bash
-energis config validate scenarios/stadtbach_capacity_expansion.yaml
+calion config validate scenarios/stadtbach_capacity_expansion.yaml
 ```
 
 **Checks:**

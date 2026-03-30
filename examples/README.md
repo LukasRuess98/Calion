@@ -1,6 +1,6 @@
 # Examples
 
-This directory contains example scripts demonstrating EnerGIS capabilities.
+This directory contains example scripts demonstrating CALION capabilities.
 
 ## Available Examples
 
@@ -35,7 +35,7 @@ Demonstrates the stratified thermal storage model with two-zone temperature mode
 
 ### 3. custom_component_example.py
 
-Shows how to create and register custom components that integrate with the EnerGIS framework.
+Shows how to create and register custom components that integrate with the CALION framework.
 
 ## Configuration via Environment Variables
 

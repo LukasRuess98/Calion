@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "EnerGIS: Modular MILP Framework for Industrial Heat Network Planning"
+title: "CALION: Integrated Optimization for Electrified Industrial Heating"
 message: >-
   If you use this software in your research, please cite it using
   the metadata from this file.
@@ -17,18 +17,24 @@ license: MIT
 version: "1.0.0-alpha"
 date-released: "2026-03-28"
 keywords:
-  - district heating
+  - electrification
+  - industrial heating
   - MILP
-  - energy system optimization
+  - investment optimization
+  - operation optimization
+  - heat pump
+  - power-to-heat
+  - sector coupling
   - rolling horizon
   - Pyomo
-  - heat pump
   - thermal storage
-  - model predictive control
   - decarbonization
 abstract: >-
-  EnerGIS is a modular mixed-integer linear programming (MILP) framework
-  for planning and optimizing industrial district heating networks.
-  It supports heat pumps, thermal storage, thermal generators, and
-  network loss modeling with rolling horizon and model predictive
-  control workflows.
+  CALION is an open-source Python framework for the joint investment
+  planning and operational optimization of electrified industrial
+  heating systems. Based on Mixed-Integer Linear Programming (MILP),
+  it co-optimizes capacity sizing and hourly dispatch in a single
+  problem formulation. CALION supports heat pumps with
+  temperature-dependent COP, power-to-heat, CHP, thermal storage,
+  and physical heat network modeling, with Perfect Foresight and
+  Rolling Horizon workflows.

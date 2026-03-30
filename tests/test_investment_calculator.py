@@ -16,7 +16,7 @@ except ImportError:
     HAVE_PYOMO = False
     pyo = None
 
-from energis.models.investment_calculator import (
+from calion.models.investment_calculator import (
     InvestmentCalculator,
     ComponentInvestmentConfig,
     StorageInvestmentConfig,

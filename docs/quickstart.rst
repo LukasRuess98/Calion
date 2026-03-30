@@ -8,7 +8,7 @@ Installation
 
    pip install -e ".[dev]"
 
-This installs EnerGIS with Pyomo. You will also need a solver such as
+This installs CALION with Pyomo. You will also need a solver such as
 `GLPK <https://www.gnu.org/software/glpk/>`_ or
 `CBC <https://github.com/coin-or/Cbc>`_.
 
@@ -20,7 +20,7 @@ and solving optimisation models entirely from Python:
 
 .. code-block:: python
 
-   from energis import Network
+   from calion import Network
 
    # 1. Create a network with hourly resolution
    net = Network(dt_h=1.0, solver="glpk")
@@ -51,7 +51,7 @@ For more complex setups, use YAML configuration files:
 
 .. code-block:: python
 
-   from energis.api import load_config, run_workflow
+   from calion.api import load_config, run_workflow
 
    cfg = load_config(["configs/base.yaml", "configs/scenario.yaml"])
    result = run_workflow(["configs/base.yaml", "configs/scenario.yaml"])
@@ -65,7 +65,7 @@ CLI Usage
 .. code-block:: bash
 
    # Run a scenario from config files
-   python -m energis.run configs/base.yaml configs/scenario.yaml
+   python -m calion.run configs/base.yaml configs/scenario.yaml
 
    # Or using the installed entry point
-   energis configs/base.yaml configs/scenario.yaml
+   calion configs/base.yaml configs/scenario.yaml
