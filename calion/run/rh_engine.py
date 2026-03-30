@@ -45,24 +45,38 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 def _initial_soc(cfg: Mapping[str, Any]) -> Optional[float]:
+    # Legacy path: system.storage
     system = cfg.get("system", {}) if isinstance(cfg.get("system"), dict) else {}
     storage = system.get("storage", {}) if isinstance(system.get("storage"), dict) else {}
-    if not storage or not storage.get("enabled", False):
-        return None
-    inputs = cfg.get("inputs", {}) if isinstance(cfg.get("inputs"), dict) else {}
-    if "SOC_init" in inputs:
-        return float(inputs["SOC_init"])
-    if "SOC_init" in storage:
-        return float(storage["SOC_init"])
-    if "soc0_mwh" in storage:
-        return float(storage["soc0_mwh"])
-    return 0.0
+    if storage and storage.get("enabled", False):
+        inputs = cfg.get("inputs", {}) if isinstance(cfg.get("inputs"), dict) else {}
+        if "SOC_init" in inputs:
+            return float(inputs["SOC_init"])
+        if "SOC_init" in storage:
+            return float(storage["SOC_init"])
+        if "soc0_mwh" in storage:
+            return float(storage["soc0_mwh"])
+        return 0.0
+    # Unified path: assets with type=storage
+    assets = cfg.get("assets", {}) if isinstance(cfg.get("assets"), dict) else {}
+    for asset_cfg in assets.values():
+        if isinstance(asset_cfg, dict) and asset_cfg.get("type") == "storage":
+            return float(asset_cfg.get("soc0_mwh", 0.0))
+    return None
 
 
 def _storage_enabled(cfg: Mapping[str, Any]) -> bool:
+    # Legacy path: system.storage.enabled
     system = cfg.get("system", {}) if isinstance(cfg.get("system"), dict) else {}
     storage = system.get("storage", {}) if isinstance(system.get("storage"), dict) else {}
-    return bool(storage.get("enabled", False))
+    if storage.get("enabled", False):
+        return True
+    # Unified path: any asset with type=storage
+    assets = cfg.get("assets", {}) if isinstance(cfg.get("assets"), dict) else {}
+    return any(
+        isinstance(a, dict) and a.get("type") == "storage"
+        for a in assets.values()
+    )
 
 
 def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> MutableMapping[str, Any]:
@@ -91,6 +105,13 @@ def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> MutableMappin
     root_storage = cfg.get("storage")
     if isinstance(root_storage, dict):
         root_storage["soc0_mwh"] = float(soc)
+
+    # Unified path: propagate to assets with type=storage
+    assets = cfg.get("assets", {})
+    if isinstance(assets, dict):
+        for asset_cfg in assets.values():
+            if isinstance(asset_cfg, dict) and asset_cfg.get("type") == "storage":
+                asset_cfg["soc0_mwh"] = float(soc)
 
     return cfg
 

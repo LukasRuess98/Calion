@@ -442,6 +442,22 @@ class ModelFinalizer:
         co2_term = co2_cost_total if flags.include_co2 else 0
         terminal_value = getattr(m, "terminal_value_term", None) or 0
 
+        # Pipe CAPEX (computed in pipe_pair.py but previously not wired into objective)
+        pipe_capex_costs = getattr(m, 'pipe_capex_costs', {})
+        if pipe_capex_costs and flags.include_capex:
+            pipe_capex_total = sum(pipe_capex_costs.values())
+            capex_total = capex_total + pipe_capex_total
+
+        # Demand slack penalties (created by network_manager but previously missing from objective)
+        demand_slack_cost = 0
+        demand_slack_terms = getattr(m, 'demand_slack_penalty_terms', [])
+        if demand_slack_terms:
+            T_set = list(m.t)
+            for slack_var, penalty in demand_slack_terms:
+                demand_slack_cost = demand_slack_cost + sum(
+                    slack_var[t] * penalty for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -454,4 +470,5 @@ class ModelFinalizer:
             tie_break_cost=tie_break_total,
             storage_install_cost=storage_install_total,
             terminal_value=terminal_value,
+            demand_slack_cost=demand_slack_cost,
         )

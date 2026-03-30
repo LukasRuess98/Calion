@@ -591,7 +591,12 @@ class PipePairBlock(BaseComponent):
                     capex_expr += diameter_choice[d_mm] * cost_per_m * length_m
 
         lifetime_years = config.get('lifetime_years', 40)
-        period_years = getattr(model, 'period_years', 1.0)
+        # model.year_frac is the canonical period fraction; period_years is a legacy fallback
+        period_years = getattr(model, 'year_frac', None)
+        if period_years is None:
+            period_years = float(getattr(model, 'period_years', 1.0))
+        else:
+            period_years = float(period_years)
         annual_capex = capex_expr * (period_years / lifetime_years)
 
         if not hasattr(model, 'pipe_capex_costs'):
