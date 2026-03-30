@@ -10,18 +10,18 @@ Extracted from rolling_horizon.py to improve modularity and testability.
 """
 from __future__ import annotations
 
-import re
 import calendar
+import re
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
-from calion.utils.timeseries import TimeSeriesTable
 from calion.logging_config import get_logger
+from calion.utils.timeseries import TimeSeriesTable
 
 logger = get_logger(__name__)
 
 
-def _slice_table(table: TimeSeriesTable, indices: List[int]) -> TimeSeriesTable:
+def _slice_table(table: TimeSeriesTable, indices: list[int]) -> TimeSeriesTable:
     """
     Create a new TimeSeriesTable with only the rows at specified indices.
 
@@ -70,7 +70,7 @@ def _parse_ts(value: Any) -> datetime:
 
 
 def _apply_horizon(
-    table: TimeSeriesTable, scenario_cfg: Dict[str, Any], dt_h: float
+    table: TimeSeriesTable, scenario_cfg: dict[str, Any], dt_h: float
 ) -> TimeSeriesTable:
     """
     Filter the time series table to match the configured time horizon.
@@ -91,7 +91,7 @@ def _apply_horizon(
     Raises:
         RuntimeError: If horizon configuration is invalid or produces empty result
     """
-    from calion.constants import HOURS_PER_YEAR, HOURS_PER_LEAP_YEAR
+    from calion.constants import HOURS_PER_LEAP_YEAR, HOURS_PER_YEAR
 
     horizon = scenario_cfg.get("horizon")
     if not isinstance(horizon, dict):

@@ -10,7 +10,7 @@ Displays detailed thermal network simulation results including:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -23,7 +23,7 @@ except ImportError:
 
 try:
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    from plotly.subplots import make_subplots  # noqa: F401
     HAVE_PLOTLY = True
 except ImportError:
     HAVE_PLOTLY = False
@@ -34,10 +34,10 @@ if TYPE_CHECKING:
 
 
 def create_thermal_network_tab(
-    data: 'DashboardData',
-    network_data: Optional[Dict[str, Any]] = None,
+    data: DashboardData,
+    network_data: dict[str, Any] | None = None,
     workflow: Any = None,
-) -> 'pn.Column':
+) -> pn.Column:
     """
     Create thermal network results visualization tab.
 
@@ -132,11 +132,10 @@ def create_thermal_network_tab(
     return pn.Column(*components, sizing_mode='stretch_width')
 
 
-def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any]]:
+def _extract_network_data_from_workflow(workflow: Any) -> dict[str, Any] | None:
     """Try to extract network data from workflow result."""
-    import json
-    import os
     import logging
+    import os
     logger = logging.getLogger(__name__)
 
     # Check for exported network data attached to workflow
@@ -181,7 +180,7 @@ def _extract_network_data_from_workflow(workflow: Any) -> Optional[Dict[str, Any
     return None
 
 
-def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
+def _read_network_data_from_files(export_dir: str) -> dict[str, Any] | None:
     """Read network data from exported JSON/CSV files."""
     import json
     import os
@@ -197,7 +196,7 @@ def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
         # Read network summary
         summary_path = os.path.join(export_dir, 'thermal_network', 'network_summary.json')
         if os.path.exists(summary_path):
-            with open(summary_path, 'r', encoding='utf-8') as f:
+            with open(summary_path, encoding='utf-8') as f:
                 summary = json.load(f)
                 network_data['summary'] = {
                     'num_nodes': summary.get('topology', {}).get('total_nodes', 0),
@@ -210,7 +209,7 @@ def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
         # Read node summary
         nodes_summary_path = os.path.join(export_dir, 'thermal_network', 'nodes', 'nodes_summary.json')
         if os.path.exists(nodes_summary_path):
-            with open(nodes_summary_path, 'r', encoding='utf-8') as f:
+            with open(nodes_summary_path, encoding='utf-8') as f:
                 nodes_list = json.load(f)
                 for node in nodes_list:
                     node_id = node.get('node_id')
@@ -226,7 +225,7 @@ def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
         # Read pipe summary
         pipes_summary_path = os.path.join(export_dir, 'thermal_network', 'pipes', 'pipes_summary.json')
         if os.path.exists(pipes_summary_path):
-            with open(pipes_summary_path, 'r', encoding='utf-8') as f:
+            with open(pipes_summary_path, encoding='utf-8') as f:
                 pipes_list = json.load(f)
                 for pipe in pipes_list:
                     pipe_id = pipe.get('pipe_id')
@@ -267,7 +266,7 @@ def _read_network_data_from_files(export_dir: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _create_summary_section(network_data: Dict[str, Any]) -> 'pn.Column':
+def _create_summary_section(network_data: dict[str, Any]) -> pn.Column:
     """Create summary KPI section."""
     from ..utils import create_kpi_card
 
@@ -333,9 +332,9 @@ def _create_summary_section(network_data: Dict[str, Any]) -> 'pn.Column':
 
 
 def _create_node_section(
-    network_data: Dict[str, Any],
-    data: 'DashboardData'
-) -> 'pn.Column':
+    network_data: dict[str, Any],
+    data: DashboardData
+) -> pn.Column:
     """Create node results section with table."""
     nodes = network_data.get('nodes', {})
 
@@ -374,9 +373,9 @@ def _create_node_section(
 
 
 def _create_pipe_section(
-    network_data: Dict[str, Any],
-    data: 'DashboardData'
-) -> 'pn.Column':
+    network_data: dict[str, Any],
+    data: DashboardData
+) -> pn.Column:
     """Create pipe results section with table and visualization."""
     pipes = network_data.get('pipes', {})
 
@@ -423,7 +422,7 @@ def _create_pipe_section(
     )
 
 
-def _create_velocity_bar_chart(pipes: Dict[str, Any]):
+def _create_velocity_bar_chart(pipes: dict[str, Any]):
     """Create bar chart showing max velocities per pipe."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")
@@ -460,9 +459,9 @@ def _create_velocity_bar_chart(pipes: Dict[str, Any]):
 
 
 def _create_timeseries_section(
-    network_data: Dict[str, Any],
-    data: 'DashboardData'
-) -> 'pn.Column':
+    network_data: dict[str, Any],
+    data: DashboardData
+) -> pn.Column:
     """Create timeseries plots section."""
     timeseries = network_data.get('timeseries', {})
 
@@ -471,7 +470,7 @@ def _create_timeseries_section(
 
     # Find available temperature series
     temp_series = {k: v for k, v in timeseries.items() if 'T_supply' in k or 'T_return' in k}
-    flow_series = {k: v for k, v in timeseries.items() if 'm_dot' in k}
+    {k: v for k, v in timeseries.items() if 'm_dot' in k}
     pressure_series = {k: v for k, v in timeseries.items() if 'delta_p' in k}
     loss_series = timeseries.get('network_loss', [])
 
@@ -482,7 +481,7 @@ def _create_timeseries_section(
         fig = go.Figure()
 
         # Limit to first week (168 hours) and first 5 nodes
-        max_points = min(168, len(list(temp_series.values())[0]))
+        max_points = min(168, len(next(iter(temp_series.values()))))
         count = 0
 
         for name, values in temp_series.items():
@@ -512,7 +511,7 @@ def _create_timeseries_section(
     if pressure_series:
         fig = go.Figure()
 
-        max_points = min(168, len(list(pressure_series.values())[0]))
+        max_points = min(168, len(next(iter(pressure_series.values()))))
         count = 0
 
         for name, values in pressure_series.items():

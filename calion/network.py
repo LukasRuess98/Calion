@@ -26,11 +26,10 @@ Typical usage::
 from __future__ import annotations
 
 import copy
-from collections import OrderedDict
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
-from calion.models.results import InvestmentDecisions
 from calion.utils.timeseries import TimeSeriesTable
 
 
@@ -63,22 +62,22 @@ class Network:
         self.name = name
 
         # Internal config that will be passed to build_model
-        self._heat_pumps: List[Dict[str, Any]] = []
-        self._generators: Dict[str, Dict[str, Any]] = {}
-        self._storage: Optional[Dict[str, Any]] = None
-        self._grid: Dict[str, Any] = {}
-        self._costs: Dict[str, Any] = {}
-        self._fuels: Dict[str, Dict[str, Any]] = {}
+        self._heat_pumps: list[dict[str, Any]] = []
+        self._generators: dict[str, dict[str, Any]] = {}
+        self._storage: dict[str, Any] | None = None
+        self._grid: dict[str, Any] = {}
+        self._costs: dict[str, Any] = {}
+        self._fuels: dict[str, dict[str, Any]] = {}
 
         # Network topology
-        self._nodes: Dict[str, Dict[str, Any]] = {}
-        self._pipes: Dict[str, Dict[str, Any]] = {}
-        self._network_physics: Dict[str, Any] = {}
-        self._network_temps: Dict[str, float] = {}
+        self._nodes: dict[str, dict[str, Any]] = {}
+        self._pipes: dict[str, dict[str, Any]] = {}
+        self._network_physics: dict[str, Any] = {}
+        self._network_temps: dict[str, float] = {}
 
         # Time series (column name → values)
-        self._series: Dict[str, List[float]] = {}
-        self._n_steps: Optional[int] = None
+        self._series: dict[str, list[float]] = {}
+        self._n_steps: int | None = None
 
     # ------------------------------------------------------------------
     # Component registration
@@ -93,8 +92,8 @@ class Network:
         enabled: bool = True,
         investment: bool = False,
         capacity_min_mw: float = 0.0,
-        capacity_max_mw: Optional[float] = None,
-    ) -> "Network":
+        capacity_max_mw: float | None = None,
+    ) -> Network:
         """Add a heat pump to the system.
 
         Parameters
@@ -114,7 +113,7 @@ class Network:
         capacity_max_mw : float, optional
             Maximum capacity bound (defaults to ``capacity_mw``).
         """
-        hp: Dict[str, Any] = {
+        hp: dict[str, Any] = {
             "id": id,
             "enabled": enabled,
             "max_th_mw": capacity_mw,
@@ -142,7 +141,7 @@ class Network:
         soc_init_mwh: float = 0.0,
         self_discharge_rate: float = 0.0,
         investment: bool = False,
-    ) -> "Network":
+    ) -> Network:
         """Add thermal energy storage.
 
         Parameters
@@ -188,7 +187,7 @@ class Network:
         fuel_bus: str = "electricity",
         efficiency: float = 0.99,
         enabled: bool = True,
-    ) -> "Network":
+    ) -> Network:
         """Add a thermal generator (P2H / boiler / CHP).
 
         Parameters
@@ -221,7 +220,7 @@ class Network:
         supply_temp_c: float = 90.0,
         return_temp_c: float = 55.0,
         ground_temp_c: float = 10.0,
-    ) -> "Network":
+    ) -> Network:
         """Set network temperature parameters."""
         self._network_temps = {
             "supply_temp_c": supply_temp_c,
@@ -235,7 +234,7 @@ class Network:
         heat_loss: bool = True,
         pressure_drop: bool = False,
         transport_delay: bool = False,
-    ) -> "Network":
+    ) -> Network:
         """Enable/disable network physics features."""
         self._network_physics = {
             "heat_loss": heat_loss,
@@ -249,11 +248,11 @@ class Network:
         id: str,
         type: str = "junction",
         *,
-        assets: Optional[List[str]] = None,
-        demand_fraction: Optional[float] = None,
-        demand_column: Optional[str] = None,
-        peak_demand_mw: Optional[float] = None,
-    ) -> "Network":
+        assets: list[str] | None = None,
+        demand_fraction: float | None = None,
+        demand_column: str | None = None,
+        peak_demand_mw: float | None = None,
+    ) -> Network:
         """Add a network node (producer, consumer, or junction).
 
         Parameters
@@ -272,13 +271,13 @@ class Network:
         peak_demand_mw : float, optional
             Peak demand for consumer nodes.
         """
-        node: Dict[str, Any] = {"type": type}
+        node: dict[str, Any] = {"type": type}
         if assets:
             node["assets"] = assets
         if demand_fraction is not None:
             node["demand_fraction"] = demand_fraction
         if demand_column or peak_demand_mw:
-            demand: Dict[str, Any] = {}
+            demand: dict[str, Any] = {}
             if demand_column:
                 demand["column"] = demand_column
             if peak_demand_mw is not None:
@@ -295,9 +294,9 @@ class Network:
         length_m: float,
         diameter_mm: float = 300,
         *,
-        u_value_w_per_m_k: Optional[float] = None,
-        burial_depth_m: Optional[float] = None,
-    ) -> "Network":
+        u_value_w_per_m_k: float | None = None,
+        burial_depth_m: float | None = None,
+    ) -> Network:
         """Add a pipe connecting two nodes.
 
         Parameters
@@ -315,7 +314,7 @@ class Network:
         burial_depth_m : float, optional
             Pipe burial depth in metres.
         """
-        pipe: Dict[str, Any] = {
+        pipe: dict[str, Any] = {
             "from": from_node,
             "to": to_node,
             "length_m": length_m,
@@ -333,7 +332,7 @@ class Network:
         name: str,
         price_eur_mwh: float,
         ef_kg_per_mwh_fuel: float = 0.0,
-    ) -> "Network":
+    ) -> Network:
         """Define a fuel type and its cost/emissions."""
         self._fuels[name] = {
             "price_eur_mwh": price_eur_mwh,
@@ -350,7 +349,7 @@ class Network:
         max_import_mw: float = 1e4,
         max_export_mw: float = 1e4,
         demand_charge_eur_per_mw_y: float = 0.0,
-    ) -> "Network":
+    ) -> Network:
         """Configure grid connection parameters."""
         self._grid.update({
             "max_import_mw": max_import_mw,
@@ -363,7 +362,7 @@ class Network:
         self,
         co2_price_eur_per_t: float = 100.0,
         dump_cost_eur_per_mwh_th: float = 1.0,
-    ) -> "Network":
+    ) -> Network:
         """Configure cost parameters."""
         self._costs.update({
             "co2_price_eur_per_t": co2_price_eur_per_t,
@@ -375,22 +374,22 @@ class Network:
     # Time series
     # ------------------------------------------------------------------
 
-    def set_demand(self, values: Sequence[float]) -> "Network":
+    def set_demand(self, values: Sequence[float]) -> Network:
         """Set heat demand time series (MW)."""
         self._set_series("waermebedarf_MWth", values)
         return self
 
-    def set_electricity_price(self, values: Sequence[float]) -> "Network":
+    def set_electricity_price(self, values: Sequence[float]) -> Network:
         """Set electricity price time series (EUR/MWh)."""
         self._set_series("strompreis_EUR_MWh", values)
         return self
 
-    def set_grid_co2(self, values: Sequence[float]) -> "Network":
+    def set_grid_co2(self, values: Sequence[float]) -> Network:
         """Set grid CO₂ intensity time series (kg/MWh)."""
         self._set_series("grid_co2_kg_MWh", values)
         return self
 
-    def set_cop_series(self, hp_id: str, values: Sequence[float]) -> "Network":
+    def set_cop_series(self, hp_id: str, values: Sequence[float]) -> Network:
         """Set a time-varying COP series for a specific heat pump."""
         self._set_series(f"cop_{hp_id}", values)
         return self
@@ -409,9 +408,9 @@ class Network:
     # Build config + table
     # ------------------------------------------------------------------
 
-    def _build_config(self) -> Dict[str, Any]:
+    def _build_config(self) -> dict[str, Any]:
         """Assemble the internal config dict."""
-        cfg: Dict[str, Any] = {
+        cfg: dict[str, Any] = {
             "scenario": {"name": self.name, "workflow": ["PF"], "run_mode": "PF_ONLY"},
             "run": {"dt_h": self.dt_h, "solver": self.solver},
             "grid": self._grid or {},
@@ -456,7 +455,7 @@ class Network:
 
             nodes_list = []
             for nid, ndata in self._nodes.items():
-                node_entry: Dict[str, Any] = {
+                node_entry: dict[str, Any] = {
                     "id": nid,
                     "type": ndata.get("type", "junction"),
                 }
@@ -471,7 +470,7 @@ class Network:
 
             pipes_list = []
             for pid, pdata in self._pipes.items():
-                pipe_entry: Dict[str, Any] = {
+                pipe_entry: dict[str, Any] = {
                     "id": pid,
                     "from_node": pdata["from"],
                     "to_node": pdata["to"],
@@ -530,7 +529,7 @@ class Network:
     # Solve
     # ------------------------------------------------------------------
 
-    def optimize(self) -> "NetworkResult":
+    def optimize(self) -> NetworkResult:
         """Build the Pyomo model, solve, and return structured results.
 
         Returns
@@ -602,7 +601,7 @@ class NetworkResult:
         tc = str(self.solver.get("termination_condition", "")).lower()
         return "optimal" in tc
 
-    def get_series(self, name: str) -> List[float]:
+    def get_series(self, name: str) -> list[float]:
         """Get a named time series from the results."""
         if name not in self.series:
             available = list(self.series.keys())

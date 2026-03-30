@@ -6,7 +6,7 @@ Provides interactive timeseries visualization with filtering.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from calion.logging_config import get_logger
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_timeseries_tab(data: 'DashboardData') -> 'pn.Column':
+def create_timeseries_tab(data: DashboardData) -> pn.Column:
     """
     Create interactive timeseries tab.
 
@@ -45,14 +45,13 @@ def create_timeseries_tab(data: 'DashboardData') -> 'pn.Column':
     pn.Column
         Timeseries tab content
     """
-    from ..utils import get_component_color
     from ..widgets import (
-        create_time_range_slider,
-        create_quick_filter_buttons,
-        create_component_selector,
-        create_plot_type_selector,
         create_aggregation_selector,
+        create_component_selector,
         create_control_card,
+        create_plot_type_selector,
+        create_quick_filter_buttons,
+        create_time_range_slider,
         create_warning_message,
     )
 
@@ -148,8 +147,8 @@ def create_timeseries_tab(data: 'DashboardData') -> 'pn.Column':
 
 
 def _create_heat_balance_plot(
-    data: 'DashboardData',
-    components: List[str],
+    data: DashboardData,
+    components: list[str],
     time_range: tuple,
     plot_type: str
 ):
@@ -218,7 +217,7 @@ def _create_heat_balance_plot(
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
 
-def _create_electric_balance_plot(data: 'DashboardData'):
+def _create_electric_balance_plot(data: DashboardData):
     """Create electric balance plot."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")
@@ -267,7 +266,7 @@ def _create_electric_balance_plot(data: 'DashboardData'):
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
 
-def _create_storage_plot(data: 'DashboardData'):
+def _create_storage_plot(data: DashboardData):
     """Create storage SOC plot."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import datetime
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any
 
-from calion.utils.timeseries import TimeSeriesTable
 from calion.io.plot_utils import has_content, prettify_label_de
-
 from calion.logging_config import get_logger
+from calion.utils.timeseries import TimeSeriesTable
 
 logger = get_logger(__name__)
 
@@ -293,7 +293,7 @@ def _cost_breakdown_plot(
         return []
 
     entries.sort(key=lambda item: abs(item[1]), reverse=True)
-    labels, values = zip(*entries)
+    labels, values = zip(*entries, strict=False)
 
     fig, ax = plt.subplots(figsize=(8, 6), constrained_layout=True)
     positions = range(len(labels))

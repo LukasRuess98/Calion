@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_duration_curve_tab(data: 'DashboardData') -> 'pn.Column':
+def create_duration_curve_tab(data: DashboardData) -> pn.Column:
     """
     Create load duration curve tab.
 

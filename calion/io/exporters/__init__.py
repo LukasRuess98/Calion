@@ -10,14 +10,14 @@ Modules:
 
 from .multi_network_exporter import (
     export_multi_network_data,
-    export_multi_network_plots,
     export_multi_network_latex,
+    export_multi_network_plots,
     export_multi_network_results,
 )
 
 __all__ = [
     "export_multi_network_data",
-    "export_multi_network_plots",
     "export_multi_network_latex",
+    "export_multi_network_plots",
     "export_multi_network_results",
 ]

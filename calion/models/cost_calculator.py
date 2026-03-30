@@ -12,7 +12,7 @@ Extracted from system_builder.py for better modularity and testability.
 
 from __future__ import annotations
 
-from typing import Dict, List, Any, Tuple
+from typing import Any
 
 try:
     import pyomo.environ as pyo
@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover
 def calculate_energy_costs(
     model,
     time_steps,
-    base_prices: List[float],
+    base_prices: list[float],
     dt_h: float = 1.0,
     include_grid_cost: bool = True,
 ) -> Any:
@@ -77,9 +77,9 @@ def calculate_energy_costs(
 
 
 def calculate_co2_costs(
-    component_co2_terms: Dict[str, Dict[str, Any]],
+    component_co2_terms: dict[str, dict[str, Any]],
     co2_price_eur_per_t: float,
-) -> Tuple[Any, Any, Any]:
+) -> tuple[Any, Any, Any]:
     """Calculate CO2 emission costs with heat/electricity breakdown.
 
     Args:
@@ -93,7 +93,7 @@ def calculate_co2_costs(
     heat_cost_terms = []
     elec_cost_terms = []
 
-    for comp_name, co2_data in component_co2_terms.items():
+    for _comp_name, co2_data in component_co2_terms.items():
         heat_cost_terms.append(co2_data.get('heat_eur', 0))
         elec_cost_terms.append(co2_data.get('elec_eur', 0))
 
@@ -130,14 +130,14 @@ def calculate_demand_charge(
 
 
 def calculate_investment_costs(
-    capex_terms: List[Any],
-    activation_terms: List[Any],
-    tie_breaker_terms: List[Any],
-    storage_install_terms: List[Any],
+    capex_terms: list[Any],
+    activation_terms: list[Any],
+    tie_breaker_terms: list[Any],
+    storage_install_terms: list[Any],
     include_capex: bool = True,
     include_activation: bool = True,
     include_tie_breaker: bool = True,
-) -> Tuple[Any, Any, Any, Any]:
+) -> tuple[Any, Any, Any, Any]:
     """Calculate total investment costs.
 
     Args:
@@ -187,7 +187,7 @@ def annualize_capex(
 
 
 def calculate_fuel_costs(
-    fuel_consumption_terms: List[Any],
+    fuel_consumption_terms: list[Any],
 ) -> Any:
     """Calculate total fuel costs.
 
@@ -263,8 +263,8 @@ def store_cost_expressions_on_model(
 
 
 def aggregate_co2_emissions(
-    component_co2_data: Dict[str, Dict[str, Any]]
-) -> Tuple[Any, Any, Any, Any, Any]:
+    component_co2_data: dict[str, dict[str, Any]]
+) -> tuple[Any, Any, Any, Any, Any]:
     """Aggregate CO2 emissions from all components.
 
     Args:
@@ -279,7 +279,7 @@ def aggregate_co2_emissions(
     fuel_to_elec_terms = []
     grid_to_elec_terms = []
 
-    for comp_name, co2_data in component_co2_data.items():
+    for _comp_name, co2_data in component_co2_data.items():
         heat_terms.append(co2_data.get('heat_kg', 0))
         elec_terms.append(co2_data.get('elec_kg', 0))
 

@@ -34,9 +34,9 @@ from __future__ import annotations
 
 # Check dependencies
 try:
-    import panel as pn
     import holoviews as hv
-    from holoviews import opts, dim
+    import panel as pn
+    from holoviews import dim, opts  # noqa: F401
     HAVE_PANEL = True
 except ImportError:
     HAVE_PANEL = False
@@ -45,20 +45,20 @@ except ImportError:
 
 try:
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    from plotly.subplots import make_subplots  # noqa: F401
     HAVE_PLOTLY = True
 except ImportError:
     HAVE_PLOTLY = False
     go = None
 
 # Import main components
-from .diagnostics import diagnose_workflow
 from .core import CALIONDashboard, create_dashboard
+from .diagnostics import diagnose_workflow
 
 __all__ = [
-    "create_dashboard",
-    "CALIONDashboard",
-    "diagnose_workflow",
     "HAVE_PANEL",
     "HAVE_PLOTLY",
+    "CALIONDashboard",
+    "create_dashboard",
+    "diagnose_workflow",
 ]

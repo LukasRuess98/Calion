@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
 except Exception:  # pragma: no cover
     pyo = None
 
-from ...constants import COP_MIN, COP_MAX_HEATPUMP, COP_DEFAULT
+from ...constants import COP_DEFAULT, COP_MAX_HEATPUMP, COP_MIN
 from ..component import BaseComponent, Flow, InvestmentResult
 from ..registry import register_component
 
@@ -18,15 +16,15 @@ class HeatPumpBlock(BaseComponent):
         self,
         name: str,
         min_load: float,
-        cop_series: List[float],
+        cop_series: list[float],
         *,
         capacity_min_mw: float,
         capacity_max_mw: float,
         capacity_init_mw: float,
         investable: bool,
-        wrg_cap_series: Optional[Dict[int, float]] = None,
+        wrg_cap_series: dict[int, float] | None = None,
         cop_default: float = COP_DEFAULT,
-        label: str = None
+        label: str | None = None
     ):
         super().__init__(name, label)
         self.min_load = float(min_load)

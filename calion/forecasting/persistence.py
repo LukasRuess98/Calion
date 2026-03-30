@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from calion.forecasting.base import ForecastGenerator
-from calion.utils.timeseries import TimeSeriesTable
 from calion.run.rolling_horizon import _slice_table
+from calion.utils.timeseries import TimeSeriesTable
 
 
 class PersistenceForecast(ForecastGenerator):

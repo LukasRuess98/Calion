@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from pathlib import Path
-from typing import List, Dict, Any
-
-from calion.utils import simple_yaml
-from calion.config.schema import validate_config_schema
-
 import logging as _logging
+from pathlib import Path
+from typing import Any
+
+from calion.config.schema import validate_config_schema
+from calion.utils import simple_yaml
 
 _logger = _logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ _logger = _logging.getLogger(__name__)
 
 # Maps (section_path, legacy_key) → canonical_key.
 # Applied once at load time so downstream code only needs to check one name.
-_KEY_ALIASES: List[tuple] = [
+_KEY_ALIASES: list[tuple] = [
     # SOC initial value: canonical = soc_init_mwh
     ("system.storage", "SOC_init", "soc_init_mwh"),
     ("system.storage", "soc0_mwh", "soc_init_mwh"),
@@ -95,7 +94,7 @@ def load_yaml(path: str) -> dict:
     return data
 
 
-def load_yaml_with_inheritance(path: str, _visited: set = None) -> dict:
+def load_yaml_with_inheritance(path: str, _visited: set | None = None) -> dict:
     """Load YAML with support for _extends: inheritance.
 
     If a config contains "_extends: parent.yaml", it will:
@@ -185,7 +184,7 @@ def _resolve_config_path(path: str) -> Path:
     raise FileNotFoundError(f"Config not found: {(Path.cwd() / candidate).resolve()}")
 
 
-def load_and_merge(paths: List[str], enable_inheritance: bool = True) -> Dict[str,Any]:
+def load_and_merge(paths: list[str], enable_inheritance: bool = True) -> dict[str,Any]:
     """Load and merge multiple config files.
 
     Args:

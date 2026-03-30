@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
-
 try:
     import panel as pn
     HAVE_PANEL = True
@@ -29,11 +27,11 @@ if TYPE_CHECKING:
 
 
 def create_overview_tab(
-    data: 'DashboardData',
+    data: DashboardData,
     result: Any,
     workflow: Any,
     primary_label: str
-) -> 'pn.Column':
+) -> pn.Column:
     """
     Create overview tab with KPIs and summary.
 
@@ -53,8 +51,6 @@ def create_overview_tab(
     pn.Column
         Overview tab content
     """
-    from ..utils import create_kpi_card
-    from ..data_preparation import calculate_total_investment
 
     # KPI Cards
     kpis = _create_kpi_cards(data, result, workflow)
@@ -85,13 +81,13 @@ def create_overview_tab(
 
 
 def _create_kpi_cards(
-    data: 'DashboardData',
+    data: DashboardData,
     result: Any,
     workflow: Any
-) -> 'pn.GridBox':
+) -> pn.GridBox:
     """Create KPI indicator cards."""
-    from ..utils import create_kpi_card
     from ..data_preparation import calculate_total_investment
+    from ..utils import create_kpi_card
 
     # Use ORIGINAL sums for KPIs (not downsampled!)
     total_demand_MWh = data.original_total_demand_MWh
@@ -126,7 +122,7 @@ def _create_kpi_cards(
 
     # Average utilization with original data
     avg_demand = total_demand_MWh / total_timesteps if total_timesteps > 0 else 0
-    load_factor = (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
+    (avg_demand / peak_demand_MW * 100) if peak_demand_MW > 0 else 0
 
     # Calculate power metrics (CHP generation, grid feed-in, self-consumption)
     chp_elec_mwh = 0
@@ -171,9 +167,9 @@ def _create_kpi_cards(
 
 
 def _create_stats_summary(
-    data: 'DashboardData',
+    data: DashboardData,
     primary_label: str
-) -> 'pn.pane.Markdown':
+) -> pn.pane.Markdown:
     """Create statistics summary text."""
     df = data.df
 
@@ -213,7 +209,7 @@ def _create_stats_summary(
     return pn.pane.Markdown(summary)
 
 
-def _create_mini_demand_plot(data: 'DashboardData'):
+def _create_mini_demand_plot(data: DashboardData):
     """Create mini demand plot for overview."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")

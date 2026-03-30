@@ -4,7 +4,7 @@ This module provides common functions used across different plotting modules
 to avoid code duplication.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 from datetime import datetime
 
 from calion.logging_config import get_logger
@@ -21,10 +21,10 @@ except ImportError:  # pragma: no cover
 
 
 __all__ = [
+    "configure_time_axis",
     "has_content",
     "prettify_label_de",
     "prettify_label_en",
-    "configure_time_axis",
     "save_figure",
 ]
 

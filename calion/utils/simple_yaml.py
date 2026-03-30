@@ -17,9 +17,10 @@ that extending the parser is straightforward.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ast
-from typing import Any, Iterable, List, Tuple
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
 
 class YamlError(RuntimeError):
@@ -52,10 +53,10 @@ def _strip_comments(line: str) -> str:
     return line
 
 
-def _normalise_lines(text: str) -> List[Tuple[int, str]]:
+def _normalise_lines(text: str) -> list[tuple[int, str]]:
     """Return ``(indent, content)`` tuples for the relevant lines."""
 
-    out: List[Tuple[int, str]] = []
+    out: list[tuple[int, str]] = []
     for raw in text.splitlines():
         cleaned = _strip_comments(raw).rstrip()
         if not cleaned:
@@ -67,10 +68,10 @@ def _normalise_lines(text: str) -> List[Tuple[int, str]]:
     return out
 
 
-def _split_list(text: str) -> List[str]:
+def _split_list(text: str) -> list[str]:
     """Split a YAML inline list (``[a, b, c]``) into the individual entries."""
 
-    items: List[str] = []
+    items: list[str] = []
     current = []
     depth = 0
     in_quote = False
@@ -146,12 +147,12 @@ class _State:
     value: Any
 
 
-def _parse_lines(lines: Iterable[Tuple[int, str]]) -> Any:
+def _parse_lines(lines: Iterable[tuple[int, str]]) -> Any:
     """Convert the ``(indent, text)`` sequence into Python objects."""
 
     iterator = list(lines)
     idx = 0
-    stack: List[_State] = [_State(indent=-2, value={})]
+    stack: list[_State] = [_State(indent=-2, value={})]
 
     while idx < len(iterator):
         indent, content = iterator[idx]
@@ -189,7 +190,7 @@ def _parse_lines(lines: Iterable[Tuple[int, str]]) -> Any:
                 if idx < len(iterator) and iterator[idx][0] > indent:
                     child_indent = iterator[idx][0]
                     if iterator[idx][1].startswith("- "):
-                        new_list: List[Any] = []
+                        new_list: list[Any] = []
                         parent.append(new_list)
                         stack.append(_State(child_indent, new_list))
                     else:
@@ -241,6 +242,6 @@ def loads(text: str) -> Any:
 def load(path: str) -> Any:
     """Read ``path`` and parse the YAML contained within."""
 
-    with open(path, "r", encoding="utf-8") as handle:
+    with open(path, encoding="utf-8") as handle:
         return loads(handle.read())
 

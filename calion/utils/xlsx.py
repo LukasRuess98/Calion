@@ -9,12 +9,13 @@ the goal is merely to supply the functionality that used to be covered by the
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 import itertools
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, Iterable, List, Sequence
-from xml.sax.saxutils import escape
 import zipfile
+from collections.abc import Iterable, Sequence
+from datetime import datetime, timedelta
+from typing import Any
+from xml.sax.saxutils import escape
 
 EXCEL_EPOCH = datetime(1899, 12, 30)
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -60,7 +61,7 @@ def datetime_to_excel_number(value: datetime) -> float:
     return delta.total_seconds() / 86400.0
 
 
-def _load_shared_strings(zf: zipfile.ZipFile) -> List[str]:
+def _load_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     try:
         xml = zf.read("xl/sharedStrings.xml")
     except KeyError:
@@ -79,7 +80,7 @@ def _load_date_styles(zf: zipfile.ZipFile) -> set[int]:
     except KeyError:
         return set()
     root = ET.fromstring(xml)
-    custom_formats: Dict[int, str] = {}
+    custom_formats: dict[int, str] = {}
     num_fmts = root.find(f"{NS}numFmts")
     if num_fmts is not None:
         for num in num_fmts.findall(f"{NS}numFmt"):
@@ -98,7 +99,7 @@ def _load_date_styles(zf: zipfile.ZipFile) -> set[int]:
     return date_styles
 
 
-def _iter_rows(sheet_root: ET.Element) -> Iterable[List[ET.Element]]:
+def _iter_rows(sheet_root: ET.Element) -> Iterable[list[ET.Element]]:
     for row in sheet_root.findall(f".//{NS}row"):
         yield list(row.findall(f"{NS}c"))
 
@@ -148,13 +149,13 @@ def read_xlsx(path: str, sheet_name: str | None = None) -> tuple[list[str], list
         if not rows_iter:
             return [], []
         header_cells = rows_iter[0]
-        header: List[str] = []
+        header: list[str] = []
         for cell in header_cells:
             value = _cell_value(cell, shared_strings, date_styles)
             header.append(str(value))
-        data_rows: List[List[Any]] = []
-        for r_idx, cells in enumerate(rows_iter[1:], start=2):
-            row_values: Dict[int, Any] = {}
+        data_rows: list[list[Any]] = []
+        for _r_idx, cells in enumerate(rows_iter[1:], start=2):
+            row_values: dict[int, Any] = {}
             max_index = -1
             for cell in cells:
                 ref = cell.attrib.get("r", "")
@@ -246,7 +247,7 @@ STYLES_XML = r"""<?xml version='1.0' encoding='UTF-8'?>
 """
 
 
-def _build_shared_strings(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> List[str]:
+def _build_shared_strings(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> list[str]:
     strings = list(headers)
     for row in rows:
         for value in row:
@@ -255,11 +256,11 @@ def _build_shared_strings(headers: Sequence[str], rows: Sequence[Sequence[Any]])
     return strings
 
 
-def _string_index_map(strings: Sequence[str]) -> Dict[str, int]:
+def _string_index_map(strings: Sequence[str]) -> dict[str, int]:
     return {text: idx for idx, text in enumerate(strings)}
 
 
-def _sheet_xml(headers: Sequence[str], rows: Sequence[Sequence[Any]], string_map: Dict[str, int]) -> str:
+def _sheet_xml(headers: Sequence[str], rows: Sequence[Sequence[Any]], string_map: dict[str, int]) -> str:
     lines = [
         "<?xml version='1.0' encoding='UTF-8'?>",
         "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">",
@@ -278,7 +279,7 @@ def _sheet_xml(headers: Sequence[str], rows: Sequence[Sequence[Any]], string_map
     lines.append("    </row>")
 
     for r_idx, row in enumerate(rows, start=2):
-        cell_xml: List[str] = []
+        cell_xml: list[str] = []
         for c_idx, value in enumerate(row):
             if value is None or value == "":
                 continue

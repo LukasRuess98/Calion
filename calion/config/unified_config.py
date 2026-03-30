@@ -53,9 +53,9 @@ Example (Level 2 — multi-node with pipes):
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from calion.logging_config import get_logger
 
@@ -72,7 +72,7 @@ class DemandConfig(BaseModel):
     column: str
 
     @staticmethod
-    def from_dict(raw: Any) -> "DemandConfig":
+    def from_dict(raw: Any) -> DemandConfig:
         if isinstance(raw, str):
             return DemandConfig(column=raw)
         if isinstance(raw, dict):
@@ -90,12 +90,12 @@ class NodeConfig(BaseModel):
 
     id: str
     type: str  # "producer", "consumer", "junction"
-    assets: List[str] = Field(default_factory=list)
-    demand: Optional[DemandConfig] = None
-    demand_fraction: Optional[float] = None
+    assets: list[str] = Field(default_factory=list)
+    demand: DemandConfig | None = None
+    demand_fraction: float | None = None
 
     @staticmethod
-    def from_dict(node_id: str, raw: Dict[str, Any]) -> "NodeConfig":
+    def from_dict(node_id: str, raw: dict[str, Any]) -> NodeConfig:
         node_type = raw.get("type", "junction")
         if node_type not in ("producer", "consumer", "junction"):
             raise ValueError(
@@ -126,12 +126,12 @@ class PipeConfig(BaseModel):
     to_node: str
     length_m: float
     diameter_mm: float
-    insulation: Optional[str] = None
+    insulation: str | None = None
     u_value_supply_w_per_m_k: float = 0.15
     u_value_return_w_per_m_k: float = 0.15
 
     @staticmethod
-    def from_dict(pipe_id: str, raw: Dict[str, Any]) -> "PipeConfig":
+    def from_dict(pipe_id: str, raw: dict[str, Any]) -> PipeConfig:
         from_node = raw.get("from") or raw.get("from_node")
         to_node = raw.get("to") or raw.get("to_node")
         if not from_node or not to_node:
@@ -164,10 +164,10 @@ class AssetConfig(BaseModel):
 
     id: str
     type: str  # "heat_pump", "thermal_generator", "storage", "p2h"
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
     @staticmethod
-    def from_dict(asset_id: str, raw: Dict[str, Any]) -> "AssetConfig":
+    def from_dict(asset_id: str, raw: dict[str, Any]) -> AssetConfig:
         asset_type = raw.get("type")
         if not asset_type:
             raise ValueError(f"Asset '{asset_id}': must have 'type' field")
@@ -188,7 +188,7 @@ class PhysicsConfig(BaseModel):
     ground_temp_c: float = 10.0
 
     @staticmethod
-    def from_dict(raw: Optional[Dict[str, Any]], network_raw: Dict[str, Any]) -> "PhysicsConfig":
+    def from_dict(raw: dict[str, Any] | None, network_raw: dict[str, Any]) -> PhysicsConfig:
         physics = raw or {}
         return PhysicsConfig(
             heat_loss=bool(physics.get("heat_loss", False)),
@@ -205,43 +205,43 @@ class UnifiedSystemConfig(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    nodes: Dict[str, NodeConfig]
-    pipes: Dict[str, PipeConfig]
-    assets: Dict[str, AssetConfig]
+    nodes: dict[str, NodeConfig]
+    pipes: dict[str, PipeConfig]
+    assets: dict[str, AssetConfig]
     physics: PhysicsConfig
-    grid: Dict[str, Any]
-    fuels: Dict[str, Any]
-    costs: Dict[str, Any]
-    run: Dict[str, Any]
-    data: Dict[str, Any]
+    grid: dict[str, Any]
+    fuels: dict[str, Any]
+    costs: dict[str, Any]
+    run: dict[str, Any]
+    data: dict[str, Any]
     is_copperplate: bool
 
     # Raw config preserved for backward-compatible access
-    raw: Dict[str, Any] = Field(default_factory=dict)
+    raw: dict[str, Any] = Field(default_factory=dict)
 
-    def node_ids_by_type(self, node_type: str) -> List[str]:
+    def node_ids_by_type(self, node_type: str) -> list[str]:
         """Return node IDs of the given type."""
         return [nid for nid, n in self.nodes.items() if n.type == node_type]
 
-    def assets_at_node(self, node_id: str) -> List[AssetConfig]:
+    def assets_at_node(self, node_id: str) -> list[AssetConfig]:
         """Return AssetConfig objects for all assets at a given node."""
         node = self.nodes.get(node_id)
         if node is None:
             return []
         return [self.assets[aid] for aid in node.assets if aid in self.assets]
 
-    def consumer_nodes(self) -> Dict[str, NodeConfig]:
+    def consumer_nodes(self) -> dict[str, NodeConfig]:
         """Return all consumer nodes."""
         return {nid: n for nid, n in self.nodes.items() if n.type == "consumer"}
 
-    def producer_nodes(self) -> Dict[str, NodeConfig]:
+    def producer_nodes(self) -> dict[str, NodeConfig]:
         """Return all producer nodes."""
         return {nid: n for nid, n in self.nodes.items() if n.type == "producer"}
 
 
 # ─── Parser ───────────────────────────────────────────────────────────────────
 
-def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
+def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
     """Parse a unified config dict into a validated UnifiedSystemConfig.
 
     Args:
@@ -253,13 +253,13 @@ def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
     Raises:
         ValueError: On missing/invalid configuration.
     """
-    issues: List[str] = []
+    issues: list[str] = []
 
     # ── Assets ────────────────────────────────────────────────────────────
     assets_raw = cfg.get("assets", {})
     if not assets_raw:
         issues.append("'assets' section is required and must not be empty")
-    assets: Dict[str, AssetConfig] = {}
+    assets: dict[str, AssetConfig] = {}
     for aid, araw in (assets_raw or {}).items():
         try:
             assets[aid] = AssetConfig.from_dict(aid, araw)
@@ -275,7 +275,7 @@ def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
     if not nodes_raw:
         issues.append("'network.nodes' is required and must not be empty")
 
-    nodes: Dict[str, NodeConfig] = {}
+    nodes: dict[str, NodeConfig] = {}
     for nid, nraw in (nodes_raw or {}).items():
         try:
             nodes[nid] = NodeConfig.from_dict(nid, nraw)
@@ -284,7 +284,7 @@ def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
 
     # ── Pipes ─────────────────────────────────────────────────────────────
     pipes_raw = (network_raw or {}).get("pipes", {})
-    pipes: Dict[str, PipeConfig] = {}
+    pipes: dict[str, PipeConfig] = {}
     for pid, praw in (pipes_raw or {}).items():
         try:
             pipes[pid] = PipeConfig.from_dict(pid, praw)
@@ -363,13 +363,13 @@ def parse_unified_config(cfg: Dict[str, Any]) -> UnifiedSystemConfig:
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def unified_generators_defaults(ucfg: UnifiedSystemConfig) -> Dict[str, Dict[str, Any]]:
+def unified_generators_defaults(ucfg: UnifiedSystemConfig) -> dict[str, dict[str, Any]]:
     """Extract generator/p2h defaults for the top-level ``generators`` config key.
 
     Returns a dict keyed by generator id (lowercase) with th_eff, fuel_bus, etc.
     Used by :mod:`calion.models.component_assembler` during model building.
     """
-    result: Dict[str, Dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for asset in ucfg.assets.values():
         if asset.type == "thermal_generator":
             p = dict(asset.params)

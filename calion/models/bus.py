@@ -8,8 +8,8 @@ Inspired by Oemof.solph and PyPSA bus concepts.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional, Union
 from collections.abc import Sequence
+from typing import Any, Union
 
 try:
     import pyomo.environ as pyo
@@ -49,11 +49,11 @@ class Bus(BaseComponent):
         name: str,
         bus_type: Union[BusType, str],
         *,
-        capacity: Optional[float] = None,
+        capacity: float | None = None,
         loss_factor: float = 0.0,
-        price: Optional[Union[Sequence[float], Dict[int, float]]] = None,
-        co2_factor: Optional[Union[Sequence[float], Dict[int, float]]] = None,
-        label: str = None
+        price: Union[Sequence[float], dict[int, float]] | None = None,
+        co2_factor: Union[Sequence[float], dict[int, float]] | None = None,
+        label: str | None = None
     ):
         """
         Initialize bus.
@@ -90,8 +90,8 @@ class Bus(BaseComponent):
             self._validate_positive(capacity, "capacity", allow_zero=False)
 
         # Track connected flows
-        self._inputs: List[Any] = []  # pyo.Var
-        self._outputs: List[Any] = []  # pyo.Var
+        self._inputs: list[Any] = []  # pyo.Var
+        self._outputs: list[Any] = []  # pyo.Var
         self._balance_constraint = None
 
     def add_input(self, flow: Any) -> None:
@@ -118,9 +118,9 @@ class Bus(BaseComponent):
         self,
         model: Any,
         time_set: Any,
-        config: Dict[str, Any],
-        buses: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        config: dict[str, Any],
+        buses: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Attach bus to model by creating balance constraint.
 
@@ -180,7 +180,7 @@ class Bus(BaseComponent):
         self,
         model: Any,
         time_set: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract bus flow results from solved model.
 
@@ -211,7 +211,7 @@ class Bus(BaseComponent):
 
         return results
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
+    def validate_config(self, config: dict[str, Any]) -> None:
         """
         Validate bus configuration.
 
@@ -244,7 +244,7 @@ class Bus(BaseComponent):
         )
 
 
-def create_default_buses() -> Dict[str, Bus]:
+def create_default_buses() -> dict[str, Bus]:
     """
     Create default buses for a standard energy system.
 
@@ -268,7 +268,7 @@ def create_default_buses() -> Dict[str, Bus]:
     return buses
 
 
-def create_buses_from_config(config: Dict[str, Any]) -> Dict[str, Bus]:
+def create_buses_from_config(config: dict[str, Any]) -> dict[str, Bus]:
     """
     Create buses from configuration dictionary.
 

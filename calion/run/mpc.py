@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Any, Dict, List, Optional, Set, MutableMapping
 from collections import OrderedDict
+from typing import Any
 
 from calion.forecasting.base import ForecastGenerator
-from calion.utils.timeseries import TimeSeriesTable
-from calion.run.utilities import _slice_table
-
 from calion.logging_config import get_logger
+from calion.run.utilities import _slice_table
+from calion.utils.timeseries import TimeSeriesTable
 
 logger = get_logger(__name__)
 
@@ -27,12 +26,12 @@ logger = logging.getLogger(__name__)
 
 
 def _evaluate_costs_on_actual_data(
-    series: OrderedDict[str, List[float]],
+    series: OrderedDict[str, list[float]],
     actual_data: TimeSeriesTable,
-    committed_indices: List[int],
-    cfg: Dict[str, Any],
+    committed_indices: list[int],
+    cfg: dict[str, Any],
     dt_h: float,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate MPC decisions on actual (not forecast) data.
 
     This function recalculates ALL operational costs using actual historical
@@ -71,7 +70,7 @@ def _evaluate_costs_on_actual_data(
     meta = _gather_component_metadata(cfg)
 
     # DEBUG: Show generator metadata
-    logger.info(f"\n[MPC DEBUG] Generator metadata from _gather_component_metadata:")
+    logger.info("\n[MPC DEBUG] Generator metadata from _gather_component_metadata:")
     for gen in meta["generators"]:
         logger.info(f"  {gen['name']}: fuel_bus={gen['fuel_bus']}, price={gen['fuel_price']:.2f}€/MWh, emission={gen['fuel_emission']:.1f}kg/MWh")
 
@@ -170,7 +169,7 @@ def _evaluate_costs_on_actual_data(
 
     # Calculate energy totals
     energy_in = float(sum(p_buy) * dt_h)
-    energy_out = float(sum(p_sell) * dt_h)
+    float(sum(p_sell) * dt_h)
 
     # Fee breakdown (same as PF lines 810-811)
     energy_fee_cost = float(energy_in * energy_fee)
@@ -190,7 +189,7 @@ def _evaluate_costs_on_actual_data(
     # =========================================================================
     fuel_cost_total = 0.0
     fuel_emissions_t = 0.0
-    fuel_cost_by_type: Dict[str, float] = {}
+    fuel_cost_by_type: dict[str, float] = {}
 
     # Use generator metadata from _gather_component_metadata (same as PF lines 983-1024)
     for gen in meta["generators"]:
@@ -247,7 +246,6 @@ def _evaluate_costs_on_actual_data(
     demand_charge_rate = float(grid_cfg.get("demand_charge_eur_per_mw_y", 0.0))
 
     # Year fraction calculation (same as PF lines 441-442)
-    from calion.constants import HOURS_PER_YEAR
     period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n > 0 else 0.0
     demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
 
@@ -299,14 +297,14 @@ def _evaluate_costs_on_actual_data(
 
 
 def run_mpc(
-    base_cfg: Dict[str, Any],
+    base_cfg: dict[str, Any],
     historical_data: TimeSeriesTable,
     dt_h: float,
     solver_name: str,
     forecast_gen: ForecastGenerator,
     forecast_horizon_hours: float,
     update_frequency_hours: float,
-    design: Optional[Any],
+    design: Any | None,
     fix_design: bool,
 ):
     """Run Model Predictive Control with forecast updates.
@@ -340,24 +338,24 @@ def run_mpc(
     Aggregated MPC result
     """
     # Import here to avoid circular dependency
+    from calion.run.cost_helpers import _accumulate_costs, _recompute_objective_costs
+    from calion.run.design_helpers import _apply_design_fix, _extract_design_data
+    from calion.run.rh_engine import (
+        _apply_terminal_policy,
+        _extend_series,
+        _initial_soc,
+        _load_cost_plan,
+        _next_soc,
+        _set_initial_soc,
+        _storage_enabled,
+    )
+    from calion.run.solver import _solve_scenario
     from calion.run.types import RollingHorizonResult, WindowResult
     from calion.run.utilities import _hours_to_steps
-    from calion.run.rh_engine import (
-        _initial_soc,
-        _storage_enabled,
-        _apply_terminal_policy,
-        _set_initial_soc,
-        _extend_series,
-        _next_soc,
-        _load_cost_plan,
-    )
-    from calion.run.design_helpers import _apply_design_fix, _extract_design_data
-    from calion.run.solver import _solve_scenario
-    from calion.run.cost_helpers import _accumulate_costs, _recompute_objective_costs
 
     n = len(historical_data)
     if n == 0:
-        empty_series: OrderedDict[str, List[float]] = OrderedDict()
+        empty_series: OrderedDict[str, list[float]] = OrderedDict()
         return RollingHorizonResult(historical_data, empty_series, {}, [], design)
 
     # Calculate step sizes
@@ -368,14 +366,14 @@ def run_mpc(
         raise ValueError("MPC update frequency must not exceed forecast horizon")
 
     # Initialize aggregation
-    aggregated_indices: List[int] = []
-    aggregated_series: OrderedDict[str, List[float]] = OrderedDict()
-    aggregated_costs: Dict[str, float] = {}
-    windows: List[WindowResult] = []
+    aggregated_indices: list[int] = []
+    aggregated_series: OrderedDict[str, list[float]] = OrderedDict()
+    aggregated_costs: dict[str, float] = {}
+    windows: list[WindowResult] = []
 
     design_state = design
     cost_plan = _load_cost_plan(base_cfg, fix_design)
-    once_costs: Set[str] = set()
+    once_costs: set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
     base_storage_enabled = _storage_enabled(base_cfg)
@@ -411,7 +409,7 @@ def run_mpc(
 
         # Debug: show forecast data for first window
         if window_idx == 0:
-            logger.info(f"\n[MPC DEBUG] First window forecast data:")
+            logger.info("\n[MPC DEBUG] First window forecast data:")
             logger.info(f"  - Length: {len(forecast_table)} steps")
             logger.info(f"  - Columns: {list(forecast_table.data.keys())[:8]}...")
             if "waermebedarf_MWth" in forecast_table.data:
@@ -421,7 +419,7 @@ def run_mpc(
             # Show generator capacities
             gen_cfg = base_cfg.get("system", {}).get("generators", {})
             total_cap = 0.0
-            logger.info(f"[MPC DEBUG] Generator capacities:")
+            logger.info("[MPC DEBUG] Generator capacities:")
             for name, cfg_val in gen_cfg.items():
                 if isinstance(cfg_val, dict) and cfg_val.get("enabled", False):
                     cap = float(cfg_val.get("cap_th_mw", 0.0))
@@ -464,9 +462,9 @@ def run_mpc(
         if should_fix_design:
             # Debug: show design being applied
             if window_idx == 0:
-                logger.info(f"\n[MPC DEBUG] Applying design fix from PF:")
+                logger.info("\n[MPC DEBUG] Applying design fix from PF:")
                 if design_state:
-                    logger.info(f"  Heat Pumps:")
+                    logger.info("  Heat Pumps:")
                     for hp_id, hp_data in design_state.heat_pumps.items():
                         logger.info(f"    {hp_id}: capacity={hp_data.get('capacity_mw', 0):.2f} MW, build={hp_data.get('build_binary', 0):.2f}")
                     if design_state.storage:
@@ -477,7 +475,7 @@ def run_mpc(
                             design_state.storage.get("build_binary", 0),
                         )
                     else:
-                        logger.info(f"  Storage: None")
+                        logger.info("  Storage: None")
             window_cfg = _apply_design_fix(window_cfg, design_state)
 
         # 3. Solve optimization with forecast
@@ -560,9 +558,9 @@ def run_mpc(
     # Falls aus irgendeinem Grund keine Schritte committet wurden, brechen wir
     # sauber ab und geben nur CAPEX zurück.
     if not aggregated_indices:
-        evaluated_costs: Dict[str, float] = {}
+        evaluated_costs: dict[str, float] = {}
     else:
-        evaluated_costs: Dict[str, float] = _evaluate_costs_on_actual_data(
+        evaluated_costs: dict[str, float] = _evaluate_costs_on_actual_data(
             series=aggregated_series,
             actual_data=historical_data,
             committed_indices=aggregated_indices,
@@ -571,7 +569,7 @@ def run_mpc(
         )
 
     # Debug-Ausgabe (optional)
-    logger.info(f"\n[MPC DEBUG] Evaluated costs from actual data:")
+    logger.info("\n[MPC DEBUG] Evaluated costs from actual data:")
     for k, v in sorted(evaluated_costs.items()):
         if abs(v) > 0.01:
             logger.info(f"  {k}: {v:,.2f}")
@@ -583,7 +581,7 @@ def run_mpc(
     # Gesamtes Ziel neu berechnen (OPEX + CAPEX)
     _recompute_objective_costs(aggregated_costs)
 
-    logger.info(f"\n[MPC DEBUG] Final costs AFTER recompute:")
+    logger.info("\n[MPC DEBUG] Final costs AFTER recompute:")
     for k, v in sorted(aggregated_costs.items()):
         if "objective" in k.lower() and abs(v) > 0.01:
             logger.info(f"  {k}: {v:,.2f}")

@@ -8,8 +8,9 @@ Inspired by plugin systems in Django, Flask, and other extensible frameworks.
 """
 from __future__ import annotations
 
-from typing import Dict, Type, List, Any, Callable
 import inspect
+from collections.abc import Callable
+from typing import Any, ClassVar
 
 from .component import Component
 
@@ -38,19 +39,19 @@ class ComponentRegistry:
         components = ComponentRegistry.list_components()
     """
 
-    _components: Dict[str, Type[Component]] = {}
-    _metadata: Dict[str, Dict[str, Any]] = {}
+    _components: ClassVar[dict[str, type[Component]]] = {}
+    _metadata: ClassVar[dict[str, dict[str, Any]]] = {}
 
     @classmethod
     def register(
         cls,
         component_type: str,
-        component_class: Type[Component],
+        component_class: type[Component],
         *,
-        description: str = None,
-        category: str = None,
-        version: str = None,
-        author: str = None
+        description: str | None = None,
+        category: str | None = None,
+        version: str | None = None,
+        author: str | None = None
     ) -> None:
         """
         Register a component class.
@@ -113,7 +114,7 @@ class ComponentRegistry:
         del cls._metadata[component_type]
 
     @classmethod
-    def get(cls, component_type: str) -> Type[Component]:
+    def get(cls, component_type: str) -> type[Component]:
         """
         Get component class by type.
 
@@ -170,7 +171,7 @@ class ComponentRegistry:
             ) from e
 
     @classmethod
-    def list_components(cls) -> List[str]:
+    def list_components(cls) -> list[str]:
         """
         List all registered component types.
 
@@ -180,7 +181,7 @@ class ComponentRegistry:
         return list(cls._components.keys())
 
     @classmethod
-    def get_metadata(cls, component_type: str) -> Dict[str, Any]:
+    def get_metadata(cls, component_type: str) -> dict[str, Any]:
         """
         Get metadata for a component type.
 
@@ -199,7 +200,7 @@ class ComponentRegistry:
         return cls._metadata[component_type].copy()
 
     @classmethod
-    def list_by_category(cls, category: str) -> List[str]:
+    def list_by_category(cls, category: str) -> list[str]:
         """
         List components in a specific category.
 
@@ -239,7 +240,7 @@ class ComponentRegistry:
         cls._metadata.clear()
 
     @classmethod
-    def get_all_metadata(cls) -> Dict[str, Dict[str, Any]]:
+    def get_all_metadata(cls) -> dict[str, dict[str, Any]]:
         """
         Get metadata for all registered components.
 
@@ -252,11 +253,11 @@ class ComponentRegistry:
 def register_component(
     component_type: str,
     *,
-    description: str = None,
-    category: str = None,
-    version: str = None,
-    author: str = None
-) -> Callable[[Type[Component]], Type[Component]]:
+    description: str | None = None,
+    category: str | None = None,
+    version: str | None = None,
+    author: str | None = None
+) -> Callable[[type[Component]], type[Component]]:
     """
     Decorator for automatic component registration.
 
@@ -278,7 +279,7 @@ def register_component(
     Returns:
         Decorator function
     """
-    def decorator(cls: Type[Component]) -> Type[Component]:
+    def decorator(cls: type[Component]) -> type[Component]:
         ComponentRegistry.register(
             component_type,
             cls,

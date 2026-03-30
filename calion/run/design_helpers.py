@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import copy
 import json
-import logging
-from collections import OrderedDict
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -22,8 +21,8 @@ logger = get_logger(__name__)
 
 
 def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData:
-    heat_pumps: Dict[str, Dict[str, float]] = {}
-    storage: Optional[Dict[str, float]] = None
+    heat_pumps: dict[str, dict[str, float]] = {}
+    storage: dict[str, float] | None = None
 
     for key, metrics in summary.items():
         if key.startswith("heat_pump_"):
@@ -51,7 +50,7 @@ def _extract_design_data(summary: Mapping[str, Mapping[str, Any]]) -> DesignData
 
 
 def _design_from_mapping(data: Mapping[str, Any]) -> DesignData:
-    heat_pumps: Dict[str, Dict[str, float]] = {}
+    heat_pumps: dict[str, dict[str, float]] = {}
     raw_hps = data.get("heat_pumps")
     if isinstance(raw_hps, Mapping):
         for hp_id, entry in raw_hps.items():
@@ -65,7 +64,7 @@ def _design_from_mapping(data: Mapping[str, Any]) -> DesignData:
             }
 
     storage_data = data.get("storage")
-    storage: Dict[str, float] | None
+    storage: dict[str, float] | None
     if isinstance(storage_data, Mapping):
         storage = {
             "name": str(storage_data.get("name", storage_data.get("id", "TES")) or "TES"),
@@ -95,7 +94,7 @@ def _load_design_override(scenario_cfg: Mapping[str, Any]) -> DesignData | None:
         logger.warning("PF design file %s not found – continuing without design fixation.", design_path)
         return None
     try:
-        with open(design_path, "r", encoding="utf-8") as handle:
+        with open(design_path, encoding="utf-8") as handle:
             raw = json.load(handle)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:  # pragma: no cover - defensive branch
         logger.warning("Failed to load PF design file %s: %s", design_path, exc)
@@ -106,7 +105,7 @@ def _load_design_override(scenario_cfg: Mapping[str, Any]) -> DesignData | None:
     return _design_from_mapping(raw)
 
 
-def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]:
+def _apply_design_fix(cfg: dict[str, Any], design: DesignData) -> dict[str, Any]:
     """Apply design from PF to RH/MPC."""
     cfg_copy = copy.deepcopy(cfg)
     system = cfg_copy.setdefault("system", {})
@@ -172,7 +171,7 @@ def _apply_design_fix(cfg: Dict[str, Any], design: DesignData) -> Dict[str, Any]
         terminal_cfg.pop("target", None)
         storage_cfg.pop("terminal_soc_mwh", None)
         storage_cfg["terminal_state"] = "free"
-        logger.info(f"[DESIGN_FIX] Storage terminal → FREE")
+        logger.info("[DESIGN_FIX] Storage terminal → FREE")
 
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):

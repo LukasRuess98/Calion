@@ -15,7 +15,7 @@ Replaces duplicated patterns from:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Any
 
 
 @dataclass
@@ -40,7 +40,7 @@ class CO2Result:
     total_eur: Any     # Pyomo expression or float [EUR]
     component_type: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage in model.co2_component_costs."""
         return {
             'heat_kg': self.heat_kg,
@@ -72,7 +72,7 @@ class EmissionsCalculator:
     def __init__(
         self,
         co2_price_param: Any,  # pyo.Param or float
-        grid_co2_series: Dict[int, float],
+        grid_co2_series: dict[int, float],
         dt_h: float,
         time_set: Any,  # pyo.Set or range
     ):
@@ -197,7 +197,7 @@ class EmissionsCalculator:
         )
 
 
-def aggregate_emission_results(results: List[CO2Result]) -> Dict[str, Any]:
+def aggregate_emission_results(results: list[CO2Result]) -> dict[str, Any]:
     """
     Aggregate multiple CO2Result objects into summary totals.
 

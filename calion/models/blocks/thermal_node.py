@@ -17,8 +17,8 @@ Unified physics — no brownfield/greenfield distinction:
 Author: CALION Development Team
 """
 
-from typing import Dict, Any, List, Optional
 import logging
+from typing import Any
 
 try:
     import pyomo.environ as pyo
@@ -59,7 +59,7 @@ class ThermalNodeBlock(BaseComponent):
     """
 
     @staticmethod
-    def validate_config(config: Dict[str, Any]) -> None:
+    def validate_config(config: dict[str, Any]) -> None:
         """Validate thermal node configuration."""
         required = ['id', 'type']
         for field in required:
@@ -78,7 +78,7 @@ class ThermalNodeBlock(BaseComponent):
                 )
 
     @staticmethod
-    def attach(model, time_set, config: Dict[str, Any], buses: Dict, network_pipes: Dict) -> Dict[str, Any]:
+    def attach(model, time_set, config: dict[str, Any], buses: dict, network_pipes: dict) -> dict[str, Any]:
         """
         Attach thermal node to Pyomo model.
 
@@ -273,7 +273,7 @@ class ThermalNodeBlock(BaseComponent):
         elif incoming_pipes and milp_linearize_temp and len(incoming_pipes) > 1:
             def multi_temp_milp_rule(m, t):
                 return T_supply[t] == supply_temp_nominal_c
-            
+
             setattr(model, f'{prefix}_temp_mixing_milp',
                     pyo.Constraint(time_set, rule=multi_temp_milp_rule))
             logger.info(
@@ -408,7 +408,7 @@ class ThermalNodeBlock(BaseComponent):
         return result
 
     @staticmethod
-    def get_results(model, time_set, config: Dict[str, Any]) -> Dict[str, Any]:
+    def get_results(model, time_set, config: dict[str, Any]) -> dict[str, Any]:
         """Extract results from solved model."""
         node_id = config.get('id') or config.get('node_id')
         prefix = node_id.upper().replace('-', '_')

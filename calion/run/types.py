@@ -8,13 +8,13 @@ monolith.
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
-from calion.design import OptimizationConfig, DesignSpec
+from calion.design import DesignSpec, OptimizationConfig
 from calion.models.results import InvestmentDecisions
 from calion.utils.timeseries import TimeSeriesTable
-
 
 # ---------------------------------------------------------------------------
 # Result containers
@@ -25,11 +25,11 @@ class ScenarioResult:
     """Container for a single optimisation run."""
 
     table: TimeSeriesTable
-    series: OrderedDict[str, List[float]]
+    series: OrderedDict[str, list[float]]
     summary: Mapping[str, Mapping[str, Any]]
-    costs: Dict[str, Any]
-    solver: Dict[str, Any]
-    investments: Optional[InvestmentDecisions] = None
+    costs: dict[str, Any]
+    solver: dict[str, Any]
+    investments: InvestmentDecisions | None = None
 
 
 @dataclass
@@ -48,8 +48,8 @@ class DesignData:
     Kept temporarily for backward compatibility during migration.
     """
 
-    heat_pumps: Dict[str, Dict[str, float]]
-    storage: Optional[Dict[str, float]]
+    heat_pumps: dict[str, dict[str, float]]
+    storage: dict[str, float] | None
 
 
 @dataclass
@@ -57,11 +57,11 @@ class RollingHorizonResult:
     """Aggregated result for a complete RH simulation."""
 
     table: TimeSeriesTable
-    series: OrderedDict[str, List[float]]
-    costs: Dict[str, Any]
-    windows: List[WindowResult]
-    design: Optional[DesignData] = None
-    investments: Optional[InvestmentDecisions] = None
+    series: OrderedDict[str, list[float]]
+    costs: dict[str, Any]
+    windows: list[WindowResult]
+    design: DesignData | None = None
+    investments: InvestmentDecisions | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -74,14 +74,14 @@ class WorkflowPlan:
 
     steps: Sequence[str]
     fix_design: bool
-    design_config: Optional[OptimizationConfig] = None
+    design_config: OptimizationConfig | None = None
 
 
 @dataclass
 class WorkflowInputs:
     """Prepared artefacts required to execute a workflow."""
 
-    cfg: Dict[str, Any]
+    cfg: dict[str, Any]
     table: TimeSeriesTable
     dt_h: float
     solver_name: str
@@ -92,30 +92,30 @@ class WorkflowInputs:
 class WorkflowContext:
     """Mutable state shared between workflow steps."""
 
-    cfg: Dict[str, Any]
+    cfg: dict[str, Any]
     table: TimeSeriesTable
     dt_h: float
     solver_name: str
     plan: WorkflowPlan
-    pf_result: Optional[ScenarioResult] = None
-    rh_result: Optional[RollingHorizonResult] = None
-    mpc_result: Optional[RollingHorizonResult] = None
-    design: Optional[DesignData] = None  # Legacy (deprecated)
-    design_spec: Optional[DesignSpec] = None  # Legacy (deprecated)
-    investments: Optional[InvestmentDecisions] = None  # Structured investment results
+    pf_result: ScenarioResult | None = None
+    rh_result: RollingHorizonResult | None = None
+    mpc_result: RollingHorizonResult | None = None
+    design: DesignData | None = None  # Legacy (deprecated)
+    design_spec: DesignSpec | None = None  # Legacy (deprecated)
+    investments: InvestmentDecisions | None = None  # Structured investment results
 
 
 @dataclass
 class WorkflowResult:
     """Return value for :func:`run_workflow`."""
 
-    config: Dict[str, Any]
-    pf_result: Optional[ScenarioResult]
-    rh_result: Optional[RollingHorizonResult]
-    mpc_result: Optional[RollingHorizonResult]
-    design: Optional[DesignData]
+    config: dict[str, Any]
+    pf_result: ScenarioResult | None
+    rh_result: RollingHorizonResult | None
+    mpc_result: RollingHorizonResult | None
+    design: DesignData | None
     plan: WorkflowPlan
-    investments: Optional[InvestmentDecisions] = None
+    investments: InvestmentDecisions | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -169,15 +169,15 @@ StepHandler = Callable[[WorkflowContext], None]
 
 
 __all__ = [
-    "ScenarioResult",
-    "WindowResult",
     "DesignData",
     "RollingHorizonResult",
-    "WorkflowPlan",
-    "WorkflowInputs",
-    "WorkflowContext",
-    "WorkflowResult",
-    "_RollingParams",
-    "_CostAggregationPlan",
+    "ScenarioResult",
     "StepHandler",
+    "WindowResult",
+    "WorkflowContext",
+    "WorkflowInputs",
+    "WorkflowPlan",
+    "WorkflowResult",
+    "_CostAggregationPlan",
+    "_RollingParams",
 ]

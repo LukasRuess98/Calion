@@ -13,12 +13,12 @@
 from __future__ import annotations
 
 import copy
-import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 from calion.constants import (
     DEFAULT_HP_CAPACITY_MW,
@@ -50,17 +50,17 @@ class OptimizationVariables:
 @dataclass
 class FixedValues:
     """Fixed values for components when not optimizing."""
-    heat_pumps: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    storage: Dict[str, Any] = field(default_factory=dict)
+    heat_pumps: dict[str, dict[str, Any]] = field(default_factory=dict)
+    storage: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class OptimizationConfig:
     """Complete optimization configuration from scenario."""
     variables: OptimizationVariables
-    fix_after_window: Optional[int] = None  # For RH: fix after this window
-    fixed_values: Optional[FixedValues] = None
-    save_result_to: Optional[str] = None
+    fix_after_window: int | None = None  # For RH: fix after this window
+    fixed_values: FixedValues | None = None
+    save_result_to: str | None = None
 
 
 # =============================================================================
@@ -132,11 +132,11 @@ def load_optimization_config(scenario_cfg: Mapping[str, Any]) -> OptimizationCon
 # =============================================================================
 
 def apply_optimization_config(
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     opt_config: OptimizationConfig,
     window_idx: int = 0,
-    extracted_values: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    extracted_values: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Apply optimization configuration to system config.
 
     This function modifies the config to:
@@ -285,12 +285,12 @@ def apply_optimization_config(
 # EXTRACTING OPTIMIZATION RESULTS
 # =============================================================================
 
-def extract_optimization_results(summary: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
+def extract_optimization_results(summary: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """Extract optimized values from window result summary.
 
     Used after Window 0 in RH to get the optimized capacities for fixing.
     """
-    results: Dict[str, Any] = {
+    results: dict[str, Any] = {
         "heat_pumps": {},
         "storage": {},
     }
@@ -328,7 +328,7 @@ def extract_optimization_results(summary: Mapping[str, Mapping[str, Any]]) -> Di
 # SAVING OPTIMIZATION RESULTS
 # =============================================================================
 
-def save_optimization_results(results: Dict[str, Any], path: str | Path) -> Path:
+def save_optimization_results(results: dict[str, Any], path: str | Path) -> Path:
     """Save optimization results to a YAML file for reuse.
 
     The saved file can be used as fixed_values in another scenario.
@@ -382,11 +382,11 @@ class StorageDesign:
 @dataclass
 class DesignSpec:
     """Complete design specification (legacy support)."""
-    heat_pumps: Dict[str, HeatPumpDesign] = field(default_factory=dict)
-    storage: Optional[StorageDesign] = None
+    heat_pumps: dict[str, HeatPumpDesign] = field(default_factory=dict)
+    storage: StorageDesign | None = None
 
 
-def convert_to_design_spec(results: Dict[str, Any]) -> DesignSpec:
+def convert_to_design_spec(results: dict[str, Any]) -> DesignSpec:
     """Convert optimization results to legacy DesignSpec format."""
     heat_pumps = {}
     for hp_id, hp_data in results.get("heat_pumps", {}).items():
@@ -416,7 +416,7 @@ def convert_to_design_spec(results: Dict[str, Any]) -> DesignSpec:
 # Used by rh_engine when a DesignSpec is applied window-by-window.
 
 
-def _parse_design_spec(data: Dict[str, Any]) -> DesignSpec:
+def _parse_design_spec(data: dict[str, Any]) -> DesignSpec:
     """Parse design specification from a dictionary (used when loading from file)."""
     heat_pumps = {}
     for hp_id, hp_data in data.get("heat_pumps", {}).items():
@@ -440,7 +440,7 @@ def _parse_design_spec(data: Dict[str, Any]) -> DesignSpec:
     return DesignSpec(heat_pumps=heat_pumps, storage=storage)
 
 
-def apply_design_to_config(cfg: Dict[str, Any], design: DesignSpec) -> Dict[str, Any]:
+def apply_design_to_config(cfg: dict[str, Any], design: DesignSpec) -> dict[str, Any]:
     """Apply a DesignSpec to a window config, fixing all capacities and build decisions.
 
     Used by rh_engine when a pre-loaded or extracted DesignSpec drives the RH loop.
@@ -502,7 +502,7 @@ def apply_design_to_config(cfg: Dict[str, Any], design: DesignSpec) -> Dict[str,
     return cfg_copy
 
 
-def validate_design(design: DesignSpec) -> List[str]:
+def validate_design(design: DesignSpec) -> list[str]:
     """Validate a DesignSpec. Returns a list of error strings (empty if valid)."""
     errors = []
 

@@ -1,4 +1,4 @@
-#sensitivity_runner.py 
+#sensitivity_runner.py
 """Integrated sensitivity analysis runner for publications.
 
 This module provides a complete workflow for running sensitivity analyses
@@ -17,22 +17,18 @@ Example usage:
 
 from __future__ import annotations
 
-import logging
-import os
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Callable
+from typing import Any
 
 from calion.analysis.sensitivity import (
     ParameterVariation,
     SensitivityResult,
-    run_sensitivity_analysis,
     calculate_sensitivity_indices,
-    create_standard_sensitivity_study,
-    apply_parameter_variation,
+    run_sensitivity_analysis,
 )
-
 from calion.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -50,13 +46,13 @@ class SensitivityStudyResult:
         metadata: Study metadata (timestamp, config, etc.)
     """
 
-    results: Dict[str, List[SensitivityResult]]
-    indices: Dict[str, float]
+    results: dict[str, list[SensitivityResult]]
+    indices: dict[str, float]
     baseline_value: float
-    generated_files: Dict[str, str] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    generated_files: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def get_top_parameters(self, n: int = 5) -> List[tuple]:
+    def get_top_parameters(self, n: int = 5) -> list[tuple]:
         """Get top N most sensitive parameters.
 
         Returns list of (param_path, sensitivity_index) tuples.
@@ -88,12 +84,12 @@ class SensitivityStudyResult:
         return "\n".join(lines)
 
 
-def create_publication_sensitivity_study() -> List[ParameterVariation]:
+def create_publication_sensitivity_study() -> list[ParameterVariation]:
     """Create extended parameter variation set for peer-reviewed publications.
 
     Pfade und Basiswerte sind an die aktuelle Config-Struktur angepasst.
     """
-    variations: List[ParameterVariation] = []
+    variations: list[ParameterVariation] = []
 
     # ==========================================================================
     # Technology Efficiency Parameters
@@ -235,8 +231,8 @@ def create_publication_sensitivity_study() -> List[ParameterVariation]:
     return variations
 
 def run_full_sensitivity_study(
-    base_configs: List[str],
-    variations: List[ParameterVariation] = None,
+    base_configs: list[str],
+    variations: list[ParameterVariation] | None = None,
     output_dir: str = "outputs/runs/sensitivity",
     generate_plots: bool = True,
     generate_latex: bool = True,
@@ -290,7 +286,7 @@ def run_full_sensitivity_study(
     logger.info("=" * 60)
 
     # Create run function for sensitivity analysis
-    def run_optimization(config: Dict[str, Any]) -> SensitivityResult:
+    def run_optimization(config: dict[str, Any]) -> SensitivityResult:
         """Run single optimization and extract results."""
         from calion.run.rolling_horizon import run_workflow
 
@@ -361,7 +357,7 @@ def run_full_sensitivity_study(
             config=None,
             solve_status="optimal",
         )
-    
+
     # Load and merge base configuration
     from calion.config.merge import load_and_merge
     base_config = load_and_merge(base_configs)
@@ -405,7 +401,10 @@ def run_full_sensitivity_study(
     # Generate plots
     if generate_plots:
         try:
-            from calion.comparison.visualization import plot_tornado_diagram, plot_sensitivity_spider
+            from calion.comparison.visualization import (
+                plot_sensitivity_spider,
+                plot_tornado_diagram,
+            )
 
             # Tornado diagram
             tornado_path = os.path.join(output_dir, "tornado_diagram.pdf")

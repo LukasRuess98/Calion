@@ -16,8 +16,8 @@ except ImportError:
     HAVE_PANEL = False
     pn = None
 
+from .data_preparation import prepare_dashboard_data
 from .diagnostics import diagnose_workflow, print_diagnosis
-from .data_preparation import DashboardData, prepare_dashboard_data
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ class CALIONDashboard:
             workflow_config=getattr(workflow, 'config', None)
         )
 
-    def create(self) -> 'pn.Tabs':
+    def create(self) -> pn.Tabs:
         """
         Create the complete dashboard with all tabs.
 
@@ -163,18 +163,18 @@ class CALIONDashboard:
             Complete dashboard
         """
         from .tabs import (
-            create_overview_tab,
-            create_timeseries_tab,
-            create_duration_curve_tab,
-            create_efficiency_tab,
-            create_sankey_tab,
-            create_emissions_tab,
+            create_comparison_tab,
             create_costs_tab,
             create_design_tab,
-            create_comparison_tab,
+            create_duration_curve_tab,
+            create_efficiency_tab,
+            create_emissions_tab,
             create_multi_network_tab,
-            has_multi_network_data,
+            create_overview_tab,
+            create_sankey_tab,
             create_thermal_network_tab,
+            create_timeseries_tab,
+            has_multi_network_data,
             has_thermal_network_data,
         )
 

@@ -57,11 +57,11 @@ Usage:
 Author: CALION Development Team
 """
 
-import yaml
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from dataclasses import asdict
+from typing import Any
+
+import yaml
 
 try:
     import pyomo.environ as pyo
@@ -70,19 +70,13 @@ except ImportError:
     HAVE_PYOMO = False
     pyo = None
 
+from ..utils.config_utils import resolve_heating_curve_profile
 from .blocks.pipe_pair import PipePairBlock
 from .blocks.thermal_node import ThermalNodeBlock
 from .network_physics import (
-    heat_kw_to_mdot_kg_s,
-    mdot_to_velocity_m_s,
-    pipe_total_heat_loss_mw,
-    pipe_temperature_drop_c,
-    calculate_pipe_temp_drops,
-    calculate_supply_temperature,
     calculate_supply_temperature_series,
     get_heating_curve_parameters,
 )
-from ..utils.config_utils import resolve_heating_curve_profile
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +93,7 @@ class NetworkManager:
     - Export results for dashboard
     """
 
-    def __init__(self, config: Dict[str, Any], config_dir: Path = None):
+    def __init__(self, config: dict[str, Any], config_dir: Path | None = None):
         """
         Initialize network manager.
 
@@ -123,7 +117,7 @@ class NetworkManager:
 
     # ── Path helpers ───────────────────────────────────────────────────────────
 
-    def _find_repo_root(self, start_path: Path = None) -> Path:
+    def _find_repo_root(self, start_path: Path | None = None) -> Path:
         """Find repository root by searching for .git directory."""
         if start_path is None:
             start_path = Path.cwd()
@@ -191,7 +185,7 @@ class NetworkManager:
             topology_path = self._resolve_path(topology_file)
             logger.info(f"Loading network topology from YAML: {topology_path}")
             try:
-                with open(topology_path, 'r', encoding="utf-8") as f:
+                with open(topology_path, encoding="utf-8") as f:
                     topology_data = yaml.safe_load(f)
             except FileNotFoundError:
                 logger.error("=" * 70)
@@ -219,7 +213,7 @@ class NetworkManager:
 
         logger.info(f"Loaded network: {len(self.nodes)} nodes, {len(self.pipes)} pipes")
 
-    def _parse_nodes(self, topology_data: Dict):
+    def _parse_nodes(self, topology_data: dict):
         """Parse node definitions from topology (all supported formats).
 
         Supported formats:
@@ -269,7 +263,7 @@ class NetworkManager:
             node_id = consumer_cfg['node_id']
             self.nodes[node_id] = {**consumer_cfg, 'id': node_id, 'type': 'consumer'}
 
-    def _parse_pipes(self, topology_data: Dict):
+    def _parse_pipes(self, topology_data: dict):
         """Parse pipe definitions from topology.
 
         Supported formats:
@@ -318,7 +312,7 @@ class NetworkManager:
 
         virtual_node_id = '_network_root'
         if virtual_node_id not in self.nodes:
-            all_components: Dict = {}
+            all_components: dict = {}
             for ncfg in self.nodes.values():
                 all_components.update(ncfg.get('components', {}))
 
@@ -336,7 +330,7 @@ class NetworkManager:
 
     # ── Main entry point ──────────────────────────────────────────────────────
 
-    def attach_to_model(self, model, time_set, buses: Dict) -> Dict[str, Any]:
+    def attach_to_model(self, model, time_set, buses: dict) -> dict[str, Any]:
         """
         Attach network components to Pyomo model.
 
@@ -396,7 +390,7 @@ class NetworkManager:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _setup_temperatures(self, model, time_set) -> Dict[str, Any]:
+    def _setup_temperatures(self, model, time_set) -> dict[str, Any]:
         """Setup temperature profiles.
 
         Returns a dict with keys: supply_temp, return_temp, ground_temp,
@@ -444,7 +438,7 @@ class NetworkManager:
                 T_outdoor_high_c=T_outdoor_high,
                 T_outdoor_low_c=T_outdoor_low,
             )
-            logger.info(f"\n  HEATING CURVE (Heizkurve) enabled:")
+            logger.info("\n  HEATING CURVE (Heizkurve) enabled:")
             logger.info(f"    Formula: {curve_params['formula']}")
             logger.info(
                 f"    Range: {T_supply_min}°C (at {T_outdoor_high}°C outdoor) "
@@ -472,13 +466,13 @@ class NetworkManager:
             'supply_temp_dict': {t: model.supply_temp_series[t] for t in time_set},
         }
 
-    def _attach_all_pipes(self, model, time_set, buses, temp_setup) -> Dict:
+    def _attach_all_pipes(self, model, time_set, buses, temp_setup) -> dict:
         """Phase 1: Validate and attach all pipe pair blocks."""
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
         use_outdoor_temp = temp_setup['use_outdoor_temp']
 
-        pipe_components: Dict = {}
+        pipe_components: dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
         # Propagate milp_linearize flag from thermal_network config
@@ -505,7 +499,7 @@ class NetworkManager:
 
         return pipe_components
 
-    def _attach_all_nodes(self, model, time_set, buses, temp_setup, pipe_components) -> Dict:
+    def _attach_all_nodes(self, model, time_set, buses, temp_setup, pipe_components) -> dict:
         """Phase 2: Validate and attach all thermal node blocks."""
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
@@ -513,7 +507,7 @@ class NetworkManager:
         # Propagate milp_linearize flag from thermal_network config
         milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
 
-        node_components: Dict = {}
+        node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
 
         for node_id, node_config in self.nodes.items():
@@ -545,7 +539,7 @@ class NetworkManager:
         Also tracks which pipes return to each producer node.
         """
         milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
-        logger.info(f"\nConnecting pipe temperatures to nodes...")
+        logger.info("\nConnecting pipe temperatures to nodes...")
 
         for pipe_id, pipe_comp in pipe_components.items():
             from_node = pipe_comp['from_node']
@@ -595,7 +589,7 @@ class NetworkManager:
 
         Uses Q_consumer (the delay-aware delivery variable) rather than Q_delivered.
         """
-        logger.info(f"\nConnecting consumer demands to pipes...")
+        logger.info("\nConnecting consumer demands to pipes...")
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] != 'consumer':
@@ -687,7 +681,7 @@ class NetworkManager:
 
     def _link_junction_flows(self, model, time_set, pipe_components, node_components) -> None:
         """Phase 4b: Mass flow balance constraints for junction nodes."""
-        logger.info(f"\nSetting up junction flow balance constraints...")
+        logger.info("\nSetting up junction flow balance constraints...")
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] != 'junction':
@@ -742,7 +736,7 @@ class NetworkManager:
 
     def _link_junction_flows_simple(self, model, time_set, pipe_components, node_components) -> None:
         """MILP-mode simplified junction flow balance: supply-side mass balance only."""
-        logger.info(f"\nSetting up simplified junction flow balance (MILP mode)...")
+        logger.info("\nSetting up simplified junction flow balance (MILP mode)...")
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] != 'junction':
@@ -767,7 +761,7 @@ class NetworkManager:
         self, model, time_set, temp_setup, pipe_components, node_components
     ) -> None:
         """Phase 5: Link producer node return temperature to return pipe outlet temperatures."""
-        logger.info(f"\nSetting up plant return temperature constraints...")
+        logger.info("\nSetting up plant return temperature constraints...")
 
         for node_id, node_comp in node_components.items():
             if node_comp['type'] != 'producer':
@@ -803,7 +797,7 @@ class NetworkManager:
                     f"(Big-M dominant-flow, MILP-compatible)"
                 )
 
-        logger.info(f"\nChecking plant-to-network heat linkage...")
+        logger.info("\nChecking plant-to-network heat linkage...")
         for node_id, node_comp in node_components.items():
             if node_comp['type'] == 'producer':
                 outgoing = node_comp.get('outgoing_pipes', [])
@@ -814,12 +808,12 @@ class NetworkManager:
         model,
         time_set,
         node_id: str,
-        pipe_ids: List[str],
-        node_components: Dict,
-        pipe_components: Dict,
+        pipe_ids: list[str],
+        node_components: dict,
+        pipe_components: dict,
         temperature_attr: str = 'T_supply_out',
         node_temp_attr: str = 'T_supply',
-        constraint_prefix: str = None,
+        constraint_prefix: str | None = None,
     ) -> None:
         """Big-M dominant-flow temperature mixing for junctions with multiple incoming pipes.
 
@@ -871,7 +865,7 @@ class NetworkManager:
         )
 
     def _link_pressure_propagation(
-        self, model, time_set, pipe_components: Dict, node_components: Dict
+        self, model, time_set, pipe_components: dict, node_components: dict
     ) -> None:
         """A1 — Pressure propagation through the pipe network.
 
@@ -882,7 +876,7 @@ class NetworkManager:
         Producer nodes have their supply pressure fixed to the configured setpoint.
         Consumer nodes get a minimum pressure constraint (min_required_bar).
         """
-        logger.info(f"\nSetting up pressure propagation constraints...")
+        logger.info("\nSetting up pressure propagation constraints...")
 
         # Fix producer supply pressure setpoints
         for node_id, node_comp in node_components.items():
@@ -1000,7 +994,7 @@ class NetworkManager:
 
     def _setup_network_losses(self, model, time_set, pipe_components) -> None:
         """Phase 6: Create per-timestep network heat loss variable binding all pipe losses."""
-        logger.info(f"\nCreating per-timestep network heat losses...")
+        logger.info("\nCreating per-timestep network heat losses...")
 
         loss_bounds = self.parameters.get('network_Q_loss_bounds_mw', (0, 50))
         try:
@@ -1041,7 +1035,7 @@ class NetworkManager:
 
     # ── Results extraction ─────────────────────────────────────────────────────
 
-    def get_results(self, model, time_set) -> Dict[str, Any]:
+    def get_results(self, model, time_set) -> dict[str, Any]:
         """Extract network results from solved model."""
         if not self.network_enabled:
             return {}
@@ -1132,7 +1126,7 @@ class NetworkManager:
 
         return results
 
-    def export_for_dashboard(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    def export_for_dashboard(self, results: dict[str, Any]) -> dict[str, Any]:
         """Format network results for dashboard visualization."""
         dashboard_data = {
             'metadata': results.get('metadata', {}),
@@ -1161,7 +1155,7 @@ class NetworkManager:
             })
 
         for pipe_id, pipe_result in results['pipes'].items():
-            pipe_config = self.pipes[pipe_id]
+            self.pipes[pipe_id]
             dashboard_data['network_topology']['pipes'].append({
                 'id': pipe_id,
                 'from': pipe_result['from_node'],
@@ -1194,8 +1188,8 @@ class NetworkManager:
         return dashboard_data
 
     def validate_hydraulics_post_optimization(
-        self, heat_series: List[float], dt_h: float = 1.0
-    ) -> Dict[str, Any]:
+        self, heat_series: list[float], dt_h: float = 1.0
+    ) -> dict[str, Any]:
         """Post-optimization validation of hydraulic constraints."""
         if not self.network_enabled:
             return {'is_valid': True, 'violations': [], 'max_utilization': {}, 'recommendations': []}

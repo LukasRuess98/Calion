@@ -10,17 +10,20 @@ This module provides export functions for:
 
 from __future__ import annotations
 
-import os
-import json
 import csv
-from typing import Mapping, Sequence, Any, Dict, List
+import json
+import os
+from collections.abc import Mapping, Sequence
 from datetime import datetime
+from typing import Any
+
 import numpy as np
+
 from calion.analysis.sensitivity import SensitivityResult
 
 __all__ = [
-    "export_latex_tables",
     "export_kpi_summary",
+    "export_latex_tables",
     "export_publication_bundle",
     "format_number",
 ]
@@ -830,8 +833,8 @@ def _create_publication_readme(filepath: str, bundle: dict) -> None:
             f.write(f"- `{os.path.basename(table_path)}` - {table_name.replace('_', ' ').title()}\n")
 
         f.write("\n### Data Files\n\n")
-        f.write(f"- `kpi_summary.json` - Complete KPI metrics in JSON format\n")
-        f.write(f"- `kpi_summary.csv` - Flattened KPI metrics for spreadsheet analysis\n")
+        f.write("- `kpi_summary.json` - Complete KPI metrics in JSON format\n")
+        f.write("- `kpi_summary.csv` - Flattened KPI metrics for spreadsheet analysis\n")
 
         f.write("\n### Plots\n")
         f.write("See the main exports directory for publication-quality figures in PNG, PDF, and EPS formats.\n\n")
@@ -854,7 +857,7 @@ def _create_publication_readme(filepath: str, bundle: dict) -> None:
         f.write("[Your paper citation here]\n")
 
 def export_sensitivity_latex_table(
-    results: Dict[str, List[SensitivityResult]],
+    results: dict[str, list[SensitivityResult]],
     output_path: str,
     table_style: str = "booktabs",
     caption: str = "Sensitivity Analysis Results",
@@ -881,7 +884,7 @@ def export_sensitivity_latex_table(
     str
         Pfad zur erzeugten Datei
     """
-    lines: List[str] = []
+    lines: list[str] = []
 
     use_booktabs = (table_style == "booktabs")
 

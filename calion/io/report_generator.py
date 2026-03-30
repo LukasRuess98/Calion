@@ -15,24 +15,22 @@ Author: CALION Development Team
 Date: 2025-12-16
 """
 
-from typing import Dict, Any, Optional, List
-from pathlib import Path
-from datetime import datetime
 import logging
-import json
+from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Optional dependencies for PDF generation
 try:
-    from weasyprint import HTML, CSS
+    from weasyprint import CSS, HTML  # noqa: F401
     HAVE_WEASYPRINT = True
 except ImportError:
     HAVE_WEASYPRINT = False
 
 try:
-    import plotly.graph_objects as go
-    import plotly.io as pio
+    import plotly.graph_objects as go  # noqa: F401
+    import plotly.io as pio  # noqa: F401
     HAVE_PLOTLY = True
 except ImportError:
     HAVE_PLOTLY = False
@@ -132,7 +130,7 @@ class ReportGenerator:
         else:
             raise ValueError(f"Unknown format: {format}")
 
-    def _extract_report_data(self, workflow_result: Any) -> Dict[str, Any]:
+    def _extract_report_data(self, workflow_result: Any) -> dict[str, Any]:
         """Extract all relevant data from workflow result."""
         data = {
             'meta': {
@@ -214,7 +212,7 @@ class ReportGenerator:
 
         return data
 
-    def _generate_html(self, data: Dict[str, Any], language: str = "de") -> str:
+    def _generate_html(self, data: dict[str, Any], language: str = "de") -> str:
         """Generate HTML report content."""
 
         # Translations

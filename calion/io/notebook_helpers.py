@@ -21,24 +21,23 @@ import json
 import pickle
 import sys
 import warnings
-from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
 from calion.logging_config import get_logger
 
 __all__ = [
-    "setup_notebook_environment",
-    "save_workflow_run",
-    "load_workflow_from_saved",
-    "list_saved_workflows",
-    "display_workflow_summary",
-    "display_kpi_summary",
     "create_and_display_dashboard",
     "diagnose_dashboard_data",
+    "display_kpi_summary",
+    "display_workflow_summary",
+    "list_saved_workflows",
+    "load_workflow_from_saved",
+    "save_workflow_run",
+    "setup_notebook_environment",
 ]
 
 logger = get_logger(__name__)
@@ -94,11 +93,11 @@ def setup_notebook_environment(
     # Find project root
     def find_project_root(start: Path) -> Path:
         """Find project root by looking for .git and calion directories."""
-        for candidate in [start] + list(start.parents):
+        for candidate in [start, *list(start.parents)]:
             if (candidate / '.git').exists() and (candidate / 'calion').exists():
                 return candidate
         # Fallback: look for project name in path
-        for candidate in [start] + list(start.parents):
+        for candidate in [start, *list(start.parents)]:
             if candidate.name == project_name:
                 return candidate
         return start
@@ -151,10 +150,10 @@ def setup_notebook_environment(
 
 def save_workflow_run(
     workflow: Any,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    config_paths: Optional[List[str]] = None,
-    save_dir: Optional[str] = None,
+    name: str | None = None,
+    description: str | None = None,
+    config_paths: list[str] | None = None,
+    save_dir: str | None = None,
     export_first: bool = True,
 ) -> Path:
     """
@@ -199,15 +198,15 @@ def save_workflow_run(
     ... )
     """
 
-    from calion.run import rolling_horizon as rh
     from calion.io._output_paths import resolve_workflows_dir
+    from calion.run import rolling_horizon as rh
 
     # Resolve save_dir (supports legacy path detection)
     save_path = Path(resolve_workflows_dir(save_dir))
     if not save_path.is_absolute():
         # Find project root
         project_root = Path.cwd()
-        for candidate in [project_root] + list(project_root.parents):
+        for candidate in [project_root, *list(project_root.parents)]:
             if (candidate / 'calion').exists():
                 project_root = candidate
                 break
@@ -272,13 +271,13 @@ def save_workflow_run(
     logger.info("✅ WORKFLOW ERFOLGREICH GESPEICHERT")
     logger.info("="*70)
     logger.info(f"📂 Verzeichnis: {export_dir}")
-    logger.info(f"📊 Dateien:")
-    logger.info(f"   • workflow.pkl    - Workflow-Objekt")
-    logger.info(f"   • metadata.json   - Metadaten")
-    logger.info(f"   • *.csv           - Zeitreihen")
-    logger.info(f"   • *.pdf, *.svg    - Plots")
+    logger.info("📊 Dateien:")
+    logger.info("   • workflow.pkl    - Workflow-Objekt")
+    logger.info("   • metadata.json   - Metadaten")
+    logger.info("   • *.csv           - Zeitreihen")
+    logger.info("   • *.pdf, *.svg    - Plots")
     if (export_dir / 'design.json').exists():
-        logger.info(f"   • design.json     - Anlagen-Design")
+        logger.info("   • design.json     - Anlagen-Design")
     logger.info("="*70)
 
     return export_dir
@@ -286,11 +285,11 @@ def save_workflow_run(
 
 def _build_metadata(
     workflow: Any,
-    name: Optional[str],
-    description: Optional[str],
-    config_paths: Optional[List[str]],
+    name: str | None,
+    description: str | None,
+    config_paths: list[str] | None,
     export_dir: Path,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build comprehensive metadata dictionary."""
 
     # Auto-generate name if not provided
@@ -386,9 +385,9 @@ def _build_metadata(
 
 
 def list_saved_workflows(
-    save_dir: Optional[str] = None,
+    save_dir: str | None = None,
     sort_by: str = "date",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     List all saved workflows with metadata.
 
@@ -418,7 +417,7 @@ def list_saved_workflows(
     if not save_path.is_absolute():
         # Find project root
         project_root = Path.cwd()
-        for candidate in [project_root] + list(project_root.parents):
+        for candidate in [project_root, *list(project_root.parents)]:
             if (candidate / 'calion').exists():
                 project_root = candidate
                 break
@@ -439,7 +438,7 @@ def list_saved_workflows(
         # Load metadata if available
         if metadata_file.exists():
             try:
-                with open(metadata_file, 'r', encoding='utf-8') as f:
+                with open(metadata_file, encoding='utf-8') as f:
                     metadata = json.load(f)
 
                 # Extract key information
@@ -587,7 +586,7 @@ def display_workflow_summary(
         logger.info("🏭 Anlagen-Design:")
 
         if workflow.design.heat_pumps:
-            logger.info(f"   Wärmepumpen:")
+            logger.info("   Wärmepumpen:")
             for hp_id, hp_data in sorted(workflow.design.heat_pumps.items()):
                 capacity = hp_data.get('capacity_mw', 0.0)
                 logger.info(f"      {hp_id}: {capacity:>6.2f} MW")
@@ -601,7 +600,7 @@ def display_workflow_summary(
 
 def display_kpi_summary(
     workflow: Any,
-    timeseries_df: Optional[pd.DataFrame] = None,
+    timeseries_df: pd.DataFrame | None = None,
 ) -> None:
     """
     Display detailed KPI summary with component analysis.
@@ -689,7 +688,7 @@ def display_kpi_summary(
     logger.info("="*70)
 
 
-def _display_detailed_cost_breakdown(costs: Dict[str, Any]) -> None:
+def _display_detailed_cost_breakdown(costs: dict[str, Any]) -> None:
     """Display detailed cost breakdown (helper for display_kpi_summary)."""
     logger = get_logger(__name__)
 
@@ -790,7 +789,7 @@ def diagnose_dashboard_data(workflow: Any) -> None:
 
 def create_and_display_dashboard(
     workflow: Any,
-    title: Optional[str] = None,
+    title: str | None = None,
     auto_display: bool = False,
     diagnose: bool = True,
 ) -> Any:
@@ -825,7 +824,7 @@ def create_and_display_dashboard(
     >>> diagnose_dashboard_data(workflow)
     """
 
-    from calion.io.dashboard import create_dashboard, HAVE_PANEL
+    from calion.io.dashboard import HAVE_PANEL, create_dashboard
 
     if not HAVE_PANEL:
         logger.info("❌ Panel nicht installiert!")

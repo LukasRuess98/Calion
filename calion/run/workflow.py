@@ -9,31 +9,26 @@ from __future__ import annotations
 
 import argparse
 import copy
-import logging
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
+from collections.abc import Iterable, Mapping, MutableMapping
+from typing import Any
 
 from calion.config.merge import deep_merge, load_and_merge
 from calion.constants import DEFAULT_HORIZON_HOURS
 from calion.design import (
     OptimizationConfig,
     OptimizationVariables,
-    DesignSpec,
     extract_optimization_results,
     load_optimization_config,
     save_optimization_results,
 )
 from calion.io.loader import load_input_excel
 from calion.logging_config import get_logger
-from calion.models.results import InvestmentDecisions
-from calion.utils.timeseries import TimeSeriesTable
 
 from .cost_helpers import _INVESTMENT_KEYS, _recompute_objective_costs
 from .design_helpers import _extract_design_data, _load_design_override
 from .rh_engine import _load_rolling_params, _run_rolling_horizon
 from .solver import _solve_scenario
 from .types import (
-    DesignData,
     StepHandler,
     WorkflowContext,
     WorkflowInputs,
@@ -43,12 +38,10 @@ from .types import (
 from .utilities import (
     _apply_horizon,
     _assert_capacity_vs_demand,
-    _gather_env_overrides,
     _parse_float_list,
 )
 from .utilities.env_overrides import (
     _OverrideValues,
-    _normalise_run_mode,
     _parse_run_mode,
 )
 
@@ -59,7 +52,7 @@ logger = get_logger(__name__)
 # Step-handler registry
 # ---------------------------------------------------------------------------
 
-_STEP_HANDLERS: Dict[str, StepHandler] = {}
+_STEP_HANDLERS: dict[str, StepHandler] = {}
 
 
 def register_workflow_step(name: str, handler: StepHandler) -> None:
@@ -77,7 +70,7 @@ def unregister_workflow_step(name: str) -> None:
         _STEP_HANDLERS.pop(key, None)
 
 
-def get_registered_workflow_steps() -> List[str]:
+def get_registered_workflow_steps() -> list[str]:
     """Return the currently registered workflow step identifiers."""
     return sorted(_STEP_HANDLERS.keys())
 
@@ -130,7 +123,7 @@ def _parse_workflow_plan(scenario_cfg: Mapping[str, Any]) -> WorkflowPlan:
 # ---------------------------------------------------------------------------
 
 def _build_workflow_inputs(
-    config_paths: List[str], overrides: Optional[Dict[str, Any]] = None
+    config_paths: list[str], overrides: dict[str, Any] | None = None
 ) -> WorkflowInputs:
     cfg = load_and_merge(config_paths)
     if overrides:
@@ -246,8 +239,8 @@ def _rh_step(context: WorkflowContext) -> None:
 def _mpc_step(context: WorkflowContext) -> None:
     """Model Predictive Control with forecast updates."""
 
-    from calion.forecasting.persistence import PersistenceForecast
     from calion.forecasting.perfect_noise import PerfectNoiseForecast
+    from calion.forecasting.persistence import PersistenceForecast
     from calion.run.mpc import run_mpc
 
     mpc_cfg = context.cfg.get("scenario", {}).get("mpc", {})
@@ -321,7 +314,7 @@ _register_default_steps()
 # Main public API
 # ---------------------------------------------------------------------------
 
-def run_workflow(config_paths: List[str], overrides: Optional[Dict[str, Any]] = None) -> WorkflowResult:
+def run_workflow(config_paths: list[str], overrides: dict[str, Any] | None = None) -> WorkflowResult:
     """Execute the configured workflow (PF, RH, MPC or combinations).
 
     Parameters
@@ -410,8 +403,8 @@ def _merge_cli_and_env(
     return values, horizon_value, step_value, overlap_value
 
 
-def _build_override_dict(values: _OverrideValues) -> Dict[str, Any]:
-    overrides: Dict[str, Any] = {}
+def _build_override_dict(values: _OverrideValues) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
     if values.run_mode:
         _assign(overrides, ["scenario", "run_mode"], values.run_mode)
     if values.fix_design is not None:
@@ -431,12 +424,12 @@ def _build_override_dict(values: _OverrideValues) -> Dict[str, Any]:
 
 def _expand_sensitivity_runs(
     args: argparse.Namespace,
-    base_overrides: Dict[str, Any],
+    base_overrides: dict[str, Any],
     horizon_value: float | None,
     step_value: float | None,
     overlap_value: float | None,
-) -> List[tuple[float | None, float | None, float | None, Dict[str, Any]]]:
-    def _choices(values: List[float] | None, default: float | None) -> List[float | None]:
+) -> list[tuple[float | None, float | None, float | None, dict[str, Any]]]:
+    def _choices(values: list[float] | None, default: float | None) -> list[float | None]:
         if values:
             return list(values)
         if default is not None:
@@ -568,13 +561,13 @@ def add_workflow_cli_args(parser: argparse.ArgumentParser) -> None:
 
 
 __all__ = [
-    "run_workflow",
-    "register_workflow_step",
-    "unregister_workflow_step",
-    "get_registered_workflow_steps",
-    "add_workflow_cli_args",
-    "WorkflowResult",
     "WorkflowContext",
-    "WorkflowPlan",
     "WorkflowInputs",
+    "WorkflowPlan",
+    "WorkflowResult",
+    "add_workflow_cli_args",
+    "get_registered_workflow_steps",
+    "register_workflow_step",
+    "run_workflow",
+    "unregister_workflow_step",
 ]

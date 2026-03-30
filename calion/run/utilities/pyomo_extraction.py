@@ -10,7 +10,8 @@ Extracted from rolling_horizon.py to improve modularity and testability.
 from __future__ import annotations
 
 import math
-from typing import Any, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -29,7 +30,7 @@ def _extract_pyomo_series(
     times: Sequence[Any],
     name: str,
     tolerance: float = 1e-9
-) -> List[float]:
+) -> list[float]:
     """
     Safely extract a time series from a Pyomo variable.
 
@@ -50,7 +51,7 @@ def _extract_pyomo_series(
         List of float values, one per time step in 'times'.
         Always returns the same number of elements as 'times'.
     """
-    values: List[float] = []
+    values: list[float] = []
 
     for t in times:
         try:

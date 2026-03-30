@@ -17,13 +17,11 @@ between electricity consumption patterns and grid CO2 intensity variations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-import math
+from typing import Any
 
 import pandas as pd
-import numpy as np
 
 
 @dataclass
@@ -36,7 +34,7 @@ class ResolutionScenario:
     total_electricity_mwh: float
     co2_intensity_kg_mwh: float  # Effective CO2 intensity
     factors_used: int  # Number of distinct factors used
-    timeseries_co2_kg: Optional[List[float]] = None
+    timeseries_co2_kg: list[float] | None = None
 
     @property
     def total_co2_t(self) -> float:
@@ -65,11 +63,11 @@ class CO2ResolutionAnalysis:
         Timestep duration [hours]
     """
 
-    scenarios: Dict[str, ResolutionScenario]
+    scenarios: dict[str, ResolutionScenario]
     reference_resolution: str
-    timestamps: List[datetime]
-    electricity_mwh: List[float]
-    grid_co2_factors: List[float]
+    timestamps: list[datetime]
+    electricity_mwh: list[float]
+    grid_co2_factors: list[float]
     dt_h: float
 
     def get_deviation_percent(self, scenario_name: str) -> float:
@@ -87,7 +85,7 @@ class CO2ResolutionAnalysis:
         rows = []
         ref_co2 = self.scenarios[self.reference_resolution].total_co2_kg
 
-        for name, scen in self.scenarios.items():
+        for _name, scen in self.scenarios.items():
             deviation = (scen.total_co2_kg - ref_co2) / ref_co2 * 100 if ref_co2 > 0 else 0
             rows.append({
                 'Auflösung': scen.name,
@@ -105,9 +103,9 @@ class CO2ResolutionAnalysis:
 
 
 def analyze_co2_resolution(
-    timestamps: List[datetime],
-    electricity_mw: List[float],
-    grid_co2_kg_mwh: List[float],
+    timestamps: list[datetime],
+    electricity_mw: list[float],
+    grid_co2_kg_mwh: list[float],
     dt_h: float = 1.0,
 ) -> CO2ResolutionAnalysis:
     """
@@ -149,7 +147,7 @@ def analyze_co2_resolution(
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.set_index('timestamp', inplace=True)
 
-    scenarios: Dict[str, ResolutionScenario] = {}
+    scenarios: dict[str, ResolutionScenario] = {}
 
     # Determine reference resolution based on timestep
     if dt_h <= 0.25:
@@ -213,7 +211,7 @@ def analyze_co2_resolution(
     # 4. Hourly resolution (original or aggregated)
     if dt_h <= 1.0:
         # Original data is hourly or finer - use original factors
-        hourly_co2_ts = [e * f for e, f in zip(electricity_mwh, grid_co2_kg_mwh)]
+        hourly_co2_ts = [e * f for e, f in zip(electricity_mwh, grid_co2_kg_mwh, strict=False)]
         hourly_co2_kg = sum(hourly_co2_ts)
         scenarios['hourly'] = ResolutionScenario(
             name='Stündliche Auflösung',
@@ -240,7 +238,7 @@ def analyze_co2_resolution(
 
     # 5. Quarter-hourly (15min) resolution - only if data supports it
     if dt_h <= 0.25:
-        qh_co2_ts = [e * f for e, f in zip(electricity_mwh, grid_co2_kg_mwh)]
+        qh_co2_ts = [e * f for e, f in zip(electricity_mwh, grid_co2_kg_mwh, strict=False)]
         qh_co2_kg = sum(qh_co2_ts)
         scenarios['15min'] = ResolutionScenario(
             name='15-Minuten Auflösung',
@@ -262,7 +260,7 @@ def analyze_co2_resolution(
     )
 
 
-def analyze_from_result(result: Any, dt_h: float = 1.0) -> Optional[CO2ResolutionAnalysis]:
+def analyze_from_result(result: Any, dt_h: float = 1.0) -> CO2ResolutionAnalysis | None:
     """
     Analyze CO2 resolution from a workflow result object.
 

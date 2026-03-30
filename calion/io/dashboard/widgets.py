@@ -6,7 +6,6 @@ Contains interactive controls, filters, and other reusable UI elements.
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple
 import pandas as pd
 
 try:
@@ -19,10 +18,10 @@ except ImportError:
 
 def create_time_range_slider(
     total_hours: int,
-    default_range: Optional[Tuple[int, int]] = None,
+    default_range: tuple[int, int] | None = None,
     step: int = 24,
     name: str = 'Zeitbereich (Stunden)'
-) -> 'pn.widgets.IntRangeSlider':
+) -> pn.widgets.IntRangeSlider:
     """
     Create a time range slider widget.
 
@@ -59,10 +58,10 @@ def create_time_range_slider(
 
 
 def create_quick_filter_buttons(
-    time_slider: 'pn.widgets.IntRangeSlider',
+    time_slider: pn.widgets.IntRangeSlider,
     df: pd.DataFrame,
     demand_col: str = 'demand_MW'
-) -> 'pn.Row':
+) -> pn.Row:
     """
     Create quick filter buttons for time range selection.
 
@@ -126,10 +125,10 @@ def create_quick_filter_buttons(
 
 
 def create_component_selector(
-    components: List[str],
+    components: list[str],
     name: str = 'Komponenten',
     default_count: int = 3
-) -> 'pn.widgets.MultiChoice':
+) -> pn.widgets.MultiChoice:
     """
     Create a multi-choice selector for components.
 
@@ -160,9 +159,9 @@ def create_component_selector(
 
 def create_plot_type_selector(
     name: str = 'Plot-Typ',
-    options: Optional[List[str]] = None,
+    options: list[str] | None = None,
     default: str = 'Stacked Area'
-) -> 'pn.widgets.Select':
+) -> pn.widgets.Select:
     """
     Create a plot type selector.
 
@@ -196,7 +195,7 @@ def create_plot_type_selector(
 def create_aggregation_selector(
     name: str = 'Aggregation',
     default: str = 'Stündlich'
-) -> 'pn.widgets.Select':
+) -> pn.widgets.Select:
     """
     Create an aggregation level selector.
 
@@ -226,7 +225,7 @@ def create_control_card(
     *widgets,
     title: str = "Steuerung",
     collapsed: bool = False
-) -> 'pn.Card':
+) -> pn.Card:
     """
     Create a collapsible card containing control widgets.
 
@@ -258,9 +257,9 @@ def create_control_card(
 def create_warning_message(
     title: str,
     message: str,
-    troubleshooting: Optional[str] = None,
-    solutions: Optional[List[str]] = None
-) -> 'pn.Column':
+    troubleshooting: str | None = None,
+    solutions: list[str] | None = None
+) -> pn.Column:
     """
     Create a formatted warning message panel.
 

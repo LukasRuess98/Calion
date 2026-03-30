@@ -14,8 +14,8 @@ Key Features:
 Author: CALION Development Team
 """
 
-from typing import Dict, Any, Optional, List
 import logging
+from typing import Any
 
 try:
     import pyomo.environ as pyo
@@ -54,7 +54,7 @@ class HeatExchangerBlock(BaseComponent):
     """
 
     @staticmethod
-    def validate_config(config: Dict[str, Any]) -> None:
+    def validate_config(config: dict[str, Any]) -> None:
         """Validate heat exchanger configuration."""
         required = ['id', 'primary_network', 'secondary_network']
         for field in required:
@@ -66,7 +66,7 @@ class HeatExchangerBlock(BaseComponent):
             raise ValueError(f"HeatExchanger effectiveness must be in (0, 1], got {effectiveness}")
 
     @staticmethod
-    def attach(model, time_set, config: Dict[str, Any], buses: Dict = None) -> Dict[str, Any]:
+    def attach(model, time_set, config: dict[str, Any], buses: dict | None = None) -> dict[str, Any]:
         """
         Attach heat exchanger component to Pyomo model.
 
@@ -94,13 +94,13 @@ class HeatExchangerBlock(BaseComponent):
         effectiveness = config.get('effectiveness', 0.85)
         max_power_mw = config.get('max_power_mw', 10.0)
         min_power_mw = config.get('min_power_mw', 0.0)
-        min_load_fraction = config.get('min_load_fraction', 0.1)
+        config.get('min_load_fraction', 0.1)
 
         # Temperature parameters (will be linked to networks)
         T_prim_in_nominal = config.get('T_primary_in_c', 60.0)  # Return from high-temp
-        T_prim_out_nominal = config.get('T_primary_out_c', 40.0)
+        config.get('T_primary_out_c', 40.0)
         T_sec_in_nominal = config.get('T_secondary_in_c', 30.0)  # Return to low-temp
-        T_sec_out_nominal = config.get('T_secondary_out_c', 55.0)  # Supply to low-temp
+        config.get('T_secondary_out_c', 55.0)  # Supply to low-temp
 
         # Fluid properties
         cp_water = 4.186  # kJ/(kg·K)
@@ -310,7 +310,7 @@ class HeatExchangerBlock(BaseComponent):
         return result
 
     @staticmethod
-    def get_results(model, time_set, config: Dict[str, Any]) -> Dict[str, Any]:
+    def get_results(model, time_set, config: dict[str, Any]) -> dict[str, Any]:
         """Extract results from solved model."""
         hx_id = config.get('id', 'HX_1')
         prefix = hx_id.upper().replace('-', '_')

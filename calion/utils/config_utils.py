@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 import yaml
 
 from calion.config.merge import deep_merge
-
 
 # Default heating curve profiles (fallback if config file not found)
 _DEFAULT_HEATING_CURVES = {
@@ -32,7 +31,7 @@ _DEFAULT_HEATING_CURVES = {
 }
 
 
-def apply_heat_pump_defaults(system_cfg: Mapping[str, Any]) -> List[dict]:
+def apply_heat_pump_defaults(system_cfg: Mapping[str, Any]) -> list[dict]:
     """Return heat pump configs with ``heat_pump_defaults`` applied.
 
     The helper preserves the original list order and leaves untouched entries
@@ -48,7 +47,7 @@ def apply_heat_pump_defaults(system_cfg: Mapping[str, Any]) -> List[dict]:
     if not isinstance(heat_pumps, list) or not heat_pumps:
         return []
 
-    resolved: List[dict] = []
+    resolved: list[dict] = []
     for entry in heat_pumps:
         if not isinstance(entry, Mapping):
             continue
@@ -61,7 +60,7 @@ def apply_heat_pump_defaults(system_cfg: Mapping[str, Any]) -> List[dict]:
     return resolved
 
 
-def _normalize_heat_pump_config(hp_cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_heat_pump_config(hp_cfg: dict[str, Any]) -> dict[str, Any]:
     """Normalize heat pump config to the format expected by system_builder.
 
     Handles both old and new config structures:
@@ -91,7 +90,7 @@ def _normalize_heat_pump_config(hp_cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     if isinstance(hp_defaults, dict):
         default_capacity = hp_defaults.get("capacity_mw")
-        default_build = hp_defaults.get("build", True)
+        hp_defaults.get("build", True)
 
         # Store defaults for apply_optimization_config to use
         result["defaults"] = hp_defaults
@@ -135,7 +134,7 @@ def _normalize_heat_pump_config(hp_cfg: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def normalize_storage_config(storage_cfg: Mapping[str, Any]) -> Dict[str, Any]:
+def normalize_storage_config(storage_cfg: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize storage config to the format expected by system_builder.
 
     Handles both old and new config structures:
@@ -172,7 +171,7 @@ def normalize_storage_config(storage_cfg: Mapping[str, Any]) -> Dict[str, Any]:
     if isinstance(sto_defaults, dict):
         default_energy = sto_defaults.get("energy_mwh")
         default_power = sto_defaults.get("power_mw")
-        default_build = sto_defaults.get("build", True)
+        sto_defaults.get("build", True)
 
         # Store defaults for apply_optimization_config to use
         result["defaults"] = sto_defaults
@@ -231,7 +230,7 @@ def normalize_storage_config(storage_cfg: Mapping[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> Dict[str, Any]:
+def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize thermal network config to the format expected by NetworkManager.
 
     Supports both:
@@ -325,7 +324,7 @@ def normalize_thermal_network_config(cfg: Mapping[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def load_heating_curves(config_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+def load_heating_curves(config_dir: Path | None = None) -> dict[str, dict[str, Any]]:
     """Load heating curve profiles from configs/01_tech/heating_curves.yaml.
 
     Args:
@@ -345,7 +344,7 @@ def load_heating_curves(config_dir: Optional[Path] = None) -> Dict[str, Dict[str
 
     if heating_curves_path.exists():
         try:
-            with open(heating_curves_path, "r", encoding="utf-8") as f:
+            with open(heating_curves_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
                 if isinstance(data, dict) and "heating_curves" in data:
                     return data["heating_curves"]
@@ -358,8 +357,8 @@ def load_heating_curves(config_dir: Optional[Path] = None) -> Dict[str, Dict[str
 
 def resolve_heating_curve_profile(
     heating_curve_cfg: Mapping[str, Any],
-    config_dir: Optional[Path] = None,
-) -> Dict[str, Any]:
+    config_dir: Path | None = None,
+) -> dict[str, Any]:
     """Resolve a heating curve profile reference to its full parameters.
 
     If heating_curve_cfg contains a 'profile' key, looks up the named profile

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_sankey_tab(data: 'DashboardData') -> 'pn.Column':
+def create_sankey_tab(data: DashboardData) -> pn.Column:
     """
     Create Sankey diagram tab for energy flows.
 
@@ -67,7 +67,7 @@ def create_sankey_tab(data: 'DashboardData') -> 'pn.Column':
     )
 
 
-def _create_heat_sankey(data: 'DashboardData'):
+def _create_heat_sankey(data: DashboardData):
     """Create heat Sankey diagram."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")
@@ -118,9 +118,9 @@ def _create_heat_sankey(data: 'DashboardData'):
             color=['#EE6677'] + ['#4477AA'] * (len(nodes) - 1)
         ),
         link=dict(
-            source=[l['source'] for l in links],
-            target=[l['target'] for l in links],
-            value=[l['value'] for l in links],
+            source=[lnk['source'] for lnk in links],
+            target=[lnk['target'] for lnk in links],
+            value=[lnk['value'] for lnk in links],
             color='rgba(68, 119, 170, 0.4)'
         )
     )])
@@ -134,7 +134,7 @@ def _create_heat_sankey(data: 'DashboardData'):
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
 
-def _create_heat_stats(data: 'DashboardData') -> str:
+def _create_heat_stats(data: DashboardData) -> str:
     """Create heat statistics markdown."""
     total_demand = data.original_total_demand_MWh
     total_gen = data.original_total_heat_production
@@ -160,7 +160,7 @@ def _create_heat_stats(data: 'DashboardData') -> str:
     return stats_md
 
 
-def _create_electricity_sankey(data: 'DashboardData'):
+def _create_electricity_sankey(data: DashboardData):
     """Create Sankey diagram for electricity flows."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")
@@ -219,7 +219,7 @@ def _create_electricity_sankey(data: 'DashboardData'):
         idx += 1
 
     # Create links proportionally
-    total_sources = sum(sources.values())
+    sum(sources.values())
     total_consumers = sum(consumers.values())
 
     for source_name, source_value in sources.items():
@@ -250,9 +250,9 @@ def _create_electricity_sankey(data: 'DashboardData'):
             color=node_colors
         ),
         link=dict(
-            source=[l['source'] for l in links],
-            target=[l['target'] for l in links],
-            value=[l['value'] for l in links],
+            source=[lnk['source'] for lnk in links],
+            target=[lnk['target'] for lnk in links],
+            value=[lnk['value'] for lnk in links],
             color='rgba(68, 119, 170, 0.3)'
         )
     )])

@@ -13,61 +13,24 @@ New code should import from the specific module instead::
 """
 
 # --- Types (dataclasses, type aliases) ------------------------------------
-from calion.run.types import (  # noqa: F401
-    ScenarioResult,
-    WindowResult,
-    DesignData,
-    RollingHorizonResult,
-    WorkflowPlan,
-    WorkflowInputs,
-    WorkflowContext,
-    WorkflowResult,
-    _RollingParams,
-    _CostAggregationPlan,
-    StepHandler,
-)
-
-# --- Result extraction ----------------------------------------------------
-from calion.run.result_collector import (  # noqa: F401
-    _json_safe,
-    _gather_component_metadata,
-    _flatten_summary,
-    _as_float,
-    _extract_design_from_summary,
-    _collect_timeseries_and_summary,
-)
+# ``main`` now lives in ``calion.run.__main__`` (the unified CLI).
+from calion.run.__main__ import main
 
 # --- Cost helpers ---------------------------------------------------------
 from calion.run.cost_helpers import (  # noqa: F401
     _INVESTMENT_KEYS,
     _SKIP_KEYS,
     _accumulate_costs,
-    _recompute_objective_costs,
     _apply_cost_overrides,
+    _recompute_objective_costs,
 )
 
 # --- Design helpers -------------------------------------------------------
 from calion.run.design_helpers import (  # noqa: F401
-    _extract_design_data,
-    _design_from_mapping,
-    _load_design_override,
     _apply_design_fix,
-)
-
-# --- Solver ---------------------------------------------------------------
-from calion.run.solver import _solve_scenario  # noqa: F401
-
-# --- RH engine ------------------------------------------------------------
-from calion.run.rh_engine import (  # noqa: F401
-    _initial_soc,
-    _storage_enabled,
-    _set_initial_soc,
-    _apply_terminal_policy,
-    _next_soc,
-    _extend_series,
-    _load_rolling_params,
-    _load_cost_plan,
-    _run_rolling_horizon,
+    _design_from_mapping,
+    _extract_design_data,
+    _load_design_override,
 )
 
 # --- Export ----------------------------------------------------------------
@@ -76,61 +39,97 @@ from calion.run.export import (  # noqa: F401
     export_workflow_results,
 )
 
-# --- Workflow (orchestration, step registry, CLI) -------------------------
-from calion.run.workflow import (  # noqa: F401
-    _STEP_HANDLERS,
-    register_workflow_step,
-    unregister_workflow_step,
-    get_registered_workflow_steps,
-    _parse_workflow_plan,
-    _build_workflow_inputs,
-    run_workflow,
-    _assign,
-    _merge_cli_and_env,
-    _build_override_dict,
-    _expand_sensitivity_runs,
-    add_workflow_cli_args,
+# --- Result extraction ----------------------------------------------------
+from calion.run.result_collector import (  # noqa: F401
+    _as_float,
+    _collect_timeseries_and_summary,
+    _extract_design_from_summary,
+    _flatten_summary,
+    _gather_component_metadata,
+    _json_safe,
 )
 
-# ``main`` now lives in ``calion.run.__main__`` (the unified CLI).
-from calion.run.__main__ import main  # noqa: F401
+# --- RH engine ------------------------------------------------------------
+from calion.run.rh_engine import (  # noqa: F401
+    _apply_terminal_policy,
+    _extend_series,
+    _initial_soc,
+    _load_cost_plan,
+    _load_rolling_params,
+    _next_soc,
+    _run_rolling_horizon,
+    _set_initial_soc,
+    _storage_enabled,
+)
+
+# --- Solver ---------------------------------------------------------------
+from calion.run.solver import _solve_scenario  # noqa: F401
+from calion.run.types import (  # noqa: F401
+    DesignData,
+    RollingHorizonResult,
+    ScenarioResult,
+    StepHandler,
+    WindowResult,
+    WorkflowContext,
+    WorkflowInputs,
+    WorkflowPlan,
+    WorkflowResult,
+    _CostAggregationPlan,
+    _RollingParams,
+)
 
 # --- Utilities (re-exported for callers that did ``from rolling_horizon import _slice_table``) ---
 from calion.run.utilities import (  # noqa: F401
-    _slice_table,
-    _parse_ts,
     _apply_horizon,
-    _hours_to_steps,
-    _slugify,
-    _extract_pyomo_series,
-    _env_str,
-    _env_float,
-    _env_bool,
-    _parse_float_list,
-    _gather_env_overrides,
     _assert_capacity_vs_demand,
+    _env_bool,
+    _env_float,
+    _env_str,
+    _extract_pyomo_series,
+    _gather_env_overrides,
+    _hours_to_steps,
+    _parse_float_list,
+    _parse_ts,
+    _slice_table,
+    _slugify,
 )
 from calion.run.utilities.env_overrides import (  # noqa: F401
-    _OverrideValues,
     _normalise_run_mode,
+    _OverrideValues,
     _parse_run_mode,
 )
 
+# --- Workflow (orchestration, step registry, CLI) -------------------------
+from calion.run.workflow import (  # noqa: F401
+    _STEP_HANDLERS,
+    _assign,
+    _build_override_dict,
+    _build_workflow_inputs,
+    _expand_sensitivity_runs,
+    _merge_cli_and_env,
+    _parse_workflow_plan,
+    add_workflow_cli_args,
+    get_registered_workflow_steps,
+    register_workflow_step,
+    run_workflow,
+    unregister_workflow_step,
+)
+
 __all__ = [
+    "DesignData",
+    "RollingHorizonResult",
     "ScenarioResult",
     "WindowResult",
-    "RollingHorizonResult",
-    "DesignData",
-    "WorkflowInputs",
-    "WorkflowResult",
-    "run_workflow",
-    "export_workflow_results",
     "WorkflowContext",
+    "WorkflowInputs",
     "WorkflowPlan",
-    "register_workflow_step",
-    "unregister_workflow_step",
+    "WorkflowResult",
+    "export_workflow_results",
     "get_registered_workflow_steps",
     "main",
+    "register_workflow_step",
+    "run_workflow",
+    "unregister_workflow_step",
 ]
 
 

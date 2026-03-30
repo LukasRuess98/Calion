@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional, Literal, Protocol, runtime_checkable
 from enum import Enum
+from typing import Any, Literal, Protocol, runtime_checkable
 
 try:
     import pyomo.environ as pyo
@@ -52,13 +52,13 @@ class Flow:
     """
     bus: str
     direction: Literal["input", "output"]
-    variable: Optional[Any] = None  # pyo.Var - set during attach
-    nominal_value: Optional[float] = None
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
+    variable: Any | None = None  # pyo.Var - set during attach
+    nominal_value: float | None = None
+    min_value: float | None = None
+    max_value: float | None = None
     investment: bool = False
-    variable_costs: Optional[float] = None
-    flow_type: Optional[str] = None
+    variable_costs: float | None = None
+    flow_type: str | None = None
 
 
 @dataclass
@@ -68,10 +68,10 @@ class InvestmentResult:
 
     Contains the variables related to investment decisions.
     """
-    capacity: Optional[Any] = None  # pyo.Var
-    build: Optional[Any] = None  # pyo.Var (binary)
-    capacity_energy: Optional[Any] = None  # For storage
-    capacity_power: Optional[Any] = None  # For storage
+    capacity: Any | None = None  # pyo.Var
+    build: Any | None = None  # pyo.Var (binary)
+    capacity_energy: Any | None = None  # For storage
+    capacity_power: Any | None = None  # For storage
 
 
 @runtime_checkable
@@ -92,9 +92,9 @@ class Component(Protocol):
         self,
         model: Any,  # pyo.ConcreteModel
         time_set: Any,  # pyo.Set
-        config: Dict[str, Any],
-        buses: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        config: dict[str, Any],
+        buses: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Attach component to the Pyomo model.
 
@@ -120,7 +120,7 @@ class Component(Protocol):
         self,
         model: Any,  # pyo.ConcreteModel
         time_set: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract results from solved model.
 
@@ -133,7 +133,7 @@ class Component(Protocol):
         """
         ...
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
+    def validate_config(self, config: dict[str, Any]) -> None:
         """
         Validate component configuration.
 
@@ -161,7 +161,7 @@ class BaseComponent(ABC):
         _attached: Whether component has been attached to a model
     """
 
-    def __init__(self, name: str, label: str = None):
+    def __init__(self, name: str, label: str | None = None):
         """
         Initialize base component.
 
@@ -171,7 +171,7 @@ class BaseComponent(ABC):
         """
         self.name = name
         self.label = label or name
-        self.flows: List[Flow] = []
+        self.flows: list[Flow] = []
         self._attached = False
         self._model = None
         self._time_set = None
@@ -181,9 +181,9 @@ class BaseComponent(ABC):
         self,
         model: Any,
         time_set: Any,
-        config: Dict[str, Any],
-        buses: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        config: dict[str, Any],
+        buses: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Attach component to model - must be implemented by subclasses.
 
@@ -207,7 +207,7 @@ class BaseComponent(ABC):
         """
         self.flows.append(flow)
 
-    def get_flows_for_bus(self, bus_name: str) -> List[Flow]:
+    def get_flows_for_bus(self, bus_name: str) -> list[Flow]:
         """
         Get all flows connected to a specific bus.
 
@@ -219,11 +219,11 @@ class BaseComponent(ABC):
         """
         return [f for f in self.flows if f.bus == bus_name]
 
-    def get_input_flows(self) -> List[Flow]:
+    def get_input_flows(self) -> list[Flow]:
         """Get all input flows."""
         return [f for f in self.flows if f.direction == "input"]
 
-    def get_output_flows(self) -> List[Flow]:
+    def get_output_flows(self) -> list[Flow]:
         """Get all output flows."""
         return [f for f in self.flows if f.direction == "output"]
 
@@ -231,7 +231,7 @@ class BaseComponent(ABC):
         self,
         model: Any,
         time_set: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Default implementation for result extraction.
 
@@ -260,7 +260,7 @@ class BaseComponent(ABC):
 
         return results
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
+    def validate_config(self, config: dict[str, Any]) -> None:  # noqa: B027
         """
         Default configuration validation.
 
@@ -297,8 +297,8 @@ class BaseComponent(ABC):
         self,
         value: float,
         name: str,
-        min_val: Optional[float] = None,
-        max_val: Optional[float] = None
+        min_val: float | None = None,
+        max_val: float | None = None
     ) -> None:
         """
         Helper to validate value is in range.

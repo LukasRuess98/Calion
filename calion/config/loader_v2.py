@@ -6,30 +6,30 @@ Loads new config structure: tech_library → assets → scenarios
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
+
 import yaml
 
 from calion.config.schemas import (
     # Asset schemas
     ComponentAsset,
-    HeatPumpAsset,
-    StorageAsset,
+    FuelProperties,
     GeneratorAsset,
-    P2HAsset,
+    GeneratorTechnology,
     GridConnection,
-    # Network schemas
-    NetworkTopology,
+    HeatPumpAsset,
     # Tech library schemas
     HeatPumpTechnology,
-    StorageTechnology,
-    GeneratorTechnology,
+    # Network schemas
+    NetworkTopology,
+    P2HAsset,
     P2HTechnology,
     PipeTechnology,
-    FuelProperties,
     # Scenario schemas
     Scenario,
+    StorageAsset,
+    StorageTechnology,
 )
 
 
@@ -48,13 +48,13 @@ class ConfigLoaderV2:
         self.config_root = self.scenario_dir.parent
 
         # Loaded data
-        self.scenario: Optional[Scenario] = None
-        self.tech_library: Dict[str, Any] = {}
-        self.components: Dict[str, ComponentAsset] = {}
-        self.grid: Optional[GridConnection] = None
-        self.network: Optional[NetworkTopology] = None
+        self.scenario: Scenario | None = None
+        self.tech_library: dict[str, Any] = {}
+        self.components: dict[str, ComponentAsset] = {}
+        self.grid: GridConnection | None = None
+        self.network: NetworkTopology | None = None
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """
         Load complete configuration.
 
@@ -73,9 +73,9 @@ class ConfigLoaderV2:
         # 4. Build unified config dict (for backward compatibility)
         return self._build_unified_config()
 
-    def _load_yaml(self, path: Path) -> Dict[str, Any]:
+    def _load_yaml(self, path: Path) -> dict[str, Any]:
         """Load YAML file."""
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             return yaml.safe_load(f)
 
     def _resolve_path(self, relative_path: str) -> Path:
@@ -87,7 +87,7 @@ class ConfigLoaderV2:
         data = self._load_yaml(self.scenario_path)
         return Scenario.from_dict(data)
 
-    def _load_tech_library(self) -> Dict[str, Any]:
+    def _load_tech_library(self) -> dict[str, Any]:
         """Load technology library."""
         tech_lib_dir = self.config_root / "tech_library"
 
@@ -215,7 +215,7 @@ class ConfigLoaderV2:
         network_data = self._load_yaml(network_path)
         self.network = NetworkTopology.from_dict(network_data)
 
-    def _build_unified_config(self) -> Dict[str, Any]:
+    def _build_unified_config(self) -> dict[str, Any]:
         """
         Build unified config dict for backward compatibility.
 
@@ -302,13 +302,13 @@ class ConfigLoaderV2:
 
         return config
 
-    def _build_component_configs(self, config: Dict[str, Any]):
+    def _build_component_configs(self, config: dict[str, Any]):
         """Build component configs in backward-compatible format."""
         system = config['system']
 
         # Heat pumps
         system['heat_pumps'] = []
-        for comp_id, comp in self.components.items():
+        for _comp_id, comp in self.components.items():
             if isinstance(comp, HeatPumpAsset):
                 # Get technology from library
                 tech = self.tech_library['heat_pumps'].get(comp.technology)
@@ -342,7 +342,7 @@ class ConfigLoaderV2:
 
         # Storage
         system['storage'] = []
-        for comp_id, comp in self.components.items():
+        for _comp_id, comp in self.components.items():
             if isinstance(comp, StorageAsset):
                 tech = self.tech_library['storage'].get(comp.technology)
                 if not tech:
@@ -371,7 +371,7 @@ class ConfigLoaderV2:
 
         # Thermal generators (CHP + Boilers + Waste Heat)
         system['thermal_generators'] = []
-        for comp_id, comp in self.components.items():
+        for _comp_id, comp in self.components.items():
             if isinstance(comp, GeneratorAsset):
                 tech = self.tech_library['generators'].get(comp.technology)
                 if not tech:
@@ -406,7 +406,7 @@ class ConfigLoaderV2:
 
         # P2H
         system['p2h'] = []
-        for comp_id, comp in self.components.items():
+        for _comp_id, comp in self.components.items():
             if isinstance(comp, P2HAsset):
                 tech = self.tech_library['p2h'].get(comp.technology)
                 if not tech:
@@ -433,7 +433,7 @@ class ConfigLoaderV2:
                 system['p2h'].append(p2h_config)
 
 
-def load_config_v2(scenario_path: str) -> Dict[str, Any]:
+def load_config_v2(scenario_path: str) -> dict[str, Any]:
     """
     Load v2.0 configuration structure.
 

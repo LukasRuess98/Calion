@@ -4,15 +4,15 @@ Configuration validation for CALION v2.0.
 Validates loaded configuration for consistency and completeness.
 """
 
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
 from calion.config.schemas import (
-    Scenario,
     ComponentAsset,
+    GridConnection,
     HeatPumpAsset,
     NetworkTopology,
-    GridConnection,
+    Scenario,
 )
 from calion.logging_config import get_logger
 
@@ -26,7 +26,7 @@ class ValidationError:
     severity: str  # error, warning, info
     category: str  # component, network, tech_library, scenario
     message: str
-    location: Optional[str] = None  # e.g., "heat_pumps.HP1"
+    location: str | None = None  # e.g., "heat_pumps.HP1"
 
 
 @dataclass
@@ -34,11 +34,11 @@ class ValidationResult:
     """Result of configuration validation."""
 
     valid: bool
-    errors: List[ValidationError]
-    warnings: List[ValidationError]
-    info: List[ValidationError]
+    errors: list[ValidationError]
+    warnings: list[ValidationError]
+    info: list[ValidationError]
 
-    def add_error(self, category: str, message: str, location: Optional[str] = None):
+    def add_error(self, category: str, message: str, location: str | None = None):
         """Add an error."""
         self.errors.append(ValidationError(
             severity="error",
@@ -48,7 +48,7 @@ class ValidationResult:
         ))
         self.valid = False
 
-    def add_warning(self, category: str, message: str, location: Optional[str] = None):
+    def add_warning(self, category: str, message: str, location: str | None = None):
         """Add a warning."""
         self.warnings.append(ValidationError(
             severity="warning",
@@ -57,7 +57,7 @@ class ValidationResult:
             location=location,
         ))
 
-    def add_info(self, category: str, message: str, location: Optional[str] = None):
+    def add_info(self, category: str, message: str, location: str | None = None):
         """Add an info message."""
         self.info.append(ValidationError(
             severity="info",
@@ -98,10 +98,10 @@ class ConfigValidator:
     def __init__(
         self,
         scenario: Scenario,
-        components: Dict[str, ComponentAsset],
+        components: dict[str, ComponentAsset],
         grid: GridConnection,
-        network: Optional[NetworkTopology],
-        tech_library: Dict[str, Any],
+        network: NetworkTopology | None,
+        tech_library: dict[str, Any],
     ):
         """
         Initialize validator.
@@ -216,7 +216,7 @@ class ConfigValidator:
 
         # Build adjacency from pipe edges (handles both schema objects and dicts)
         adjacency = {nid: [] for nid in nodes}
-        for pipe_id, pipe in pipes.items():
+        for _pipe_id, pipe in pipes.items():
             if isinstance(pipe, dict):
                 fn = pipe.get('from_node')
                 tn = pipe.get('to_node')
@@ -255,7 +255,7 @@ class ConfigValidator:
 
         # Demand-fraction sum validation
         fractions = []
-        for nid, node in nodes.items():
+        for _nid, node in nodes.items():
             frac = getattr(node, 'demand_fraction', None)
             if frac is not None:
                 fractions.append(float(frac))
@@ -394,9 +394,9 @@ class ConfigValidator:
                 f"Discount rate {econ.discount_rate*100:.1f}% is unusual (typical range: 0-30%)"
             )
 
-    def _get_component_tech_type(self, comp: ComponentAsset) -> Optional[str]:
+    def _get_component_tech_type(self, comp: ComponentAsset) -> str | None:
         """Get technology type for component."""
-        from calion.config.schemas import HeatPumpAsset, StorageAsset, GeneratorAsset, P2HAsset
+        from calion.config.schemas import GeneratorAsset, HeatPumpAsset, P2HAsset, StorageAsset
 
         if isinstance(comp, HeatPumpAsset):
             return "heat_pumps"
@@ -409,7 +409,7 @@ class ConfigValidator:
         return None
 
 
-def validate_config(config: Dict[str, Any]) -> ValidationResult:
+def validate_config(config: dict[str, Any]) -> ValidationResult:
     """
     Validate a loaded configuration.
 

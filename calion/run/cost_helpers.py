@@ -8,10 +8,10 @@ RH/MPC windows.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Mapping, MutableMapping, Set
+from collections.abc import Mapping, MutableMapping
+from typing import Any
 
 from .types import _CostAggregationPlan
-
 
 _INVESTMENT_KEYS = {
     "objective.Capex_cost_EUR",
@@ -23,12 +23,12 @@ _SKIP_KEYS = {"objective.OBJ_value_EUR", "objective.Objective_residual_EUR"}
 
 
 def _accumulate_costs(
-    target: Dict[str, float],
+    target: dict[str, float],
     window_costs: Mapping[str, Any],
     plan: _CostAggregationPlan,
     commit_fraction: float,
     window_idx: int,
-    once_costs: Set[str],
+    once_costs: set[str],
 ) -> None:
     """Aggregate per-window costs while avoiding RH double-counting.
 

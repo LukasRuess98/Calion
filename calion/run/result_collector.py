@@ -9,9 +9,9 @@ cost dictionary.  Supporting helpers (:func:`_gather_component_metadata`,
 
 from __future__ import annotations
 
-import logging
 from collections import OrderedDict
-from typing import Any, Dict, List, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from calion.logging_config import get_logger
 from calion.utils.timeseries import TimeSeriesTable
@@ -45,8 +45,8 @@ def _json_safe(value: Any) -> Any:
     return str(value)
 
 
-def _flatten_summary(sections: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
-    flat: Dict[str, Any] = {}
+def _flatten_summary(sections: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    flat: dict[str, Any] = {}
     for section, metrics in sections.items():
         for key, value in metrics.items():
             flat[f"{section}.{key}"] = value
@@ -63,7 +63,7 @@ def _as_float(value: Any) -> float:
 def _extract_design_from_summary(
     summary_sections: Mapping[str, Mapping[str, Any]]
 ) -> OrderedDict[str, Any]:
-    heat_pumps: OrderedDict[str, Dict[str, float]] = OrderedDict()
+    heat_pumps: OrderedDict[str, dict[str, float]] = OrderedDict()
     storage_entry: OrderedDict[str, float] | None = None
 
     for section, metrics in summary_sections.items():
@@ -100,9 +100,9 @@ def _extract_design_from_summary(
 # Component metadata
 # ---------------------------------------------------------------------------
 
-def _gather_component_metadata_unified(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _gather_component_metadata_unified(cfg: dict[str, Any]) -> dict[str, Any]:
     """Extract component metadata from unified (assets-based) config format."""
-    meta: Dict[str, Any] = {"heat_pumps": [], "storage": None, "generators": [], "p2h": None}
+    meta: dict[str, Any] = {"heat_pumps": [], "storage": None, "generators": [], "p2h": None}
     assets = cfg.get("assets", {})
     fuels = cfg.get("fuels", {})
     for asset_id, asset_data in assets.items():
@@ -151,9 +151,9 @@ def _gather_component_metadata_unified(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return meta
 
 
-def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _gather_component_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
     from calion.utils.config_utils import apply_heat_pump_defaults
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         "heat_pumps": [],
         "storage": None,
         "generators": [],
@@ -278,10 +278,10 @@ def _gather_component_metadata(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 def _collect_timeseries_and_summary(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     dt_h: float,
     model: Any | None,
-) -> tuple[OrderedDict[str, List[float]], OrderedDict[str, OrderedDict[str, Any]], Dict[str, Any]]:
+) -> tuple[OrderedDict[str, list[float]], OrderedDict[str, OrderedDict[str, Any]], dict[str, Any]]:
     """Collect optimization results into time series and summary dictionaries.
 
     Extracts decision variable values from solved Pyomo model and organizes them into:
@@ -326,7 +326,7 @@ def _collect_timeseries_and_summary(
     period_fraction = float(n * dt_h / HOURS_PER_YEAR) if n else 0.0
     demand_year_fraction = float(grid_cfg.get("year_fraction", period_fraction))
 
-    series: OrderedDict[str, List[float]] = OrderedDict()
+    series: OrderedDict[str, list[float]] = OrderedDict()
     series["P_buy_MW"] = [0.0] * n
     series["P_sell_MW"] = [0.0] * n
     series["Q_dump_MWth"] = [0.0] * n
@@ -662,7 +662,7 @@ def _collect_timeseries_and_summary(
 
     fuel_cost_total = 0.0
     fuel_emissions_t = 0.0
-    fuel_cost_by_type: Dict[str, float] = {}
+    fuel_cost_by_type: dict[str, float] = {}
     capex_cost = 0.0
     capex_heat_pumps = 0.0
     capex_storage = 0.0
@@ -739,7 +739,7 @@ def _collect_timeseries_and_summary(
 
         cop_series = []
         wrg_ratio_series = []
-        for heat, pel, q_wrg in zip(heat_series, pel_series, q_wrg_series):
+        for heat, pel, q_wrg in zip(heat_series, pel_series, q_wrg_series, strict=False):
             if pel > 1e-9:
                 cop_series.append(float(heat / pel))
             else:
@@ -760,7 +760,7 @@ def _collect_timeseries_and_summary(
 
         avg_cop_input = 0.0
         total_weight = 0.0
-        for cop_in, heat in zip(cop_input_series, heat_series):
+        for cop_in, heat in zip(cop_input_series, heat_series, strict=False):
             if cop_in > 0 and heat > 1e-9:
                 avg_cop_input += cop_in * heat
                 total_weight += heat

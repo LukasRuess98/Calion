@@ -8,14 +8,14 @@ plan loading.
 from __future__ import annotations
 
 import copy
-import logging
 from collections import OrderedDict
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Set
+from collections.abc import Mapping, MutableMapping
+from typing import Any
 
 from calion.constants import DEFAULT_HORIZON_HOURS
 from calion.design import (
-    OptimizationConfig,
     DesignSpec,
+    OptimizationConfig,
     apply_design_to_config,
     convert_to_design_spec,
     extract_optimization_results,
@@ -35,7 +35,7 @@ from .types import (
     _CostAggregationPlan,
     _RollingParams,
 )
-from .utilities.timeseries_utils import _hours_to_steps, _slice_table
+from .utilities.timeseries_utils import _slice_table
 
 logger = get_logger(__name__)
 
@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 # SOC / terminal helpers
 # ---------------------------------------------------------------------------
 
-def _initial_soc(cfg: Mapping[str, Any]) -> Optional[float]:
+def _initial_soc(cfg: Mapping[str, Any]) -> float | None:
     # Legacy path: system.storage
     system = cfg.get("system", {}) if isinstance(cfg.get("system"), dict) else {}
     storage = system.get("storage", {}) if isinstance(system.get("storage"), dict) else {}
@@ -86,7 +86,7 @@ def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> MutableMappin
     always pass a deep-copied config to avoid unintended side-effects on
     the base configuration.
     """
-    logger.info(f"[RH] _set_initial_soc: Setting initial SOC for next window")
+    logger.info("[RH] _set_initial_soc: Setting initial SOC for next window")
     logger.info(f"  - soc0_mwh: {soc} MWh")
 
     inputs = cfg.setdefault("inputs", {})
@@ -148,7 +148,7 @@ def _apply_terminal_policy(cfg: MutableMapping[str, Any], policy: str) -> Mutabl
     return cfg
 
 
-def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Optional[float]) -> Optional[float]:
+def _next_soc(series: Mapping[str, list[float]], commit_len: int, fallback: float | None) -> float | None:
     soc_series = series.get("TES_SOC_MWh")
     if soc_series is None or commit_len <= 0:
         logger.info(f"[RH] _next_soc: No SOC series or invalid commit_len, using fallback={fallback}")
@@ -167,8 +167,8 @@ def _next_soc(series: Mapping[str, List[float]], commit_len: int, fallback: Opti
 # ---------------------------------------------------------------------------
 
 def _extend_series(
-    global_series: MutableMapping[str, List[float]],
-    window_series: Mapping[str, List[float]],
+    global_series: MutableMapping[str, list[float]],
+    window_series: Mapping[str, list[float]],
     commit_len: int,
 ) -> None:
     if commit_len <= 0:
@@ -241,7 +241,7 @@ def _load_cost_plan(cfg: Mapping[str, Any], fix_design: bool) -> _CostAggregatio
 # ---------------------------------------------------------------------------
 
 def _run_rolling_horizon(
-    base_cfg: Dict[str, Any],
+    base_cfg: dict[str, Any],
     table: TimeSeriesTable,
     dt_h: float,
     solver_name: str,
@@ -249,21 +249,21 @@ def _run_rolling_horizon(
     horizon_steps: int,
     step_steps: int,
     overlap_steps: int,
-    design: Optional[DesignData],
+    design: DesignData | None,
     fix_design: bool,
     *,
-    design_spec: Optional[DesignSpec] = None,
-    design_config: Optional[OptimizationConfig] = None,
+    design_spec: DesignSpec | None = None,
+    design_config: OptimizationConfig | None = None,
 ) -> RollingHorizonResult:
     n = len(table)
     if n == 0:
-        empty_series: OrderedDict[str, List[float]] = OrderedDict()
+        empty_series: OrderedDict[str, list[float]] = OrderedDict()
         return RollingHorizonResult(table, empty_series, {}, [], design)
 
-    aggregated_indices: List[int] = []
-    aggregated_series: OrderedDict[str, List[float]] = OrderedDict()
-    aggregated_costs: Dict[str, float] = {}
-    windows: List[WindowResult] = []
+    aggregated_indices: list[int] = []
+    aggregated_series: OrderedDict[str, list[float]] = OrderedDict()
+    aggregated_costs: dict[str, float] = {}
+    windows: list[WindowResult] = []
 
     # Translate OptimizationConfig to the two scalars the loop needs:
     # - has_fix_schedule: True when capacities will be fixed after a window
@@ -280,9 +280,9 @@ def _run_rolling_horizon(
     active_design_spec = design_spec
 
     design_state = design
-    investment_decisions: Optional[InvestmentDecisions] = None
+    investment_decisions: InvestmentDecisions | None = None
     cost_plan = _load_cost_plan(base_cfg, fix_design or has_fix_schedule)
-    once_costs: Set[str] = set()
+    once_costs: set[str] = set()
 
     soc_next = _initial_soc(base_cfg)
     base_storage_enabled = _storage_enabled(base_cfg)

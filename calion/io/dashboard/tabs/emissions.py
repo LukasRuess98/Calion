@@ -4,7 +4,7 @@ CO2 emissions analysis tab for the CALION Dashboard.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Tuple
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_emissions_tab(data: 'DashboardData', result: Any) -> 'pn.Column':
+def create_emissions_tab(data: DashboardData, result: Any) -> pn.Column:
     """
     Create CO2 emissions analysis tab with interactive time filtering.
 
@@ -43,7 +43,7 @@ def create_emissions_tab(data: 'DashboardData', result: Any) -> 'pn.Column':
         Emissions tab content
     """
     from ..utils import create_kpi_card
-    from ..widgets import create_time_range_slider, create_quick_filter_buttons
+    from ..widgets import create_quick_filter_buttons, create_time_range_slider
 
     # Check if we have any CO2 data
     if data.total_co2_t == 0 and data.co2_cost_eur == 0:
@@ -157,7 +157,7 @@ def create_emissions_tab(data: 'DashboardData', result: Any) -> 'pn.Column':
     )
 
 
-def _calculate_grid_export_co2(data: 'DashboardData', result: Any, p_sell_mwh: float) -> float:
+def _calculate_grid_export_co2(data: DashboardData, result: Any, p_sell_mwh: float) -> float:
     """Calculate CO2 for grid export."""
     if p_sell_mwh <= 0.01:
         return 0.0
@@ -172,7 +172,7 @@ def _calculate_grid_export_co2(data: 'DashboardData', result: Any, p_sell_mwh: f
     return 0.0
 
 
-def _create_summary_markdown(data: 'DashboardData', result: Any, co2_total_cost: float, p_sell_mwh: float) -> str:
+def _create_summary_markdown(data: DashboardData, result: Any, co2_total_cost: float, p_sell_mwh: float) -> str:
     """Create summary markdown."""
     # Calculate CO2 intensity
     co2_intensity = (data.total_co2_t * 1000 / data.original_total_demand_MWh) if data.original_total_demand_MWh > 0 else 0
@@ -200,7 +200,7 @@ def _create_summary_markdown(data: 'DashboardData', result: Any, co2_total_cost:
     return summary_md
 
 
-def _create_co2_breakdown_plot(data: 'DashboardData'):
+def _create_co2_breakdown_plot(data: DashboardData):
     """Create CO2 breakdown pie chart."""
     if not HAVE_PLOTLY:
         return pn.pane.Markdown("*Plotly nicht verfügbar*")
@@ -252,7 +252,7 @@ def _create_co2_breakdown_plot(data: 'DashboardData'):
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
 
-def _create_emissions_table(data: 'DashboardData'):
+def _create_emissions_table(data: DashboardData):
     """Create emissions table."""
     emissions_data = []
 
@@ -309,7 +309,7 @@ def _create_emissions_table(data: 'DashboardData'):
     return table
 
 
-def _find_co2_source_columns(df: pd.DataFrame) -> List[Tuple[str, str]]:
+def _find_co2_source_columns(df: pd.DataFrame) -> list[tuple[str, str]]:
     """Find CO2 source columns in DataFrame."""
     co2_source_columns = []
 
@@ -325,10 +325,10 @@ def _find_co2_source_columns(df: pd.DataFrame) -> List[Tuple[str, str]]:
 
 
 def _create_co2_timeseries_plot(
-    data: 'DashboardData',
+    data: DashboardData,
     time_range: tuple,
     selected_sources: list,
-    co2_source_columns: List[Tuple[str, str]]
+    co2_source_columns: list[tuple[str, str]]
 ):
     """Create CO2 emissions time series plot."""
     if not HAVE_PLOTLY:

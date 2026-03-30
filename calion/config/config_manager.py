@@ -4,12 +4,11 @@ Configuration Manager for CALION v2.0.
 High-level interface for loading and managing configurations.
 """
 
-from typing import Dict, Any, Optional
 from pathlib import Path
+from typing import Any
 
-from calion.config.loader_v2 import load_config_v2, ConfigLoaderV2
-from calion.config.validation import validate_config, ValidationResult
-
+from calion.config.loader_v2 import load_config_v2
+from calion.config.validation import ValidationResult, validate_config
 from calion.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -31,11 +30,11 @@ class ConfigManager:
             validate: Whether to validate configuration after loading
         """
         self.scenario_path = Path(scenario_path)
-        self.config: Optional[Dict[str, Any]] = None
-        self.validation_result: Optional[ValidationResult] = None
+        self.config: dict[str, Any] | None = None
+        self.validation_result: ValidationResult | None = None
         self._validate = validate
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """
         Load configuration.
 
@@ -54,7 +53,7 @@ class ConfigManager:
         # Load configuration
         self.config = load_config_v2(str(self.scenario_path))
 
-        logger.info(f"[ConfigManager] Configuration loaded successfully")
+        logger.info("[ConfigManager] Configuration loaded successfully")
         logger.info(f"  - Scenario: {self.config['scenario']['name']}")
         logger.info(f"  - Components: {len(self.config['_schemas']['components'])}")
         logger.info(f"  - Networks: {len(self.config['_schemas']['network'].networks)}")
@@ -74,7 +73,7 @@ class ConfigManager:
                     loc = f" [{warning.location}]" if warning.location else ""
                     logger.info(f"  - {warning.message}{loc}")
 
-            logger.info(f"[ConfigManager] Validation passed")
+            logger.info("[ConfigManager] Validation passed")
 
         return self.config
 
@@ -176,13 +175,13 @@ class ConfigManager:
 
         # Economics
         econ = scenario.economics
-        logger.info(f"\nEconomics:")
+        logger.info("\nEconomics:")
         logger.info(f"  - CO2 price: {econ.co2_price_eur_per_tonne:.0f} EUR/t")
         logger.info(f"  - Discount rate: {econ.discount_rate*100:.1f}%")
 
         # Solver
         solver = scenario.solver
-        logger.info(f"\nSolver:")
+        logger.info("\nSolver:")
         logger.info(f"  - Name: {solver.name}")
         logger.info(f"  - Time limit: {solver.timelimit_s}s")
         logger.info(f"  - MIP gap: {solver.mip_gap*100:.1f}%")
@@ -190,7 +189,7 @@ class ConfigManager:
         logger.info("=" * 60)
 
 
-def load_and_validate_config(scenario_path: str, validate: bool = True) -> Dict[str, Any]:
+def load_and_validate_config(scenario_path: str, validate: bool = True) -> dict[str, Any]:
     """
     Convenience function to load and validate configuration.
 

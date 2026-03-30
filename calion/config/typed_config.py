@@ -21,10 +21,9 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from typing_extensions import NotRequired, TypedDict
-
+from typing_extensions import TypedDict
 
 # ---------------------------------------------------------------------------
 # Leaf-level sections
@@ -118,16 +117,16 @@ class GeneratorConfig(TypedDict, total=False):
     enabled: bool
     cap_th_mw: float
     fuel_bus: str
-    el_eff: Optional[float]
-    th_eff: Optional[float]
+    el_eff: float | None
+    th_eff: float | None
 
 
 class SystemConfig(TypedDict, total=False):
     """System section — component definitions and topology."""
 
     storage: StorageConfig
-    heat_pumps: Dict[str, HeatPumpConfig]
-    generators: Dict[str, GeneratorConfig]
+    heat_pumps: dict[str, HeatPumpConfig]
+    generators: dict[str, GeneratorConfig]
 
 
 class RollingHorizonConfig(TypedDict, total=False):
@@ -173,7 +172,7 @@ class RunConfig(TypedDict, total=False):
 
     dt_h: float
     solver: str
-    solver_options: Dict[str, Any]
+    solver_options: dict[str, Any]
 
 
 class InputsConfig(TypedDict, total=False):
@@ -206,7 +205,7 @@ class CALIONConfig(TypedDict, total=False):
     scenario: ScenarioConfig
     inputs: InputsConfig
     site: SiteConfig
-    fuels: Dict[str, Any]
-    generators: Dict[str, Any]
-    storage: Dict[str, Any]  # root-level legacy alias
-    output: Dict[str, Any]
+    fuels: dict[str, Any]
+    generators: dict[str, Any]
+    storage: dict[str, Any]  # root-level legacy alias
+    output: dict[str, Any]

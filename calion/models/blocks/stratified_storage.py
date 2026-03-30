@@ -26,19 +26,21 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Dict, Any, Iterable, Optional
+import logging
 import math
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
 except Exception:  # pragma: no cover
     pyo = None
 
-from ...constants import EFFICIENCY_MIN, EFFICIENCY_MAX
+from ...constants import EFFICIENCY_MAX, EFFICIENCY_MIN
 from ..component import BaseComponent, Flow, InvestmentResult
 from ..registry import register_component
-
 
 # Physical constants
 RHO_WATER = 1000.0  # kg/m³ - water density
@@ -50,7 +52,7 @@ def _prepare_series(
     indices: Iterable[int],
     series: Sequence[float] | Mapping[int, float] | None,
     default: float,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """Return mapping for Pyomo params while supporting broadcasting."""
     idx_list = list(indices)
     if series is None:
@@ -69,7 +71,7 @@ def calculate_cylindrical_geometry(
     volume_m3: float,
     aspect_ratio: float = 1.5,
     geometry_type: str = "tank"
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calculate geometry parameters for cylindrical storage tank.
 
@@ -142,7 +144,7 @@ class StratifiedStorageBlock(BaseComponent):
         T_ambient_C: float = 10.0,
         T_ground_C: float = 10.0,
         # Geometry
-        volume_total_m3: Optional[float] = None,  # Auto-calculated if None
+        volume_total_m3: float | None = None,  # Auto-calculated if None
         aspect_ratio: float = 1.5,
         geometry_type: str = "tank",  # "tank" or "pit"
         # Heat transfer coefficients (U-values) [W/(m²·K)]
@@ -174,7 +176,7 @@ class StratifiedStorageBlock(BaseComponent):
         power_energy_coupling: float | None = None,
         # Piecewise linearization settings
         piecewise_n_points: int = 5,  # Number of breakpoints for piecewise linearization
-        label: str = None
+        label: str | None = None
     ):
         """
         Initialize stratified storage component.
@@ -680,7 +682,7 @@ class StratifiedStorageBlock(BaseComponent):
 
         return V_loss
 
-    def calculate_loss_piecewise_data(self) -> Dict[str, Any]:
+    def calculate_loss_piecewise_data(self) -> dict[str, Any]:
         """
         Generate piecewise-linear approximation data for heat losses.
 
@@ -738,7 +740,7 @@ class StratifiedStorageBlock(BaseComponent):
             "energy_losses": energy_losses
         }
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Get summary of stratified storage configuration.
 

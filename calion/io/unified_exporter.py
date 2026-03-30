@@ -27,23 +27,19 @@ import logging
 import os
 import time
 from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from calion.logging_config import get_logger
-from calion.io.exporters.multi_network_exporter import (
-    export_multi_network_results,  # re-exported for backward compatibility
-)
 
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
-    from calion.run.rolling_horizon import WorkflowResult, ScenarioResult, RollingHorizonResult
-    from calion.utils.timeseries import TimeSeriesTable
+    from calion.run.rolling_horizon import WorkflowResult
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +59,7 @@ class ExportConfig:
 
     # Plot exports
     export_plots: bool = True
-    plot_formats: List[str] = field(default_factory=lambda: ["png", "pdf"])
+    plot_formats: list[str] = field(default_factory=lambda: ["png", "pdf"])
     plot_dpi: int = 300
 
     # Dashboard export
@@ -81,9 +77,9 @@ class ExportResult:
     """Result of an export operation."""
 
     output_dir: str
-    generated_files: Dict[str, str] = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    generated_files: dict[str, str] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
         """Generate human-readable summary."""
@@ -172,8 +168,8 @@ class UnifiedExporter:
 
     def __init__(
         self,
-        workflow: "WorkflowResult",
-        config: Optional[ExportConfig] = None,
+        workflow: WorkflowResult,
+        config: ExportConfig | None = None,
     ):
         """
         Initialize the exporter.
@@ -205,9 +201,9 @@ class UnifiedExporter:
         # Multi-network data (if available)
         self._multi_network_results = self._extract_multi_network_results()
 
-    def _build_summary_sections(self) -> Dict[str, Dict[str, Any]]:
+    def _build_summary_sections(self) -> dict[str, dict[str, Any]]:
         """Build unified summary sections from workflow results."""
-        sections: Dict[str, Dict[str, Any]] = {}
+        sections: dict[str, dict[str, Any]] = {}
 
         result = self._active_result
 
@@ -247,7 +243,7 @@ class UnifiedExporter:
 
         return df
 
-    def _extract_multi_network_results(self) -> Optional[Dict[str, Any]]:
+    def _extract_multi_network_results(self) -> dict[str, Any] | None:
         """
         Extract multi-network results if available.
 
@@ -268,7 +264,7 @@ class UnifiedExporter:
 
         # Check summary sections for multi-network indicators
         if multi_results is None:
-            for section, data in self._summary_sections.items():
+            for _section, data in self._summary_sections.items():
                 if isinstance(data, dict):
                     if 'networks' in data or 'heat_exchangers' in data:
                         multi_results = data
@@ -298,8 +294,8 @@ class UnifiedExporter:
 
     def export_all(
         self,
-        output_dir: Optional[str] = None,
-        scenario_name: Optional[str] = None,
+        output_dir: str | None = None,
+        scenario_name: str | None = None,
     ) -> ExportResult:
         """
         Export all data in one call.
@@ -391,7 +387,7 @@ class UnifiedExporter:
 
         return result
 
-    def _export_data(self, output_dir: str) -> Dict[str, str]:
+    def _export_data(self, output_dir: str) -> dict[str, str]:
         """Export raw data files."""
         data_dir = os.path.join(output_dir, "data")
         os.makedirs(data_dir, exist_ok=True)
@@ -434,7 +430,7 @@ class UnifiedExporter:
 
         return files
 
-    def _export_publication(self, output_dir: str) -> Dict[str, str]:
+    def _export_publication(self, output_dir: str) -> dict[str, str]:
         """Export publication-ready materials."""
         pub_dir = os.path.join(output_dir, "publication")
         latex_dir = os.path.join(pub_dir, "latex")
@@ -444,8 +440,8 @@ class UnifiedExporter:
 
         try:
             from calion.io.publication_exporter import (
-                export_latex_tables,
                 export_kpi_summary,
+                export_latex_tables,
             )
 
             # LaTeX tables
@@ -476,7 +472,7 @@ class UnifiedExporter:
 
         return files
 
-    def _export_plots(self, output_dir: str) -> Dict[str, str]:
+    def _export_plots(self, output_dir: str) -> dict[str, str]:
         """Export publication-quality plots."""
         fig_dir = os.path.join(output_dir, "figures")
         os.makedirs(fig_dir, exist_ok=True)
@@ -485,8 +481,8 @@ class UnifiedExporter:
 
         try:
             from calion.io.publication_plotter import (
-                export_publication_plots,
                 PublicationConfig,
+                export_publication_plots,
             )
 
             # Apply publication style
@@ -526,7 +522,7 @@ class UnifiedExporter:
 
         return files
 
-    def _export_basic_plots(self, fig_dir: str, files: Dict[str, str]) -> None:
+    def _export_basic_plots(self, fig_dir: str, files: dict[str, str]) -> None:
         """Fallback: Export basic matplotlib plots."""
         try:
             import matplotlib
@@ -536,7 +532,7 @@ class UnifiedExporter:
             df = self._timeseries_df
 
             # Plot 1: Heat production overview
-            fig, ax = plt.subplots(figsize=(12, 6))
+            _fig, ax = plt.subplots(figsize=(12, 6))
 
             # Find heat-related columns
             heat_cols = [c for c in df.columns if any(
@@ -577,8 +573,8 @@ class UnifiedExporter:
                     cost_items.append((label, float(value)))
 
             if cost_items:
-                fig, ax = plt.subplots(figsize=(8, 8))
-                labels, values = zip(*cost_items)
+                _fig, ax = plt.subplots(figsize=(8, 8))
+                labels, values = zip(*cost_items, strict=False)
                 ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90)
                 ax.set_title("Cost Breakdown")
 
@@ -594,8 +590,8 @@ class UnifiedExporter:
     def _export_dashboard(
         self,
         output_dir: str,
-        scenario_name: Optional[str] = None,
-    ) -> Dict[str, str]:
+        scenario_name: str | None = None,
+    ) -> dict[str, str]:
         """Export dashboard-compatible format."""
         dash_dir = os.path.join(output_dir, "dashboard")
         os.makedirs(dash_dir, exist_ok=True)
@@ -623,7 +619,7 @@ class UnifiedExporter:
 
         return files
 
-    def _export_dashboard_fallback(self, path: str, scenario_name: Optional[str]) -> None:
+    def _export_dashboard_fallback(self, path: str, scenario_name: str | None) -> None:
         """Fallback dashboard export."""
         data = {
             "name": scenario_name or "Scenario",
@@ -637,7 +633,7 @@ class UnifiedExporter:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
 
-    def _export_multi_network(self, output_dir: str) -> Dict[str, str]:
+    def _export_multi_network(self, output_dir: str) -> dict[str, str]:
         """
         Export multi-network specific data and visualizations.
 
@@ -653,15 +649,15 @@ class UnifiedExporter:
         """
         from calion.io.exporters import (
             export_multi_network_data,
-            export_multi_network_plots,
             export_multi_network_latex,
+            export_multi_network_plots,
         )
 
         multi_dir = os.path.join(output_dir, "multi_network")
         fig_dir = os.path.join(multi_dir, "figures")
         os.makedirs(fig_dir, exist_ok=True)
 
-        files: Dict[str, str] = {}
+        files: dict[str, str] = {}
         multi_data = self._multi_network_results
 
         logger.info("Exporting multi-network results...")
@@ -731,7 +727,7 @@ class UnifiedExporter:
                 ])
                 summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
-    def _generate_output_dir(self, scenario_name: Optional[str] = None) -> str:
+    def _generate_output_dir(self, scenario_name: str | None = None) -> str:
         """Generate output directory path."""
         stamp = time.strftime("%Y%m%d_%H%M%S")
 
@@ -791,9 +787,9 @@ class UnifiedExporter:
 # =============================================================================
 
 def export_workflow(
-    workflow: "WorkflowResult",
-    output_dir: Optional[str] = None,
-    scenario_name: Optional[str] = None,
+    workflow: WorkflowResult,
+    output_dir: str | None = None,
+    scenario_name: str | None = None,
     **config_kwargs,
 ) -> ExportResult:
     """
@@ -830,11 +826,11 @@ def export_workflow(
 
 
 def export_with_sensitivity(
-    workflow: "WorkflowResult",
-    base_configs: List[str],
-    output_dir: Optional[str] = None,
-    scenario_name: Optional[str] = None,
-    sensitivity_kwargs: Optional[Dict[str, Any]] = None,
+    workflow: WorkflowResult,
+    base_configs: list[str],
+    output_dir: str | None = None,
+    scenario_name: str | None = None,
+    sensitivity_kwargs: dict[str, Any] | None = None,
 ) -> ExportResult:
     """
     Export workflow results with sensitivity analysis.

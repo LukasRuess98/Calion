@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 from calion.validation.analytical_benchmarks import ValidationResult, ValidationSuiteResult
 
@@ -24,7 +24,7 @@ def generate_validation_report(
     include_latex: bool = True,
     include_json: bool = True,
     include_csv: bool = True,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Generate comprehensive validation report.
 
     Parameters
@@ -117,10 +117,10 @@ def _generate_latex_table(
         f.write("\\end{tabular}\n")
 
         # Add summary
-        f.write(f"\\\\[0.5em]\n")
+        f.write("\\\\[0.5em]\n")
         f.write(f"\\footnotesize{{Pass rate: {suite_result.pass_rate:.1f}\\% ")
         f.write(f"({suite_result.passed_tests}/{suite_result.total_tests} tests). ")
-        f.write(f"Tolerance: 1\\% relative error.}}\n")
+        f.write("Tolerance: 1\\% relative error.}\n")
 
         f.write("\\end{table}\n")
 
@@ -185,9 +185,9 @@ def _generate_csv_report(
 
 def _summarize_by_category(
     suite_result: ValidationSuiteResult,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Summarize results by test category."""
-    categories: Dict[str, List[ValidationResult]] = {}
+    categories: dict[str, list[ValidationResult]] = {}
 
     for result in suite_result.results:
         category = result.details.get("category", "general")

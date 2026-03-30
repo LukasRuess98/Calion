@@ -7,7 +7,7 @@ with heat exchangers and cascade coupling.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -31,9 +31,9 @@ if TYPE_CHECKING:
 
 
 def create_multi_network_tab(
-    data: 'DashboardData',
-    multi_network_results: Optional[Dict[str, Any]] = None,
-) -> 'pn.Column':
+    data: DashboardData,
+    multi_network_results: dict[str, Any] | None = None,
+) -> pn.Column:
     """
     Create multi-network visualization tab.
 
@@ -125,7 +125,7 @@ def create_multi_network_tab(
     )
 
 
-def _extract_multi_network_from_data(data: 'DashboardData') -> Optional[Dict[str, Any]]:
+def _extract_multi_network_from_data(data: DashboardData) -> dict[str, Any] | None:
     """Try to extract multi-network info from dashboard data."""
     result = {'networks': {}, 'heat_exchangers': {}}
 
@@ -178,8 +178,8 @@ def _extract_multi_network_from_data(data: 'DashboardData') -> Optional[Dict[str
 
 
 def _create_network_summary_cards(
-    multi_results: Dict[str, Any]
-) -> 'pn.GridBox':
+    multi_results: dict[str, Any]
+) -> pn.GridBox:
     """Create KPI cards for each network."""
     from ..utils import create_kpi_card
 
@@ -193,13 +193,10 @@ def _create_network_summary_cards(
         # Temperature level indicator
         t_supply = net_info.get('supply_temp_c', 0)
         if t_supply >= 90:
-            level = "Hochtemperatur"
             color = "danger"
         elif t_supply >= 60:
-            level = "Mitteltemperatur"
             color = "warning"
         else:
-            level = "Niedertemperatur (4GDH)"
             color = "success"
 
         # Main card
@@ -231,8 +228,8 @@ def _create_network_summary_cards(
 
 
 def _create_temperature_comparison_plot(
-    data: 'DashboardData',
-    multi_results: Dict[str, Any]
+    data: DashboardData,
+    multi_results: dict[str, Any]
 ):
     """Create temperature comparison plot for all networks."""
     if not HAVE_PLOTLY:
@@ -301,8 +298,8 @@ def _create_temperature_comparison_plot(
 
 
 def _create_heat_exchanger_plot(
-    data: 'DashboardData',
-    multi_results: Dict[str, Any]
+    data: DashboardData,
+    multi_results: dict[str, Any]
 ):
     """Create heat exchanger operation plot."""
     if not HAVE_PLOTLY:
@@ -318,7 +315,7 @@ def _create_heat_exchanger_plot(
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
 
-    for i, (hx_id, hx_info) in enumerate(hx_data.items()):
+    for i, (hx_id, _hx_info) in enumerate(hx_data.items()):
         color = colors[i % len(colors)]
 
         # Look for Q_transfer column (try different naming conventions)
@@ -355,8 +352,8 @@ def _create_heat_exchanger_plot(
 
 
 def _create_network_coupling_diagram(
-    multi_results: Dict[str, Any]
-) -> 'pn.pane.HTML':
+    multi_results: dict[str, Any]
+) -> pn.pane.HTML:
     """Create network coupling diagram as SVG."""
     networks = multi_results.get('networks', {})
     hx_data = multi_results.get('heat_exchangers', {})
@@ -448,8 +445,8 @@ def _create_network_coupling_diagram(
 
 
 def _create_summary_table(
-    multi_results: Dict[str, Any]
-) -> 'pn.widgets.Tabulator':
+    multi_results: dict[str, Any]
+) -> pn.widgets.Tabulator:
     """Create summary table for all networks."""
     networks = multi_results.get('networks', {})
     hx_data = multi_results.get('heat_exchangers', {})
@@ -488,7 +485,7 @@ def _create_summary_table(
     )
 
 
-def has_multi_network_data(data: 'DashboardData') -> bool:
+def has_multi_network_data(data: DashboardData) -> bool:
     """Check if multi-network data is available."""
     df = data.df
 

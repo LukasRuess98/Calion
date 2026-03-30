@@ -8,9 +8,10 @@ Implements best practices for uncertainty quantification and robustness analysis
 
 from __future__ import annotations
 
-from typing import Dict, List, Any, Callable
-from dataclasses import dataclass, field
 import copy
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -32,7 +33,7 @@ class ParameterVariation:
 
     param_path: str
     base_value: float
-    variations: List[float]
+    variations: list[float]
     variation_type: str = "multiplicative"  # or "absolute"
     description: str = ""
     units: str = ""
@@ -44,14 +45,14 @@ class ParameterVariation:
                 f"got {self.variation_type}"
             )
 
-    def get_values(self) -> List[float]:
+    def get_values(self) -> list[float]:
         """Get actual parameter values for all variations."""
         if self.variation_type == "multiplicative":
             return [self.base_value * v for v in self.variations]
         else:  # absolute
             return [self.base_value + v for v in self.variations]
 
-    def get_labels(self) -> List[str]:
+    def get_labels(self) -> list[str]:
         """Get human-readable labels for variations."""
         if self.variation_type == "multiplicative":
             return [
@@ -85,12 +86,12 @@ class SensitivityResult:
     param_value: float
     variation_label: str
     objective_value: float | None
-    key_metrics: Dict[str, float] = field(default_factory=dict)
-    config: Dict[str, Any] | None = None
+    key_metrics: dict[str, float] = field(default_factory=dict)
+    config: dict[str, Any] | None = None
     solve_status: str = "unknown"
 
 
-def create_standard_sensitivity_study() -> List[ParameterVariation]:
+def create_standard_sensitivity_study() -> list[ParameterVariation]:
     """Create a standard sensitivity study for heat planning publications.
 
     Returns list of parameter variations covering:
@@ -185,10 +186,10 @@ def create_standard_sensitivity_study() -> List[ParameterVariation]:
 
 
 def apply_parameter_variation(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     param_path: str,
     value: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Apply a parameter variation to a configuration dictionary.
 
     Uses dot-notation to navigate nested dictionaries and update values.
@@ -236,11 +237,11 @@ def apply_parameter_variation(
 
 
 def run_sensitivity_analysis(
-    base_config: Dict[str, Any],
-    variations: List[ParameterVariation],
-    run_optimization_func: Callable[[Dict[str, Any]], SensitivityResult],
+    base_config: dict[str, Any],
+    variations: list[ParameterVariation],
+    run_optimization_func: Callable[[dict[str, Any]], SensitivityResult],
     parallel: bool = False,
-) -> Dict[str, List[SensitivityResult]]:
+) -> dict[str, list[SensitivityResult]]:
     """Run systematic sensitivity analysis with parameter variations.
 
     Executes optimization for each parameter variation and collects results.
@@ -283,14 +284,14 @@ def run_sensitivity_analysis(
         - Robustness assessment
         - Uncertainty quantification
     """
-    results_by_param: Dict[str, List[SensitivityResult]] = {}
+    results_by_param: dict[str, list[SensitivityResult]] = {}
 
     for variation in variations:
         param_results = []
         param_values = variation.get_values()
         param_labels = variation.get_labels()
 
-        for value, label in zip(param_values, param_labels):
+        for value, label in zip(param_values, param_labels, strict=False):
             # Create modified configuration
             try:
                 modified_config = apply_parameter_variation(
@@ -315,7 +316,7 @@ def run_sensitivity_analysis(
                         param_value=value,
                         variation_label=label,
                         objective_value=None,
-                        solve_status=f"error: {str(e)}",
+                        solve_status=f"error: {e!s}",
                     )
                 )
 
@@ -325,7 +326,7 @@ def run_sensitivity_analysis(
 
 
 def format_sensitivity_table(
-    results: Dict[str, List[SensitivityResult]],
+    results: dict[str, list[SensitivityResult]],
     metric_name: str = "objective_value",
     format_spec: str = ".2f",
 ) -> str:
@@ -407,9 +408,9 @@ def format_sensitivity_table(
 
 
 def calculate_sensitivity_indices(
-    results: Dict[str, List[SensitivityResult]],
+    results: dict[str, list[SensitivityResult]],
     metric_name: str = "objective_value",
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Calculate normalized sensitivity indices for parameter ranking.
 
     Computes the relative impact of each parameter on the objective,

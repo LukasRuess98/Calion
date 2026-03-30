@@ -13,7 +13,8 @@ Extracted from system_builder.py for better modularity and testability.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from calion.constants import (
     COP_DEFAULT,
@@ -25,8 +26,8 @@ from calion.utils.timeseries import TimeSeriesTable
 
 
 def calculate_cop_series(
-    table: TimeSeriesTable, wrg_col: str | None, cfg: Dict[str, Any], hp_type: str
-) -> List[float]:
+    table: TimeSeriesTable, wrg_col: str | None, cfg: dict[str, Any], hp_type: str
+) -> list[float]:
     """Calculate heat pump COP (Coefficient of Performance) time series.
 
     Computes COP values for each timestep using either:
@@ -69,10 +70,10 @@ def calculate_cop_series(
 
 def _calculate_from_table(
     table: TimeSeriesTable,
-    table_spec: Dict[str, Any],
-    copcfg: Dict[str, Any],
+    table_spec: dict[str, Any],
+    copcfg: dict[str, Any],
     wrg_col: str | None,
-) -> List[float]:
+) -> list[float]:
     """Calculate COP from lookup table with 2D interpolation."""
     # Validate and extract axes
     x_points = _validate_axis(
@@ -131,8 +132,8 @@ def _calculate_from_table(
     )
 
     # Interpolate COP for each timestep
-    result: List[float] = []
-    for xv, yv in zip(x_series, y_series):
+    result: list[float] = []
+    for xv, yv in zip(x_series, y_series, strict=False):
         x_idx0, x_idx1, x_frac = _locate_interval(x_points, float(xv), clamp_x, "x")
         if has_y:
             y_idx0, y_idx1, y_frac = _locate_interval(y_points, float(yv), clamp_y, "y")
@@ -159,11 +160,11 @@ def _calculate_from_table(
 
 def _calculate_analytical(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
-    copcfg: Dict[str, Any],
+    cfg: dict[str, Any],
+    copcfg: dict[str, Any],
     hp_type: str,
     wrg_col: str | None,
-) -> List[float]:
+) -> list[float]:
     """Calculate COP using analytical heat pump model.
 
     Based on thermodynamic principles using log-mean temperature difference (LMTD).
@@ -186,8 +187,8 @@ def _calculate_analytical(
     Tout = [max(t - dT, 1.0) for t in temps]
 
     Ls = _lmtd(Ts_out, Ts_in)
-    cop: List[float] = []
-    for Tin, Tout_i in zip(temps, Tout):
+    cop: list[float] = []
+    for Tin, Tout_i in zip(temps, Tout, strict=False):
         Lsrc = _lmtd(Tin, Tout_i)
         mdts = 0.2 * (Ts_out - Tout_i + 2 * dTpp) + 0.2 * (Ts_out - Ts_in) + 0.016
         qww = (
@@ -208,7 +209,7 @@ def _calculate_analytical(
     return cop
 
 
-def _validate_axis(values: Sequence[float], axis_name: str) -> List[float]:
+def _validate_axis(values: Sequence[float], axis_name: str) -> list[float]:
     """Validate COP table axis values."""
     axis = [float(v) for v in values]
     if not axis:
@@ -223,7 +224,7 @@ def _validate_axis(values: Sequence[float], axis_name: str) -> List[float]:
 
 
 def _locate_interval(
-    points: List[float], value: float, clamp: bool, axis_name: str
+    points: list[float], value: float, clamp: bool, axis_name: str
 ) -> tuple[int, int, float]:
     """Locate the interval containing value and compute interpolation fraction."""
     if len(points) == 1:
@@ -249,7 +250,7 @@ def _locate_interval(
 
 
 def _interp1d(
-    points: List[float], values: List[float], i0: int, i1: int, frac: float
+    points: list[float], values: list[float], i0: int, i1: int, frac: float
 ) -> float:
     """Linear interpolation in 1D."""
     if i0 == i1:
@@ -260,8 +261,8 @@ def _interp1d(
 
 
 def _interp2d(
-    x_points: List[float],
-    matrix: List[List[float]],
+    x_points: list[float],
+    matrix: list[list[float]],
     x_idx0: int,
     x_idx1: int,
     x_frac: float,
@@ -282,7 +283,7 @@ def _interp2d(
 
 def _series_from_column(
     table: TimeSeriesTable, column: str | None, default: float | None
-) -> List[float]:
+) -> list[float]:
     """Extract time series from table column or use default value."""
     if column and column in table.columns:
         return [float(table[column][i]) for i in range(len(table))]

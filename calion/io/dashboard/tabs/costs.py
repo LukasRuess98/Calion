@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_costs_tab(data: 'DashboardData') -> 'pn.Column':
+def create_costs_tab(data: DashboardData) -> pn.Column:
     """
     Create costs analysis tab.
 

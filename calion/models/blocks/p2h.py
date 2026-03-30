@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Dict, Iterable
+from collections.abc import Iterable, Mapping, Sequence
 
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
@@ -16,7 +15,7 @@ def _prepare_eff_series(
     indices: Iterable[int],
     series: Sequence[float] | Mapping[int, float] | None,
     default: float,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """Prepare efficiency series for Pyomo parameters with broadcasting support."""
     idx_list = list(indices)
     if series is None:
@@ -38,7 +37,7 @@ class P2HBlock(BaseComponent):
         name: str,
         eff: float,
         cap_th_mw: float,
-        label: str = None,
+        label: str | None = None,
         *,
         min_load: float = 0.0,
         eff_series: Sequence[float] | Mapping[int, float] | None = None,

@@ -6,8 +6,8 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Tuple, Any, Optional
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -49,7 +49,7 @@ class BenchmarkMetrics:
     cost_energy: float
     cost_demand_charge: float
     cost_co2: float
-    cost_breakdown: Dict[str, float]
+    cost_breakdown: dict[str, float]
 
     # Metadata
     config_hash: str
@@ -70,7 +70,7 @@ class BenchmarkSuite:
         suite.export_results(results, "outputs/runs/benchmark_results.csv")
     """
 
-    def __init__(self, base_configs: List[str]):
+    def __init__(self, base_configs: list[str]):
         """Initialize benchmark suite.
 
         Parameters
@@ -79,15 +79,15 @@ class BenchmarkSuite:
             List of base configuration file paths (base, tech_catalog, site, system)
         """
         self.base_configs = base_configs
-        self.results: List[BenchmarkMetrics] = []
+        self.results: list[BenchmarkMetrics] = []
 
     def run(
         self,
-        methods: List[Tuple[str, Dict[str, Any]]],
+        methods: list[tuple[str, dict[str, Any]]],
         num_runs: int = 1,
         save_intermediate: bool = True,
         output_dir: str = "outputs/runs/benchmark",
-    ) -> List[BenchmarkMetrics]:
+    ) -> list[BenchmarkMetrics]:
         """Run benchmark comparison of multiple methods.
 
         Parameters
@@ -180,8 +180,8 @@ class BenchmarkSuite:
         run_index: int,
         result: Any,
         solve_time: float,
-        pf_baseline_cost: Optional[float],
-        config_overrides: Dict[str, Any],
+        pf_baseline_cost: float | None,
+        config_overrides: dict[str, Any],
     ) -> BenchmarkMetrics:
         """Extract standardized metrics from workflow result."""
         import hashlib
@@ -274,14 +274,14 @@ class BenchmarkSuite:
             timestamp=datetime.now().isoformat(),
         )
 
-    def _save_intermediate(self, results: List[BenchmarkMetrics], output_dir: str, method_name: str):
+    def _save_intermediate(self, results: list[BenchmarkMetrics], output_dir: str, method_name: str):
         """Save intermediate results to JSON."""
         filepath = os.path.join(output_dir, f"intermediate_{method_name}.json")
         with open(filepath, 'w', encoding="utf-8") as f:
             json.dump([asdict(r) for r in results], f, indent=2)
         logger.info(f"  Saved intermediate results to {filepath}")
 
-    def export_results(self, results: List[BenchmarkMetrics], output_path: str):
+    def export_results(self, results: list[BenchmarkMetrics], output_path: str):
         """Export benchmark results to CSV.
 
         Parameters
@@ -322,7 +322,7 @@ class BenchmarkSuite:
 
         logger.info(f"Exported {len(results)} results to {output_path}")
 
-    def print_summary(self, results: Optional[List[BenchmarkMetrics]] = None):
+    def print_summary(self, results: list[BenchmarkMetrics] | None = None):
         """Print summary table of results.
 
         Parameters
@@ -373,11 +373,11 @@ class BenchmarkSuite:
 
 
 def run_method_comparison(
-    base_configs: List[str],
-    methods: List[Tuple[str, Dict[str, Any]]],
+    base_configs: list[str],
+    methods: list[tuple[str, dict[str, Any]]],
     num_runs: int = 1,
     output_dir: str = "outputs/runs/benchmark",
-) -> List[BenchmarkMetrics]:
+) -> list[BenchmarkMetrics]:
     """Convenience function to run method comparison.
 
     Parameters
