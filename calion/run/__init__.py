@@ -7,18 +7,18 @@ Public API:
 - :class:`ScenarioResult` — result for a single optimisation window.
 """
 
-from calion.run.workflow import run_workflow
 from calion.run.types import (
-    ScenarioResult,
     RollingHorizonResult,
-    WorkflowResult,
+    ScenarioResult,
     WorkflowPlan,
+    WorkflowResult,
 )
+from calion.run.workflow import run_workflow
 
 __all__ = [
-    "run_workflow",
-    "ScenarioResult",
     "RollingHorizonResult",
-    "WorkflowResult",
+    "ScenarioResult",
     "WorkflowPlan",
+    "WorkflowResult",
+    "run_workflow",
 ]

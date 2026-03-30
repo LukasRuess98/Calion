@@ -5,9 +5,10 @@ Requires matplotlib, which is optional for the framework.
 """
 
 from __future__ import annotations
+
 import logging
-from typing import List, Optional, Dict
 import math
+
 import numpy as np
 
 from calion.logging_config import get_logger
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Check for matplotlib
 try:
-    import matplotlib.pyplot as plt
     import matplotlib
+    import matplotlib.pyplot as plt
     matplotlib.use('Agg')  # Non-interactive backend
     HAVE_MATPLOTLIB = True
 except ImportError:
@@ -27,7 +28,7 @@ except ImportError:
 
 
 def plot_cost_comparison(
-    results: List,
+    results: list,
     output_path: str,
     title: str = "Method Cost Comparison",
     show_breakdown: bool = True,
@@ -69,7 +70,7 @@ def plot_cost_comparison(
         avg_opex.append(sum(r.opex_eur for r in runs) / len(runs))
 
     # Create plot
-    fig, ax = plt.subplots(figsize=(12, 6))
+    _fig, ax = plt.subplots(figsize=(12, 6))
 
     if show_breakdown:
         # Stacked bar chart
@@ -103,7 +104,7 @@ def plot_cost_comparison(
 
 
 def plot_cost_vs_pf(
-    results: List,
+    results: list,
     output_path: str,
     title: str = "Cost vs Perfect Forecast",
 ):
@@ -139,13 +140,13 @@ def plot_cost_vs_pf(
     avg_deviation = [sum(methods[name]) / len(methods[name]) for name in method_names]
 
     # Create plot
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _fig, ax = plt.subplots(figsize=(10, 6))
 
     colors = ['green' if d < 5 else 'orange' if d < 10 else 'red' for d in avg_deviation]
     ax.bar(method_names, avg_deviation, color=colors, alpha=0.7)
 
     # Add percentage labels
-    for i, (name, dev) in enumerate(zip(method_names, avg_deviation)):
+    for i, (_name, dev) in enumerate(zip(method_names, avg_deviation, strict=False)):
         ax.text(i, dev + max(avg_deviation) * 0.02, f'+{dev:.1f}%',
                ha='center', va='bottom', fontweight='bold')
 
@@ -163,7 +164,7 @@ def plot_cost_vs_pf(
 
 
 def plot_solve_time_comparison(
-    results: List,
+    results: list,
     output_path: str,
     title: str = "Solve Time Comparison",
 ):
@@ -194,12 +195,12 @@ def plot_solve_time_comparison(
     avg_times = [sum(methods[name]) / len(methods[name]) for name in method_names]
 
     # Create plot
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _fig, ax = plt.subplots(figsize=(10, 6))
 
     ax.bar(method_names, avg_times, color='steelblue', alpha=0.7)
 
     # Add time labels
-    for i, (name, time) in enumerate(zip(method_names, avg_times)):
+    for i, (_name, time) in enumerate(zip(method_names, avg_times, strict=False)):
         if time < 60:
             label = f'{time:.1f}s'
         else:
@@ -219,7 +220,7 @@ def plot_solve_time_comparison(
     logger.info(f"Saved solve time plot to {output_path}")
 
 
-def create_benchmark_plots(results: List, output_dir: str = "outputs/runs/benchmark/plots"):
+def create_benchmark_plots(results: list, output_dir: str = "outputs/runs/benchmark/plots"):
     """Create all standard benchmark plots.
 
     Parameters
@@ -261,7 +262,7 @@ def create_benchmark_plots(results: List, output_dir: str = "outputs/runs/benchm
     logger.info(f"✅ All plots created in {output_dir}")
 
 
-def print_latex_table(results: List, output_path: Optional[str] = None):
+def print_latex_table(results: list, output_path: str | None = None):
     """Generate LaTeX table for publication.
 
     Parameters
@@ -328,7 +329,7 @@ from calion.analysis.sensitivity import SensitivityResult, calculate_sensitivity
 
 
 def plot_tornado_diagram(
-    results: Dict[str, List[SensitivityResult]],
+    results: dict[str, list[SensitivityResult]],
     output_path: str,
     metric: str = "objective_value",
     title: str | None = None,
@@ -402,7 +403,7 @@ def plot_tornado_diagram(
 
 
 def plot_sensitivity_spider(
-    results: Dict[str, List[SensitivityResult]],
+    results: dict[str, list[SensitivityResult]],
     output_path: str,
     metric: str = "objective_value",
     title: str | None = None,

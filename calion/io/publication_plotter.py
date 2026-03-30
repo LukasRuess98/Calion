@@ -12,17 +12,21 @@ publications with:
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Mapping, Sequence
+from typing import ClassVar
+
 import numpy as np
 
-from calion.utils.timeseries import TimeSeriesTable
 from calion.io.plot_utils import (
     has_content,
     prettify_label_en,
+)
+from calion.io.plot_utils import (
     save_figure as _save_figure_util,
 )
 from calion.logging_config import get_logger
+from calion.utils.timeseries import TimeSeriesTable
 
 logger = get_logger(__name__)
 
@@ -30,8 +34,8 @@ try:  # pragma: no cover - optional dependency
     import matplotlib
 
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
     import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
 
     HAVE_MATPLOTLIB = True
 except Exception:  # pragma: no cover - matplotlib optional
@@ -39,7 +43,7 @@ except Exception:  # pragma: no cover - matplotlib optional
     plt = None
     mdates = None
 
-__all__ = ["HAVE_MATPLOTLIB", "export_publication_plots", "PublicationConfig"]
+__all__ = ["HAVE_MATPLOTLIB", "PublicationConfig", "export_publication_plots"]
 
 
 # ============================================================================
@@ -67,7 +71,7 @@ class PublicationConfig:
 
     # Colorblind-friendly color schemes
     # Based on Paul Tol's color schemes for scientific visualization
-    COLORS_QUALITATIVE = [
+    COLORS_QUALITATIVE: ClassVar[list[str]] = [
         '#4477AA',  # Blue
         '#EE6677',  # Red
         '#228833',  # Green
@@ -77,11 +81,11 @@ class PublicationConfig:
         '#BBBBBB',  # Grey
     ]
 
-    COLORS_SEQUENTIAL_BLUE = ['#F0F9FF', '#9ECAE1', '#4292C6', '#08519C', '#08306B']
-    COLORS_SEQUENTIAL_RED = ['#FEE5D9', '#FCAE91', '#FB6A4A', '#CB181D', '#67000D']
+    COLORS_SEQUENTIAL_BLUE: ClassVar[list[str]] = ['#F0F9FF', '#9ECAE1', '#4292C6', '#08519C', '#08306B']
+    COLORS_SEQUENTIAL_RED: ClassVar[list[str]] = ['#FEE5D9', '#FCAE91', '#FB6A4A', '#CB181D', '#67000D']
 
     # Technology-specific colors
-    COLORS_TECH = {
+    COLORS_TECH: ClassVar[dict[str, str]] = {
         'heat_pump': '#4477AA',
         'gas_boiler': '#EE6677',
         'biomass': '#228833',
@@ -804,7 +808,7 @@ def _cost_breakdown_publication(
     ax.axvline(0, color="black", linewidth=1.0)
 
     # Add value labels on bars
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=False):
         if abs(val) > 0:
             width = bar.get_width()
             label_x = width + (max(values) - min(values)) * 0.01
@@ -865,7 +869,7 @@ def _cop_analysis_publication(
     fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN, constrained_layout=True)
 
     # Plot COP time series
-    for i, (cop, name) in enumerate(zip(cop_data, hp_names)):
+    for i, (cop, name) in enumerate(zip(cop_data, hp_names, strict=False)):
         color = PublicationConfig.COLORS_QUALITATIVE[i % len(PublicationConfig.COLORS_QUALITATIVE)]
         # Only plot non-zero values
         cop_plot = np.where(cop > 0.1, cop, np.nan)
@@ -935,7 +939,7 @@ def _emissions_publication(
     ax.grid(True, axis="y", alpha=0.3)
 
     # Add value labels on bars
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=False):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
                 f'{val:,.1f} t', ha='center', va='bottom', fontsize=9)
@@ -1036,7 +1040,7 @@ def _monthly_aggregate_publication(
     ax.grid(True, axis="y", alpha=0.3)
 
     # Add value labels on bars
-    for bar, val in zip(bars, monthly_demand):
+    for bar, val in zip(bars, monthly_demand, strict=False):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
                 f'{val:,.0f}', ha='center', va='bottom', fontsize=8, rotation=0)
@@ -1080,7 +1084,7 @@ def _technology_comparison_publication(
 
     # Sort by contribution
     sorted_items = sorted(tech_contributions.items(), key=lambda x: x[1], reverse=True)
-    labels, values = zip(*sorted_items)
+    labels, values = zip(*sorted_items, strict=False)
 
     fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN, constrained_layout=True)
 
@@ -1095,7 +1099,7 @@ def _technology_comparison_publication(
     ax.grid(True, axis="x", alpha=0.3)
 
     # Add value labels
-    for i, (bar, val) in enumerate(zip(bars, values)):
+    for i, (_bar, val) in enumerate(zip(bars, values, strict=False)):
         label_x = val + max(values) * 0.02
         ax.text(label_x, i, f'{val:,.0f}', va='center', ha='left', fontsize=8)
 
@@ -1171,7 +1175,7 @@ def _capex_opex_publication(
     ax1.grid(True, axis="y", alpha=0.3)
 
     # Add value labels
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=False):
         height = bar.get_height()
         ax1.text(bar.get_x() + bar.get_width()/2., height,
                 f'{val:,.0f}', ha='center', va='bottom', fontsize=9)
@@ -1179,7 +1183,7 @@ def _capex_opex_publication(
     # Add percentage labels
     total = sum(values)
     if total > 0:
-        for bar, val in zip(bars, values):
+        for bar, val in zip(bars, values, strict=False):
             pct = (val / total) * 100
             ax1.text(bar.get_x() + bar.get_width()/2., val/2,
                     f'{pct:.1f}%', ha='center', va='center',
@@ -1209,7 +1213,7 @@ def _capex_opex_publication(
 
     if capex_breakdown:
         # Pie chart for CAPEX breakdown
-        wedges, texts, autotexts = ax2.pie(
+        _wedges, _texts, autotexts = ax2.pie(
             capex_breakdown,
             labels=capex_labels,
             autopct='%1.1f%%',
@@ -1268,7 +1272,7 @@ def _electricity_cost_pie_publication(
     fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_SINGLE_COLUMN, constrained_layout=True)
 
     # Create pie chart
-    wedges, texts, autotexts = ax.pie(
+    _wedges, _texts, autotexts = ax.pie(
         elec_components,
         labels=elec_labels,
         autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '',
@@ -1337,7 +1341,7 @@ def _fuel_cost_breakdown_publication(
     ax.grid(True, axis="y", alpha=0.3)
 
     # Add value labels on bars
-    for bar, val in zip(bars, fuel_costs):
+    for bar, val in zip(bars, fuel_costs, strict=False):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height,
                f'{val:,.0f}', ha='center', va='bottom', fontsize=9)
@@ -1412,7 +1416,7 @@ def _multi_network_temperature_publication(
 
         # Add network info
         temp_level = net_data.get('temperature_level', 'unknown')
-        ax.set_ylabel(f'Temperature [°C]')
+        ax.set_ylabel('Temperature [°C]')
         ax.set_title(f'{net_id} ({temp_level})', fontsize=10, fontweight='bold')
         ax.legend(loc='upper right', fontsize=8)
         ax.grid(True, alpha=0.3)
@@ -1517,12 +1521,12 @@ def _multi_network_sankey_publication(
         return []
 
     try:
-        from matplotlib.sankey import Sankey
+        from matplotlib.sankey import Sankey  # noqa: F401
     except ImportError:
         return []
 
     networks = multi_network_results.get('networks', {})
-    hx_data = multi_network_results.get('heat_exchangers', {})
+    multi_network_results.get('heat_exchangers', {})
     summary = multi_network_results.get('summary', {})
 
     if not networks:
@@ -1563,10 +1567,10 @@ def _multi_network_sankey_publication(
     fig, ax = plt.subplots(figsize=PublicationConfig.FIGSIZE_DOUBLE_COLUMN,
                            constrained_layout=True)
 
-    categories = ['Heat Input'] + list(networks.keys()) + ['Losses', 'HX Transfer']
+    categories = ['Heat Input', *list(networks.keys()), 'Losses', 'HX Transfer']
     values = [heat_input]
 
-    for net_id, net_data in networks.items():
+    for _net_id, net_data in networks.items():
         demand = net_data.get('total_heat_demand_mwh', net_data.get('heat_delivered_mwh', 50))
         values.append(demand)
 
@@ -1583,7 +1587,7 @@ def _multi_network_sankey_publication(
     ax.grid(True, axis='x', alpha=0.3)
 
     # Add value labels
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=False):
         width = bar.get_width()
         ax.text(width + max(values) * 0.02, bar.get_y() + bar.get_height()/2,
                f'{val:.0f}', ha='left', va='center', fontsize=9)
@@ -1694,7 +1698,7 @@ def export_multi_network_plots(
         # Generate default timestamps
         networks = multi_network_results.get('networks', {})
         if networks:
-            first_net = list(networks.values())[0]
+            first_net = next(iter(networks.values()))
             n_steps = len(first_net.get('supply_temperatures_c', range(24)))
             timestamps = list(range(n_steps))
         else:

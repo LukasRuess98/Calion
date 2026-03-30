@@ -7,8 +7,8 @@ publications in journals like Applied Energy.
 
 from __future__ import annotations
 
-from typing import List, Sequence
 import math
+from collections.abc import Sequence
 
 from calion.logging_config import get_logger
 
@@ -23,7 +23,7 @@ def calculate_temp_dependent_loss_series(
     heat_transfer_coeff_W_m2K: float | None = None,
     surface_area_m2: float | None = None,
     storage_capacity_mwh: float | None = None,
-) -> List[float]:
+) -> list[float]:
     """Calculate temperature-dependent hourly loss rates using Newton's law of cooling.
 
     Real thermal storage systems have losses proportional to the temperature difference

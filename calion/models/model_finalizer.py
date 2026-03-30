@@ -16,7 +16,7 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -30,6 +30,7 @@ except Exception:  # pragma: no cover - optional dependency
     pyo = None
 
 from calion.utils.config_utils import normalize_thermal_network_config
+
 from .component_assembler import BusConnections, SystemBusConnections
 from .constraint_builder import (
     add_bus_balance_constraints,
@@ -38,17 +39,16 @@ from .constraint_builder import (
     create_objective,
 )
 from .cost_calculator import (
-    calculate_energy_costs,
+    aggregate_co2_emissions,
     calculate_co2_costs,
     calculate_demand_charge,
-    calculate_investment_costs,
-    calculate_fuel_costs,
     calculate_dump_costs,
-    aggregate_co2_emissions,
+    calculate_energy_costs,
+    calculate_fuel_costs,
+    calculate_investment_costs,
     store_cost_expressions_on_model,
 )
 from .network_manager import NetworkManager
-
 
 # ─── Cost Flags ───────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ class CostFlags:
     include_storage_install: bool = True
 
     @staticmethod
-    def from_config(cfg: Dict[str, Any]) -> "CostFlags":
+    def from_config(cfg: dict[str, Any]) -> CostFlags:
         """Parse cost flags from the merged configuration dict."""
         costs = cfg.get("costs", {})
         grid = cfg.get("grid", {})
@@ -143,14 +143,14 @@ class ModelFinalizer:
     def __init__(
         self,
         model: Any,
-        cfg: Dict[str, Any],
+        cfg: dict[str, Any],
         table: Any,
         buses: BusConnections,
         dt_h: float,
         flags: CostFlags,
         *,
-        unified_config: Optional[Any] = None,
-        system_buses: Optional[SystemBusConnections] = None,
+        unified_config: Any | None = None,
+        system_buses: SystemBusConnections | None = None,
     ) -> None:
         self.m = model
         self.cfg = cfg
@@ -248,11 +248,11 @@ class ModelFinalizer:
             self.m._network_enabled = False
             traceback.print_exc()
 
-    def _unified_to_network_cfg(self, ucfg) -> Dict[str, Any]:
+    def _unified_to_network_cfg(self, ucfg) -> dict[str, Any]:
         """Convert unified config to thermal_network dict for NetworkManager."""
         nodes_list = []
         for nid, node in ucfg.nodes.items():
-            node_dict: Dict[str, Any] = {
+            node_dict: dict[str, Any] = {
                 "id": nid,
                 "type": node.type,
             }

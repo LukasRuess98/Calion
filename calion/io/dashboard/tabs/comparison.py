@@ -6,7 +6,7 @@ Compares PF vs RH vs MPC results.
 
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -30,7 +30,7 @@ def create_comparison_tab(
     has_pf: bool,
     has_rh: bool,
     has_mpc: bool
-) -> 'pn.Column':
+) -> pn.Column:
     """
     Create PF vs RH vs MPC comparison tab.
 
@@ -61,7 +61,7 @@ def create_comparison_tab(
         )
 
     # Collect all available results
-    results: List[Tuple[str, Any, str]] = []  # (label, result, color)
+    results: list[tuple[str, Any, str]] = []  # (label, result, color)
 
     if has_pf:
         results.append(("PF", workflow.pf_result, "#4477AA"))
@@ -143,7 +143,7 @@ def _get_gap_interpretation(label: str, gap: float) -> str:
 
 
 def _create_multi_comparison_plot(
-    results: List[Tuple[str, Any, str]],
+    results: list[tuple[str, Any, str]],
     costs: dict
 ):
     """Create cost comparison plot for multiple methods."""

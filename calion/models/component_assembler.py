@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -29,15 +29,15 @@ except Exception:  # pragma: no cover - optional dependency
 
 from calion.constants import COP_DEFAULT, DEFAULT_STORAGE_ENERGY_MWH, DEFAULT_STORAGE_POWER_MW
 from calion.utils.config_utils import apply_heat_pump_defaults, normalize_storage_config
-from .cop_calculator import calculate_cop_series
-from .investment_calculator import InvestmentCalculator
-from .emissions_calculator import EmissionsCalculator
+
 from .blocks.heat_pump import HeatPumpBlock
+from .blocks.p2h import P2HBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
-from .blocks.p2h import P2HBlock
-
+from .cop_calculator import calculate_cop_series
+from .emissions_calculator import EmissionsCalculator
+from .investment_calculator import InvestmentCalculator
 
 # ─── Bus Connections Containers ────────────────────────────────────────────────
 
@@ -51,23 +51,23 @@ class BusConnections:
     Also used as NodeBusConnections for per-node heat flows in multi-node mode.
     """
 
-    el_in: List = field(default_factory=list)
-    el_out: List = field(default_factory=list)
-    ht_in: List = field(default_factory=list)
-    ht_out: List = field(default_factory=list)
-    gas_in: List = field(default_factory=list)
-    bio_in: List = field(default_factory=list)
-    waste_in: List = field(default_factory=list)
+    el_in: list = field(default_factory=list)
+    el_out: list = field(default_factory=list)
+    ht_in: list = field(default_factory=list)
+    ht_out: list = field(default_factory=list)
+    gas_in: list = field(default_factory=list)
+    bio_in: list = field(default_factory=list)
+    waste_in: list = field(default_factory=list)
 
     # Investment cost accumulation
-    capex_terms: List = field(default_factory=list)
-    activation_terms: List = field(default_factory=list)
-    tie_breaker_terms: List = field(default_factory=list)
-    storage_install_terms: List = field(default_factory=list)
+    capex_terms: list = field(default_factory=list)
+    activation_terms: list = field(default_factory=list)
+    tie_breaker_terms: list = field(default_factory=list)
+    storage_install_terms: list = field(default_factory=list)
 
     # Fuel cost / CO2 accumulation for generators
-    fuel_cost_terms: List = field(default_factory=list)
-    fuel_co2_terms: List = field(default_factory=list)
+    fuel_cost_terms: list = field(default_factory=list)
+    fuel_co2_terms: list = field(default_factory=list)
 
     # Terminal value expression for storage (value/soft policy)
     terminal_value_term: Any = None
@@ -86,21 +86,21 @@ class SystemBusConnections:
     BusConnections for heat flows, while electricity and cost terms are global.
     """
 
-    nodes: Dict[str, BusConnections] = field(default_factory=dict)
+    nodes: dict[str, BusConnections] = field(default_factory=dict)
 
     # Global electricity bus (single grid connection for all nodes)
-    el_in: List = field(default_factory=list)
-    el_out: List = field(default_factory=list)
+    el_in: list = field(default_factory=list)
+    el_out: list = field(default_factory=list)
 
     # System-wide cost accumulators
-    capex_terms: List = field(default_factory=list)
-    activation_terms: List = field(default_factory=list)
-    tie_breaker_terms: List = field(default_factory=list)
-    storage_install_terms: List = field(default_factory=list)
+    capex_terms: list = field(default_factory=list)
+    activation_terms: list = field(default_factory=list)
+    tie_breaker_terms: list = field(default_factory=list)
+    storage_install_terms: list = field(default_factory=list)
 
     # Fuel cost / CO2 accumulation for generators
-    fuel_cost_terms: List = field(default_factory=list)
-    fuel_co2_terms: List = field(default_factory=list)
+    fuel_cost_terms: list = field(default_factory=list)
+    fuel_co2_terms: list = field(default_factory=list)
 
     # Terminal value expression for storage
     terminal_value_term: Any = None
@@ -112,7 +112,7 @@ class SystemBusConnections:
         return self.nodes[node_id]
 
     @property
-    def all_ht_out(self) -> List:
+    def all_ht_out(self) -> list:
         """Flatten all per-node heat output lists."""
         result = []
         for nb in self.nodes.values():
@@ -120,14 +120,14 @@ class SystemBusConnections:
         return result
 
     @property
-    def all_ht_in(self) -> List:
+    def all_ht_in(self) -> list:
         """Flatten all per-node heat input lists."""
         result = []
         for nb in self.nodes.values():
             result.extend(nb.ht_in)
         return result
 
-    def to_flat_bus_connections(self) -> "BusConnections":
+    def to_flat_bus_connections(self) -> BusConnections:
         """Collapse to a single flat BusConnections (for copperplate compatibility).
 
         Merges all per-node heat flows into one global BusConnections while
@@ -173,7 +173,7 @@ class ComponentAssembler:
         model: Any,
         time_set: Any,
         table: Any,
-        cfg: Dict[str, Any],
+        cfg: dict[str, Any],
         dt_h: float,
         inv_calc: InvestmentCalculator,
         co2_calc: EmissionsCalculator,
@@ -195,7 +195,7 @@ class ComponentAssembler:
 
     # ── public helpers ─────────────────────────────────────────────────────────
 
-    def column_series(self, name: str) -> Optional[List[float]]:
+    def column_series(self, name: str) -> list[float] | None:
         """Return a table column as a list, or None if absent."""
         if name in self.table.columns:
             return [float(self.table[name][i]) for i in range(self.T)]
@@ -216,7 +216,7 @@ class ComponentAssembler:
         Returns:
             SystemBusConnections with per-node and system-level bus connections.
         """
-        from calion.config.unified_config import UnifiedSystemConfig, unified_generators_defaults
+        from calion.config.unified_config import unified_generators_defaults
 
         sys_buses = SystemBusConnections()
 
@@ -459,7 +459,7 @@ class ComponentAssembler:
                 continue
             self._attach_single_heat_pump(hp, hp_inv_defaults)
 
-    def _attach_single_heat_pump(self, hp: Dict[str, Any], hp_inv_defaults: Dict[str, Any]) -> None:
+    def _attach_single_heat_pump(self, hp: dict[str, Any], hp_inv_defaults: dict[str, Any]) -> None:
         """Attach one heat pump block and accumulate its bus flows and costs."""
         name = hp.get("id", "HP")
         hp_type = hp.get("type", "standard")
@@ -472,7 +472,7 @@ class ComponentAssembler:
 
         cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type)
 
-        wrg_cap_col: Optional[str] = hp.get("wrg_capacity_column")
+        wrg_cap_col: str | None = hp.get("wrg_capacity_column")
         if wrg_cap_col is None and hp.get("wrg_source_column"):
             prefix = str(hp.get("wrg_source_column")).split("_T")[0]
             candidate = f"{prefix}_Q_cap"
@@ -549,8 +549,8 @@ class ComponentAssembler:
 
     def assemble_storage(
         self,
-        soc_init_override: Optional[float] = None,
-        terminal_target_override: Optional[float] = None,
+        soc_init_override: float | None = None,
+        terminal_target_override: float | None = None,
     ) -> None:
         """Attach thermal energy storage if enabled."""
         syscfg = self.cfg.get("system", {})
@@ -657,7 +657,7 @@ class ComponentAssembler:
             else:
                 self._attach_thermal_generator(key, par, gpar)
 
-    def _attach_p2h(self, par: Dict[str, Any], gpar: Dict[str, Any]) -> None:
+    def _attach_p2h(self, par: dict[str, Any], gpar: dict[str, Any]) -> None:
         """Attach a Power-to-Heat converter block."""
         eff = float(gpar.get("el_to_th_eff", 0.99))
         cap_th = float(par.get("cap_th_mw", 10.0))
@@ -675,7 +675,7 @@ class ComponentAssembler:
         self.m.co2_component_costs["P2H"] = p2h_co2.to_dict()
 
     def _attach_thermal_generator(
-        self, key: str, par: Dict[str, Any], gpar: Dict[str, Any]
+        self, key: str, par: dict[str, Any], gpar: dict[str, Any]
     ) -> None:
         """Attach a fuel-fired thermal generator or CHP block."""
         block = ThermalGeneratorBlock(
@@ -797,7 +797,7 @@ class ComponentAssembler:
 
         terminal_policy = "free" if terminal_state == "free" else (terminal_policy_raw or "equal")
         if terminal_state == "free":
-            terminal_target_val: Optional[float] = None
+            terminal_target_val: float | None = None
         elif terminal_state == "cyclic":
             if not terminal_policy_raw:
                 terminal_policy = "equal"
@@ -821,7 +821,7 @@ class ComponentAssembler:
         logger.info("  - terminal_target_val: %s", terminal_target_val)
         return terminal_policy, terminal_target_val
 
-    def _resolve_power_energy_coupling(self, sto_cfg, storage_defaults) -> Optional[float]:
+    def _resolve_power_energy_coupling(self, sto_cfg, storage_defaults) -> float | None:
         """Resolve optional power/energy coupling constraint."""
         coupling_factor = storage_defaults.get("power_energy_coupling")
         if "power_energy_coupling" in sto_cfg:
@@ -865,7 +865,7 @@ class ComponentAssembler:
             terminal_target=terminal_target_val,
         )
 
-    def _register_storage_references(self, fs: Dict[str, Any], terminal_policy: str) -> None:
+    def _register_storage_references(self, fs: dict[str, Any], terminal_policy: str) -> None:
         """Register Pyomo References for storage variables on the model."""
         for _name in [
             "TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active",
@@ -879,7 +879,7 @@ class ComponentAssembler:
         self.m.TES_charge_mode = pyo.Reference(fs["charge_mode"])
         self.m.TES_discharge_mode = pyo.Reference(fs["discharge_mode"])
         self.m.TES_active = pyo.Reference(fs["active"])
-        setattr(self.m, "TES_terminal_policy", terminal_policy)
+        self.m.TES_terminal_policy = terminal_policy
 
     def _build_terminal_value_term(
         self, fs, sto_cfg, storage_defaults, terminal_policy, terminal_target_val,
@@ -899,17 +899,15 @@ class ComponentAssembler:
         terminal_value_term = None
 
         if terminal_target_val is not None:
-            setattr(self.m, "TES_terminal_target", pyo.Param(initialize=terminal_target_val))
-            target_param = getattr(self.m, "TES_terminal_target")
+            self.m.TES_terminal_target = pyo.Param(initialize=terminal_target_val)
+            target_param = self.m.TES_terminal_target
 
             if terminal_policy == "geq":
-                setattr(self.m, "TES_terminal",
-                        pyo.Constraint(expr=fs["SOC"][last_t] >= target_param))
+                self.m.TES_terminal = pyo.Constraint(expr=fs["SOC"][last_t] >= target_param)
                 logger.info("[ASSEMBLE] Terminal constraint: SOC[%s] >= %.1f MWh (geq)", last_t, terminal_target_val)
 
             elif terminal_policy == "equal":
-                setattr(self.m, "TES_terminal",
-                        pyo.Constraint(expr=fs["SOC"][last_t] == target_param))
+                self.m.TES_terminal = pyo.Constraint(expr=fs["SOC"][last_t] == target_param)
                 logger.info("[ASSEMBLE] Terminal constraint: SOC[%s] == %.1f MWh (equal)", last_t, terminal_target_val)
 
             elif terminal_policy == "value":
@@ -920,9 +918,7 @@ class ComponentAssembler:
             elif terminal_policy == "soft":
                 self.m.TES_terminal_slack_pos = pyo.Var(domain=pyo.NonNegativeReals)
                 self.m.TES_terminal_slack_neg = pyo.Var(domain=pyo.NonNegativeReals)
-                setattr(self.m, "TES_terminal_soft", pyo.Constraint(
-                    expr=fs["SOC"][last_t] + self.m.TES_terminal_slack_neg - self.m.TES_terminal_slack_pos == target_param
-                ))
+                self.m.TES_terminal_soft = pyo.Constraint(expr=fs["SOC"][last_t] + self.m.TES_terminal_slack_neg - self.m.TES_terminal_slack_pos == target_param)
                 terminal_value_term = (
                     soft_penalty * self.m.TES_terminal_slack_neg
                     + (soft_penalty * 0.5) * self.m.TES_terminal_slack_pos

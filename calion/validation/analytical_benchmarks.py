@@ -19,9 +19,9 @@ Reference:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Callable
-import copy
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,10 @@ class AnalyticalTestCase:
 
     name: str
     description: str
-    config_overrides: Dict[str, Any]
-    expected_results: Dict[str, float]
+    config_overrides: dict[str, Any]
+    expected_results: dict[str, float]
     tolerance: float = 0.01  # 1% relative tolerance
-    validation_func: Optional[Callable] = None
+    validation_func: Callable | None = None
     category: str = "general"  # For grouping: energy_balance, cop, storage, merit_order, network
 
 
@@ -68,9 +68,9 @@ class ValidationResult:
     actual: float
     relative_error: float
     absolute_error: float
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for export."""
         return {
             "test_name": self.test_name,
@@ -87,7 +87,7 @@ class ValidationResult:
 class ValidationSuiteResult:
     """Aggregate results from running a validation suite."""
 
-    results: List[ValidationResult]
+    results: list[ValidationResult]
     total_tests: int
     passed_tests: int
     failed_tests: int
@@ -122,7 +122,7 @@ class ValidationSuiteResult:
         return "\n".join(lines)
 
 
-def create_standard_test_suite() -> List[AnalyticalTestCase]:
+def create_standard_test_suite() -> list[AnalyticalTestCase]:
     """Create standard analytical validation test suite.
 
     Returns a list of test cases that verify fundamental optimizer behavior:
@@ -367,9 +367,9 @@ def create_standard_test_suite() -> List[AnalyticalTestCase]:
 
 def run_single_test(
     test_case: AnalyticalTestCase,
-    base_configs: List[str],
-    run_func: Optional[Callable] = None,
-) -> List[ValidationResult]:
+    base_configs: list[str],
+    run_func: Callable | None = None,
+) -> list[ValidationResult]:
     """Run a single analytical test case.
 
     Parameters
@@ -462,9 +462,9 @@ def run_single_test(
 
 
 def run_validation_suite(
-    base_configs: List[str] = None,
-    test_cases: List[AnalyticalTestCase] = None,
-    run_func: Optional[Callable] = None,
+    base_configs: list[str] | None = None,
+    test_cases: list[AnalyticalTestCase] | None = None,
+    run_func: Callable | None = None,
 ) -> ValidationSuiteResult:
     """Run complete analytical validation suite.
 
@@ -519,8 +519,8 @@ def run_validation_suite(
 
 def _extract_test_metrics(
     workflow_result: Any,
-    metric_keys: List[str],
-) -> Dict[str, float]:
+    metric_keys: list[str],
+) -> dict[str, float]:
     """Extract test metrics from workflow result.
 
     Parameters
@@ -550,7 +550,7 @@ def _extract_test_metrics(
         return metrics
 
     series = active_result.series if hasattr(active_result, 'series') else {}
-    summary = active_result.summary if hasattr(active_result, 'summary') else {}
+    active_result.summary if hasattr(active_result, 'summary') else {}
 
     # Extract based on metric name patterns
     for key in metric_keys:

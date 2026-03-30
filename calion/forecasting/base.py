@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
+
 from calion.utils.timeseries import TimeSeriesTable
 
 
@@ -15,7 +16,7 @@ class ForecastGenerator(ABC):
     forecasting approaches (persistence, perfect+noise, historical analog, etc.).
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize forecast generator.
 
         Parameters

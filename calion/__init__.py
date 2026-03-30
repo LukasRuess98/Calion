@@ -1,3 +1,3 @@
-from calion.network import Network  # noqa: F401
+from calion.network import Network
 
-__all__ = ["io", "config", "models", "run", "analysis", "utils", "Network"]
+__all__ = ["Network", "analysis", "config", "io", "models", "run", "utils"]

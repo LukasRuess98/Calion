@@ -12,9 +12,9 @@ Unified physics — no brownfield/greenfield distinction.
 Author: CALION Development Team
 """
 
-from typing import Dict, Any, Optional, List
 import logging
 import math
+from typing import Any
 
 try:
     import pyomo.environ as pyo
@@ -24,8 +24,8 @@ except ImportError:
     pyo = None
 
 from ..component import BaseComponent
-from ..registry import register_component
 from ..network_physics import compute_delay_buckets
+from ..registry import register_component
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class PipePairBlock(BaseComponent):
     """
 
     @staticmethod
-    def validate_config(config: Dict[str, Any]) -> None:
+    def validate_config(config: dict[str, Any]) -> None:
         """Validate pipe pair configuration."""
         required = ['id', 'from_node', 'to_node', 'length_m']
         for field in required:
@@ -75,7 +75,7 @@ class PipePairBlock(BaseComponent):
             )
 
     @staticmethod
-    def attach(model, time_set, config: Dict[str, Any], buses: Dict) -> Dict[str, Any]:
+    def attach(model, time_set, config: dict[str, Any], buses: dict) -> dict[str, Any]:
         """
         Attach pipe pair component to Pyomo model.
 
@@ -104,7 +104,6 @@ class PipePairBlock(BaseComponent):
         # Fluid properties (water)
         cp_water = 4.186       # kJ/(kg·K)
         density_water = 1000   # kg/m³
-        mu_water = 0.0004      # Dynamic viscosity at 80°C [Pa·s]
 
         # Temperature parameters
         supply_temp_nominal_c = config.get('supply_temp_nominal_c', 90.0)
@@ -125,7 +124,7 @@ class PipePairBlock(BaseComponent):
         # Diameter configuration
         existing_pipe = config.get('existing', False)
         current_diam_supply = config.get('current_diameter_supply_mm')
-        current_diam_return = config.get('current_diameter_return_mm', current_diam_supply)
+        config.get('current_diameter_return_mm', current_diam_supply)
 
         # Investment/upgrade options
         upgrade_config = config.get('upgrade_options', {})
@@ -629,7 +628,7 @@ class PipePairBlock(BaseComponent):
         }
 
     @staticmethod
-    def get_results(model, time_set, config: Dict[str, Any]) -> Dict[str, Any]:
+    def get_results(model, time_set, config: dict[str, Any]) -> dict[str, Any]:
         """Extract results from solved model."""
         pipe_id = config.get('id') or config.get('pipe_id')
         prefix = pipe_id.upper().replace('-', '_')

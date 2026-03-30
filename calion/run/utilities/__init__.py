@@ -11,32 +11,32 @@ Functions are grouped by their domain:
 
 Renamed from ``rh_utilities`` – the helpers are not RH-specific.
 """
-from .timeseries_utils import _slice_table, _parse_ts, _apply_horizon, _hours_to_steps, _slugify
-from .pyomo_extraction import _extract_pyomo_series
 from .env_overrides import (
-    _env_str,
-    _env_float,
     _env_bool,
-    _parse_float_list,
+    _env_float,
+    _env_str,
     _gather_env_overrides,
+    _parse_float_list,
 )
+from .pyomo_extraction import _extract_pyomo_series
+from .timeseries_utils import _apply_horizon, _hours_to_steps, _parse_ts, _slice_table, _slugify
 from .validation import _assert_capacity_vs_demand
 
 __all__ = [
-    # Time series utilities
-    "_slice_table",
-    "_parse_ts",
     "_apply_horizon",
-    "_hours_to_steps",
-    "_slugify",
-    # Pyomo extraction
-    "_extract_pyomo_series",
-    # Environment overrides
-    "_env_str",
-    "_env_float",
-    "_env_bool",
-    "_parse_float_list",
-    "_gather_env_overrides",
     # Validation
     "_assert_capacity_vs_demand",
+    "_env_bool",
+    "_env_float",
+    # Environment overrides
+    "_env_str",
+    # Pyomo extraction
+    "_extract_pyomo_series",
+    "_gather_env_overrides",
+    "_hours_to_steps",
+    "_parse_float_list",
+    "_parse_ts",
+    # Time series utilities
+    "_slice_table",
+    "_slugify",
 ]

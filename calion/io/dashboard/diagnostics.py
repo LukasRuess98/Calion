@@ -6,15 +6,14 @@ Provides functions to diagnose workflow data and identify potential issues.
 
 from __future__ import annotations
 
-import logging
-from typing import Any, Dict
+from typing import Any
 
 from calion.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
+def diagnose_workflow(workflow: Any) -> dict[str, Any]:
     """
     Diagnose workflow data for dashboard compatibility.
 
@@ -161,7 +160,7 @@ def diagnose_workflow(workflow: Any) -> Dict[str, Any]:
     }
 
 
-def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
+def print_diagnosis(diagnosis: dict[str, Any]) -> None:
     """
     Print formatted diagnostic results.
 
@@ -170,7 +169,7 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     diagnosis : dict
         Diagnostic results from diagnose_workflow()
     """
-    logger.info(f"\nDashboard Diagnosis:")
+    logger.info("\nDashboard Diagnosis:")
     logger.info(
         "  Available Results: PF=%s, RH=%s, MPC=%s",
         diagnosis.get("has_pf", False),
@@ -192,11 +191,11 @@ def print_diagnosis(diagnosis: Dict[str, Any]) -> None:
     )
 
     if diagnosis['issues']:
-        logger.info(f"\nWARNING: Issues found:")
+        logger.info("\nWARNING: Issues found:")
         for issue in diagnosis['issues']:
             logger.info(f"         • {issue}")
 
     if diagnosis['recommendations']:
-        logger.info(f"\nHINWEIS: Recommendations:")
+        logger.info("\nHINWEIS: Recommendations:")
         for rec in diagnosis['recommendations']:
             logger.info(f"         • {rec}")

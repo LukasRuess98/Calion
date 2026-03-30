@@ -12,15 +12,12 @@ Date: 2025-12-11
 
 from __future__ import annotations
 
-import logging
-import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from calion.utils.xlsx import read_xlsx, list_sheet_names, read_all_sheets
-
-from calion.logging_config import get_logger
 from calion.io._utils import _is_empty
+from calion.logging_config import get_logger
+from calion.utils.xlsx import list_sheet_names, read_xlsx
 
 logger = get_logger(__name__)
 
@@ -54,7 +51,7 @@ def _normalize_column(name: str) -> str:
     return name.lower().strip().replace(" ", "_").replace("-", "_")
 
 
-def _find_column(header: List[str], candidates: List[str]) -> Optional[int]:
+def _find_column(header: list[str], candidates: list[str]) -> int | None:
     """Find column index matching any candidate."""
     norm_header = {_normalize_column(h): i for i, h in enumerate(header)}
     for cand in candidates:
@@ -73,7 +70,7 @@ def load_network_from_excel(
     nodes_sheet: str = "Network_Nodes",
     pipes_sheet: str = "Network_Pipes",
     params_sheet: str = "Network_Parameters"
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Load thermal network configuration from Excel file.
 
@@ -155,7 +152,7 @@ def load_network_from_excel(
     return network_config
 
 
-def _load_parameters(path: str, sheet_name: str) -> Dict[str, Any]:
+def _load_parameters(path: str, sheet_name: str) -> dict[str, Any]:
     """Load network parameters from Excel sheet."""
     header, rows = read_xlsx(path, sheet_name)
     if not header or not rows:
@@ -197,7 +194,7 @@ def _load_parameters(path: str, sheet_name: str) -> Dict[str, Any]:
     return params
 
 
-def _load_nodes(path: str, sheet_name: str) -> tuple[List[Dict], List[Dict], List[Dict]]:
+def _load_nodes(path: str, sheet_name: str) -> tuple[list[dict], list[dict], list[dict]]:
     """Load node definitions from Excel sheet."""
     header, rows = read_xlsx(path, sheet_name)
     if not header or not rows:
@@ -275,7 +272,7 @@ def _load_nodes(path: str, sheet_name: str) -> tuple[List[Dict], List[Dict], Lis
     return plants, pumps, consumers
 
 
-def _load_pipes(path: str, sheet_name: str) -> List[Dict]:
+def _load_pipes(path: str, sheet_name: str) -> list[dict]:
     """Load pipe definitions from Excel sheet."""
     header, rows = read_xlsx(path, sheet_name)
     if not header or not rows:
@@ -362,7 +359,6 @@ def create_network_excel_template(output_path: str) -> None:
     This creates a template with example data showing
     the expected format for network definition sheets.
     """
-    from calion.utils.xlsx import write_simple_xlsx
 
     # This is a simplified version - for a real template,
     # you'd want to create a proper multi-sheet Excel file

@@ -11,7 +11,8 @@ Physical calculations for district heating networks:
 """
 
 import math
-from typing import Any, Dict, List, Union, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -78,7 +79,7 @@ def pipe_total_heat_loss_mw(
     T_supply_c: float,
     T_return_c: float,
     T_ground_c: float,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Liefert separate und gesamte Verluste für Vor- und Rücklauf einer Leitung.
     """
@@ -158,14 +159,14 @@ def pipe_temperature_drop_c(
 
 
 def calculate_pipe_temp_drops(
-    pipes_config: Dict[str, Dict],
+    pipes_config: dict[str, dict],
     supply_temp_c: float,
     return_temp_c: float,
     ground_temp_c: float,
     total_heat_demand_kw: float,
     default_u_value: float = 0.5,
     cp_kj_per_kg_k: float = 4.186,
-) -> Dict[str, Dict[str, float]]:
+) -> dict[str, dict[str, float]]:
     """
     Calculate temperature drops for all pipes based on physics.
 
@@ -305,7 +306,7 @@ def calculate_supply_temperature_series(
     T_supply_max_c: float = 120.0,
     T_outdoor_high_c: float = 20.0,
     T_outdoor_low_c: float = -10.0,
-) -> List[float]:
+) -> list[float]:
     """
     Calculate supply temperature series for a sequence of outdoor temperatures.
 
@@ -341,7 +342,7 @@ def get_heating_curve_parameters(
     T_supply_max_c: float = 120.0,
     T_outdoor_high_c: float = 20.0,
     T_outdoor_low_c: float = -10.0,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calculate and return the heating curve parameters in slope-intercept form.
 
@@ -393,7 +394,7 @@ def compute_delay_buckets(
     m_max_kg_s: float,
     n_buckets: int = 3,
     dt_h: float = 1.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compute integer transport delay constants for piecewise-linear SOS2 linearisation.
 
@@ -473,12 +474,12 @@ def plot_heating_curve(
     T_supply_max_c: float = 120.0,
     T_outdoor_high_c: float = 20.0,
     T_outdoor_low_c: float = -10.0,
-    outdoor_temp_series: Sequence[float] = None,
-    supply_temp_series: Sequence[float] = None,
-    save_path: str = None,
+    outdoor_temp_series: Sequence[float] | None = None,
+    supply_temp_series: Sequence[float] | None = None,
+    save_path: str | None = None,
     show: bool = True,
     figsize: tuple = (10, 6),
-) -> "matplotlib.figure.Figure":
+) -> "matplotlib.figure.Figure":  # noqa: F821
     """
     Plot the heating curve and optionally actual data points.
 
@@ -511,7 +512,7 @@ def plot_heating_curve(
         import matplotlib.pyplot as plt
         import numpy as np
     except ImportError:
-        raise ImportError("matplotlib and numpy are required for plotting")
+        raise ImportError("matplotlib and numpy are required for plotting") from None
 
     # Create figure
     fig, ax = plt.subplots(figsize=figsize)

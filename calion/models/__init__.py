@@ -15,64 +15,48 @@ while providing a cleaner, more extensible architecture for future development.
 """
 
 # Core abstractions
-from .component import (
-    Component,
-    BaseComponent,
-    Flow,
-    InvestmentResult,
-    BusType
-)
-
-from .bus import (
-    Bus,
-    create_default_buses,
-    create_buses_from_config
-)
-
-from .registry import (
-    ComponentRegistry,
-    register_component,
-    get_component,
-    create_component,
-    list_components
-)
-
 # Import all block classes to trigger @register_component decorators
 # This ensures all components are registered when the package is imported
 from .blocks.heat_pump import HeatPumpBlock
+from .blocks.p2h import P2HBlock
 from .blocks.storage import StorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
-from .blocks.p2h import P2HBlock
+from .bus import Bus, create_buses_from_config, create_default_buses
+from .component import BaseComponent, BusType, Component, Flow, InvestmentResult
+from .registry import (
+    ComponentRegistry,
+    create_component,
+    get_component,
+    list_components,
+    register_component,
+)
 
 # Legacy builder (v1.0) - still supported
 from .system_builder import build_model
 
 __all__ = [
+    'BaseComponent',
+    'Bus',
+    'BusType',
     # Core abstractions
     'Component',
-    'BaseComponent',
-    'Flow',
-    'InvestmentResult',
-    'BusType',
-    'Bus',
-    'create_default_buses',
-    'create_buses_from_config',
-
     # Registry
     'ComponentRegistry',
-    'register_component',
-    'get_component',
-    'create_component',
-    'list_components',
-
+    'Flow',
     # Component blocks
     'HeatPumpBlock',
+    'InvestmentResult',
+    'P2HBlock',
     'StorageBlock',
     'ThermalGeneratorBlock',
-    'P2HBlock',
-
     # Builder
     'build_model',
+    'create_buses_from_config',
+    'create_component',
+    'create_default_buses',
+    'get_component',
+    'list_components',
+    'register_component',
 ]
 
 

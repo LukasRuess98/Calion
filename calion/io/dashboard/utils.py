@@ -6,8 +6,6 @@ Contains color definitions, formatting helpers, and reusable utility functions.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 try:
     import panel as pn
     HAVE_PANEL = True
@@ -21,7 +19,7 @@ except ImportError:
 # =============================================================================
 
 # Professional technical color palette (DIN-inspired, subdued, scientific)
-KPI_COLORS: Dict[str, str] = {
+KPI_COLORS: dict[str, str] = {
     'primary': '#004191',    # Universitätsblau (Hauptfarbe)
     'secondary': '#6c757d',  # Neutralgrau (Sekundärinformation)
     'success': '#2E7D32',    # Dunkelgrün (Erfolg, positiv)
@@ -32,7 +30,7 @@ KPI_COLORS: Dict[str, str] = {
 }
 
 # Component-specific colors for plots
-COMPONENT_COLORS: Dict[str, str] = {
+COMPONENT_COLORS: dict[str, str] = {
     'HP1': '#1976D2',        # Technisches Blau (Wärmepumpe 1)
     'HP2': '#0288D1',        # Technisches Hellblau (Wärmepumpe 2)
     'HP3': '#0277BD',        # Technisches Mittelblau (Wärmepumpe 3)
@@ -44,7 +42,7 @@ COMPONENT_COLORS: Dict[str, str] = {
 }
 
 # CO2 category colors
-CO2_COLORS: Dict[str, str] = {
+CO2_COLORS: dict[str, str] = {
     'heat': '#dc3545',       # Danger (rot) - Wärmeerzeugung
     'elec_self': '#198754',  # Success (grün) - Strom-Eigenverbrauch
     'elec_grid': '#0dcaf0',  # Info (blau) - Strombezug
@@ -99,7 +97,7 @@ def get_kpi_color(card_type: str) -> str:
 # KPI Card Creation
 # =============================================================================
 
-def create_kpi_card(title: str, value: str, card_type: str = 'primary') -> 'pn.pane.HTML':
+def create_kpi_card(title: str, value: str, card_type: str = 'primary') -> pn.pane.HTML:
     """
     Create a single KPI card with professional technical color scheme.
 

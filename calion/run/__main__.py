@@ -12,19 +12,18 @@ export arguments (--dashboard, --save-lp) are available in a single CLI.
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 from calion.logging_config import get_logger
-from calion.run.export import export_workflow_results as _export_workflow_results
 from calion.run import workflow as _wf
+from calion.run.export import export_workflow_results as _export_workflow_results
+from calion.run.utilities import _gather_env_overrides
 from calion.run.workflow import (
     _build_override_dict,
     _expand_sensitivity_runs,
     _merge_cli_and_env,
     add_workflow_cli_args,
 )
-from calion.run.utilities import _gather_env_overrides
 
 logger = get_logger(__name__)
 

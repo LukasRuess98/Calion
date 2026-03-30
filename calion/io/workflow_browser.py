@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -29,13 +29,13 @@ except ImportError:
 
 try:
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    from plotly.subplots import make_subplots  # noqa: F401
     HAVE_PLOTLY = True
 except ImportError:
     HAVE_PLOTLY = False
     go = None
 
-__all__ = ["create_workflow_browser", "HAVE_PANEL", "HAVE_PLOTLY"]
+__all__ = ["HAVE_PANEL", "HAVE_PLOTLY", "create_workflow_browser"]
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ class WorkflowBrowser:
         self.current_workflow = None
         self.current_workflow_data = None
 
-    def _scan_workflows(self) -> List[Dict[str, Any]]:
+    def _scan_workflows(self) -> list[dict[str, Any]]:
         """Scan saved_workflows directory for available simulations."""
 
         if not self.saved_workflows_dir.exists():
@@ -131,7 +131,7 @@ class WorkflowBrowser:
 
             if metadata_file.exists():
                 try:
-                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                    with open(metadata_file, encoding='utf-8') as f:
                         metadata = json.load(f)
 
                     # Extrahiere Daten mit Fallbacks
@@ -174,7 +174,7 @@ class WorkflowBrowser:
             elif manifest_file.exists():
                 # Fallback: use manifest.json (from export_workflow_results)
                 try:
-                    with open(manifest_file, 'r', encoding='utf-8') as f:
+                    with open(manifest_file, encoding='utf-8') as f:
                         manifest = json.load(f)
 
                     # Extract data from manifest format
@@ -211,7 +211,7 @@ class WorkflowBrowser:
 
         return workflows
 
-    def _load_workflow(self, workflow_info: Dict[str, Any]) -> Optional[Any]:
+    def _load_workflow(self, workflow_info: dict[str, Any]) -> Any | None:
         """Load workflow from saved_workflows directory."""
 
         from calion.io.notebook_helpers import load_workflow_from_saved
@@ -224,7 +224,7 @@ class WorkflowBrowser:
             logger.error(f"Failed to load workflow {workflow_info['name']}: {e}")
             return None
 
-    def _load_timeseries_csv(self, workflow_info: Dict[str, Any], result_type: str = 'rh') -> Optional[pd.DataFrame]:
+    def _load_timeseries_csv(self, workflow_info: dict[str, Any], result_type: str = 'rh') -> pd.DataFrame | None:
         """Load timeseries CSV for a workflow."""
 
         csv_file = workflow_info['path'] / f'{result_type}_timeseries.csv'
@@ -368,8 +368,8 @@ class WorkflowBrowser:
             logger.info(f"Refreshed: {len(self.available_workflows)} workflows found, {len(new_options)} options created")
 
             # Clear status after 3 seconds
-            import time
             import threading
+            import time
             def clear_status():
                 time.sleep(3)
                 refresh_status.object = ""

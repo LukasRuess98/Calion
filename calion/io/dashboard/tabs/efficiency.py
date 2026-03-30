@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from ..data_preparation import DashboardData
 
 
-def create_efficiency_tab(data: 'DashboardData') -> 'pn.Column':
+def create_efficiency_tab(data: DashboardData) -> pn.Column:
     """
     Create efficiency and COP analysis tab with input/output comparison.
 

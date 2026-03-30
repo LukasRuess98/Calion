@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any
 
 from calion.forecasting.base import ForecastGenerator
-from calion.utils.timeseries import TimeSeriesTable
 from calion.run.rolling_horizon import _slice_table
+from calion.utils.timeseries import TimeSeriesTable
 
 
 class PerfectNoiseForecast(ForecastGenerator):
@@ -22,7 +23,7 @@ class PerfectNoiseForecast(ForecastGenerator):
     - Prices: Lognormal noise (to keep prices positive)
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize with noise parameters.
 
         Parameters

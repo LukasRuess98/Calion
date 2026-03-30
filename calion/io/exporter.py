@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
-from numbers import Number
-from typing import Iterable, Mapping, MutableMapping, Sequence
 import csv
 import json
 import math
 import os
-from zipfile import ZIP_DEFLATED, ZipFile
-
+from collections import OrderedDict
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from numbers import Number
 from xml.sax.saxutils import escape
+from zipfile import ZIP_DEFLATED, ZipFile
 
 _XML_ESCAPE = {"'": "&apos;"}
 
@@ -27,11 +26,11 @@ except Exception:  # pragma: no cover
     HAVE_OPENPYXL = False
 
 __all__ = [
-    "write_timeseries_csv",
+    "HAVE_OPENPYXL",
+    "export_scenario_bundle",
     "write_excel_workbook",
     "write_scenario_workbook",
-    "export_scenario_bundle",
-    "HAVE_OPENPYXL",
+    "write_timeseries_csv",
 ]
 
 
@@ -76,7 +75,7 @@ def write_timeseries_csv(
     n = len(table)
     _ensure_lengths(extra, n)
 
-    columns = ["timestamp"] + table.columns + list(extra.keys())
+    columns = ["timestamp", *table.columns, *list(extra.keys())]
     _write_csv(
         path,
         columns,
@@ -408,7 +407,7 @@ def _write_simple_xlsx(path: str, sheets: Mapping[str, Sequence[Sequence[object]
         handle.writestr("xl/workbook.xml", _workbook_xml(sheet_names))
         handle.writestr("xl/_rels/workbook.xml.rels", _workbook_rels_xml(len(sheet_names)))
         handle.writestr("xl/styles.xml", _styles_xml())
-        for idx, (name, rows) in enumerate(sheets.items(), start=1):
+        for idx, (_name, rows) in enumerate(sheets.items(), start=1):
             handle.writestr(f"xl/worksheets/sheet{idx}.xml", _sheet_xml(rows))
 
 
@@ -448,7 +447,7 @@ def _build_timeseries_sheet(
             rows.append([])
             continue
 
-        value_lists: "OrderedDict[str, list[object]]" = OrderedDict()
+        value_lists: OrderedDict[str, list[object]] = OrderedDict()
         for name, values in series.items():
             key = str(name)
             seq = list(values)
@@ -458,12 +457,12 @@ def _build_timeseries_sheet(
                 seq = seq[: len(timestamps)]
             value_lists[key] = seq
 
-        headers = ["timestamp"] + list(value_lists.keys())
+        headers = ["timestamp", *list(value_lists.keys())]
         rows.append([_excel_safe_value(header) for header in headers])
 
         data_rows = []
         for idx, ts in enumerate(timestamps):
-            row: "OrderedDict[str, object]" = OrderedDict()
+            row: OrderedDict[str, object] = OrderedDict()
             row["timestamp"] = ts
             for name, seq in value_lists.items():
                 row[name] = seq[idx]
@@ -550,7 +549,7 @@ def write_scenario_workbook(
     cost_sections: Mapping[str, Mapping[str, object]] | None = None,
     design: Mapping[str, object] | None = None,
 ) -> None:
-    sheets: "OrderedDict[str, list[list[object]]]" = OrderedDict()
+    sheets: OrderedDict[str, list[list[object]]] = OrderedDict()
     sheets["Meta"] = _build_meta_sheet(meta_sections)
     sheets["Timeseries"] = _build_timeseries_sheet(timeseries_sections)
     sheets["Costs"] = _build_costs_sheet(cost_sections)
@@ -578,7 +577,7 @@ def export_scenario_bundle(
         design=design,
     )
 
-    manifest_data: "OrderedDict[str, object]" = OrderedDict()
+    manifest_data: OrderedDict[str, object] = OrderedDict()
     if manifest:
         for key, value in manifest.items():
             manifest_data[key] = value
@@ -637,7 +636,7 @@ def write_excel_workbook(
     input_ws.title = "input_timeseries"
     _append_table(
         input_ws,
-        ["timestamp"] + table.columns,
+        ["timestamp", *table.columns],
         (
             [table.index[i].isoformat() if isinstance(table.index[i], datetime) else str(table.index[i])] +
             [table[col][i] for col in table.columns]
@@ -647,7 +646,7 @@ def write_excel_workbook(
     input_ws.freeze_panes = "B2"
 
     results_ws = wb.create_sheet("results_timeseries")
-    series_headers = ["timestamp"] + list(series.keys())
+    series_headers = ["timestamp", *list(series.keys())]
     _append_table(
         results_ws,
         series_headers,

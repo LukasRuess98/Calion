@@ -21,7 +21,7 @@ Author: CALION Development Team
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 try:
     import pyomo.environ as pyo
@@ -30,8 +30,8 @@ except ImportError:
     HAVE_PYOMO = False
     pyo = None
 
-from .network_manager import NetworkManager
 from .blocks.heat_exchanger import HeatExchangerBlock
+from .network_manager import NetworkManager
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,8 @@ class MultiNetworkManager:
 
     def __init__(
         self,
-        config: Dict[str, Any],
-        config_dir: Optional[Path] = None,
+        config: dict[str, Any],
+        config_dir: Path | None = None,
     ):
         """
         Initialize Multi-Network Manager.
@@ -77,13 +77,13 @@ class MultiNetworkManager:
         self.config_dir = config_dir or Path('.')
 
         # Network instances
-        self.networks: Dict[str, NetworkManager] = {}
+        self.networks: dict[str, NetworkManager] = {}
 
         # Heat exchanger instances
-        self.heat_exchangers: Dict[str, Dict[str, Any]] = {}
+        self.heat_exchangers: dict[str, dict[str, Any]] = {}
 
         # Coupling definitions
-        self.couplings: List[Dict[str, Any]] = []
+        self.couplings: list[dict[str, Any]] = []
 
         # Global parameters
         self.parameters = config.get('parameters', {})
@@ -131,10 +131,10 @@ class MultiNetworkManager:
     def attach_to_model(
         self,
         model,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         time_set,
-        outdoor_temp_series: Optional[List[float]] = None,
-    ) -> Dict[str, Any]:
+        outdoor_temp_series: list[float] | None = None,
+    ) -> dict[str, Any]:
         """
         Attach all networks and couplings to Pyomo model.
 
@@ -211,7 +211,7 @@ class MultiNetworkManager:
         # PHASE 3: Create coupling constraints
         # ========================================
 
-        logger.info(f"\n--- Creating coupling constraints ---")
+        logger.info("\n--- Creating coupling constraints ---")
 
         self._create_coupling_constraints(model, time_set, result)
 
@@ -232,7 +232,7 @@ class MultiNetworkManager:
         self,
         model,
         time_set,
-        result: Dict[str, Any],
+        result: dict[str, Any],
     ):
         """Create constraints coupling networks via heat exchangers."""
 
@@ -252,14 +252,14 @@ class MultiNetworkManager:
                 logger.warning(f"HX {hx_id}: Secondary network '{secondary_net_id}' not found")
                 continue
 
-            primary_net = result['networks'].get(primary_net_id, {})
-            secondary_net = result['networks'].get(secondary_net_id, {})
+            result['networks'].get(primary_net_id, {})
+            result['networks'].get(secondary_net_id, {})
 
-            hx_prefix = hx_id.upper().replace('-', '_')
+            hx_id.upper().replace('-', '_')
 
             # Get HX temperature variables
             T_prim_in = hx_result.get('T_prim_in')
-            T_sec_out = hx_result.get('T_sec_out')
+            hx_result.get('T_sec_out')
             Q_transfer = hx_result.get('Q_transfer')
 
             if T_prim_in is None or Q_transfer is None:
@@ -317,14 +317,14 @@ class MultiNetworkManager:
         self,
         model,
         time_set,
-        result: Dict[str, Any],
+        result: dict[str, Any],
     ):
         """Create aggregated variables across all networks."""
 
         # Total heat loss across all networks
         def total_multi_network_loss_rule(m, t):
             total = 0
-            for net_id, net_result in result['networks'].items():
+            for _net_id, net_result in result['networks'].items():
                 loss_var = net_result.get('network_Q_loss_per_timestep', {})
                 if loss_var and t in loss_var:
                     total += loss_var[t]
@@ -340,7 +340,7 @@ class MultiNetworkManager:
         result['total_hx_transfer_mw'] = {}
         for t in time_set:
             total_hx = 0
-            for hx_id, hx_result in result['heat_exchangers'].items():
+            for _hx_id, hx_result in result['heat_exchangers'].items():
                 Q_transfer = hx_result.get('Q_transfer')
                 if Q_transfer:
                     total_hx += Q_transfer[t]
@@ -349,9 +349,9 @@ class MultiNetworkManager:
     def get_results(
         self,
         model,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         time_set,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract results from all networks and heat exchangers.
 
@@ -403,10 +403,10 @@ class MultiNetworkManager:
         total_heat_loss = 0
         total_heat_transferred = 0
 
-        for net_id, net_res in results['networks'].items():
+        for _net_id, net_res in results['networks'].items():
             total_heat_loss += net_res.get('total_network_heat_loss_mwh', 0)
 
-        for hx_id, hx_res in results['heat_exchangers'].items():
+        for _hx_id, hx_res in results['heat_exchangers'].items():
             total_heat_transferred += hx_res.get('total_heat_transferred_mwh', 0)
 
         results['summary'] = {
@@ -418,19 +418,19 @@ class MultiNetworkManager:
 
         return results
 
-    def get_network(self, network_id: str) -> Optional[NetworkManager]:
+    def get_network(self, network_id: str) -> NetworkManager | None:
         """Get a specific network manager by ID."""
         return self.networks.get(network_id)
 
-    def get_network_ids(self) -> List[str]:
+    def get_network_ids(self) -> list[str]:
         """Get list of all network IDs."""
         return list(self.networks.keys())
 
-    def get_heat_exchanger_ids(self) -> List[str]:
+    def get_heat_exchanger_ids(self) -> list[str]:
         """Get list of all heat exchanger IDs."""
         return list(self.heat_exchangers.keys())
 
-    def get_temperature_levels(self) -> Dict[str, Dict[str, float]]:
+    def get_temperature_levels(self) -> dict[str, dict[str, float]]:
         """
         Get temperature levels for all networks.
 
@@ -464,7 +464,7 @@ def create_multi_network_from_config(
     """
     import yaml
 
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, encoding='utf-8') as f:
         config = yaml.safe_load(f)
 
     config_dir = config_path.parent

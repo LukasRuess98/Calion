@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -38,7 +38,7 @@ def export_solver_solution(
     model,
     output_dir: str,
     filename: str = "gurobi_solution",
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Export solver solution files (LP, SOL, MPS).
 
@@ -81,7 +81,7 @@ def export_solver_solution(
 
         # Write solution manually since Pyomo doesn't have direct .sol export
         with open(sol_path, 'w', encoding="utf-8") as f:
-            f.write(f"# Gurobi Solution Export\n")
+            f.write("# Gurobi Solution Export\n")
             f.write(f"# Generated: {datetime.now().isoformat()}\n")
             f.write(f"# Objective Value: {obj_val}\n\n")
 
@@ -120,7 +120,7 @@ def export_thermal_network_results(
     time_set,
     output_dir: str,
     dt_h: float = 1.0,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Export comprehensive thermal network results.
 
@@ -192,7 +192,7 @@ def _export_node_results(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export node-level results."""
     files = {}
 
@@ -285,7 +285,7 @@ def _export_pipe_results(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export pipe-level results with pressure drops and heat losses."""
     files = {}
 
@@ -435,7 +435,7 @@ def _export_network_summary(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export network-wide summary statistics."""
     files = {}
 
@@ -459,7 +459,7 @@ def _export_network_summary(
     }
 
     # Count node types
-    for node_id, node_cfg in network_manager.nodes.items():
+    for _node_id, node_cfg in network_manager.nodes.items():
         node_type = node_cfg.get('type', 'unknown')
         summary['topology']['node_types'][node_type] = \
             summary['topology']['node_types'].get(node_type, 0) + 1
@@ -495,7 +495,7 @@ def _export_network_summary(
         json.dump(summary, f, indent=2, default=str)
     files['network_summary'] = summary_path
 
-    logger.info(f"  ✓ Network summary saved")
+    logger.info("  ✓ Network summary saved")
 
     return files
 
@@ -506,7 +506,7 @@ def _export_physics_results(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export physics calculation results (PWL, temperature drops, etc.)."""
     files = {}
 
@@ -564,7 +564,7 @@ def _export_physics_results(
         json.dump(physics_data, f, indent=2, default=str)
     files['physics_models'] = physics_path
 
-    logger.info(f"  ✓ Physics models info saved")
+    logger.info("  ✓ Physics models info saved")
     logger.info(f"    - PWL pressure drop: {has_pwl}")
     logger.info(f"    - Physics temp drop: {has_physics_temp}")
 
@@ -576,7 +576,7 @@ def _export_storage_results(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export thermal storage results including PWL losses."""
     files = {}
 
@@ -651,7 +651,7 @@ def _export_storage_results(
         json.dump(storage_data['summary'], f, indent=2, default=str)
     files['storage_summary'] = summary_path
 
-    logger.info(f"  ✓ Storage results saved")
+    logger.info("  ✓ Storage results saved")
 
     return files
 
@@ -663,8 +663,8 @@ def export_all_results(
     output_dir: str,
     dt_h: float = 1.0,
     export_solver_files: bool = True,
-    scenario_name: str = None,
-) -> Dict[str, Any]:
+    scenario_name: str | None = None,
+) -> dict[str, Any]:
     """
     Export all results including solver files and thermal network.
 
@@ -755,7 +755,7 @@ def _export_unified_timeseries(
     time_set,
     output_dir: str,
     dt_h: float,
-) -> Optional[str]:
+) -> str | None:
     """Export all timeseries data into one unified CSV file."""
     try:
         all_data = {'timestep': list(time_set)}
@@ -808,13 +808,13 @@ def _export_unified_timeseries(
                 all_data['storage_SOC_MWh'] = [pyo.value(model.TES_SOC[t]) for t in time_set]
             except Exception as e:
                 logger.debug(f"Could not export storage_SOC: {e}")
-                
+
         if hasattr(model, 'TES_Q_charge'):
             try:
                 all_data['storage_charge_MW'] = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
             except Exception as e:
                 logger.debug(f"Could not export storage_charge: {e}")
-                
+
         if hasattr(model, 'TES_Q_discharge'):
             try:
                 all_data['storage_discharge_MW'] = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
@@ -881,7 +881,7 @@ def _extract_network_data_for_dashboard(
     network_manager,
     time_set,
     dt_h: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract network data in a format suitable for dashboard display."""
     dashboard_data = {
         'nodes': {},
@@ -890,7 +890,7 @@ def _extract_network_data_for_dashboard(
         'timeseries': {},
     }
 
-    time_list = list(time_set)
+    list(time_set)
 
     # Extract node data
     for node_id, node_config in network_manager.nodes.items():

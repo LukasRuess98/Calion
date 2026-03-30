@@ -28,7 +28,7 @@ except ImportError:
     go = None
 
 
-def create_design_tab(workflow: Any) -> 'pn.Column':
+def create_design_tab(workflow: Any) -> pn.Column:
     """
     Create design/capacity tab.
 

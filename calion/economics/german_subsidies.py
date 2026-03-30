@@ -14,10 +14,10 @@ References:
 - KWKG 2023: https://www.gesetze-im-internet.de/kwkg_2016/
 """
 
-from typing import Dict, Any, Optional, List
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class SubsidyResult:
 
     # BEW results
     bew_eligible: bool = False
-    bew_module: Optional[BEWModule] = None
+    bew_module: BEWModule | None = None
     bew_investment_subsidy_eur: float = 0.0
     bew_operating_subsidy_eur_per_year: float = 0.0
     bew_funding_rate_percent: float = 0.0
@@ -100,7 +100,7 @@ class SubsidyResult:
     total_annual_subsidy_eur: float = 0.0
 
     # Details
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class GermanSubsidyCalculator:
@@ -115,17 +115,17 @@ class GermanSubsidyCalculator:
 
     def __init__(
         self,
-        bew_params: Optional[BEWParameters] = None,
-        kwkg_params: Optional[KWKGParameters] = None,
+        bew_params: BEWParameters | None = None,
+        kwkg_params: KWKGParameters | None = None,
     ):
         self.bew = bew_params or BEWParameters()
         self.kwkg = kwkg_params or KWKGParameters()
 
     def calculate_subsidies(
         self,
-        investment_data: Dict[str, Any],
-        operation_data: Dict[str, Any],
-        network_data: Optional[Dict[str, Any]] = None,
+        investment_data: dict[str, Any],
+        operation_data: dict[str, Any],
+        network_data: dict[str, Any] | None = None,
     ) -> SubsidyResult:
         """
         Calculate all applicable German subsidies.
@@ -192,7 +192,7 @@ class GermanSubsidyCalculator:
 
         return result
 
-    def _calculate_renewable_share(self, operation_data: Dict[str, Any]) -> float:
+    def _calculate_renewable_share(self, operation_data: dict[str, Any]) -> float:
         """
         Calculate renewable energy share according to RED II.
 
@@ -227,10 +227,10 @@ class GermanSubsidyCalculator:
 
     def _calculate_bew(
         self,
-        investment_data: Dict[str, Any],
-        operation_data: Dict[str, Any],
+        investment_data: dict[str, Any],
+        operation_data: dict[str, Any],
         renewable_share: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Calculate BEW (Bundesförderung für effiziente Wärmenetze) subsidies.
 
@@ -311,10 +311,10 @@ class GermanSubsidyCalculator:
 
     def _calculate_kwkg(
         self,
-        investment_data: Dict[str, Any],
-        operation_data: Dict[str, Any],
-        network_data: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        investment_data: dict[str, Any],
+        operation_data: dict[str, Any],
+        network_data: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """
         Calculate KWKG (Kraft-Wärme-Kopplungsgesetz) subsidies.
 
@@ -432,8 +432,8 @@ class GermanSubsidyCalculator:
 
         # Summary
         report.append("\n## 4. Zusammenfassung\n")
-        report.append(f"| Kategorie | Betrag |\n")
-        report.append(f"|-----------|--------|\n")
+        report.append("| Kategorie | Betrag |\n")
+        report.append("|-----------|--------|\n")
         report.append(f"| Investitionszuschüsse (gesamt) | {result.total_investment_subsidy_eur:,.0f} € |\n")
         report.append(f"| Jährliche Zuschüsse (gesamt) | {result.total_annual_subsidy_eur:,.0f} €/Jahr |\n")
 

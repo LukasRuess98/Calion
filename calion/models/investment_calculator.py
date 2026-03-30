@@ -13,7 +13,7 @@ Replaces duplicated patterns from:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Any
+from typing import Any
 
 from calion.constants import DEFAULT_LIFETIME_YEARS
 
@@ -61,10 +61,10 @@ class InvestmentTerms:
         tie_breaker: Non-annualized small costs to break optimization ties
         storage_install: Installation cost expressions (storage only)
     """
-    capex: List[Any] = field(default_factory=list)
-    activation: List[Any] = field(default_factory=list)
-    tie_breaker: List[Any] = field(default_factory=list)
-    storage_install: List[Any] = field(default_factory=list)
+    capex: list[Any] = field(default_factory=list)
+    activation: list[Any] = field(default_factory=list)
+    tie_breaker: list[Any] = field(default_factory=list)
+    storage_install: list[Any] = field(default_factory=list)
 
 
 class InvestmentCalculator:
@@ -147,9 +147,9 @@ class InvestmentCalculator:
 
     def calculate_storage_costs(
         self,
-        energy_cap_var: Optional[Any],  # pyo.Var for energy capacity
-        power_cap_var: Optional[Any],  # pyo.Var for power capacity
-        build_var: Optional[Any],  # pyo.Var (binary)
+        energy_cap_var: Any | None,  # pyo.Var for energy capacity
+        power_cap_var: Any | None,  # pyo.Var for power capacity
+        build_var: Any | None,  # pyo.Var (binary)
         config: StorageInvestmentConfig,
     ) -> InvestmentTerms:
         """
@@ -170,7 +170,7 @@ class InvestmentCalculator:
         terms = InvestmentTerms()
         af = self.annual_factor(config.lifetime_years)
 
-        install_components: List[Any] = []
+        install_components: list[Any] = []
 
         if energy_cap_var is not None:
             if self.include_capex and config.energy_capex_eur_per_mwh > 0:
@@ -205,7 +205,7 @@ class InvestmentCalculator:
         inv_defaults: dict,
         period_frac: float,
         cost_flags: dict,
-    ) -> "InvestmentCalculator":
+    ) -> InvestmentCalculator:
         """
         Factory method to create InvestmentCalculator from config dictionaries.
 
@@ -284,7 +284,7 @@ class InvestmentCalculator:
 
 __all__ = [
     "ComponentInvestmentConfig",
-    "StorageInvestmentConfig",
-    "InvestmentTerms",
     "InvestmentCalculator",
+    "InvestmentTerms",
+    "StorageInvestmentConfig",
 ]

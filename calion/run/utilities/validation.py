@@ -8,10 +8,8 @@ Extracted from rolling_horizon.py to improve modularity and testability.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-
-from calion.utils.timeseries import TimeSeriesTable
 from calion.logging_config import get_logger
+from calion.utils.timeseries import TimeSeriesTable
 
 logger = get_logger(__name__)
 

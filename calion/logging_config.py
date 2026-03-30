@@ -12,8 +12,6 @@ Usage:
 import io
 import logging
 import sys
-from typing import Optional
-
 
 # Module-level cache for loggers
 _loggers = {}
@@ -21,7 +19,7 @@ _loggers = {}
 
 def setup_logging(
     level: int = logging.INFO,
-    format_string: Optional[str] = None,
+    format_string: str | None = None,
     include_timestamp: bool = True,
 ) -> None:
     """

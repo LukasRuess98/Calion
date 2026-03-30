@@ -18,7 +18,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -31,9 +31,9 @@ logger = get_logger(__name__)
 
 def export_multi_network_data(
     multi_dir: str,
-    multi_data: Dict[str, Any],
+    multi_data: dict[str, Any],
     timeseries_df: pd.DataFrame,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export multi-network JSON summaries and temperature CSV.
 
     Creates:
@@ -44,14 +44,14 @@ def export_multi_network_data(
     Returns dict mapping export key → file path.
     """
     os.makedirs(multi_dir, exist_ok=True)
-    files: Dict[str, str] = {}
+    files: dict[str, str] = {}
 
     # Networks summary JSON
     networks_data = multi_data.get('networks', {})
     if networks_data:
         networks_export = {}
         for net_id, net_info in networks_data.items():
-            net_export: Dict[str, Any] = {
+            net_export: dict[str, Any] = {
                 'id': net_id,
                 'name': net_info.get('name', net_id),
                 'temperature_level': net_info.get('temperature_level', 'unknown'),
@@ -110,20 +110,22 @@ def export_multi_network_data(
 
 def export_multi_network_plots(
     fig_dir: str,
-    multi_data: Dict[str, Any],
+    multi_data: dict[str, Any],
     timeseries_df: pd.DataFrame,
     table: Any,
-    series: Dict[str, Any],
+    series: dict[str, Any],
     plot_dpi: int = 300,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export multi-network plots, falling back to basic matplotlib if needed."""
     os.makedirs(fig_dir, exist_ok=True)
-    files: Dict[str, str] = {}
+    files: dict[str, str] = {}
 
     try:
         from calion.io.publication_plotter import (
-            export_multi_network_plots as pub_plots,
             PublicationConfig,
+        )
+        from calion.io.publication_plotter import (
+            export_multi_network_plots as pub_plots,
         )
         PublicationConfig.apply_style()
 
@@ -152,12 +154,12 @@ def export_multi_network_plots(
 
 def _export_basic_multi_network_plots(
     fig_dir: str,
-    multi_data: Dict[str, Any],
+    multi_data: dict[str, Any],
     timeseries_df: pd.DataFrame,
     plot_dpi: int,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Fallback: basic multi-network plots with matplotlib."""
-    files: Dict[str, str] = {}
+    files: dict[str, str] = {}
 
     try:
         import matplotlib
@@ -169,7 +171,7 @@ def _export_basic_multi_network_plots(
         colors = plt.cm.Set1.colors
 
         # Plot 1: Supply and return temperatures by network
-        fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+        _fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
         for i, net_id in enumerate(networks):
             supply_col = f"{net_id}_T_supply"
@@ -208,7 +210,7 @@ def _export_basic_multi_network_plots(
         # Plot 2: Heat exchanger operation
         hx_data = multi_data.get('heat_exchangers', {})
         if hx_data:
-            fig, ax = plt.subplots(figsize=(12, 5))
+            _fig, ax = plt.subplots(figsize=(12, 5))
             for i, hx_id in enumerate(hx_data):
                 Q_col = f"{hx_id.upper().replace('-', '_')}_Q_transfer"
                 if Q_col in df.columns:
@@ -241,12 +243,12 @@ def _export_basic_multi_network_plots(
 
 def export_multi_network_latex(
     multi_dir: str,
-    multi_data: Dict[str, Any],
-) -> Dict[str, str]:
+    multi_data: dict[str, Any],
+) -> dict[str, str]:
     """Export multi-network LaTeX comparison tables."""
     latex_dir = os.path.join(multi_dir, "latex")
     os.makedirs(latex_dir, exist_ok=True)
-    files: Dict[str, str] = {}
+    files: dict[str, str] = {}
 
     def _fmt(val: Any, fmt: str) -> str:
         return format(val, fmt) if isinstance(val, (int, float)) else str(val or '-')
@@ -318,11 +320,11 @@ def export_multi_network_latex(
 # ── Standalone convenience function ───────────────────────────────────────────
 
 def export_multi_network_results(
-    multi_network_results: Dict[str, Any],
+    multi_network_results: dict[str, Any],
     output_dir: str,
-    timeseries_df: Optional[pd.DataFrame] = None,
-    scenario_name: Optional[str] = None,
-) -> "ExportResult":  # type: ignore[name-defined]
+    timeseries_df: pd.DataFrame | None = None,
+    scenario_name: str | None = None,
+) -> ExportResult:  # type: ignore[name-defined]  # noqa: F821
     """
     Standalone export function for multi-network results.
 
@@ -373,7 +375,7 @@ def export_multi_network_results(
     logger.info("=" * 60)
 
     multi_dir = os.path.join(output_dir, "multi_network")
-    fig_dir = os.path.join(multi_dir, "figures")
+    os.path.join(multi_dir, "figures")
 
     # JSON data + temperature CSV
     _df = timeseries_df if timeseries_df is not None else pd.DataFrame()

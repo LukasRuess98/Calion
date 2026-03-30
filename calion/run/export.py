@@ -7,11 +7,10 @@ and the thermal-network CSV writer ``_write_network_data_to_dir``.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -25,24 +24,23 @@ from .utilities.timeseries_utils import _slugify
 logger = get_logger(__name__)
 
 try:  # pragma: no cover - optional dependency
-    import pyomo.environ as pyo
     HAVE_PYOMO = True
 except Exception:  # pragma: no cover
     HAVE_PYOMO = False
 
 
-def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dict[str, str]:
+def _write_network_data_to_dir(network_data: dict[str, Any], outdir: str) -> dict[str, str]:
     """Write thermal network results from solver_meta['network_data'] to outdir."""
     if not network_data:
         return {}
 
     net_dir = os.path.join(outdir, "thermal_network")
     os.makedirs(net_dir, exist_ok=True)
-    written: Dict[str, str] = {}
+    written: dict[str, str] = {}
 
     # Node timeseries
-    node_ts: Dict[str, list] = {}
-    node_summary: Dict[str, Dict] = {}
+    node_ts: dict[str, list] = {}
+    node_summary: dict[str, dict] = {}
     for node_id, node_info in network_data.get('nodes', {}).items():
         for key in ('T_supply_series', 'T_return_series'):
             col = f"{node_id}_{key.replace('_series', '')}"
@@ -60,8 +58,8 @@ def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dic
         logger.info("[EXPORT] Thermal network nodes -> %s", node_csv)
 
     # Pipe timeseries
-    pipe_ts: Dict[str, list] = {}
-    pipe_summary: Dict[str, Dict] = {}
+    pipe_ts: dict[str, list] = {}
+    pipe_summary: dict[str, dict] = {}
     for pipe_id, pipe_info in network_data.get('pipes', {}).items():
         for key in ('m_dot_series', 'velocity_series', 'delta_p_series',
                     'Q_loss_series', 'T_supply_out_series', 'T_return_out_series'):
@@ -96,9 +94,9 @@ def _write_network_data_to_dir(network_data: Dict[str, Any], outdir: str) -> Dic
 
 def export_workflow_results(
     workflow: WorkflowResult,
-    outdir: Optional[str] = None,
+    outdir: str | None = None,
     save_lp: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Export workflow results to files (Excel, CSV, plots, JSON).
 
     Parameters
@@ -135,10 +133,10 @@ def export_workflow_results(
     cost_sections: OrderedDict[str, OrderedDict[str, Any]] = OrderedDict()
 
     if has_pf and workflow.pf_result:
-        pf_input_series: OrderedDict[str, List[float]] = OrderedDict(
+        pf_input_series: OrderedDict[str, list[float]] = OrderedDict(
             (col, list(workflow.pf_result.table[col])) for col in workflow.pf_result.table.columns
         )
-        pf_result_series: OrderedDict[str, List[float]] = OrderedDict(
+        pf_result_series: OrderedDict[str, list[float]] = OrderedDict(
             (name, list(values)) for name, values in workflow.pf_result.series.items()
         )
 
@@ -162,7 +160,7 @@ def export_workflow_results(
         write_timeseries_csv(pf_csv, workflow.pf_result.table, workflow.pf_result.series)
 
     if has_rh and workflow.rh_result:
-        rh_result_series: OrderedDict[str, List[float]] = OrderedDict(
+        rh_result_series: OrderedDict[str, list[float]] = OrderedDict(
             (name, list(values)) for name, values in workflow.rh_result.series.items()
         )
 
@@ -181,7 +179,7 @@ def export_workflow_results(
         write_timeseries_csv(rh_csv, workflow.rh_result.table, workflow.rh_result.series)
 
     if has_mpc and workflow.mpc_result:
-        mpc_result_series: OrderedDict[str, List[float]] = OrderedDict(
+        mpc_result_series: OrderedDict[str, list[float]] = OrderedDict(
             (name, list(values)) for name, values in workflow.mpc_result.series.items()
         )
 
@@ -199,8 +197,8 @@ def export_workflow_results(
         mpc_csv = os.path.join(outdir, "mpc_timeseries.csv")
         write_timeseries_csv(mpc_csv, workflow.mpc_result.table, workflow.mpc_result.series)
 
-    design_export: Dict[str, Any] = {}
-    design_json_path: Optional[str] = None
+    design_export: dict[str, Any] = {}
+    design_json_path: str | None = None
     if workflow.design:
         design_export["heat_pumps"] = workflow.design.heat_pumps
         if workflow.design.storage:
@@ -279,11 +277,11 @@ def export_workflow_results(
         logger.info(f"[EXPORT] Plot export skipped: {exc}")
 
     # Thermal network CSV
-    network_files: Dict[str, str] = {}
+    network_files: dict[str, str] = {}
     active_result = workflow.mpc_result or workflow.rh_result or workflow.pf_result
     # RollingHorizonResult has no solver field; fall back to the last window's solver dict
     if active_result is not None:
-        _active_solver: Dict[str, Any] = getattr(active_result, 'solver', None) or {}
+        _active_solver: dict[str, Any] = getattr(active_result, 'solver', None) or {}
         if not _active_solver:
             from .types import RollingHorizonResult as _RHR
             if isinstance(active_result, _RHR) and active_result.windows:
@@ -300,7 +298,7 @@ def export_workflow_results(
                 logger.warning("[EXPORT] Thermal network CSV export failed: %s", exc)
 
     # Optional LP file copy
-    lp_path_in_result: Optional[str] = None
+    lp_path_in_result: str | None = None
     if save_lp and active_result is not None:
         src_lp = _active_solver.get('export_files', {}).get('solver_lp_file')
         if src_lp and os.path.isfile(src_lp):
@@ -323,7 +321,7 @@ def export_workflow_results(
     # Write costs.json — flat dict keyed without section prefix (for comparison scripts)
     costs_json_path = os.path.join(outdir, "costs.json")
     flat_costs: dict = {}
-    for section, section_costs in cost_sections.items():
+    for _section, section_costs in cost_sections.items():
         for key, val in section_costs.items():
             # Strip "objective." / "grid." prefixes so keys are plain names
             clean_key = key.split(".", 1)[-1] if "." in key else key

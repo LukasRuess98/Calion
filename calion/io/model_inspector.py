@@ -7,9 +7,9 @@ before solver execution.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
-import os
 import json
+import os
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -35,9 +35,9 @@ except Exception:
 
 
 __all__ = [
+    "create_model_plots",
     "export_model_structure",
     "inspect_pyomo_model",
-    "create_model_plots",
 ]
 
 
@@ -84,7 +84,7 @@ def _format_constraint_expression(constraint: Any, max_length: int = 200) -> str
         return "Error formatting expression"
 
 
-def inspect_pyomo_model(model: Any) -> Dict[str, Any]:
+def inspect_pyomo_model(model: Any) -> dict[str, Any]:
     """Inspect Pyomo model and extract structure information.
 
     Args:
@@ -264,7 +264,7 @@ def inspect_pyomo_model(model: Any) -> Dict[str, Any]:
     return inspection
 
 
-def _write_markdown_report(inspection: Dict[str, Any], filepath: str) -> None:
+def _write_markdown_report(inspection: dict[str, Any], filepath: str) -> None:
     """Write model inspection to Markdown file."""
 
     with open(filepath, 'w', encoding='utf-8') as f:
@@ -324,7 +324,7 @@ def _write_markdown_report(inspection: Dict[str, Any], filepath: str) -> None:
                     bounds_str = f"[{lb}, {ub}]"
                 elif "sample_bounds" in v:
                     samples = v["sample_bounds"]
-                    first_key = list(samples.keys())[0]
+                    first_key = next(iter(samples.keys()))
                     lb, ub = samples[first_key]
                     lb = lb if lb is not None else "-∞"
                     ub = ub if ub is not None else "+∞"
@@ -363,7 +363,7 @@ def _write_markdown_report(inspection: Dict[str, Any], filepath: str) -> None:
                 f.write("\n")
 
 
-def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
+def _write_excel_report(inspection: dict[str, Any], filepath: str) -> None:
     """Write model inspection to Excel file."""
 
     try:
@@ -473,7 +473,7 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
 
         if "sample_bounds" in v:
             samples = v["sample_bounds"]
-            first_key = list(samples.keys())[0] if samples else ""
+            first_key = next(iter(samples.keys())) if samples else ""
             if first_key:
                 lb, ub = samples[first_key]
             note = v.get("note", "")
@@ -498,7 +498,7 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
         if "sample_expressions" in c:
             # Show first sample expression
             samples = c["sample_expressions"]
-            first_key = list(samples.keys())[0] if samples else ""
+            first_key = next(iter(samples.keys())) if samples else ""
             if first_key:
                 expr_str = f"{first_key}: {samples[first_key]}"
 
@@ -539,10 +539,10 @@ def _write_excel_report(inspection: Dict[str, Any], filepath: str) -> None:
 
 def create_model_plots(
     model: Any,
-    inspection: Dict[str, Any],
+    inspection: dict[str, Any],
     output_dir: str,
     prefix: str = "model"
-) -> List[str]:
+) -> list[str]:
     """Create visualization plots for Pyomo model structure.
 
     Args:
@@ -587,7 +587,7 @@ def create_model_plots(
         bars = ax.bar(categories, values, color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
 
         # Add value labels on bars
-        for bar, val in zip(bars, values):
+        for bar, val in zip(bars, values, strict=False):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
                    f'{int(val):,}',
@@ -630,12 +630,12 @@ def create_model_plots(
             }
             colors = [colors_map.get(d, '#95a5a6') for d in domains]
 
-            wedges, texts, autotexts = ax.pie(counts, labels=domains, autopct='%1.1f%%',
-                                               colors=colors, startangle=90,
-                                               textprops={'fontsize': 10, 'fontweight': 'bold'})
+            _wedges, texts, _autotexts = ax.pie(counts, labels=domains, autopct='%1.1f%%',
+                                                colors=colors, startangle=90,
+                                                textprops={'fontsize': 10, 'fontweight': 'bold'})
 
             # Add count labels
-            for i, (domain, count) in enumerate(zip(domains, counts)):
+            for i, (domain, count) in enumerate(zip(domains, counts, strict=False)):
                 texts[i].set_text(f'{domain}\n({count:,})')
 
             ax.set_title('Variable Types Distribution', fontsize=14, fontweight='bold', pad=20)
@@ -661,7 +661,7 @@ def create_model_plots(
             bars = ax.barh(names, sizes, color='#e74c3c', alpha=0.7, edgecolor='black', linewidth=1.0)
 
             # Add value labels
-            for bar, size in zip(bars, sizes):
+            for bar, size in zip(bars, sizes, strict=False):
                 width = bar.get_width()
                 ax.text(width, bar.get_y() + bar.get_height()/2.,
                        f' {int(size):,}',
@@ -760,7 +760,7 @@ def create_model_plots(
             y_pos = np.arange(len(names))
 
             # Plot ranges as horizontal bars
-            for i, (lb, ub) in enumerate(zip(lbs, ubs)):
+            for i, (lb, ub) in enumerate(zip(lbs, ubs, strict=False)):
                 ax1.barh(i, ub - lb, left=lb, height=0.6,
                         color='#3498db', alpha=0.7, edgecolor='black')
 
@@ -780,7 +780,7 @@ def create_model_plots(
             colors = ['#2ecc71', '#e74c3c']
             explode = (0.05, 0)
 
-            wedges, texts, autotexts = ax2.pie(sizes, explode=explode, labels=labels,
+            _wedges, texts, _autotexts = ax2.pie(sizes, explode=explode, labels=labels,
                                                autopct='%1.1f%%', colors=colors,
                                                startangle=90, textprops={'fontweight': 'bold'})
 
@@ -877,7 +877,7 @@ def export_model_structure(
     model: Any,
     output_dir: str,
     prefix: str = "model_structure"
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Export Pyomo model structure to Excel and Markdown files.
 
     Args:
@@ -894,7 +894,7 @@ def export_model_structure(
     os.makedirs(output_dir, exist_ok=True)
 
     # Inspect model
-    logger.info(f"[MODEL_EXPORT] Inspecting Pyomo model...")
+    logger.info("[MODEL_EXPORT] Inspecting Pyomo model...")
     inspection = inspect_pyomo_model(model)
 
     # Create output paths
@@ -918,7 +918,7 @@ def export_model_structure(
         json.dump(json_safe_inspection, f, indent=2)
 
     summary = inspection.get("summary", {})
-    logger.info(f"[MODEL_EXPORT] Model exported successfully:")
+    logger.info("[MODEL_EXPORT] Model exported successfully:")
     logger.info(f"  - Variables: {summary.get('num_variables', 0)}")
     logger.info(f"  - Constraints: {summary.get('num_constraints', 0)}")
     logger.info(f"  - Parameters: {summary.get('num_parameters', 0)}")
@@ -927,7 +927,7 @@ def export_model_structure(
     # Create visualization plots
     plot_paths = []
     try:
-        logger.info(f"[MODEL_EXPORT] Creating visualization plots...")
+        logger.info("[MODEL_EXPORT] Creating visualization plots...")
         plot_paths = create_model_plots(model, inspection, output_dir, prefix=prefix)
         if plot_paths:
             logger.info(f"[MODEL_EXPORT] Created {len(plot_paths)} visualization plots")

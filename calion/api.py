@@ -19,52 +19,53 @@ Typical usage::
 
 from __future__ import annotations
 
+from calion.config import CALIONConfig, validate_config_schema
+
 # ── Configuration ─────────────────────────────────────────────────────────
 from calion.config import load_and_merge as load_config
-from calion.config import validate_config_schema, CALIONConfig
 
-# ── Workflow execution ────────────────────────────────────────────────────
-from calion.run import (
-    run_workflow,
-    ScenarioResult,
-    RollingHorizonResult,
-    WorkflowResult,
-    WorkflowPlan,
+# ── Component system ──────────────────────────────────────────────────────
+from calion.models import (
+    BaseComponent,
+    Bus,
+    Component,
+    ComponentRegistry,
+    Flow,
+    build_model,
+    register_component,
 )
 
 # ── Structured results ────────────────────────────────────────────────────
 from calion.models.results import InvestmentDecisions
 
-# ── Component system ──────────────────────────────────────────────────────
-from calion.models import (
-    Component,
-    BaseComponent,
-    Bus,
-    Flow,
-    register_component,
-    ComponentRegistry,
-    build_model,
+# ── Workflow execution ────────────────────────────────────────────────────
+from calion.run import (
+    RollingHorizonResult,
+    ScenarioResult,
+    WorkflowPlan,
+    WorkflowResult,
+    run_workflow,
 )
 
 __all__ = [
-    # Config
-    "load_config",
-    "validate_config_schema",
-    "CALIONConfig",
-    # Workflow
-    "run_workflow",
-    "ScenarioResult",
-    "RollingHorizonResult",
-    "WorkflowResult",
-    "WorkflowPlan",
-    # Results
-    "InvestmentDecisions",
-    # Components
-    "Component",
     "BaseComponent",
     "Bus",
-    "Flow",
-    "register_component",
+    "CALIONConfig",
+    # Components
+    "Component",
     "ComponentRegistry",
+    "Flow",
+    # Results
+    "InvestmentDecisions",
+    "RollingHorizonResult",
+    "ScenarioResult",
+    "WorkflowPlan",
+    "WorkflowResult",
     "build_model",
+    # Config
+    "load_config",
+    "register_component",
+    # Workflow
+    "run_workflow",
+    "validate_config_schema",
 ]

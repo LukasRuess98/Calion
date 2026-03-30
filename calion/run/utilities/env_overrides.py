@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import os
 from dataclasses import dataclass
-from typing import List, Optional
 
 from calion.logging_config import get_logger
 
@@ -24,7 +23,7 @@ logger = get_logger(__name__)
 
 # ─── Environment Variable Readers ─────────────────────────────────────────────
 
-def _env_str(name: str) -> Optional[str]:
+def _env_str(name: str) -> str | None:
     """
     Read an environment variable and return its string value.
 
@@ -41,7 +40,7 @@ def _env_str(name: str) -> Optional[str]:
     return value or None
 
 
-def _env_float(name: str) -> Optional[float]:
+def _env_float(name: str) -> float | None:
     """
     Read an environment variable and parse as float.
 
@@ -63,7 +62,7 @@ def _env_float(name: str) -> Optional[float]:
         raise ValueError(f"Invalid float for {name}: {raw!r}") from exc
 
 
-def _env_bool(name: str) -> Optional[bool]:
+def _env_bool(name: str) -> bool | None:
     """
     Read an environment variable and parse as boolean.
 
@@ -89,7 +88,7 @@ def _env_bool(name: str) -> Optional[bool]:
     raise ValueError(f"Invalid boolean for {name}: {raw!r}")
 
 
-def _parse_float_list(value: str) -> List[float]:
+def _parse_float_list(value: str) -> list[float]:
     """
     Parse a comma or semicolon-separated list of floats.
 
@@ -120,16 +119,16 @@ class _OverrideValues:
     Holds all configuration values that can be specified via CLI arguments
     or environment variables, for a single optimization run.
     """
-    run_mode: Optional[str] = None
-    fix_design: Optional[bool] = None
-    horizon_hours: Optional[float] = None
-    step_hours: Optional[float] = None
-    overlap_hours: Optional[float] = None
-    terminal_policy: Optional[str] = None
-    design_json: Optional[str] = None
-    include_gridcost: Optional[bool] = None
-    include_demand_charge: Optional[bool] = None
-    include_co2_cost: Optional[bool] = None
+    run_mode: str | None = None
+    fix_design: bool | None = None
+    horizon_hours: float | None = None
+    step_hours: float | None = None
+    overlap_hours: float | None = None
+    terminal_policy: str | None = None
+    design_json: str | None = None
+    include_gridcost: bool | None = None
+    include_demand_charge: bool | None = None
+    include_co2_cost: bool | None = None
 
 
 # ─── Run Mode Normalization ────────────────────────────────────────────────────
@@ -144,7 +143,7 @@ _RUN_MODE_ALIASES = {
 }
 
 
-def _normalise_run_mode(value: Optional[str]) -> Optional[str]:
+def _normalise_run_mode(value: str | None) -> str | None:
     """
     Normalize a run mode string to a canonical value.
 

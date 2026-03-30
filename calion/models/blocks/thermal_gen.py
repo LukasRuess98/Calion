@@ -11,7 +11,7 @@ from ..registry import register_component
 
 @register_component("thermal_generator", category="converter", description="Thermal generator with optional CHP")
 class ThermalGeneratorBlock(BaseComponent):
-    def __init__(self, name: str, th_eff: float, el_eff: float | None, cap_th_mw: float, label: str = None):
+    def __init__(self, name: str, th_eff: float, el_eff: float | None, cap_th_mw: float, label: str | None = None):
         super().__init__(name, label)
         self.th_eff = float(th_eff)
         self.el_eff = None if el_eff is None else float(el_eff)

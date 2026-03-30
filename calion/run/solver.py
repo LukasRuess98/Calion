@@ -6,8 +6,7 @@ so that callers only need to provide a table, config, and solver name.
 
 from __future__ import annotations
 
-import logging
-from typing import Any, Dict
+from typing import Any
 
 from calion.io._output_paths import resolve_runs_dir
 from calion.logging_config import get_logger
@@ -30,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 def _solve_scenario(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     dt_h: float,
     solver_name: str,
     *,
@@ -44,7 +43,7 @@ def _solve_scenario(
         soc_init_override=soc_init_override,
         terminal_target_override=terminal_target_override,
     )
-    solver_meta: Dict[str, Any] = {
+    solver_meta: dict[str, Any] = {
         "solver_requested": solver_name,
         "pyomo_available": HAVE_PYOMO,
         "model_built": model is not None,

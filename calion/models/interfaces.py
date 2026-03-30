@@ -15,8 +15,8 @@ while still providing static type checking capabilities.
 """
 from __future__ import annotations
 
-from typing import Protocol, Dict, Any, List, Optional, runtime_checkable, Tuple
 from dataclasses import dataclass
+from typing import Any, Protocol, runtime_checkable
 
 try:
     import pyomo.environ as pyo
@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 # Re-export core abstractions from component module for convenience
-from .component import Component, Flow, InvestmentResult, BaseComponent, BusType
+from .component import BaseComponent, BusType, Component, Flow, InvestmentResult
 
 
 @runtime_checkable
@@ -50,9 +50,9 @@ class ComponentBlock(Protocol):
         self,
         model: Any,  # pyo.ConcreteModel
         time_set: Any,  # pyo.Set
-        config: Dict[str, Any],
-        buses: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        config: dict[str, Any],
+        buses: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Attach component to the optimization model.
 
@@ -88,7 +88,7 @@ class ComponentBlock(Protocol):
         self,
         model: Any,  # Solved pyo.ConcreteModel
         time_set: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Extract results from a solved optimization model.
 
@@ -102,7 +102,7 @@ class ComponentBlock(Protocol):
         """
         ...
 
-    def validate_config(self, config: Dict[str, Any]) -> None:
+    def validate_config(self, config: dict[str, Any]) -> None:
         """
         Validate component configuration before model building.
 
@@ -180,7 +180,7 @@ class InvestmentStrategy(Protocol):
         model: Any,  # pyo.ConcreteModel
         component_name: str,
         config: InvestmentConfig
-    ) -> Tuple[Any, Any]:
+    ) -> tuple[Any, Any]:
         """
         Create investment decision variables.
 
@@ -272,7 +272,7 @@ class CO2Calculator(Protocol):
     def calculate_grid_emissions(
         self,
         electricity_var: Any,  # pyo.Var or pyo.Expression
-        grid_co2_series: Dict[int, float]  # Time-indexed emission factors
+        grid_co2_series: dict[int, float]  # Time-indexed emission factors
     ) -> EmissionResult:
         """
         Calculate emissions from grid electricity consumption.
@@ -301,7 +301,7 @@ class ResultExtractor(Protocol):
         model: Any,  # Solved pyo.ConcreteModel
         time_set: Any,
         variable_name: str
-    ) -> List[float]:
+    ) -> list[float]:
         """
         Extract time series from a Pyomo variable.
 
@@ -375,23 +375,23 @@ def is_valid_co2_calculator(obj: Any) -> bool:
 
 
 __all__ = [
+    'BaseComponent',
+    'BusType',
+    'CO2Calculator',
     # Core component abstractions (re-exported)
     'Component',
-    'BaseComponent',
-    'Flow',
-    'InvestmentResult',
-    'BusType',
     # Protocol interfaces
     'ComponentBlock',
-    'InvestmentStrategy',
-    'CO2Calculator',
-    'ResultExtractor',
+    'EmissionResult',
+    'Flow',
     # Data containers
     'InvestmentConfig',
     'InvestmentCostResult',
-    'EmissionResult',
+    'InvestmentResult',
+    'InvestmentStrategy',
+    'ResultExtractor',
+    'is_valid_co2_calculator',
     # Validation utilities
     'is_valid_component_block',
     'is_valid_investment_strategy',
-    'is_valid_co2_calculator',
 ]

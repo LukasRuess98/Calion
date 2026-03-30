@@ -9,8 +9,7 @@ and component summaries.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Investment results (extracted from solved model)
@@ -53,17 +52,17 @@ class InvestmentDecisions:
     ``design_helpers._extract_design_data()``.
     """
 
-    heat_pumps: Dict[str, HeatPumpInvestment] = field(default_factory=dict)
-    storage: Optional[StorageInvestment] = None
+    heat_pumps: dict[str, HeatPumpInvestment] = field(default_factory=dict)
+    storage: StorageInvestment | None = None
 
-    def to_fixed_values(self) -> Dict[str, Any]:
+    def to_fixed_values(self) -> dict[str, Any]:
         """Convert to the dict format expected by ``apply_optimization_config``.
 
         Returns a dict with 'heat_pumps' and 'storage' keys matching
         the ``extracted_values`` parameter of
         ``design.apply_optimization_config()``.
         """
-        result: Dict[str, Any] = {"heat_pumps": {}, "storage": {}}
+        result: dict[str, Any] = {"heat_pumps": {}, "storage": {}}
 
         for hp_id, hp in self.heat_pumps.items():
             result["heat_pumps"][hp_id] = {
@@ -82,7 +81,7 @@ class InvestmentDecisions:
 
     @classmethod
     def from_summary(
-        cls, summary: Dict[str, Dict[str, Any]]
+        cls, summary: dict[str, dict[str, Any]]
     ) -> InvestmentDecisions:
         """Extract investment decisions from a result summary dict.
 
@@ -97,8 +96,8 @@ class InvestmentDecisions:
             ``_collect_timeseries_and_summary()``, keyed by component
             section name (e.g. ``"heat_pump_HP1"``, ``"storage_TES"``).
         """
-        heat_pumps: Dict[str, HeatPumpInvestment] = {}
-        storage: Optional[StorageInvestment] = None
+        heat_pumps: dict[str, HeatPumpInvestment] = {}
+        storage: StorageInvestment | None = None
 
         for key, metrics in summary.items():
             if not isinstance(metrics, dict):
@@ -182,7 +181,7 @@ class ComponentSummary:
     """
 
     name: str
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.metrics.get(key, default)

@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 import csv
-import math
 import os
 import re
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any
 
-from calion.utils.xlsx import read_xlsx
-from calion.utils.timeseries import TimeSeriesTable, fill_gaps
-
+from calion.io._utils import _is_empty
 from calion.logging_config import get_logger
-from calion.io._utils import _is_empty  # noqa: F401 – re-exported for callers
+from calion.utils.timeseries import TimeSeriesTable, fill_gaps
+from calion.utils.xlsx import read_xlsx
 
 logger = get_logger(__name__)
 
@@ -29,7 +27,7 @@ def _normalise(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
-def _resolve_input_path(path: str, site_cfg: Dict[str, Any]) -> Path:
+def _resolve_input_path(path: str, site_cfg: dict[str, Any]) -> Path:
     candidate = Path(path)
     if candidate.is_absolute():
         if candidate.exists():
@@ -74,7 +72,7 @@ def _read_tabular(path: Path, sheet_name: str | None) -> tuple[list[str], list[l
         if not reader:
             return [], []
         header = [col.strip() for col in reader[0]]
-        data_rows: List[List[Any]] = []
+        data_rows: list[list[Any]] = []
         for row in reader[1:]:
             if not any(str(cell).strip() for cell in row):
                 continue
@@ -126,7 +124,7 @@ def _to_float(value: Any) -> float:
         raise RuntimeError(f"Expected numeric value, got {value!r}") from exc
 
 
-def _find_time_column(header: List[str]) -> str:
+def _find_time_column(header: list[str]) -> str:
     candidates = ["datum", "date", "datetime", "zeit", "timestamp", "time"]
     norm = {_normalise(col): col for col in header}
     for cand in candidates:
@@ -135,7 +133,7 @@ def _find_time_column(header: List[str]) -> str:
     raise RuntimeError("Time column not found (e.g., 'Datum', 'Date', 'Time').")
 
 
-def _map_column(header: List[str], candidates: List[str]) -> Optional[str]:
+def _map_column(header: list[str], candidates: list[str]) -> str | None:
     norm = {_normalise(col): col for col in header}
     for cand in candidates:
         key = _normalise(cand)
@@ -147,13 +145,13 @@ def _map_column(header: List[str], candidates: List[str]) -> Optional[str]:
     return None
 
 
-def _build_records(header: List[str], rows: List[List[Any]]) -> List[Dict[str, Any]]:
+def _build_records(header: list[str], rows: list[list[Any]]) -> list[dict[str, Any]]:
     records = []
     for row in rows:
         if all(_is_empty(value) for value in row):
             continue
         record = {}
-        for col, value in zip(header, row):
+        for col, value in zip(header, row, strict=False):
             record[col] = value
         records.append(record)
     return records
@@ -161,11 +159,11 @@ def _build_records(header: List[str], rows: List[List[Any]]) -> List[Dict[str, A
 
 def load_input_excel(
     path: str,
-    site_cfg: Dict[str, Any],
+    site_cfg: dict[str, Any],
     *,
-    dt_hours: Optional[float] = None,
-    tz: Optional[str] = None,
-    input_time_is_local: Optional[bool] = None,
+    dt_hours: float | None = None,
+    tz: str | None = None,
+    input_time_is_local: bool | None = None,
     duplicate_strategy: str = "drop_first",
     gap_strategy: str = "ffill",
     ambiguous_policy: str = "first",
@@ -183,14 +181,14 @@ def load_input_excel(
     year_target = site_cfg.get("year_target")
     if year_target is not None:
         year_target = int(year_target)
-        filtered = [(ts, rec) for ts, rec in zip(timestamps, records) if ts.year == year_target]
+        filtered = [(ts, rec) for ts, rec in zip(timestamps, records, strict=False) if ts.year == year_target]
         _require(filtered, f"Im Zieljahr {year_target} keine Daten.")
         timestamps = [ts for ts, _ in filtered]
         records = [rec for _, rec in filtered]
 
-    combined = sorted(zip(timestamps, records), key=lambda item: item[0])
-    unique_ts: List[datetime] = []
-    unique_records: List[Dict[str, Any]] = []
+    combined = sorted(zip(timestamps, records, strict=False), key=lambda item: item[0])
+    unique_ts: list[datetime] = []
+    unique_records: list[dict[str, Any]] = []
     seen = set()
     for ts, rec in combined:
         if ts in seen:
@@ -202,8 +200,8 @@ def load_input_excel(
     records = unique_records
 
     cols_cfg = site_cfg.get("columns", {})
-    def pick(name: str, fallbacks: List[str]) -> str:
-        if name in cols_cfg and cols_cfg[name]:
+    def pick(name: str, fallbacks: list[str]) -> str:
+        if cols_cfg.get(name):
             value = cols_cfg[name]
             if isinstance(value, str):
                 col = _map_column(header, [value])
@@ -238,7 +236,7 @@ def load_input_excel(
         elif isinstance(custom_col, list):
             outdoor_temp_col = _map_column(header, custom_col) or outdoor_temp_col
 
-    wrg_cols: Dict[int, Dict[str, Optional[str]]] = {}
+    wrg_cols: dict[int, dict[str, str | None]] = {}
     for i in range(1, 5):
         q_key = f"wrg{i}_q_candidates"
         t_key = f"wrg{i}_t_candidates"
@@ -262,14 +260,14 @@ def load_input_excel(
     co2 = [_to_float(rec.get(co2_col)) for rec in records]
 
     # Outdoor temperature (optional, for heating curve)
-    outdoor_temp: List[float] = []
+    outdoor_temp: list[float] = []
     if outdoor_temp_col:
         outdoor_temp = [_to_float(rec.get(outdoor_temp_col)) for rec in records]
         logger.info(f"[LOAD] Outdoor temperature found: column '{outdoor_temp_col}'")
     else:
         logger.info("[LOAD] No outdoor temperature column found (heating curve disabled)")
 
-    data: Dict[str, List[float]] = {
+    data: dict[str, list[float]] = {
         "strompreis_EUR_MWh": price,
         "waermebedarf_MWth": heat,
         "grid_co2_kg_MWh": co2,
@@ -295,9 +293,9 @@ def load_input_excel(
 
     dt_hours = float(dt_hours if dt_hours is not None else site_cfg.get("dt_h", 1.0))
 
-    def _resample_regular(ts: List[datetime], values: Dict[str, List[float]], step_hours: float) -> TimeSeriesTable:
+    def _resample_regular(ts: list[datetime], values: dict[str, list[float]], step_hours: float) -> TimeSeriesTable:
         step = timedelta(hours=step_hours)
-        target: List[datetime] = []
+        target: list[datetime] = []
         series = {k: [] for k in values}
         idx_map = {ts_val: i for i, ts_val in enumerate(ts)}
         current = ts[0]

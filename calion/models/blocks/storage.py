@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Dict, Iterable
+from collections.abc import Iterable, Mapping, Sequence
 
 try:  # pragma: no cover - optional dependency
     import pyomo.environ as pyo
 except Exception:  # pragma: no cover
     pyo = None
 
-from ...constants import EFFICIENCY_FLOOR, EFFICIENCY_MIN, EFFICIENCY_MAX
+from ...constants import EFFICIENCY_FLOOR, EFFICIENCY_MAX, EFFICIENCY_MIN
 from ..component import BaseComponent, Flow, InvestmentResult
 from ..registry import register_component
 
@@ -17,7 +16,7 @@ def _prepare_series(
     indices: Iterable[int],
     series: Sequence[float] | Mapping[int, float] | None,
     default: float,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """Return mapping for Pyomo params while supporting broadcasting."""
 
     idx_list = list(indices)
@@ -33,7 +32,7 @@ def _prepare_series(
     return {i: float(values[pos]) for pos, i in enumerate(idx_list)}
 
 
-def _clamp_positive(values: Dict[int, float], floor: float = EFFICIENCY_FLOOR) -> Dict[int, float]:
+def _clamp_positive(values: dict[int, float], floor: float = EFFICIENCY_FLOOR) -> dict[int, float]:
     """Clamp values to a safe minimum to prevent division by zero or numerical instability.
 
     Default floor ensures numerical stability in Pyomo constraints.
@@ -68,7 +67,7 @@ class StorageBlock(BaseComponent):
         eff_discharge_series: Sequence[float] | Mapping[int, float] | None = None,
         capacity_active_series: Sequence[float] | Mapping[int, float] | None = None,
         power_energy_coupling: float | None = None,
-        label: str = None
+        label: str | None = None
     ):
         super().__init__(name, label)
         self.e_min = float(e_min)

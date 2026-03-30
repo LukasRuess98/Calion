@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Set, List
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _require_in_range(value: Any, path: str, min_val: float, max_val: float) -> 
         raise ValueError(f"{path} must be in range [{min_val}, {max_val}], got {value}.")
 
 
-def validate_thermal_network(network_cfg: dict[str, Any]) -> List[str]:
+def validate_thermal_network(network_cfg: dict[str, Any]) -> list[str]:
     """Validate thermal network configuration.
 
     Performs the following checks:
@@ -62,7 +62,7 @@ def validate_thermal_network(network_cfg: dict[str, Any]) -> List[str]:
         return warnings
 
     # Collect all node IDs
-    all_nodes: Set[str] = set()
+    all_nodes: set[str] = set()
 
     # Production plants
     for plant in network_cfg.get("production_plants", []):

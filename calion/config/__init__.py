@@ -7,14 +7,14 @@ Public API:
 - :class:`CALIONConfig` — TypedDict describing the merged config shape.
 """
 
-from calion.config.merge import load_and_merge, deep_merge, load_yaml
+from calion.config.merge import deep_merge, load_and_merge, load_yaml
 from calion.config.schema import validate_config_schema
 from calion.config.typed_config import CALIONConfig
 
 __all__ = [
-    "load_and_merge",
+    "CALIONConfig",
     "deep_merge",
+    "load_and_merge",
     "load_yaml",
     "validate_config_schema",
-    "CALIONConfig",
 ]

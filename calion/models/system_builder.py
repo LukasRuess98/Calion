@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from calion.logging_config import get_logger
 
@@ -20,14 +20,14 @@ from calion.constants import (
     HOURS_PER_YEAR,
 )
 from calion.utils.timeseries import TimeSeriesTable
-from .investment_calculator import InvestmentCalculator
+
+from .component_assembler import ComponentAssembler
 from .emissions_calculator import EmissionsCalculator
-from .component_assembler import ComponentAssembler, BusConnections, SystemBusConnections
-from .model_finalizer import ModelFinalizer, CostFlags
-from .cop_calculator import calculate_cop_series
+from .investment_calculator import InvestmentCalculator
+from .model_finalizer import CostFlags, ModelFinalizer
 
 
-def _is_unified_config(cfg: Dict[str, Any]) -> bool:
+def _is_unified_config(cfg: dict[str, Any]) -> bool:
     """Check whether ``cfg`` uses the new unified format (has ``network.nodes`` + ``assets``)."""
     return (
         isinstance(cfg.get("assets"), dict)
@@ -37,7 +37,7 @@ def _is_unified_config(cfg: Dict[str, Any]) -> bool:
 
 def build_model(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     dt_h: float = 1.0,
     *,
     soc_init_override: float | None = None,
@@ -69,7 +69,7 @@ def build_model(
 
 def _build_model_unified(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     dt_h: float = 1.0,
     *,
     soc_init_override: float | None = None,
@@ -85,11 +85,11 @@ def _build_model_unified(
     m.t = pyo.RangeSet(1, T)
     period_frac = float(T * dt_h / HOURS_PER_YEAR)
 
-    def series_dict(name: str) -> Dict[int, float]:
+    def series_dict(name: str) -> dict[int, float]:
         values = table[name]
         return {i + 1: float(values[i]) for i in range(T)}
 
-    def column_series(name: str) -> Optional[List[float]]:
+    def column_series(name: str) -> list[float] | None:
         if name in table.columns:
             return [float(table[name][i]) for i in range(T)]
         return None
@@ -233,7 +233,7 @@ def _build_model_unified(
 
 def _build_model_legacy(
     table: TimeSeriesTable,
-    cfg: Dict[str, Any],
+    cfg: dict[str, Any],
     dt_h: float = 1.0,
     *,
     soc_init_override: float | None = None,
@@ -245,11 +245,11 @@ def _build_model_legacy(
     m.t = pyo.RangeSet(1, T)
     period_frac = float(T * dt_h / HOURS_PER_YEAR)
 
-    def series_dict(name: str) -> Dict[int, float]:
+    def series_dict(name: str) -> dict[int, float]:
         values = table[name]
         return {i + 1: float(values[i]) for i in range(T)}
 
-    def column_series(name: str) -> Optional[List[float]]:
+    def column_series(name: str) -> list[float] | None:
         if name in table.columns:
             return [float(table[name][i]) for i in range(T)]
         return None

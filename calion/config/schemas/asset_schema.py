@@ -6,9 +6,9 @@ Defines Pydantic models for component assets with existing + expansion model.
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Any
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AssetCapacity(BaseModel):
@@ -20,18 +20,18 @@ class AssetCapacity(BaseModel):
     thermal_capacity_mw: float = Field(default=0.0, ge=0)
 
     # Electrical capacity (for CHP)
-    electrical_capacity_mw: Optional[float] = Field(default=None, ge=0)
+    electrical_capacity_mw: float | None = Field(default=None, ge=0)
 
     # Storage-specific
-    energy_capacity_mwh: Optional[float] = Field(default=None, ge=0)
-    power_capacity_mw: Optional[float] = Field(default=None, ge=0)
+    energy_capacity_mwh: float | None = Field(default=None, ge=0)
+    power_capacity_mw: float | None = Field(default=None, ge=0)
 
     # Commissioning info (for existing assets)
-    commissioning_year: Optional[int] = None
-    remaining_lifetime_yr: Optional[int] = None
+    commissioning_year: int | None = None
+    remaining_lifetime_yr: int | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AssetCapacity":
+    def from_dict(cls, data: dict[str, Any]) -> AssetCapacity:
         """Create from dictionary."""
         return cls(
             thermal_capacity_mw=float(data.get('thermal_capacity_mw', 0.0)),
@@ -55,24 +55,24 @@ class ExpansionPotential(BaseModel):
     max_additional_capacity_mw: float = Field(default=0.0, ge=0)
 
     # Storage-specific
-    min_additional_energy_mwh: Optional[float] = Field(default=None, ge=0)
-    max_additional_energy_mwh: Optional[float] = Field(default=None, ge=0)
-    min_additional_power_mw: Optional[float] = Field(default=None, ge=0)
-    max_additional_power_mw: Optional[float] = Field(default=None, ge=0)
+    min_additional_energy_mwh: float | None = Field(default=None, ge=0)
+    max_additional_energy_mwh: float | None = Field(default=None, ge=0)
+    min_additional_power_mw: float | None = Field(default=None, ge=0)
+    max_additional_power_mw: float | None = Field(default=None, ge=0)
 
     # Coupling (e.g., P = 0.1 * E for storage)
-    power_energy_coupling: Optional[float] = None
+    power_energy_coupling: float | None = None
 
     # Costs
     capex_eur_per_mw: float = Field(default=0.0, ge=0)
-    energy_capex_eur_per_mwh: Optional[float] = Field(default=None, ge=0)
-    power_capex_eur_per_mw: Optional[float] = Field(default=None, ge=0)
+    energy_capex_eur_per_mwh: float | None = Field(default=None, ge=0)
+    power_capex_eur_per_mw: float | None = Field(default=None, ge=0)
     opex_eur_per_mw_yr: float = Field(default=0.0, ge=0)
     activation_cost_eur: float = Field(default=0.0, ge=0)
     lifetime_yr: float = Field(default=20.0, gt=0)
 
     @model_validator(mode='after')
-    def _check_capacity_ordering(self) -> "ExpansionPotential":
+    def _check_capacity_ordering(self) -> ExpansionPotential:
         if (self.enabled and
                 self.max_additional_capacity_mw < self.min_additional_capacity_mw):
             raise ValueError(
@@ -81,7 +81,7 @@ class ExpansionPotential(BaseModel):
         return self
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ExpansionPotential":
+    def from_dict(cls, data: dict[str, Any]) -> ExpansionPotential:
         """Create from dictionary."""
         return cls(
             enabled=bool(data.get('enabled', False)),
@@ -113,10 +113,10 @@ class ComponentAsset(BaseModel):
     existing: AssetCapacity
     expansion: ExpansionPotential
 
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, asset_id: str, data: Dict[str, Any]) -> "ComponentAsset":
+    def from_dict(cls, asset_id: str, data: dict[str, Any]) -> ComponentAsset:
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -134,10 +134,10 @@ class ComponentAsset(BaseModel):
 class HeatPumpAsset(ComponentAsset):
     """Heat pump asset with waste heat source configuration."""
 
-    waste_heat_source: Dict[str, Any] = Field(default_factory=dict)
+    waste_heat_source: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, asset_id: str, data: Dict[str, Any]) -> "HeatPumpAsset":
+    def from_dict(cls, asset_id: str, data: dict[str, Any]) -> HeatPumpAsset:
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -157,7 +157,7 @@ class StorageAsset(ComponentAsset):
     """Thermal storage asset."""
 
     @classmethod
-    def from_dict(cls, asset_id: str, data: Dict[str, Any]) -> "StorageAsset":
+    def from_dict(cls, asset_id: str, data: dict[str, Any]) -> StorageAsset:
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -176,7 +176,7 @@ class GeneratorAsset(ComponentAsset):
     """Thermal generator (boiler, CHP) asset."""
 
     @classmethod
-    def from_dict(cls, asset_id: str, data: Dict[str, Any]) -> "GeneratorAsset":
+    def from_dict(cls, asset_id: str, data: dict[str, Any]) -> GeneratorAsset:
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -195,7 +195,7 @@ class P2HAsset(ComponentAsset):
     """Power-to-Heat asset."""
 
     @classmethod
-    def from_dict(cls, asset_id: str, data: Dict[str, Any]) -> "P2HAsset":
+    def from_dict(cls, asset_id: str, data: dict[str, Any]) -> P2HAsset:
         """Create from dictionary."""
         existing_data = data.get('existing', {})
         expansion_data = data.get('expansion', {})
@@ -236,7 +236,7 @@ class GridConnection(BaseModel):
     co2_intensity_column: str
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GridConnection":
+    def from_dict(cls, data: dict[str, Any]) -> GridConnection:
         """Create from dictionary."""
         connection = data.get('connection', {})
         pricing = data.get('pricing', {})

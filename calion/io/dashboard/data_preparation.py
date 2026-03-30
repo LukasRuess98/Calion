@@ -13,9 +13,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -66,9 +65,9 @@ class DashboardData:
     costs_df: pd.DataFrame
 
     # Component lists
-    heat_components: List[str]
-    elec_components: List[str]
-    storage_cols: List[str]
+    heat_components: list[str]
+    elec_components: list[str]
+    storage_cols: list[str]
 
     # Time configuration
     dt_h: float = 1.0
@@ -81,7 +80,7 @@ class DashboardData:
     original_total_demand_MWh: float = 0.0
     original_peak_demand_MW: float = 0.0
     original_timesteps: int = 0
-    original_heat_production: Dict[str, float] = field(default_factory=dict)
+    original_heat_production: dict[str, float] = field(default_factory=dict)
     original_total_heat_production: float = 0.0
 
     # CO2 data
@@ -96,7 +95,7 @@ class DashboardData:
 
 def prepare_dashboard_data(
     result: Any,
-    workflow_config: Optional[Dict] = None,
+    workflow_config: dict | None = None,
     max_points: int = 20000
 ) -> DashboardData:
     """
@@ -127,12 +126,10 @@ def prepare_dashboard_data(
         'heat_demand_MW', 'demand_MW', 'Q_demand_MW'
     ]
     demand_values = None
-    demand_col_found = None
 
     for col_name in demand_col_names:
         if col_name in result.table.data:
             demand_values = result.table.data[col_name]
-            demand_col_found = col_name
             break
 
     if demand_values is None:
@@ -197,11 +194,11 @@ def prepare_dashboard_data(
         downsampled = True
         downsample_factor = step
 
-        logger.info(f"\nHINWEIS: Performance-Optimierung:")
+        logger.info("\nHINWEIS: Performance-Optimierung:")
         logger.info(f"         Datensatz wurde von {original_length:,} auf {len(df):,} Punkte reduziert (Faktor {step})")
-        logger.info(f"         Dies verbessert die Dashboard-Performance erheblich.")
-        logger.info(f"         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
-        logger.info(f"         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
+        logger.info("         Dies verbessert die Dashboard-Performance erheblich.")
+        logger.info("         Für detaillierte Analysen: Verwende die CSV-Exports aus saved_workflows/")
+        logger.info("         INFO: KPIs werden auf Basis der Original-Daten berechnet (nicht downsampled)")
 
     # Re-identify component types after downsampling
     heat_components = [col for col in df.columns if col.endswith('_Q_th_MW')]
@@ -288,7 +285,7 @@ def _prepare_costs_df(result: Any) -> pd.DataFrame:
     return costs_df.sort_values('Value_EUR', ascending=False)
 
 
-def _extract_co2_data(df: pd.DataFrame, result: Any) -> Dict[str, float]:
+def _extract_co2_data(df: pd.DataFrame, result: Any) -> dict[str, float]:
     """
     Extract CO2 data from DataFrame and result.
 
