@@ -46,8 +46,8 @@
 │ KONFIGURATION (YAML)                                                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│ configs/05_networks/brownfield.yaml                                         │
-│ ├── parameters:                                                             │
+│ configs/assets/multi_temperature_network.yaml                               │
+│ ├── networks:                                                               │
 │ │   ├── supply_temp_nominal_c: 120                                          │
 │ │   ├── return_temp_nominal_c: 55                                           │
 │ │   ├── heating_curve:                                                      │
@@ -60,7 +60,7 @@
 │ ├── pipes: [...]                                                            │
 │ └── consumer_zones: [...]                                                   │
 │                                                                             │
-│ Kontrolle: cat configs/05_networks/brownfield.yaml                          │
+│ Kontrolle: cat configs/assets/multi_temperature_network.yaml                │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -151,7 +151,7 @@ plot_heating_curve(save_path="heating_curve.pdf", show=False)
 
 ```bash
 # Config-Struktur prüfen
-cat configs/05_networks/brownfield.yaml | grep -A 10 "heating_curve"
+cat configs/assets/multi_temperature_network.yaml | grep -A 10 "supply_temp"
 
 # Erwartete Ausgabe:
 #   heating_curve:
@@ -207,17 +207,15 @@ configs/
 ├── 02_site/           # Standort-spezifisch (Stadtbach)
 ├── 03_systems/        # System-Konfigurationen (baseline, full, with_hp)
 ├── 04_scenarios/      # Zeitszenarien (full_year, q1, test_1week)
-├── 05_networks/       # Netzwerk-Topologie (brownfield.yaml)
 └── presets/           # Workflow-Presets (mpc, rh, quick_test)
 ```
 
-### 4.2 Problem: Heizkurve in brownfield.yaml
+### 4.2 Network Topology Location
 
-**Aktuell:**
+**Current:**
 ```yaml
-# configs/05_networks/brownfield.yaml
-parameters:
-  heating_curve:
+# configs/assets/multi_temperature_network.yaml
+networks:
     enabled: true
     T_supply_min_c: 80.0
     ...
@@ -253,11 +251,11 @@ heating_curves:
 ```
 
 ```yaml
-# configs/05_networks/brownfield.yaml (ANGEPASST)
-parameters:
-  supply_temp_nominal_c: 120
-  return_temp_nominal_c: 55
-  heating_curve:
+# configs/assets/multi_temperature_network.yaml
+networks:
+  - id: high_temp
+    name: "High Temperature Network"
+    supply_temp_c: 90
     enabled: true
     profile: standard_dh  # Referenz auf heating_curves.yaml
 ```

@@ -365,14 +365,14 @@ class TestMultiNetworkConfig:
 
     def test_config_file_exists(self):
         """Test that example config file exists."""
-        config_path = "configs/05_networks/multi_temperature_network.yaml"
+        config_path = "configs/assets/multi_temperature_network.yaml"
         assert os.path.exists(config_path), f"Config file not found: {config_path}"
 
     def test_config_file_valid_yaml(self):
         """Test that config file is valid YAML."""
         import yaml
 
-        config_path = "configs/05_networks/multi_temperature_network.yaml"
+        config_path = "configs/assets/multi_temperature_network.yaml"
         with open(config_path) as f:
             config = yaml.safe_load(f)
 

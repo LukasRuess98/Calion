@@ -23,9 +23,9 @@ from calion.logging_config import get_logger
 logger = get_logger(__name__)
 
 CONFIGS = [
-    ("L1", "configs/paper/L1_copperplate.yaml"),
-    ("L2", "configs/paper/L2_5node.yaml"),
-    ("L3", "configs/paper/L3_30node.yaml"),
+    ("L1", "configs/paper/L1_copperplate_dispatch.yaml"),
+    ("L2", "configs/paper/L2_simplified_dispatch.yaml"),
+    ("L3", "configs/paper/L3_detailed_dispatch.yaml"),
 ]
 OUTPUT_BASE = ROOT / "outputs" / "paper"
 

@@ -14,7 +14,7 @@ from typing import Any
 
 import pandas as pd
 
-from calion.io.exporter import export_scenario_bundle, write_timeseries_csv
+from calion.io.unified_exporter import export_scenario_bundle, write_timeseries_csv
 from calion.io.plotter import export_plots
 from calion.logging_config import get_logger
 

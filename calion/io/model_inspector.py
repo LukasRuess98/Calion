@@ -371,7 +371,7 @@ def _write_excel_report(inspection: dict[str, Any], filepath: str) -> None:
         from openpyxl.utils import get_column_letter
     except ImportError:
         # Fallback to simple xlsx if openpyxl not available
-        from calion.io.exporter import _write_simple_xlsx
+        from calion.io.unified_exporter import _write_simple_xlsx
 
         sheets = {}
 

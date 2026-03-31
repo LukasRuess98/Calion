@@ -3,28 +3,27 @@ Input/Output utilities for the Heat Planning Framework.
 
 This package provides:
 - Data loading from Excel files
-- Result export to Excel, CSV, JSON
+- Result export to Excel, CSV, JSON (consolidated exporter)
 - Visualization (standard plots)
 - Publication-quality exports (plots, LaTeX tables, KPI summaries)
 - Unified export manager for all output formats
 """
 
-from calion.io.exporter import (
-    HAVE_OPENPYXL,
-    export_scenario_bundle,
-    write_scenario_workbook,
-    write_timeseries_csv,
-)
 from calion.io.loader import load_input_excel
 from calion.io.plotter import HAVE_MATPLOTLIB, export_plots
 
-# Unified exporter (main entry point for exports)
+# Unified exporter (consolidates legacy exporter.py + new features)
 from calion.io.unified_exporter import (
+    HAVE_OPENPYXL,
     ExportConfig,
     ExportResult,
     UnifiedExporter,
+    export_scenario_bundle,
     export_with_sensitivity,
     export_workflow,
+    write_excel_workbook,
+    write_scenario_workbook,
+    write_timeseries_csv,
 )
 
 # Publication exports (optional, requires matplotlib)

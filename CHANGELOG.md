@@ -18,7 +18,7 @@ refactoring and cleanup pass on the research prototype.
   `exports/`, `results/`, `saved_workflows/` directories
 - `calion/io/_utils.py` — shared `_is_empty()` helper (consolidates duplicate
   implementations in `loader.py` and `network_loader.py`)
-- `configs/05_networks/multi_temperature_network.yaml` — example multi-temperature
+- `configs/assets/multi_temperature_network.yaml` — example multi-temperature
   network (90/55 °C HT + 60/40 °C LT with heat exchanger)
 - `archive/` directory for development artifacts (debug scripts, validation docs,
   legacy data)
