@@ -194,7 +194,7 @@ def _parse_lines(lines: Iterable[tuple[int, str]]) -> Any:
                         parent.append(new_list)
                         stack.append(_State(child_indent, new_list))
                     else:
-                        new_dict: dict[str, Any] = {}
+                        new_dict = {}
                         parent.append(new_dict)
                         stack.append(_State(child_indent, new_dict))
                 else:

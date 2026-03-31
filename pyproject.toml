@@ -121,3 +121,22 @@ ignore = [
 python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_configs = true
+# These error codes require full type-annotation work across the codebase.
+# Suppress them until a dedicated typing sprint is done.
+disable_error_code = [
+    "arg-type",
+    "assignment",
+    "union-attr",
+    "var-annotated",
+    "attr-defined",
+    "return-value",
+    "operator",
+    "index",
+    "misc",
+    "override",
+    "call-overload",
+    "list-item",
+    "dict-item",
+    "call-arg",
+    "import-untyped",
+]

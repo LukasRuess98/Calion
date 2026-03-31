@@ -479,7 +479,7 @@ def plot_heating_curve(
     save_path: str | None = None,
     show: bool = True,
     figsize: tuple = (10, 6),
-) -> "matplotlib.figure.Figure":  # noqa: F821
+) -> "matplotlib.figure.Figure":  # type: ignore[name-defined]  # noqa: F821
     """
     Plot the heating curve and optionally actual data points.
 
