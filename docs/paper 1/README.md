@@ -111,7 +111,7 @@ c:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\
 - **Result**: Maintains MILP tractability without sacrificing physical realism
 
 ### Demonstrated Value
-- **4.9% cost reduction** over L1 baseline (€0.35M/year for case study)
+- **~2.5% cost reduction** L1→L3 (≈€130k/year, preliminary; to be confirmed with solver runs)
 - **30–50× speedup** vs. full transient simulation
 - **Practical deployment**: Configuration-driven YAML files, no coding required
 
@@ -137,23 +137,33 @@ c:\Users\LKR\Downloads\tespy-dev\Planing-Framework-for-Heat\
 
 ## 🚀 NEXT STEPS FOR PUBLICATION
 
-### This Week
-1. ✅ Review all documents for technical accuracy
-2. ⏳ Generate publication-quality figures (PNG/PDF):
-   - COP sensitivity tornado diagram
-   - Solver runtime scaling plot
-   - Cost breakdown comparison
-3. ⏳ Add author bios and conflict-of-interest statements
+### Immediate (before submission)
+1. ✅ Reframe paper: topology abstraction study is primary contribution
+2. ✅ Fix naming conflict: L1/L2/L3 = topology scenarios; MF-1–MF-4 = model fidelity taxonomy
+3. ✅ Fix inconsistent cost numbers (2.5%, €130k — consistent across all documents)
+4. ✅ Fix data description (confidential metering data under data sharing agreement)
+5. ✅ Add 50+ references to literature review
+6. ✅ Add dispatch-only scope note in Section 3.1
+7. ⏳ Run all three scenarios (L1/L2/L3) with real Stadtbach data, replace placeholder tables
+8. ⏳ Generate publication-quality figures (6–8 required):
+   - Fig. 1: L1/L2/L3 topology schematic (side-by-side network diagrams)
+   - Fig. 2: Annual dispatch time series comparison (HP, boiler, storage SOC)
+   - Fig. 3: Cost breakdown bar chart (fuel / electricity / CO₂ per scenario)
+   - Fig. 4: COP sensitivity tornado diagram (from `calion.analysis.sensitivity`)
+   - Fig. 5: Solver runtime scaling (from `calion.comparison.benchmark`)
+   - Fig. 6: Storage SOC weekly profile comparison
+9. ⏳ Populate Sections 5.3 (COP sensitivity results) and 5.4 (runtime results)
+10. ⏳ Add author names, affiliations, and conflict-of-interest statement
 
 ### Next 2 Weeks
 1. ⏳ Internal peer review (colleagues in energy systems)
-2. ⏳ Update references (check for 2024–2026 papers)
-3. ⏳ Final proofreading for grammar/clarity
+2. ⏳ Update references to include very recent 2024–2026 papers if available
+3. ⏳ Final proofreading and grammar check
 
 ### Next Month
-1. ⏳ Format per Energy Conversion & Management guidelines
-2. ⏳ Submit via Editorial Manager
-3. ⏳ Prepare peer review responses (expect 8–12 weeks)
+1. ⏳ Format per Energy Conversion & Management or Applied Energy author guidelines
+2. ⏳ Submit via Editorial Manager / ScholarOne
+3. ⏳ Prepare peer review responses (expect 8–12 weeks review turnaround)
 
 ---
 
@@ -174,7 +184,7 @@ Right-click any `.md` file and open with:
 ### For **Journal Editors**
 1. Start: Sections 1–7 (paper draft files)
 2. Verify: Mathematical formulation in Appendix
-3. Decide: Based on novelty (L3 framework) + practical impact (4.9% savings)
+3. Decide: Based on novelty (topology abstraction study + MILP formulation) + practical impact (guidance on when L1/L2/L3 is sufficient)
 
 ### For **Peer Reviewers**
 1. Start: Sections 1–3 (motivation + literature + methodology)

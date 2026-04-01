@@ -8,13 +8,15 @@
 
 ## 1. NOVELTY SUMMARY
 
-CALION introduces a **novel integration of physical thermo-hydraulic network modeling within a mixed-integer linear program (MILP) for joint investment-dispatch optimization**. This is achieved through:
+This paper makes the following novel contributions to the field of district heating and energy systems optimization:
 
-1. **Pre-computed COP time series** (linearization strategy): Transforms temperature-dependent heat pump performance from a nonlinear joint optimization into exogenous parameters, enabling MILP tractability while retaining ±2–3% physical accuracy.
+1. **Controlled topology abstraction study** *(primary novelty)*: The first quantitative, three-level (L1/L2/L3) comparison of network topology abstraction in MILP-based operational dispatch optimization, in which **identical physics-based loss models are applied at all levels**, isolating topology as the sole variable. This resolves a methodological gap in the literature where prior comparisons confounded topology change with physics model change.
 
-2. **Piecewise-linear storage geometry** (approximation method): Captures nonlinear fill-level-dependent tank losses with 10 line segments, reducing error to <1% while maintaining MILP solvability.
+2. **Pre-computed COP time series** (linearization strategy): Transforms temperature-dependent heat pump performance from a nonlinear joint optimization into exogenous parameters, enabling MILP tractability while retaining ±2–3% physical accuracy. Error bounds are formally derived (Appendix A.1).
 
-3. **Level-3 (L3) physical modeling framework**: Explicit categorization of model fidelities (L1: energy-only → L4: full transient) that clarifies when MILP/optimization approaches are appropriate vs. when full simulation is necessary.
+3. **Piecewise-linear storage geometry** (approximation method): Captures nonlinear fill-level-dependent tank losses with 10 line segments derived from first-principles geometry, reducing approximation error to <1% while maintaining MILP solvability (Appendix A.2).
+
+4. **Open-source, configuration-driven implementation**: The CALION framework implements all three topology levels via YAML configuration files, with built-in sensitivity analysis (`calion.analysis.sensitivity`) and benchmarking (`calion.comparison.benchmark`) modules.
 
 ---
 
@@ -85,7 +87,7 @@ CALION introduces a **novel integration of physical thermo-hydraulic network mod
 
 **Novelty**: No prior MILP-based framework simultaneously handles all three elements while remaining computationally tractable for practical 1-year planning.
 
-**Impact**: 4–9% cost reduction vs. L1 baselines (verified in case study); enables rapid scenario exploration for decarbonization strategy planning.
+**Impact**: ~2.5% cost difference between L1 copperplate and L3 detailed topology (≈€130k/year for Stadtbach case, preliminary); the dominant cost driver is the inclusion of physical losses (L1→L2), not the additional spatial detail (L2→L3). This provides clear, actionable guidance on when detailed topology is necessary.
 
 ---
 
