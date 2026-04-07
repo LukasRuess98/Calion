@@ -1,5 +1,5 @@
-# Simple test: Boiler only, no heat pumps or complex components
-# Goal: Verify solver works without non-linear COP curves
+# Phase 1 test with IPOPT solver
+# IPOPT is NLP solver that should handle the model
 
 site:
   input_xlsx: "data/Import_Data.csv"
@@ -9,8 +9,8 @@ site:
     co2_grid: "grid_co2_kg_MWh"
 
 scenario:
-  title: "Simple Boiler Test - No Phase 1 Constraints"
-  tag: "simple_boiler_test"
+  title: "Phase 1 Constraints Test with IPOPT"
+  tag: "phase1_ipopt_test"
   run_mode: PF_ONLY
 
 system:
@@ -24,11 +24,9 @@ system:
   storage:
     enabled: false
 
-# Thermal network configuration
 thermal_network:
   enabled: true
-  milp_linearize: true
-
+  
   nodes:
     - id: producer_node
       type: producer
@@ -48,19 +46,22 @@ thermal_network:
       from_node: producer_node
       to_node: consumer_node
       length_m: 1000
-      current_diameter_supply_mm: 600
+      current_diameter_supply_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
 
-# Phase 1 constraints DISABLED
+# Phase 1 constraints ENABLED
 state_validation:
   temperature_constraints:
-    enforce_supply_ge_return: false
+    enforce_supply_ge_return: true
+    temperature_tolerance_c: 0.1
+  
   pressure_constraints:
-    min_pressure_bar: 0.0
+    min_pressure_bar: 0.5
+  
   flow_constraints:
-    min_velocity_m_s: 0.0
-    max_velocity_m_s: 999.0
+    min_velocity_m_s: 0.3
+    max_velocity_m_s: 2.5
 
 costs:
   co2_price_eur_per_t: 100.0
@@ -68,4 +69,4 @@ costs:
 
 run:
   dt_h: 1.0
-  solver: appsi_highs
+  solver: ipopt  # Use IPOPT - NLP solver

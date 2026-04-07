@@ -1,6 +1,6 @@
 # Formula Reference — Paper Sections 1–3
 
-**Quick lookup for all 34 equations in updated draft**
+**Quick lookup for all 38 equations in updated draft**
 
 ---
 
@@ -77,6 +77,22 @@
 
 ---
 
+## PHYSICAL STATE CONSTRAINTS (Eqs. 34–38)
+
+| Eq. | Formula | Meaning |
+|-----|---------|---------|
+| (34) | $T_{\text{supply},n}[t] \geq T_{\text{return},n}[t] - \epsilon_T$ | Temperature validity (supply ≥ return) |
+| (35) | $p_{\text{supply},n}[t] \geq p_{\min}$ | Minimum supply pressure (cavitation prevention) |
+| (36) | $p_{\text{return},n}[t] \geq p_{\min}$ | Minimum return pressure |
+| (37) | $v_{\text{pipe},i}[t] \leq v_{\max}$ | Maximum pipe velocity (erosion/noise limit) |
+| (38) | $v_{\text{pipe},i}[t] = \dot{m}_i[t] / (\rho_w \cdot A_i)$ | Velocity-flow relationship (linear) |
+
+**Parameters**: $\epsilon_T = 0.1\,$°C, $p_{\min} = 0.5\,$bar, $v_{\max} = 2.5\,$m/s, $\rho_w \approx 983\,$kg/m³
+
+**Note**: Minimum velocity ($v_{\min} = 0.3\,$m/s) is *not* a hard constraint — it conflicts with zero-flow feasibility. Checked post-solve by `NetworkValidator`.
+
+---
+
 ## KEY THEOREM REFERENCES
 
 ### Theorem 1: COP Pre-Computation Preserves MILP (Appendix A.2.1)
@@ -101,8 +117,8 @@ $$\|f - f_{\text{PWL}}\|_\infty \leq M (E_{\max}/N)^2$$
 
 | Item | Count |
 |------|-------|
-| **Equations Numbered** | 34 |
-| **Constraints (S1–S3)** | 13 |
+| **Equations Numbered** | 38 |
+| **Constraints (S1–S3)** | 18 |
 | **Cost Components** | 6 |
 | **Linearization Methods** | 2 |
 | **Theorems Referenced** | 3 |
@@ -115,7 +131,7 @@ $$\|f - f_{\text{PWL}}\|_\infty \leq M (E_{\max}/N)^2$$
 ## USAGE
 
 **Quick Reference**:
-1. **Structure**: Read equations in order 1→33 (follows paper section order)
+1. **Structure**: Read equations in order 1→38 (follows paper section order)
 2. **Searchable**: Use `Eq. (N)` notation when citing formulas
 3. **Validation**: Each equation checked against `APPENDIX_EQUATIONS_AND_PROOFS.md`
 4. **Publication**: All equations numbered per ECaM parenthesis format
@@ -128,4 +144,4 @@ $$\|f - f_{\text{PWL}}\|_\infty \leq M (E_{\max}/N)^2$$
 ---
 
 Generated: March 31, 2026  
-Last Updated: Paper Draft v2, Sections 1–3 enhanced
+Last Updated: April 2, 2026 — Added Eqs. 34–38 (physical state constraints)

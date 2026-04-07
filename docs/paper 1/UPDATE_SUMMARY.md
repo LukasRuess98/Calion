@@ -144,6 +144,55 @@ Updated paper draft Sections 1–3 with **enhanced mathematical rigor** integrat
 
 ---
 
+---
+
+## Update: April 2, 2026 — Phase 1 Physical State Constraints
+
+### Changes Made
+
+#### **New Section 3.2.8: Constraints: Physical State Validity**
+Added 5 new numbered equations (Eqs. 34–38) covering three classes of physical state constraints enforced in the MILP:
+
+| Equation # | Content | Section |
+|---|---|---|
+| (34) | $T_{\text{supply}} \geq T_{\text{return}} - \epsilon_T$ | 3.2.8 — Temperature validity |
+| (35) | $p_{\text{supply}} \geq p_{\min}$ | 3.2.8 — Minimum supply pressure |
+| (36) | $p_{\text{return}} \geq p_{\min}$ | 3.2.8 — Minimum return pressure |
+| (37) | $v_{\text{pipe}} \leq v_{\max}$ | 3.2.8 — Maximum pipe velocity |
+| (38) | $v = \dot{m} / (\rho_w \cdot A)$ | 3.2.8 — Velocity-flow relationship |
+
+#### **Section 3.5 Framework Classification Updated**
+- Added "Physical state constraints" to the **Included** list with equation references
+- Clarified that static pressure bounds and velocity limits are now included; only the nonlinear Darcy–Weisbach feedback loop is deferred to L4
+- Resolved merge conflict between two diverged versions of Section 3.5
+
+#### **FORMULA_REFERENCE.md Updated**
+- Added new "Physical State Constraints (Eqs. 34–38)" section
+- Updated equation count: 34 → 38
+- Updated constraint count: 13 → 18
+
+#### **APPENDIX_EQUATIONS_AND_PROOFS.md Updated**
+- Added Section A.2.4: "Physical State Constraints: Linearity and Feasibility"
+- Proof that all state constraints are linear and preserve MILP tractability
+- Feasibility analysis explaining why minimum velocity is post-solve only
+
+### Implementation Context
+These equations correspond to code in `calion/models/state_constraints.py`:
+- `enforce_supply_ge_return_temperature()` → Eq. 34
+- `enforce_minimum_pressure()` → Eqs. 35–36
+- `enforce_velocity_bounds()` → Eq. 37 (max only; min is post-solve)
+- Velocity-flow link in `calion/models/blocks/pipe_pair.py` → Eq. 38
+
+### Updated Statistics
+
+| Item | Previous | Updated |
+|------|----------|---------|
+| **Equations Numbered** | 34 | 38 |
+| **Constraints** | 13 | 18 |
+| **Theorems/Proofs** | 3 | 4 (added A.2.4) |
+
+---
+
 ## Next Steps
 
 1. **Section 3 Refinement** (Optional):

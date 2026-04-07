@@ -39,7 +39,8 @@ system:
 # Thermal network configuration
 thermal_network:
   enabled: true
-  
+  milp_linearize: true
+
   # Network topology: producer → consumer node via pipe
   nodes:
     - id: producer_node
@@ -60,7 +61,7 @@ thermal_network:
       from_node: producer_node
       to_node: consumer_node
       length_m: 1000
-      current_diameter_supply_mm: 200
+      current_diameter_supply_mm: 600
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
 

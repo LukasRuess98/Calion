@@ -80,12 +80,13 @@ state_validation:
   # Flow constraints
   flow_constraints:
     # Minimum velocity to prevent stagnation [m/s]
-    # Typical range: 0.2-0.5 m/s (lower → biofilm risk; higher → heat loss)
+    # Checked post-solve by NetworkValidator (not as hard constraint).
+    # A hard constraint would conflict with zero-flow pipes (m_dot=0).
     min_velocity_m_s: 0.3
-    
+
     # Maximum velocity for noise/wear control [m/s]
-    # Typical range: 2.0-3.0 m/s (higher → noise, erosion)
+    # Enforced as hard Pyomo constraint (always feasible).
     max_velocity_m_s: 2.5
-    
+
     # Enforce Reynolds number regime validation (Phase 2 — advanced)
     enforce_reynolds_regime: false
