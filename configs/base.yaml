@@ -46,3 +46,46 @@ fuels:
   gas:
     price_eur_mwh: 40.0
     ef_kg_per_mwh_fuel: 200.0
+
+# =============================================================================
+# PHASE 1: STATE CONSTRAINTS
+# =============================================================================
+# Physical validity constraints for network nodes and pipes.
+# These enforce that optimized states remain physically realistic.
+
+state_validation:
+  # Temperature constraints
+  temperature_constraints:
+    # Enforce T_supply >= T_return at every node (supply/return reversal prevention)
+    enforce_supply_ge_return: true
+    
+    # Link consumer return temp to heat demand (Phase 2 — advanced)
+    enforce_demand_based_return_temp: false
+    
+    # Numerical tolerance for temperature constraints [°C]
+    temperature_tolerance_c: 0.1
+
+  # Pressure constraints
+  pressure_constraints:
+    # Minimum absolute pressure to prevent cavitation [bar]
+    # Typical values: 0.5-1.0 bar (absolute); cavitation risk <0.3 bar
+    min_pressure_bar: 0.5
+    
+    # Enforce Darcy-Weisbach pressure drop consistency (Phase 2 — advanced)
+    enforce_darcy_consistency: false
+    
+    # Maximum allowable pressure drop in a pipe [bar]
+    max_pressure_drop: 2.0
+
+  # Flow constraints
+  flow_constraints:
+    # Minimum velocity to prevent stagnation [m/s]
+    # Typical range: 0.2-0.5 m/s (lower → biofilm risk; higher → heat loss)
+    min_velocity_m_s: 0.3
+    
+    # Maximum velocity for noise/wear control [m/s]
+    # Typical range: 2.0-3.0 m/s (higher → noise, erosion)
+    max_velocity_m_s: 2.5
+    
+    # Enforce Reynolds number regime validation (Phase 2 — advanced)
+    enforce_reynolds_regime: false

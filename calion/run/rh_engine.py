@@ -98,9 +98,8 @@ def _set_initial_soc(cfg: MutableMapping[str, Any], soc: float) -> MutableMappin
         storage = system.setdefault("storage", {})
         if isinstance(storage, dict):
             storage["soc0_mwh"] = float(soc)
-            terminal = storage.setdefault("terminal", {})
-            if isinstance(terminal, dict):
-                terminal["target_mwh"] = float(soc)
+            # Note: terminal.target_mwh is NOT set here — that is managed
+            # by _apply_terminal_policy to avoid overriding the policy.
 
     root_storage = cfg.get("storage")
     if isinstance(root_storage, dict):

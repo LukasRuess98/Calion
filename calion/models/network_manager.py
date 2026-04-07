@@ -487,6 +487,7 @@ class NetworkManager:
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
+                'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }
             PipePairBlock.validate_config(enriched_config)
@@ -518,6 +519,7 @@ class NetworkManager:
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
                 'milp_linearize': milp_linearize,
+                'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
@@ -705,27 +707,12 @@ class NetworkManager:
             setattr(model, f"junction_{node_id}_flow_balance",
                     pyo.Constraint(time_set, rule=junction_flow_rule))
 
-            # A2: Return-side mass balance (same m_dot vars, reversed direction)
-            # Return flow goes from outgoing-node side back to incoming-node side,
-            # so outgoing pipe return flows supply the junction's return outflow.
-            # For symmetric m_dot (supply == return), this mirrors the supply constraint,
-            # but we add it explicitly so the return loop is closed.
-            all_pipe_ids = list(set(incoming_pipes) | set(outgoing_pipes))
-            if len(all_pipe_ids) > len(incoming_pipes):
-                def junction_return_flow_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
-                    # On the return side, flow comes FROM outgoing consumers BACK to junction,
-                    # then continues back towards producer via incoming pipes.
-                    # m_dot is symmetric: same variable for supply and return.
-                    total_return_out = sum(pipe_components[pid]['m_dot'][t] for pid in _in)
-                    total_return_in = sum(pipe_components[pid]['m_dot'][t] for pid in _out)
-                    return total_return_in == total_return_out
-
-                setattr(model, f"junction_{node_id}_return_flow_balance",
-                        pyo.Constraint(time_set, rule=junction_return_flow_rule))
+            # Note: Return-side mass balance is identical to supply-side because
+            # m_dot is symmetric (same variable for supply and return pipes).
+            # No separate return constraint needed.
 
             logger.info(
-                f"  ✓ {node_id}: supply {len(incoming_pipes)} in = {len(outgoing_pipes)} out "
-                f"(+ return balance)"
+                f"  ✓ {node_id}: flow balance {len(incoming_pipes)} in = {len(outgoing_pipes)} out"
             )
 
             # A3: Big-M dominant-flow temperature mixing for junctions with 2+ incoming pipes
@@ -1155,7 +1142,7 @@ class NetworkManager:
             })
 
         for pipe_id, pipe_result in results['pipes'].items():
-            self.pipes[pipe_id]
+            pipe_config = self.pipes[pipe_id]
             dashboard_data['network_topology']['pipes'].append({
                 'id': pipe_id,
                 'from': pipe_result['from_node'],

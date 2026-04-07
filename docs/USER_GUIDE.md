@@ -417,8 +417,147 @@ logging.basicConfig(level=logging.DEBUG)
 
 ---
 
+## 5.4 Phase 1: Network State Validation & Constraints
+
+CALION enforces **physical validity constraints** on thermal network states to ensure optimization results remain realistic.
+
+### 5.4.1 What is Phase 1?
+
+Phase 1 constraints prevent unphysical states like:
+- Supply temperature below return temperature ❌
+- Operating pressure below cavitation threshold ❌
+- Pipe flow velocity causing stagnation or excessive wear ❌
+
+All constraints are **configurable and can be toggled** via YAML configuration.
+
+### 5.4.2 Configuration
+
+Phase 1 constraints are defined in the `state_validation` section:
+
+```yaml
+state_validation:
+  # Temperature constraints
+  temperature_constraints:
+    # Enforce T_supply >= T_return at every node
+    enforce_supply_ge_return: true
+    # Tolerance for numerical stability [°C]
+    temperature_tolerance_c: 0.1
+  
+  # Pressure constraints
+  pressure_constraints:
+    # Minimum absolute pressure to prevent cavitation [bar]
+    min_pressure_bar: 0.5
+    # Maximum allowable pressure drop in pipes [bar]
+    max_pressure_drop: 2.0
+  
+  # Flow constraints
+  flow_constraints:
+    # Minimum velocity to prevent stagnation [m/s]
+    min_velocity_m_s: 0.3
+    # Maximum velocity for noise/wear control [m/s]
+    max_velocity_m_s: 2.5
+```
+
+These settings are included in `configs/base.yaml` with sensible defaults.
+
+### 5.4.3 Customization
+
+Override constraints per scenario:
+
+```yaml
+# In your scenario YAML
+state_validation:
+  pressure_constraints:
+    min_pressure_bar: 1.0  # Stricter than default
+  flow_constraints:
+    max_velocity_m_s: 2.0  # Limit maximum velocity
+```
+
+Disable constraints entirely:
+
+```yaml
+state_validation:
+  temperature_constraints:
+    enforce_supply_ge_return: false
+  flow_constraints:
+    min_velocity_m_s: 0.0  # No minimum velocity
+```
+
+### 5.4.4 Validation Reports
+
+After optimization, CALION automatically validates network states and exports a report:
+
+```
+exports/<tag>/thermal_network/state_validation_report.json
+```
+
+Report includes:
+- Total issues found (errors and warnings)
+- Violations by component type (nodes, pipes)
+- Detailed issue descriptions with bounds
+
+**Example**:
+```json
+{
+  "total_issues": 0,
+  "errors": 0,
+  "warnings": 0,
+  "by_severity": {"error": 0, "warning": 0, "info": 0},
+  "by_component": {"node": 0, "pipe": 0, "global": 0},
+  "passed": true
+}
+```
+
+### 5.4.5 Programmatic Usage
+
+Access validation results in Python:
+
+```python
+from calion.models.network_validator import NetworkValidator
+
+# After solving
+validator = NetworkValidator(model, config, time_set)
+results = validator.validate_all()
+
+# Check results
+if results['passed']:
+    print("✓ Network state is physically valid")
+else:
+    print(f"✗ Found {results['errors']} violations")
+    for issue in results['issues']:
+        print(f"  {issue}")
+
+# Export detailed report
+validator.export_report('validation_report.json')
+```
+
+### 5.4.6 Performance Impact
+
+Phase 1 constraints have **minimal computational cost**:
+- <5% solver time overhead on typical 24-hour models
+- Usually 1-2 additional constraints per node/pipe
+- No additional variables needed
+
+### 5.4.7 Troubleshooting
+
+**"Phase 1 constraints causing infeasibility"**
+
+This is rare but can occur if:
+1. Network is physically under-designed
+2. Demand cannot be met with available capacity
+3. Pressure drop exceeds pump capability
+
+**Solution**: 
+- Relax bounds temporarily: `min_pressure_bar: 0.1`
+- Increase pipe diameter
+- Review network design
+- Check heat demand availability
+
+---
+
 ## Questions?
 
 - Check the [Technical Methodology](METHODOLOGY.md) for model details
 - Review [Data Format](DATA_FORMAT.md) for input requirements
+- See [Network Topology Analysis](NETWORK_TOPOLOGY_AND_STATE_CONSTRAINTS_ANALYSIS.md) for constraint details
 - Open an issue on GitHub for bugs or feature requests

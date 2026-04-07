@@ -351,11 +351,23 @@ def _find_demand_column(table: TimeSeriesTable, column_name: str) -> str:
         return re.sub(r"[^a-z0-9]+", "", s.lower())
 
     target = _norm(column_name)
+
+    # Pass 1: exact normalized match
     for col in table.columns:
         if _norm(col) == target:
             return col
-        if target in _norm(col) or _norm(col) in target:
-            return col
+
+    # Pass 2: substring match — only if target is long enough to be meaningful
+    if len(target) >= 4:
+        candidates = [col for col in table.columns if target in _norm(col)]
+        if len(candidates) == 1:
+            return candidates[0]
+        if len(candidates) > 1:
+            logger.warning(
+                f"Demand column '{column_name}' matched multiple columns: {candidates}. "
+                f"Using first match '{candidates[0]}'."
+            )
+            return candidates[0]
 
     raise ValueError(
         f"Demand column '{column_name}' not found in data. "

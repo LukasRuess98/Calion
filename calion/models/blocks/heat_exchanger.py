@@ -94,13 +94,13 @@ class HeatExchangerBlock(BaseComponent):
         effectiveness = config.get('effectiveness', 0.85)
         max_power_mw = config.get('max_power_mw', 10.0)
         min_power_mw = config.get('min_power_mw', 0.0)
-        config.get('min_load_fraction', 0.1)
+        min_load_fraction = config.get('min_load_fraction', 0.1)
 
         # Temperature parameters (will be linked to networks)
         T_prim_in_nominal = config.get('T_primary_in_c', 60.0)  # Return from high-temp
-        config.get('T_primary_out_c', 40.0)
+        T_prim_out_nominal = config.get('T_primary_out_c', 40.0)
         T_sec_in_nominal = config.get('T_secondary_in_c', 30.0)  # Return to low-temp
-        config.get('T_secondary_out_c', 55.0)  # Supply to low-temp
+        T_sec_out_nominal = config.get('T_secondary_out_c', 55.0)  # Supply to low-temp
 
         # Fluid properties
         cp_water = 4.186  # kJ/(kg·K)
@@ -189,7 +189,7 @@ class HeatExchangerBlock(BaseComponent):
         # (1) Capacity limit
         def capacity_limit_rule(m, t):
             if investable and capacity is not None:
-                return Q_transfer[t] <= capacity
+                return Q_transfer[t] <= capacity * active[t]
             else:
                 return Q_transfer[t] <= max_power_mw * active[t]
 

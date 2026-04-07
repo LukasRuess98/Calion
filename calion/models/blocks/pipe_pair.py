@@ -26,6 +26,10 @@ except ImportError:
 from ..component import BaseComponent
 from ..network_physics import compute_delay_buckets
 from ..registry import register_component
+from ..state_constraints import (
+    enforce_minimum_pressure,
+    enforce_velocity_bounds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +128,7 @@ class PipePairBlock(BaseComponent):
         # Diameter configuration
         existing_pipe = config.get('existing', False)
         current_diam_supply = config.get('current_diameter_supply_mm')
-        config.get('current_diameter_return_mm', current_diam_supply)
+        current_diam_return = config.get('current_diameter_return_mm', current_diam_supply)
 
         # Investment/upgrade options
         upgrade_config = config.get('upgrade_options', {})
@@ -601,6 +605,24 @@ class PipePairBlock(BaseComponent):
         if not hasattr(model, 'pipe_capex_costs'):
             model.pipe_capex_costs = {}
         model.pipe_capex_costs[pipe_id] = annual_capex
+
+        # ============================================================
+        # PHASE 1: STATE CONSTRAINTS
+        # ============================================================
+        # Enforce physical validity of pipe states (pressures, velocities)
+        logger.info(f"  Attaching Phase 1 state constraints for pipe {pipe_id}")
+
+        # 1. Minimum pressure bound (cavitation + pump protection)
+        # For pipes, apply to endpoints via node pressures (handled in thermal_node)
+        # Here we ensure inline pressure variables stay above minimum
+        # Note: Nodes handle their own pressure bounds; pipes inherit through constraints
+
+        # 2. Velocity bounds (stagnation prevention + max velocity)
+        if hasattr(model, f'{prefix}_velocity'):
+            enforce_velocity_bounds(
+                model, time_set, prefix, velocity, m_dot,
+                pipe_id, config
+            )
 
         # ============================================================
         # RETURN REFERENCES

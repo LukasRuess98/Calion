@@ -661,15 +661,15 @@ class StratifiedStorageBlock(BaseComponent):
         avg_ratio_hot = 0.5
 
         # Calculate average heat loss power [MW]
-        # Q_loss = U × A × ΔT / 1000
+        # Q_loss = U × A × ΔT / 1e6  (W → MW)
         Q_loss_top = (self.U_top * self.geometry["A_top_m2"] *
-                      (self.T_hot - self.T_ambient) / 1000.0)
+                      (self.T_hot - self.T_ambient) / 1e6)
 
         Q_loss_side = (self.U_side * self.geometry["A_side_m2"] * avg_ratio_hot *
-                       (self.T_hot - self.T_ambient) / 1000.0)
+                       (self.T_hot - self.T_ambient) / 1e6)
 
         Q_loss_bottom = (self.U_bottom * self.geometry["A_bottom_m2"] * avg_ratio_hot *
-                         (self.T_hot - self.T_ground) / 1000.0)
+                         (self.T_hot - self.T_ground) / 1e6)
 
         Q_loss_total = Q_loss_top + Q_loss_side + Q_loss_bottom  # [MW]
 
@@ -703,23 +703,23 @@ class StratifiedStorageBlock(BaseComponent):
             # Calculate heat loss for this ratio
             # Top: always hot zone
             Q_loss_top = (self.U_top * self.geometry["A_top_m2"] *
-                          (self.T_hot - self.T_ambient) / 1000.0)
+                          (self.T_hot - self.T_ambient) / 1e6)
 
             # Side: proportional to hot zone height
             Q_loss_side_hot = (self.U_side * self.geometry["A_side_m2"] * ratio_hot *
-                               (self.T_hot - self.T_ambient) / 1000.0)
+                               (self.T_hot - self.T_ambient) / 1e6)
 
             Q_loss_side_cold = (self.U_side * self.geometry["A_side_m2"] * (1 - ratio_hot) *
-                                (self.T_cold - self.T_ambient) / 1000.0)
+                                (self.T_cold - self.T_ambient) / 1e6)
 
             # Bottom: depends on whether it's in hot or cold zone
             # For simplicity: if ratio_hot > 0, bottom is cold; otherwise no loss
             if ratio_hot < 1.0:
                 Q_loss_bottom = (self.U_bottom * self.geometry["A_bottom_m2"] *
-                                (self.T_cold - self.T_ground) / 1000.0)
+                                (self.T_cold - self.T_ground) / 1e6)
             else:
                 Q_loss_bottom = (self.U_bottom * self.geometry["A_bottom_m2"] *
-                                (self.T_hot - self.T_ground) / 1000.0)
+                                (self.T_hot - self.T_ground) / 1e6)
 
             Q_loss_total = Q_loss_top + Q_loss_side_hot + Q_loss_side_cold + Q_loss_bottom
 

@@ -79,7 +79,17 @@ class HeatPumpBlock(BaseComponent):
 
         # Params
         setattr(m, f"{comp}_minload", pyo.Param(initialize=self.min_load))
-        COPp = pyo.Param(Tset, initialize={t: self.COP_series[t-1] for t in Tset}, mutable=False)
+        times = list(Tset)
+        if len(self.COP_series) == 1:
+            cop_map = {t: self.COP_series[0] for t in times}
+        elif len(self.COP_series) != len(times):
+            raise ValueError(
+                f"Heat pump '{comp}' COP series length ({len(self.COP_series)}) "
+                f"does not match time index length ({len(times)})"
+            )
+        else:
+            cop_map = {t: self.COP_series[i] for i, t in enumerate(times)}
+        COPp = pyo.Param(Tset, initialize=cop_map, mutable=False)
         setattr(m, f"{comp}_COP", COPp)
         setattr(m, f"{comp}_COP_default", pyo.Param(initialize=self.cop_default, mutable=False))
         COP_def = getattr(m, f"{comp}_COP_default")

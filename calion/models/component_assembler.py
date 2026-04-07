@@ -335,10 +335,15 @@ class ComponentAssembler:
         sto_cfg.update(p)
 
         # Temporarily set system config for standard assembly path
-        old_sys = self.cfg.get("system", {})
+        old_sys = self.cfg.get("system")
         self.cfg.setdefault("system", {})["storage"] = sto_cfg
-        self.assemble_storage()
-        self.cfg["system"] = old_sys
+        try:
+            self.assemble_storage()
+        finally:
+            if old_sys is None:
+                self.cfg.pop("system", None)
+            else:
+                self.cfg["system"] = old_sys
 
         # Move storage flows from self.buses to per-node / system level
         if self.buses.ht_out:
