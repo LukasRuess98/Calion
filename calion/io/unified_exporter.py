@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import csv
 import json
-import logging
 import math
 import os
 import time
@@ -48,8 +47,6 @@ logger = get_logger(__name__)
 if TYPE_CHECKING:
     from calion.run.rolling_horizon import WorkflowResult
 
-logger = logging.getLogger(__name__)
-
 # ─ Declare optional dependencies ─
 try:  # pragma: no cover - optional dependency
     from openpyxl import Workbook
@@ -60,8 +57,19 @@ except Exception:  # pragma: no cover
 
 _XML_ESCAPE = {"'": "&apos;"}
 
+from calion.io.exporters.multi_network_exporter import (  # noqa: F401
+    export_multi_network_data,
+    export_multi_network_latex,
+    export_multi_network_plots,
+    export_multi_network_results,
+)
+
 __all__ = [
     "HAVE_OPENPYXL",
+    "export_multi_network_data",
+    "export_multi_network_latex",
+    "export_multi_network_plots",
+    "export_multi_network_results",
     "export_scenario_bundle",
     "export_workflow",
     "export_with_sensitivity",
