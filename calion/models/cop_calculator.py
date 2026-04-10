@@ -26,7 +26,11 @@ from calion.utils.timeseries import TimeSeriesTable
 
 
 def calculate_cop_series(
-    table: TimeSeriesTable, wrg_col: str | None, cfg: dict[str, Any], hp_type: str
+    table: TimeSeriesTable,
+    wrg_col: str | None,
+    cfg: dict[str, Any],
+    hp_type: str,
+    sink_temp_series: list[float] | None = None,
 ) -> list[float]:
     """Calculate heat pump COP (Coefficient of Performance) time series.
 
@@ -46,6 +50,10 @@ def calculate_cop_series(
             - heat_pumps.cop.sink_defaults: Sink temperature settings
             - heat_pumps.types[hp_type]: Heat pump specific parameters
         hp_type (str): Heat pump type identifier (e.g., "default", "high_temp")
+        sink_temp_series (list[float] | None): Optional pre-computed sink (supply)
+            temperature series [K]. When provided, overrides the fixed Tsink_out_K
+            from config for each timestep. Use to pass heating-curve-derived supply
+            temperatures.
 
     Returns:
         List[float]: COP value for each timestep, clamped to [COP_MIN, COP_MAX_SYSTEM_BUILDER]
@@ -63,9 +71,11 @@ def calculate_cop_series(
     table_spec = tables_cfg.get(hp_type) or tables_cfg.get("default")
 
     if table_spec:
-        return _calculate_from_table(table, table_spec, copcfg, wrg_col)
+        return _calculate_from_table(table, table_spec, copcfg, wrg_col,
+                                     sink_temp_series=sink_temp_series)
     else:
-        return _calculate_analytical(table, cfg, copcfg, hp_type, wrg_col)
+        return _calculate_analytical(table, cfg, copcfg, hp_type, wrg_col,
+                                     sink_temp_series=sink_temp_series)
 
 
 def _calculate_from_table(
@@ -73,6 +83,7 @@ def _calculate_from_table(
     table_spec: dict[str, Any],
     copcfg: dict[str, Any],
     wrg_col: str | None,
+    sink_temp_series: list[float] | None = None,
 ) -> list[float]:
     """Calculate COP from lookup table with 2D interpolation."""
     # Validate and extract axes
@@ -120,11 +131,23 @@ def _calculate_from_table(
         table, table_spec.get("x_column") or wrg_col, table_spec.get("x_default")
     )
     y_column = table_spec.get("y_column")
-    y_series = (
-        _series_from_column(table, y_column, table_spec.get("y_default", Ts_out))
-        if has_y
-        else [0.0] * len(table)
-    )
+    if sink_temp_series is not None:
+        # sink_temp_series overrides column-based y_series
+        if len(sink_temp_series) != len(table):
+            raise ValueError(
+                f"sink_temp_series length ({len(sink_temp_series)}) "
+                f"must match table length ({len(table)})"
+            )
+        y_series = list(sink_temp_series)
+        has_y = True
+        if y_points is None:
+            y_points = [float(v) for v in sink_temp_series]
+    else:
+        y_series = (
+            _series_from_column(table, y_column, table_spec.get("y_default", Ts_out))
+            if has_y
+            else [0.0] * len(table)
+        )
 
     cop_min = float(table_spec.get("cop_min", copcfg.get("cop_min", COP_MIN)))
     cop_max = float(
@@ -164,6 +187,7 @@ def _calculate_analytical(
     copcfg: dict[str, Any],
     hp_type: str,
     wrg_col: str | None,
+    sink_temp_series: list[float] | None = None,
 ) -> list[float]:
     """Calculate COP using analytical heat pump model.
 
@@ -172,7 +196,7 @@ def _calculate_analytical(
     dT = float(copcfg.get("deltaT_K", COP_DELTA_T_K))
     dTpp = float(copcfg.get("deltaTpp_K", 5.0))
     sink = copcfg.get("sink_defaults", {})
-    Ts_out = float(sink.get("Tsink_out_K", 363.15))
+    Ts_out_default = float(sink.get("Tsink_out_K", 363.15))
     Ts_in = float(sink.get("Tsink_in_K", 343.15))
     type_par = cfg.get("heat_pumps", {}).get("types", {}).get(hp_type, {})
     eta = float(type_par.get("eta", 0.75))
@@ -186,9 +210,11 @@ def _calculate_analytical(
 
     Tout = [max(t - dT, 1.0) for t in temps]
 
-    Ls = _lmtd(Ts_out, Ts_in)
     cop: list[float] = []
-    for Tin, Tout_i in zip(temps, Tout, strict=False):
+    for i, (Tin, Tout_i) in enumerate(zip(temps, Tout, strict=False)):
+        # Use per-timestep sink temp if provided, else fixed default
+        Ts_out = sink_temp_series[i] if sink_temp_series is not None else Ts_out_default
+        Ls = _lmtd(Ts_out, Ts_in)
         Lsrc = _lmtd(Tin, Tout_i)
         mdts = 0.2 * (Ts_out - Tout_i + 2 * dTpp) + 0.2 * (Ts_out - Ts_in) + 0.016
         qww = (

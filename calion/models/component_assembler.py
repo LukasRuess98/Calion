@@ -38,6 +38,7 @@ from .blocks.thermal_gen import ThermalGeneratorBlock
 from .cop_calculator import calculate_cop_series
 from .emissions_calculator import EmissionsCalculator
 from .investment_calculator import InvestmentCalculator
+from .network_physics import calculate_supply_temperature_series
 
 # ─── Bus Connections Containers ────────────────────────────────────────────────
 
@@ -261,7 +262,9 @@ class ComponentAssembler:
         if wrg_col and wrg_col not in self.table.columns and f"{wrg_col}_K" in self.table.columns:
             wrg_col = f"{wrg_col}_K"
 
-        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type)
+        sink_temp_series_k = self._compute_heating_curve_sink_temps()
+        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type,
+                                          sink_temp_series=sink_temp_series_k)
 
         wrg_cap_col = p.get("wrg_capacity_column")
         if wrg_cap_col is None and wrg_col:
@@ -464,6 +467,28 @@ class ComponentAssembler:
                 continue
             self._attach_single_heat_pump(hp, hp_inv_defaults)
 
+    def _compute_heating_curve_sink_temps(self) -> list[float] | None:
+        """Compute per-timestep sink temperature [K] from outdoor-temp heating curve.
+
+        Returns None if no outdoor temperature column is configured, so callers
+        fall back to the fixed Tsink_out_K from config.
+        """
+        hp_cop_cfg = self.cfg.get('heat_pumps', {}).get('cop', {})
+        outdoor_col = hp_cop_cfg.get('outdoor_temp_column', 'outdoor_temp_C')
+        if outdoor_col not in self.table.columns:
+            return None
+
+        outdoor_c = [float(self.table[outdoor_col][i]) for i in range(self.T)]
+        supply_c = calculate_supply_temperature_series(
+            outdoor_c,
+            T_supply_min_c=float(hp_cop_cfg.get('supply_temp_min_c', 80.0)),
+            T_supply_max_c=float(hp_cop_cfg.get('supply_temp_max_c', 120.0)),
+            T_outdoor_high_c=float(hp_cop_cfg.get('t_outdoor_high_c', 20.0)),
+            T_outdoor_low_c=float(hp_cop_cfg.get('t_outdoor_low_c', -10.0)),
+        )
+        # Convert °C → K for cop_calculator
+        return [t + 273.15 for t in supply_c]
+
     def _attach_single_heat_pump(self, hp: dict[str, Any], hp_inv_defaults: dict[str, Any]) -> None:
         """Attach one heat pump block and accumulate its bus flows and costs."""
         name = hp.get("id", "HP")
@@ -475,7 +500,9 @@ class ComponentAssembler:
             if wrg_col not in self.table.columns and f"{wrg_col}_K" in self.table.columns:
                 wrg_col = f"{wrg_col}_K"
 
-        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type)
+        sink_temp_series_k = self._compute_heating_curve_sink_temps()
+        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type,
+                                          sink_temp_series=sink_temp_series_k)
 
         wrg_cap_col: str | None = hp.get("wrg_capacity_column")
         if wrg_cap_col is None and hp.get("wrg_source_column"):
