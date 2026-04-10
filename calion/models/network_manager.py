@@ -361,6 +361,7 @@ class NetworkManager:
         self._link_pipe_temperatures(model, time_set, pipe_components, node_components)
         self._link_consumer_demands(model, time_set, pipe_components, node_components)
         self._link_pressure_propagation(model, time_set, pipe_components, node_components)
+        pump_el_flows = self._link_pump_head(model, time_set, pipe_components, node_components)
 
         if not milp_linearize:
             # Full physics: junction temp mixing + plant return temp (bilinear)
@@ -377,6 +378,7 @@ class NetworkManager:
         logger.info("THERMAL NETWORK ATTACHED SUCCESSFULLY")
         logger.info(f"  Pipes: {len(pipe_components)}")
         logger.info(f"  Nodes: {len(node_components)}")
+        logger.info(f"  Pump flows: {len(pump_el_flows)}")
         logger.info("=" * 60)
 
         return {
@@ -386,6 +388,7 @@ class NetworkManager:
             'supply_temp': temp_setup['supply_temp'],
             'return_temp': temp_setup['return_temp'],
             'ground_temp': temp_setup['ground_temp'],
+            'pump_el_flows': pump_el_flows,
         }
 
     # ── Private helpers ────────────────────────────────────────────────────────
@@ -882,19 +885,11 @@ class NetworkManager:
                     rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] == _sp,
                 ),
             )
-            # Return pressure at producer is setpoint minus typical loop drop (fixed lower)
-            return_setpoint = setpoint * 0.5  # conservative default
-            setattr(
-                model,
-                f"producer_{node_id}_P_return_setpoint",
-                pyo.Constraint(
-                    time_set,
-                    rule=lambda m, t, _P=node_P_return, _sp=return_setpoint: _P[t] == _sp,
-                ),
-            )
+            # Return pressure at producer is determined by pump head constraint
+            # (added in _link_pump_head) — no hardcoded setpoint here.
             logger.info(
                 f"  ✓ Producer {node_id}: P_supply fixed = {setpoint} bar, "
-                f"P_return fixed = {return_setpoint:.1f} bar"
+                f"P_return determined by pump head"
             )
 
         # Collect producer node IDs (have fixed pressure setpoints)
@@ -978,6 +973,65 @@ class NetworkManager:
                 ),
             )
             logger.info(f"  ✓ Consumer {node_id}: P_supply >= {min_p} bar")
+
+    def _link_pump_head(
+        self, model, time_set, pipe_components: dict, node_components: dict
+    ) -> list:
+        """Link pump head to nodal pressure balance and collect P_pump for el bus.
+
+        For each pipe with pump_enabled=True:
+          p_return_from[t] = p_supply_from[t] - delta_p_supply[t] - delta_p_return[t]
+
+        Returns list of P_pump variable references for electricity bus.
+        """
+        logger.info("\nSetting up pump head constraints...")
+        pump_el_flows = []
+
+        for pipe_id, pipe_comp in pipe_components.items():
+            if not pipe_comp.get('pump_enabled', False):
+                continue
+
+            P_pump = pipe_comp.get('P_pump')
+            if P_pump is None:
+                continue
+
+            from_node = pipe_comp['from_node']
+            if from_node not in node_components:
+                continue
+
+            # Only link pump head at producer (from) nodes
+            if node_components[from_node]['type'] != 'producer':
+                continue
+
+            pipe_prefix = pipe_comp.get('prefix', pipe_id.upper().replace('-', '_'))
+            delta_p_supply = getattr(model, f"{pipe_prefix}_delta_p_supply", None)
+            delta_p_return = getattr(model, f"{pipe_prefix}_delta_p_return", None)
+
+            if delta_p_supply is None or delta_p_return is None:
+                logger.warning(f"  ⚠ {pipe_id}: pressure drop vars missing, skipping pump head")
+                continue
+
+            from_P_supply = node_components[from_node]['pressure_supply']
+            from_P_return = node_components[from_node]['pressure_return']
+
+            # p_return[t] = p_supply[t] - ΔP_supply[t] - ΔP_return[t]
+            setattr(
+                model,
+                f"pump_head_{pipe_id}",
+                pyo.Constraint(
+                    time_set,
+                    rule=lambda m, t,
+                        _ps=from_P_supply, _pr=from_P_return,
+                        _dps=delta_p_supply, _dpr=delta_p_return: (
+                        _pr[t] == _ps[t] - _dps[t] - _dpr[t]
+                    ),
+                ),
+            )
+            pump_el_flows.append(P_pump)
+            logger.info(f"  ✓ {pipe_id}: pump head constraint added (from_node={from_node})")
+
+        logger.info(f"  Total pump power flows registered: {len(pump_el_flows)}")
+        return pump_el_flows
 
     def _setup_network_losses(self, model, time_set, pipe_components) -> None:
         """Phase 6: Create per-timestep network heat loss variable binding all pipe losses."""

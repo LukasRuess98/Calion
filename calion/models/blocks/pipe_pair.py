@@ -439,6 +439,51 @@ class PipePairBlock(BaseComponent):
                 pyo.Constraint(time_set,
                                rule=lambda m, t: delta_p_total[t] == delta_p_supply[t] + delta_p_return[t]))
 
+        # ── Pump Power (PWL, per pipe) ──────────────────────────────────────────────
+        # P_pump[t] = (ΔP_supply + ΔP_return) × m_dot × 1e5 / (ρ × η × 1e6)  [MW]
+        # Approximated as PWL using same breakpoints as pressure drop.
+        pump_enabled = config.get('pump_enabled', True)
+        eta_pump = float(config.get('pump_efficiency', 0.70))
+
+        if effective_max_flow > 0:
+            # Pump power at each breakpoint: P_i = 2 × k_flow × m_i³ × 1e5 / (ρ × η × 1e6)
+            p_pump_bp = [
+                2.0 * k_flow * (bp_flows[i] ** 3) * 1e5 / (density_water * eta_pump * 1e6)
+                for i in range(4)
+            ]
+            P_pump_max = max(p_pump_bp[-1] * 1.2, 1e-6)
+        else:
+            p_pump_bp = [0.0, 0.0, 0.0, 0.0]
+            P_pump_max = 0.0
+
+        P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, P_pump_max))
+        setattr(model, f'{prefix}_P_pump', P_pump)
+
+        if not pump_enabled or effective_max_flow <= 0:
+            for t in time_set:
+                P_pump[t].fix(0.0)
+        else:
+            # PWL approximation: linear per segment using midpoint slope
+            pump_slopes = []
+            pump_intercepts = []
+            for s in range(3):
+                m_lo = bp_flows[s]
+                m_hi = bp_flows[s + 1]
+                m_mid = (m_lo + m_hi) / 2.0
+                slope_s = 6.0 * k_flow * m_mid ** 2 * 1e5 / (density_water * eta_pump * 1e6)
+                intercept_s = p_pump_bp[s] - slope_s * m_lo
+                pump_slopes.append(slope_s)
+                pump_intercepts.append(intercept_s)
+
+            def pump_power_rule(m, t, _sl=pump_slopes, _ic=pump_intercepts):
+                return P_pump[t] == sum(
+                    _sl[s] * pwl_flow[t, s] + _ic[s] * pwl_seg[t, s]
+                    for s in range(3)
+                )
+
+            setattr(model, f'{prefix}_pump_power',
+                    pyo.Constraint(time_set, rule=pump_power_rule))
+
         # Store pressure parameters for results extraction
         pressure_params = {
             'max_pressure_drop_bar': max_pressure_drop,
@@ -647,6 +692,10 @@ class PipePairBlock(BaseComponent):
             'upgrade_enabled': upgrade_enabled,
             'tau_steps': tau_steps,
             'delay_buckets': N_BUCKETS,
+            'P_pump': P_pump,
+            'pump_enabled': pump_enabled,
+            'eta_pump': eta_pump,
+            'prefix': prefix,
         }
 
     @staticmethod
