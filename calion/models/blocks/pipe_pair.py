@@ -533,9 +533,9 @@ class PipePairBlock(BaseComponent):
             def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
                 i = _tidx[t]
                 if i < tau_steps[n]:
-                    # Warm-up period: delay reaches before horizon start.
-                    # Let w_delay be free (bounded only by M_Q via w_ub_z).
-                    return pyo.Constraint.Skip
+                    # Warm-up: bound by initial pipe heat flow (default 0 = cold start).
+                    Q_init = config.get('Q_pipe_initial_mw', 0.0)
+                    return w_delay[n, t] <= Q_init
                 delayed_t = _tlist[i - tau_steps[n]]
                 return w_delay[n, t] <= Q_delivered[delayed_t]
 
