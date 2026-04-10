@@ -24,10 +24,14 @@ class HeatPumpBlock(BaseComponent):
         investable: bool,
         wrg_cap_series: dict[int, float] | None = None,
         cop_default: float = COP_DEFAULT,
+        min_uptime_h: float = 0.0,
+        min_downtime_h: float = 0.0,
         label: str | None = None
     ):
         super().__init__(name, label)
         self.min_load = float(min_load)
+        self.min_uptime_h = float(min_uptime_h)
+        self.min_downtime_h = float(min_downtime_h)
 
         # Validate and clamp COP values to safe ranges
         cop_list = []
@@ -133,6 +137,54 @@ class HeatPumpBlock(BaseComponent):
         def mode_link(mm, t):
             return onv[t] <= build
         setattr(m, f"{comp}_mode_link", pyo.Constraint(Tset, rule=mode_link))
+
+        # ── Min Uptime / Downtime (unit commitment) ────────────────────────────
+        dt_h_model = float(getattr(m, 'dt_h', 1.0))
+        L = max(0, round(self.min_uptime_h / dt_h_model))   # uptime in timesteps
+        D = max(0, round(self.min_downtime_h / dt_h_model))  # downtime in timesteps
+
+        if L > 0 or D > 0:
+            time_list = sorted(list(Tset))
+
+            # Startup (u) and shutdown (v) binary variables
+            u = pyo.Var(Tset, domain=pyo.Binary)
+            v = pyo.Var(Tset, domain=pyo.Binary)
+            setattr(m, f"{comp}_u", u)
+            setattr(m, f"{comp}_v", v)
+
+            # (1) State transition: y[t] - y[t-1] = u[t] - v[t]
+            def state_transition_rule(mm, t):
+                idx = time_list.index(t)
+                if idx == 0:
+                    return pyo.Constraint.Skip
+                t_prev = time_list[idx - 1]
+                return onv[t] - onv[t_prev] == u[t] - v[t]
+            setattr(m, f"{comp}_state_transition",
+                    pyo.Constraint(Tset, rule=state_transition_rule))
+
+            # (2) Cannot start up and shut down simultaneously
+            def no_simultaneous_rule(mm, t):
+                return u[t] + v[t] <= 1
+            setattr(m, f"{comp}_no_simultaneous",
+                    pyo.Constraint(Tset, rule=no_simultaneous_rule))
+
+            # (3) Min uptime: sum of startups in [t-L+1..t] <= y[t]
+            if L > 0:
+                def min_uptime_rule(mm, t):
+                    idx = time_list.index(t)
+                    start = max(0, idx - L + 1)
+                    return sum(u[time_list[k]] for k in range(start, idx + 1)) <= onv[t]
+                setattr(m, f"{comp}_min_uptime",
+                        pyo.Constraint(Tset, rule=min_uptime_rule))
+
+            # (4) Min downtime: sum of shutdowns in [t-D+1..t] <= 1 - y[t]
+            if D > 0:
+                def min_downtime_rule(mm, t):
+                    idx = time_list.index(t)
+                    start = max(0, idx - D + 1)
+                    return sum(v[time_list[k]] for k in range(start, idx + 1)) <= 1 - onv[t]
+                setattr(m, f"{comp}_min_downtime",
+                        pyo.Constraint(Tset, rule=min_downtime_rule))
 
         if self.wrg_cap_series:
             wrg_param = pyo.Param(Tset, initialize=self.wrg_cap_series, mutable=False)
