@@ -76,9 +76,9 @@ class ThermalNodeBlock(BaseComponent):
             raise ValueError(f"Node {config['id']}: type must be one of {valid_types}")
 
         if config['type'] == 'consumer':
-            if 'demand_fraction' not in config and 'demand_profile' not in config:
+            if 'demand_column' not in config and 'demand_profile' not in config:
                 raise ValueError(
-                    f"Consumer node {config['id']}: must specify demand_fraction or demand_profile"
+                    f"Consumer node {config['id']}: must specify demand_column or demand_profile"
                 )
 
     @staticmethod
@@ -198,20 +198,12 @@ class ThermalNodeBlock(BaseComponent):
         m_dot_demand = None
 
         if node_type == 'consumer':
-            demand_fraction = config.get('demand_fraction', 0.0)
-
             _node_heatd_attr = f'heatd_{node_id}'
             if hasattr(model, _node_heatd_attr):
-                # Prefer node-specific demand param (avoids triple-counting when multiple
-                # consumer nodes reference the same demand column — m.heatd is their sum)
+                # Node-specific demand param created by system_builder from demand_column
                 _node_heatd = getattr(model, _node_heatd_attr)
                 def demand_init(m, t, _h=_node_heatd):
-                    return pyo.value(_h[t]) * demand_fraction
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_init))
-            elif hasattr(model, 'heatd'):
-                def demand_init(m, t):
-                    return pyo.value(m.heatd[t]) * demand_fraction
+                    return pyo.value(_h[t])
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_init))
             elif 'demand_profile' in config:
@@ -219,7 +211,10 @@ class ThermalNodeBlock(BaseComponent):
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_profile))
             else:
-                raise ValueError(f"Consumer node {node_id}: no demand data available")
+                raise ValueError(
+                    f"Consumer node {node_id}: no demand data available. "
+                    f"Set demand_column in the node config so a heatd_{node_id} param is created."
+                )
 
             Q_demand = getattr(model, f'{prefix}_Q_demand')
 
@@ -430,7 +425,6 @@ class ThermalNodeBlock(BaseComponent):
         if node_type == 'consumer':
             result['Q_demand'] = Q_demand
             result['m_dot_demand'] = m_dot_demand
-            result['demand_fraction'] = config.get('demand_fraction', 0.0)
 
         if node_type == 'producer':
             result['components'] = config.get('components', {})
