@@ -534,6 +534,23 @@ def _collect_timeseries_and_summary(
         if hasattr(model, 'co2_kg_fuel_to_heat_expr'):
             objective["CO2_fuel_to_heat_kg"] = float(pyo.value(model.co2_kg_fuel_to_heat_expr))
 
+        # Zone demand charges (if configured)
+        if hasattr(model, 'zone_demand_charge_values') and model.zone_demand_charge_values:
+            zone_section = {}
+            # All zones share the single grid connection peak
+            try:
+                peak_mw = float(pyo.value(model.P_buy_peak))
+            except Exception:
+                peak_mw = None
+            for zone_id, charge_eur_per_mw_y in model.zone_demand_charge_values.items():
+                zone_section[f"{zone_id}_demand_charge_EUR_per_MW_y"] = charge_eur_per_mw_y
+                if peak_mw is not None:
+                    zone_section[f"{zone_id}_peak_power_MW"] = peak_mw
+                    zone_section[f"{zone_id}_demand_cost_EUR"] = charge_eur_per_mw_y * model.year_frac.value * peak_mw
+            # Flatten zone data into objective with Zone_ prefix
+            for key, val in zone_section.items():
+                objective[f"Zone_{key}"] = val
+
         # selfuse_fraction calculation (CHP correction)
         selfuse_fraction = 1.0
         chp_elec_total_mwh = 0
@@ -606,9 +623,15 @@ def _collect_timeseries_and_summary(
         objective["OBJ_value_EUR"] = 0.0
         objective["P_buy_peak_MW"] = max(series["P_buy_MW"], default=0.0)
 
-    price_series = table.data.get("strompreis_EUR_MWh", [0.0] * n)
-    grid_co2_series = table.data.get("grid_co2_kg_MWh", [0.0] * n)
-    demand_series = table.data.get("waermebedarf_MWth", [0.0] * n)
+    def _find_col(data, candidates, fallback_len):
+        for name in candidates:
+            if name in data:
+                return data[name]
+        return [0.0] * fallback_len
+
+    price_series = _find_col(table.data, ["strompreis_EUR_MWh", "electricity_price_EUR_MWh", "price_eur_mwh"], n)
+    grid_co2_series = _find_col(table.data, ["grid_co2_kg_MWh", "grid_co2_kg_mwh", "co2_kg_mwh"], n)
+    demand_series = _find_col(table.data, ["waermebedarf_MWth", "heat_demand_MWth", "demand_mwth"], n)
 
     series["grid_co2_kg_MWh"] = list(grid_co2_series)
     series["Fuel_CO2_emissions_t_per_step"] = [0.0] * n
@@ -747,7 +770,7 @@ def _collect_timeseries_and_summary(
             if heat > 1e-9:
                 wrg_ratio_series.append(float(q_wrg / heat))
             else:
-                wrg_ratio_series.append(float('nan'))
+                wrg_ratio_series.append(0.0)
 
         series[f"{comp}_COP"] = cop_series
         series[f"{comp}_WRG_ratio"] = wrg_ratio_series

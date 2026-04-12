@@ -48,6 +48,10 @@ from .cost_calculator import (
     calculate_investment_costs,
     store_cost_expressions_on_model,
 )
+from .cost_calculator_zonal import (
+    calculate_demand_charge_zonal,
+    calculate_demand_charge_zonal_dynamic,
+)
 from .network_manager import NetworkManager
 
 # ─── Cost Flags ───────────────────────────────────────────────────────────────
@@ -231,6 +235,15 @@ class ModelFinalizer:
 
             network_results = network_mgr.attach_to_model(self.m, self.m.t, buses_dict)
 
+            # Add pump power flows to electricity bus
+            pump_el_flows = network_results.get('pump_el_flows', [])
+            if pump_el_flows:
+                self.buses.el_in.extend(pump_el_flows)
+                logger.info(
+                    "[FINALIZE] Added %d pump power flows to electricity bus (el_in)",
+                    len(pump_el_flows)
+                )
+
             has_nodes = len(network_results.get("nodes", {})) > 0
             if network_results and has_nodes:
                 self.m._network_manager = network_mgr
@@ -332,6 +345,15 @@ class ModelFinalizer:
 
             network_results = network_mgr.attach_to_model(self.m, self.m.t, buses_dict)
 
+            # Add pump power flows to electricity bus
+            pump_el_flows = network_results.get('pump_el_flows', [])
+            if pump_el_flows:
+                self.buses.el_in.extend(pump_el_flows)
+                logger.info(
+                    "[FINALIZE] Added %d pump power flows to electricity bus (el_in)",
+                    len(pump_el_flows)
+                )
+
             has_nodes = len(network_results.get("nodes", {})) > 0
             if network_results and has_nodes:
                 self.m._network_manager = network_mgr
@@ -427,7 +449,22 @@ class ModelFinalizer:
         m._co2_grid_expr = sum(m.P_buy[t] * table["grid_co2_kg_MWh"][t - 1] * dt_h for t in m.t)
         m._co2_fuel_expr = sum(buses.fuel_co2_terms) if buses.fuel_co2_terms else 0
 
-        demand_term = calculate_demand_charge(m, include_demand=flags.include_demand)
+        # Zonal-aware demand charge: Use zone-specific tariffs if available
+        has_dynamic_costs = hasattr(m, 'zone_demand_charge_ts') and m.zone_demand_charge_ts
+        has_zonal_costs = hasattr(m, 'zone_demand_charge') and m.zone_demand_charge
+        
+        if has_dynamic_costs:
+            # Dynamic zonal costs (hourly tariffs from CSV)
+            demand_term = calculate_demand_charge_zonal_dynamic(m, include_demand=flags.include_demand)
+            logger.debug("Using dynamic zonal demand charges (hourly from CSV)")
+        elif has_zonal_costs:
+            # Static zonal costs (from YAML configuration)
+            demand_term = calculate_demand_charge_zonal(m, include_demand=flags.include_demand)
+            logger.debug("Using static zonal demand charges (%d zones)", len(m.zone_demand_charge))
+        else:
+            # Fallback: Global cost (backward compatibility)
+            demand_term = calculate_demand_charge(m, include_demand=flags.include_demand)
+            logger.debug("Using global demand charge (no zones defined)")
 
         capex_total, activation_total, tie_break_total, storage_install_total = calculate_investment_costs(
             capex_terms=buses.capex_terms,

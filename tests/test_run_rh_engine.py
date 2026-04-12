@@ -61,7 +61,8 @@ class TestSetInitialSoc:
         _set_initial_soc(cfg, 10.0)
         assert cfg["inputs"]["SOC_init"] == 10.0
         assert cfg["system"]["storage"]["soc0_mwh"] == 10.0
-        assert cfg["system"]["storage"]["terminal"]["target_mwh"] == 10.0
+        # terminal.target_mwh is NOT set here — managed by _apply_terminal_policy
+        assert "target_mwh" not in cfg["system"]["storage"]["terminal"]
 
 
 class TestApplyTerminalPolicy:

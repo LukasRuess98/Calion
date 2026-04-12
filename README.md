@@ -88,7 +88,7 @@ system:
 
 thermal_network:
   enabled: true
-  topology_file: configs/05_networks/brownfield.yaml
+  topology_file: configs/assets/multi_temperature_network.yaml
 
 costs:
   co2_price_eur_per_t: 100.0
@@ -109,8 +109,7 @@ configs/              # YAML configuration files
   base.yaml           # Shared defaults
   scenarios/          # Ready-to-run scenarios
   templates/          # Minimal templates (level1–3)
-  assets/             # Asset/technology definitions
-  05_networks/        # Thermal network topologies
+  assets/             # Asset/technology definitions & network topologies
 
 data/                 # Input time-series (CSV)
 outputs/              # Runtime results (gitignored)

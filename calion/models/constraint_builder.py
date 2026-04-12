@@ -259,6 +259,15 @@ def add_grid_market_constraints(model):
         rule=lambda m, t: m.P_buy_peak >= m.P_buy[t]
     )
 
+    # Zonal peak demand tracking: all zones share the single grid connection's
+    # peak (P_buy_peak), which is already constrained above. No per-zone Vars
+    # needed until multi-node load flow is implemented.
+    if hasattr(model, 'zone_demand_charge') and model.zone_demand_charge:
+        logger.debug(
+            "[CONSTRAINT-BUILDER] Zonal demand charges active: %s zones, using P_buy_peak",
+            len(model.zone_demand_charge)
+        )
+
 
 def create_objective(
     model,

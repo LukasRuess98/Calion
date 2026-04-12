@@ -3,28 +3,27 @@ Input/Output utilities for the Heat Planning Framework.
 
 This package provides:
 - Data loading from Excel files
-- Result export to Excel, CSV, JSON
+- Result export to Excel, CSV, JSON (consolidated exporter)
 - Visualization (standard plots)
 - Publication-quality exports (plots, LaTeX tables, KPI summaries)
 - Unified export manager for all output formats
 """
 
-from calion.io.exporter import (
-    HAVE_OPENPYXL,
-    export_scenario_bundle,
-    write_scenario_workbook,
-    write_timeseries_csv,
-)
 from calion.io.loader import load_input_excel
 from calion.io.plotter import HAVE_MATPLOTLIB, export_plots
 
-# Unified exporter (main entry point for exports)
+# Unified exporter (consolidates legacy exporter.py + new features)
 from calion.io.unified_exporter import (
+    HAVE_OPENPYXL,
     ExportConfig,
     ExportResult,
     UnifiedExporter,
+    export_scenario_bundle,
     export_with_sensitivity,
     export_workflow,
+    write_excel_workbook,
+    write_scenario_workbook,
+    write_timeseries_csv,
 )
 
 # Publication exports (optional, requires matplotlib)
@@ -42,12 +41,12 @@ try:
     HAVE_PUBLICATION_EXPORTS = True
 except ImportError:
     HAVE_PUBLICATION_EXPORTS = False
-    export_publication_plots = None
-    export_publication_bundle = None
-    export_kpi_summary = None
-    export_latex_tables = None
-    PublicationConfig = None
-    format_number = None
+    export_publication_plots = None  # type: ignore[assignment]
+    export_publication_bundle = None  # type: ignore[assignment]
+    export_kpi_summary = None  # type: ignore[assignment]
+    export_latex_tables = None  # type: ignore[assignment]
+    PublicationConfig = None  # type: ignore[assignment,misc]
+    format_number = None  # type: ignore[assignment]
 
 __all__ = [
     "HAVE_MATPLOTLIB",

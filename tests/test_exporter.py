@@ -10,8 +10,8 @@ import json
 
 import pytest
 
-from calion.io import exporter
-from calion.io.exporter import write_timeseries_csv
+from calion.io import unified_exporter
+from calion.io.unified_exporter import write_timeseries_csv
 from calion.utils.timeseries import TimeSeriesTable
 from calion.run import rolling_horizon
 from calion.run import workflow as _wf
@@ -67,11 +67,9 @@ def test_write_timeseries_csv_writes_both_decimal_variants(tmp_path: Path) -> No
     ],
 )
 def test_fmt_value_normalises_strings_and_numbers(value: object, expected: str) -> None:
-    assert exporter._fmt_value(value, decimal_separator=",") == expected
-
-
+    assert unified_exporter._fmt_value(value, decimal_separator=",") == expected
 def test_fmt_value_falls_back_to_text_for_non_numeric() -> None:
-    assert exporter._fmt_value("foo", decimal_separator=",") == "foo"
+    assert unified_exporter._fmt_value("foo", decimal_separator=",") == "foo"
 
 
 def test_extract_pyomo_series_handles_invalid_data(monkeypatch, caplog) -> None:

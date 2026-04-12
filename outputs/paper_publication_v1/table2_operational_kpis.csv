@@ -1,0 +1,13 @@
+Metric;L1;L2;L3
+Annual heat demand [GWh];516.6;516.6;516.6
+HP heat output [GWh];534.4;536.5;536.9
+Boiler heat output [GWh];0.0;0.0;0.0
+Storage discharge [GWh];162.8;163.0;163.0
+HP full-load hours [h];5344;5365;5369
+HP average COP [-];4.00;4.00;4.00
+Storage max SOC [MWh];500.0;500.0;500.0
+Storage avg SOC [MWh];239.9;241.2;241.4
+Grid import [GWh];133.5;134.0;134.1
+Grid export [GWh];0.0;0.0;0.0
+Heat dump [GWh];0.000;0.000;0.000
+Total CO2 emissions [t];53,108;53,314;53,349

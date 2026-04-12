@@ -92,7 +92,7 @@ class NodeConfig(BaseModel):
     type: str  # "producer", "consumer", "junction"
     assets: list[str] = Field(default_factory=list)
     demand: DemandConfig | None = None
-    demand_fraction: float | None = None
+    demand_fraction: float | None = Field(default=1.0)  # Default to 100% (no scaling) if not specified
 
     @staticmethod
     def from_dict(node_id: str, raw: dict[str, Any]) -> NodeConfig:
@@ -111,7 +111,9 @@ class NodeConfig(BaseModel):
         if demand_raw is not None:
             demand = DemandConfig.from_dict(demand_raw)
 
-        demand_fraction = raw.get("demand_fraction")
+        # Default demand_fraction to 1.0 (100%) if not specified
+        # This allows per-node demands to be used without scaling by fraction
+        demand_fraction = raw.get("demand_fraction", 1.0)
 
         return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demand_fraction=demand_fraction)
 

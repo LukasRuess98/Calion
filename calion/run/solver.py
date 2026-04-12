@@ -49,6 +49,17 @@ def _solve_scenario(
         "model_built": model is not None,
     }
     if model is not None and HAVE_PYOMO:
+        # Warn if nonlinear model is paired with an LP/MILP-only solver
+        milp_linearize = cfg.get('thermal_network', {}).get('milp_linearize', False)
+        lp_only_solvers = ('highs', 'appsi_highs', 'cbc', 'glpk')
+        if not milp_linearize and any(s in solver_name.lower() for s in lp_only_solvers):
+            logger.warning(
+                "milp_linearize is False but solver '%s' only supports LP/MILP. "
+                "Bilinear terms (m_dot * T) will cause solver failure. "
+                "Set thermal_network.milp_linearize: true in your config.",
+                solver_name,
+            )
+
         solver_used = solver_name
         try:
             opt = pyo.SolverFactory(solver_name)

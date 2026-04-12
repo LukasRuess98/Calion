@@ -14,7 +14,7 @@ from typing import Any
 
 import pandas as pd
 
-from calion.io.exporter import export_scenario_bundle, write_timeseries_csv
+from calion.io.unified_exporter import export_scenario_bundle, write_timeseries_csv
 from calion.io.plotter import export_plots
 from calion.logging_config import get_logger
 
@@ -24,6 +24,7 @@ from .utilities.timeseries_utils import _slugify
 logger = get_logger(__name__)
 
 try:  # pragma: no cover - optional dependency
+    import pyomo.environ as _pyo  # noqa: F401
     HAVE_PYOMO = True
 except Exception:  # pragma: no cover
     HAVE_PYOMO = False
@@ -297,6 +298,48 @@ def export_workflow_results(
             except Exception as exc:
                 logger.warning("[EXPORT] Thermal network CSV export failed: %s", exc)
 
+    # Phase 1: Network state validation (if thermal network enabled)
+    validation_files: dict[str, str] = {}
+    if network_files and hasattr(active_result, 'series'):
+        try:
+            from calion.models.network_validator import NetworkValidator
+            
+            # Get time set from result
+            time_set = list(active_result.table.index) if hasattr(active_result, 'table') else []
+            
+            if time_set:
+                validator = NetworkValidator(active_result, workflow.config, time_set)
+                val_results = validator.validate_all()
+                
+                # Export validation report
+                val_report_path = os.path.join(outdir, "thermal_network", "state_validation_report.json")
+                os.makedirs(os.path.dirname(val_report_path), exist_ok=True)
+                validator.export_report(val_report_path)
+                validation_files['state_validation_report'] = val_report_path
+                
+                # Log summary
+                logger.info(
+                    "[EXPORT] Network state validation: %d total issues "
+                    "(%d errors, %d warnings)",
+                    val_results['total_issues'],
+                    val_results['errors'],
+                    val_results['warnings'],
+                )
+                
+                if val_results['errors'] > 0:
+                    logger.warning(
+                        "[EXPORT] ⚠️ State validation found %d error(s) — "
+                        "check %s for details",
+                        val_results['errors'],
+                        val_report_path,
+                    )
+                else:
+                    logger.info("[EXPORT] ✓ Network state validation passed")
+        except ImportError:
+            logger.debug("[EXPORT] NetworkValidator not available (pyomo not installed?)")
+        except Exception as exc:
+            logger.warning("[EXPORT] Network state validation failed: %s", exc)
+
     # Optional LP file copy
     lp_path_in_result: str | None = None
     if save_lp and active_result is not None:
@@ -318,17 +361,19 @@ def export_workflow_results(
                 "Set output.export_solver_solution: true in config to generate it."
             )
 
-    # Write costs.json — flat dict keyed without section prefix (for comparison scripts)
+    # Write costs.json — per-section dict (PF, RH, MPC) for comparison scripts
     costs_json_path = os.path.join(outdir, "costs.json")
-    flat_costs: dict = {}
-    for _section, section_costs in cost_sections.items():
+    costs_by_section: dict[str, dict] = {}
+    for section, section_costs in cost_sections.items():
+        flat: dict = {}
         for key, val in section_costs.items():
-            # Strip "objective." / "grid." prefixes so keys are plain names
             clean_key = key.split(".", 1)[-1] if "." in key else key
-            flat_costs[clean_key] = val
-    if flat_costs:
+            flat[clean_key] = val
+        if flat:
+            costs_by_section[section] = flat
+    if costs_by_section:
         with open(costs_json_path, "w", encoding="utf-8") as f:
-            json.dump({"PF": flat_costs}, f, indent=2, default=str)
+            json.dump(costs_by_section, f, indent=2, default=str)
     else:
         costs_json_path = None
 
@@ -341,6 +386,7 @@ def export_workflow_results(
         "manifest_json": bundle_paths.get("manifest_json"),
         "plots": plot_files,
         "network_files": network_files,
+        "validation_files": validation_files,
         "lp_file": lp_path_in_result,
         "costs": {},
     }

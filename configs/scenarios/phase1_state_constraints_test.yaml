@@ -1,0 +1,87 @@
+# Phase 1 State Constraints Test Scenario
+# Tests thermal network with Phase 1 state validation enabled
+
+site:
+  input_xlsx: "data/Import_Data.csv"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  title: "Phase 1 State Constraints Test"
+  tag: "phase1_test"
+  run_mode: PF_ONLY
+
+system:
+  heat_pumps:
+    - id: hp_main
+      enabled: true
+      max_th_mw: 50.0
+      cop_curve: "Carnot_0.7"
+  
+  generators:
+    boiler:
+      enabled: true
+      cap_th_mw: 100.0
+      eta_th: 0.90
+      fuel_type: gas
+
+  storage:
+    TES:
+      enabled: true
+      energy_capacity_mwh: 200.0
+      max_power_mw: 50.0
+      initial_soc_fraction: 0.5
+      loss_fraction_per_hour: 0.0005
+
+# Thermal network configuration
+thermal_network:
+  enabled: true
+  milp_linearize: true
+
+  # Network topology: producer → consumer node via pipe
+  nodes:
+    - id: producer_node
+      type: producer
+      supply_temp_nominal_c: 90
+      return_temp_c: 55
+      pressure_nominal_supply_bar: 10.0
+  
+    - id: consumer_node
+      type: consumer
+      demand_fraction: 1.0
+      supply_temp_nominal_c: 90
+      return_temp_c: 50
+      pressure_nominal_supply_bar: 10.0
+  
+  pipes:
+    - id: pipe_main
+      from_node: producer_node
+      to_node: consumer_node
+      length_m: 1000
+      current_diameter_supply_mm: 600
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+# Phase 1: State validation constraints (all enabled)
+state_validation:
+  temperature_constraints:
+    enforce_supply_ge_return: true
+    temperature_tolerance_c: 0.1
+  
+  pressure_constraints:
+    min_pressure_bar: 0.5
+    max_pressure_drop: 2.0
+  
+  flow_constraints:
+    min_velocity_m_s: 0.3
+    max_velocity_m_s: 2.5
+
+costs:
+  co2_price_eur_per_t: 100.0
+  heat_dump_penalty_eur_per_mwh: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs

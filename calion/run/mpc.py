@@ -560,7 +560,7 @@ def run_mpc(
     if not aggregated_indices:
         evaluated_costs: dict[str, float] = {}
     else:
-        evaluated_costs: dict[str, float] = _evaluate_costs_on_actual_data(
+        evaluated_costs = _evaluate_costs_on_actual_data(
             series=aggregated_series,
             actual_data=historical_data,
             committed_indices=aggregated_indices,

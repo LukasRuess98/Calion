@@ -29,6 +29,10 @@ except ImportError:
 
 from ..component import BaseComponent
 from ..registry import register_component
+from ..state_constraints import (
+    enforce_supply_ge_return_temperature,
+    enforce_minimum_pressure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -270,15 +274,22 @@ class ThermalNodeBlock(BaseComponent):
                 )
 
         # MILP Mode: Fix T_supply to nominal (linear approximation for multi-pipe)
+        # Only add constraint if T_supply is a Var (for producers); when T_supply
+        # is already a Param (consumer/junction in MILP mode), it's already fixed.
         elif incoming_pipes and milp_linearize_temp and len(incoming_pipes) > 1:
-            def multi_temp_milp_rule(m, t):
-                return T_supply[t] == supply_temp_nominal_c
+            if isinstance(T_supply, pyo.Var):
+                def multi_temp_milp_rule(m, t):
+                    return T_supply[t] == supply_temp_nominal_c
 
-            setattr(model, f'{prefix}_temp_mixing_milp',
-                    pyo.Constraint(time_set, rule=multi_temp_milp_rule))
-            logger.info(
-                f"    Node {node_id}: multi-pipe MILP mode — T_supply fixed to {supply_temp_nominal_c}°C"
-            )
+                setattr(model, f'{prefix}_temp_mixing_milp',
+                        pyo.Constraint(time_set, rule=multi_temp_milp_rule))
+                logger.info(
+                    f"    Node {node_id}: multi-pipe MILP mode — T_supply fixed to {supply_temp_nominal_c}°C"
+                )
+            else:
+                logger.info(
+                    f"    Node {node_id}: multi-pipe MILP mode — T_supply already a Param"
+                )
 
         # (2) Mass balance: Σ m_dot_in[t] = Σ m_dot_out[t] + m_dot_demand[t]
         #
@@ -381,6 +392,25 @@ class ThermalNodeBlock(BaseComponent):
                         f"    Node {node_id}: load-dependent T_return constraint "
                         f"(k={k_ret_temp:.4f} °C/MW, Q_max={peak_demand_mw:.2f} MW)"
                     )
+
+        # ============================================================
+        # PHASE 1: STATE CONSTRAINTS
+        # ============================================================
+        # Enforce physical validity of network states (temperatures, pressures)
+        logger.info(f"  Attaching Phase 1 state constraints for node {node_id}")
+
+        # 1. Supply >= Return temperature (prevent unphysical reversals)
+        if isinstance(T_supply, pyo.Var):
+            enforce_supply_ge_return_temperature(
+                model, time_set, prefix, T_supply, T_return,
+                node_id, config
+            )
+
+        # 2. Minimum pressure bound (cavitation + pump protection)
+        enforce_minimum_pressure(
+            model, time_set, prefix, pressure_supply, pressure_return,
+            node_id, config
+        )
 
         # ============================================================
         # RETURN REFERENCES

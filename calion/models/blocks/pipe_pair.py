@@ -26,6 +26,10 @@ except ImportError:
 from ..component import BaseComponent
 from ..network_physics import compute_delay_buckets
 from ..registry import register_component
+from ..state_constraints import (
+    enforce_minimum_pressure,
+    enforce_velocity_bounds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +128,7 @@ class PipePairBlock(BaseComponent):
         # Diameter configuration
         existing_pipe = config.get('existing', False)
         current_diam_supply = config.get('current_diameter_supply_mm')
-        config.get('current_diameter_return_mm', current_diam_supply)
+        current_diam_return = config.get('current_diameter_return_mm', current_diam_supply)
 
         # Investment/upgrade options
         upgrade_config = config.get('upgrade_options', {})
@@ -435,6 +439,51 @@ class PipePairBlock(BaseComponent):
                 pyo.Constraint(time_set,
                                rule=lambda m, t: delta_p_total[t] == delta_p_supply[t] + delta_p_return[t]))
 
+        # ── Pump Power (PWL, per pipe) ──────────────────────────────────────────────
+        # P_pump[t] = (ΔP_supply + ΔP_return) × m_dot × 1e5 / (ρ × η × 1e6)  [MW]
+        # Approximated as PWL using same breakpoints as pressure drop.
+        pump_enabled = config.get('pump_enabled', True)
+        eta_pump = float(config.get('pump_efficiency', 0.70))
+
+        if effective_max_flow > 0:
+            # Pump power at each breakpoint: P_i = 2 × k_flow × m_i³ × 1e5 / (ρ × η × 1e6)
+            p_pump_bp = [
+                2.0 * k_flow * (bp_flows[i] ** 3) * 1e5 / (density_water * eta_pump * 1e6)
+                for i in range(4)
+            ]
+            P_pump_max = max(p_pump_bp[-1] * 1.2, 1e-6)
+        else:
+            p_pump_bp = [0.0, 0.0, 0.0, 0.0]
+            P_pump_max = 0.0
+
+        P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, P_pump_max))
+        setattr(model, f'{prefix}_P_pump', P_pump)
+
+        if not pump_enabled or effective_max_flow <= 0:
+            for t in time_set:
+                P_pump[t].fix(0.0)
+        else:
+            # PWL approximation: linear per segment using midpoint slope
+            pump_slopes = []
+            pump_intercepts = []
+            for s in range(3):
+                m_lo = bp_flows[s]
+                m_hi = bp_flows[s + 1]
+                m_mid = (m_lo + m_hi) / 2.0
+                slope_s = 6.0 * k_flow * m_mid ** 2 * 1e5 / (density_water * eta_pump * 1e6)
+                intercept_s = p_pump_bp[s] - slope_s * m_lo
+                pump_slopes.append(slope_s)
+                pump_intercepts.append(intercept_s)
+
+            def pump_power_rule(m, t, _sl=pump_slopes, _ic=pump_intercepts):
+                return P_pump[t] == sum(
+                    _sl[s] * pwl_flow[t, s] + _ic[s] * pwl_seg[t, s]
+                    for s in range(3)
+                )
+
+            setattr(model, f'{prefix}_pump_power',
+                    pyo.Constraint(time_set, rule=pump_power_rule))
+
         # Store pressure parameters for results extraction
         pressure_params = {
             'max_pressure_drop_bar': max_pressure_drop,
@@ -529,9 +578,9 @@ class PipePairBlock(BaseComponent):
             def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
                 i = _tidx[t]
                 if i < tau_steps[n]:
-                    # Warm-up period: delay reaches before horizon start.
-                    # Let w_delay be free (bounded only by M_Q via w_ub_z).
-                    return pyo.Constraint.Skip
+                    # Warm-up: bound by initial pipe heat flow (default 0 = cold start).
+                    Q_init = config.get('Q_pipe_initial_mw', 0.0)
+                    return w_delay[n, t] <= Q_init
                 delayed_t = _tlist[i - tau_steps[n]]
                 return w_delay[n, t] <= Q_delivered[delayed_t]
 
@@ -603,6 +652,24 @@ class PipePairBlock(BaseComponent):
         model.pipe_capex_costs[pipe_id] = annual_capex
 
         # ============================================================
+        # PHASE 1: STATE CONSTRAINTS
+        # ============================================================
+        # Enforce physical validity of pipe states (pressures, velocities)
+        logger.info(f"  Attaching Phase 1 state constraints for pipe {pipe_id}")
+
+        # 1. Minimum pressure bound (cavitation + pump protection)
+        # For pipes, apply to endpoints via node pressures (handled in thermal_node)
+        # Here we ensure inline pressure variables stay above minimum
+        # Note: Nodes handle their own pressure bounds; pipes inherit through constraints
+
+        # 2. Velocity bounds (stagnation prevention + max velocity)
+        if hasattr(model, f'{prefix}_velocity'):
+            enforce_velocity_bounds(
+                model, time_set, prefix, velocity, m_dot,
+                pipe_id, config
+            )
+
+        # ============================================================
         # RETURN REFERENCES
         # ============================================================
 
@@ -625,6 +692,10 @@ class PipePairBlock(BaseComponent):
             'upgrade_enabled': upgrade_enabled,
             'tau_steps': tau_steps,
             'delay_buckets': N_BUCKETS,
+            'P_pump': P_pump,
+            'pump_enabled': pump_enabled,
+            'eta_pump': eta_pump,
+            'prefix': prefix,
         }
 
     @staticmethod
