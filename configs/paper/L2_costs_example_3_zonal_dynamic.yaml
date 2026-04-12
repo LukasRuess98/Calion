@@ -1,0 +1,230 @@
+# =============================================================================
+# EXAMPLE 3: Global + Zone-Specific + Dynamic Cost (CSV)
+# =============================================================================
+# Netzgebühren variieren STÜNDLICH (z.B. real-time pricing).
+# Use this for realistic dynamic tariff models (Echtzeit-Preise).
+#
+# Structure:
+#   costs_config:
+#     global: {...}           ← Standard/fallback
+#     zones: {...}            ← Static overrides
+#     dynamic: {...}           ← CSV-based, timestep-dependent
+#
+# Precedence: Dynamic (CSV) > Zone Static > Global (fallback)
+#
+# REQUIREMENTS:
+#  - CSV with columns like: zone_01_demand_charge_EUR_MW_h, zone_02_...
+#  - Must be hourly aligned (8760 rows for full year)
+# =============================================================================
+
+site:
+  input_xlsx: "data/Import_Data_yearly_zonal_costs.csv"  # ← CSV mit dynamischen Kosten!
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  name: "L2_zonal_costs_dynamic"
+  run_mode: PF_ONLY
+  description: "Multi-zone with dynamic hourly tariffs from CSV"
+
+network:
+  physics:
+    heat_loss: true
+  supply_temp_c: 90.0
+  return_temp_c: 55.0
+  ground_temp_c: 10.0
+
+  nodes:
+    plant_main:
+      type: producer
+      assets: [boiler_main, chp_main, hp_main, tes_main]
+
+    j_central:
+      type: junction
+
+    j_north:
+      type: junction
+
+    j_south:
+      type: junction
+
+    zone_01:
+      type: consumer
+      demand:
+        column: "zone_01_demand_MWth"
+
+    zone_02:
+      type: consumer
+      demand:
+        column: "zone_02_demand_MWth"
+
+    zone_03:
+      type: consumer
+      demand:
+        column: "zone_03_demand_MWth"
+
+assets:
+  boiler_main:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 200.0
+    min_load: 0.1
+    thermal_efficiency: 0.90
+
+  chp_main:
+    type: chp
+    fuel: gas
+    capacity_mw: 20.0
+    thermal_output_mw: 20.0
+    min_load: 0.3
+
+  hp_main:
+    type: heat_pump
+    capacity_mw: 100.0
+    cop_default: 3.0
+
+  tes_main:
+    type: storage
+    energy_mwh: 500.0
+    power_mw: 50.0
+
+# ════════════════════════════════════════════════════════════════════════════
+# KOSTENKONFIGURATION — VARIANTE 3: GLOBAL + ZONE + DYNAMISCH (CSV)
+# ════════════════════════════════════════════════════════════════════════════
+
+costs_config:
+  # 1. GLOBAL (Fallback)
+  # ─────────────────────────────────────────────────────────────────────────
+  global:
+    demand_charge_eur_per_mw_y: 50000.0      # Wird ÜBERSCHRIEBEN von dynamic/zone wenn vorhanden
+
+  # 2. STATIC ZONE OVERRIDES (können auch überschrieben werden)
+  # ─────────────────────────────────────────────────────────────────────────
+  zones:
+    plant_main:
+      type: "central_plant"
+      # Diese Werte werden nur genutzt, wenn NICHTS in dynamic dafür existiert
+      demand_charge_eur_per_mw_y: 0.0
+
+    j_central:
+      type: "central_junction"
+      demand_charge_eur_per_mw_y: 30000.0    # ← Backupp wenn dynamic ausfällt
+
+    j_north:
+      type: "standard"
+      # Fallback auf global oder dynamic
+
+    j_south:
+      type: "peripheral"
+      demand_charge_eur_per_mw_y: 70000.0    # ← Backup
+
+  # 3. DYNAMIC COSTS (Höchste Priorität!)
+  # ─────────────────────────────────────────────────────────────────────────
+  dynamic:
+    enabled: true                             # ← AKTIVIEREN!
+    source: "data/Import_Data_yearly_zonal_costs.csv"  # CSV-Datei
+    mappings:
+      # Mapping: Zone + Cost-Type → CSV-Spaltenname
+      # Format: "{zone_id}_{cost_type}" : "{csv_column_name}"
+
+      # Jede Stunde kann plant_main 0€ haben
+      plant_main_demand_charge_eur_per_mw_y: "plant_charge_EUR_MW_h"
+
+      # Central junction: morgens/abends teuer, tagsüber günstig
+      j_central_demand_charge_eur_per_mw_y: "j_central_charge_EUR_MW_h"
+
+      # North: relativ stabil
+      j_north_demand_charge_eur_per_mw_y: "j_north_charge_EUR_MW_h"
+
+      # South: immer teuer, spitzen noch mehr
+      j_south_demand_charge_eur_per_mw_y: "j_south_charge_EUR_MW_h"
+
+      # Consumer zones - meist teuer
+      zone_01_demand_charge_eur_per_mw_y: "zone_01_charge_EUR_MW_h"
+      zone_02_demand_charge_eur_per_mw_y: "zone_02_charge_EUR_MW_h"
+      zone_03_demand_charge_eur_per_mw_y: "zone_03_charge_EUR_MW_h"
+
+grid:
+  max_import_mw: 200.0
+  max_export_mw: 200.0
+  demand_charge_eur_per_mw_y: 50000.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs
+  mip_gap: 0.01
+  time_limit_s: 3600
+
+# ════════════════════════════════════════════════════════════════════════════
+# ERKLÄRUNG VARIANTE 3
+# ════════════════════════════════════════════════════════════════════════════
+#
+# WANN NUTZEN:
+#  ✓ Realistische Echtzeit-Tarife
+#  ✓ Stundlich variable Netzgebühren
+#  ✓ Korreliert mit Stromangebot/Nachfrage
+#  ✓ Lokale Netzengpässe modellieren
+#
+# WAS PASSIERT:
+#  1. CostResolver LIEST dynamic.mappings
+#  2. Für JEDEN Zeitschritt t=1..8760:
+#     - CSV-Spalte suchen (z.B. "j_central_charge_EUR_MW_h")
+#     - Row-Index t abrufen
+#     - Damit Modell-Objekt m.zone_demand_charge[j_central][t] befüllen
+#  3. FALLBACK: Wenn CSV-Spalte nicht vorhanden → zone/global nutzen
+#
+# HIERARCHIE FÜR ZEITSCHRITT t (BEISPIEL: j_central):
+#
+#   t=1 (1 Uhr):
+#     1. Suche "j_central_charge_EUR_MW_h" in CSV → 6.50 EUR/MW/h gefunden ✓
+#     2. Benutze 6.50
+#
+#   t=12 (12 Uhr):
+#     1. Suche "j_central_charge_EUR_MW_h" in CSV → 3.20 EUR/MW/h gefunden ✓
+#     2. Benutze 3.20
+#
+#   Falls CSV-Spalte FEHLT oder beschädigt:
+#     3. Fallback zu zone-specific: j_central = 30000.0/365/24 = 3.42
+#     4. Falls auch zone fehlt → global
+#
+# CSV-STRUKTUR (data/Import_Data_yearly_zonal_costs.csv):
+# ─────────────────────────────────────────────────────────────────────────
+# Datum,strompreis_EUR_MWh,plant_charge_EUR_MW_h,jcentral_charge_EUR_MW_h,...
+# 2023-01-01 00:00:00,60.0,0.0,6.50,...
+# 2023-01-01 01:00:00,59.0,0.0,6.60,...
+# 2023-01-01 02:00:00,58.0,0.0,6.70,...
+# 2023-01-01 06:00:00,55.0,0.0,5.20,...  (off-peak)
+# 2023-01-01 12:00:00,65.0,0.0,3.20,...  (peak = günstig für Nachfrage)
+# 2023-01-01 18:00:00,70.0,0.0,7.50,...  (evening peak = teuer)
+#
+# AUSGABE (beispiel mit aktueller /durchschn. Last):
+#  {
+#    "zones": {
+#      "j_central": {
+#        "demand_charge_eur_per_mw_y": "dynamic (hourly)",
+#        "average_demand_charge_eur_per_mw_h": 4.85,  ← Durchschn über 8760h
+#        "min_charge_eur_per_mw_h": 2.50,
+#        "max_charge_eur_per_mw_h": 8.90,
+#        "peak_power_mw": 65.3,
+#        "cost_demand_charge_eur": 2458960.0
+#      }
+#    }
+#  }
+#
+# DEBUGGING:
+#  - Log aktuell gewählte Kosten für jede Zone
+#  - Zeige Durchschnitt, Min, Max
+#  - Warnung wenn CSV-Spalte fehlt
+#
+# ════════════════════════════════════════════════════════════════════════════

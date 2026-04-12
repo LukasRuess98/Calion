@@ -534,6 +534,23 @@ def _collect_timeseries_and_summary(
         if hasattr(model, 'co2_kg_fuel_to_heat_expr'):
             objective["CO2_fuel_to_heat_kg"] = float(pyo.value(model.co2_kg_fuel_to_heat_expr))
 
+        # Zone demand charges (if configured)
+        if hasattr(model, 'zone_demand_charge_values') and model.zone_demand_charge_values:
+            zone_section = {}
+            # All zones share the single grid connection peak
+            try:
+                peak_mw = float(pyo.value(model.P_buy_peak))
+            except Exception:
+                peak_mw = None
+            for zone_id, charge_eur_per_mw_y in model.zone_demand_charge_values.items():
+                zone_section[f"{zone_id}_demand_charge_EUR_per_MW_y"] = charge_eur_per_mw_y
+                if peak_mw is not None:
+                    zone_section[f"{zone_id}_peak_power_MW"] = peak_mw
+                    zone_section[f"{zone_id}_demand_cost_EUR"] = charge_eur_per_mw_y * model.year_frac.value * peak_mw
+            # Flatten zone data into objective with Zone_ prefix
+            for key, val in zone_section.items():
+                objective[f"Zone_{key}"] = val
+
         # selfuse_fraction calculation (CHP correction)
         selfuse_fraction = 1.0
         chp_elec_total_mwh = 0

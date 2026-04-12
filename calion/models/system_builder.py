@@ -22,6 +22,7 @@ from calion.constants import (
 from calion.utils.timeseries import TimeSeriesTable
 
 from .component_assembler import ComponentAssembler
+from .cost_resolver import CostResolver
 from .emissions_calculator import EmissionsCalculator
 from .investment_calculator import InvestmentCalculator
 from .model_finalizer import CostFlags, ModelFinalizer
@@ -175,6 +176,41 @@ def _build_model_unified(
     m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
+    # ── Zonal demand charges (if configured) ───────────────────────────────
+    m.zone_demand_charge = {}  # Dict[zone_id → Pyomo.Param]
+    m.zone_demand_charge_values = {}  # Shadow dict for debugging/export (zone_id → float)
+    m.zone_demand_charge_ts = None  # Will hold dynamic CSV costs if enabled
+    
+    # Check for zonal costs in costs_config (not in costs)
+    costs_config = cfg.get("costs_config", {})
+    if costs_config and "zones" in costs_config and costs_config["zones"]:
+        try:
+            cost_resolver = CostResolver(cfg, table)
+            all_zone_costs = cost_resolver.get_all_zones_costs()
+            
+            # Create Pyomo parameters for each zone's demand charge
+            for zone_id, zone_costs_dict in all_zone_costs.items():
+                # Extract only the demand_charge_eur_per_mw_y for this zone
+                charge_eur_per_mw_y = zone_costs_dict.get("demand_charge_eur_per_mw_y", 0.0)
+                m.zone_demand_charge[zone_id] = pyo.Param(
+                    initialize=float(charge_eur_per_mw_y)
+                )
+                m.zone_demand_charge_values[zone_id] = float(charge_eur_per_mw_y)
+            
+            # Log zone cost configuration
+            if m.zone_demand_charge:
+                logger.info(
+                    "[BUILD-UNIFIED] Zone demand charges configured: %s",
+                    m.zone_demand_charge_values
+                )
+            
+            # If dynamic costs are enabled, store the full resolver for later use
+            if costs_config.get("dynamic", {}).get("enabled", False):
+                m.zone_demand_charge_ts = cost_resolver
+                logger.info("[BUILD-UNIFIED] Dynamic zonal costs enabled (from CSV)")
+        except Exception as e:
+            logger.warning("[BUILD-UNIFIED] Failed to load zonal costs: %s. Using global costs.", e)
+
     flags = CostFlags.from_config(cfg)
     inv_calc = InvestmentCalculator(
         period_frac=period_frac,
@@ -287,6 +323,41 @@ def _build_model_legacy(
     m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", DEFAULT_CO2_PRICE_EUR_PER_T)))
     m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
+
+    # ── Zonal demand charges (if configured) ───────────────────────────────
+    m.zone_demand_charge = {}  # Dict[zone_id → Pyomo.Param]
+    m.zone_demand_charge_values = {}  # Shadow dict for debugging/export (zone_id → float)
+    m.zone_demand_charge_ts = None  # Will hold dynamic CSV costs if enabled
+    
+    # Check for zonal costs in costs_config (not in costs)
+    costs_config = cfg.get("costs_config", {})
+    if costs_config and "zones" in costs_config and costs_config["zones"]:
+        try:
+            cost_resolver = CostResolver(cfg, table)
+            all_zone_costs = cost_resolver.get_all_zones_costs()
+            
+            # Create Pyomo parameters for each zone's demand charge
+            for zone_id, zone_costs_dict in all_zone_costs.items():
+                # Extract only the demand_charge_eur_per_mw_y for this zone
+                charge_eur_per_mw_y = zone_costs_dict.get("demand_charge_eur_per_mw_y", 0.0)
+                m.zone_demand_charge[zone_id] = pyo.Param(
+                    initialize=float(charge_eur_per_mw_y)
+                )
+                m.zone_demand_charge_values[zone_id] = float(charge_eur_per_mw_y)
+            
+            # Log zone cost configuration
+            if m.zone_demand_charge:
+                logger.info(
+                    "[BUILD-LEGACY] Zone demand charges configured: %s",
+                    m.zone_demand_charge_values
+                )
+            
+            # If dynamic costs are enabled, store the full resolver for later use
+            if costs_config.get("dynamic", {}).get("enabled", False):
+                m.zone_demand_charge_ts = cost_resolver
+                logger.info("[BUILD-LEGACY] Dynamic zonal costs enabled (from CSV)")
+        except Exception as e:
+            logger.warning("[BUILD-LEGACY] Failed to load zonal costs: %s. Using global costs.", e)
 
     flags = CostFlags.from_config(cfg)
     inv_calc = InvestmentCalculator(
