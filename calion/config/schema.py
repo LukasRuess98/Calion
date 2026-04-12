@@ -88,7 +88,6 @@ def validate_thermal_network(network_cfg: dict[str, Any]) -> list[str]:
         all_nodes.add(node_id)
 
     # Consumer zones
-    total_demand_fraction = 0.0
     for consumer in network_cfg.get("consumer_zones", []):
         node_id = consumer.get("node_id")
         if not node_id:
@@ -97,23 +96,10 @@ def validate_thermal_network(network_cfg: dict[str, Any]) -> list[str]:
             raise ValueError(f"Duplicate node_id: {node_id}")
         all_nodes.add(node_id)
 
-        # Track demand fraction
-        demand_fraction = consumer.get("demand_fraction", 0)
-        if demand_fraction is not None:
-            _require_in_range(demand_fraction, f"consumer {node_id}.demand_fraction", 0, 1)
-            total_demand_fraction += demand_fraction
-
         # Validate return temperature
         return_temp = consumer.get("return_temp_c")
         if return_temp is not None:
             _require_in_range(return_temp, f"consumer {node_id}.return_temp_c", 20, 100)
-
-    # Check demand fractions sum to ~1.0
-    if network_cfg.get("consumer_zones"):
-        if abs(total_demand_fraction - 1.0) > 0.01:
-            warnings.append(
-                f"Consumer demand_fractions sum to {total_demand_fraction:.3f}, expected 1.0"
-            )
 
     # Validate pipes
     for pipe in network_cfg.get("pipes", []):

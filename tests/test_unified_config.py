@@ -474,3 +474,24 @@ class TestUnifiedModelBuilding:
         assert hasattr(model, "obj")
         # Legacy models don't have _unified_config
         assert not hasattr(model, "_unified_config")
+
+
+# ─── demand_fraction removal tests ───────────────────────────────────────────
+
+def test_node_config_has_no_demand_fraction():
+    """NodeConfig no longer has demand_fraction field."""
+    node = NodeConfig.from_dict("c1", {
+        "type": "consumer",
+        "demand": {"column": "col_c1"},
+    })
+    assert not hasattr(node, "demand_fraction"), "demand_fraction must not exist on NodeConfig"
+
+
+def test_node_config_ignores_demand_fraction_in_raw():
+    """Parsing a raw dict with demand_fraction does not populate a field."""
+    node = NodeConfig.from_dict("c1", {
+        "type": "consumer",
+        "demand": {"column": "col_c1"},
+        "demand_fraction": 0.5,
+    })
+    assert not hasattr(node, "demand_fraction")

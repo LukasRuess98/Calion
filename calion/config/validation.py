@@ -204,12 +204,11 @@ class ConfigValidator:
             self._validate_network_physics(net_id, net.nodes, net.pipes)
 
     def _validate_network_physics(self, net_id, nodes, pipes):
-        """B2 — Connectivity and demand-fraction physics validation.
+        """B2 — Connectivity and temperature physics validation.
 
         Checks:
         1. Graph connectivity: BFS from producer nodes — every consumer reachable.
-        2. Demand fractions: Σ demand_fraction[consumers] in [0.99, 1.01] when used.
-        3. Temperature sanity: supply bounds ordered and above return temperature.
+        2. Temperature sanity: supply bounds ordered and above return temperature.
         Uses only stdlib (collections.deque) — no new dependencies.
         """
         from collections import deque
@@ -252,22 +251,6 @@ class ConfigValidator:
                         f"(disconnected topology in network '{net_id}')",
                         location=f"{net_id}.nodes.{consumer_id}",
                     )
-
-        # Demand-fraction sum validation
-        fractions = []
-        for _nid, node in nodes.items():
-            frac = getattr(node, 'demand_fraction', None)
-            if frac is not None:
-                fractions.append(float(frac))
-
-        if fractions:
-            total = sum(fractions)
-            if not (0.99 <= total <= 1.01):
-                self.result.add_error(
-                    "network",
-                    f"Network '{net_id}': demand_fraction values sum to {total:.4f} "
-                    f"(must be in [0.99, 1.01]). Check consumer node demand_fraction fields.",
-                )
 
         # Check for at least one producer and one consumer
         has_producer = False
