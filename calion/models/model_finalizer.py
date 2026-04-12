@@ -118,12 +118,11 @@ def _preflight_network_check(network_mgr) -> None:
             continue
         has_demand = (
             node_cfg.get('demand_column')
-            or node_cfg.get('demand_fraction') is not None
             or node_cfg.get('Q_demand') is not None
         )
         if not has_demand:
             issues.append(
-                f"Consumer node '{node_id}': missing demand_column, demand_fraction, or Q_demand"
+                f"Consumer node '{node_id}': missing demand_column or Q_demand"
             )
 
     if issues:
@@ -271,8 +270,6 @@ class ModelFinalizer:
             }
             if node.demand is not None:
                 node_dict["demand_column"] = node.demand.column
-            if node.demand_fraction is not None:
-                node_dict["demand_fraction"] = node.demand_fraction
             if node.assets:
                 node_dict["components"] = {aid: {} for aid in node.assets}
             nodes_list.append(node_dict)
