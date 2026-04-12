@@ -249,7 +249,6 @@ class Network:
         type: str = "junction",
         *,
         assets: list[str] | None = None,
-        demand_fraction: float | None = None,
         demand_column: str | None = None,
         peak_demand_mw: float | None = None,
     ) -> Network:
@@ -263,19 +262,14 @@ class Network:
             One of ``"producer"``, ``"consumer"``, ``"junction"``.
         assets : list of str, optional
             Component IDs attached to this node.
-        demand_fraction : float, optional
-            Fraction of global heat demand served by this consumer (0–1).
-            Required for consumer nodes when using network topology.
         demand_column : str, optional
-            Time-series column name for consumer demand.
+            Time-series column name for consumer demand (required for consumer nodes).
         peak_demand_mw : float, optional
             Peak demand for consumer nodes.
         """
         node: dict[str, Any] = {"type": type}
         if assets:
             node["assets"] = assets
-        if demand_fraction is not None:
-            node["demand_fraction"] = demand_fraction
         if demand_column or peak_demand_mw:
             demand: dict[str, Any] = {}
             if demand_column:
@@ -432,40 +426,19 @@ class Network:
 
         # Network topology → thermal_network block for NetworkManager
         if self._nodes and self._pipes:
-            # Auto-distribute demand fractions among consumers if not set
-            consumers = [
-                nid for nid, nd in self._nodes.items()
-                if nd.get("type") == "consumer"
-            ]
-            consumers_without_fraction = [
-                nid for nid in consumers
-                if self._nodes[nid].get("demand_fraction") is None
-            ]
-            if consumers_without_fraction:
-                # Compute remaining fraction after explicit fractions
-                used = sum(
-                    self._nodes[nid].get("demand_fraction", 0.0)
-                    for nid in consumers
-                    if self._nodes[nid].get("demand_fraction") is not None
-                )
-                remaining = max(0.0, 1.0 - used)
-                auto_frac = remaining / len(consumers_without_fraction) if consumers_without_fraction else 0.0
-                for nid in consumers_without_fraction:
-                    self._nodes[nid]["demand_fraction"] = round(auto_frac, 6)
-
             nodes_list = []
             for nid, ndata in self._nodes.items():
                 node_entry: dict[str, Any] = {
                     "id": nid,
                     "type": ndata.get("type", "junction"),
                 }
-                # Attach component references for producer nodes
                 assets = ndata.get("assets", [])
                 if assets:
                     node_entry["components"] = assets
-                # Consumer demand fraction (required by ThermalNodeBlock)
-                if ndata.get("demand_fraction") is not None:
-                    node_entry["demand_fraction"] = ndata["demand_fraction"]
+                # Consumer demand column
+                demand = ndata.get("demand")
+                if demand:
+                    node_entry["demand_column"] = demand.get("column")
                 nodes_list.append(node_entry)
 
             pipes_list = []

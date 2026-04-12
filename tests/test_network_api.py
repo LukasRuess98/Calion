@@ -127,9 +127,9 @@ class TestNetworkTopology:
 
     def test_add_consumer_node(self):
         net = Network()
-        net.add_node("north", "consumer", demand_fraction=0.4, peak_demand_mw=40.0)
+        net.add_node("north", "consumer", demand_column="demand_north_MW", peak_demand_mw=40.0)
         assert net._nodes["north"]["type"] == "consumer"
-        assert net._nodes["north"]["demand_fraction"] == 0.4
+        assert net._nodes["north"]["demand"]["column"] == "demand_north_MW"
         assert net._nodes["north"]["demand"]["peak_demand_mw"] == 40.0
 
     def test_add_junction(self):
@@ -173,7 +173,7 @@ class TestNetworkTopology:
     def test_config_includes_network(self):
         net = Network()
         net.add_node("plant", "producer", assets=["HP1"])
-        net.add_node("c1", "consumer", demand_fraction=0.5)
+        net.add_node("c1", "consumer", demand_column="col_c1")
         net.add_pipe("p1", "plant", "c1", length_m=1000, diameter_mm=300)
         net.set_network_temps(supply_temp_c=90, return_temp_c=55)
         net.set_network_physics(heat_loss=True)
@@ -185,9 +185,10 @@ class TestNetworkTopology:
         assert len(tn["nodes"]) == 2
         assert len(tn["pipes"]) == 1
         assert tn["parameters"]["supply_temp_nominal_c"] == 90
-        # Consumer node has demand_fraction
+        # Consumer node has demand_column, not demand_fraction
         consumer = [n for n in tn["nodes"] if n["type"] == "consumer"][0]
-        assert consumer["demand_fraction"] == 0.5
+        assert consumer["demand_column"] == "col_c1"
+        assert "demand_fraction" not in consumer
 
     def test_config_without_network(self):
         net = Network()
@@ -207,7 +208,7 @@ class TestNetworkTopology:
             .set_network_temps(supply_temp_c=90)
             .set_network_physics(heat_loss=True)
             .add_node("plant", "producer", assets=["HP1"])
-            .add_node("c1", "consumer", demand_fraction=1.0)
+            .add_node("c1", "consumer", demand_column="col_c1")
             .add_pipe("p1", "plant", "c1", length_m=1000, diameter_mm=300)
             .add_heat_pump("HP1", capacity_mw=10.0)
             .set_fuel("gas", price_eur_mwh=45.0)
@@ -216,22 +217,21 @@ class TestNetworkTopology:
         assert len(net._pipes) == 1
         assert len(net._heat_pumps) == 1
 
-    def test_auto_demand_fraction(self):
-        """Consumers without explicit fraction get equal share of remainder."""
+    def test_each_consumer_requires_demand_column(self):
+        """Each consumer node uses its own demand_column, no auto-fraction distribution."""
         net = Network()
         net.add_node("plant", "producer")
-        net.add_node("c1", "consumer", demand_fraction=0.6)
-        net.add_node("c2", "consumer")
-        net.add_node("c3", "consumer")
+        net.add_node("c1", "consumer", demand_column="demand_c1_MW")
+        net.add_node("c2", "consumer", demand_column="demand_c2_MW")
         net.add_pipe("p1", "plant", "c1", length_m=100, diameter_mm=200)
         net.add_pipe("p2", "plant", "c2", length_m=100, diameter_mm=200)
-        net.add_pipe("p3", "plant", "c3", length_m=100, diameter_mm=200)
 
         cfg = net._build_config()
         nodes = {n["id"]: n for n in cfg["thermal_network"]["nodes"]}
-        assert nodes["c1"]["demand_fraction"] == 0.6
-        assert nodes["c2"]["demand_fraction"] == 0.2
-        assert nodes["c3"]["demand_fraction"] == 0.2
+        assert nodes["c1"]["demand_column"] == "demand_c1_MW"
+        assert nodes["c2"]["demand_column"] == "demand_c2_MW"
+        assert "demand_fraction" not in nodes["c1"]
+        assert "demand_fraction" not in nodes["c2"]
 
     def test_repr_shows_topology(self):
         net = Network()
