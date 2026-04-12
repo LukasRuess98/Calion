@@ -213,7 +213,7 @@ def _load_nodes(path: str, sheet_name: str) -> tuple[list[dict], list[dict], lis
     y_col = _find_column(header, ["y", "coord_y", "y_coord"])
     supply_t_col = _find_column(header, ["supply_temp_c", "vorlauf_c", "t_supply"])
     supply_p_col = _find_column(header, ["supply_pressure_bar", "druck_bar", "p_supply"])
-    demand_frac_col = _find_column(header, ["demand_fraction", "anteil_bedarf", "demand_share"])
+    demand_col_col = _find_column(header, ["demand_column", "nachfrage_spalte"])
     max_power_col = _find_column(header, ["max_power_mw", "max_leistung_mw", "p_max_mw"])
 
     if id_col is None:
@@ -252,8 +252,10 @@ def _load_nodes(path: str, sheet_name: str) -> tuple[list[dict], list[dict], lis
         if supply_p_col is not None and len(row) > supply_p_col:
             node_config["supply_pressure_bar"] = _to_float(row[supply_p_col], 6.0)
 
-        if demand_frac_col is not None and len(row) > demand_frac_col:
-            node_config["demand_fraction"] = _to_float(row[demand_frac_col], 0.0)
+        if demand_col_col is not None and len(row) > demand_col_col:
+            raw_val = row[demand_col_col]
+            if not _is_empty(raw_val):
+                node_config["demand_column"] = str(raw_val).strip()
 
         if max_power_col is not None and len(row) > max_power_col:
             node_config["max_power_mw"] = _to_float(row[max_power_col], 0.0)
@@ -377,11 +379,11 @@ def create_network_excel_template(output_path: str) -> None:
         "| max_pressure_bar         | 25    |\n"
         "| max_velocity_m_s         | 2.5   |\n\n"
         "Sheet: Network_Nodes\n"
-        "| node_id     | name        | type     | elevation_m | supply_temp_c | demand_fraction |\n"
-        "|-------------|-------------|----------|-------------|---------------|-----------------|\n"
-        "| plant_main  | Main Plant  | plant    | 470         | 100           |                 |\n"
-        "| zone_nord   | Zone North  | consumer | 465         |               | 0.4             |\n"
-        "| zone_sued   | Zone South  | consumer | 480         |               | 0.6             |\n\n"
+        "| node_id     | name        | type     | elevation_m | supply_temp_c | demand_column        |\n"
+        "|-------------|-------------|----------|-------------|---------------|----------------------|\n"
+        "| plant_main  | Main Plant  | plant    | 470         | 100           |                      |\n"
+        "| zone_nord   | Zone North  | consumer | 465         |               | demand_north_MW      |\n"
+        "| zone_sued   | Zone South  | consumer | 480         |               | demand_south_MW      |\n\n"
         "Sheet: Network_Pipes\n"
         "| pipe_id    | from_node   | to_node   | length_m | diameter_mm | existing |"
         " max_flow_kg_s | max_pressure_bar |\n"

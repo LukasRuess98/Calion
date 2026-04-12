@@ -33,7 +33,7 @@ nodes:
     components: [HKW, HP1]
   - id: consumer_A
     type: consumer
-    demand_fraction: 0.6
+    demand_column: demand_A_MW
   - id: junction_1
     type: junction
 
