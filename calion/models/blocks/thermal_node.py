@@ -369,9 +369,13 @@ class ThermalNodeBlock(BaseComponent):
                 delta_T_range = T_ret_max_v - T_ret_min_v
 
                 peak_demand_mw = config.get('peak_demand_mw', None)
-                if peak_demand_mw is None and hasattr(model, 'heatd'):
-                    demand_frac = config.get('demand_fraction', 0.0)
-                    peak_demand_mw = max(pyo.value(model.heatd[t]) for t in time_set) * demand_frac
+                if peak_demand_mw is None:
+                    _node_heatd_attr = f'heatd_{node_id}'
+                    if hasattr(model, _node_heatd_attr):
+                        _nh = getattr(model, _node_heatd_attr)
+                        peak_demand_mw = max(pyo.value(_nh[t]) for t in time_set)
+                    elif hasattr(model, 'heatd'):
+                        peak_demand_mw = max(pyo.value(model.heatd[t]) for t in time_set)
 
                 if peak_demand_mw and peak_demand_mw > 0:
                     k_ret_temp = return_temp_load_factor * delta_T_range / peak_demand_mw

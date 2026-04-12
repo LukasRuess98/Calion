@@ -42,10 +42,9 @@ def validate_thermal_network(network_cfg: dict[str, Any]) -> list[str]:
 
     Performs the following checks:
     1. All pipe from_node and to_node reference existing nodes
-    2. Consumer demand_fractions sum to approximately 1.0
-    3. U-values are in realistic range (0.01 - 2.0 W/(m·K))
-    4. Lengths and diameters are positive
-    5. Temperatures are in realistic range
+    2. U-values are in realistic range (0.01 - 2.0 W/(m·K))
+    3. Lengths and diameters are positive
+    4. Temperatures are in realistic range
 
     Args:
         network_cfg: Network configuration dictionary
