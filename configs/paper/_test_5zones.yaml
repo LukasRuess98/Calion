@@ -1,0 +1,114 @@
+site:
+  input_xlsx: "data/stadtbach_synthetic_2023_1week_zonal.csv"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+    wrg1_temp: "T_WRG1_C"
+    wrg2_temp: "T_WRG2_C"
+
+scenario:
+  name: "test_5zones"
+  run_mode: PF_ONLY
+
+network:
+  physics:
+    heat_loss: false
+    pressure_drop: false
+    transport_delay: false
+  supply_temp_c: 90.0
+  return_temp_c: 55.0
+  ground_temp_c: 10.0
+
+  nodes:
+    plant:
+      type: producer
+      assets:
+        - boiler_main
+    j_central:
+      type: junction
+    j_north:
+      type: junction
+    zone_01:
+      type: consumer
+      demand:
+        column: "zone_01_demand_MWth"
+    zone_02:
+      type: consumer
+      demand:
+        column: "zone_02_demand_MWth"
+    zone_03:
+      type: consumer
+      demand:
+        column: "zone_03_demand_MWth"
+    zone_04:
+      type: consumer
+      demand:
+        column: "zone_04_demand_MWth"
+    zone_05:
+      type: consumer
+      demand:
+        column: "zone_05_demand_MWth"
+
+  pipes:
+    plant_to_central:
+      from: plant
+      to: j_central
+      length_m: 3200
+      diameter_mm: 500
+    central_to_north:
+      from: j_central
+      to: j_north
+      length_m: 850
+      diameter_mm: 350
+    j_north_to_z1:
+      from: j_north
+      to: zone_01
+      length_m: 200
+      diameter_mm: 300
+    j_north_to_z2:
+      from: j_north
+      to: zone_02
+      length_m: 210
+      diameter_mm: 250
+    j_north_to_z3:
+      from: j_north
+      to: zone_03
+      length_m: 220
+      diameter_mm: 200
+    j_north_to_z4:
+      from: j_north
+      to: zone_04
+      length_m: 230
+      diameter_mm: 200
+    j_north_to_z5:
+      from: j_north
+      to: zone_05
+      length_m: 240
+      diameter_mm: 150
+
+assets:
+  boiler_main:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 200.0
+    min_load: 0.1
+    thermal_efficiency: 0.90
+
+grid:
+  max_import_mw: 200.0
+  max_export_mw: 200.0
+  gridcost_eur_mwh: 35.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+run:
+  dt_h: 1.0
+  solver: appsi_highs

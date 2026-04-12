@@ -15,14 +15,12 @@ networks:
         assets: [boiler_ht]
       zone_industrial:
         type: consumer
-        demand_fraction: 0.6
         demand:
-          column: "waermebedarf_MWth"
+          column: "demand_industrial_MW"
       zone_commercial:
         type: consumer
-        demand_fraction: 0.4
         demand:
-          column: "waermebedarf_MWth"
+          column: "demand_commercial_MW"
     pipes:
       ht_plant_to_ind:
         from: plant_ht
@@ -45,14 +43,12 @@ networks:
         assets: []
       zone_residential_a:
         type: consumer
-        demand_fraction: 0.5
         demand:
-          column: "waermebedarf_MWth"
+          column: "demand_residential_a_MW"
       zone_residential_b:
         type: consumer
-        demand_fraction: 0.5
         demand:
-          column: "waermebedarf_MWth"
+          column: "demand_residential_b_MW"
     pipes:
       lt_feed_to_res_a:
         from: hx_feed

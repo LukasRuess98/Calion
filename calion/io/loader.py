@@ -286,6 +286,35 @@ def load_input_excel(
             temps = [_to_float(rec.get(t_col)) for rec in records]
             data[f"WRG{i}_T_K"] = [temp + 273.15 if temp == temp else temp for temp in temps]
 
+    # Pass through any remaining numeric columns (e.g., per-zone demand columns)
+    _already_mapped = {price_col, heat_col, co2_col}
+    if outdoor_temp_col:
+        _already_mapped.add(outdoor_temp_col)
+    for _i in range(1, 5):
+        if wrg_cols[_i]["q"]:
+            _already_mapped.add(wrg_cols[_i]["q"])
+        if wrg_cols[_i]["t"]:
+            _already_mapped.add(wrg_cols[_i]["t"])
+    # datetime column (first column in header)
+    _already_mapped.add(header[0])
+
+    for _col in header:
+        if _col in _already_mapped or _col in data:
+            continue
+        _vals: list[float] = []
+        _has_num = False
+        for _rec in records:
+            _raw = _rec.get(_col, "")
+            try:
+                _fval = float(str(_raw).replace(",", ".")) if _raw != "" else float("nan")
+                _vals.append(_fval)
+                if _fval == _fval:
+                    _has_num = True
+            except (ValueError, TypeError):
+                _vals.append(float("nan"))
+        if _has_num:
+            data[_col] = fill_gaps(_vals)
+
     # fill missing numbers using simple forward/backward fill
     for key, values in data.items():
         data[key] = fill_gaps(values)

@@ -1,0 +1,29 @@
+======================================================================
+CO2-EMISSIONSANALYSE: VERGLEICH ZEITLICHER AUFLÖSUNGEN
+======================================================================
+
+Analysezeitraum: 2023-01-01 00:00:00 bis 2023-01-07 23:00:00
+Zeitschrittdauer: 1.0 h
+Gesamtstromverbrauch: 2,759.4 MWh
+Referenzauflösung: hourly
+
+----------------------------------------------------------------------
+Auflösung                                CO2 [t]   Abweichung   Intensität
+----------------------------------------------------------------------
+Jährlicher Durchschnitt (bilanziell)      1,103.8       +0.77%     400.0 kg/MWh
+Monatliche Auflösung                     1,103.8       +0.77%     400.0 kg/MWh
+Tägliche Auflösung                       1,103.8       +0.77%     400.0 kg/MWh
+Stündliche Auflösung                     1,095.3   (Referenz)     396.9 kg/MWh
+----------------------------------------------------------------------
+
+INTERPRETATION:
+
+- Positive Abweichung: Bilanzieller Ansatz UNTERSCHÄTZT die Emissionen
+  (Stromverbrauch korreliert mit hohem CO2-Faktor des Strommix)
+
+- Negative Abweichung: Bilanzieller Ansatz ÜBERSCHÄTZT die Emissionen
+  (Stromverbrauch korreliert mit niedrigem CO2-Faktor, z.B. PV-Spitzen)
+
+Bei Wärmepumpen oft negative Korrelation (Heizlast hoch wenn wenig Solar),
+bei PV-gekoppelten Systemen oft positive Korrelation (Verbrauch bei PV-Peak).
+======================================================================

@@ -40,7 +40,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_yearly_zones.csv"
+  input_xlsx: "data/stadtbach_synthetic_2023_1week_zonal.csv"
   columns:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"
