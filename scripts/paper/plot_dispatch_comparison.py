@@ -1,5 +1,5 @@
 """
-Figure 2 — Heat dispatch comparison (3-panel stacked area, 1 representative week).
+Figure 2 — Heat dispatch comparison (3-panel stacked area, coldest week).
 
 Usage:
     python scripts/paper/plot_dispatch_comparison.py \
@@ -9,11 +9,11 @@ Usage:
         --outdir outputs/paper/figures/
 
 Produces:
-    fig2_dispatch_comparison.pdf
-    fig2_dispatch_comparison.svg
-    fig2_dispatch_comparison.png
+    fig2_dispatch_comparison.pdf  (vector — use in Overleaf)
+    fig2_dispatch_comparison.png  (300 DPI preview)
 """
 import argparse
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -23,48 +23,48 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 
-# ── Columns expected in pf_timeseries.csv ────────────────────────────────────
-COL_DEMAND      = "waermebedarf_MWth"
-COL_BOILER      = "BOILER_MAIN_Q_th_MW"
-COL_HP          = "hp_main_Q_th_MW"
-COL_TES_DIS     = "TES_discharge_MW"
-COL_TES_CHG     = "TES_charge_MW"
-COL_DUMP        = "Q_dump_MWth"
+sys.path.insert(0, str(Path(__file__).parent))
+from ecm_style import (
+    apply_ecm_style, save_figure,
+    DOUBLE_COL_W, H_TALL,
+    C_BOILER, C_HP, C_TES_DIS, C_TES_CHG, C_DEMAND, C_DUMP,
+)
 
-# Stacking order and colours (bottom → top)
+apply_ecm_style()
+
+COL_DEMAND  = "waermebedarf_MWth"
+COL_BOILER  = "BOILER_MAIN_Q_th_MW"
+COL_HP      = "hp_main_Q_th_MW"
+COL_TES_DIS = "TES_discharge_MW"
+COL_TES_CHG = "TES_charge_MW"
+COL_DUMP    = "Q_dump_MWth"
+
 STACK_COLS   = [COL_BOILER, COL_HP, COL_TES_DIS]
 STACK_LABELS = ["Gas boiler", "Heat pump", "Storage discharge"]
-STACK_COLORS = ["#e07b39", "#4c96d7", "#6abf69"]
-DEMAND_COLOR = "#1a1a2e"
-TES_CHG_COLOR = "#b0bec5"
-DUMP_COLOR   = "#ef5350"
+STACK_COLORS = [C_BOILER, C_HP, C_TES_DIS]
 
 LEVEL_TITLES = {
-    "L1": "(a) Level 1 — 1-node (copperplate)",
-    "L2": "(b) Level 2 — 5-node",
-    "L3": "(c) Level 3 — 30-node",
+    "L1": "(a) L1 — copperplate",
+    "L2": "(b) L2 — 5-node",
+    "L3": "(c) L3 — 30-node",
 }
 
 
 def _load(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep=";", decimal=",", index_col=0, parse_dates=True)
-    # ensure expected columns exist (fill with zeros if absent)
-    for col in [COL_DEMAND, COL_BOILER, COL_HP, COL_TES_DIS, COL_TES_CHG, COL_DUMP]:
+    for col in (COL_DEMAND, COL_BOILER, COL_HP, COL_TES_DIS, COL_TES_CHG, COL_DUMP):
         if col not in df.columns:
-            print(f"  Warning: '{col}' not found in {Path(path).name} — filling with 0")
             df[col] = 0.0
+        else:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
     return df
 
 
 def _pick_winter_week(df: pd.DataFrame) -> pd.DataFrame:
-    """Return the 168-hour window with highest mean heat demand (≈ coldest week)."""
     demand = df[COL_DEMAND]
     if len(demand) < 168:
         return df
-    rolling_mean = demand.rolling(168).mean()
-    end_idx = int(rolling_mean.idxmax()) if hasattr(rolling_mean.idxmax(), '__int__') else rolling_mean.argmax()
-    # argmax gives integer position
-    end_pos = rolling_mean.values.argmax()
+    end_pos = demand.rolling(168).mean().values.argmax()
     start_pos = max(0, end_pos - 167)
     return df.iloc[start_pos: start_pos + 168]
 
@@ -72,91 +72,70 @@ def _pick_winter_week(df: pd.DataFrame) -> pd.DataFrame:
 def _plot_level(ax, df_week: pd.DataFrame, title: str, show_ylabel: bool):
     t = np.arange(len(df_week))
 
-    # Build stacks
-    bottoms = np.zeros(len(df_week))
-    for col, label, color in zip(STACK_COLS, STACK_LABELS, STACK_COLORS):
-        vals = df_week[col].fillna(0).values
-        ax.stackplot(t, vals, baseline="zero", colors=[color], labels=[label], alpha=0.85)
+    for col, color in zip(STACK_COLS, STACK_COLORS):
+        ax.stackplot(t, df_week[col].fillna(0).values,
+                     baseline="zero", colors=[color], alpha=0.85)
 
-    # Demand line
     ax.plot(t, df_week[COL_DEMAND].fillna(0).values,
-            color=DEMAND_COLOR, linewidth=1.8, label="Heat demand", zorder=5)
+            color=C_DEMAND, linewidth=1.4, zorder=5)
 
-    # Storage charging as hatched negative area below zero (shade grey)
     chg = df_week[COL_TES_CHG].fillna(0).values
-    ax.fill_between(t, 0, -chg, color=TES_CHG_COLOR, alpha=0.6, label="Storage charge")
+    ax.fill_between(t, 0, -chg, color=C_TES_CHG, alpha=0.7)
 
-    # Dump as red spikes
     dump = df_week[COL_DUMP].fillna(0).values
     if dump.max() > 0.01:
-        ax.fill_between(t, 0, dump, color=DUMP_COLOR, alpha=0.7, label="Heat dump")
+        ax.fill_between(t, 0, dump, color=C_DUMP, alpha=0.7)
 
-    ax.set_title(title, fontsize=10, fontweight="bold", pad=6)
+    ax.set_title(title, pad=4)
     ax.set_xlim(0, len(df_week) - 1)
-    ax.set_ylim(bottom=-df_week[COL_TES_CHG].max() * 1.3)
-    ax.axhline(0, color="black", linewidth=0.5, linestyle="--")
-    ax.set_xlabel("Hour of week [h]", fontsize=9)
+    chg_max = float(df_week[COL_TES_CHG].max())
+    ax.set_ylim(bottom=-(chg_max * 1.3) if chg_max > 0 else -5)
+    ax.axhline(0, color="black", linewidth=0.4, linestyle="--")
+    ax.set_xlabel("Hour of week [h]")
     if show_ylabel:
-        ax.set_ylabel("Thermal power [MW]", fontsize=9)
-    ax.tick_params(labelsize=8)
-    ax.grid(True, alpha=0.3, linewidth=0.5)
+        ax.set_ylabel("Thermal power [MW]")
+    ax.grid(True, axis="y")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Figure 2 — dispatch comparison")
-    parser.add_argument("--l1", required=True, help="Path to L1 pf_timeseries.csv")
-    parser.add_argument("--l2", required=True, help="Path to L2 pf_timeseries.csv")
-    parser.add_argument("--l3", required=True, help="Path to L3 pf_timeseries.csv")
-    parser.add_argument("--outdir", default="outputs/paper/figures", help="Output directory")
-    parser.add_argument("--week", choices=["coldest", "manual"], default="coldest",
-                        help="Which week to show")
-    parser.add_argument("--week-start", type=int, default=None,
-                        help="Manual week start hour (0-based) if --week=manual")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--l1", required=True)
+    parser.add_argument("--l2", required=True)
+    parser.add_argument("--l3", required=True)
+    parser.add_argument("--outdir", default="outputs/paper/figures")
+    parser.add_argument("--week", choices=["coldest", "manual"], default="coldest")
+    parser.add_argument("--week-start", type=int, default=None)
     args = parser.parse_args()
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
 
     levels = [("L1", args.l1), ("L2", args.l2), ("L3", args.l3)]
-    dfs = {}
-    for tag, path in levels:
-        print(f"Loading {tag}: {path}")
-        dfs[tag] = _load(path)
+    dfs = {tag: _load(path) for tag, path in levels}
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
-    fig.subplots_adjust(wspace=0.08, left=0.07, right=0.97, top=0.88, bottom=0.12)
+    fig, axes = plt.subplots(1, 3, figsize=(DOUBLE_COL_W, H_TALL), sharey=True)
+    fig.subplots_adjust(wspace=0.06, left=0.08, right=0.98, top=0.87, bottom=0.14)
 
     for ax, (tag, _) in zip(axes, levels):
         df = dfs[tag]
-        if args.week == "manual" and args.week_start is not None:
-            df_week = df.iloc[args.week_start: args.week_start + 168]
-        else:
-            df_week = _pick_winter_week(df)
-
-        if tag == "L1":
-            print(f"  {tag}: showing week starting at hour "
-                  f"{df.index.get_loc(df_week.index[0]) if hasattr(df.index, 'get_loc') else '?'}")
-
+        df_week = (df.iloc[args.week_start: args.week_start + 168]
+                   if args.week == "manual" and args.week_start is not None
+                   else _pick_winter_week(df))
         _plot_level(ax, df_week, LEVEL_TITLES[tag], show_ylabel=(ax is axes[0]))
 
-    # Shared legend below figure
-    handles = []
-    for col, label, color in zip(STACK_COLS, STACK_LABELS, STACK_COLORS):
-        handles.append(mpatches.Patch(color=color, alpha=0.85, label=label))
-    handles.append(plt.Line2D([0], [0], color=DEMAND_COLOR, linewidth=1.8, label="Heat demand"))
-    handles.append(mpatches.Patch(color=TES_CHG_COLOR, alpha=0.6, label="Storage charge"))
-    handles.append(mpatches.Patch(color=DUMP_COLOR, alpha=0.7, label="Heat dump"))
+    # Legend inside centre panel
+    handles = [mpatches.Patch(color=c, alpha=0.85, label=l)
+               for l, c in zip(STACK_LABELS, STACK_COLORS)]
+    handles.append(plt.Line2D([0], [0], color=C_DEMAND, linewidth=1.4,
+                               label="Heat demand"))
+    handles.append(mpatches.Patch(color=C_TES_CHG, alpha=0.7, label="Storage charge"))
+    if max(dfs[t][COL_DUMP].max() for t in dfs) > 0.01:
+        handles.append(mpatches.Patch(color=C_DUMP, alpha=0.7, label="Heat dump"))
 
-    fig.legend(handles=handles, loc="lower center", ncol=6, fontsize=8,
-               bbox_to_anchor=(0.5, -0.02), frameon=True)
+    axes[1].legend(handles=handles, loc="upper right", ncol=2, framealpha=0.9)
+    fig.suptitle("Heat dispatch — coldest week of year", y=0.97)
 
-    fig.suptitle("Heat dispatch — coldest week of year", fontsize=11, y=0.96)
-
-    stem = Path(args.outdir) / "fig2_dispatch_comparison"
-    for fmt in ("pdf", "svg", "png"):
-        fig.savefig(f"{stem}.{fmt}", dpi=300, bbox_inches="tight")
-        print(f"  Saved: {stem}.{fmt}")
+    save_figure(fig, Path(args.outdir) / "fig2_dispatch_comparison")
     plt.close(fig)
-    print("Done.")
 
 
 if __name__ == "__main__":
