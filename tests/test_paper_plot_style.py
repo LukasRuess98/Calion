@@ -111,3 +111,31 @@ def test_cost_comparison_smoke(tmp_path):
 
     assert (tmp_path / "fig3_cost_comparison.pdf").exists()
     assert (tmp_path / "fig3_cost_comparison.png").exists()
+
+
+def _write_network_summary(path, n_pipes=5, base_loss=300.0):
+    pipes = {
+        f"pipe_{i:02d}": {"total_heat_loss_mwh": base_loss - i * (base_loss / (n_pipes + 1)),
+                           "length_m": 500 + i * 100}
+        for i in range(n_pipes)
+    }
+    Path(path).write_text(json.dumps({"pipes": pipes}))
+
+
+def test_pipe_losses_smoke(tmp_path):
+    import plot_pipe_losses as ppl
+    importlib.reload(ppl)
+
+    _write_network_summary(tmp_path / "l2_summary.json", n_pipes=4,  base_loss=400)
+    _write_network_summary(tmp_path / "l3_summary.json", n_pipes=15, base_loss=200)
+    _write_dispatch_csv(tmp_path / "l1_demand.csv", n=8760)
+
+    sys.argv = ["prog",
+                "--l2-summary", str(tmp_path / "l2_summary.json"),
+                "--l3-summary", str(tmp_path / "l3_summary.json"),
+                "--l1-demand",  str(tmp_path / "l1_demand.csv"),
+                "--outdir", str(tmp_path)]
+    ppl.main()
+
+    assert (tmp_path / "fig4_pipe_losses.pdf").exists()
+    assert (tmp_path / "fig4_pipe_losses.png").exists()

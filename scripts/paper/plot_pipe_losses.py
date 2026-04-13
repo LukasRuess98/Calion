@@ -1,5 +1,5 @@
 """
-Figure 4 — Pipe heat loss bar chart: L2 vs L3 (using network_summary.json).
+Figure 4 — Pipe heat losses: L2 vs L3 (top-10 + aggregated others).
 
 Usage:
     python scripts/paper/plot_pipe_losses.py \
@@ -9,11 +9,12 @@ Usage:
         --outdir     outputs/paper/figures/
 
 Produces:
-    fig4_pipe_losses.pdf / .svg / .png
-    fig4_pipe_losses_summary.csv   (per-pipe totals)
+    fig4_pipe_losses.pdf / .png
+    fig4_pipe_losses_summary.csv
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -22,8 +23,17 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).parent))
+from ecm_style import (
+    apply_ecm_style, save_figure,
+    DOUBLE_COL_W, H_PIPE,
+    C_L2, C_L3,
+)
+
+apply_ecm_style()
+
 DEMAND_COL = "waermebedarf_MWth"
-DT_H = 1.0
+TOP_N      = 10
 
 
 def _load_summary(path: str) -> dict:
@@ -32,89 +42,85 @@ def _load_summary(path: str) -> dict:
 
 
 def _pipe_losses(summary: dict) -> pd.DataFrame:
-    """Return DataFrame with pipe_id and total_heat_loss_MWh."""
-    rows = []
-    for pid, pdata in summary.get("pipes", {}).items():
-        loss = float(pdata.get("total_heat_loss_mwh", 0.0))
-        length = float(pdata.get("length_m", 0.0))
-        rows.append({"pipe": pid, "loss_MWh": loss, "length_m": length})
-    return pd.DataFrame(rows).sort_values("loss_MWh", ascending=False)
+    rows = [
+        {"pipe": pid,
+         "loss_MWh": float(p.get("total_heat_loss_mwh", 0)),
+         "length_m": float(p.get("length_m", 0))}
+        for pid, p in summary.get("pipes", {}).items()
+    ]
+    return pd.DataFrame(rows).sort_values("loss_MWh", ascending=False).reset_index(drop=True)
+
+
+def _top_n_with_other(df: pd.DataFrame, n: int) -> pd.DataFrame:
+    """Keep top-n rows by loss; aggregate the rest into a single 'Other pipes' bar."""
+    if len(df) <= n:
+        return df
+    top  = df.head(n).copy()
+    rest = df.iloc[n:]
+    other = pd.DataFrame([{
+        "pipe":     f"Other {len(rest)} pipes",
+        "loss_MWh": rest["loss_MWh"].sum(),
+        "length_m": rest["length_m"].sum(),
+    }])
+    return pd.concat([top, other], ignore_index=True)
+
+
+def _plot_panel(ax, df: pd.DataFrame, title: str, color: str, demand_mwh: float):
+    y = np.arange(len(df))
+    ax.barh(y, df["loss_MWh"], color=color, alpha=0.85, edgecolor="white", linewidth=0.3)
+
+    x_max = df["loss_MWh"].max()
+    for i, row in df.iterrows():
+        if row["length_m"] > 0:
+            loss_per_km = row["loss_MWh"] / (row["length_m"] / 1000)
+            ax.text(row["loss_MWh"] + x_max * 0.02, i,
+                    f"{loss_per_km:.0f} MWh/km",
+                    va="center", fontsize=6.5, color="#444444")
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(df["pipe"], fontsize=7)
+    ax.set_xlabel("Heat loss [MWh]")
+    total_mwh = df["loss_MWh"].sum()
+    loss_pct  = total_mwh / demand_mwh * 100 if demand_mwh > 0 else 0
+    ax.set_title(f"{title}\n{total_mwh:.0f} MWh total ({loss_pct:.2f}% of demand)")
+    ax.grid(True, axis="x")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Figure 4 — pipe heat losses")
-    parser.add_argument("--l2-summary", required=True,
-                        help="L2 network_summary.json")
-    parser.add_argument("--l3-summary", required=True,
-                        help="L3 network_summary.json")
-    parser.add_argument("--l1-demand", required=True,
-                        help="L1 timeseries CSV — for demand reference")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--l2-summary", required=True)
+    parser.add_argument("--l3-summary", required=True)
+    parser.add_argument("--l1-demand",  required=True)
     parser.add_argument("--outdir", default="outputs/paper/figures")
     args = parser.parse_args()
 
     Path(args.outdir).mkdir(parents=True, exist_ok=True)
 
-    sum_l2 = _load_summary(args.l2_summary)
-    sum_l3 = _load_summary(args.l3_summary)
+    df_l2 = _pipe_losses(_load_summary(args.l2_summary))
+    df_l3 = _pipe_losses(_load_summary(args.l3_summary))
 
-    df_l2 = _pipe_losses(sum_l2)
-    df_l3 = _pipe_losses(sum_l3)
-
-    total_l2_gwh = df_l2["loss_MWh"].sum() / 1e3
-    total_l3_gwh = df_l3["loss_MWh"].sum() / 1e3
-
-    # Load demand total
     dem_df = pd.read_csv(args.l1_demand, sep=";", decimal=",")
-    demand_gwh = dem_df[DEMAND_COL].fillna(0).sum() * DT_H / 1e3 if DEMAND_COL in dem_df.columns else None
+    if DEMAND_COL in dem_df.columns:
+        demand_mwh = float(pd.to_numeric(dem_df[DEMAND_COL], errors="coerce").fillna(0).sum())
+    else:
+        demand_mwh = 0.0
 
-    print(f"  L2 total pipe loss: {total_l2_gwh*1e3:.1f} MWh  ({total_l2_gwh:.4f} GWh)")
-    print(f"  L3 total pipe loss: {total_l3_gwh*1e3:.1f} MWh  ({total_l3_gwh:.4f} GWh)")
-    if demand_gwh:
-        print(f"  Demand:             {demand_gwh:.2f} GWh")
-        print(f"  L2 loss fraction:   {total_l2_gwh/demand_gwh*100:.3f}%")
-        print(f"  L3 loss fraction:   {total_l3_gwh/demand_gwh*100:.3f}%")
-
-    # ── Figure: two panels ─────────────────────────────────────────────────────
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle("Pipe heat losses (January baseline)", fontsize=12)
-
-    # Left: L2 per-pipe bar
-    y2 = np.arange(len(df_l2))
-    ax1.barh(y2, df_l2["loss_MWh"], color="#4c96d7", alpha=0.8)
-    ax1.set_yticks(y2)
-    ax1.set_yticklabels(df_l2["pipe"], fontsize=8)
-    ax1.set_xlabel("Heat loss [MWh]", fontsize=10)
-    ax1.set_title(f"L2 (5-node) — total {total_l2_gwh*1e3:.0f} MWh", fontsize=11)
-    ax1.grid(True, axis="x", alpha=0.3)
-
-    # Right: L3 per-pipe bar
-    y3 = np.arange(len(df_l3))
-    ax2.barh(y3, df_l3["loss_MWh"], color="#e07b39", alpha=0.8)
-    ax2.set_yticks(y3)
-    ax2.set_yticklabels(df_l3["pipe"], fontsize=7)
-    ax2.set_xlabel("Heat loss [MWh]", fontsize=10)
-    ax2.set_title(f"L3 (30-node) — total {total_l3_gwh*1e3:.0f} MWh", fontsize=11)
-    ax2.grid(True, axis="x", alpha=0.3)
-
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(DOUBLE_COL_W, H_PIPE))
+    _plot_panel(ax1, _top_n_with_other(df_l2, TOP_N), "L2 — 5-node",  C_L2, demand_mwh)
+    _plot_panel(ax2, _top_n_with_other(df_l3, TOP_N), "L3 — 30-node", C_L3, demand_mwh)
+    fig.suptitle("Pipe heat losses (January baseline)")
     fig.tight_layout()
 
-    stem = Path(args.outdir) / "fig4_pipe_losses"
-    for fmt in ("pdf", "svg", "png"):
-        fig.savefig(f"{stem}.{fmt}", dpi=300, bbox_inches="tight")
-        print(f"Saved: {stem}.{fmt}")
+    save_figure(fig, Path(args.outdir) / "fig4_pipe_losses")
     plt.close(fig)
 
-    # ── Per-pipe summary CSV ──────────────────────────────────────────────────
     rows = []
     for tag, df in [("L2", df_l2), ("L3", df_l3)]:
         for _, row in df.iterrows():
             rows.append({"level": tag, "pipe": row["pipe"],
                          "length_m": row["length_m"],
                          "heat_loss_MWh": round(row["loss_MWh"], 2)})
-    summary = pd.DataFrame(rows)
-    summary_path = Path(args.outdir) / "fig4_pipe_losses_summary.csv"
-    summary.to_csv(summary_path, index=False)
-    print(f"Saved: {summary_path}")
+    pd.DataFrame(rows).to_csv(Path(args.outdir) / "fig4_pipe_losses_summary.csv", index=False)
 
 
 if __name__ == "__main__":
