@@ -173,3 +173,31 @@ def test_storage_comparison_smoke(tmp_path):
 
     assert (tmp_path / "fig8_storage_soc.pdf").exists()
     assert (tmp_path / "fig8_storage_soc.png").exists()
+
+
+def test_co2_comparison_smoke(tmp_path):
+    for name, gas_t, grid_t, total in [
+        ("l1.json", 820.0, 380.0, 14_770_000),
+        ("l2.json", 825.0, 382.0, 14_810_000),
+        ("l3.json", 830.0, 385.0, 14_850_000),
+    ]:
+        data = {"PF": {
+            "CO2_gas_tonnes":  gas_t,
+            "CO2_grid_tonnes": grid_t,
+            "OBJ_value_EUR":   total,
+            "total_demand_MWh": 50_000.0,
+        }}
+        (tmp_path / name).write_text(json.dumps(data))
+
+    import plot_co2_comparison as pco2
+    importlib.reload(pco2)
+
+    sys.argv = ["prog",
+                "--l1", str(tmp_path / "l1.json"),
+                "--l2", str(tmp_path / "l2.json"),
+                "--l3", str(tmp_path / "l3.json"),
+                "--outdir", str(tmp_path)]
+    pco2.main()
+
+    assert (tmp_path / "figX_co2_comparison.pdf").exists()
+    assert (tmp_path / "figX_co2_comparison.png").exists()
