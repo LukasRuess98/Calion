@@ -230,3 +230,22 @@ def test_load_duration_smoke(tmp_path):
 
     assert (tmp_path / "figX_load_duration.pdf").exists()
     assert (tmp_path / "figX_load_duration.png").exists()
+
+
+def test_network_comparison_smoke(tmp_path):
+    import plot_network_comparison as pnc
+    importlib.reload(pnc)
+
+    _write_network_summary(tmp_path / "l2_summary.json", n_pipes=4,  base_loss=400)
+    _write_network_summary(tmp_path / "l3_summary.json", n_pipes=30, base_loss=180)
+    _write_dispatch_csv(tmp_path / "l1_demand.csv", n=8760)
+
+    sys.argv = ["prog",
+                "--l2-summary", str(tmp_path / "l2_summary.json"),
+                "--l3-summary", str(tmp_path / "l3_summary.json"),
+                "--l1-demand",  str(tmp_path / "l1_demand.csv"),
+                "--outdir", str(tmp_path)]
+    pnc.main()
+
+    assert (tmp_path / "figX_network_comparison.pdf").exists()
+    assert (tmp_path / "figX_network_comparison.png").exists()
