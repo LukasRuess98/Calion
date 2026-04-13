@@ -201,3 +201,14 @@ def test_co2_comparison_smoke(tmp_path):
 
     assert (tmp_path / "figX_co2_comparison.pdf").exists()
     assert (tmp_path / "figX_co2_comparison.png").exists()
+
+
+def test_network_topology_smoke(tmp_path):
+    import plot_network_topology as pnt
+    importlib.reload(pnt)
+
+    sys.argv = ["prog", "--outdir", str(tmp_path)]
+    pnt.main()
+
+    assert (tmp_path / "figX_network_topology.pdf").exists()
+    assert (tmp_path / "figX_network_topology.png").exists()
