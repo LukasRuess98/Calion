@@ -77,3 +77,37 @@ def test_dispatch_comparison_smoke(tmp_path):
 
     assert (tmp_path / "fig2_dispatch_comparison.pdf").exists()
     assert (tmp_path / "fig2_dispatch_comparison.png").exists()
+
+
+def _write_costs_json(path, grid=9_400_000, co2=4_200_000, total=14_770_000,
+                      demand_mwh=50_000.0):
+    data = {"PF": {
+        "Grid_energy_cost_EUR":   grid,
+        "Fuel_cost_EUR":          0.0,
+        "CO2_cost_EUR":           co2,
+        "Demand_charge_cost_EUR": 0.0,
+        "Dump_cost_EUR":          0.0,
+        "Capex_cost_EUR":         0.0,
+        "OBJ_value_EUR":          total,
+        "total_demand_MWh":       demand_mwh,
+    }}
+    Path(path).write_text(json.dumps(data))
+
+
+def test_cost_comparison_smoke(tmp_path):
+    import plot_cost_comparison as pcc
+    importlib.reload(pcc)
+
+    _write_costs_json(tmp_path / "l1.json", total=14_770_000)
+    _write_costs_json(tmp_path / "l2.json", total=14_810_000)
+    _write_costs_json(tmp_path / "l3.json", total=14_850_000)
+
+    sys.argv = ["prog",
+                "--l1", str(tmp_path / "l1.json"),
+                "--l2", str(tmp_path / "l2.json"),
+                "--l3", str(tmp_path / "l3.json"),
+                "--outdir", str(tmp_path)]
+    pcc.main()
+
+    assert (tmp_path / "fig3_cost_comparison.pdf").exists()
+    assert (tmp_path / "fig3_cost_comparison.png").exists()
