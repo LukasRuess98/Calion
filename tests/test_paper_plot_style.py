@@ -212,3 +212,21 @@ def test_network_topology_smoke(tmp_path):
 
     assert (tmp_path / "figX_network_topology.pdf").exists()
     assert (tmp_path / "figX_network_topology.png").exists()
+
+
+def test_load_duration_smoke(tmp_path):
+    import plot_load_duration as pld
+    importlib.reload(pld)
+
+    for tag in ("l1", "l2", "l3"):
+        _write_dispatch_csv(tmp_path / f"{tag}.csv", n=8760)
+
+    sys.argv = ["prog",
+                "--l1", str(tmp_path / "l1.csv"),
+                "--l2", str(tmp_path / "l2.csv"),
+                "--l3", str(tmp_path / "l3.csv"),
+                "--outdir", str(tmp_path)]
+    pld.main()
+
+    assert (tmp_path / "figX_load_duration.pdf").exists()
+    assert (tmp_path / "figX_load_duration.png").exists()
