@@ -139,3 +139,37 @@ def test_pipe_losses_smoke(tmp_path):
 
     assert (tmp_path / "fig4_pipe_losses.pdf").exists()
     assert (tmp_path / "fig4_pipe_losses.png").exists()
+
+
+def _write_soc_csv(path, n=8760):
+    rows = [
+        {
+            "timestamp":          i,
+            "TES_SOC_MWh":        230 + 20 * np.sin(i / 24 * 3.14),
+            "TES_charge_MW":      max(0.0, 5 * np.sin(i / 12 * 3.14)),
+            "TES_discharge_MW":   max(0.0, -5 * np.sin(i / 12 * 3.14)),
+        }
+        for i in range(n)
+    ]
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), delimiter=";")
+        w.writeheader()
+        w.writerows(rows)
+
+
+def test_storage_comparison_smoke(tmp_path):
+    import plot_storage_comparison as psc
+    importlib.reload(psc)
+
+    for tag in ("l1", "l2", "l3"):
+        _write_soc_csv(tmp_path / f"{tag}.csv")
+
+    sys.argv = ["prog",
+                "--l1", str(tmp_path / "l1.csv"),
+                "--l2", str(tmp_path / "l2.csv"),
+                "--l3", str(tmp_path / "l3.csv"),
+                "--outdir", str(tmp_path)]
+    psc.main()
+
+    assert (tmp_path / "fig8_storage_soc.pdf").exists()
+    assert (tmp_path / "fig8_storage_soc.png").exists()
