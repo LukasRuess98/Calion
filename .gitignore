@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 .DS_Store
+data/
 
 # Virtual environments
 HeatGrid/

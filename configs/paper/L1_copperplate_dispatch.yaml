@@ -128,7 +128,7 @@ costs:
 run:
   dt_h: 1.0                 # 1-hour timesteps (8,760 for full year)
   solver: appsi_highs       # HiGHS MILP solver
-  mip_gap: 0.01             # 1% MIP gap tolerance
+  mip_gap: 0.0001           # 0.01% MIP gap tolerance (paper runs)
   time_limit_s: 3600        # 1-hour max solve time
 
 # ── Notes ───────────────────────────────────────────────────────────────────

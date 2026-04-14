@@ -41,6 +41,12 @@ from calion.run.workflow import run_workflow  # noqa: E402
 DEFAULT_CONFIG = "configs/paper/L2_simplified_dispatch.yaml"
 DEFAULT_OUTPUT = ROOT / "outputs" / "paper_uncertainty"
 
+LEVEL_CONFIGS = {
+    "L1": ["configs/paper/L1_copperplate_dispatch.yaml"],
+    "L2": ["configs/paper/L2_simplified_dispatch.yaml"],
+    "L3": ["configs/paper/L3_detailed_dispatch.yaml"],
+}
+
 
 @dataclass
 class ScenarioSpec:
@@ -320,6 +326,108 @@ def run_named_scenarios(
     }
 
 
+def run_scenarios_all_levels(output_dir: Path) -> None:
+    """Run scenario matrix at L1/L2/L3 and export combined table."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    scenarios = create_paper_scenarios()
+
+    level_rows: dict[str, dict[str, dict[str, float]]] = {}
+    for level, config_paths in LEVEL_CONFIGS.items():
+        level_outdir = output_dir / level
+        result = run_named_scenarios(config_paths, level_outdir, scenarios)
+        # Index rows by scenario name for easy lookup
+        level_rows[level] = {row["scenario"]: row for row in result["rows"]}
+
+    # Build combined table
+    combined: list[dict] = []
+    for spec in scenarios:
+        sname = spec.name
+        row_l1 = level_rows.get("L1", {}).get(sname, {})
+        row_l2 = level_rows.get("L2", {}).get(sname, {})
+        row_l3 = level_rows.get("L3", {}).get(sname, {})
+
+        l1_cost = float(row_l1.get("objective_eur") or 0.0)
+        l2_cost = float(row_l2.get("objective_eur") or 0.0)
+        l3_cost = float(row_l3.get("objective_eur") or 0.0)
+
+        l1_co2 = float(row_l1.get("co2_total_t") or 0.0)
+        l2_co2 = float(row_l2.get("co2_total_t") or 0.0)
+        l3_co2 = float(row_l3.get("co2_total_t") or 0.0)
+
+        def _gap(lx: float, l3: float) -> float | None:
+            return (lx - l3) / l3 * 100.0 if l3 else None
+
+        combined.append({
+            "scenario": sname,
+            "description": spec.description,
+            "L1_cost_eur": l1_cost,
+            "L2_cost_eur": l2_cost,
+            "L3_cost_eur": l3_cost,
+            "L1_co2_t": l1_co2,
+            "L2_co2_t": l2_co2,
+            "L3_co2_t": l3_co2,
+            "L1_L3_cost_gap_pct": _gap(l1_cost, l3_cost),
+            "L2_L3_cost_gap_pct": _gap(l2_cost, l3_cost),
+            "L1_L3_co2_gap_pct": _gap(l1_co2, l3_co2),
+            "L2_L3_co2_gap_pct": _gap(l2_co2, l3_co2),
+        })
+
+    # --- CSV export ---
+    csv_path = ROOT / "outputs" / "paper" / "scenarios" / "scenario_matrix_all_levels.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_fieldnames = [
+        "scenario", "description",
+        "L1_cost_eur", "L2_cost_eur", "L3_cost_eur",
+        "L1_co2_t", "L2_co2_t", "L3_co2_t",
+        "L1_L3_cost_gap_pct", "L2_L3_cost_gap_pct",
+        "L1_L3_co2_gap_pct", "L2_L3_co2_gap_pct",
+    ]
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=csv_fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(combined)
+
+    # --- Markdown export ---
+    md_path = ROOT / "outputs" / "paper" / "scenarios" / "scenario_matrix_all_levels.md"
+    header = (
+        "| Scenario | Description"
+        " | L1 Cost [EUR] | L2 Cost [EUR] | L3 Cost [EUR]"
+        " | L1 CO2 [t] | L2 CO2 [t] | L3 CO2 [t]"
+        " | L1-L3 Cost [%] | L2-L3 Cost [%]"
+        " | L1-L3 CO2 [%] | L2-L3 CO2 [%] |"
+    )
+    sep = "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+    lines = ["# Scenario Matrix — All Levels", "", header, sep]
+    for row in combined:
+        def _fmt_pct(v: float | None) -> str:
+            return f"{v:+.1f}" if v is not None else "n/a"
+
+        lines.append(
+            "| {scenario} | {description}"
+            " | {l1c:.0f} | {l2c:.0f} | {l3c:.0f}"
+            " | {l1e:.1f} | {l2e:.1f} | {l3e:.1f}"
+            " | {g1c} | {g2c}"
+            " | {g1e} | {g2e} |".format(
+                scenario=row["scenario"],
+                description=row["description"],
+                l1c=row["L1_cost_eur"],
+                l2c=row["L2_cost_eur"],
+                l3c=row["L3_cost_eur"],
+                l1e=row["L1_co2_t"],
+                l2e=row["L2_co2_t"],
+                l3e=row["L3_co2_t"],
+                g1c=_fmt_pct(row["L1_L3_cost_gap_pct"]),
+                g2c=_fmt_pct(row["L2_L3_cost_gap_pct"]),
+                g1e=_fmt_pct(row["L1_L3_co2_gap_pct"]),
+                g2e=_fmt_pct(row["L2_L3_co2_gap_pct"]),
+            )
+        )
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+
+    print(f"All-levels CSV:      {csv_path}")
+    print(f"All-levels Markdown: {md_path}")
+
+
 def run_co2_resolution_baseline(config_paths: list[str], output_dir: Path) -> dict[str, str] | None:
     """Run CO2 resolution analysis for the baseline scenario if data are available."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -375,12 +483,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip CO2 temporal-resolution analysis.",
     )
+    parser.add_argument(
+        "--all-levels",
+        action="store_true",
+        help="Run scenario matrix at L1, L2, and L3 and export a combined comparison table.",
+    )
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.all_levels:
+        run_scenarios_all_levels(DEFAULT_OUTPUT / "scenarios_all_levels")
+        return 0
 
     config_paths = args.configs or [DEFAULT_CONFIG]
     output_dir = Path(args.output_dir)

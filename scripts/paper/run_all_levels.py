@@ -25,9 +25,7 @@ logger = get_logger(__name__)
 CONFIGS = [
     ("L1", "configs/paper/L1_copperplate_dispatch.yaml"),
     ("L2", "configs/paper/L2_simplified_dispatch.yaml"),
-    # ("L3", "configs/paper/L3_detailed_dispatch.yaml"),
-    # NOTE: L3 temporarily disabled due to pre-solve infeasibility (known issue with scale)
-    # Will be re-enabled after constraint review
+    ("L3", "configs/paper/L3_detailed_dispatch.yaml"),
 ]
 OUTPUT_BASE = ROOT / "outputs" / "paper"
 

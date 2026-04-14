@@ -200,7 +200,7 @@ costs:
 run:
   dt_h: 1.0
   solver: appsi_highs
-  mip_gap: 0.01
+  mip_gap: 0.0001           # 0.01% MIP gap tolerance (paper runs)
   time_limit_s: 3600
 
 # ── Notes ───────────────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent))
 from ecm_style import (
     apply_ecm_style, save_figure,
-    SINGLE_COL_W, H_TALL,
+    SINGLE_COL_W, DOUBLE_COL_W, H_TALL, H_STANDARD,
     C_L1, C_L2, C_L3,
 )
 
@@ -56,6 +56,91 @@ def _monthly_avg(series: pd.Series) -> np.ndarray:
     block = max(1, len(series) // 12)
     return np.array([series.iloc[i * block:(i + 1) * block].mean()
                      for i in range(12)])
+
+
+def _select_week(df: pd.DataFrame, month: int, fallback_start: int) -> pd.DataFrame:
+    """Return a 168-row slice (one week) for the given month.
+
+    If the index is a DatetimeIndex, find the first full Monday–Sunday in
+    *month*. Otherwise fall back to a fixed hourly offset.
+    """
+    if isinstance(df.index, pd.DatetimeIndex):
+        # Restrict to the target month across all years present
+        in_month = df[df.index.month == month]
+        if not in_month.empty:
+            # Find the first Monday inside that month
+            for ts in in_month.index:
+                if ts.dayofweek == 0:  # Monday
+                    week_slice = df.loc[ts: ts + pd.Timedelta(hours=167)]
+                    if len(week_slice) == 168:
+                        return week_slice.reset_index(drop=True)
+    # Fallback: fixed hourly window
+    end = min(fallback_start + 168, len(df))
+    return df.iloc[fallback_start:end].reset_index(drop=True)
+
+
+def _shade_nights(ax, n_hours: int = 168) -> None:
+    """Add thin grey shading for nighttime hours (22:00–06:00) each day."""
+    for day in range(7):
+        night_start = day * 24 + 22
+        night_end   = (day + 1) * 24 + 6
+        ax.axvspan(night_start, min(night_end, n_hours),
+                   color="#cccccc", alpha=0.25, linewidth=0)
+
+
+def plot_weekly_soc(dfs: dict, outdir: "Path") -> None:
+    """Two-panel figure: coldest week (Jan) left, warmest week (Jul) right.
+    Overlay L1 (blue) and L3 (green) SOC. Include L2 if data available."""
+    # Check which levels have SOC data
+    available = {tag: df for tag, df in dfs.items()
+                 if tag in ("L1", "L2", "L3") and SOC_COL in df.columns
+                 and df[SOC_COL].abs().sum() > 0}
+
+    if "L1" not in available or "L3" not in available:
+        print("  [weekly SOC] L1 and L3 are required — skipping figure.")
+        return
+
+    # Select weeks: January (cold) and July (warm)
+    # Fallback offsets: hour 0 (Jan) and hour 4320 (~June start)
+    weeks_cold = {tag: _select_week(df, month=1,  fallback_start=0)
+                  for tag, df in available.items()}
+    weeks_warm = {tag: _select_week(df, month=7, fallback_start=4320)
+                  for tag, df in available.items()}
+
+    hours = np.arange(168)
+    day_ticks = np.arange(0, 168, 24)
+    day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    fig, (ax_cold, ax_warm) = plt.subplots(1, 2, figsize=(DOUBLE_COL_W, H_STANDARD))
+    fig.subplots_adjust(wspace=0.28)
+
+    # Determine plot order: L1, L2 (optional), L3
+    plot_order = [t for t in ("L1", "L2", "L3") if t in available]
+
+    for ax, weeks, title in (
+        (ax_cold, weeks_cold, "Winter week (January)"),
+        (ax_warm, weeks_warm, "Summer week (July)"),
+    ):
+        _shade_nights(ax)
+        for tag in plot_order:
+            week = weeks[tag]
+            n = min(168, len(week))
+            ax.plot(hours[:n], week[SOC_COL].values[:n],
+                    color=COLORS[tag], linewidth=1.4, label=LABELS[tag])
+        ax.set_xlim(0, 167)
+        ax.set_xticks(day_ticks)
+        ax.set_xticklabels(day_labels)
+        ax.set_xlabel("Day of week")
+        ax.set_ylabel("Storage SOC [MWh]")
+        ax.set_title(title)
+        ax.grid(True, axis="y")
+
+    # Legend on right panel only
+    ax_warm.legend(loc="upper right")
+
+    fig.tight_layout()
+    save_figure(fig, outdir / "fig_storage_weekly_soc")
+    plt.close(fig)
 
 
 def main():
@@ -126,6 +211,8 @@ def main():
     fig.tight_layout()
     save_figure(fig, Path(args.outdir) / "fig8_storage_soc")
     plt.close(fig)
+
+    plot_weekly_soc(dfs, Path(args.outdir))
 
     # Console summary
     print("\n-- Storage metrics ----------------------------------------")

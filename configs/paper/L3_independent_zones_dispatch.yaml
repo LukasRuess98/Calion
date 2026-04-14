@@ -185,12 +185,13 @@ network:
 
   # ── Pipe Network (IDENTICAL TO L3_detailed_dispatch) ────────────────────
   pipes:
-    # Main trunk: plant → central junction (3,200 m @ Ø500mm)
+    # Main trunk: plant → central junction (3,200 m @ Ø600mm)
+    # Sized for 76 MW peak demand: 600mm gives ~91 MW capacity at 2.5 m/s
     plant_to_central:
       from: plant_main
       to: j_central
       length_m: 3200
-      diameter_mm: 500
+      diameter_mm: 600
 
     # Branch spreaders: central → branch junctions (800–900 m each @ Ø350mm)
     central_to_north:
