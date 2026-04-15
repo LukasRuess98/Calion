@@ -296,7 +296,7 @@ class ModelFinalizer:
                 "return_temp_nominal_c": ucfg.physics.return_temp_c,
                 "ground_temp_default_c": ucfg.physics.ground_temp_c,
             },
-            "milp_linearize": True,
+            "milp_linearize": self.cfg.get('thermal_network', {}).get('milp_linearize', False),
         }
 
     def _integrate_network_legacy(self) -> None:
