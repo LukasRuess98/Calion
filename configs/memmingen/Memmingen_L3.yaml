@@ -30,7 +30,7 @@
 #   Boiler:        200 MW gas, η = 0.90
 #   CHP:           20 MW (elec)
 #   Heat pump:     100 MW thermal
-#   Storage:       500 MWh / 50 MW
+#   Storage:       5000 MWh / 50 MW
 #   Heat losses:   ~26 GWh/year
 #
 # SETUP:
@@ -216,152 +216,152 @@ network:
       from: E_1
       to: V_1
       length_m: 800
-      diameter_mm: 500
+      diameter_mm: 5000
     E1_to_V2:
       from: E_1
       to: V_2
       length_m: 600
-      diameter_mm: 500
+      diameter_mm: 5000
     # ── Verzweigung von j_1 ───────────────────────────────────────────────
     j1_to_V_2:
       from: V_2
       to: j_1
       length_m: 550
-      diameter_mm: 500
+      diameter_mm: 5000
     j1_to_j5:
       from: j_1
       to: j_5
       length_m: 700
-      diameter_mm: 500
+      diameter_mm: 5000
     j1_to_j2:
       from: j_1
       to: j_2
       length_m: 700
-      diameter_mm: 500
+      diameter_mm: 5000
     j1_to_V3:
       from: j_1
       to: V_3
       length_m: 700
-      diameter_mm: 500      
+      diameter_mm: 5000      
 
     # ── Zweig j_2: V_1 – V_4 ──────────────────────────────────────────────
     j2_to_V4:
       from: j_2
       to: V_4
       length_m: 200
-      diameter_mm: 500
+      diameter_mm: 5000
     j2_to_V5:
       from: j_2
       to: V_5
       length_m: 180
-      diameter_mm: 500
+      diameter_mm: 5000
     j2_to_V6:
       from: j_2
       to: V_6
       length_m: 220
-      diameter_mm: 500
+      diameter_mm: 5000
     j2_to_V7:
       from: j_2
       to: V_7
       length_m: 220
-      diameter_mm: 500
+      diameter_mm: 5000
     j2_to_j3:
       from: j_2
       to: j_3
       length_m: 250
-      diameter_mm: 500
+      diameter_mm: 5000
 
     # ── Zweig j_3:  ──────────────────────────────────────────────
     j3_to_V8:
       from: j_3
       to: V_8
       length_m: 240
-      diameter_mm: 500
+      diameter_mm: 5000
     j3_to_V9:
       from: j_3
       to: V_9
       length_m: 190
-      diameter_mm: 500
+      diameter_mm: 5000
     j3_to_j4:
       from: j_3
       to: j_4
       length_m: 200
-      diameter_mm: 500
+      diameter_mm: 5000
     # ── Zweig j_4: V_9 – V_12 ─────────────────────────────────────────────
     j4_to_V10:
       from: j_4
       to: V_10
       length_m: 230
-      diameter_mm: 500
+      diameter_mm: 5000
     j4_to_V11:
       from: j_4
       to: V_11
       length_m: 180
-      diameter_mm: 500
+      diameter_mm: 5000
     j4_to_V12:
       from: j_4
       to: V_12
       length_m: 260
-      diameter_mm: 500
+      diameter_mm: 5000
     j4_to_V13:
       from: j_4
       to: V_13
       length_m: 260
-      diameter_mm: 500
+      diameter_mm: 5000
   # ── Zweig V_13 V_14: ────────────────────────────────────────────
     V13_to_V14:
       from: V_13
       to: V_14
       length_m: 150
-      diameter_mm: 500
+      diameter_mm: 5000
     # ── Zweig j_5: ────────────────────────────────────────────
     j5_to_V15:
       from: j_5
       to: V_15
       length_m: 140
-      diameter_mm: 500
+      diameter_mm: 5000
     j5_to_V16:
       from: j_5
       to: V_16
       length_m: 190
-      diameter_mm: 500
+      diameter_mm: 5000
     j5_to_V17:
       from: j_5
       to: V_17
       length_m: 160
-      diameter_mm: 500
+      diameter_mm: 5000
     # ── Zweig V_17 V_18: ───────────────────────────────────────────
     V17_to_V18:
       from: V_17
       to: V_18
       length_m: 200
-      diameter_mm: 500
+      diameter_mm: 5000
     # ── Zweig j_6: ───────────────────────────────────────────
     V18_to_j6:
       from: V_18
       to: j_6
       length_m: 160
-      diameter_mm: 500
+      diameter_mm: 5000
     j6_to_V19:
       from: j_6
       to: V_19
       length_m: 180
-      diameter_mm: 500
+      diameter_mm: 5000
     j6_to_V20:
       from: j_6
       to: V_20
       length_m: 130
-      diameter_mm: 500
+      diameter_mm: 5000
     j6_to_V21:
       from: j_6
       to: V_21
       length_m: 140
-      diameter_mm: 500
+      diameter_mm: 5000
     j6_to_j7:
       from: j_6
       to: j_7
       length_m: 200
-      diameter_mm: 500
+      diameter_mm: 5000
 
 
     # ── Zweig j_7: ────────────────────────────────────────────
@@ -369,32 +369,32 @@ network:
       from: j_7
       to: V_22
       length_m: 145
-      diameter_mm: 500
+      diameter_mm: 5000
     j7_to_V23:
       from: j_7
       to: V_23
       length_m: 170
-      diameter_mm: 500
+      diameter_mm: 5000
     j7_to_V24:
       from: j_7
       to: V_24
       length_m: 150
-      diameter_mm: 500
+      diameter_mm: 5000
     j7_to_V25:
       from: j_7
       to: V_25
       length_m: 190
-      diameter_mm: 500  
+      diameter_mm: 5000  
     V25_to_V26:
       from: V_25
       to: V_26
       length_m: 140
-      diameter_mm: 500
+      diameter_mm: 5000
     j7_to_V27:
       from: j_7
       to: V_27
       length_m: 165
-      diameter_mm: 500
+      diameter_mm: 5000
 
 # ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L3) ──────────────────────────
 
@@ -403,12 +403,12 @@ assets:
   boiler_main:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 200.0
-    min_load: 0.05
+    capacity_mw: 20000
+    min_load: 0
     thermal_efficiency: 0.90
   tes_main:
     type: storage
-    energy_capacity_mwh: 500.0
+    energy_capacity_mwh: 5000.0
     power_capacity_mw: 50.0
     charge_efficiency: 0.95
     discharge_efficiency: 0.95
@@ -444,14 +444,24 @@ run:
   time_limit_s: 3600
   load_solutions: false      # Prevents RuntimeError on infeasibility
   
-  # Logging options
-  log_to_file: true          # Enable/disable file logging
-  verbose_logging: false     # Also print diagnosis to console
+  # ── Logging & Diagnose ──
+  log_to_file: true          # Log-Datei erstellen (solver_*.log)
+  verbose_logging: true      # ← ÄNDERN: Diagnose auch auf Konsole ausgeben
+  
+  # ── Gurobi-spezifische Optionen ──
+  solver_options:
+    OutputFlag: 1            # Gurobi Konsolenausgabe (0=aus, 1=an)
+    LogToConsole: 1          # Solver-Fortschritt anzeigen
+    # MIPFocus: 1            # Optional: 1=feasibility, 2=optimality, 3=bound
+    # Presolve: 2            # Optional: Aggressives Presolve
+    # NumericFocus: 1        # Optional: Bei numerischen Problemen
 
+
+# ── OUTPUT SETTINGS ─────────────────────────────────────────────────────────
 
 output:
-  log_dir: "output/logs"     # Directory for log files
-  export_dir: "output/results"
+  log_dir: "output/logs"              # Diagnose-Logs & IIS-Dateien
+  export_dir: "output/results"        # Ergebnis-Export
   export_thermal_network: true
   export_solver_solution: true
 
