@@ -114,7 +114,6 @@ def _diagnose_infeasibility(
     def log(msg: str):
         """Interne Log-Funktion - sammelt Zeilen und gibt optional auf Konsole aus."""
         lines.append(msg)
-        # NICHT logger.info() verwenden - das geht auf Konsole!
         if verbose:
             print(msg)
     
@@ -391,16 +390,22 @@ def _solve_scenario(
         # Log solver start
         _log_solver_start(log_file, cfg, solver_name, verbose=verbose)
         
-        # Warn if nonlinear model is paired with an LP/MILP-only solver
-        milp_linearize = cfg.get('thermal_network', {}).get('milp_linearize', False)
+        # ══════════════════════════════════════════════════════════════════
+        # FIXED: Check milp_linearize from multiple possible YAML locations
+        # ══════════════════════════════════════════════════════════════════
+        milp_linearize = (
+            cfg.get('thermal_network', {}).get('milp_linearize', False) or
+            cfg.get('network', {}).get('physics', {}).get('milp_linearize', False) or
+            cfg.get('scenario', {}).get('milp_linearize', False)
+        )
+        
         lp_only_solvers = ('highs', 'appsi_highs', 'cbc', 'glpk')
         if not milp_linearize and any(s in solver_name.lower() for s in lp_only_solvers):
             warning_msg = (
                 f"WARNING: milp_linearize is False but solver '{solver_name}' only supports LP/MILP. "
                 "Bilinear terms (m_dot * T) will cause solver failure. "
-                "Set thermal_network.milp_linearize: true in your config."
+                "Set thermal_network.milp_linearize: true OR network.physics.milp_linearize: true in your config."
             )
-            # NUR in Log-Datei, NICHT auf Konsole (außer verbose)
             _write_log(log_file, warning_msg, verbose=verbose)
 
         solver_used = solver_name
@@ -453,7 +458,53 @@ def _solve_scenario(
         # Log result
         _log_solver_result(log_file, solver_meta, elapsed_time, verbose=verbose)
 
-        # Export thermal network results
+        # ══════════════════════════════════════════════════════════════════
+        # FIXED: Check termination condition BEFORE exporting!
+        # ══════════════════════════════════════════════════════════════════
+        term_cond = solver_meta["termination_condition"].lower()
+        
+        # Bei Infeasibility: NICHT exportieren, Diagnose starten und Return
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            error_msg = (
+                f"ERROR: Solver returned {solver_meta['status']}. Model is {term_cond}. "
+                "Check constraints: heat balance, storage limits, terminal policy."
+            )
+            _write_log(log_file, error_msg, verbose=verbose)
+            
+            # Run infeasibility diagnosis
+            _diagnose_infeasibility(
+                model, 
+                solver_result, 
+                log_file=log_file,
+                verbose=verbose
+            )
+            
+            # Return OHNE Export (keine Lösung vorhanden!)
+            series, summary, costs = _collect_timeseries_and_summary(
+                table, cfg, dt_h, None  # None = kein Modell = keine Werte
+            )
+            return ScenarioResult(table, series, summary, costs, solver_meta)
+        
+        # ══════════════════════════════════════════════════════════════════
+        # NUR bei Erfolg: Lösung laden
+        # ══════════════════════════════════════════════════════════════════
+        if not load_solutions:
+            try:
+                model.solutions.load_from(solver_result)
+                _write_log(log_file, "Solution loaded successfully", verbose=verbose)
+            except Exception as e:
+                _write_log(log_file, f"WARNING: Could not load solution: {e}", verbose=verbose)
+                # Return ohne Export wenn Lösung nicht geladen werden konnte
+                series, summary, costs = _collect_timeseries_and_summary(
+                    table, cfg, dt_h, None
+                )
+                solver_meta["status"] = "error"
+                solver_meta["termination_condition"] = f"solution_load_failed: {e}"
+                return ScenarioResult(table, series, summary, costs, solver_meta)
+
+        # ══════════════════════════════════════════════════════════════════
+        # NUR bei Erfolg: Export (Lösung existiert garantiert)
+        # ══════════════════════════════════════════════════════════════════
         export_cfg = cfg.get('output', {})
         if export_cfg.get('export_thermal_network', True) or export_cfg.get('export_solver_solution', True):
             try:
@@ -477,7 +528,6 @@ def _solve_scenario(
                 export_files = export_result.get('files', {})
                 network_data = export_result.get('data', {}).get('network', {})
 
-                # NUR in Log-Datei
                 _write_log(log_file, f"Exported {len(export_files)} files to {export_dir}", verbose=verbose)
 
                 solver_meta['export_files'] = export_files
@@ -486,37 +536,6 @@ def _solve_scenario(
 
             except Exception as e:
                 _write_log(log_file, f"WARNING: Export failed: {e}", verbose=verbose)
-
-        # Check termination condition
-        term_cond = solver_meta["termination_condition"].lower()
-        
-        if "infeasible" in term_cond or "unbounded" in term_cond:
-            error_msg = (
-                f"ERROR: Solver returned {solver_meta['status']}. Model is {term_cond}. "
-                "Check constraints: heat balance, storage limits, terminal policy."
-            )
-            _write_log(log_file, error_msg, verbose=verbose)
-            
-            # Run infeasibility diagnosis - NUR in Log-Datei (außer verbose)
-            _diagnose_infeasibility(
-                model, 
-                solver_result, 
-                log_file=log_file,
-                verbose=verbose
-            )
-            
-            series, summary, costs = _collect_timeseries_and_summary(
-                table, cfg, dt_h, None
-            )
-            return ScenarioResult(table, series, summary, costs, solver_meta)
-        
-        # Load solution manually if load_solutions=False
-        if not load_solutions:
-            try:
-                model.solutions.load_from(solver_result)
-                _write_log(log_file, "Solution loaded successfully", verbose=verbose)
-            except Exception as e:
-                _write_log(log_file, f"WARNING: Could not load solution: {e}", verbose=verbose)
         
         # Log success
         _write_log(log_file, f"\nSolver completed successfully in {elapsed_time:.2f}s", verbose=verbose)
