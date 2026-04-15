@@ -141,46 +141,64 @@ class ThermalNodeBlock(BaseComponent):
         return_temp_min = 30
         return_temp_max = max(90, return_temp_c + 20)
 
-        # T_supply: Var by default, but fixed Param in MILP-linearized mode
         milp_linearize_temp = config.get('milp_linearize', False)
+        _node_milp_temps = None  # populated below if MILP mode; used by heat_demand later
 
-        if milp_linearize_temp and node_type in ('consumer', 'junction'):
-            # MILP mode: fix supply temperature to nominal value → eliminates bilinear products
+        if milp_linearize_temp:
+            # MILP mode: both T_supply and T_return are load-dependent Params
+            from .temperature_linearization import build_temperatures
+            _lin_cfg = config.get('linearization', {})
+            _demand_series = config.get('demand_series', {t: 0.0 for t in time_set})
+            _peak_demand_mw = config.get('peak_demand_mw', 1.0)
+            if _peak_demand_mw <= 0:
+                _peak_demand_mw = 1.0
+            _node_milp_temps = build_temperatures(
+                _lin_cfg.get('method', 'fixed'),
+                _lin_cfg,
+                _demand_series,
+                _peak_demand_mw,
+                supply_temp_nominal_c,
+                return_temp_c,
+                time_set,
+            )
             setattr(model, f'{prefix}_T_supply',
-                    pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
+                    pyo.Param(time_set, initialize=lambda m, t: _node_milp_temps[t][0], mutable=True))
+            setattr(model, f'{prefix}_T_return',
+                    pyo.Param(time_set, initialize=lambda m, t: _node_milp_temps[t][1], mutable=True))
         else:
+            # Non-MILP: T_supply is Var; T_return is Param or Var depending on config
             setattr(model, f'{prefix}_T_supply',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
                            bounds=(supply_temp_min, supply_temp_max)))
+
+            return_temp_profile = config.get('return_temp_profile', None)
+            return_temp_range = config.get('return_temp_range', None)
+            return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
+
+            if node_type == 'consumer' and return_temp_profile is not None:
+                # Explicit time-varying profile → Param
+                def return_temp_init(m, t):
+                    return return_temp_profile.get(t, return_temp_c)
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Param(time_set, initialize=return_temp_init, mutable=True))
+                logger.info(
+                    f"    Node {node_id}: using return temp profile "
+                    f"(range: {min(return_temp_profile.values()):.1f}-"
+                    f"{max(return_temp_profile.values()):.1f}°C)"
+                )
+            elif node_type == 'consumer' and return_temp_range is None and return_temp_load_factor == 0:
+                # Constant return temperature → Param
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Param(time_set, initialize=return_temp_c, mutable=True))
+            else:
+                # Variable return temperature (load-dependent or all non-consumer nodes)
+                T_ret_min = return_temp_range[0] if return_temp_range else return_temp_min
+                T_ret_max = return_temp_range[1] if return_temp_range else return_temp_max
+                setattr(model, f'{prefix}_T_return',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                               bounds=(T_ret_min, T_ret_max)))
+
         T_supply = getattr(model, f'{prefix}_T_supply')
-
-        # T_return: Param for constant consumer return temps, Var otherwise
-        return_temp_profile = config.get('return_temp_profile', None)
-        return_temp_range = config.get('return_temp_range', None)
-        return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
-
-        if node_type == 'consumer' and return_temp_profile is not None:
-            # Explicit time-varying profile → Param
-            def return_temp_init(m, t):
-                return return_temp_profile.get(t, return_temp_c)
-            setattr(model, f'{prefix}_T_return',
-                    pyo.Param(time_set, initialize=return_temp_init, mutable=True))
-            logger.info(
-                f"    Node {node_id}: using return temp profile "
-                f"(range: {min(return_temp_profile.values()):.1f}-"
-                f"{max(return_temp_profile.values()):.1f}°C)"
-            )
-        elif node_type == 'consumer' and return_temp_range is None and return_temp_load_factor == 0:
-            # Constant return temperature → Param
-            setattr(model, f'{prefix}_T_return',
-                    pyo.Param(time_set, initialize=return_temp_c, mutable=True))
-        else:
-            # Variable return temperature (load-dependent or all non-consumer nodes)
-            T_ret_min = return_temp_range[0] if return_temp_range else return_temp_min
-            T_ret_max = return_temp_range[1] if return_temp_range else return_temp_max
-            setattr(model, f'{prefix}_T_return',
-                    pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                           bounds=(T_ret_min, T_ret_max)))
         T_return = getattr(model, f'{prefix}_T_return')
 
         # Pressure variables — always Var, values propagated by network_manager
@@ -355,13 +373,12 @@ class ThermalNodeBlock(BaseComponent):
                     f"heat_demand constraint skipped (enforced via Q_consumer)"
                 )
             elif milp_linearize:
-                # MILP passthrough consumer: still needs m_dot_demand for mass balance
-                dT_nominal = supply_temp_nominal_c - return_temp_c
-                if dT_nominal <= 0:
-                    dT_nominal = 35.0  # safe fallback
-
-                def heat_demand_rule_milp(m, t):
-                    return m_dot_demand[t] == Q_demand[t] * 1000 / (cp_water * dT_nominal)
+                # MILP passthrough consumer: use load-specific ΔT from build_temperatures
+                def heat_demand_rule_milp(m, t, _temps=_node_milp_temps):
+                    dT = _temps[t][0] - _temps[t][1]
+                    if dT <= 0:
+                        dT = 35.0  # safe fallback (should never happen after build-time validation)
+                    return m_dot_demand[t] == Q_demand[t] * 1000 / (cp_water * dT)
 
                 setattr(model, f'{prefix}_heat_demand',
                         pyo.Constraint(time_set, rule=heat_demand_rule_milp))
