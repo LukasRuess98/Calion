@@ -512,8 +512,13 @@ class NetworkManager:
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
-        # Propagate milp_linearize flag from thermal_network config
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+        # Propagate flags from thermal_network config
+        tn_cfg = self.config.get('thermal_network', {})
+        milp_linearize = tn_cfg.get('milp_linearize', False)
+        physics_cfg = tn_cfg.get('physics', {})
+        pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
+        network_cfg = self.config.get('network', {})
+        delta_p_min_consumer = network_cfg.get('delta_p_min_consumer_bar', 0.5)
 
         node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
@@ -526,7 +531,9 @@ class NetworkManager:
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
                 'milp_linearize': milp_linearize,
-                'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
+                'pressure_drop_enabled': pressure_drop_enabled,
+                'delta_p_min_consumer_bar': delta_p_min_consumer,
+                'state_validation': self.config.get('state_validation', {}),
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
@@ -981,58 +988,61 @@ class NetworkManager:
     def _link_pump_head(
         self, model, time_set, pipe_components: dict, node_components: dict
     ) -> list:
-        """Link pump head to nodal pressure balance and collect P_pump for el bus.
+        """Add pump-head variable per producer and collect P_pump refs for the el bus.
 
-        For each pipe with pump_enabled=True:
-          p_return_from[t] = p_supply_from[t] - delta_p_supply[t] - delta_p_return[t]
+        Correct pump-head model for branching networks:
+        - One pump_head[t] variable per producer: pump_head[t] = P_supply[t] - P_return[t]
+        - The pump must overcome the highest-resistance (critical) path.
+        - Excess pressure at shorter paths is absorbed by consumer control valves
+          (delta_p_valve added in ThermalNodeBlock for each consumer).
+
+        The old per-pipe constraint
+            p_return[producer,t] = p_supply[producer,t] - ΔP_supply[pipe,t] - ΔP_return[pipe,t]
+        was wrong: it forces equal pressure drop on EVERY pipe from the producer,
+        making branched networks infeasible whenever pipe flows differ.
 
         Returns list of P_pump variable references for electricity bus.
         """
         logger.info("\nSetting up pump head constraints...")
         pump_el_flows = []
 
-        for pipe_id, pipe_comp in pipe_components.items():
-            if not pipe_comp.get('pump_enabled', False):
+        # One pump_head variable + definition per producer node
+        for node_id, node_comp in node_components.items():
+            if node_comp['type'] != 'producer':
                 continue
 
-            P_pump = pipe_comp.get('P_pump')
-            if P_pump is None:
-                continue
+            prefix = node_id.upper().replace('-', '_')
+            P_supply = node_comp['pressure_supply']
+            P_return = node_comp['pressure_return']
 
-            from_node = pipe_comp['from_node']
-            if from_node not in node_components:
-                continue
+            pump_head_var = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 25.0))
+            setattr(model, f'{prefix}_pump_head', pump_head_var)
 
-            # Only link pump head at producer (from) nodes
-            if node_components[from_node]['type'] != 'producer':
-                continue
-
-            pipe_prefix = pipe_comp.get('prefix', pipe_id.upper().replace('-', '_'))
-            delta_p_supply = getattr(model, f"{pipe_prefix}_delta_p_supply", None)
-            delta_p_return = getattr(model, f"{pipe_prefix}_delta_p_return", None)
-
-            if delta_p_supply is None or delta_p_return is None:
-                logger.warning(f"  ⚠ {pipe_id}: pressure drop vars missing, skipping pump head")
-                continue
-
-            from_P_supply = node_components[from_node]['pressure_supply']
-            from_P_return = node_components[from_node]['pressure_return']
-
-            # p_return[t] = p_supply[t] - ΔP_supply[t] - ΔP_return[t]
             setattr(
                 model,
-                f"pump_head_{pipe_id}",
+                f'{prefix}_pump_head_def',
                 pyo.Constraint(
                     time_set,
-                    rule=lambda m, t,
-                        _ps=from_P_supply, _pr=from_P_return,
-                        _dps=delta_p_supply, _dpr=delta_p_return: (
-                        _pr[t] == _ps[t] - _dps[t] - _dpr[t]
+                    rule=lambda m, t, _ps=P_supply, _pr=P_return, _ph=pump_head_var: (
+                        _ph[t] == _ps[t] - _pr[t]
                     ),
                 ),
             )
-            pump_el_flows.append(P_pump)
-            logger.info(f"  ✓ {pipe_id}: pump head constraint added (from_node={from_node})")
+            logger.info(
+                f"  ✓ Producer {node_id}: pump_head[t] = P_supply[t] - P_return[t] (bounds 0–25 bar)"
+            )
+
+        # Collect per-pipe P_pump refs for electricity bus (pump power computed in pipe_pair.py)
+        for pipe_id, pipe_comp in pipe_components.items():
+            if not pipe_comp.get('pump_enabled', False):
+                continue
+            P_pump = pipe_comp.get('P_pump')
+            if P_pump is None:
+                continue
+            from_node = pipe_comp.get('from_node')
+            if from_node and node_components.get(from_node, {}).get('type') == 'producer':
+                pump_el_flows.append(P_pump)
+                logger.info(f"  ✓ {pipe_id}: P_pump registered for el bus")
 
         logger.info(f"  Total pump power flows registered: {len(pump_el_flows)}")
         return pump_el_flows

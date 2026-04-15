@@ -12,6 +12,7 @@ __pycache__/
 data/
 .HeatGrid
 .venv
+.output
 
 # Virtual environments
 HeatGrid/

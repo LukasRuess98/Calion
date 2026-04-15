@@ -196,6 +196,8 @@ class ThermalNodeBlock(BaseComponent):
         # Demand variables (consumer nodes only)
         Q_demand = None
         m_dot_demand = None
+        delta_p_valve_var = None
+        delta_p_min_station = 0.5
 
         if node_type == 'consumer':
             _node_heatd_attr = f'heatd_{node_id}'
@@ -221,6 +223,15 @@ class ThermalNodeBlock(BaseComponent):
             setattr(model, f'{prefix}_m_dot_demand',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals))
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+
+            # Valve differential pressure — absorbs excess pump head at consumer stations.
+            # delta_p_valve[t] = P_supply[t] - P_return[t] - delta_p_min_station >= 0
+            # This replaces the per-pipe pump-head constraint: the pump head only needs
+            # to cover the critical path; shorter paths shed excess pressure via valves.
+            delta_p_min_station = config.get('delta_p_min_consumer_bar', 0.5)
+            setattr(model, f'{prefix}_delta_p_valve',
+                    pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 20.0)))
+            delta_p_valve_var = getattr(model, f'{prefix}_delta_p_valve')
 
         # ============================================================
         # CONSTRAINTS
@@ -362,7 +373,20 @@ class ThermalNodeBlock(BaseComponent):
                 setattr(model, f'{prefix}_heat_demand',
                         pyo.Constraint(time_set, rule=heat_demand_rule))
 
-            # (3b) Optional load-dependent return temperature
+            # (3b) Consumer station differential pressure constraint.
+            # delta_p_valve[t] = P_supply[t] - P_return[t] - delta_p_min_station
+            # Since delta_p_valve >= 0, this enforces P_supply - P_return >= delta_p_min_station.
+            # Correct pump-head model: pump overcomes critical-path resistance; excess
+            # pressure at shorter paths is absorbed here by the control valve.
+            def valve_dp_rule(m, t,
+                              _ps=pressure_supply, _pr=pressure_return,
+                              _dv=delta_p_valve_var, _dm=delta_p_min_station):
+                return _ps[t] - _pr[t] == _dv[t] + _dm
+
+            setattr(model, f'{prefix}_valve_dp',
+                    pyo.Constraint(time_set, rule=valve_dp_rule))
+
+            # (3c) Optional load-dependent return temperature
             if return_temp_range is not None and return_temp_load_factor > 0:
                 T_ret_min_v, T_ret_max_v = return_temp_range
                 T_ret_base = (T_ret_min_v + T_ret_max_v) / 2
@@ -429,6 +453,7 @@ class ThermalNodeBlock(BaseComponent):
         if node_type == 'consumer':
             result['Q_demand'] = Q_demand
             result['m_dot_demand'] = m_dot_demand
+            result['delta_p_valve'] = getattr(model, f'{prefix}_delta_p_valve')
 
         if node_type == 'producer':
             result['components'] = config.get('components', {})
@@ -485,12 +510,20 @@ class ThermalNodeBlock(BaseComponent):
             dt_h = getattr(model, 'dt_h', 1.0)
             total_demand_mwh = sum(q_demand_series) * dt_h
 
+            dp_valve_var = getattr(model, f'{prefix}_delta_p_valve', None)
+            dp_valve_series = (
+                [safe_value(dp_valve_var, t, 0.0) for t in time_set]
+                if dp_valve_var is not None else [0.0] * len(time_set)
+            )
+
             result.update({
                 'Q_demand_mw': q_demand_series,
                 'm_dot_demand_kg_s': m_dot_series,
                 'total_demand_mwh': total_demand_mwh,
                 'avg_demand_mw': sum(q_demand_series) / len(q_demand_series),
                 'peak_demand_mw': max(q_demand_series),
+                'delta_p_valve_bar': dp_valve_series,
+                'min_delta_p_valve_bar': min(dp_valve_series),
             })
 
         return result
