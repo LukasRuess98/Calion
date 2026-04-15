@@ -203,11 +203,25 @@ class PipePairBlock(BaseComponent):
         milp_linearize = config.get('milp_linearize', False)
 
         if milp_linearize:
-            # Fix temperatures at nominal values → all T×m_dot products become linear
-            T_supply_in = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
-            T_supply_out = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
-            T_return_in = pyo.Param(time_set, initialize=return_temp_nominal_c, mutable=True)
-            T_return_out = pyo.Param(time_set, initialize=return_temp_nominal_c, mutable=True)
+            from .temperature_linearization import build_temperatures
+            _lin_cfg = config.get('linearization', {})
+            _demand_series = config.get('demand_series', {t: 0.0 for t in time_set})
+            _peak_demand_mw = config.get('peak_demand_mw', 1.0)
+            _pipe_temps = build_temperatures(
+                _lin_cfg.get('method', 'fixed'),
+                _lin_cfg,
+                _demand_series,
+                _peak_demand_mw,
+                supply_temp_nominal_c,
+                return_temp_nominal_c,
+                time_set,
+            )
+            _T_s = {t: _pipe_temps[t][0] for t in time_set}
+            _T_r = {t: _pipe_temps[t][1] for t in time_set}
+            T_supply_in  = pyo.Param(time_set, initialize=lambda m, t: _T_s[t], mutable=True)
+            T_supply_out = pyo.Param(time_set, initialize=lambda m, t: _T_s[t], mutable=True)
+            T_return_in  = pyo.Param(time_set, initialize=lambda m, t: _T_r[t], mutable=True)
+            T_return_out = pyo.Param(time_set, initialize=lambda m, t: _T_r[t], mutable=True)
         else:
             T_supply_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
                                   bounds=(supply_temp_min, supply_temp_max))
@@ -265,25 +279,22 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         if milp_linearize:
-            # MILP mode: heat losses computed from fixed nominal temperatures
-            # Q_loss is fully determined (no bilinear products)
-            def heat_loss_supply_rule_milp(m, t):
-                T_avg = supply_temp_nominal_c  # fixed nominal
-                return Q_loss_supply[t] == (u_value_supply * length_m * (T_avg - T_ground[t])) / 1e6
+            # MILP mode: heat losses and Q_delivered use load-dependent Param temperatures
+            # _T_s and _T_r are the dicts built above from build_temperatures
+            def heat_loss_supply_rule_milp(m, t, _Ts=_T_s):
+                return Q_loss_supply[t] == (u_value_supply * length_m * (_Ts[t] - T_ground[t])) / 1e6
 
             setattr(model, f'{prefix}_heat_loss_supply',
                     pyo.Constraint(time_set, rule=heat_loss_supply_rule_milp))
 
-            def heat_loss_return_rule_milp(m, t):
-                T_avg = return_temp_nominal_c  # fixed nominal
-                return Q_loss_return[t] == (u_value_return * length_m * (T_avg - T_ground[t])) / 1e6
+            def heat_loss_return_rule_milp(m, t, _Tr=_T_r):
+                return Q_loss_return[t] == (u_value_return * length_m * (_Tr[t] - T_ground[t])) / 1e6
 
             setattr(model, f'{prefix}_heat_loss_return',
                     pyo.Constraint(time_set, rule=heat_loss_return_rule_milp))
 
-            # MILP mode: Q_delivered linked to m_dot via fixed ΔT (linear)
-            def heat_delivered_rule_milp(m, t):
-                dT = supply_temp_nominal_c - return_temp_nominal_c
+            def heat_delivered_rule_milp(m, t, _Ts=_T_s, _Tr=_T_r):
+                dT = _Ts[t] - _Tr[t]
                 return Q_delivered[t] * 1000 == m_dot[t] * cp_water * dT
 
             setattr(model, f'{prefix}_heat_delivered',
