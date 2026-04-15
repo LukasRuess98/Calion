@@ -439,7 +439,7 @@ costs:
 # ── RUN SETTINGS ────────────────────────────────────────────────────────────
 run:
   dt_h: 1.0
-  solver: highs 
+  solver: gurobi #gurobi oder highs
   mip_gap: 0.01
   time_limit_s: 3600
   load_solutions: false      # Prevents RuntimeError on infeasibility
