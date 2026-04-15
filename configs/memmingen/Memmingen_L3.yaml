@@ -48,15 +48,28 @@ site:
 
 scenario:
   name: "Memmingen L3 - Independent Zone Demands (Dispatch-Only)"
-  run_mode: PF_ONLY
   description: "27-node network with independent per-zone demand profiles"
+  run_mode: PF_ONLY
+  milp_linearize: true
+  horizon:
+    start: "2025-01-01"
+    end: "2025-01-31 23:00"
 
 # ── Network (27-node network with independent per-zone demand profiles) ──
+thermal_network:
+  milp_linearize: true
+  physics:
+    heat_loss: true
+    pressure_drop: false
+    transport_delay: false
+
 network:
   physics:
     heat_loss: true
     pressure_drop: false
     transport_delay: false
+  milp_linearize: true
+
 
   supply_temp_c: 100.0
   return_temp_c: 40.0
@@ -66,7 +79,7 @@ network:
     # ── Production (plant with all assets) ────────────────────────────────
     E_1:
       type: producer
-      assets: [boiler_main]
+      assets: [boiler_main, tes_main]
 
     # ── Central junctions (routing, no demand) ────────────────────────────
     j_1:
@@ -199,9 +212,9 @@ network:
   # ── Pipe Network (IDENTICAL TO L3_detailed_dispatch) ────────────────────
   pipes:
      # ── Verzweigung von E_1 ───────────────────────────────────────────────
-    V1_to_E1:
-      from: V_1
-      to: E_1
+    E1_to_V1:
+      from: E_1
+      to: V_1
       length_m: 800
       diameter_mm: 500
     E1_to_V2:
@@ -324,9 +337,9 @@ network:
       length_m: 200
       diameter_mm: 500
     # ── Zweig j_6: ───────────────────────────────────────────
-    j6_to_V18:
-      from: j_6
-      to: V_18
+    V18_to_j6:
+      from: V_18
+      to: j_6
       length_m: 160
       diameter_mm: 500
     j6_to_V19:
@@ -390,9 +403,21 @@ assets:
   boiler_main:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 200000.0
-    min_load: 0.1
+    capacity_mw: 200.0
+    min_load: 0.05
     thermal_efficiency: 0.90
+  tes_main:
+    type: storage
+    energy_capacity_mwh: 500.0
+    power_capacity_mw: 50.0
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+    min_load_mw: 0.0
+    round_trip_efficiency: 0.90
+    soc_min: 0.0
+    soc_max: 1.0
+    soc_initial: 0.5
+    soc_terminal: 0.5
 
 # ── GRID SETTINGS (Identical to L3)
 grid:
@@ -417,6 +442,18 @@ run:
   solver: appsi_highs
   mip_gap: 0.01
   time_limit_s: 3600
+  load_solutions: false      # Prevents RuntimeError on infeasibility
+  
+  # Logging options
+  log_to_file: true          # Enable/disable file logging
+  verbose_logging: false     # Also print diagnosis to console
+
+
+output:
+  log_dir: "output/logs"     # Directory for log files
+  export_dir: "output/results"
+  export_thermal_network: true
+  export_solver_solution: true
 
 # ── NOTES ───────────────────────────────────────────────────────────────────
 # 1. INDEPENDENT ZONE DEMANDS: Each zone has its own demand timeseries column

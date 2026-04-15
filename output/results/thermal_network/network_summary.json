@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "export_timestamp": "2026-04-15T13:33:55.974863",
+    "total_timesteps": 2973,
+    "dt_hours": 0.25,
+    "total_hours": 743.25
+  },
+  "topology": {
+    "total_nodes": 35,
+    "total_pipes": 34,
+    "node_types": {
+      "producer": 1,
+      "junction": 7,
+      "consumer": 27
+    },
+    "total_pipe_length_m": 9290.0,
+    "total_pipe_length_km": 9.29
+  },
+  "parameters": {
+    "supply_temp_nominal_c": 100.0,
+    "return_temp_nominal_c": 40.0,
+    "ground_temp_default_c": 10.0
+  },
+  "energy": {},
+  "hydraulics": {}
+}

@@ -478,8 +478,11 @@ class NetworkManager:
         pipe_components: dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
-        # Propagate milp_linearize flag from thermal_network config
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+        # Propagate milp_linearize and pressure_drop flags from thermal_network config
+        tn_cfg = self.config.get('thermal_network', {})
+        milp_linearize = tn_cfg.get('milp_linearize', False)
+        physics_cfg = tn_cfg.get('physics', {})
+        pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -490,6 +493,7 @@ class NetworkManager:
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
+                'pressure_drop_enabled': pressure_drop_enabled,
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }

@@ -36,7 +36,7 @@ def main(argv=None):
     :func:`sys.exit` (see bottom of this module).
     """
     parser = argparse.ArgumentParser(
-        description="CALION - District Heating Optimization Framework",
+        description="CALION - Heating Grid Optimization Framework",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
@@ -118,7 +118,7 @@ Examples:
 
     # -- banner ------------------------------------------------------------
     logger.info("=" * 70)
-    logger.info("CALION - District Heating Optimization")
+    logger.info("CALION - Heating Grid Optimization Framework")
     logger.info("=" * 70)
     logger.info("Config files (%d):", len(args.configs))
     for path in args.configs:

@@ -1,0 +1,15 @@
+{
+  "pressure_drop_model": {
+    "type": "piecewise_linear_3_segment",
+    "description": "Darcy-Weisbach approximated with 3-segment PWL function",
+    "uses_pwl": true
+  },
+  "temperature_drop_model": {
+    "type": "constant",
+    "default_drop_c": 1.0,
+    "uses_physics": false
+  },
+  "heat_loss_model": {
+    "type": "constant"
+  }
+}

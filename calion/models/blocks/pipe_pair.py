@@ -386,7 +386,15 @@ class PipePairBlock(BaseComponent):
         # ΔP = f × (L/D) × (ρ/2) × v²  approximated as piecewise-linear in m_dot
         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
 
-        if effective_max_flow > 0:
+        pressure_drop_enabled = config.get('pressure_drop_enabled', True)
+
+        if not pressure_drop_enabled:
+            # pressure_drop: false in network.physics → fix delta_p = 0, no PWL binaries
+            setattr(model, f'{prefix}_pressure_drop_supply',
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_supply[t] == 0))
+            setattr(model, f'{prefix}_pressure_drop_return',
+                    pyo.Constraint(time_set, rule=lambda m, t: delta_p_return[t] == 0))
+        elif effective_max_flow > 0:
             bp_fracs = [0.0, 0.3, 0.7, 1.0]
             bp_flows = [f * effective_max_flow for f in bp_fracs]
             bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
@@ -442,10 +450,11 @@ class PipePairBlock(BaseComponent):
         # ── Pump Power (PWL, per pipe) ──────────────────────────────────────────────
         # P_pump[t] = (ΔP_supply + ΔP_return) × m_dot × 1e5 / (ρ × η × 1e6)  [MW]
         # Approximated as PWL using same breakpoints as pressure drop.
+        # When pressure_drop is disabled, delta_p = 0 so pump power = 0.
         pump_enabled = config.get('pump_enabled', True)
         eta_pump = float(config.get('pump_efficiency', 0.70))
 
-        if effective_max_flow > 0:
+        if pressure_drop_enabled and effective_max_flow > 0:
             # Pump power at each breakpoint: P_i = 2 × k_flow × m_i³ × 1e5 / (ρ × η × 1e6)
             p_pump_bp = [
                 2.0 * k_flow * (bp_flows[i] ** 3) * 1e5 / (density_water * eta_pump * 1e6)
@@ -459,7 +468,7 @@ class PipePairBlock(BaseComponent):
         P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, P_pump_max))
         setattr(model, f'{prefix}_P_pump', P_pump)
 
-        if not pump_enabled or effective_max_flow <= 0:
+        if not pump_enabled or effective_max_flow <= 0 or not pressure_drop_enabled:
             for t in time_set:
                 P_pump[t].fix(0.0)
         else:

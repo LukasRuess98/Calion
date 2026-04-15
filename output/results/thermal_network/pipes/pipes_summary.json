@@ -1,0 +1,988 @@
+[
+  {
+    "pipe_id": "E1_to_V1",
+    "from_node": "E_1",
+    "to_node": "V_1",
+    "length_m": 800.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 800.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.17021276595744683,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "E1_to_V2",
+    "from_node": "E_1",
+    "to_node": "V_2",
+    "length_m": 600.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 600.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.12765957446808512,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j1_to_V_2",
+    "from_node": "V_2",
+    "to_node": "j_1",
+    "length_m": 550.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 550.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.1170212765957447,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j1_to_j5",
+    "from_node": "j_1",
+    "to_node": "j_5",
+    "length_m": 700.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 700.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.14893617021276595,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j1_to_j2",
+    "from_node": "j_1",
+    "to_node": "j_2",
+    "length_m": 700.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 700.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.14893617021276595,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j1_to_V3",
+    "from_node": "j_1",
+    "to_node": "V_3",
+    "length_m": 700.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 700.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.14893617021276595,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j2_to_V4",
+    "from_node": "j_2",
+    "to_node": "V_4",
+    "length_m": 200.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 200.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04255319148936171,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j2_to_V5",
+    "from_node": "j_2",
+    "to_node": "V_5",
+    "length_m": 180.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 180.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03829787234042553,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j2_to_V6",
+    "from_node": "j_2",
+    "to_node": "V_6",
+    "length_m": 220.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 220.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04680851063829788,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j2_to_V7",
+    "from_node": "j_2",
+    "to_node": "V_7",
+    "length_m": 220.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 220.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04680851063829788,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j2_to_j3",
+    "from_node": "j_2",
+    "to_node": "j_3",
+    "length_m": 250.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 250.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.053191489361702135,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j3_to_V8",
+    "from_node": "j_3",
+    "to_node": "V_8",
+    "length_m": 240.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 240.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.05106382978723405,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j3_to_V9",
+    "from_node": "j_3",
+    "to_node": "V_9",
+    "length_m": 190.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 190.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04042553191489362,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j3_to_j4",
+    "from_node": "j_3",
+    "to_node": "j_4",
+    "length_m": 200.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 200.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04255319148936171,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j4_to_V10",
+    "from_node": "j_4",
+    "to_node": "V_10",
+    "length_m": 230.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 230.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.048936170212765966,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j4_to_V11",
+    "from_node": "j_4",
+    "to_node": "V_11",
+    "length_m": 180.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 180.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03829787234042553,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j4_to_V12",
+    "from_node": "j_4",
+    "to_node": "V_12",
+    "length_m": 260.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 260.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.0553191489361702,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j4_to_V13",
+    "from_node": "j_4",
+    "to_node": "V_13",
+    "length_m": 260.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 260.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.0553191489361702,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "V13_to_V14",
+    "from_node": "V_13",
+    "to_node": "V_14",
+    "length_m": 150.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 150.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03191489361702128,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j5_to_V15",
+    "from_node": "j_5",
+    "to_node": "V_15",
+    "length_m": 140.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 140.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.029787234042553196,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j5_to_V16",
+    "from_node": "j_5",
+    "to_node": "V_16",
+    "length_m": 190.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 190.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04042553191489362,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j5_to_V17",
+    "from_node": "j_5",
+    "to_node": "V_17",
+    "length_m": 160.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 160.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03404255319148936,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "V17_to_V18",
+    "from_node": "V_17",
+    "to_node": "V_18",
+    "length_m": 200.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 200.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04255319148936171,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "V18_to_j6",
+    "from_node": "V_18",
+    "to_node": "j_6",
+    "length_m": 160.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 160.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03404255319148936,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j6_to_V19",
+    "from_node": "j_6",
+    "to_node": "V_19",
+    "length_m": 180.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 180.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03829787234042553,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j6_to_V20",
+    "from_node": "j_6",
+    "to_node": "V_20",
+    "length_m": 130.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 130.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.0276595744680851,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j6_to_V21",
+    "from_node": "j_6",
+    "to_node": "V_21",
+    "length_m": 140.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 140.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.029787234042553196,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j6_to_j7",
+    "from_node": "j_6",
+    "to_node": "j_7",
+    "length_m": 200.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 200.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04255319148936171,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j7_to_V22",
+    "from_node": "j_7",
+    "to_node": "V_22",
+    "length_m": 145.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 145.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.030851063829787237,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j7_to_V23",
+    "from_node": "j_7",
+    "to_node": "V_23",
+    "length_m": 170.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 170.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03617021276595745,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j7_to_V24",
+    "from_node": "j_7",
+    "to_node": "V_24",
+    "length_m": 150.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 150.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.03191489361702128,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j7_to_V25",
+    "from_node": "j_7",
+    "to_node": "V_25",
+    "length_m": 190.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 190.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.04042553191489362,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "V25_to_V26",
+    "from_node": "V_25",
+    "to_node": "V_26",
+    "length_m": 140.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 140.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.029787234042553196,
+      "pipe_roughness_mm": 0.05
+    }
+  },
+  {
+    "pipe_id": "j7_to_V27",
+    "from_node": "j_7",
+    "to_node": "V_27",
+    "length_m": 165.0,
+    "diameter_mm": 500.0,
+    "u_value_w_per_m_k": 0,
+    "T_supply_in_avg_c": 100.0,
+    "T_supply_out_avg_c": 100.0,
+    "T_return_in_avg_c": 40.0,
+    "T_return_out_avg_c": 40.0,
+    "uses_pwl_pressure_drop": true,
+    "pwl_segment_usage": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "pressure_params": {
+      "max_pressure_drop_bar": 2.0,
+      "max_velocity_m_s": 2.5,
+      "effective_max_flow_kg_s": 433.7361357362408,
+      "pipe_diameter_mm": 500.0,
+      "pipe_diameter_inner_mm": 470.0,
+      "pipe_length_m": 165.0,
+      "friction_factor": 0.02,
+      "k_pressure": 0.035106382978723406,
+      "pipe_roughness_mm": 0.05
+    }
+  }
+]
