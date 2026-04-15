@@ -352,6 +352,22 @@ class NetworkManager:
 
         self._ensure_single_node_fallback()
 
+        # Pre-compute total network demand for temperature linearization.
+        # Sums all consumer node heatd_* Params already on the model.
+        # Both pipes and nodes share this network-wide load fraction.
+        import pyomo.environ as _pyo
+        self._total_demand_series = {t: 0.0 for t in time_set}
+        for _nid, _ncfg in self.nodes.items():
+            _nd = _ncfg if isinstance(_ncfg, dict) else _ncfg.__dict__
+            if _nd.get('type') == 'consumer':
+                _attr = f'heatd_{_nid}'
+                if hasattr(model, _attr):
+                    _hp = getattr(model, _attr)
+                    for t in time_set:
+                        self._total_demand_series[t] += _pyo.value(_hp[t])
+        _peak = max(self._total_demand_series.values()) if self._total_demand_series else 1.0
+        self._peak_demand_mw = _peak if _peak > 0 else 1.0
+
         temp_setup = self._setup_temperatures(model, time_set)
         pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup)
         node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
@@ -483,6 +499,7 @@ class NetworkManager:
         milp_linearize = tn_cfg.get('milp_linearize', False)
         physics_cfg = tn_cfg.get('physics', {})
         pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
+        lin_cfg = tn_cfg.get('linearization', {})
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -495,6 +512,9 @@ class NetworkManager:
                 'milp_linearize': milp_linearize,
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
+                'linearization': lin_cfg,
+                'demand_series': self._total_demand_series,
+                'peak_demand_mw': self._peak_demand_mw,
                 **self.parameters,
             }
             PipePairBlock.validate_config(enriched_config)
@@ -519,6 +539,7 @@ class NetworkManager:
         pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
         network_cfg = self.config.get('network', {})
         delta_p_min_consumer = network_cfg.get('delta_p_min_consumer_bar', 0.5)
+        lin_cfg = tn_cfg.get('linearization', {})
 
         node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
@@ -534,6 +555,9 @@ class NetworkManager:
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'delta_p_min_consumer_bar': delta_p_min_consumer,
                 'state_validation': self.config.get('state_validation', {}),
+                'linearization': lin_cfg,
+                'demand_series': self._total_demand_series,
+                'peak_demand_mw': self._peak_demand_mw,
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
