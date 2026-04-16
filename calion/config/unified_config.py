@@ -83,34 +83,88 @@ class DemandConfig(BaseModel):
         raise ValueError(f"Invalid demand config: {raw!r}")
 
 
+class ConsumerConfig(BaseModel):
+    """Inline consumer definition at a junction node."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    column: str
+
+    @staticmethod
+    def from_dict(raw: Any) -> ConsumerConfig:
+        if isinstance(raw, str):
+            return ConsumerConfig(column=raw)
+        if isinstance(raw, dict):
+            col = raw.get("column")
+            if not col:
+                raise ValueError("consumer config must have 'column' key")
+            return ConsumerConfig(column=col)
+        raise ValueError(f"Invalid consumer config: {raw!r}")
+
+
 class NodeConfig(BaseModel):
     """Configuration for a single network node."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
-    type: str  # "producer", "consumer", "junction"
+    type: str  # "producer", "consumer", "junction", "mixed"
     assets: list[str] = Field(default_factory=list)
-    demand: DemandConfig | None = None
+    demand: DemandConfig | None = None        # kept for backward compat
+    consumers: list[ConsumerConfig] = Field(default_factory=list)
+
+    @staticmethod
+    def _infer_type(assets: list, consumers: list) -> str:
+        has_assets = bool(assets)
+        has_consumers = bool(consumers)
+        if has_assets and has_consumers:
+            return 'mixed'
+        if has_assets:
+            return 'producer'
+        if has_consumers:
+            return 'consumer'
+        return 'junction'
 
     @staticmethod
     def from_dict(node_id: str, raw: dict[str, Any]) -> NodeConfig:
-        node_type = raw.get("type", "junction")
-        if node_type not in ("producer", "consumer", "junction"):
-            raise ValueError(
-                f"Node '{node_id}': type must be producer/consumer/junction, got '{node_type}'"
-            )
+        if raw is None:
+            raw = {}
 
         assets = raw.get("assets", [])
         if not isinstance(assets, list):
             assets = [assets]
 
+        # Parse consumers list (new format)
+        consumers_raw = raw.get("consumers", [])
+        consumers = [ConsumerConfig.from_dict(c) for c in consumers_raw]
+
+        # Legacy: demand.column -> consumers[0]
         demand = None
         demand_raw = raw.get("demand")
         if demand_raw is not None:
             demand = DemandConfig.from_dict(demand_raw)
+            if not consumers:
+                consumers = [ConsumerConfig(column=demand.column)]
 
-        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand)
+        # Type: explicit override or inferred
+        explicit_type = raw.get("type")
+        if explicit_type is not None:
+            if explicit_type not in ("producer", "consumer", "junction", "mixed", "plant"):
+                raise ValueError(
+                    f"Node '{node_id}': type must be producer/consumer/junction/mixed, "
+                    f"got '{explicit_type}'"
+                )
+            node_type = "producer" if explicit_type == "plant" else explicit_type
+        else:
+            node_type = NodeConfig._infer_type(assets, consumers)
+
+        return NodeConfig(
+            id=node_id,
+            type=node_type,
+            assets=assets,
+            demand=demand,
+            consumers=consumers,
+        )
 
 
 class PipeConfig(BaseModel):
@@ -228,12 +282,12 @@ class UnifiedSystemConfig(BaseModel):
         return [self.assets[aid] for aid in node.assets if aid in self.assets]
 
     def consumer_nodes(self) -> dict[str, NodeConfig]:
-        """Return all consumer nodes."""
-        return {nid: n for nid, n in self.nodes.items() if n.type == "consumer"}
+        """Return all consumer and mixed nodes (have demands)."""
+        return {nid: n for nid, n in self.nodes.items() if n.type in ("consumer", "mixed")}
 
     def producer_nodes(self) -> dict[str, NodeConfig]:
-        """Return all producer nodes."""
-        return {nid: n for nid, n in self.nodes.items() if n.type == "producer"}
+        """Return all producer and mixed nodes (have assets)."""
+        return {nid: n for nid, n in self.nodes.items() if n.type in ("producer", "mixed")}
 
 
 # ─── Parser ───────────────────────────────────────────────────────────────────
@@ -313,17 +367,17 @@ def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
                 f"Pipe '{pid}': to_node '{pipe.to_node}' is not a defined node"
             )
 
-    # 3. Every consumer node must have a demand column specified
+    # 3. Every consumer/mixed node must have at least one consumer defined
     for nid, node in nodes.items():
-        if node.type == "consumer" and node.demand is None:
+        if node.type in ("consumer", "mixed") and not node.consumers:
             issues.append(
-                f"Consumer node '{nid}' must have 'demand.column' specified"
+                f"Consumer/mixed node '{nid}' must have 'consumers' list or 'demand.column' specified"
             )
 
-    # 4. At least one producer node
-    producer_ids = [nid for nid, n in nodes.items() if n.type == "producer"]
+    # 4. At least one producer or mixed node (has assets)
+    producer_ids = [nid for nid, n in nodes.items() if n.type in ("producer", "mixed")]
     if not producer_ids and nodes:
-        issues.append("At least one producer node is required")
+        issues.append("At least one node with 'assets' (producer or mixed) is required")
 
     # ── Fail if validation errors ─────────────────────────────────────────
     if issues:

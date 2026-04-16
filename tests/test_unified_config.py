@@ -21,6 +21,7 @@ from calion.config.unified_config import (
     AssetConfig,
     DemandConfig,
     PhysicsConfig,
+    ConsumerConfig,   # new import
 )
 
 try:
@@ -340,7 +341,7 @@ class TestValidation:
                 },
             },
         }
-        with pytest.raises(ValueError, match="producer node is required"):
+        with pytest.raises(ValueError, match="producer or mixed"):
             parse_unified_config(cfg)
 
     def test_invalid_node_type(self):
@@ -495,3 +496,106 @@ def test_node_config_ignores_demand_fraction_in_raw():
         "demand_fraction": 0.5,
     })
     assert not hasattr(node, "demand_fraction")
+
+
+# ─── ConsumerConfig + NodeConfig type-inference tests ────────────────────────
+
+def test_consumer_config_from_dict_column():
+    c = ConsumerConfig.from_dict({"column": "my_col"})
+    assert c.column == "my_col"
+
+
+def test_node_config_infers_producer_from_assets():
+    n = NodeConfig.from_dict("E_1", {"assets": ["boiler_1"]})
+    assert n.type == "producer"
+    assert n.consumers == []
+
+
+def test_node_config_infers_consumer_from_consumers_list():
+    n = NodeConfig.from_dict("V_1", {"consumers": [{"column": "V_1_demand_MWth"}]})
+    assert n.type == "consumer"
+    assert len(n.consumers) == 1
+    assert n.consumers[0].column == "V_1_demand_MWth"
+
+
+def test_node_config_infers_mixed_when_both():
+    n = NodeConfig.from_dict("J_x", {
+        "assets": ["chp"],
+        "consumers": [{"column": "local_demand"}],
+    })
+    assert n.type == "mixed"
+    assert n.assets == ["chp"]
+    assert len(n.consumers) == 1
+
+
+def test_node_config_infers_junction_when_empty():
+    n = NodeConfig.from_dict("j_1", {})
+    assert n.type == "junction"
+    assert n.consumers == []
+
+
+def test_node_config_legacy_demand_converted_to_consumers():
+    """Old demand: {column: ...} still works, converted to consumers[0]."""
+    n = NodeConfig.from_dict("V_old", {
+        "type": "consumer",
+        "demand": {"column": "old_col"},
+    })
+    assert n.type == "consumer"
+    assert len(n.consumers) == 1
+    assert n.consumers[0].column == "old_col"
+
+
+def test_node_config_explicit_type_overrides_inference():
+    """Explicit type: producer overrides inference even without assets."""
+    n = NodeConfig.from_dict("E_x", {"type": "producer"})
+    assert n.type == "producer"
+
+
+def test_parse_unified_config_new_format_no_type():
+    """Full config without any type: fields parses successfully."""
+    cfg = {
+        "assets": {
+            "boiler_1": {"type": "thermal_generator", "fuel": "gas",
+                         "capacity_mw": 50.0, "thermal_efficiency": 0.9},
+        },
+        "network": {
+            "nodes": {
+                "E_1": {"assets": ["boiler_1"]},
+                "j_1": {},
+                "V_1": {"consumers": [{"column": "demand_V1"}]},
+            },
+            "pipes": {
+                "E1_j1": {"from": "E_1", "to": "j_1", "length_m": 100, "diameter_mm": 300},
+                "j1_V1": {"from": "j_1", "to": "V_1", "length_m": 80, "diameter_mm": 200},
+            },
+        },
+        "grid": {}, "fuels": {"gas": {"price_eur_mwh": 45.0, "ef_kg_per_mwh_fuel": 200.0}},
+        "costs": {"co2_price_eur_per_t": 100.0, "dump_cost_eur_per_mwh_th": 1.0},
+    }
+    ucfg = parse_unified_config(cfg)
+    assert ucfg.nodes["E_1"].type == "producer"
+    assert ucfg.nodes["j_1"].type == "junction"
+    assert ucfg.nodes["V_1"].type == "consumer"
+    assert ucfg.nodes["V_1"].consumers[0].column == "demand_V1"
+
+
+def test_parse_unified_config_backward_compat_type_field():
+    """Old configs with type: producer/consumer/junction still work."""
+    cfg = {
+        "assets": {
+            "boiler_1": {"type": "thermal_generator", "fuel": "gas",
+                         "capacity_mw": 50.0, "thermal_efficiency": 0.9},
+        },
+        "network": {
+            "nodes": {
+                "plant": {"type": "producer", "assets": ["boiler_1"]},
+                "zone": {"type": "consumer", "demand": {"column": "demand_col"}},
+            },
+        },
+        "grid": {}, "fuels": {"gas": {"price_eur_mwh": 45.0, "ef_kg_per_mwh_fuel": 200.0}},
+        "costs": {"co2_price_eur_per_t": 100.0, "dump_cost_eur_per_mwh_th": 1.0},
+    }
+    ucfg = parse_unified_config(cfg)
+    assert ucfg.nodes["plant"].type == "producer"
+    assert ucfg.nodes["zone"].type == "consumer"
+    assert ucfg.nodes["zone"].consumers[0].column == "demand_col"
