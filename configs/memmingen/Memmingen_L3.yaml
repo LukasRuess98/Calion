@@ -29,8 +29,8 @@
 #   Annual demand: 517 GWh (approx., depends on generated profiles)
 #   Boiler:        200 MW gas, η = 0.90
 #   CHP:           20 MW (elec)
-#   Heat pump:     100 MW thermal
-#   Storage:       5000 MWh / 50 MW
+#   Heat pump:     1000 MW thermal
+#   Storage:       1000 MWh / 50 MW
 #   Heat losses:   ~26 GWh/year
 #
 # SETUP:
@@ -45,6 +45,10 @@ site:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"
     co2_grid:  "grid_co2_kg_MWh"
+    # heat_candidates: "Wärmebedarf MW"   # [DEFAULT: auto-detect] Spaltenname für globalen Wärmebedarf — bei L3 nicht nötig (per-node demands)
+    # outdoor_temp_candidates: ~          # [DEFAULT: auto-detect] Außentemperatur für Heizkurve (optional)
+  # sheet_name: ~                         # [DEFAULT: erstes Sheet] Excel-Sheet-Name
+  # year_target: ~                        # [DEFAULT: alle Jahre] Nur Daten dieses Jahres laden (z.B. 2025)
 
 scenario:
   name: "Memmingen L3 - Independent Zone Demands (Dispatch-Only)"
@@ -54,314 +58,312 @@ scenario:
   horizon:
     start: "2025-01-01"
     end: "2025-01-31 23:00"
+  # fix_design: false               # [DEFAULT: false bei PF_ONLY] Kapazitäten nach PF-Lauf fixieren und in RH nicht mehr optimieren
+  # rolling_horizon:                # Nur relevant bei run_mode: RH_ONLY oder PF_THEN_RH
+  #   heat_horizon_hours: 168       # [DEFAULT: konstante aus constants.py] Planungshorizont je RH-Fenster (Stunden)
+  #   step_hours: 24                # [DEFAULT: = horizon] Commit-Länge je Schritt (Stunden)
+  #   overlap_hours: 0.0            # [DEFAULT: 0] Überlappung zwischen Fenstern (Stunden)
+  #   terminal_policy: "equal"      # [DEFAULT: ""] Endwert-Bedingung Speicher: free | equal | geq | soft
 
 # ── Network (27-node network with independent per-zone demand profiles) ──
-thermal_network:
-  milp_linearize: true
-  physics:
-    heat_loss: true
-    pressure_drop: false
-    transport_delay: false
-
 network:
+  milp_linearize: true
   physics:
     heat_loss: true
-    pressure_drop: false
-    transport_delay: false
-  milp_linearize: true
+    pressure_drop: false    # Druckverlust deaktiviert — kein pump_efficiency / max_velocity relevant
+    transport_delay: false  # Transportverzögerung deaktiviert
 
+  supply_temp_c: 100
+  return_temp_c: 40
+  ground_temp_c: 10
+  # use_outdoor_temperature: false   # [DEFAULT: false] Bodentemp. durch zeitvariable Außentemp. aus Excel ersetzen (braucht outdoor_temp_C-Spalte)
 
-  supply_temp_c: 100.0
-  return_temp_c: 40.0
-  ground_temp_c: 10.0
+  # ── Temperatur-Linearisierung (aktiv wegen milp_linearize: true) ─────────
+  # Methode steuert wie T_supply/T_return als MILP-Parameter berechnet werden:
+  linearization:
+    method: "pwl"               # [DEFAULT: "fixed"] fixed = konstante Nenntemperaturen
+  #                                 #   "global"  = lineare Funktion der Gesamtlast (T_supply_min..max)
+  #                                 #   "pwl"     = Stückweise linear über Lastpunkte (flexibelste Methode)
+  #   # -- Für method: "global" --
+  #   global_profile:
+  #     T_supply_min_c: 70.0        # [DEFAULT: 70] Vorlauftemp. bei Mindestlast (°C)
+  #     T_supply_max_c: 95.0        # [DEFAULT: 95] Vorlauftemp. bei Volllast (°C)
+  #     T_return_max_c: 55.0        # [DEFAULT: 55] Rücklauftemp. bei Mindestlast (°C)
+  #     T_return_min_c: 45.0        # [DEFAULT: 45] Rücklauftemp. bei Volllast (°C)
+    # -- Für method: "pwl" --
+    temperature_profile:
+      load_fractions: [0.0, 0.3, 0.6, 1.0]          # Lastpunkte (strikt aufsteigend, 0..1)
+      T_supply_c:     [70.0, 80.0, 90.0, 100.0]     # Vorlauftemp. je Lastpunkt (°C)
+      T_return_c:     [55.0, 50.0, 45.0, 40.0]      # Rücklauftemp. je Lastpunkt (°C)
+
+  # ── Netzparameter ─────────────────────────────────────────────────────────
+  # demand_slack_penalty_eur_per_mwh: 1000000.0   # [DEFAULT: 1e6] Strafterm für unerfüllte Netznachfrage (Knoten mit mehreren Zuleitungen)
+  # heating_curve:                                 # Nur wirksam wenn use_outdoor_temperature: true
+  #   enabled: false                               # [DEFAULT: false] Heizkurve aktivieren
+  #   T_supply_min_c: 80.0                         # [DEFAULT: 80]  Vorlauf bei T_außen_high (°C)
+  #   T_supply_max_c: 120.0                        # [DEFAULT: 120] Vorlauf bei T_außen_low (°C)
+  #   T_outdoor_high_c: 20.0                       # [DEFAULT: 20]  Außentemp. Heizkurve oben (°C)
+  #   T_outdoor_low_c: -10.0                       # [DEFAULT: -10] Außentemp. Heizkurve unten (°C)
 
   nodes:
     # ── Production (plant with all assets) ────────────────────────────────
     E_1:
-      type: producer
       assets: [boiler_main, tes_main]
 
     # ── Central junctions (routing, no demand) ────────────────────────────
-    j_1:
-      type: junction
-    j_2:
-      type: junction
-    j_3:
-      type: junction
-    j_4:
-      type: junction
-    j_5:
-      type: junction
-    j_6:
-      type: junction
-    j_7:
-      type: junction
+    j_1: {}
+    j_2: {}
+    j_3: {}
+    j_4: {}
+    j_5: {}
+    j_6: {}
+    j_7: {}
 
 
     # Each zone reads its own independent demand column
     V_1:
-      type: consumer
-      demand:
-        column: "V_1_demand_MWth"
+      consumers:
+        - column: "V_1_demand_MWth"
     V_2:
-      type: consumer
-      demand:
-        column: "V_2_demand_MWth"
+      consumers:
+        - column: "V_2_demand_MWth"
     V_3:
-      type: consumer
-      demand:
-        column: "V_3_demand_MWth"
+      consumers:
+        - column: "V_3_demand_MWth"
     V_4:
-      type: consumer
-      demand:
-        column: "V_4_demand_MWth"
+      consumers:
+        - column: "V_4_demand_MWth"
     V_5:
-      type: consumer
-      demand:
-        column: "V_5_demand_MWth"
+      consumers:
+        - column: "V_5_demand_MWth"
     V_6:
-      type: consumer
-      demand:
-        column: "V_6_demand_MWth"
+      consumers:
+        - column: "V_6_demand_MWth"
     V_7:
-      type: consumer
-      demand:
-        column: "V_7_demand_MWth"
+      consumers:
+        - column: "V_7_demand_MWth"
     V_8:
-      type: consumer
-      demand:
-        column: "V_8_demand_MWth"
+      consumers:
+        - column: "V_8_demand_MWth"
     V_9:
-      type: consumer
-      demand:
-        column: "V_9_demand_MWth"
+      consumers:
+        - column: "V_9_demand_MWth"
     V_10:
-      type: consumer
-      demand:
-        column: "V_10_demand_MWth"
+      consumers:
+        - column: "V_10_demand_MWth"
     V_11:
-      type: consumer
-      demand:
-        column: "V_11_demand_MWth"
+      consumers:
+        - column: "V_11_demand_MWth"
     V_12:
-      type: consumer
-      demand:
-        column: "V_12_demand_MWth"
+      consumers:
+        - column: "V_12_demand_MWth"
     V_13:
-      type: consumer
-      demand:
-        column: "V_13_demand_MWth"
+      consumers:
+        - column: "V_13_demand_MWth"
     V_14:
-      type: consumer
-      demand:
-        column: "V_14_demand_MWth"
+      consumers:
+        - column: "V_14_demand_MWth"
     V_15:
-      type: consumer
-      demand:
-        column: "V_15_demand_MWth"
+      consumers:
+        - column: "V_15_demand_MWth"
     V_16:
-      type: consumer
-      demand:
-        column: "V_16_demand_MWth"
+      consumers:
+        - column: "V_16_demand_MWth"
     V_17:
-      type: consumer
-      demand:
-        column: "V_17_demand_MWth"
+      consumers:
+        - column: "V_17_demand_MWth"
     V_18:
-      type: consumer
-      demand:
-        column: "V_18_demand_MWth"
+      consumers:
+        - column: "V_18_demand_MWth"
     V_19:
-      type: consumer
-      demand:
-        column: "V_19_demand_MWth"
+      consumers:
+        - column: "V_19_demand_MWth"
     V_20:
-      type: consumer
-      demand:
-        column: "V_20_demand_MWth"
+      consumers:
+        - column: "V_20_demand_MWth"
     V_21:
-      type: consumer
-      demand:
-        column: "V_21_demand_MWth"
+      consumers:
+        - column: "V_21_demand_MWth"
     V_22:
-      type: consumer
-      demand:
-        column: "V_22_demand_MWth"
+      consumers:
+        - column: "V_22_demand_MWth"
     V_23:
-      type: consumer
-      demand:
-        column: "V_23_demand_MWth"
+      consumers:
+        - column: "V_23_demand_MWth"
     V_24:
-      type: consumer
-      demand:
-        column: "V_24_demand_MWth"
+      consumers:
+        - column: "V_24_demand_MWth"
     V_25:
-      type: consumer
-      demand:
-        column: "V_25_demand_MWth"
+      consumers:
+        - column: "V_25_demand_MWth"
     V_26:
-      type: consumer
-      demand:
-        column: "V_26_demand_MWth"
+      consumers:
+        - column: "V_26_demand_MWth"
     V_27:
-      type: consumer
-      demand:
-        column: "V_27_demand_MWth"
+      consumers:
+        - column: "V_27_demand_MWth"
 
 
   # ── Pipe Network (IDENTICAL TO L3_detailed_dispatch) ────────────────────
+  # Pipe-Parameter (globale Defaults, können pro Rohr überschrieben werden):
+  #   u_value_supply_w_per_m_k: 0.28   # [DEFAULT: 0.28] Wärmeverlustkoeffizient Vorlaufrohr (W/(m·K))
+  #   u_value_return_w_per_m_k: 0.30   # [DEFAULT: 0.30] Wärmeverlustkoeffizient Rücklaufrohr (W/(m·K))
+  #   max_velocity_m_s: 2.5            # [DEFAULT: 2.5]  Max. Strömungsgeschwindigkeit (nur bei pressure_drop: true)
+  #   pipe_roughness_mm: 0.05          # [DEFAULT: 0.05] Rauigkeit Rohrinnenwand (nur bei pressure_drop: true)
+  #   pump_efficiency: 0.70            # [DEFAULT: 0.70] Pumpenwirkungsgrad (nur bei pressure_drop: true)
+  #   lifetime_years: 40               # [DEFAULT: 40]   Lebensdauer für CAPEX-Annualisierung (nur bei Rohrsanierung)
   pipes:
      # ── Verzweigung von E_1 ───────────────────────────────────────────────
     E1_to_V1:
       from: E_1
       to: V_1
       length_m: 800
-      diameter_mm: 5000
+      diameter_mm: 1000
     E1_to_V2:
       from: E_1
       to: V_2
       length_m: 600
-      diameter_mm: 5000
+      diameter_mm: 1000
     # ── Verzweigung von j_1 ───────────────────────────────────────────────
     j1_to_V_2:
       from: V_2
       to: j_1
       length_m: 550
-      diameter_mm: 5000
+      diameter_mm: 1000
     j1_to_j5:
       from: j_1
       to: j_5
       length_m: 700
-      diameter_mm: 5000
+      diameter_mm: 1000
     j1_to_j2:
       from: j_1
       to: j_2
       length_m: 700
-      diameter_mm: 5000
+      diameter_mm: 1000
     j1_to_V3:
       from: j_1
       to: V_3
       length_m: 700
-      diameter_mm: 5000      
+      diameter_mm: 1000      
 
     # ── Zweig j_2: V_1 – V_4 ──────────────────────────────────────────────
     j2_to_V4:
       from: j_2
       to: V_4
       length_m: 200
-      diameter_mm: 5000
+      diameter_mm: 1000
     j2_to_V5:
       from: j_2
       to: V_5
       length_m: 180
-      diameter_mm: 5000
+      diameter_mm: 1000
     j2_to_V6:
       from: j_2
       to: V_6
       length_m: 220
-      diameter_mm: 5000
+      diameter_mm: 1000
     j2_to_V7:
       from: j_2
       to: V_7
       length_m: 220
-      diameter_mm: 5000
+      diameter_mm: 1000
     j2_to_j3:
       from: j_2
       to: j_3
       length_m: 250
-      diameter_mm: 5000
+      diameter_mm: 1000
 
     # ── Zweig j_3:  ──────────────────────────────────────────────
     j3_to_V8:
       from: j_3
       to: V_8
       length_m: 240
-      diameter_mm: 5000
+      diameter_mm: 1000
     j3_to_V9:
       from: j_3
       to: V_9
       length_m: 190
-      diameter_mm: 5000
+      diameter_mm: 1000
     j3_to_j4:
       from: j_3
       to: j_4
       length_m: 200
-      diameter_mm: 5000
+      diameter_mm: 1000
     # ── Zweig j_4: V_9 – V_12 ─────────────────────────────────────────────
     j4_to_V10:
       from: j_4
       to: V_10
       length_m: 230
-      diameter_mm: 5000
+      diameter_mm: 1000
     j4_to_V11:
       from: j_4
       to: V_11
       length_m: 180
-      diameter_mm: 5000
+      diameter_mm: 1000
     j4_to_V12:
       from: j_4
       to: V_12
       length_m: 260
-      diameter_mm: 5000
+      diameter_mm: 1000
     j4_to_V13:
       from: j_4
       to: V_13
       length_m: 260
-      diameter_mm: 5000
+      diameter_mm: 1000
   # ── Zweig V_13 V_14: ────────────────────────────────────────────
     V13_to_V14:
       from: V_13
       to: V_14
       length_m: 150
-      diameter_mm: 5000
+      diameter_mm: 1000
     # ── Zweig j_5: ────────────────────────────────────────────
     j5_to_V15:
       from: j_5
       to: V_15
       length_m: 140
-      diameter_mm: 5000
+      diameter_mm: 1000
     j5_to_V16:
       from: j_5
       to: V_16
       length_m: 190
-      diameter_mm: 5000
+      diameter_mm: 1000
     j5_to_V17:
       from: j_5
       to: V_17
       length_m: 160
-      diameter_mm: 5000
+      diameter_mm: 1000
     # ── Zweig V_17 V_18: ───────────────────────────────────────────
     V17_to_V18:
       from: V_17
       to: V_18
       length_m: 200
-      diameter_mm: 5000
+      diameter_mm: 1000
     # ── Zweig j_6: ───────────────────────────────────────────
     V18_to_j6:
       from: V_18
       to: j_6
       length_m: 160
-      diameter_mm: 5000
+      diameter_mm: 1000
     j6_to_V19:
       from: j_6
       to: V_19
       length_m: 180
-      diameter_mm: 5000
+      diameter_mm: 1000
     j6_to_V20:
       from: j_6
       to: V_20
       length_m: 130
-      diameter_mm: 5000
+      diameter_mm: 1000
     j6_to_V21:
       from: j_6
       to: V_21
       length_m: 140
-      diameter_mm: 5000
+      diameter_mm: 1000
     j6_to_j7:
       from: j_6
       to: j_7
       length_m: 200
-      diameter_mm: 5000
+      diameter_mm: 1000
 
 
     # ── Zweig j_7: ────────────────────────────────────────────
@@ -369,46 +371,45 @@ network:
       from: j_7
       to: V_22
       length_m: 145
-      diameter_mm: 5000
+      diameter_mm: 1000
     j7_to_V23:
       from: j_7
       to: V_23
       length_m: 170
-      diameter_mm: 5000
+      diameter_mm: 1000
     j7_to_V24:
       from: j_7
       to: V_24
       length_m: 150
-      diameter_mm: 5000
+      diameter_mm: 1000
     j7_to_V25:
       from: j_7
       to: V_25
       length_m: 190
-      diameter_mm: 5000  
+      diameter_mm: 1000  
     V25_to_V26:
       from: V_25
       to: V_26
       length_m: 140
-      diameter_mm: 5000
+      diameter_mm: 1000
     j7_to_V27:
       from: j_7
       to: V_27
       length_m: 165
-      diameter_mm: 5000
+      diameter_mm: 1000
 
 # ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L3) ──────────────────────────
 
 assets:
-  # ── Boiler (natural gas, 200 MW, existing)
   boiler_main:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 20000
+    capacity_mw: 2000000000000.0
     min_load: 0
     thermal_efficiency: 0.90
   tes_main:
     type: storage
-    energy_capacity_mwh: 5000.0
+    energy_capacity_mwh: 1000.0
     power_capacity_mw: 50.0
     charge_efficiency: 0.95
     discharge_efficiency: 0.95
@@ -416,14 +417,25 @@ assets:
     round_trip_efficiency: 0.90
     soc_min: 0.0
     soc_max: 1.0
-    soc_initial: 0.5
-    soc_terminal: 0.5
+    soc0_mwh: 500.0
+    terminal:
+      state: cyclic
+      policy: equal
 
 # ── GRID SETTINGS (Identical to L3)
 grid:
   max_import_mw: 2000.0
   max_export_mw: 2000.0
-  gridcost_eur_mwh: 35.0
+  gridcost_eur_mwh: 35.0           # Netzentgelt Leistungskomponente (€/MWh) — wird nur addiert wenn include_gridcost_in_energy: true
+  # demand_charge_eur_per_mw_y: 0.0  # [DEFAULT: 0] Leistungspreis (€/MW/Jahr) — 0 = Leistungspreis deaktiviert
+  # energy_fee_eur_mwh: 0.0          # [DEFAULT: 0] Netzentgelt Energiepreis (€/MWh), wird auf Kaufpreis aufgeschlagen wenn include_gridcost_in_energy: true
+  # sell_floor_eur_mwh: 0.0          # [DEFAULT: 0] Mindestpreis für Stromverkauf (€/MWh)
+  # sell_haircut_fraction: 0.0       # [DEFAULT: 0] Prozentualer Abschlag auf Verkaufspreis (z.B. 0.05 = 5%)
+  # sell_spread_eur_mwh: 0.0         # [DEFAULT: 0] Bid-Ask-Spread (€/MWh), wird vor haircut vom Preis abgezogen
+  # sell_fee_eur_mwh: 0.0            # [DEFAULT: 0] Fixgebühr pro verkaufter MWh (z.B. Broker-Fee)
+  # sell_premium_eur_mwh: 0.0        # [DEFAULT: 0] Einspeisevergütung (€/MWh), wird auf Verkaufspreis addiert
+  # big_m_grid_mw: 10000.0           # [DEFAULT: 10000] Big-M-Wert für MILP Grid-Constraints (kaufen/verkaufen nicht gleichzeitig)
+  # year_fraction: ~                 # [DEFAULT: auto = T*dt_h/8760] Jahresanteil des Horizonts — hier Jan: 744/8760 ≈ 0.085; relevant für Leistungspreis-Hochrechnung
 
 # ── FUELS ───────────────────────────────────────────────────────────────────
 fuels:
@@ -433,13 +445,21 @@ fuels:
 
 # ── COSTS ───────────────────────────────────────────────────────────────────
 costs:
-  co2_price_eur_per_t: 100.0
+  co2_price_eur_per_t: 1000.0
   dump_cost_eur_per_mwh_th: 10.0
+  # ── Flags: welche Kostenterme in die Zielfunktion eingehen ──────────────
+  # include_gridcost_in_energy: false       # [DEFAULT: false] gridcost_eur_mwh + energy_fee auf Kaufpreis addieren
+  # include_demand_charge_in_rh: true       # [DEFAULT: true]  Leistungspreis in RH-Fenstern aktiv (wirkt nur wenn demand_charge_eur_per_mw_y > 0)
+  # include_co2_cost_in_objective: true     # [DEFAULT: true]  CO2-Kosten in Zielfunktion
+  # include_capex_costs: true               # [DEFAULT: true]  Investitionskosten (CAPEX) in Zielfunktion — hier 0 da keine capex_eur_per_mw gesetzt
+  # include_activation_costs: true          # [DEFAULT: true]  Aktivierungskosten für Komponenten (Binärvariable-Kosten)
+  # include_tie_breaker_costs: true         # [DEFAULT: true]  Tie-Breaker-Terme für eindeutige MILP-Lösung
+  # include_storage_installation_costs: true # [DEFAULT: true] Speicher-Installationskosten
 
 # ── RUN SETTINGS ────────────────────────────────────────────────────────────
 run:
   dt_h: 1.0
-  solver: highs 
+  solver: highs # gurobi oder highs
   mip_gap: 0.01
   time_limit_s: 3600
   load_solutions: false      # Prevents RuntimeError on infeasibility
