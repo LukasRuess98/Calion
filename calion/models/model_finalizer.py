@@ -268,7 +268,10 @@ class ModelFinalizer:
                 "id": nid,
                 "type": node.type,
             }
-            if node.demand is not None:
+            if node.consumers:
+                node_dict["consumers"] = [{"column": c.column} for c in node.consumers]
+                node_dict["demand_column"] = node.consumers[0].column  # backward compat
+            elif node.demand is not None:
                 node_dict["demand_column"] = node.demand.column
             if node.assets:
                 node_dict["components"] = {aid: {} for aid in node.assets}
@@ -287,6 +290,11 @@ class ModelFinalizer:
                 "u_value_return_w_per_m_k": pipe.u_value_return_w_per_m_k,
             })
 
+        lin_cfg = (
+            self.cfg.get('network', {}).get('linearization')
+            or self.cfg.get('thermal_network', {}).get('linearization')
+            or {}
+        )
         return {
             "enabled": True,
             "nodes": nodes_list,
@@ -296,7 +304,12 @@ class ModelFinalizer:
                 "return_temp_nominal_c": ucfg.physics.return_temp_c,
                 "ground_temp_default_c": ucfg.physics.ground_temp_c,
             },
-            "milp_linearize": self.cfg.get('thermal_network', {}).get('milp_linearize', False),
+            "milp_linearize": (
+                self.cfg.get('thermal_network', {}).get('milp_linearize', False)
+                or self.cfg.get('network', {}).get('milp_linearize', False)
+                or self.cfg.get('scenario', {}).get('milp_linearize', False)
+            ),
+            "linearization": lin_cfg,
         }
 
     def _integrate_network_legacy(self) -> None:
