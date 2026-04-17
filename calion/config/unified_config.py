@@ -86,6 +86,7 @@ class DemandConfig(BaseModel):
 class ConsumerConfig(BaseModel):
     """Inline consumer definition at a junction node."""
 
+    # Intentionally separate from DemandConfig — will gain per-consumer attributes (fraction, priority)
     model_config = ConfigDict(populate_by_name=True)
 
     column: str
@@ -130,12 +131,12 @@ class NodeConfig(BaseModel):
         if raw is None:
             raw = {}
 
-        assets = raw.get("assets", [])
+        assets = raw.get("assets") or []
         if not isinstance(assets, list):
             assets = [assets]
 
         # Parse consumers list (new format)
-        consumers_raw = raw.get("consumers", [])
+        consumers_raw = raw.get("consumers") or []
         consumers = [ConsumerConfig.from_dict(c) for c in consumers_raw]
 
         # Legacy: demand.column -> consumers[0]
