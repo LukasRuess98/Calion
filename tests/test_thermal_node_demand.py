@@ -40,7 +40,7 @@ def test_consumer_uses_demand_column_directly():
 
 def test_consumer_validate_config_requires_demand_column_or_profile():
     """validate_config raises when neither demand_column nor demand_profile is present."""
-    with pytest.raises(ValueError, match="demand_column or demand_profile"):
+    with pytest.raises(ValueError, match="demand_column"):
         ThermalNodeBlock.validate_config({"id": "x", "type": "consumer"})
 
 
@@ -56,7 +56,7 @@ def test_consumer_validate_config_accepts_demand_profile():
 
 def test_demand_fraction_alone_is_rejected():
     """validate_config raises if only demand_fraction is provided (no longer valid)."""
-    with pytest.raises(ValueError, match="demand_column or demand_profile"):
+    with pytest.raises(ValueError, match="demand_column"):
         ThermalNodeBlock.validate_config({"id": "x", "type": "consumer", "demand_fraction": 0.5})
 
 
@@ -71,3 +71,90 @@ def test_result_dict_has_no_demand_fraction():
     }
     result = ThermalNodeBlock.attach(m, m.t, config, buses={}, network_pipes={})
     assert "demand_fraction" not in result
+
+
+# ---------------------------------------------------------------------------
+# Multi-consumer helpers and tests
+# ---------------------------------------------------------------------------
+
+def _make_model_with_two_consumers(demand_a: list, demand_b: list):
+    m = pyo.ConcreteModel()
+    T = len(demand_a)
+    m.t = pyo.RangeSet(1, T)
+    m.heatd_abnode_0 = pyo.Param(
+        m.t,
+        initialize={i + 1: float(v) for i, v in enumerate(demand_a)},
+        mutable=True,
+    )
+    m.heatd_abnode_1 = pyo.Param(
+        m.t,
+        initialize={i + 1: float(v) for i, v in enumerate(demand_b)},
+        mutable=True,
+    )
+    # Also create sum param (backward compat)
+    m.heatd_abnode = pyo.Param(
+        m.t,
+        initialize={i + 1: float(demand_a[i] + demand_b[i]) for i in range(T)},
+        mutable=True,
+    )
+    return m
+
+
+def test_validate_config_accepts_consumers_list():
+    """validate_config accepts consumers list without demand_column."""
+    ThermalNodeBlock.validate_config({
+        "id": "x", "type": "consumer",
+        "consumers": [{"column": "col_a"}, {"column": "col_b"}]
+    })
+
+
+def test_validate_config_accepts_mixed_type():
+    """validate_config accepts mixed type with consumers."""
+    ThermalNodeBlock.validate_config({
+        "id": "x", "type": "mixed",
+        "consumers": [{"column": "col_a"}]
+    })
+
+
+def test_multi_consumer_q_demand_params_created():
+    """attach() creates ABNODE_Q_demand_0 and ABNODE_Q_demand_1 params for multi-consumer node."""
+    m = _make_model_with_two_consumers([1.0, 2.0], [3.0, 4.0])
+    config = {
+        "id": "abnode",
+        "type": "consumer",
+        "consumers": [{"column": "col_a"}, {"column": "col_b"}],
+    }
+    ThermalNodeBlock.attach(m, m.t, config, buses={}, network_pipes={})
+    assert hasattr(m, "ABNODE_Q_demand_0")
+    assert hasattr(m, "ABNODE_Q_demand_1")
+
+
+def test_multi_consumer_q_demand_values():
+    """attach() Q_demand_0 and Q_demand_1 match the heatd_{id}_0 and heatd_{id}_1 param values."""
+    demand_a = [1.0, 2.0]
+    demand_b = [3.0, 4.0]
+    m = _make_model_with_two_consumers(demand_a, demand_b)
+    config = {
+        "id": "abnode",
+        "type": "consumer",
+        "consumers": [{"column": "col_a"}, {"column": "col_b"}],
+    }
+    ThermalNodeBlock.attach(m, m.t, config, buses={}, network_pipes={})
+    q0 = [pyo.value(m.ABNODE_Q_demand_0[t]) for t in m.t]
+    q1 = [pyo.value(m.ABNODE_Q_demand_1[t]) for t in m.t]
+    assert q0 == pytest.approx(demand_a)
+    assert q1 == pytest.approx(demand_b)
+
+
+def test_multi_consumer_m_dot_demand_sum_constraint():
+    """attach() creates m_dot_demand_sum constraint tying aggregate to per-consumer flows."""
+    m = _make_model_with_two_consumers([2.0, 4.0], [1.0, 3.0])
+    config = {
+        "id": "abnode",
+        "type": "consumer",
+        "consumers": [{"column": "col_a"}, {"column": "col_b"}],
+    }
+    ThermalNodeBlock.attach(m, m.t, config, buses={}, network_pipes={})
+    assert hasattr(m, "ABNODE_m_dot_demand_sum")
+    assert hasattr(m, "ABNODE_m_dot_demand_0")
+    assert hasattr(m, "ABNODE_m_dot_demand_1")

@@ -71,14 +71,19 @@ class ThermalNodeBlock(BaseComponent):
                 raise ValueError(f"ThermalNode config missing required field: {field}")
 
         # Accept 'plant' as an alias for 'producer' (backward compatibility)
-        valid_types = ['producer', 'plant', 'consumer', 'junction']
+        valid_types = ['producer', 'plant', 'consumer', 'junction', 'mixed']
         if config['type'] not in valid_types:
             raise ValueError(f"Node {config['id']}: type must be one of {valid_types}")
 
-        if config['type'] == 'consumer':
-            if 'demand_column' not in config and 'demand_profile' not in config:
+        if config['type'] in ('consumer', 'mixed'):
+            has_demand = (
+                'demand_column' in config
+                or 'demand_profile' in config
+                or bool(config.get('consumers'))
+            )
+            if not has_demand:
                 raise ValueError(
-                    f"Consumer node {config['id']}: must specify demand_column or demand_profile"
+                    f"Consumer node {config['id']}: must specify demand_column, demand_profile, or consumers"
                 )
 
     @staticmethod
@@ -143,6 +148,8 @@ class ThermalNodeBlock(BaseComponent):
 
         milp_linearize_temp = config.get('milp_linearize', False)
         _node_milp_temps = None  # populated below if MILP mode; used by heat_demand later
+        return_temp_range = None
+        return_temp_load_factor = 0.0
 
         if milp_linearize_temp:
             # MILP mode: both T_supply and T_return are load-dependent Params
@@ -211,36 +218,71 @@ class ThermalNodeBlock(BaseComponent):
         pressure_supply = getattr(model, f'{prefix}_pressure_supply')
         pressure_return = getattr(model, f'{prefix}_pressure_return')
 
-        # Demand variables (consumer nodes only)
+        # Demand variables (consumer and mixed nodes)
         Q_demand = None
         m_dot_demand = None
         delta_p_valve_var = None
         delta_p_min_station = 0.5
 
-        if node_type == 'consumer':
-            _node_heatd_attr = f'heatd_{node_id}'
-            if hasattr(model, _node_heatd_attr):
-                # Node-specific demand param created by system_builder from demand_column
-                _node_heatd = getattr(model, _node_heatd_attr)
-                def demand_init(m, t, _h=_node_heatd):
-                    return pyo.value(_h[t])
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_init))
-            elif 'demand_profile' in config:
-                demand_profile = config['demand_profile']
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_profile))
+        if node_type in ('consumer', 'mixed'):
+            consumers_list = config.get('consumers') or []
+            n_consumers = len(consumers_list)
+
+            if n_consumers > 1:
+                # Multi-consumer: create per-consumer Q_demand_{i} Params and m_dot_demand_{i} Vars
+                for i in range(n_consumers):
+                    _heatd_attr = f'heatd_{node_id}_{i}'
+                    if hasattr(model, _heatd_attr):
+                        _h = getattr(model, _heatd_attr)
+                        def _demand_init(m, t, _hh=_h):
+                            return pyo.value(_hh[t])
+                        setattr(model, f'{prefix}_Q_demand_{i}',
+                                pyo.Param(time_set, initialize=_demand_init))
+                    else:
+                        raise ValueError(
+                            f"Consumer node {node_id}: no heatd_{node_id}_{i} param found on model"
+                        )
+                    setattr(model, f'{prefix}_m_dot_demand_{i}',
+                            pyo.Var(time_set, domain=pyo.NonNegativeReals))
+
+                # Aggregate m_dot_demand = sum of per-consumer flows
+                setattr(model, f'{prefix}_m_dot_demand',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+
+                def _m_dot_sum_rule(m, t, _n=n_consumers, _pfx=prefix):
+                    return getattr(m, f'{_pfx}_m_dot_demand')[t] == sum(
+                        getattr(m, f'{_pfx}_m_dot_demand_{ii}')[t] for ii in range(_n)
+                    )
+                setattr(model, f'{prefix}_m_dot_demand_sum',
+                        pyo.Constraint(time_set, rule=_m_dot_sum_rule))
+
+                Q_demand = None  # no single Q_demand for multi-consumer
+
             else:
-                raise ValueError(
-                    f"Consumer node {node_id}: no demand data available. "
-                    f"Set demand_column in the node config so a heatd_{node_id} param is created."
-                )
+                # Single consumer (legacy path unchanged)
+                _node_heatd_attr = f'heatd_{node_id}'
+                if hasattr(model, _node_heatd_attr):
+                    # Node-specific demand param created by system_builder from demand_column
+                    _node_heatd = getattr(model, _node_heatd_attr)
+                    def demand_init(m, t, _h=_node_heatd):
+                        return pyo.value(_h[t])
+                    setattr(model, f'{prefix}_Q_demand',
+                            pyo.Param(time_set, initialize=demand_init))
+                elif 'demand_profile' in config:
+                    demand_profile = config['demand_profile']
+                    setattr(model, f'{prefix}_Q_demand',
+                            pyo.Param(time_set, initialize=demand_profile))
+                else:
+                    raise ValueError(
+                        f"Consumer node {node_id}: no demand data available. "
+                        f"Set demand_column in the node config so a heatd_{node_id} param is created."
+                    )
 
-            Q_demand = getattr(model, f'{prefix}_Q_demand')
-
-            setattr(model, f'{prefix}_m_dot_demand',
-                    pyo.Var(time_set, domain=pyo.NonNegativeReals))
-            m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+                Q_demand = getattr(model, f'{prefix}_Q_demand')
+                setattr(model, f'{prefix}_m_dot_demand',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 
             # Valve differential pressure — absorbs excess pump head at consumer stations.
             # delta_p_valve[t] = P_supply[t] - P_return[t] - delta_p_min_station >= 0
@@ -336,7 +378,7 @@ class ThermalNodeBlock(BaseComponent):
         skip_producer_mass_balance = milp_linearize_temp and node_type == 'producer'
         skip_consumer_mass_balance = (
             milp_linearize_temp
-            and node_type == 'consumer'
+            and node_type in ('consumer', 'mixed')
             and not outgoing_pipes
         )
         skip_mass_balance = skip_producer_mass_balance or skip_consumer_mass_balance
@@ -350,7 +392,7 @@ class ThermalNodeBlock(BaseComponent):
                     getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
                     for p in _out
                 )
-                if node_type == 'consumer':
+                if node_type in ('consumer', 'mixed'):
                     demand_var = getattr(m, f'{prefix}_m_dot_demand')
                     return total_in == total_out + demand_var[t]
                 return total_in == total_out
@@ -358,11 +400,16 @@ class ThermalNodeBlock(BaseComponent):
             setattr(model, f'{prefix}_mass_balance',
                     pyo.Constraint(time_set, rule=mass_balance_rule))
 
-        # (3) Heat demand satisfaction (consumer nodes only)
+        # (3) Heat demand satisfaction (single consumer only)
         # Q_demand [MW] = m_dot [kg/s] × c_p [kJ/(kg·K)] × (T_supply - T_return) [K] / 1000
         milp_linearize = config.get('milp_linearize', False)
+        # n_consumers is only defined when node_type in ('consumer', 'mixed')
+        _n_consumers_for_constraint = (
+            len(config.get('consumers') or [])
+            if node_type in ('consumer', 'mixed') else 0
+        )
 
-        if node_type == 'consumer':
+        if node_type in ('consumer', 'mixed') and _n_consumers_for_constraint <= 1:
             if milp_linearize and not outgoing_pipes:
                 # Terminal consumer in MILP mode: demand is enforced through
                 # Q_consumer == Q_demand in the network manager.  The heat_demand
@@ -433,6 +480,28 @@ class ThermalNodeBlock(BaseComponent):
                         f"(k={k_ret_temp:.4f} °C/MW, Q_max={peak_demand_mw:.2f} MW)"
                     )
 
+        # (3d) Multi-consumer heat demand constraints (nonlinear / NLP path only)
+        if node_type in ('consumer', 'mixed') and _n_consumers_for_constraint > 1:
+            _consumers_list_c = config.get('consumers') or []
+            for i in range(_n_consumers_for_constraint):
+                _Q_i = getattr(model, f'{prefix}_Q_demand_{i}')
+                _m_i = getattr(model, f'{prefix}_m_dot_demand_{i}')
+
+                def _heat_rule(m, t, _qi=_Q_i, _mi=_m_i):
+                    return _qi[t] * 1000 == _mi[t] * cp_water * (T_supply[t] - T_return[t])
+
+                setattr(model, f'{prefix}_heat_demand_{i}',
+                        pyo.Constraint(time_set, rule=_heat_rule))
+
+            # valve dp for multi-consumer
+            def valve_dp_rule_multi(m, t,
+                                    _ps=pressure_supply, _pr=pressure_return,
+                                    _dv=delta_p_valve_var, _dm=delta_p_min_station):
+                return _ps[t] - _pr[t] == _dv[t] + _dm
+
+            setattr(model, f'{prefix}_valve_dp',
+                    pyo.Constraint(time_set, rule=valve_dp_rule_multi))
+
         # ============================================================
         # PHASE 1: STATE CONSTRAINTS
         # ============================================================
@@ -467,8 +536,8 @@ class ThermalNodeBlock(BaseComponent):
             'outgoing_pipes': outgoing_pipes,
         }
 
-        if node_type == 'consumer':
-            result['Q_demand'] = Q_demand
+        if node_type in ('consumer', 'mixed'):
+            result['Q_demand'] = Q_demand  # None for multi-consumer
             result['m_dot_demand'] = m_dot_demand
             result['delta_p_valve'] = getattr(model, f'{prefix}_delta_p_valve')
 
@@ -517,11 +586,33 @@ class ThermalNodeBlock(BaseComponent):
             'avg_return_temp_c': sum(t_return_series) / len(t_return_series),
         }
 
-        if node_type == 'consumer':
-            Q_demand = getattr(model, f'{prefix}_Q_demand')
-            m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+        if node_type in ('consumer', 'mixed'):
+            consumers_list = config.get('consumers') or []
+            n_consumers = len(consumers_list)
 
-            q_demand_series = [pyo.value(Q_demand[t]) for t in time_set]
+            if n_consumers > 1:
+                # Multi-consumer: sum up per-consumer demands
+                time_list = list(time_set)
+                q_demand_series = [0.0] * len(time_list)
+                consumers_breakdown = []
+                for i, consumer_cfg in enumerate(consumers_list):
+                    _Q_i = getattr(model, f'{prefix}_Q_demand_{i}')
+                    q_i = [pyo.value(_Q_i[t]) for t in time_set]
+                    q_demand_series = [a + b for a, b in zip(q_demand_series, q_i)]
+                    consumers_breakdown.append({
+                        'index': i,
+                        'column': consumer_cfg.get('column', f'consumer_{i}'),
+                        'Q_demand_mw': q_i,
+                        'total_demand_mwh': sum(q_i) * getattr(model, 'dt_h', 1.0),
+                        'peak_demand_mw': max(q_i),
+                        'avg_demand_mw': sum(q_i) / len(q_i),
+                    })
+            else:
+                Q_demand = getattr(model, f'{prefix}_Q_demand')
+                q_demand_series = [pyo.value(Q_demand[t]) for t in time_set]
+                consumers_breakdown = None
+
+            m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
             m_dot_series = [safe_value(m_dot_demand, t, 0.0) for t in time_set]
 
             dt_h = getattr(model, 'dt_h', 1.0)
@@ -530,7 +621,7 @@ class ThermalNodeBlock(BaseComponent):
             dp_valve_var = getattr(model, f'{prefix}_delta_p_valve', None)
             dp_valve_series = (
                 [safe_value(dp_valve_var, t, 0.0) for t in time_set]
-                if dp_valve_var is not None else [0.0] * len(time_set)
+                if dp_valve_var is not None else [0.0] * len(list(time_set))
             )
 
             result.update({
@@ -542,5 +633,7 @@ class ThermalNodeBlock(BaseComponent):
                 'delta_p_valve_bar': dp_valve_series,
                 'min_delta_p_valve_bar': min(dp_valve_series),
             })
+            if consumers_breakdown:
+                result['consumers'] = consumers_breakdown
 
         return result
