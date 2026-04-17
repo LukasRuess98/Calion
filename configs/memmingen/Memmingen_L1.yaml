@@ -1,0 +1,139 @@
+# =============================================================================
+# MEMMINGEN — Level 1: Copperplate (Dispatch-Only)
+# =============================================================================
+# RESEARCH FOCUS: Network Topology Abstraction Impact on Operational Dispatch
+#
+# Level 1 = copperplate model. Single aggregated node, all assets combined,
+# zero network losses. Theoretical lower bound on operational cost.
+#
+# TOPOLOGY:
+#   Single node E_1: all assets + total aggregated demand
+#   No pipes, no network physics
+#
+# PHYSICS:
+#   Heat loss:      ZERO (copperplate assumption)
+#   Pressure drop:  NOT modeled
+#
+# SYSTEM SUMMARY (Fixed Assets — identical to L2 & L3):
+#   Peak demand:   2700 MWth (sum of 27 zones)
+#   Boiler:        uncapped gas boiler (dispatch-only, no sizing)
+#   Storage:       1000 MWh / 50 MW
+#   Heat losses:   0% (copperplate idealization)
+#
+# DATA:
+#   Source: data/2025_04_14_Import_Data_Memmingen_aggregated.csv
+#   Demand: total_demand_MWth (sum of V_1..V_27)
+#   Generate with: python scripts/preprocess_memmingen_aggregated.py
+#
+# COMPARISON BASIS:
+#   Same assets and solver settings as Memmingen L2 & L3
+#   Differs only in network representation (none here)
+# =============================================================================
+
+site:
+  input_xlsx: "data/2025_04_14_Import_Data_Memmingen_aggregated.csv"
+  columns:
+    datetime:  "Date"
+    price:     "strompreis_EUR_MWh"
+    co2_grid:  "grid_co2_kg_MWh"
+
+scenario:
+  name: "Memmingen L1 - Copperplate (Dispatch-Only)"
+  description: "Single-node copperplate model — no network losses, lower bound on cost"
+  run_mode: PF_ONLY
+  milp_linearize: true
+  horizon:
+    start: "2025-01-01"
+    end: "2025-01-31 23:00"
+
+# ── Network (single aggregated node, no losses) ───────────────────────────────
+network:
+  milp_linearize: true
+  physics:
+    heat_loss: false
+    pressure_drop: false
+    transport_delay: false
+
+  supply_temp_c: 100
+  return_temp_c: 40
+  ground_temp_c: 10
+
+  nodes:
+    E_1:
+      assets: [boiler_main, tes_main]
+      consumers:
+        - column: "total_demand_MWth"
+
+  # No pipes — copperplate
+
+# ── FIXED ASSETS (Dispatch-Only, identical to L2 & L3) ───────────────────────
+assets:
+  boiler_main:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 2000000000000.0
+    min_load: 0
+    thermal_efficiency: 0.90
+  tes_main:
+    type: storage
+    energy_capacity_mwh: 1000.0
+    power_capacity_mw: 50.0
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+    min_load_mw: 0.0
+    round_trip_efficiency: 0.90
+    soc_min: 0.0
+    soc_max: 1.0
+    soc0_mwh: 500.0
+    terminal:
+      state: cyclic
+      policy: equal
+
+# ── GRID SETTINGS ─────────────────────────────────────────────────────────────
+grid:
+  max_import_mw: 2000.0
+  max_export_mw: 2000.0
+  gridcost_eur_mwh: 35.0
+
+# ── FUELS ─────────────────────────────────────────────────────────────────────
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+# ── COSTS ─────────────────────────────────────────────────────────────────────
+costs:
+  co2_price_eur_per_t: 1000.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+# ── RUN SETTINGS ──────────────────────────────────────────────────────────────
+run:
+  dt_h: 1.0
+  solver: highs
+  mip_gap: 0.01
+  time_limit_s: 3600
+  load_solutions: false
+  log_to_file: true
+  verbose_logging: true
+  solver_options:
+    OutputFlag: 1
+    LogToConsole: 1
+
+# ── OUTPUT SETTINGS ───────────────────────────────────────────────────────────
+output:
+  log_dir: "output/logs"
+  export_dir: "output/results"
+  export_thermal_network: true
+  export_solver_solution: true
+
+# ── NOTES ─────────────────────────────────────────────────────────────────────
+# 1. COPPERPLATE: No network — demand satisfied directly at E_1.
+#    Result = cost lower bound. Delta vs L2/L3 = cost of network losses.
+#
+# 2. DEMAND: total_demand_MWth = sum(V_1..V_27) from aggregated CSV.
+#    Temporal profile identical to L2/L3 total.
+#
+# 3. MILP_LINEARIZE: kept active for consistency with L2/L3 solver settings,
+#    though no PWL temperature model applies without a network.
+#
+# 4. HORIZON: Jan 2025 (744 h). Extend start/end for full-year runs.

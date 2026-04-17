@@ -29,7 +29,9 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
     cap = 0.0
 
     # New structure: sum assets in all network nodes (Level 2, 3, etc.)
-    network_nodes = cfg.get("network", {}).get("nodes", {})
+    # Support both "network" and "thermal_network" as top-level config keys
+    network_cfg = cfg.get("network") or cfg.get("thermal_network") or {}
+    network_nodes = network_cfg.get("nodes", {})
     asset_cfgs = cfg.get("assets", {})
 
     for node in network_nodes.values():
