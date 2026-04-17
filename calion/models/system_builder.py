@@ -123,19 +123,40 @@ def _build_model_unified(
         # Multi-node: per-node demand parameters
         m.node_demand = {}
         for nid, node in ucfg.nodes.items():
-            if node.demand is not None:
+            if node.consumers:
+                # New format: consumers list — create individual params + sum
+                individual_cols = []
+                for i, consumer in enumerate(node.consumers):
+                    actual_col = _find_demand_column(table, consumer.column)
+                    demand_data = {i2 + 1: float(table[actual_col][i2]) for i2 in range(T)}
+                    setattr(m, f"heatd_{nid}_{i}",
+                            pyo.Param(m.t, initialize=demand_data, mutable=True))
+                    individual_cols.append(actual_col)
+
+                # Sum param for backward compat (ThermalNodeBlock looks up heatd_{nid})
+                sum_data = {
+                    i2 + 1: sum(float(table[col][i2]) for col in individual_cols)
+                    for i2 in range(T)
+                }
+                setattr(m, f"heatd_{nid}",
+                        pyo.Param(m.t, initialize=sum_data, mutable=True))
+                m.node_demand[nid] = getattr(m, f"heatd_{nid}")
+
+            elif node.demand is not None:
+                # Legacy format: single demand.column
                 actual_col = _find_demand_column(table, node.demand.column)
                 demand_data = {i + 1: float(table[actual_col][i]) for i in range(T)}
-                param_name = f"heatd_{nid}"
-                setattr(m, param_name, pyo.Param(m.t, initialize=demand_data, mutable=True))
-                m.node_demand[nid] = getattr(m, param_name)
+                setattr(m, f"heatd_{nid}",
+                        pyo.Param(m.t, initialize=demand_data, mutable=True))
+                m.node_demand[nid] = getattr(m, f"heatd_{nid}")
 
-        # Also create global m.heatd as sum of all node demands (for compatibility)
+        # Global m.heatd = sum of all node demands (backward compat)
         all_demand_cols = []
         for node in ucfg.nodes.values():
-            if node.demand is not None:
-                actual_col = _find_demand_column(table, node.demand.column)
-                all_demand_cols.append(actual_col)
+            for consumer in node.consumers:
+                all_demand_cols.append(_find_demand_column(table, consumer.column))
+            if not node.consumers and node.demand is not None:
+                all_demand_cols.append(_find_demand_column(table, node.demand.column))
         if all_demand_cols:
             global_demand = {
                 i + 1: sum(float(table[col][i]) for col in all_demand_cols)

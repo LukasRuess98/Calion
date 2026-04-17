@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pandas as pd
 import pytest
 
 try:
@@ -180,3 +181,73 @@ def test_energy_cost_components_and_demand_charge():
     assert flat["objective.Grid_energy_cost_EUR"] == pytest.approx(expected_energy_cost)
     assert series["P_buy_MW"] == pytest.approx([2.0, 0.0])
     assert series["P_sell_MW"] == pytest.approx([0.0, 1.0])
+
+
+# ─── Per-consumer demand params tests ────────────────────────────────────────
+
+pytestmark_consumer = pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not installed")
+
+
+def _make_two_consumer_table():
+    idx = list(pd.date_range("2025-01-01", periods=3, freq="h"))
+    cols = ["strompreis_EUR_MWh", "grid_co2_kg_MWh", "demand_A", "demand_B"]
+    data = {
+        "strompreis_EUR_MWh": [50.0, 51.0, 52.0],
+        "grid_co2_kg_MWh": [300.0, 310.0, 320.0],
+        "demand_A": [10.0, 12.0, 14.0],
+        "demand_B": [5.0, 6.0, 7.0],
+    }
+    return TimeSeriesTable(idx, cols, data)
+
+
+def _two_consumer_cfg():
+    return {
+        "assets": {
+            "boiler_1": {"type": "thermal_generator", "fuel": "gas",
+                         "capacity_mw": 500.0, "thermal_efficiency": 0.9},
+        },
+        "network": {
+            "nodes": {
+                "E_1": {"assets": ["boiler_1"]},
+                "V_AB": {
+                    "consumers": [
+                        {"column": "demand_A"},
+                        {"column": "demand_B"},
+                    ],
+                },
+            },
+            "pipes": {
+                "E1_VAB": {"from": "E_1", "to": "V_AB",
+                           "length_m": 100, "diameter_mm": 300},
+            },
+        },
+        "grid": {"max_import_mw": 1000.0, "max_export_mw": 1000.0},
+        "fuels": {"gas": {"price_eur_mwh": 45.0, "ef_kg_per_mwh_fuel": 200.0}},
+        "costs": {"co2_price_eur_per_t": 100.0, "dump_cost_eur_per_mwh_th": 1.0},
+        "run": {"dt_h": 1.0},
+        "scenario": {"milp_linearize": False},
+    }
+
+
+@pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not installed")
+def test_individual_consumer_params_created():
+    m = build_model(_make_two_consumer_table(), _two_consumer_cfg(), dt_h=1.0)
+    assert hasattr(m, "heatd_V_AB_0"), "heatd_V_AB_0 not on model"
+    assert hasattr(m, "heatd_V_AB_1"), "heatd_V_AB_1 not on model"
+
+
+@pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not installed")
+def test_individual_consumer_param_values():
+    m = build_model(_make_two_consumer_table(), _two_consumer_cfg(), dt_h=1.0)
+    vals_a = [pyo.value(m.heatd_V_AB_0[t]) for t in m.t]
+    vals_b = [pyo.value(m.heatd_V_AB_1[t]) for t in m.t]
+    assert vals_a == pytest.approx([10.0, 12.0, 14.0])
+    assert vals_b == pytest.approx([5.0, 6.0, 7.0])
+
+
+@pytest.mark.skipif(not HAVE_PYOMO, reason="Pyomo not installed")
+def test_sum_param_heatd_created():
+    m = build_model(_make_two_consumer_table(), _two_consumer_cfg(), dt_h=1.0)
+    assert hasattr(m, "heatd_V_AB"), "heatd_V_AB sum param not on model"
+    vals = [pyo.value(m.heatd_V_AB[t]) for t in m.t]
+    assert vals == pytest.approx([15.0, 18.0, 21.0])
