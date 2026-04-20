@@ -13,6 +13,7 @@ data/
 .HeatGrid
 .venv
 .output
+.output/
 
 # Virtual environments
 HeatGrid/
@@ -28,6 +29,7 @@ test_exports/
 # Experiment outputs (should not be tracked in version control)
 notebooks/exports/
 notebooks/saved_workflows/
+output/
 outputs/runs/
 outputs/workflows/
 outputs/dashboard/

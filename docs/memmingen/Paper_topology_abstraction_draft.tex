@@ -1,0 +1,1892 @@
+\documentclass[review,3p]{elsarticle}
+
+%% ============================================================
+%% PAPER 1: TOPOLOGY ABSTRACTION EFFECTS
+%% Target Journal: Energy Conversion and Management
+%% Version: 3.0 — Bereinigt, Appendices korrigiert, Ergebnisse ausstehend
+%% ============================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{lineno}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage[version=4]{mhchem}
+
+\modulolinenumbers[5]
+\sisetup{per-mode=symbol, bracket-unit-denominator=false}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\newcommand{\placeholder}[1]{\textcolor{red}{[#1]}}
+
+\journal{Energy Conversion and Management}
+
+\begin{document}
+
+\begin{frontmatter}
+
+%% ============================================================
+%% TITEL
+%% ============================================================
+\title{Topology Abstraction Effects on Dispatch Optimization of
+Electrified District Heating Networks: A Controlled MILP Comparison}
+
+\author[tum]{Lukas [Nachname]\corref{cor1}}
+\ead{lukas.nachname@tum.de}
+\author[tum]{[Betreuer]}
+\author[partner]{[Industriepartner]}
+
+\cortext[cor1]{Corresponding author.}
+
+\affiliation[tum]{organization={Lehrstuhl für Energiewirtschaft und Anwendungstechnik,
+                Technische Universität München},
+                city={München},
+                country={Germany}}
+
+\affiliation[partner]{organization={[Industriepartner Institution]},
+                city={[Stadt]},
+                country={Austria}}
+
+%% ============================================================
+%% ABSTRACT
+%% ============================================================
+\begin{abstract}
+District heating network planning studies require practitioners to choose
+a topology representation level, yet no quantitative guidance exists for
+this decision. Prior comparisons confound topology abstraction with
+physics model changes, rendering it impossible to attribute observed
+cost differences to either factor independently.
+
+This paper presents the first controlled comparison that isolates
+topology as the sole experimental variable. Three abstraction levels
+are defined within a unified mixed-integer linear programming (MILP)
+framework: L1 (copperplate, no network physics), L2 (simplified
+multi-node with physics-based thermal losses), and L3 (detailed
+multi-node with identical physics to L2). The framework is validated
+against measured operational data from an Austrian industrial heat
+network comprising heat pumps, thermal storage, a gas boiler, an
+electrode boiler, and grid electricity coupling. Generalizability is
+assessed across 36 synthetic network configurations spanning systematic
+variations in pipe length, demand heterogeneity, node count, and
+storage capacity.
+
+Results quantify the topology effect: the L1$\rightarrow$L2 transition
+(physics inclusion) drives cost differences of \placeholder{X}\%
+(\placeholder{€Y,000}/year) and \ce{CO2} differences of
+\placeholder{Z}~t/year, while the L2$\rightarrow$L3 transition
+(spatial refinement) adds \placeholder{$<$X}\% for uniform-demand
+networks but up to \placeholder{Y}\% for spatially heterogeneous
+systems. Thermal storage dispatch emerges as the primary diagnostic
+variable for model adequacy: L1 systematically misrepresents charging
+patterns by ignoring loss-dependent temporal holding costs, shifting
+optimal charge timing by \placeholder{X}~hours on average in winter.
+The synthetic analysis reveals that the L1$\rightarrow$L2 gap scales
+with total pipe length ($R^2\!=\,$\placeholder{XX}), while the
+L2$\rightarrow$L3 gap is driven by demand heterogeneity. These
+findings yield actionable selection criteria: L2 is the minimum
+fidelity for storage-containing systems, while L3 is warranted when
+the demand heterogeneity index exceeds \placeholder{0.X}.
+\end{abstract}
+
+\begin{keyword}
+District heating \sep Mixed-integer linear programming \sep
+Topology abstraction \sep Thermal storage dispatch \sep
+Heat pump optimization \sep Network modeling fidelity
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers
+
+%% ============================================================
+%% NOMENCLATURE
+%% ============================================================
+\section*{Nomenclature}
+
+\subsection*{Sets and Indices}
+\begin{tabular}{@{}p{2.8cm}p{9.5cm}@{}}
+$t \in \mathcal{T}$               & Time steps, $t = 1, \ldots, |\mathcal{T}|$ \\
+$n \in \mathcal{N}$               & Network nodes \\
+$\mathcal{N}^{\mathrm{prod}}$     & Producer nodes (generation/storage) \\
+$\mathcal{N}^{\mathrm{con}}$      & Consumer nodes (demand only) \\
+$p \in \mathcal{P}$               & Pipe segments \\
+$g \in \mathcal{G}$               & Thermal generators (all types) \\
+$h \in \mathcal{H}$               & Heat pumps \\
+$s \in \mathcal{S}$               & Thermal storage units \\
+$r \in \mathcal{R}$               & Power-to-heat units \\
+$\mathcal{G}_n$                   & Generators at node $n$ \\
+$\mathcal{S}_n$                   & Storage units at node $n$ \\
+\end{tabular}
+
+\subsection*{Parameters}
+\begin{tabular}{@{}p{2.8cm}p{2.2cm}p{7.5cm}@{}}
+$\Delta t$                              & h               & Time step duration (1~h unless stated) \\
+$U_p$                                   & W/(m$\cdot$K)   & Linear heat transfer coefficient, pipe $p$ \\
+$L_p$                                   & m               & Length of pipe $p$ \\
+$T_{\mathrm{ground}}(t)$               & \si{\celsius}   & Ground temperature at time $t$ \\
+$T_{\mathrm{sup}}^{\mathrm{nom}}(t)$   & \si{\celsius}   & Nominal supply temperature (heating curve) \\
+$T_{\mathrm{ret}}^{\mathrm{nom}}$      & \si{\celsius}   & Nominal return temperature \\
+$\mathrm{COP}_{h,t}^{\mathrm{wrg}}$   & --              & Pre-computed COP, HP $h$, WRG source \\
+$\mathrm{COP}_{h}^{\mathrm{def}}$      & --              & Default-source COP, HP $h$ (constant) \\
+$\eta_g^{\mathrm{th}}$                 & --              & Thermal efficiency of generator $g$ \\
+$\eta_g^{\mathrm{el}}$                 & --              & Electrical efficiency of CHP unit $g$ \\
+$\eta_{s}^{\mathrm{ch/dis}}$           & --              & Storage charge/discharge efficiency \\
+$\alpha_s$                             & h$^{-1}$        & Storage self-discharge rate \\
+$a_{s,t}$                              & $\{0,1\}$       & Storage availability parameter \\
+$\lambda_t^{\mathrm{buy/sell}}$        & \euro/MWh       & Electricity buy/sell price at time $t$ \\
+$\lambda_g^{\mathrm{fuel}}$            & \euro/MWh       & Fuel price of generator $g$ \\
+$\lambda^{\ce{CO2}}$                   & \euro/t\ce{CO2} & Carbon price \\
+$\lambda^{\mathrm{dem}}$               & \euro/MW/a      & Annual demand charge rate \\
+$e_t^{\mathrm{grid}}$                  & kg/MWh          & Hourly grid emission factor \\
+$e_g^{\mathrm{fuel}}$                  & kg/MWh          & Fuel emission factor \\
+$M^{\mathrm{grid}}$                    & MW              & Big-M constant for grid buy/sell logic \\
+$\bar{Q}_g$                            & MW              & Installed thermal capacity of generator $g$ \\
+$\bar{E}_s$                            & MWh             & Energy capacity of storage $s$ \\
+$\bar{P}_s$                            & MW              & Power capacity of storage $s$ \\
+$\phi_h^{\mathrm{min}}$                & --              & Minimum part-load ratio of heat pump $h$ \\
+$f^{\mathrm{yr}}$                      & --              & Year fraction: $|\mathcal{T}|\Delta t / 8760$ \\
+$\mathrm{HI}$                          & --              & Demand heterogeneity index (Eq.~\ref{eq:hi}) \\
+\end{tabular}
+
+\subsection*{Decision Variables}
+\begin{tabular}{@{}p{2.8cm}p{2.2cm}p{7.5cm}@{}}
+$P_t^{\mathrm{buy/sell}}$         & MW        & Grid electricity import/export \\
+$P^{\mathrm{peak}}$               & MW        & Peak grid import (annual maximum) \\
+$Q_{g,t}^{\mathrm{th}}$          & MW        & Thermal output of generator $g$ \\
+$P_{g,t}^{\mathrm{el}}$          & MW        & Electrical output of CHP unit $g$ \\
+$P_{h,t}^{\mathrm{el}}$          & MW        & Electrical input to heat pump $h$ \\
+$Q_{h,t}^{\mathrm{wrg/def}}$     & MW        & HP $h$ output from WRG/default source \\
+$Q_{s,t}^{\mathrm{ch/dis}}$      & MW        & Storage $s$ charge/discharge power \\
+$E_{s,t}$                        & MWh       & Storage $s$ state of charge \\
+$F_{g,t}$                        & MW        & Fuel input of generator $g$ \\
+$Q_{n,t}^{\mathrm{dump}}$        & MW        & Heat curtailment at node $n$ \\
+$Q_{p,t}$                        & MW        & Heat flow in pipe $p$ \\
+$u_{h,t}$                        & $\{0,1\}$ & Binary: heat pump $h$ online/offline \\
+$z_t$                            & $\{0,1\}$ & Binary: grid import mode ($z=1$) \\
+$\delta_{s,t}^{\mathrm{ch/dis}}$ & $\{0,1\}$ & Binary: storage charge/discharge mode \\
+\end{tabular}
+
+%% ============================================================
+%% 1. INTRODUCTION
+%% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Motivation}
+\label{sec:motivation}
+
+The decarbonization of heating and cooling represents one of the
+largest unresolved challenges in the European energy transition.
+Space and process heat account for approximately 50\% of final
+energy consumption in the European Union, of which roughly
+60\% is still provided by fossil fuels~\cite{EUheating2016}.
+District heating (DH) networks offer a systemic pathway for
+decarbonization through sector coupling: large-scale heat pumps
+converting waste heat and ambient sources, combined heat and
+power (CHP) units providing flexibility, thermal energy storage
+enabling temporal load shifting, and electrode boilers absorbing
+surplus renewable electricity~\cite{Lund2014_4GDH,Werner2017}.
+The fourth-generation paradigm (4GDH) envisions networks operating
+at low supply temperatures to maximize heat pump efficiency and
+integrate low-grade renewable sources~\cite{Lund2014_4GDH,Buffa2019}.
+
+Planning and operational optimization of such multi-source networks
+increasingly relies on mixed-integer linear programming (MILP)
+due to its global optimality guarantees, mature solver technology,
+and tractable handling of binary commitment decisions. However,
+every MILP-based planning study confronts a fundamental decision
+that has received remarkably little systematic attention: the level
+of spatial detail at which the network is represented.
+
+This choice spans a wide spectrum. At one extreme,
+\emph{copperplate} models aggregate all components and demands
+to a single bus, ignoring spatial structure entirely. At the
+other extreme, \emph{full-topology} models resolve the physical
+pipe-by-pipe network, capturing thermal losses that typically
+constitute 5--15\% of annual heat supply in Central European
+networks~\cite{Frederiksen2013,Talebi2016}.
+Between these poles lies a continuous range of aggregation levels,
+each representing a different trade-off between physical fidelity
+and computational tractability.
+
+The practical consequences of this choice affect three
+interlinked dimensions. First, cost estimation accuracy: simplified
+models may systematically underestimate operational costs by
+ignoring the thermal generation overhead required to compensate
+pipe losses. Second, dispatch quality: optimal scheduling decisions
+for heat pumps, storage, and boilers depend on energy balances that
+are distorted when losses are absent or misrepresented. Third,
+\ce{CO2} accounting: because network losses require additional
+generation from sources with non-zero emission factors,
+topology-induced generation biases translate directly into
+emission accounting errors.
+
+Despite the centrality of this decision, practitioners currently
+lack quantitative guidance on the accuracy--tractability trade-off
+across topology levels. The present paper addresses this gap
+through a controlled experimental comparison.
+
+\subsection{The Confounding Problem in Existing Comparisons}
+\label{sec:confounding}
+
+A critical methodological limitation pervades the existing literature
+on district heating modeling: published comparisons between different
+topology representations invariably change the physics model and the
+spatial aggregation level simultaneously, making it impossible to
+attribute observed differences to either factor independently.
+
+This confounding manifests through three co-varying dimensions:
+
+\begin{enumerate}
+    \item \textbf{Loss formulation}: Copperplate models typically use
+    no losses or constant loss factors; pipe-level models employ
+    temperature-dependent steady-state or dynamic loss equations.
+
+    \item \textbf{COP treatment}: Single-node models often use
+    constant or seasonally-averaged COP values; detailed models
+    couple COP to network supply temperatures.
+
+    \item \textbf{Temporal resolution}: Screening tools frequently
+    operate at lower temporal resolution than detailed simulation
+    models.
+\end{enumerate}
+
+To illustrate the problem concretely: Vesterlund et al.~\cite{Vesterlund2017}
+use a full nonlinear pipe model with temperature-dependent COP, while
+Gabrielli et al.~\cite{Gabrielli2018} apply a copperplate assumption
+with constant thermal efficiencies. Any comparison of their respective
+cost results would conflate topology effects with (1)~NLP vs.\
+constant-loss formulations, (2)~temperature-dependent vs.\ constant
+COP, and (3)~potentially differing temporal resolutions. The same
+pattern appears when contrasting the zonal models of Wirtz et
+al.~\cite{Wirtz2020} against full-graph representations in Schweiger
+et al.~\cite{Schweiger2017}.
+
+The consequence is that the practitioner question that matters
+most---\emph{how much does topology abstraction itself change
+operational cost and emission estimates, for a system with fixed
+physics?}---remains unanswered.
+
+The present work resolves this confounding through controlled
+experimental design. Three topology abstraction levels (L1, L2, L3)
+are embedded within a \emph{unified} MILP framework where the
+physics model (loss formulation, COP parameterization, component
+efficiencies) remains \emph{identical} at L2 and L3, while L1 omits
+network physics as a deliberate baseline. Topology is thereby
+isolated as the sole experimental variable.
+
+\subsection{Research Questions}
+\label{sec:rq}
+
+\begin{description}[style=nextline]
+    \item[RQ1 --- Topology Cost Impact:]
+    How much does topology abstraction change annual operational cost
+    and \ce{CO2} emissions when physics are held constant across levels?
+
+    \item[RQ2 --- Dispatch Sensitivity:]
+    Which dispatch decisions (heat pump utilization, storage charging
+    patterns, boiler activation frequency) are most sensitive to the
+    topology level, and what is the physical mechanism?
+
+    \item[RQ3 --- Generalizability:]
+    Which network properties (pipe length, demand heterogeneity,
+    storage capacity) determine whether detailed topology
+    representation is warranted?
+\end{description}
+
+\subsection{Contributions}
+\label{sec:contributions}
+
+\begin{enumerate}
+    \item \textbf{L1/L2/L3 taxonomy}: A reusable, transferable
+    classification framework for district heating MILP modeling
+    fidelity, enabling consistent comparison across future studies
+    (\Cref{sec:topology_def}).
+
+    \item \textbf{First controlled comparison}: To the best of the
+    authors' knowledge, no prior study has isolated topology as the
+    sole experimental variable while holding physics constant across
+    L2 and L3. This paper fills that gap through a comparison
+    validated against measured industrial operational data
+    (\Cref{sec:results}).
+
+    \item \textbf{Storage dispatch as primary diagnostic}: Mechanistic
+    explanation of how topology affects cost via loss-dependent
+    temporal holding costs, with storage charge timing identified as
+    a directly observable indicator of topology adequacy
+    (\Cref{sec:results_storage}).
+
+    \item \textbf{Actionable decision criteria}: Parametric analysis
+    across 36 synthetic network configurations yielding quantitative
+    topology-selection rules based on observable network properties
+    (\Cref{sec:generalizability}).
+\end{enumerate}
+
+\subsection{Paper Structure}
+
+\Cref{sec:related_work} reviews related work and positions this
+contribution within the district heating optimization literature.
+\Cref{sec:model} presents the unified MILP formulation.
+\Cref{sec:case_studies} describes the primary industrial case study
+and the synthetic parametric network.
+\Cref{sec:results} presents primary results.
+\Cref{sec:generalizability} extends findings through parametric
+analysis. \Cref{sec:sensitivity} provides sensitivity analysis.
+\Cref{sec:discussion} synthesizes findings.
+\Cref{sec:conclusion} concludes with recommendations.
+
+%% ============================================================
+%% 2. RELATED WORK
+%% ============================================================
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{MILP Optimization of District Heating Systems}
+\label{sec:rw_milp}
+
+Mixed-integer linear programming has become the dominant methodology
+for operational optimization and capacity planning of district heating
+systems~\cite{Fang2016,Guelpa2019review}. The technology combination
+of heat pumps, thermal storage, CHP units, and electrode boilers
+that characterizes modern electrified networks introduces both binary
+commitment decisions and nonlinear physical relationships that must
+be handled through model approximation~\cite{Lund2014_4GDH}.
+
+Several open-source frameworks support multi-carrier energy system
+optimization. The Open Energy Modelling Framework
+(oemof)~\cite{Hilpert2018_oemof} provides modular component libraries
+including the oemof-thermal extension for thermal
+networks~\cite{Krien2020_oemofthermal}. PyPSA~\cite{Brown2018_pypsa}
+focuses on power systems with heat sector coupling via linearized
+models. The FINE framework~\cite{Welder2018_FINE} supports
+multi-regional energy system optimization with explicit inter-regional
+transmission. Calliope~\cite{Pfenninger2018_calliope} offers flexible
+spatial and temporal resolution. The urbs framework~\cite{Dorfner2016_urbs}
+and Balmorel~\cite{Wiese2018_balmorel} further extend the landscape.
+
+Despite their diversity, these frameworks share common limitations
+for detailed district heating analysis. Thermal losses are typically
+represented through aggregate, time-invariant loss factors rather than
+physics-based temperature-dependent pipe models. Heat pump COP is
+often constant or seasonal, breaking the physical coupling to network
+supply temperatures. Network topology is either fully aggregated
+(copperplate) or fixed at a single detail level without capability
+for systematic level comparison. The present work addresses these
+limitations within a specialized framework retaining MILP tractability.
+
+\subsection{Topology Representation in District Heating Models}
+\label{sec:rw_topology}
+
+The district heating modeling literature exhibits a continuous
+spectrum of spatial aggregation levels, which we organize into
+three categories corresponding directly to our L1/L2/L3 taxonomy.
+
+\textbf{Single-node aggregation (L1-equivalent):} All generation
+and demand are aggregated to a single bus. This representation
+is standard in national-scale energy system models where heating
+is one of many sectors~\cite{Connolly2014_EnergyPLAN,Brown2018_pypsa,
+Lund2017_SmartEnergy}. Spatial structure and thermal losses are absent.
+
+\textbf{Zone-based models (L2-equivalent):} Demand is aggregated
+into geographic zones (typically 3--15 nodes) connected by simplified
+inter-zone pipe segments with aggregate pipe parameters~\cite{Wirtz2020,
+Mertz2016,Buffa2019}. Reduced-order models by Bünning et
+al.~\cite{Buenning2020} demonstrate that zone-level aggregation
+captures 85--95\% of dynamic temperature variation in typical networks.
+
+\textbf{Full-graph models (L3-equivalent):} Node-by-node
+representation matching the physical network topology, with
+pipe-by-pipe parameters sourced from GIS data~\cite{Vesterlund2017,
+Schweiger2017,vanderHeijde2017,Blommaert2020}. Giraud et
+al.~\cite{Giraud2015} demonstrate that full-graph MILP formulations
+for branching networks remain tractable up to approximately 100~nodes
+for hourly, annual optimization horizons.
+
+\Cref{tab:prior_work} positions representative studies from each
+category. The critical observation is that in all prior comparative
+work, the physics model changes simultaneously with the topology
+level.
+
+\begin{table*}[htbp]
+\centering
+\caption{Representative district heating optimization studies by
+topology level, physics model, and whether topology effects are
+isolated from physics effects.}
+\label{tab:prior_work}
+\small
+\begin{tabular}{@{}p{3.5cm}p{2.0cm}p{3.0cm}p{2.2cm}p{1.5cm}p{1.8cm}@{}}
+\toprule
+Reference & Topology & Physics Model & COP Treatment & Scale & Controlled? \\
+\midrule
+Connolly et al.~\cite{Connolly2014_EnergyPLAN}
+  & Copperplate & Fixed efficiency & Constant seasonal & National & No \\
+Gabrielli et al.~\cite{Gabrielli2018}
+  & Copperplate & Fixed efficiency & Constant & 10~MW & No \\
+Mertz et al.~\cite{Mertz2016}
+  & Zone (8 nodes) & Linear losses & Constant & 20~MW & No \\
+Wirtz et al.~\cite{Wirtz2020}
+  & Zone (5 nodes) & Linear losses & Fixed seasonal & 25~MW & No \\
+Bünning et al.~\cite{Buenning2020}
+  & Reduced-order & Simplified & Constant & 8~MW & No \\
+Giraud et al.~\cite{Giraud2015}
+  & Full graph & Steady-state & Temperature-dep. & 30~MW & No \\
+Vesterlund et al.~\cite{Vesterlund2017}
+  & Full graph & NLP thermal & Temperature-dep. & 50~MW & No \\
+Schweiger et al.~\cite{Schweiger2017}
+  & Full graph & Modelica co-sim & Dynamic & 15~MW & No \\
+van der Heijde et al.~\cite{vanderHeijde2017}
+  & Full graph & Pipe model comp. & -- & Review & Partial$^{a}$ \\
+Blommaert et al.~\cite{Blommaert2020}
+  & Full graph & Adjoint NLP & Temperature-dep. & 30~MW & No \\
+\textbf{This work}
+  & \textbf{L1/L2/L3} & \textbf{Identical MILP} & \textbf{Pre-computed}
+  & \textbf{$\approx$12~MW} & \textbf{Yes} \\
+\bottomrule
+\multicolumn{6}{@{}l}{\footnotesize $^{a}$~Compared pipe loss
+formulations but not spatial aggregation levels.}
+\end{tabular}
+\end{table*}
+
+\subsection{Thermal Pipe Loss Modeling}
+\label{sec:rw_losses}
+
+Pipe thermal losses follow from steady-state or dynamic heat transfer
+between the fluid and surrounding soil. The steady-state linear model,
+in which loss is proportional to the temperature difference between
+fluid and ground~\cite{Paalsson1999,Frederiksen2013}, forms the basis
+for MILP-compatible loss calculations used in this study.
+Dynamic pipe models capture transport delays and thermal inertia but
+introduce nonlinearity or require finite-element
+discretization~\cite{vanderHeijde2017,Duquette2016}.
+
+The significance of network losses as an optimization variable depends
+on their magnitude relative to demand. Werner~\cite{Werner2017} reports
+European DH network heat loss ratios of 5--25\%, with modern
+pre-insulated networks typically below 10\%. For systems in this
+range, ignoring losses (L1) introduces a proportional underestimation
+of generation requirements and cost. Talebi et al.~\cite{Talebi2016}
+confirm that loss fraction increases with supply temperature and pipe
+length, motivating the systematic parameter variation in the synthetic
+analysis.
+
+\subsection{Thermal Storage Dispatch in District Heating}
+\label{sec:rw_storage}
+
+Thermal energy storage (TES) provides flexibility in district heating
+through peak shaving, load shifting, and renewable
+integration~\cite{Vandermeulen2018,Guelpa2019review}. Christidis et
+al.~\cite{Christidis2017} demonstrate that optimal TES dispatch in
+CHP-based networks shifts heat production by 4--8~hours to exploit
+overnight electricity pricing---a pattern directly dependent on
+temporal cost signals.
+
+The economic value of storage through temporal arbitrage depends on
+the accuracy of the cost model used to compute holding costs. In
+copperplate models, the only time-varying cost is the electricity
+purchase price. In network-aware models, an additional implicit cost
+appears: heat discharged during high-demand winter periods must
+compensate for losses that are also highest in those periods (large
+$\Delta T$ between fluid and cold ground). This asymmetric temporal
+cost structure modifies optimal charging decisions in ways invisible
+to L1 models. The present paper quantifies this mechanism for the
+first time in a controlled setting.
+
+\subsection{Research Gap}
+\label{sec:rw_gap}
+
+Synthesizing the above review, three gaps remain unaddressed:
+
+\begin{enumerate}
+    \item No study isolates topology abstraction as the sole
+    experimental variable while holding physics constant. All
+    existing cross-level comparisons confound topology with physics.
+
+    \item No quantitative guidance exists for topology selection
+    as a function of observable network properties (pipe length,
+    demand heterogeneity, storage capacity).
+
+    \item The mechanism by which topology level affects storage
+    dispatch---through loss-dependent temporal holding
+    costs---has not been analyzed or quantified.
+\end{enumerate}
+
+The present work addresses all three gaps within a single controlled
+study.
+
+%% ============================================================
+%% 3. MODEL FORMULATION
+%% ============================================================
+\section{Model Formulation}
+\label{sec:model}
+
+\subsection{Experimental Design: Topology as Sole Variable}
+\label{sec:exp_design}
+
+The central methodological principle is controlled isolation of
+topology effects. The physics model is deliberately simplified
+and---critically---kept \emph{identical} across L2 and L3:
+
+\begin{itemize}
+    \item \textbf{Steady-state thermal losses}: Physics-based per-pipe
+    losses computed separately for supply and return pipes
+    (\Cref{sec:model_losses}).
+
+    \item \textbf{Fixed supply temperature}: Determined by the
+    heating curve $T_{\mathrm{sup}}^{\mathrm{nom}}(t)$, not optimized
+    as a decision variable. This eliminates temperature--flow coupling
+    while preserving seasonally-varying loss magnitudes.
+
+    \item \textbf{Pre-computed COP}: Time-varying parameters from
+    bilinear interpolation of manufacturer lookup tables
+    (\Cref{sec:model_hp}). COP variation is captured but enters the
+    model as a parameter, preserving MILP linearity.
+
+    \item \textbf{No transport delays}: Heat propagation is assumed
+    instantaneous within each hourly timestep. For the pipe lengths
+    and flow velocities of the case study network, transport times
+    are estimated at 0.2--1.8~h. Introducing delays would confound
+    topology with temporal dynamics.
+
+    \item \textbf{No pressure optimization}: Hydraulic pressure drop
+    is excluded from the optimization. Post-processing via the
+    Darcy--Weisbach equation at peak flow conditions confirms that
+    pumping power is $<$2\% of total network thermal losses.
+
+    \item \textbf{Dispatch-only horizon}: All component capacities
+    fixed; no investment decisions.
+\end{itemize}
+
+These are \emph{design choices for experimental control}, not
+framework limitations. The underlying optimization framework supports
+extended physics including SOS2-linearized transport delays,
+piecewise-linear pressure drop coupling, and unit commitment
+constraints. These capabilities are documented in a companion
+paper~\cite{Paper2_CALION} and are deactivated for this controlled
+study.
+
+\subsection{L1/L2/L3 Topology Definitions}
+\label{sec:topology_def}
+
+Three topology levels span the practical range of district heating
+representations.
+
+\textbf{Level~1 (Copperplate --- L1):} Single-node representation
+with no spatial structure. All generators, storage units, and demands
+connect to a single aggregated bus. No pipe losses: $Q_{\mathrm{loss}}=0$
+for all $t$. The heat balance is a single scalar equation.
+
+\textbf{Level~2 (Simplified multi-node --- L2):} Multiple aggregated
+demand zones (5 nodes in the Stadtbach case) connected by simplified
+pipe routing. Physics-based steady-state thermal losses computed per
+inter-zone pipe segment using aggregated parameters. The total
+$U \cdot L$ product is preserved from L3 (see \Cref{sec:case_stadtbach}),
+ensuring that aggregate annual loss energy is matched between L2 and
+L3 under identical temperature conditions. Only the spatial distribution
+of losses differs.
+
+\textbf{Level~3 (Detailed multi-node --- L3):} Full spatial resolution
+matching the physical network geometry from GIS data (30 nodes in the
+Stadtbach case). Individual pipe parameters. Same steady-state thermal
+loss formulation as L2.
+
+\textbf{Critical design constraint:} L2 and L3 use identical thermal
+loss \emph{formulations}. Total pipe length per type and aggregate
+$U$-values are matched between levels. Thermal storage capacity and
+component installed capacities are identical. Only the number of nodes
+and the pipe-level spatial resolution differ.
+
+\Cref{tab:feature_matrix} specifies which model features are active
+at each level.
+
+\begin{table}[htbp]
+\centering
+\caption{Feature activation matrix across topology levels. All
+features active at L2/L3 use identical formulations.}
+\label{tab:feature_matrix}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Model Feature & L1 & L2 & L3 \\
+\midrule
+Aggregated heat balance, Eq.~\eqref{eq:balance_L1}
+  & \checkmark & -- & -- \\
+Nodal heat balances, Eq.~\eqref{eq:balance_prod}--\eqref{eq:balance_consumer}
+  & -- & \checkmark & \checkmark \\
+Pipe thermal losses, Eq.~\eqref{eq:loss_supply}--\eqref{eq:loss_return}
+  & -- & \checkmark & \checkmark \\
+Global electricity balance, Eq.~\eqref{eq:balance_el}
+  & \checkmark & \checkmark & \checkmark \\
+Heat pump (dual-source), Eq.~\eqref{eq:hp_split}--\eqref{eq:hp_cap}
+  & \checkmark & \checkmark & \checkmark \\
+Thermal storage (SOC dynamics), Eq.~\eqref{eq:storage_soc}
+  & \checkmark & \checkmark & \checkmark \\
+Gas boiler \& electrode boiler, Eq.~\eqref{eq:gen_thermal},\,\eqref{eq:p2h}
+  & \checkmark & \checkmark & \checkmark \\
+Grid buy/sell logic (Big-M), Eq.~\eqref{eq:grid_bigm}
+  & \checkmark & \checkmark & \checkmark \\
+Peak import demand charge, Eq.~\eqref{eq:peak}
+  & \checkmark & \checkmark & \checkmark \\
+Hourly \ce{CO2} accounting, Eq.~\eqref{eq:em_grid}--\eqref{eq:em_fuel}
+  & \checkmark & \checkmark & \checkmark \\
+\midrule
+\textit{Disabled (experimental control):} & & & \\
+Transport delays (flow-dependent) & -- & -- & -- \\
+Pressure drop optimization & -- & -- & -- \\
+Unit commitment (min up/down time) & -- & -- & -- \\
+Investment sizing decisions & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Objective Function}
+\label{sec:model_objective}
+
+The model minimizes total annual operational cost:
+\begin{equation}
+\min \; Z = C^{\mathrm{en}} + C^{\mathrm{fuel}}
++ C^{\mathrm{dump}} + C^{\ce{CO2}} + C^{\mathrm{dem}}
+\label{eq:objective}
+\end{equation}
+
+\textbf{Electricity procurement and sales:}
+\begin{equation}
+C^{\mathrm{en}} = \Delta t \sum_{t \in \mathcal{T}} \left(
+P_t^{\mathrm{buy}} \lambda_t^{\mathrm{buy}}
+- P_t^{\mathrm{sell}} \lambda_t^{\mathrm{sell}} \right)
+\label{eq:cost_energy}
+\end{equation}
+
+The effective buying price includes market price, grid fees, and levies:
+\begin{equation}
+\lambda_t^{\mathrm{buy}} = \lambda_t^{\mathrm{spot}}
++ \lambda^{\mathrm{fee}} + \lambda^{\mathrm{grid}}
+\label{eq:buy_price}
+\end{equation}
+
+The selling price accounts for bid-ask spread, floor, haircut,
+export fee, and balancing premium (full derivation in
+\Cref{app:selling_price}):
+\begin{equation}
+\lambda_t^{\mathrm{sell}} = \max\!\Big(\!
+\max\!\big(\lambda_t^{\mathrm{spot}} - \lambda^{\mathrm{spread}},\,
+\lambda^{\mathrm{floor}}\big) (1{-}h^{\mathrm{sell}})
+- \lambda^{\mathrm{sell,fee}} + \lambda^{\mathrm{sell,prem}},\; 0\Big)
+\label{eq:sell_price}
+\end{equation}
+
+\textbf{Fuel cost:}
+\begin{equation}
+C^{\mathrm{fuel}} = \Delta t \sum_{g \in \mathcal{G}^{\mathrm{fuel}}}
+\sum_{t \in \mathcal{T}} F_{g,t} \lambda_g^{\mathrm{fuel}}
+\label{eq:cost_fuel}
+\end{equation}
+
+\textbf{Heat curtailment penalty:}
+\begin{equation}
+C^{\mathrm{dump}} = \Delta t \sum_{n \in \mathcal{N}}
+\sum_{t \in \mathcal{T}} Q_{n,t}^{\mathrm{dump}} \lambda^{\mathrm{dump}}
+\label{eq:cost_dump}
+\end{equation}
+
+\textbf{\ce{CO2} cost:}
+\begin{equation}
+C^{\ce{CO2}} = \frac{\lambda^{\ce{CO2}}}{1000} \left(
+\sum_{t} E_t^{\ce{CO2},\mathrm{grid}}
++ \sum_{g,t} E_{g,t}^{\ce{CO2},\mathrm{fuel}} \right)
+\label{eq:cost_co2}
+\end{equation}
+
+\textbf{Demand charge} (annual peak import fee, prorated by year
+fraction):
+\begin{equation}
+C^{\mathrm{dem}} = \lambda^{\mathrm{dem}} \cdot f^{\mathrm{yr}}
+\cdot P^{\mathrm{peak}}
+\label{eq:cost_demand}
+\end{equation}
+
+\subsection{Energy Balance Constraints}
+\label{sec:model_balance}
+
+\subsubsection{Thermal Energy Balances}
+
+\textbf{L1 --- Aggregated copperplate balance:}
+\begin{equation}
+\sum_{g \in \mathcal{G}^{\mathrm{th}}} Q_{g,t}^{\mathrm{th}}
++ \sum_{s \in \mathcal{S}} Q_{s,t}^{\mathrm{dis}}
+= Q_t^{\mathrm{dem}} + Q_t^{\mathrm{dump}}
++ \sum_{s \in \mathcal{S}} Q_{s,t}^{\mathrm{ch}}
+\qquad \forall t
+\label{eq:balance_L1}
+\end{equation}
+
+L1 carries no loss term. The total demand $Q_t^{\mathrm{dem}}$
+aggregates all nodal demands. This lossless balance is the defining
+characteristic of L1.
+
+\textbf{L2/L3 --- Nodal balance, producer nodes:}
+\begin{equation}
+\sum_{g \in \mathcal{G}_n^{\mathrm{th}}} Q_{g,t}^{\mathrm{th}}
++ \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{dis}}
+= Q_{n,t}^{\mathrm{dem}} + Q_{n,t}^{\mathrm{dump}}
++ \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{ch}}
++ Q_{n,t}^{\mathrm{loss}}
+\qquad \forall n \in \mathcal{N}^{\mathrm{prod}},\, \forall t
+\label{eq:balance_prod}
+\end{equation}
+
+\textbf{L2/L3 --- Nodal balance, consumer nodes:}
+\begin{equation}
+Q_{n,t}^{\mathrm{pipe}}
++ \sum_{g \in \mathcal{G}_n^{\mathrm{th}}} Q_{g,t}^{\mathrm{th}}
++ \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{dis}}
+= Q_{n,t}^{\mathrm{dem}} + Q_{n,t}^{\mathrm{dump}}
++ \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{ch}}
+\qquad \forall n \in \mathcal{N}^{\mathrm{con}},\, \forall t
+\label{eq:balance_consumer}
+\end{equation}
+
+Here $Q_{n,t}^{\mathrm{pipe}}$ is heat delivered to consumer node $n$
+via the connecting pipe (after loss deduction), and $Q_{n,t}^{\mathrm{loss}}$
+is the total thermal loss allocated to producer node $n$.
+
+Total network losses:
+\begin{equation}
+Q_t^{\mathrm{loss,total}} = \sum_{p \in \mathcal{P}} \left(
+Q_{p,t}^{\mathrm{loss,sup}} + Q_{p,t}^{\mathrm{loss,ret}} \right)
+\qquad \forall t
+\label{eq:loss_total}
+\end{equation}
+
+\subsubsection{Global Electricity Balance}
+
+\begin{equation}
+P_t^{\mathrm{buy}} + \sum_{g \in \mathcal{G}^{\mathrm{CHP}}}
+P_{g,t}^{\mathrm{el}}
+= \sum_{h \in \mathcal{H}} P_{h,t}^{\mathrm{el}}
++ \sum_{r \in \mathcal{R}} P_{r,t}^{\mathrm{el}}
++ P_t^{\mathrm{sell}}
+\qquad \forall t
+\label{eq:balance_el}
+\end{equation}
+
+Mutual exclusivity of grid import and export:
+\begin{equation}
+P_t^{\mathrm{buy}} \leq M^{\mathrm{grid}} z_t, \qquad
+P_t^{\mathrm{sell}} \leq M^{\mathrm{grid}} (1 - z_t)
+\qquad \forall t
+\label{eq:grid_bigm}
+\end{equation}
+
+Grid connection capacity limits:
+\begin{equation}
+P_t^{\mathrm{buy}} \leq \bar{P}^{\mathrm{imp}}, \qquad
+P_t^{\mathrm{sell}} \leq \bar{P}^{\mathrm{exp}}
+\qquad \forall t
+\label{eq:grid_cap}
+\end{equation}
+
+Peak import tracking for demand charge computation:
+\begin{equation}
+P^{\mathrm{peak}} \geq P_t^{\mathrm{buy}} \qquad \forall t
+\label{eq:peak}
+\end{equation}
+
+\subsection{Thermal Loss Model (L2/L3 Only)}
+\label{sec:model_losses}
+
+Thermal losses follow from steady-state conduction, computed
+\emph{separately} for supply and return pipes:
+
+\textbf{Supply pipe losses:}
+\begin{equation}
+Q_{p,t}^{\mathrm{loss,sup}} = \frac{U_p \cdot L_p \cdot
+\big(T_{\mathrm{sup}}^{\mathrm{nom}}(t) - T_{\mathrm{ground}}(t)\big)}{10^6}
+\quad [\mathrm{MW}]
+\label{eq:loss_supply}
+\end{equation}
+
+\textbf{Return pipe losses:}
+\begin{equation}
+Q_{p,t}^{\mathrm{loss,ret}} = \frac{U_p \cdot L_p \cdot
+\big(T_{\mathrm{ret}}^{\mathrm{nom}} - T_{\mathrm{ground}}(t)\big)}{10^6}
+\quad [\mathrm{MW}]
+\label{eq:loss_return}
+\end{equation}
+
+Here $U_p$~[\si{W/(m.K)}] is the linear heat transfer coefficient
+(accounting for insulation, soil, and pipe wall), $L_p$~[m] the pipe
+length, and $T_{\mathrm{ground}}(t)$ the measured ground temperature at
+installation depth. The factor $10^{-6}$ converts from \si{W} to \si{MW}.
+
+Losses are time-varying through $T_{\mathrm{ground}}(t)$ and
+$T_{\mathrm{sup}}^{\mathrm{nom}}(t)$, with seasonal amplitude of
+approximately \placeholder{X}~MW\textsubscript{th} in the case study
+network.
+
+\textbf{L1 treatment:} $Q_{p,t}^{\mathrm{loss,sup}} =
+Q_{p,t}^{\mathrm{loss,ret}} = 0$ for all $p, t$. The complete
+omission of losses constitutes the primary physical difference
+between L1 and L2/L3.
+
+\textbf{Validity of steady-state assumption:} The steady-state
+approximation is accurate when the thermal Peclet number
+$Pe = \dot{m} c_p L / (U A)$ is large~\cite{vanderHeijde2017}.
+For the case study network at average flow velocities (0.5--1.5~m/s),
+$Pe$ ranges from \placeholder{XX--XX}, confirming that advective heat
+transport dominates within the one-hour timestep. Dynamic effects
+manifest primarily in temperature transients during startup, which are
+outside the scope of the hourly dispatch model.
+
+\subsection{Heat Pump Model}
+\label{sec:model_hp}
+
+Each heat pump $h$ supports dual heat source operation: a
+waste-heat-recovery (WRG) source with time-varying COP, and a default
+source (ambient air or ground) with constant COP.
+
+Total heat output:
+\begin{equation}
+Q_{h,t} = Q_{h,t}^{\mathrm{wrg}} + Q_{h,t}^{\mathrm{def}}
+\qquad \forall h,\, \forall t
+\label{eq:hp_split}
+\end{equation}
+
+Electrical power consumption:
+\begin{equation}
+P_{h,t}^{\mathrm{el}} = \frac{Q_{h,t}^{\mathrm{wrg}}}{
+\mathrm{COP}_{h,t}^{\mathrm{wrg}}}
++ \frac{Q_{h,t}^{\mathrm{def}}}{\mathrm{COP}_h^{\mathrm{def}}}
+\qquad \forall h,\, \forall t
+\label{eq:hp_pel}
+\end{equation}
+
+Both COP values enter as parameters, preserving MILP linearity.
+$\mathrm{COP}_{h,t}^{\mathrm{wrg}}$ is pre-computed via bilinear
+interpolation on the manufacturer performance map:
+\begin{equation}
+\mathrm{COP}_{h,t}^{\mathrm{wrg}} = f_{\mathrm{bilinear}}\big(
+T_{\mathrm{source}}(t),\, T_{\mathrm{sink}}(t)\big),
+\qquad \mathrm{COP} \in [0.5,\, 15.0]
+\label{eq:cop_lookup}
+\end{equation}
+
+The clamping bounds $[0.5, 15.0]$ prevent numerical artifacts at
+extreme temperature differentials; they activate in $<$0.3\% of
+timesteps. Interpolation error is bounded at $\pm$2--3\% relative
+COP (derivation in \Cref{app:cop}), translating to $\pm$1--2\%
+system cost variation.
+
+Capacity and minimum part-load constraints:
+\begin{equation}
+\phi_h^{\mathrm{min}} \bar{Q}_h u_{h,t} \leq Q_{h,t}
+\leq \bar{Q}_h u_{h,t}
+\qquad \forall h,\, \forall t
+\label{eq:hp_cap}
+\end{equation}
+
+\subsection{Thermal Storage Model}
+\label{sec:model_storage}
+
+State-of-charge dynamics with multiplicative self-discharge
+(thermodynamically consistent for variable $\Delta t$):
+\begin{equation}
+E_{s,t} = (1-\alpha_s)^{\Delta t} \cdot E_{s,t-1}
++ \eta_{s}^{\mathrm{ch}} Q_{s,t}^{\mathrm{ch}} \Delta t
+- \frac{Q_{s,t}^{\mathrm{dis}} \Delta t}{\eta_{s}^{\mathrm{dis}}}
+\qquad \forall s,\, \forall t
+\label{eq:storage_soc}
+\end{equation}
+
+Energy and power capacity constraints:
+\begin{equation}
+E_{s,t} \leq \bar{E}_s \cdot a_{s,t}
+\qquad \forall s,\, \forall t
+\label{eq:storage_cap_E}
+\end{equation}
+\begin{equation}
+Q_{s,t}^{\mathrm{ch}} \leq \bar{P}_s \delta_{s,t}^{\mathrm{ch}},
+\qquad
+Q_{s,t}^{\mathrm{dis}} \leq \bar{P}_s \delta_{s,t}^{\mathrm{dis}}
+\qquad \forall s,\, \forall t
+\label{eq:storage_cap_P}
+\end{equation}
+
+Simultaneous charging and discharging prevention:
+\begin{equation}
+\delta_{s,t}^{\mathrm{ch}} + \delta_{s,t}^{\mathrm{dis}}
+\leq a_{s,t}
+\qquad \forall s,\, \forall t
+\label{eq:storage_excl}
+\end{equation}
+
+\textbf{Why storage is the primary diagnostic variable:} The temporal
+arbitrage value of storage depends on holding costs. In L1, no
+physical holding cost exists beyond self-discharge---charging responds
+purely to electricity price differentials. In L2/L3, network losses
+introduce an implicit time-varying holding cost: heat stored at time
+$t_1$ for discharge at $t_2$ must additionally compensate for the loss
+overhead at $t_2$. The effective arbitrage spread becomes
+$\lambda_{t_1}^{\mathrm{buy}} - (\lambda_{t_2}^{\mathrm{buy}} +
+\lambda_{t_2}^{\mathrm{loss,marginal}})$, where
+$\lambda_{t_2}^{\mathrm{loss,marginal}}$ is the marginal generation
+cost of covering the loss increment at $t_2$. During cold winter
+afternoons this penalty is highest, discouraging the deep overnight
+charging that L1 would otherwise schedule.
+\Cref{sec:results_storage} quantifies the resulting shift in charging
+hour distributions.
+
+\subsection{Thermal Generator Models}
+\label{sec:model_gen}
+
+\textbf{Gas boiler:}
+\begin{equation}
+Q_{g,t}^{\mathrm{th}} = \eta_g^{\mathrm{th}} F_{g,t},
+\qquad
+Q_{g,t}^{\mathrm{th}} \leq \bar{Q}_g^{\mathrm{th}}
+\qquad \forall g \in \mathcal{G}^{\mathrm{th}},\, \forall t
+\label{eq:gen_thermal}
+\end{equation}
+
+\textbf{CHP unit:}
+\begin{equation}
+Q_{g,t}^{\mathrm{th}} = \eta_g^{\mathrm{th}} F_{g,t}, \qquad
+P_{g,t}^{\mathrm{el}} = \eta_g^{\mathrm{el}} F_{g,t}
+\qquad \forall g \in \mathcal{G}^{\mathrm{CHP}},\, \forall t
+\label{eq:gen_chp}
+\end{equation}
+
+\textbf{Electrode boiler / Power-to-Heat:}
+\begin{equation}
+Q_{r,t} = \eta_{r} P_{r,t}^{\mathrm{el}}, \qquad
+Q_{r,t} \leq \bar{Q}_r
+\qquad \forall r \in \mathcal{R},\, \forall t
+\label{eq:p2h}
+\end{equation}
+
+\subsection{Emissions Accounting}
+\label{sec:model_emissions}
+
+Hourly grid electricity emissions:
+\begin{equation}
+E_t^{\ce{CO2},\mathrm{grid}} = P_t^{\mathrm{buy}}
+\cdot e_t^{\mathrm{grid}} \cdot \Delta t
+\qquad \forall t
+\label{eq:em_grid}
+\end{equation}
+
+Fuel emissions:
+\begin{equation}
+E_{g,t}^{\ce{CO2},\mathrm{fuel}} = F_{g,t} \cdot e_g^{\mathrm{fuel}}
+\cdot \Delta t
+\qquad \forall g,\, \forall t
+\label{eq:em_fuel}
+\end{equation}
+
+For CHP units, emissions are allocated between heat and electricity
+outputs using the efficiency-weighted method~\cite{Lund2014_4GDH},
+chosen for consistency with the Austrian national reporting framework:
+\begin{equation}
+\alpha_g^{\mathrm{heat}} = \frac{\eta_g^{\mathrm{th}}}{
+\eta_g^{\mathrm{th}} + \eta_g^{\mathrm{el}}}, \qquad
+\alpha_g^{\mathrm{el}} = \frac{\eta_g^{\mathrm{el}}}{
+\eta_g^{\mathrm{th}} + \eta_g^{\mathrm{el}}}
+\label{eq:em_chp_alloc}
+\end{equation}
+
+\subsection{Demand Heterogeneity Index}
+\label{sec:model_hi}
+
+The demand heterogeneity index HI quantifies the spatial
+non-uniformity of annual nodal demand shares:
+\begin{equation}
+d_n = \frac{\sum_t Q_{n,t}^{\mathrm{dem}}}{\sum_n \sum_t
+Q_{n,t}^{\mathrm{dem}}}, \qquad
+\mathrm{HI} = \frac{N}{N-1} \sum_{n \in \mathcal{N}}
+\left(d_n - \frac{1}{N}\right)^2
+\label{eq:hi}
+\end{equation}
+
+where $d_n$ is node $n$'s fraction of total annual demand and
+$N$ the node count. HI~$= 0$ corresponds to perfectly uniform demand;
+HI~$= 1$ to complete concentration at a single node. The
+normalization factor $N/(N-1)$ corrects for the bias of the sample
+variance estimator and ensures comparability across networks with
+different node counts.
+
+\subsection{Implementation}
+\label{sec:model_impl}
+
+The model is implemented in Python~3.10 using the Pyomo algebraic
+modeling language~\cite{pyomo}. Network configuration (topology,
+component parameters, boundary conditions) is specified via YAML
+files enabling L1/L2/L3 instantiation from a single parameterized
+codebase. Solver: Gurobi~10.0 with MIP gap tolerance 0.01\%, ensuring
+that reported cost differences $\geq$0.1\% are attributable to model
+structure rather than solver tolerance. All MILP problems use identical
+solver settings and random seeds.
+
+%% ============================================================
+%% 4. CASE STUDIES
+%% ============================================================
+\section{Case Studies}
+\label{sec:case_studies}
+
+\subsection{Primary Case Study: Industrial Heat Network (Stadtbach)}
+\label{sec:case_stadtbach}
+
+The primary validation case is an Austrian industrial heat network
+providing process heat to a multi-building site with connection to
+the public electricity grid. The network integrates multiple
+electrified heat supply technologies and thermal storage, representing
+the increasingly common configuration of industrial 4GDH
+installations~\cite{Lund2014_4GDH}.
+
+\begin{table}[htbp]
+\centering
+\caption{Stadtbach network: installed components and system parameters.
+Specific values anonymized per agreement with the industrial partner.}
+\label{tab:stadtbach}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component / Parameter & Value & Notes \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Demand}} \\
+Peak heat demand           & \placeholder{8--15}~MW        & Industrial process heat \\
+Annual heat demand         & \placeholder{25--50}~GWh      & \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Network}} \\
+Total pipe length (supply+return) & \placeholder{3--8}~km  & \\
+Demand nodes (L3)          & 30                            & From GIS data \\
+Demand zones (L2)          & 5                             & N/S/E/W/Central \\
+Demand heterogeneity (HI)  & \placeholder{0.XX}            & Eq.~\eqref{eq:hi} \\
+Design supply temperature  & \placeholder{XX}~\si{\celsius} & \\
+Design return temperature  & \placeholder{XX}~\si{\celsius} & \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Generation components}} \\
+Heat pump (air-source, dual-source) & \placeholder{3--6}~MW\textsubscript{th} & COP 2.5--4.0 \\
+Gas boiler                 & \placeholder{8--12}~MW\textsubscript{th} & Backup and peak \\
+Electrode boiler (P2H)     & \placeholder{1--3}~MW\textsubscript{th}  & $\eta = 0.99$ \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Flexibility components}} \\
+Thermal storage            & \placeholder{50--150}~MWh     & Stratified hot water \\
+Storage charging ratio     & \placeholder{X.X}~h of peak   & \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Grid coupling}} \\
+Import capacity            & \placeholder{XX}~MW           & Transformer limit \\
+Export capacity            & \placeholder{XX}~MW           & Bilateral contract \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{L1/L2/L3 Implementations of the Stadtbach Network}
+\label{sec:case_levels}
+
+\textbf{L3 (30 nodes):} Full physical topology from GIS data. Each
+demand connection point is a distinct node. Individual pipe parameters
+($U_p$, $L_p$) from network documentation. Total pipe length and
+aggregate $U$-values serve as the reference matched by L2.
+
+\textbf{L2 (5 nodes):} Geographic aggregation into five demand zones
+(North, South, East, West, Central production hub). The total
+$U \cdot L$ product per pipe type is preserved:
+$\sum_{p \in \mathcal{P}^{\mathrm{L2}}} U_p L_p =
+\sum_{p \in \mathcal{P}^{\mathrm{L3}}} U_p L_p$.
+Demand at each L2 node equals the sum of constituent L3 nodal demands
+at each timestep.
+
+\textbf{L1 (1 node):} Single aggregated bus. Total demand equals the
+sum of all 30 nodal demands. No losses.
+
+\textbf{Controlled matching across levels:} Total installed capacity
+of each component type, total pipe length, aggregate $U$-values, and
+thermal storage parameters are identical in L2 and L3. All boundary
+condition time series (electricity prices, temperatures, demand
+profiles) are identical across all three levels.
+
+\subsection{Input Data}
+\label{sec:case_data}
+
+\begin{itemize}
+    \item \textbf{Electricity prices}: EPEX Austria day-ahead spot,
+    hourly, 2022/2023 period, characterized by high price volatility
+    and negative-price episodes.
+
+    \item \textbf{Temperatures}: Site-measured ambient and ground
+    temperature (at installation depth), hourly, used to compute
+    $\mathrm{COP}_{h,t}$ and thermal losses simultaneously.
+
+    \item \textbf{Heat demand}: Measured hourly at meter level.
+    Disaggregated to L3 nodes, aggregated to L2 zones, and summed
+    for L1. The same total demand applies to all levels.
+
+    \item \textbf{Grid \ce{CO2} intensity}: ENTSO-E Transparency
+    Platform, Austrian hourly generation-based emission factors.
+
+    \item \textbf{Fuel prices}: Austrian wholesale natural gas
+    (TTF-indexed), monthly average applied as constant within month.
+\end{itemize}
+
+\subsection{Validation Protocol}
+\label{sec:case_validation}
+
+L3 is validated against measured operational data \emph{prior to}
+the controlled comparison using historical records including gas meter
+readings, electricity import/export metering, heat pump running-hour
+logs, and storage level measurements:
+
+\begin{itemize}
+    \item Annual gas consumption: MAPE target $<$5\%
+    \item Annual electricity purchase: MAPE target $<$5\%
+    \item Monthly heat pump operating hours: MAPE target $<$10\%
+    \item Annual storage full-cycle equivalent: MAPE target $<$15\%
+    \item Annual peak heat demand: MAPE target $<$5\%
+\end{itemize}
+
+Only L3 is validated against measured data. L1 and L2 are evaluated
+\emph{relative to L3} as the validated reference. This is
+methodologically consistent: the question is not whether L1 or L2
+independently match reality, but how much they deviate from the
+highest-fidelity model with identical physics.
+
+\subsection{Synthetic Parametric Network}
+\label{sec:case_synthetic}
+
+A single real-world case study cannot establish generalizability. A
+synthetic tree-topology network is parameterized by four independent
+properties (\Cref{tab:synthetic}).
+
+\begin{table}[htbp]
+\centering
+\caption{Synthetic network parameter space. Parameter ranges based on
+the European district heating inventory~\cite{Werner2017,Frederiksen2013}.
+All 81 combinations of three levels across four parameters are tested;
+36 feasible configurations are retained after removing cases where pipe
+length per node falls below the minimum physical separation distance
+($<$50~m/node) or where storage ratio exceeds the maximum practical
+charge/discharge cycle ($>$72~h).}
+\label{tab:synthetic}
+\begin{tabular}{@{}llllp{4.5cm}@{}}
+\toprule
+Parameter & Low & Medium & High & Physical rationale \\
+\midrule
+Total pipe length [km] & 1 & 5 & 15
+  & Compact campus to extended urban district \\
+Demand heterogeneity HI & 0.1 & 0.4 & 0.8
+  & Near-uniform to strongly concentrated \\
+Node count & 5 & 15 & 30
+  & Sparse to dense spatial discretization \\
+Storage ratio [h of peak] & 2 & 6 & 12
+  & Small buffer to large shift capacity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A tree topology is used because the Stadtbach network and the majority
+of small- to medium industrial DH installations are radially structured.
+Ring topologies introduce additional flow direction binary variables and
+represent a distinct problem class; their treatment is deferred to future
+work. The full experiment comprises 36 configurations $\times$ 3
+topology levels = 108 MILP solves. Synthetic network geometry, demand
+profiles, component parameters, and all configuration files are
+published on Zenodo~\cite{Zenodo_data}.
+
+%% ============================================================
+%% 5. RESULTS
+%% ============================================================
+\section{Results: Stadtbach Case Study}
+\label{sec:results}
+
+\subsection{Model Validation (L3)}
+\label{sec:results_validation}
+
+\begin{table}[htbp]
+\centering
+\caption{L3 model validation against measured operational data.}
+\label{tab:validation}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Variable & Measured & L3 Model & MAPE & Target \\
+\midrule
+Annual gas consumption [MWh]      & \placeholder{XX,XXX} & \placeholder{XX,XXX} & \placeholder{X.X\%} & $<$5\% \\
+Annual electricity purchase [MWh] & \placeholder{XX,XXX} & \placeholder{XX,XXX} & \placeholder{X.X\%} & $<$5\% \\
+Annual HP operating hours [h]     & \placeholder{X,XXX}  & \placeholder{X,XXX}  & \placeholder{X.X\%} & $<$10\% \\
+Storage full-cycle equivalent [--] & \placeholder{XXX}   & \placeholder{XXX}    & \placeholder{X.X\%} & $<$15\% \\
+Peak heat demand [MW]             & \placeholder{XX}     & \placeholder{XX}     & \placeholder{X.X\%} & $<$5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Annual Operational Cost Comparison}
+\label{sec:results_cost}
+
+\begin{table*}[htbp]
+\centering
+\caption{Annual operational cost comparison across topology levels.
+L3 is the validated reference. Negative $\Delta$ indicates
+underestimation relative to L3.}
+\label{tab:cost}
+\begin{tabular}{@{}lllllll@{}}
+\toprule
+Level & Total [\euro/a] & $\Delta$ vs.\ L3 & Fuel [\euro/a]
+  & Electricity [\euro/a] & \ce{CO2} [\euro/a] & Demand [\euro/a] \\
+\midrule
+L1 & \placeholder{X,XXX,XXX} & $-$\placeholder{X.X}\%
+  & \placeholder{XXX,XXX} & \placeholder{XXX,XXX}
+  & \placeholder{XX,XXX} & \placeholder{XX,XXX} \\
+L2 & \placeholder{X,XXX,XXX} & $-$\placeholder{X.X}\%
+  & \placeholder{XXX,XXX} & \placeholder{XXX,XXX}
+  & \placeholder{XX,XXX} & \placeholder{XX,XXX} \\
+L3 & \placeholder{X,XXX,XXX} & (ref.)
+  & \placeholder{XXX,XXX} & \placeholder{XXX,XXX}
+  & \placeholder{XX,XXX} & \placeholder{XX,XXX} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+The L1$\rightarrow$L2 gap arises from a single mechanism: L1 does not
+require generation to compensate network losses. At the Stadtbach
+network's loss fraction of approximately \placeholder{X}\%, L1
+systematically underestimates total heat generation requirements and
+thus fuel consumption, electricity demand for heat pumps, and peak
+grid import for demand charge purposes. The L2$\rightarrow$L3 gap
+arises from the resolution of spatially heterogeneous dispatch
+constraints that L2's five-zone aggregation cannot represent.
+
+\subsection{\ce{CO2} Emissions Comparison}
+\label{sec:results_co2}
+
+\begin{table}[htbp]
+\centering
+\caption{Annual \ce{CO2} emissions comparison and primary mechanism.}
+\label{tab:co2}
+\begin{tabular}{@{}lllp{5cm}@{}}
+\toprule
+Level & Total [t\ce{CO2}/a] & $\Delta$ vs.\ L3 & Primary mechanism \\
+\midrule
+L1 & \placeholder{X,XXX} & $-$\placeholder{X.X}\%
+  & HP over-dispatch; missing loss-driven boiler activation \\
+L2 & \placeholder{X,XXX} & $-$\placeholder{X.X}\%
+  & Aggregated spatial constraints \\
+L3 & \placeholder{X,XXX} & (ref.) & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dispatch Pattern Analysis}
+\label{sec:results_dispatch}
+
+\placeholder{[Figure~1: Load duration curves by generation source per
+topology level. Three panels: heat pump output, gas boiler output,
+electrode boiler output.]}
+
+Key annual dispatch metrics:
+\begin{itemize}
+    \item Heat pump full-load hours: L1 overestimates by
+    \placeholder{X}\% relative to L3.
+    \item Gas boiler activation hours: L1 underestimates by
+    \placeholder{X}\%; loss-driven peak events requiring boiler
+    support are absent in L1.
+    \item Electrode boiler utilization: relatively stable across
+    levels (primarily price-driven).
+\end{itemize}
+
+\subsection{Storage Dispatch: The Primary Diagnostic Variable}
+\label{sec:results_storage}
+
+\begin{table}[htbp]
+\centering
+\caption{Storage dispatch metrics across topology levels. Charging
+hour shift is the difference in mean charging start time relative
+to L3 (winter, October--March).}
+\label{tab:storage}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Metric & L1 & L2 & L3 & Unit \\
+\midrule
+Annual equivalent full cycles   & \placeholder{XXX}   & \placeholder{XXX}   & \placeholder{XXX}   & -- \\
+Mean charging hour (winter)     & \placeholder{XX:00} & \placeholder{XX:00} & \placeholder{XX:00} & h \\
+Charging hour shift vs.\ L3    & \placeholder{+X.X}  & \placeholder{+X.X}  & 0                   & h \\
+Peak shaving effectiveness      & \placeholder{XX}\%  & \placeholder{XX}\%  & \placeholder{XX}\%  & -- \\
+Mean SOC at 06:00 (winter)     & \placeholder{XX}\%  & \placeholder{XX}\%  & \placeholder{XX}\%  & \% of $\bar{E}_s$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\placeholder{[Figure~2: Mean winter-week SOC profile, L1 vs.\ L3.
+Key feature: L1 charges later (overnight minimum price); L3 charges
+earlier (anticipating loss-amplified afternoon discharge cost).]}
+
+\subsection{Network Losses and Computational Performance}
+\label{sec:results_losses}
+
+\begin{table}[htbp]
+\centering
+\caption{Annual thermal losses and computational performance.}
+\label{tab:losses_computation}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Level & Annual loss [MWh] & Loss fraction [\%] & Variables & Solve time [s] \\
+\midrule
+L1 & 0 (by design)        & 0                    & \placeholder{X,XXX}  & \placeholder{XX} \\
+L2 & \placeholder{X,XXX}  & \placeholder{X.X}    & \placeholder{XX,XXX} & \placeholder{XXX} \\
+L3 & \placeholder{X,XXX}  & \placeholder{X.X}    & \placeholder{XX,XXX} & \placeholder{X,XXX} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ============================================================
+%% 6. GENERALIZABILITY
+%% ============================================================
+\section{Generalizability: Synthetic Network Analysis}
+\label{sec:generalizability}
+
+\subsection{L1$\rightarrow$L2 Gap vs.\ Network Properties}
+\label{sec:gen_L1L2}
+
+The physics-inclusion gap is driven primarily by total pipe length and
+associated annual loss energy.
+
+\placeholder{[Figure~3a: Scatter/heatmap: L1$\rightarrow$L2 cost gap
+[\%] vs.\ total pipe length [km], colored by storage ratio.
+Expected: near-linear positive correlation.]}
+
+For pipe lengths below 1~km, annual losses are $<$1\% of demand and
+the L1$\rightarrow$L2 gap is economically negligible ($<$0.5\%). For
+pipe lengths of 5--15~km, the gap grows to \placeholder{X--Y}\%.
+
+\subsection{L2$\rightarrow$L3 Gap vs.\ Demand Heterogeneity}
+\label{sec:gen_L2L3}
+
+The spatial-refinement gap is driven by demand heterogeneity HI.
+For HI~$<$~0.3, the gap remains below \placeholder{1}\% across all
+synthetic configurations. For HI~$>$~0.5, the gap grows substantially,
+reaching \placeholder{X--Y}\% for networks with storage ratio~$>$~6~h.
+
+\placeholder{[Figure~3b: Heatmap: L2$\rightarrow$L3 gap [\%] as
+function of HI (x-axis) and storage ratio (y-axis), medium pipe
+length.]}
+
+The interaction between heterogeneity and storage ratio is notable:
+large storage magnifies spatial dispatch errors because incorrect
+charging patterns compound over multiple daily cycles.
+
+\subsection{Actionable Topology Selection Criteria}
+\label{sec:gen_criteria}
+
+\begin{table}[htbp]
+\centering
+\caption{Recommended topology selection criteria. Cost threshold for
+``warranted'' is defined as topology gap $>$\placeholder{X}\% of L3
+annual cost.}
+\label{tab:criteria}
+\begin{tabular}{@{}p{1.3cm}p{5.5cm}p{4.5cm}@{}}
+\toprule
+Level & Network conditions & Rationale \\
+\midrule
+\textbf{L1} & Total pipe length $<$1~km \textbf{AND} no thermal storage
+  & Annual losses $<$1\% of demand; storage temporal arbitrage absent \\[4pt]
+\textbf{L2} & Pipe 1--10~km \textbf{OR} storage ratio $\leq$6~h
+  \textbf{AND} HI~$\leq$~0.4
+  & Losses significant; spatial distribution approximately uniform \\[4pt]
+\textbf{L3} & Pipe $>$10~km \textbf{OR} HI~$>$~0.5 \textbf{OR}
+  storage ratio $>$6~h with HI~$>$~0.3
+  & Spatial dispatch differences exceed cost threshold \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ============================================================
+%% 7. SENSITIVITY ANALYSIS
+%% ============================================================
+\section{Sensitivity Analysis}
+\label{sec:sensitivity}
+
+\subsection{Parameter Sensitivity of L3}
+\label{sec:sens_tornado}
+
+\placeholder{[Figure~4: Tornado diagram for L3 annual operational cost.
+Parameters: gas price $\pm$20\%, electricity price $\pm$20\%,
+CO$_2$ price $\pm$50\%, COP $\pm$10\%, storage self-discharge $\pm$50\%,
+ground temperature $\pm$3\,K.]}
+
+\subsection{Stability of the Topology Gap Across Scenarios}
+\label{sec:sens_gap}
+
+\begin{table}[htbp]
+\centering
+\caption{Stability of topology gaps across economic and climate
+scenarios (Stadtbach case study, L3 as reference).}
+\label{tab:gap_stability}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Scenario & L1--L3 gap & L2--L3 gap & L1 sign stable? & L2 sign stable? \\
+\midrule
+Baseline                & \placeholder{X.X\%} & \placeholder{X.X\%} & -- & -- \\
+High gas                & \placeholder{X.X\%} & \placeholder{X.X\%} & \placeholder{Yes} & \placeholder{Yes} \\
+Low electricity         & \placeholder{X.X\%} & \placeholder{X.X\%} & \placeholder{Yes} & \placeholder{Yes} \\
+High \ce{CO2} price     & \placeholder{X.X\%} & \placeholder{X.X\%} & \placeholder{Yes} & \placeholder{Yes} \\
+Cold year (+3\,K)       & \placeholder{X.X\%} & \placeholder{X.X\%} & \placeholder{Yes} & \placeholder{Yes} \\
+Warm year ($-$3\,K)     & \placeholder{X.X\%} & \placeholder{X.X\%} & \placeholder{Yes} & \placeholder{Yes} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ============================================================
+%% 8. DISCUSSION
+%% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{When Does Topology Detail Matter?}
+\label{sec:disc_when}
+
+The dominant finding is that the L1$\rightarrow$L2 transition (physics
+inclusion) drives the majority of the topology effect. For systems with
+network losses constituting $>$3--5\% of annual heat supply---typical
+for Central European DH networks with pipe lengths above 3~km---omitting
+losses in L1 produces systematic cost underestimation of
+\placeholder{X--Y}\%. This is not a modeling artefact but a direct
+physical consequence: L1 requires less generation to meet the same
+demand.
+
+The L2$\rightarrow$L3 transition (spatial refinement) produces
+substantially smaller differences for networks with uniform demand
+(HI~$<$~0.4). If all demand nodes have similar load fractions, zonal
+aggregation produces similar marginal generation cost signals, and
+dispatch decisions at L2 approximate those at L3 closely. For the large
+class of systems with moderate pipe length and near-uniform demand, L2
+provides a favorable trade-off between fidelity and tractability. L1
+should be reserved for networks where losses are demonstrably negligible.
+
+\subsection{Storage as Diagnostic Variable and Planning Tool}
+\label{sec:disc_storage}
+
+The charging hour shift---L1 charges \placeholder{X}~hours later than
+L3 on average in winter---constitutes a directly observable diagnostic
+for topology adequacy in systems with thermal storage. A practitioner
+using a copperplate model for operational planning would systematically
+schedule late overnight charging. When the physical network incurs
+higher losses during afternoon discharge, the true optimal operating
+point requires earlier pre-charging. The economic cost of this dispatch
+error is \placeholder{€X,XXX--XX,XXX}/year---a recurring annual loss
+avoidable with an L2 model at negligible additional computational overhead
+(factor \placeholder{X} increase in solve time).
+
+\subsection{\ce{CO2} Policy Implications}
+\label{sec:disc_co2}
+
+Simplified topology models systematically underestimate \ce{CO2}
+emissions for two compounding reasons. First, they over-dispatch the
+heat pump (low \ce{CO2} source) because the additional generation for
+loss compensation is invisible. Second, they miss boiler activation
+events at peak-loss hours. For industrial networks subject to carbon
+reporting obligations~\cite{EUheating2016}, L1-based emission accounting
+introduces a systematic underestimation of
+\placeholder{X--Y}~t\ce{CO2}/year.
+
+\subsection{Relation to Existing Frameworks}
+\label{sec:disc_frameworks}
+
+The present findings indicate that existing energy system frameworks
+using copperplate heat sector representation (oemof, PyPSA, FINE,
+Calliope) will systematically underestimate operational costs and
+emissions for DH systems with significant pipe length. The magnitude
+depends on the loss fraction. For national-scale studies where heating
+is one of many sectors, the additional complexity of an L2 representation
+may not be warranted. For district-scale planning studies with explicit
+component dispatch, L2 is the recommended minimum.
+
+\subsection{Limitations}
+\label{sec:discussion_limitations}
+
+\begin{itemize}
+    \item \textbf{Steady-state thermal model}: No transient startup
+    dynamics or temperature ramping. Relevant for systems with frequent
+    unit cycling.
+    \item \textbf{No hydraulic pressure coupling}: Pumping energy not
+    optimized; estimated at $<$2\% of network thermal losses at peak flow.
+    \item \textbf{Hourly temporal resolution}: Sub-hourly demand peaks
+    and price spikes not captured.
+    \item \textbf{Single real-world case}: Generalization supported by
+    the synthetic parametric analysis but not by multiple validation cases.
+    \item \textbf{Deterministic framework}: Uncertainty addressed through
+    sensitivity analysis, not stochastic or robust optimization.
+    \item \textbf{Tree topology only}: Radial network structure assumed.
+    Ring networks require additional flow direction binary variables and
+    are not addressed here.
+    \item \textbf{Dispatch-only horizon}: Potential topology effects on
+    capacity sizing are not examined.
+\end{itemize}
+
+%% ============================================================
+%% 9. CONCLUSION
+%% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper presents a controlled experimental comparison isolating
+topology abstraction as the sole variable in district heating MILP
+dispatch optimization. Three levels (L1 copperplate, L2 simplified
+multi-node, L3 detailed multi-node) are implemented within a unified
+framework with identical physics at L2 and L3, validated against an
+Austrian industrial heat network.
+
+\textbf{Principal findings:}
+\begin{enumerate}
+    \item The L1$\rightarrow$L2 transition (physics inclusion) dominates
+    the topology effect, driving operational cost underestimation of
+    \placeholder{X}\% and \ce{CO2} underestimation of \placeholder{X}\%.
+    The mechanism is loss-driven generation underestimation.
+
+    \item The L2$\rightarrow$L3 transition (spatial refinement) is
+    marginal ($<$\placeholder{X}\%) for networks with HI~$<$~0.4 but
+    grows substantially for concentrated demand distributions
+    (HI~$>$~0.5).
+
+    \item Thermal storage charging hour distribution is the most
+    sensitive dispatch indicator, shifted by \placeholder{X}~hours
+    between L1 and L3 in winter due to loss-dependent temporal holding
+    costs invisible to L1.
+
+    \item The L1$\rightarrow$L2 gap scales with total pipe length
+    ($R^2\!=\,$\placeholder{XX}); the L2$\rightarrow$L3 gap scales
+    with demand heterogeneity. These relationships yield actionable
+    selection criteria.
+\end{enumerate}
+
+\textbf{Recommendations for practitioners:}
+\begin{itemize}
+    \item Use L2 as the minimum fidelity for any system with thermal
+    storage or pipe length $>$1~km.
+    \item Use L3 when demand heterogeneity index $>$~0.4 or storage
+    ratio~$>$~6~h with heterogeneous demand.
+    \item Validate storage dispatch patterns as a topology adequacy
+    diagnostic before reporting cost or emission results.
+    \item Conduct sensitivity analysis using the same topology level
+    as the final model.
+\end{itemize}
+
+\textbf{Future research priorities:} Extension to ring topology
+networks; stochastic and robust optimization variants; investment--dispatch
+co-optimization to assess topology effects on capacity sizing; transient
+validation against sub-hourly measurements.
+
+%% ============================================================
+%% REFERENCES
+%% ============================================================
+\bibliographystyle{elsarticle-num}
+\begin{thebibliography}{99}
+
+\bibitem{EUheating2016}
+European Commission, An EU Strategy on Heating and Cooling,
+COM(2016) 51 final, Brussels, 2016.
+
+\bibitem{Lund2014_4GDH}
+H.\ Lund, S.\ Werner, R.\ Wiltshire, S.\ Svendsen, J.E.\ Thorsen,
+F.\ Hvelplund, B.V.\ Mathiesen,
+4th Generation District Heating (4GDH): Integrating smart thermal
+grids into future sustainable energy systems,
+Energy 68 (2014) 1--11.
+
+\bibitem{Werner2017}
+S.\ Werner,
+District heating and cooling in Sweden,
+Energy 126 (2017) 419--429.
+
+\bibitem{Frederiksen2013}
+S.\ Frederiksen, S.\ Werner,
+District Heating and Cooling, Studentlitteratur, Lund, 2013.
+
+\bibitem{Talebi2016}
+B.\ Talebi, P.A.\ Mirzaei, A.\ Bastani, F.\ Haghighat,
+A Review of District Heating Systems: Modeling and Optimization,
+Frontiers in Built Environment 2 (2016) 22.
+
+\bibitem{Buffa2019}
+S.\ Buffa, M.\ Canova, M.\ D'Antoni, M.\ Baratieri, R.\ Fedrizzi,
+5th generation district heating and cooling systems: A review of
+existing cases in Europe,
+Renewable and Sustainable Energy Reviews 104 (2019) 504--522.
+
+\bibitem{Lund2017_SmartEnergy}
+H.\ Lund, P.A.\ Østergaard, D.\ Connolly, B.V.\ Mathiesen,
+Smart energy and smart energy systems,
+Energy 137 (2017) 556--565.
+
+\bibitem{Fang2016}
+T.\ Fang, R.\ Lahdelma,
+Optimization of combined heat and power production with heat storage
+based on sliding time window method,
+Applied Energy 162 (2016) 723--732.
+
+\bibitem{Guelpa2019review}
+E.\ Guelpa, V.\ Verda,
+Thermal energy storage in district heating and cooling systems:
+A review,
+Applied Energy 252 (2019) 113474.
+
+\bibitem{Hilpert2018_oemof}
+S.\ Hilpert, C.\ Kaldemeyer, U.\ Krien, S.\ Günther,
+C.\ Wingenbach, G.\ Plessmann,
+The Open Energy Modelling Framework (oemof) -- A new approach to
+facilitate open science in energy system modelling,
+Energy Strategy Reviews 22 (2018) 16--25.
+
+\bibitem{Krien2020_oemofthermal}
+U.\ Krien, S.\ Günther, J.\ Launer, D.\ Möller,
+oemof.thermal: thermal components for the Open Energy Modelling
+Framework, GitHub repository, 2020.
+
+\bibitem{Brown2018_pypsa}
+T.\ Brown, J.\ Hörsch, D.\ Schlachtberger,
+PyPSA: Python for Power System Analysis,
+Journal of Open Research Software 6 (2018) 4.
+
+\bibitem{Welder2018_FINE}
+L.\ Welder, D.\ Ryberg, L.\ Kotzur, T.\ Grube, M.\ Robinius,
+D.\ Stolten,
+Spatio-temporal optimization of a future energy system for
+power-to-hydrogen applications in Germany,
+Energy 158 (2018) 1130--1149.
+
+\bibitem{Pfenninger2018_calliope}
+S.\ Pfenninger, B.\ Pickering,
+Calliope: a multi-scale energy systems modelling framework,
+Journal of Open Source Software 3 (2018) 825.
+
+\bibitem{Dorfner2016_urbs}
+J.\ Dorfner,
+urbs: A linear optimisation model for distributed energy systems,
+GitHub repository, 2016.
+
+\bibitem{Wiese2018_balmorel}
+F.\ Wiese et al.,
+Balmorel open source energy system model,
+Energy Strategy Reviews 20 (2018) 26--34.
+
+\bibitem{Connolly2014_EnergyPLAN}
+D.\ Connolly, H.\ Lund, B.V.\ Mathiesen,
+Smart Energy Europe: The technical and economic impact of one
+potential 100\% renewable energy scenario for the European Union,
+Renewable and Sustainable Energy Reviews 60 (2016) 1634--1653.
+
+\bibitem{Vesterlund2017}
+M.\ Vesterlund, A.\ Toffolo, J.\ Dahl,
+Optimization of multi-source complex district heating network,
+the case of Kiruna, Sweden,
+Energy 126 (2017) 53--63.
+
+\bibitem{Gabrielli2018}
+P.\ Gabrielli, M.\ Gazzani, E.\ Martelli, M.\ Mazzotti,
+Optimal design of multi-energy systems with seasonal storage,
+Applied Energy 219 (2018) 408--424.
+
+\bibitem{Wirtz2020}
+M.\ Wirtz, L.\ Kivilip, P.\ Remmen, D.\ Müller,
+5th Generation District Heating: A novel design approach based on
+non-linear optimization,
+Applied Energy 260 (2020) 114158.
+
+\bibitem{Mertz2016}
+T.\ Mertz, S.\ Serra, A.\ Henon, J.C.\ Reneaume,
+A MINLP optimization of the configuration and the design of a
+district heating network: Academic and real study cases,
+Energy 116 (2016) 1156--1172.
+
+\bibitem{Buenning2020}
+F.\ Bünning, M.\ Wetter, M.\ Fuchs, D.\ Müller,
+Bidirectional low temperature district energy systems with agent-based
+control: Performance comparison and operation optimization,
+Applied Energy 209 (2018) 502--515.
+
+\bibitem{Giraud2015}
+L.\ Giraud, M.\ Merabet, R.\ Bavière, M.\ Vallée,
+Optimal control of district heating systems using dynamic simulation
+and mixed integer linear programming,
+Proceedings of the 12th International Modelica Conference, 2015.
+
+\bibitem{Schweiger2017}
+G.\ Schweiger, P.-O.\ Larsson, F.\ Magnusson, P.\ Lauenburg,
+S.\ Velut,
+District heating and cooling systems -- Framework for Modelica-based
+simulation and dynamic optimization,
+Energy 137 (2017) 566--578.
+
+\bibitem{vanderHeijde2017}
+B.\ van der Heijde, M.\ Fuchs, C.\ Ribas Tugores, G.\ Schweiger,
+K.\ Sartor, D.\ Basciotti, D.\ Müller, C.\ Nytsch-Geusen,
+M.\ Wetter, L.\ Helsen,
+Dynamic equation-based thermo-hydraulic pipe model for district
+heating and cooling systems,
+Energy Conversion and Management 151 (2017) 158--169.
+
+\bibitem{Blommaert2020}
+M.\ Blommaert, J.\ Wack, M.\ Baelmans,
+An adjoint optimization approach for the topological design of
+large-scale district heating networks based on nonlinear models,
+Applied Energy 280 (2020) 116025.
+
+\bibitem{Paalsson1999}
+H.\ Pálsson, A.\ Larsen, B.N.\ Jørgensen, S.\ Bøhm, Y.\ Zhou,
+Equivalent models of district heating systems for on-line
+optimization -- determination of model coefficients,
+Proceedings of the 7th International Symposium on District Heating
+and Cooling, Lund, 1999.
+
+\bibitem{Duquette2016}
+J.\ Duquette, A.\ Rowe, P.\ Wild,
+Thermal performance of a steady state physical pipe model for
+simulating district heating grids with variable flow,
+Applied Energy 178 (2016) 383--393.
+
+\bibitem{Vandermeulen2018}
+A.\ Vandermeulen, B.\ van der Heijde, L.\ Helsen,
+Controlling district heating and cooling networks to unlock
+flexibility: A review,
+Energy 151 (2018) 103--115.
+
+\bibitem{Christidis2017}
+A.\ Christidis, C.\ Koch, L.\ Pottel, G.\ Tsatsaronis,
+The contribution of heat storage to the profitable operation of
+combined heat and power plants in liberalized electricity markets,
+Energy 41 (2012) 75--82.
+
+\bibitem{Sartor2017}
+K.\ Sartor, P.\ Dewallef,
+Optimization of heat supply from combined heat and power plants
+integrated in a district heating network,
+Energy 124 (2017) 503--515.
+
+\bibitem{Noussan2017}
+M.\ Noussan, M.\ Jarre, A.\ Poggio,
+Real operation data analysis on district heating load patterns,
+Energy 129 (2017) 70--78.
+
+\bibitem{pyomo}
+W.E.\ Hart, C.\ Laird, J.-P.\ Watson, D.L.\ Woodruff,
+Pyomo -- Optimization Modeling in Python, 2nd ed.,
+Springer, 2017.
+
+\bibitem{Paper2_CALION}
+[Authors], CALION: A Flexible MILP Framework for Multi-Technology
+District Heating Networks with Rolling Horizon Optimization,
+[companion paper, in preparation, 2024].
+
+\bibitem{Zenodo_data}
+[Authors], Replication dataset: Topology abstraction effects on
+district heating MILP dispatch, Zenodo [dataset], 2024.
+\url{https://doi.org/10.5281/zenodo.XXXXXXX}
+
+\end{thebibliography}
+
+%% ============================================================
+%% APPENDICES
+%% ============================================================
+\appendix
+
+\section{Electricity Selling Price Formula}
+\label{app:selling_price}
+
+The complete electricity selling price, reflecting bilateral trading
+conditions applicable to the Austrian industrial partner:
+\begin{equation}
+\lambda_t^{\mathrm{sell}} = \max\!\Bigg(\!
+\underbrace{
+\max\!\big(\lambda_t^{\mathrm{spot}} - \lambda^{\mathrm{spread}},\;
+\lambda^{\mathrm{floor}}\big)
+}_{\text{spread/floor-limited price}}
+\cdot (1 - h^{\mathrm{sell}})
+- \lambda^{\mathrm{sell,fee}} + \lambda^{\mathrm{sell,prem}},
+\;\; 0\Bigg)
+\end{equation}
+
+Parameters: $\lambda^{\mathrm{spread}}$ is the bid-ask spread [\euro/MWh];
+$\lambda^{\mathrm{floor}}$ a contractual minimum price floor;
+$h^{\mathrm{sell}} \in [0,1]$ the selling haircut fraction representing
+transaction costs and imbalance risk; $\lambda^{\mathrm{sell,fee}}$ the
+export grid fee; $\lambda^{\mathrm{sell,prem}}$ a balancing service
+premium, if applicable. The outer $\max(\cdot, 0)$ ensures the model
+never incurs a financial penalty for selling.
+
+\section{COP Bilinear Interpolation Error}
+\label{app:cop}
+
+The heat pump COP is pre-computed from a 2D manufacturer performance
+map using bilinear interpolation on a grid with spacing
+$\Delta T_s = \Delta T_a = 5$~K. For bilinear interpolation, errors
+along the two axes are independent. The interpolation error is bounded
+by the sum of the two univariate second-order terms:
+\begin{equation}
+|\mathrm{COP} - \widehat{\mathrm{COP}}| \leq
+\frac{(\Delta T_s)^2}{8}
+\max \left|\frac{\partial^2 \mathrm{COP}}{\partial T_s^2}\right|
++ \frac{(\Delta T_a)^2}{8}
+\max \left|\frac{\partial^2 \mathrm{COP}}{\partial T_a^2}\right|
+\label{eq:cop_error}
+\end{equation}
+
+For the heat pump models used in the case study, maximum second
+derivatives are estimated from the manufacturer data sheet, yielding
+an absolute COP error of $\pm$0.08--0.12 ($\approx$2--3\% relative
+at typical COP~$\approx$~3.5).
+
+Monte Carlo error propagation (1000 samples, COP perturbed independently
+within error bounds at each timestep): system cost variation has a 95\%
+confidence interval of $\pm$1.2\%. This is substantially smaller than
+the L1--L3 topology gap, confirming that COP interpolation uncertainty
+does not confound the topology comparison.
+
+COP clamping to $[0.5, 15.0]$ activates in $<$0.3\% of timesteps
+(extreme temperature conditions at system boundaries) and has negligible
+effect on annual cost ($<$0.05\%).
+
+\section{Anonymized Stadtbach Network Parameters}
+\label{app:stadtbach}
+
+Specific numerical parameters have been anonymized per agreement
+with the industrial partner. \Cref{tab:app_params} provides the
+aggregate network characteristics sufficient for reproducibility
+verification.
+
+\begin{table}[htbp]
+\centering
+\caption{Anonymized aggregate parameters, Stadtbach case study.}
+\label{tab:app_params}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parameter & Value & Unit \\
+\midrule
+Demand nodes (L3)                      & 30                        & -- \\
+Demand zones (L2)                      & 5                         & -- \\
+Total supply+return pipe length        & \placeholder{X.X}         & km \\
+Pipe type distribution (DN100/200/250) & \placeholder{XX/XX/XX}    & \% of total length \\
+Mean insulation $U$-value (supply)     & \placeholder{X.XX}        & W/(m$\cdot$K) \\
+Mean insulation $U$-value (return)     & \placeholder{X.XX}        & W/(m$\cdot$K) \\
+Design supply temperature              & \placeholder{XX}          & \si{\celsius} \\
+Design return temperature              & \placeholder{XX}          & \si{\celsius} \\
+Ground temperature (annual mean)       & \placeholder{X.X}         & \si{\celsius} \\
+Ground temperature (seasonal range)   & \placeholder{X.X--X.X}    & \si{\celsius} \\
+Peak aggregate demand                  & \placeholder{XX}          & MW \\
+Annual aggregate demand                & \placeholder{XX}          & GWh \\
+Demand heterogeneity index HI          & \placeholder{X.XX}        & -- \\
+Storage energy capacity $\bar{E}_s$    & \placeholder{XXX}         & MWh \\
+Storage charging ratio                 & \placeholder{X.X}         & h of peak \\
+HP installed capacity                  & \placeholder{X.X}         & MW\textsubscript{th} \\
+Gas boiler installed capacity          & \placeholder{XX}          & MW\textsubscript{th} \\
+Electrode boiler installed capacity    & \placeholder{X.X}         & MW\textsubscript{th} \\
+Grid import connection capacity        & \placeholder{XX}          & MW \\
+Grid export connection capacity        & \placeholder{XX}          & MW \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

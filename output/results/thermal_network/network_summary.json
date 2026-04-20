@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "export_timestamp": "2026-04-15T13:33:55.974863",
-    "total_timesteps": 2973,
-    "dt_hours": 0.25,
-    "total_hours": 743.25
+    "export_timestamp": "2026-04-17T08:51:27.887187",
+    "total_timesteps": 744,
+    "dt_hours": 1.0,
+    "total_hours": 744.0
   },
   "topology": {
     "total_nodes": 35,
@@ -21,6 +21,10 @@
     "return_temp_nominal_c": 40.0,
     "ground_temp_default_c": 10.0
   },
-  "energy": {},
+  "energy": {
+    "total_network_loss_mwh": 123.44240313560671,
+    "avg_network_loss_mw": 0.1659172085156004,
+    "max_network_loss_mw": 0.16722
+  },
   "hydraulics": {}
 }
