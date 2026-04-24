@@ -92,30 +92,46 @@ class NodeConfig(BaseModel):
     type: str  # "producer", "consumer", "junction"
     assets: list[str] = Field(default_factory=list)
     demand: DemandConfig | None = None
+    demands: list[DemandConfig] = Field(default_factory=list)  # multi-column demand (consumers: list)
     demand_fraction: float | None = Field(default=1.0)  # Default to 100% (no scaling) if not specified
 
     @staticmethod
     def from_dict(node_id: str, raw: dict[str, Any]) -> NodeConfig:
-        node_type = raw.get("type", "junction")
-        if node_type not in ("producer", "consumer", "junction"):
-            raise ValueError(
-                f"Node '{node_id}': type must be producer/consumer/junction, got '{node_type}'"
-            )
-
         assets = raw.get("assets", [])
         if not isinstance(assets, list):
             assets = [assets]
 
+        # Parse consumers: list (shorthand for multiple demand columns)
+        consumers_raw = raw.get("consumers", [])
+        demands: list[DemandConfig] = []
+        if consumers_raw:
+            for entry in consumers_raw:
+                demands.append(DemandConfig.from_dict(entry))
+
+        # Parse explicit demand: key (single column, backward compat)
         demand = None
         demand_raw = raw.get("demand")
         if demand_raw is not None:
             demand = DemandConfig.from_dict(demand_raw)
 
-        # Default demand_fraction to 1.0 (100%) if not specified
-        # This allows per-node demands to be used without scaling by fraction
+        # Infer type if not explicit: assets → producer, consumers → consumer, else junction
+        if "type" in raw:
+            node_type = raw["type"]
+        elif assets:
+            node_type = "producer"
+        elif demands or demand is not None:
+            node_type = "consumer"
+        else:
+            node_type = "junction"
+
+        if node_type not in ("producer", "consumer", "junction"):
+            raise ValueError(
+                f"Node '{node_id}': type must be producer/consumer/junction, got '{node_type}'"
+            )
+
         demand_fraction = raw.get("demand_fraction", 1.0)
 
-        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demand_fraction=demand_fraction)
+        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demands=demands, demand_fraction=demand_fraction)
 
 
 class PipeConfig(BaseModel):
@@ -320,9 +336,9 @@ def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
 
     # 3. Every consumer node must have a demand column specified
     for nid, node in nodes.items():
-        if node.type == "consumer" and node.demand is None:
+        if node.type == "consumer" and node.demand is None and not node.demands:
             issues.append(
-                f"Consumer node '{nid}' must have 'demand.column' specified"
+                f"Consumer node '{nid}' must have 'demand.column' or 'consumers:' specified"
             )
 
     # 4. At least one producer node

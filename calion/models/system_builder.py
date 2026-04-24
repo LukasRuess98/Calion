@@ -123,9 +123,17 @@ def _build_model_unified(
         # Multi-node: per-node demand parameters
         m.node_demand = {}
         for nid, node in ucfg.nodes.items():
+            # Collect all demand columns for this node (singular + list)
+            node_demand_cols = []
             if node.demand is not None:
-                actual_col = _find_demand_column(table, node.demand.column)
-                demand_data = {i + 1: float(table[actual_col][i]) for i in range(T)}
+                node_demand_cols.append(_find_demand_column(table, node.demand.column))
+            for d in node.demands:
+                node_demand_cols.append(_find_demand_column(table, d.column))
+            if node_demand_cols:
+                demand_data = {
+                    i + 1: sum(float(table[col][i]) for col in node_demand_cols)
+                    for i in range(T)
+                }
                 param_name = f"heatd_{nid}"
                 setattr(m, param_name, pyo.Param(m.t, initialize=demand_data, mutable=True))
                 m.node_demand[nid] = getattr(m, param_name)
@@ -136,6 +144,8 @@ def _build_model_unified(
             if node.demand is not None:
                 actual_col = _find_demand_column(table, node.demand.column)
                 all_demand_cols.append(actual_col)
+            for d in node.demands:
+                all_demand_cols.append(_find_demand_column(table, d.column))
         if all_demand_cols:
             global_demand = {
                 i + 1: sum(float(table[col][i]) for col in all_demand_cols)

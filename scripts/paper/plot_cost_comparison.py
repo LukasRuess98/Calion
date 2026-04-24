@@ -29,16 +29,10 @@ COST_COMPONENTS = {
     "Dump_cost_EUR":           ("Heat dump",          "#ef5350"),
     "Capex_cost_EUR":          ("CAPEX",              "#26a69a"),
 }
-<<<<<<< Updated upstream
-TOTAL_KEY = "OBJ_value_EUR"
-
-LEVEL_LABELS = ["L1\n(1-node)", "L2\n(5-node)", "L3\n(30-node)"]
-LEVEL_TAGS   = ["L1", "L2", "L3"]
-=======
 TOTAL_KEY  = "OBJ_value_EUR"
 DEMAND_KEY = "total_demand_MWh"
 LEVEL_LABELS = ["L1\n(1-node)", "L2\n(5-node)", "L3\n(24-node)"]
->>>>>>> Stashed changes
+LEVEL_TAGS   = ["L1", "L2", "L3"]
 
 
 def _load_costs(path: str) -> dict:
