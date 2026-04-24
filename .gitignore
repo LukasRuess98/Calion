@@ -33,6 +33,7 @@ outputs/dashboard/
 
 # IDE settings (personal configurations)
 .vscode/
+.venv
 .idea/
 *.swp
 *.swo
