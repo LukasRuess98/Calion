@@ -290,8 +290,6 @@ class ModelFinalizer:
                 "u_value_return_w_per_m_k": pipe.u_value_return_w_per_m_k,
             })
 
-<<<<<<< Updated upstream
-=======
         net_cfg = self.cfg.get('network', {})
         tn_cfg = self.cfg.get('thermal_network', {})
         physics_cfg = net_cfg.get('physics', tn_cfg.get('physics', {}))
@@ -300,7 +298,6 @@ class ModelFinalizer:
             or tn_cfg.get('linearization')
             or {}
         )
->>>>>>> Stashed changes
         return {
             "enabled": True,
             "nodes": nodes_list,
@@ -310,17 +307,18 @@ class ModelFinalizer:
                 "return_temp_nominal_c": ucfg.physics.return_temp_c,
                 "ground_temp_default_c": ucfg.physics.ground_temp_c,
             },
-<<<<<<< Updated upstream
-            "milp_linearize": True,
-=======
             "milp_linearize": (
                 tn_cfg.get('milp_linearize', False)
                 or net_cfg.get('milp_linearize', False)
                 or self.cfg.get('scenario', {}).get('milp_linearize', False)
             ),
+            "temperature_linearize": (
+                tn_cfg.get('temperature_linearize',
+                net_cfg.get('temperature_linearize',
+                self.cfg.get('scenario', {}).get('temperature_linearize', None)))
+            ),
             "linearization": lin_cfg,
             "physics": physics_cfg,
->>>>>>> Stashed changes
         }
 
     def _integrate_network_legacy(self) -> None:

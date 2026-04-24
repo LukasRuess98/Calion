@@ -201,8 +201,9 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         milp_linearize = config.get('milp_linearize', False)
+        temperature_linearize = config.get('temperature_linearize', milp_linearize)
 
-        if milp_linearize:
+        if temperature_linearize:
             # Fix temperatures at nominal values → all T×m_dot products become linear
             T_supply_in = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
             T_supply_out = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
@@ -264,7 +265,7 @@ class PipePairBlock(BaseComponent):
         # Q_loss = U × L × (T_avg - T_ground) / 1e6  [MW]
         # ============================================================
 
-        if milp_linearize:
+        if temperature_linearize:
             # MILP mode: heat losses computed from fixed nominal temperatures
             # Q_loss is fully determined (no bilinear products)
             def heat_loss_supply_rule_milp(m, t):

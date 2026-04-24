@@ -142,7 +142,7 @@ class ThermalNodeBlock(BaseComponent):
         return_temp_max = max(90, return_temp_c + 20)
 
         # T_supply: Var by default, but fixed Param in MILP-linearized mode
-        milp_linearize_temp = config.get('milp_linearize', False)
+        milp_linearize_temp = config.get('temperature_linearize', config.get('milp_linearize', False))
 
         if milp_linearize_temp and node_type in ('consumer', 'junction'):
             # MILP mode: fix supply temperature to nominal value → eliminates bilinear products
@@ -197,10 +197,6 @@ class ThermalNodeBlock(BaseComponent):
         Q_demand = None
         m_dot_demand = None
 
-<<<<<<< Updated upstream
-        if node_type == 'consumer':
-            demand_fraction = config.get('demand_fraction', 0.0)
-=======
         if node_type in ('consumer', 'mixed'):
             consumers_list = config.get('consumers') or []
             n_consumers = len(consumers_list)
@@ -242,7 +238,6 @@ class ThermalNodeBlock(BaseComponent):
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=_q_agg_init))
                 Q_demand = getattr(model, f'{prefix}_Q_demand')
->>>>>>> Stashed changes
 
             _node_heatd_attr = f'heatd_{node_id}'
             if hasattr(model, _node_heatd_attr):
@@ -267,20 +262,15 @@ class ThermalNodeBlock(BaseComponent):
 
             Q_demand = getattr(model, f'{prefix}_Q_demand')
 
-<<<<<<< Updated upstream
             setattr(model, f'{prefix}_m_dot_demand',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals))
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
-=======
+
             # Valve differential pressure — absorbs excess pump head at consumer stations.
-            # delta_p_valve[t] = P_supply[t] - P_return[t] - delta_p_min_station >= 0
-            # This replaces the per-pipe pump-head constraint: the pump head only needs
-            # to cover the critical path; shorter paths shed excess pressure via valves.
             delta_p_min_station = config.get('delta_p_min_consumer_bar', 0.7)
             setattr(model, f'{prefix}_delta_p_valve',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 20.0)))
             delta_p_valve_var = getattr(model, f'{prefix}_delta_p_valve')
->>>>>>> Stashed changes
 
         # ============================================================
         # CONSTRAINTS
@@ -482,13 +472,8 @@ class ThermalNodeBlock(BaseComponent):
             'outgoing_pipes': outgoing_pipes,
         }
 
-<<<<<<< Updated upstream
-        if node_type == 'consumer':
-            result['Q_demand'] = Q_demand
-=======
         if node_type in ('consumer', 'mixed'):
             result['Q_demand'] = Q_demand  # Param for single- and multi-consumer nodes
->>>>>>> Stashed changes
             result['m_dot_demand'] = m_dot_demand
             result['demand_fraction'] = config.get('demand_fraction', 0.0)
 

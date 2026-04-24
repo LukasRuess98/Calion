@@ -478,8 +478,10 @@ class NetworkManager:
         pipe_components: dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
-        # Propagate milp_linearize flag from thermal_network config
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+        # Propagate flags from thermal_network config
+        _tn = self.config.get('thermal_network', {})
+        milp_linearize = _tn.get('milp_linearize', False)
+        temperature_linearize_pipe = _tn.get('temperature_linearize', None)
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -490,6 +492,7 @@ class NetworkManager:
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
+                'temperature_linearize': temperature_linearize_pipe,
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }
@@ -508,19 +511,15 @@ class NetworkManager:
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
-<<<<<<< Updated upstream
-        # Propagate milp_linearize flag from thermal_network config
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
-=======
         # Propagate flags from thermal_network config
         tn_cfg = self.config.get('thermal_network', {})
         milp_linearize = tn_cfg.get('milp_linearize', False)
+        temperature_linearize = tn_cfg.get('temperature_linearize', None)
         physics_cfg = tn_cfg.get('physics', {})
         pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
         network_cfg = self.config.get('network', {})
         delta_p_min_consumer = network_cfg.get('delta_p_min_consumer_bar', 0.7)
         lin_cfg = tn_cfg.get('linearization', {})
->>>>>>> Stashed changes
 
         node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
@@ -533,6 +532,7 @@ class NetworkManager:
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_c': return_temp,
                 'milp_linearize': milp_linearize,
+                'temperature_linearize': temperature_linearize,
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
             }
             ThermalNodeBlock.validate_config(enriched_config)
