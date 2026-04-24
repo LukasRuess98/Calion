@@ -508,8 +508,19 @@ class NetworkManager:
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
+<<<<<<< Updated upstream
         # Propagate milp_linearize flag from thermal_network config
         milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+=======
+        # Propagate flags from thermal_network config
+        tn_cfg = self.config.get('thermal_network', {})
+        milp_linearize = tn_cfg.get('milp_linearize', False)
+        physics_cfg = tn_cfg.get('physics', {})
+        pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
+        network_cfg = self.config.get('network', {})
+        delta_p_min_consumer = network_cfg.get('delta_p_min_consumer_bar', 0.7)
+        lin_cfg = tn_cfg.get('linearization', {})
+>>>>>>> Stashed changes
 
         node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")

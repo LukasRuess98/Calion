@@ -1,0 +1,13 @@
+{
+  "pressure_drop_model": {
+    "uses_pwl": false
+  },
+  "temperature_drop_model": {
+    "type": "constant",
+    "default_drop_c": 1.0,
+    "uses_physics": false
+  },
+  "heat_loss_model": {
+    "type": "constant"
+  }
+}

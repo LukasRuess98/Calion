@@ -197,8 +197,52 @@ class ThermalNodeBlock(BaseComponent):
         Q_demand = None
         m_dot_demand = None
 
+<<<<<<< Updated upstream
         if node_type == 'consumer':
             demand_fraction = config.get('demand_fraction', 0.0)
+=======
+        if node_type in ('consumer', 'mixed'):
+            consumers_list = config.get('consumers') or []
+            n_consumers = len(consumers_list)
+
+            if n_consumers > 1:
+                # Multi-consumer: create per-consumer Q_demand_{i} Params and m_dot_demand_{i} Vars
+                for i in range(n_consumers):
+                    _heatd_attr = f'heatd_{node_id}_{i}'
+                    if hasattr(model, _heatd_attr):
+                        _h = getattr(model, _heatd_attr)
+                        def _demand_init(m, t, _hh=_h):
+                            return pyo.value(_hh[t])
+                        setattr(model, f'{prefix}_Q_demand_{i}',
+                                pyo.Param(time_set, initialize=_demand_init))
+                    else:
+                        raise ValueError(
+                            f"Consumer node {node_id}: no heatd_{node_id}_{i} param found on model"
+                        )
+                    setattr(model, f'{prefix}_m_dot_demand_{i}',
+                            pyo.Var(time_set, domain=pyo.NonNegativeReals))
+
+                # Aggregate m_dot_demand = sum of per-consumer flows
+                setattr(model, f'{prefix}_m_dot_demand',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+
+                def _m_dot_sum_rule(m, t, _n=n_consumers, _pfx=prefix):
+                    return getattr(m, f'{_pfx}_m_dot_demand')[t] == sum(
+                        getattr(m, f'{_pfx}_m_dot_demand_{ii}')[t] for ii in range(_n)
+                    )
+                setattr(model, f'{prefix}_m_dot_demand_sum',
+                        pyo.Constraint(time_set, rule=_m_dot_sum_rule))
+
+                # Aggregate Q_demand Param = sum of per-consumer demands.
+                # network_manager constraint rules expect a subscriptable Q_demand[t].
+                def _q_agg_init(m, t, _pfx=prefix, _n=n_consumers):
+                    return sum(pyo.value(getattr(m, f'{_pfx}_Q_demand_{ii}')[t])
+                               for ii in range(_n))
+                setattr(model, f'{prefix}_Q_demand',
+                        pyo.Param(time_set, initialize=_q_agg_init))
+                Q_demand = getattr(model, f'{prefix}_Q_demand')
+>>>>>>> Stashed changes
 
             _node_heatd_attr = f'heatd_{node_id}'
             if hasattr(model, _node_heatd_attr):
@@ -223,9 +267,20 @@ class ThermalNodeBlock(BaseComponent):
 
             Q_demand = getattr(model, f'{prefix}_Q_demand')
 
+<<<<<<< Updated upstream
             setattr(model, f'{prefix}_m_dot_demand',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals))
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+=======
+            # Valve differential pressure — absorbs excess pump head at consumer stations.
+            # delta_p_valve[t] = P_supply[t] - P_return[t] - delta_p_min_station >= 0
+            # This replaces the per-pipe pump-head constraint: the pump head only needs
+            # to cover the critical path; shorter paths shed excess pressure via valves.
+            delta_p_min_station = config.get('delta_p_min_consumer_bar', 0.7)
+            setattr(model, f'{prefix}_delta_p_valve',
+                    pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 20.0)))
+            delta_p_valve_var = getattr(model, f'{prefix}_delta_p_valve')
+>>>>>>> Stashed changes
 
         # ============================================================
         # CONSTRAINTS
@@ -427,8 +482,13 @@ class ThermalNodeBlock(BaseComponent):
             'outgoing_pipes': outgoing_pipes,
         }
 
+<<<<<<< Updated upstream
         if node_type == 'consumer':
             result['Q_demand'] = Q_demand
+=======
+        if node_type in ('consumer', 'mixed'):
+            result['Q_demand'] = Q_demand  # Param for single- and multi-consumer nodes
+>>>>>>> Stashed changes
             result['m_dot_demand'] = m_dot_demand
             result['demand_fraction'] = config.get('demand_fraction', 0.0)
 

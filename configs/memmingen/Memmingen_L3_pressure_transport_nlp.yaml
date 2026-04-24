@@ -1,0 +1,358 @@
+# =============================================================================
+# PAPER STUDY — Level 3: Nichtlineares Modell (NLP/QCQP) mit Gurobi
+# =============================================================================
+# Basis: Memmingen_L3_pressure_transport.yaml
+# Solver: Gurobi (NLP/QCQP-fähig)
+# Linearisierung: DEAKTIVIERT → bilineare Terme, kontinuierliche Temperaturen
+#
+# UNTERSCHIEDE ZU Memmingen_L3_pressure_transport.yaml:
+#   - milp_linearize: false   → keine PWL-Temperaturen, keine Binärvariablen
+#   - solver: gurobi          → kann nichtlineare (QCQP) Modelle lösen
+#   - T_supply, T_return: Entscheidungsvariablen (Var) statt fixer Parameter
+#   - Wärmeverluste, Wärmeübertragung: bilinear (m_dot × T) → exakt, nicht approx.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# LINEARISIERUNG vs. NICHTLINEAR — Unterschiede im Detail:
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#  MILP-Linearisierung (milp_linearize: true):
+#   • T_supply[t], T_return[t] = feste Parameter, vorab berechnet via PWL-Profil
+#     (T = f(Gesamtlast), aus load_fractions/T_supply_c Tabelle interpoliert)
+#   • Wärmelieferung: Q_delivered = m_dot × cp × ΔT_param → LINEAR in m_dot
+#   • Druckverlust: ΔP = PWL(m_dot) → stückweise linear, 3 Binärvariablen/Rohr/h
+#   • Temperatur-Mischung an Knoten: entfällt (T ist Param, kein Constraint)
+#   • Binärvariablen: ja (Druckverlust-Segmente, TES, Grid)
+#   • Solver: HiGHS, GLPK, CPLEX (MILP-Solver)
+#   • Genauigkeit: Temperaturen approximiert → Lösung physikalisch inkonsistent
+#     wenn Last außerhalb Stützstellen liegt
+#
+#  Nichtlinear / QCQP (milp_linearize: false):
+#   • T_supply[t], T_return[t] = Variablen, vom Solver bestimmt
+#   • Wärmelieferung: Q_delivered = m_dot × cp × (T_supply - T_return) → BILINEAR
+#   • Druckverlust: ΔP = k × v² = k × (m_dot/ρA)² → QUADRATISCH in m_dot
+#   • Temperatur-Mischung an Knoten: bilineare Enthalpie-Bilanz
+#     Σ(m_dot_in × T_in) = T_node × Σ(m_dot_in) → bilinear
+#   • Binärvariablen: nur für TES und Grid (keine Druck-PWL-Binaries)
+#   • Solver: Gurobi (QCQP), IPOPT (NLP, kont.), SCIP (MINLP)
+#   • Genauigkeit: physikalisch exakt, globales Optimum nicht garantiert (non-convex)
+#
+#  Zusammenfassung:
+#   ┌──────────────────────┬──────────────────┬──────────────────────┐
+#   │ Eigenschaft          │ MILP (linear.)   │ NLP (nichtlinear)    │
+#   ├──────────────────────┼──────────────────┼──────────────────────┤
+#   │ Temperaturen         │ feste Parameter  │ Variablen            │
+#   │ Wärmebilanz          │ linear           │ bilinear             │
+#   │ Druckverlust         │ PWL + Binaries   │ quadratisch          │
+#   │ Mischung an Knoten   │ entfällt         │ bilinear             │
+#   │ Binärvariablen       │ ~70/h (Druck)    │ ~5/h (TES, Grid)     │
+#   │ Solver               │ HiGHS/CPLEX      │ Gurobi/IPOPT         │
+#   │ Lösung               │ global optimal   │ lokal optimal        │
+#   │ Rechenzeit           │ mittel           │ hoch (non-convex)    │
+#   │ Physikgenauigkeit    │ approx.          │ exakt                │
+#   └──────────────────────┴──────────────────┴──────────────────────┘
+# =============================================================================
+
+site:
+  input_xlsx: "data/2025_04_14_Import_Data_Memmingen.xlsx"
+  columns:
+    datetime:  "Datum"
+    price:     "strompreis_EUR_MWh"
+    co2_grid:  "grid_co2_kg_MWh"
+
+scenario:
+  name: "Memmingen L3 - Nichtlinear (NLP) mit Gurobi"
+  description: "24-Knoten-Netz, bilinear, Gurobi QCQP, keine Linearisierung"
+  run_mode: PF_ONLY
+  milp_linearize: false         # NLP-Modus: Temperaturen als Variablen
+  horizon:
+    start: "2025-01-01"
+    end: "2025-01-31 23:00"
+
+# ── Network ──────────────────────────────────────────────────────────────────
+network:
+  milp_linearize: false         # Kein MILP: bilineare Temp-Constraints aktiv
+  physics:
+    heat_loss: true             # Q_loss = U × L × (T_avg - T_ground) / 1e6
+    pressure_drop: true         # ΔP = k × m_dot² (quadratisch, kein PWL)
+    transport_delay: true       # Transportverzögerung aktiv
+
+  supply_temp_c: 100            # Nominale Vorlauftemperatur (Startpunkt/Bound)
+  return_temp_c: 40             # Nominale Rücklauftemperatur
+  ground_temp_c: 10
+
+  # linearization wird ignoriert wenn milp_linearize: false
+  # Temperaturen werden durch bilineare Constraints endogen bestimmt
+
+  # ── Rohrparameter ──────────────────────────────────────────────────────────
+  max_velocity_m_s:      2.5
+  pump_efficiency:       0.70
+  pipe_roughness_mm:     0.05
+  max_pressure_drop_bar: 2.0
+
+  nodes:
+    j_1:
+      assets: [boiler_main, tes_main]
+
+    V_1:
+      consumers:
+        - column: "V_1_demand_MWth"
+
+    j_2:
+      consumers:
+        - column: "V_2_demand_MWth"
+
+    j_3:
+      consumers:
+        - column: "V_3_demand_MWth"
+
+    j_4:
+      consumers:
+        - column: "V_4_demand_MWth"
+        - column: "V_5_demand_MWth"
+        - column: "V_6_demand_MWth"
+        - column: "V_7_demand_MWth"
+
+    j_5:
+      consumers:
+        - column: "V_8_demand_MWth"
+        - column: "V_9_demand_MWth"
+
+    j_6:
+      consumers:
+        - column: "V_10_demand_MWth"
+        - column: "V_11_demand_MWth"
+        - column: "V_12_demand_MWth"
+
+    j_7:
+      consumers:
+        - column: "V_13_demand_MWth"
+
+    j_8:
+      consumers:
+        - column: "V_14_demand_MWth"
+
+    j_9:
+      consumers:
+        - column: "V_15_demand_MWth"
+        - column: "V_16_demand_MWth"
+
+    j_10:
+      consumers:
+        - column: "V_17_demand_MWth"
+
+    j_11: {}
+    j_12: {}
+    j_13: {}
+
+    j_14:
+      consumers:
+        - column: "V_25_demand_MWth"
+        - column: "V_26_demand_MWth"
+
+    j_15:
+      consumers:
+        - column: "V_27_demand_MWth"
+
+    V_18:
+      consumers:
+        - column: "V_18_demand_MWth"
+    V_19:
+      consumers:
+        - column: "V_19_demand_MWth"
+    V_20:
+      consumers:
+        - column: "V_20_demand_MWth"
+    V_21:
+      consumers:
+        - column: "V_21_demand_MWth"
+    V_22:
+      consumers:
+        - column: "V_22_demand_MWth"
+    V_23:
+      consumers:
+        - column: "V_23_demand_MWth"
+    V_24:
+      consumers:
+        - column: "V_24_demand_MWth"
+
+  pipes:
+    j1_to_V_1:
+      from: j_1
+      to: V_1
+      length_m: 5
+      diameter_mm: 1000
+
+    j1_to_j2:
+      from: j_1
+      to: j_2
+      length_m: 500
+      diameter_mm: 1000
+
+    j2_to_j3:
+      from: j_2
+      to: j_3
+      length_m: 1000
+      diameter_mm: 1000
+
+    j3_to_j4:
+      from: j_3
+      to: j_4
+      length_m: 500
+      diameter_mm: 1000
+
+    j3_to_j9:
+      from: j_3
+      to: j_9
+      length_m: 50
+      diameter_mm: 1000
+
+    j4_to_j5:
+      from: j_4
+      to: j_5
+      length_m: 400
+      diameter_mm: 1000
+
+    j5_to_j6:
+      from: j_5
+      to: j_6
+      length_m: 160
+      diameter_mm: 1000
+
+    j5_to_j7:
+      from: j_5
+      to: j_7
+      length_m: 300
+      diameter_mm: 1000
+
+    j7_to_j8:
+      from: j_7
+      to: j_8
+      length_m: 30
+      diameter_mm: 1000
+
+    j9_to_j10:
+      from: j_9
+      to: j_10
+      length_m: 50
+      diameter_mm: 1000
+
+    j10_to_j11:
+      from: j_10
+      to: j_11
+      length_m: 50
+      diameter_mm: 1000
+
+    j11_to_V18:
+      from: j_11
+      to: V_18
+      length_m: 180
+      diameter_mm: 1000
+
+    j11_to_j12:
+      from: j_11
+      to: j_12
+      length_m: 200
+      diameter_mm: 1000
+
+    j12_to_V19:
+      from: j_12
+      to: V_19
+      length_m: 180
+      diameter_mm: 1000
+
+    j12_to_V20:
+      from: j_12
+      to: V_20
+      length_m: 130
+      diameter_mm: 1000
+
+    j12_to_V21:
+      from: j_12
+      to: V_21
+      length_m: 140
+      diameter_mm: 1000
+
+    j12_to_j13:
+      from: j_12
+      to: j_13
+      length_m: 200
+      diameter_mm: 1000
+
+    j13_to_V22:
+      from: j_13
+      to: V_22
+      length_m: 145
+      diameter_mm: 1000
+
+    j13_to_V23:
+      from: j_13
+      to: V_23
+      length_m: 170
+      diameter_mm: 1000
+
+    j13_to_V24:
+      from: j_13
+      to: V_24
+      length_m: 150
+      diameter_mm: 1000
+
+    j13_to_j14:
+      from: j_13
+      to: j_14
+      length_m: 190
+      diameter_mm: 1000
+
+    j13_to_j15:
+      from: j_13
+      to: j_15
+      length_m: 140
+      diameter_mm: 1000
+
+# ── FIXED ASSETS ──────────────────────────────────────────────────────────────
+assets:
+  boiler_main:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 200.0
+    min_load: 0
+    thermal_efficiency: 0.90
+  tes_main:
+    type: storage
+    energy_capacity_mwh: 1000.0
+    power_capacity_mw: 50.0
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+    min_load_mw: 0.0
+    round_trip_efficiency: 0.90
+    soc_min: 0.0
+    soc_max: 1.0
+    soc0_mwh: 500.0
+    terminal:
+      state: cyclic
+      policy: equal
+
+# ── GRID ──────────────────────────────────────────────────────────────────────
+grid:
+  max_import_mw: 2000.0
+  max_export_mw: 2000.0
+  gridcost_eur_mwh: 35.0
+
+# ── FUELS ─────────────────────────────────────────────────────────────────────
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+# ── COSTS ─────────────────────────────────────────────────────────────────────
+costs:
+  co2_price_eur_per_t: 1000.0
+  dump_cost_eur_per_mwh_th: 10.0
+
+# ── RUN ───────────────────────────────────────────────────────────────────────
+run:
+  dt_h: 1.0
+  solver: gurobi              # Gurobi erforderlich für QCQP (bilinear + quadratisch)
+  solver_options:
+    NonConvex: 2              # Gurobi: nicht-konvexe bilineare Terme erlauben
+    MIPGap: 0.01              # 1% Optimality Gap (Kompromiss Qualität/Rechenzeit)
+    TimeLimit: 3600           # Max. 1h Lösungszeit

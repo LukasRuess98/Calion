@@ -53,6 +53,12 @@ fuels:
 # Physical validity constraints for network nodes and pipes.
 # These enforce that optimized states remain physically realistic.
 
+network:
+  # Minimum required pressure drop at each consumer substation [bar]
+  # Represents heat exchanger + internal piping resistance (70 kPa = 0.7 bar)
+  # Control valve absorbs any excess pump head beyond this minimum.
+  delta_p_min_consumer_bar: 0.7
+
 state_validation:
   # Temperature constraints
   temperature_constraints:

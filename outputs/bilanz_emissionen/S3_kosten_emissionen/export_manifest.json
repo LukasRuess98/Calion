@@ -1,0 +1,13 @@
+{
+  "export_timestamp": "2026-04-23T11:33:56.065390",
+  "scenario_name": null,
+  "output_dir": "outputs/bilanz_emissionen/S3_kosten_emissionen",
+  "total_files": 4,
+  "files": {
+    "solver_lp_file": "outputs/bilanz_emissionen/S3_kosten_emissionen\\solver\\gurobi_solution.lp",
+    "solver_sol_file": "outputs/bilanz_emissionen/S3_kosten_emissionen\\solver\\gurobi_solution.sol",
+    "solver_mps_file": "outputs/bilanz_emissionen/S3_kosten_emissionen\\solver\\gurobi_solution.mps",
+    "unified_timeseries": "outputs/bilanz_emissionen/S3_kosten_emissionen\\unified_timeseries.csv"
+  },
+  "has_network_data": false
+}

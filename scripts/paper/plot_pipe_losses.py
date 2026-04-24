@@ -96,6 +96,13 @@ def main():
     ax2.set_title(f"L3 (30-node) — total {total_l3_gwh*1e3:.0f} MWh", fontsize=11)
     ax2.grid(True, axis="x", alpha=0.3)
 
+<<<<<<< Updated upstream
+=======
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(DOUBLE_COL_W, H_PIPE))
+    _plot_panel(ax1, _top_n_with_other(df_l2, TOP_N), "L2 — 5-node",  C_L2, demand_mwh)
+    _plot_panel(ax2, _top_n_with_other(df_l3, TOP_N), "L3 — 24-node", C_L3, demand_mwh)
+    fig.suptitle("Pipe heat losses (January baseline)")
+>>>>>>> Stashed changes
     fig.tight_layout()
 
     stem = Path(args.outdir) / "fig4_pipe_losses"

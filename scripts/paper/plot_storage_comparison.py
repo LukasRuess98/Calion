@@ -25,8 +25,19 @@ CHG_COL   = "TES_charge_MW"
 DIS_COL   = "TES_discharge_MW"
 DT_H      = 1.0
 
+<<<<<<< Updated upstream
 COLORS = {"L1": "#4c96d7", "L2": "#e07b39", "L3": "#6abf69"}
 LABELS = {"L1": "L1 — 1-node", "L2": "L2 — 5-node", "L3": "L3 — 30-node"}
+=======
+apply_ecm_style()
+
+SOC_COL = "TES_SOC_MWh"
+CHG_COL = "TES_charge_MW"
+DIS_COL = "TES_discharge_MW"
+
+COLORS = {"L1": C_L1, "L2": C_L2, "L3": C_L3}
+LABELS = {"L1": "L1 — 1-node", "L2": "L2 — 5-node", "L3": "L3 — 24-node"}
+>>>>>>> Stashed changes
 
 
 def _load(path: str, tag: str) -> pd.DataFrame:
