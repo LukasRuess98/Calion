@@ -273,6 +273,13 @@ def load_input_excel(
         "grid_co2_kg_MWh": co2,
     }
 
+    # Extract individual demand columns (V_*_demand_MWth, zone_*_demand_MWth, etc.)
+    demand_pattern = re.compile(r"^[vV]_?\d+_demand_MWth$|^zone_\d+_demand_MWth$", re.IGNORECASE)
+    demand_columns = [col for col in header if demand_pattern.match(col)]
+    for demand_col in demand_columns:
+        demand_values = [_to_float(rec.get(demand_col)) for rec in records]
+        data[demand_col] = demand_values
+
     # Add outdoor temperature if available
     if outdoor_temp and any(t == t for t in outdoor_temp):  # Check for non-NaN values
         data["outdoor_temp_C"] = outdoor_temp

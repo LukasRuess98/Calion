@@ -130,6 +130,17 @@ def _build_model_unified(
             for d in node.demands:
                 node_demand_cols.append(_find_demand_column(table, d.column))
             if node_demand_cols:
+                # For multi-consumer nodes, create indexed parameters
+                if len(node_demand_cols) > 1:
+                    for consumer_idx, col in enumerate(node_demand_cols):
+                        demand_data = {
+                            i + 1: float(table[col][i])
+                            for i in range(T)
+                        }
+                        param_name = f"heatd_{nid}_{consumer_idx}"
+                        setattr(m, param_name, pyo.Param(m.t, initialize=demand_data, mutable=True))
+                
+                # Always create the aggregated parameter (for both single and multi-consumer)
                 demand_data = {
                     i + 1: sum(float(table[col][i]) for col in node_demand_cols)
                     for i in range(T)

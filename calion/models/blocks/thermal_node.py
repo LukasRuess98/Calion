@@ -240,17 +240,18 @@ class ThermalNodeBlock(BaseComponent):
                 Q_demand = getattr(model, f'{prefix}_Q_demand')
 
             _node_heatd_attr = f'heatd_{node_id}'
+            _demand_fraction = config.get('demand_fraction', 1.0)
             if hasattr(model, _node_heatd_attr):
                 # Prefer node-specific demand param (avoids triple-counting when multiple
                 # consumer nodes reference the same demand column — m.heatd is their sum)
                 _node_heatd = getattr(model, _node_heatd_attr)
-                def demand_init(m, t, _h=_node_heatd):
-                    return pyo.value(_h[t]) * demand_fraction
+                def demand_init(m, t, _h=_node_heatd, _frac=_demand_fraction):
+                    return pyo.value(_h[t]) * _frac
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_init))
             elif hasattr(model, 'heatd'):
-                def demand_init(m, t):
-                    return pyo.value(m.heatd[t]) * demand_fraction
+                def demand_init(m, t, _frac=_demand_fraction):
+                    return pyo.value(m.heatd[t]) * _frac
                 setattr(model, f'{prefix}_Q_demand',
                         pyo.Param(time_set, initialize=demand_init))
             elif 'demand_profile' in config:
