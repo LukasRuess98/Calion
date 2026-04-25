@@ -6,6 +6,7 @@ so that callers only need to provide a table, config, and solver name.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from calion.io._output_paths import resolve_runs_dir
@@ -25,6 +26,22 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover
     HAVE_PYOMO = False
     pyo = None
+
+
+def _resolve_solver_executable(solver_name: str) -> str | None:
+    """Locate a solver executable when it is not already on PATH."""
+    if solver_name.lower() != "ipopt":
+        return None
+
+    try:  # pragma: no cover - optional dependency
+        import idaes
+    except ImportError:
+        return None
+
+    executable = Path(idaes.bin_directory) / "ipopt.exe"
+    if executable.exists():
+        return str(executable)
+    return None
 
 
 def _solve_scenario(
@@ -66,6 +83,20 @@ def _solve_scenario(
         except (AttributeError, OSError, RuntimeError):  # pragma: no cover - solver fallback
             solver_used = "cbc"
             opt = pyo.SolverFactory("cbc")
+
+        solver_executable = None
+        if hasattr(opt, "available") and not opt.available(exception_flag=False):
+            solver_executable = _resolve_solver_executable(solver_name)
+            if solver_executable and hasattr(opt, "set_executable"):
+                opt.set_executable(solver_executable, validate=False)
+                logger.info(
+                    "Using %s executable from %s",
+                    solver_name,
+                    solver_executable,
+                )
+
+        if solver_executable:
+            solver_meta["solver_executable"] = solver_executable
 
         # Apply solver options if configured
         run_cfg = cfg.get("run", {})

@@ -262,7 +262,9 @@ class PipePairBlock(BaseComponent):
 
         # ============================================================
         # CONSTRAINTS — HEAT LOSSES
-        # Q_loss = U × L × (T_avg - T_ground) / 1e6  [MW]
+        # MILP mode: Q_loss = U × L × (T_avg - T_ground) / 1e6  [MW]
+        # NLP mode:  Q_loss scales with flow so m_dot=0 does not force
+        # contradictory positive losses on stagnant branches.
         # ============================================================
 
         if temperature_linearize:
@@ -307,7 +309,10 @@ class PipePairBlock(BaseComponent):
                 else:
                     u_eff = u_value_supply
                 T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
-                return Q_loss_supply[t] == (u_eff * length_m * (T_avg - T_ground[t])) / 1e6
+                return (
+                    Q_loss_supply[t] * effective_max_flow * 1e6
+                    == u_eff * length_m * m_dot[t] * (T_avg - T_ground[t])
+                )
 
             setattr(model, f'{prefix}_heat_loss_supply',
                     pyo.Constraint(time_set, rule=heat_loss_supply_rule))
@@ -325,7 +330,10 @@ class PipePairBlock(BaseComponent):
                 else:
                     u_eff = u_value_return
                 T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
-                return Q_loss_return[t] == (u_eff * length_m * (T_avg - T_ground[t])) / 1e6
+                return (
+                    Q_loss_return[t] * effective_max_flow * 1e6
+                    == u_eff * length_m * m_dot[t] * (T_avg - T_ground[t])
+                )
 
             setattr(model, f'{prefix}_heat_loss_return',
                     pyo.Constraint(time_set, rule=heat_loss_return_rule))
