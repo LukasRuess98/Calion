@@ -1,0 +1,22 @@
+{
+  "L1": {
+    "tag": "L1",
+    "status": "optimal",
+    "objective_eur": 91249.88495434419,
+    "solve_time_s": 16.6,
+    "balance_err_pct": null,
+    "balance_ok": true
+  },
+  "L3_MILP": {
+    "tag": "L3_MILP",
+    "status": "optimal",
+    "objective_eur": 91508.8597193407,
+    "solve_time_s": 40.2,
+    "balance_err_pct": null,
+    "balance_ok": true
+  },
+  "L3_MIQP": {
+    "tag": "L3_MIQP",
+    "status": "skipped_no_gurobi"
+  }
+}
