@@ -138,54 +138,68 @@ network:
   # ══════════════════════════════════════════════════════════════════════════
   # Dimensioning: 76 MW peak, 100/40°C, v_max=2.5 m/s
   pipes:
-    # Region 1: 41% of 76 MW = ~31 MW → DN300 (43.2 MW, +39%)
+    # Region 1: 25.9% of 76 MW = ~20 MW → DN300 (43.2 MW, +116%)
     j1_to_j2:
       from: j_1
       to: j_2
       length_m: 200
       diameter_mm: 300
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
-    # Region 2: 26% of 76 MW = ~20 MW → DN250 (30.0 MW, +50%)
+    # Region 2: 25.9% of 76 MW = ~20 MW → DN250 (30.0 MW, +50%)
     j1_to_j3:
       from: j_1
       to: j_3
       length_m: 240
       diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
-    # Region 3: 8% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
+    # Region 3: 7.4% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
     j1_to_j4:
       from: j_1
       to: j_4
       length_m: 180
       diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
 
-    # Region 4: 8% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
+    # Region 4: 7.4% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
     j1_to_j5:
       from: j_1
       to: j_5
       length_m: 160
       diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
 
-    # Region 5: 22% of 76 MW = ~17 MW → DN250 (30.0 MW, +76%)
+    # Region 5: 22.2% of 76 MW = ~17 MW → DN250 (30.0 MW, +76%)
     j1_to_j6:
       from: j_1
       to: j_6
       length_m: 220
       diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
-    # Region 6: 8% of 76 MW = ~6 MW → DN125 (7.5 MW, +25%)
+    # Region 6: 7.4% of 76 MW = ~6 MW → DN125 (7.5 MW, +25%)
     j1_to_j7:
       from: j_1
       to: j_7
       length_m: 140
       diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
 
-    # Region 7: 4% of 76 MW = ~3 MW → DN100 (4.8 MW, +60%)
+    # Region 7: 3.7% of 76 MW = ~3 MW → DN100 (4.8 MW, +60%)
     j1_to_j8:
       from: j_1
       to: j_8
       length_m: 100
       diameter_mm: 100
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
 
 # ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L1/L3)
 assets:
