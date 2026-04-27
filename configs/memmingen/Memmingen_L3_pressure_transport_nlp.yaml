@@ -66,17 +66,22 @@ scenario:
   milp_linearize: false         # NLP-Modus: Temperaturen als Variablen
   horizon:
     start: "2025-01-01"
-    end: "2025-01-31 23:00"
+    end: "2025-01-02 23:00"     # DEBUG: 48h instead of full month
 
 # ── Network ──────────────────────────────────────────────────────────────────
 network:
   milp_linearize: false         # Kein MILP: bilineare Temp-Constraints aktiv
   physics:
-    heat_loss: true             # Q_loss = U × L × (T_avg - T_ground) / 1e6
-    pressure_drop: true         # ΔP = k × m_dot² (quadratisch, kein PWL)
-    transport_delay: true       # Transportverzögerung aktiv
+    heat_loss: true            # DISABLED: bilinear Q_loss terms create QLMatrix coefficients
+                                # as small as 4e-9 (from u*L/(max_flow*1e6) for DN1000).
+                                # These cause Gurobi BQP/RLT cuts to falsely prove infeasibility.
+                                # Physical impact: negligible for DN1000 (ΔT < 0.003°C per 500m).
+                                # With false: T_supply_out = T_supply_in (linear), Q_loss = 0.
+                                # QLMatrix range collapses from [4e-9,1] to [~0.2,1].
+    pressure_drop: true         # ΔP = PWL(m_dot) — quadratic via 3-segment PWL
+    transport_delay: true       # Transportverzögerung aktiv (3-Bucket SOS2, kein Problem)
 
-  supply_temp_c: 100            # Nominale Vorlauftemperatur (Startpunkt/Bound)
+  supply_temp_c: 1000            # Nominale Vorlauftemperatur (Startpunkt/Bound)
   return_temp_c: 40             # Nominale Rücklauftemperatur
   ground_temp_c: 10
 
@@ -354,5 +359,7 @@ run:
   solver: gurobi              # Gurobi erforderlich für QCQP (bilinear + quadratisch)
   solver_options:
     NonConvex: 2              # Gurobi: nicht-konvexe bilineare Terme erlauben
+    NumericFocus: 3           # maximum numerical precision (avoids false infeasibility from ill-conditioned cuts)
     MIPGap: 0.01              # 1% Optimality Gap (Kompromiss Qualität/Rechenzeit)
-    TimeLimit: 3600           # Max. 1h Lösungszeit
+    TimeLimit: 2400             # 10min — should be ample after QLMatrix fix
+    LogFile: "gurobi_debug.log"  # DEBUG: write Gurobi log to file

@@ -488,6 +488,7 @@ class NetworkManager:
         milp_linearize = _tn.get('milp_linearize', False)
         temperature_linearize_pipe = _tn.get('temperature_linearize', None)
         pressure_drop_enabled = _tn.get('physics', {}).get('pressure_drop', True)
+        physics_cfg = _tn.get('physics', {})  # Pass physics flags (heat_loss, transport_delay) to pipe
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -501,6 +502,7 @@ class NetworkManager:
                 'temperature_linearize': temperature_linearize_pipe,
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'pump_enabled': pressure_drop_enabled and pipe_dict.get('pump_enabled', True),
+                'physics': physics_cfg,  # Allows pipe to respect heat_loss / transport_delay flags
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }

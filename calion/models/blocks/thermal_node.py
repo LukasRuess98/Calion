@@ -265,8 +265,20 @@ class ThermalNodeBlock(BaseComponent):
 
             Q_demand = getattr(model, f'{prefix}_Q_demand')
 
+            # Compute upper bound on m_dot_demand for McCormick relaxation quality.
+            # Without an explicit UB the bilinear product m_dot_demand × T_supply has
+            # only a one-sided McCormick envelope, making BQP cuts ineffective.
+            # UB = peak_Q / (cp/1000 × ΔT_min) where ΔT_min = T_supply_min - T_return.
+            _dT_min = max(supply_temp_min - return_temp_c, 5.0)  # at least 5°C
+            _cp_mw = cp_water / 1000
+            _q_peak = max(
+                (pyo.value(Q_demand[t]) for t in time_set),
+                default=10.0
+            )
+            _mdot_ub = _q_peak / (_cp_mw * _dT_min) * 1.5  # 50% safety margin
+
             setattr(model, f'{prefix}_m_dot_demand',
-                    pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                    pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, _mdot_ub)))
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 
             # Valve differential pressure — absorbs excess pump head at consumer stations.
@@ -409,8 +421,13 @@ class ThermalNodeBlock(BaseComponent):
                         pyo.Constraint(time_set, rule=heat_demand_rule_milp))
             else:
                 # Full nonlinear mode (bilinear — requires QP/NLP solver)
+                # Use cp/1000 to keep coefficients O(1) in MW units — avoids
+                # a ×1000 factor in Gurobi's QLMatrix that causes BQP/RLT cuts
+                # to be numerically unreliable (false infeasibility).
+                cp_mw = cp_water / 1000  # MW·s/(kg·K)
+
                 def heat_demand_rule(m, t):
-                    return Q_demand[t] * 1000 == m_dot_demand[t] * cp_water * (T_supply[t] - T_return[t])
+                    return Q_demand[t] == m_dot_demand[t] * cp_mw * (T_supply[t] - T_return[t])
 
                 setattr(model, f'{prefix}_heat_demand',
                         pyo.Constraint(time_set, rule=heat_demand_rule))

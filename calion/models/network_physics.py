@@ -456,7 +456,7 @@ def compute_delay_buckets(
     # Integer delay per bucket: τ = round(volume_kg / m_rep / dt_seconds)
     # volume_kg / m_rep gives seconds; divide by dt to get timesteps
     dt_seconds = dt_h * 3600.0
-    tau_steps = [max(1, round(volume_kg / m / dt_seconds)) for m in rep_flows]
+    tau_steps = [max(0, round(volume_kg / m / dt_seconds)) for m in rep_flows]
 
     return {
         'tau_steps': tau_steps,

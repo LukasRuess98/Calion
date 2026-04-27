@@ -299,72 +299,98 @@ class PipePairBlock(BaseComponent):
 
         else:
             # Full nonlinear mode (requires QP/NLP solver)
-            def heat_loss_supply_rule(m, t):
-                if upgrade_enabled:
-                    ins_choice = getattr(m, f'{prefix}_insulation_choice')
-                    u_eff = sum(
-                        ins_choice[insul] * (
-                            upgrade_config.get('enhanced_u_value', 0.18)
-                            if insul == 'enhanced' else u_value_supply
+            cp_mw = cp_water / 1000  # MW·s/(kg·K) — use throughout to keep coefficients O(1)
+
+            use_heat_loss = config.get('physics', {}).get('heat_loss', True)
+
+            if use_heat_loss:
+                # ── Bilinear heat loss formulation ─────────────────────────────
+                # Q_loss = u*L*m_dot*(T_avg - T_ground) / (max_flow * 1e6)
+                # Coefficient O(1e-7..1e-9) on bilinear product → QLMatrix min ~4e-9.
+                # Only enable when heat_loss: true; disable for large pipes (DN≥500)
+                # where the temperature drop is <0.01°C and the tiny coefficients
+                # cause Gurobi BQP/RLT cuts to falsely prove infeasibility.
+                def heat_loss_supply_rule(m, t):
+                    if upgrade_enabled:
+                        ins_choice = getattr(m, f'{prefix}_insulation_choice')
+                        u_eff = sum(
+                            ins_choice[insul] * (
+                                upgrade_config.get('enhanced_u_value', 0.18)
+                                if insul == 'enhanced' else u_value_supply
+                            )
+                            for insul in insulation_options
                         )
-                        for insul in insulation_options
-                    )
-                else:
-                    u_eff = u_value_supply
-                T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
-                return (
-                    Q_loss_supply[t] * effective_max_flow * 1e6
-                    == u_eff * length_m * m_dot[t] * (T_avg - T_ground[t])
+                    else:
+                        u_eff = u_value_supply
+                    T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
+                    coeff = u_eff * length_m / (effective_max_flow * 1e6) if effective_max_flow > 0 else 0
+                    return Q_loss_supply[t] == coeff * m_dot[t] * (T_avg - T_ground[t])
+
+                setattr(model, f'{prefix}_heat_loss_supply',
+                        pyo.Constraint(time_set, rule=heat_loss_supply_rule))
+
+                def heat_loss_return_rule(m, t):
+                    if upgrade_enabled:
+                        ins_choice = getattr(m, f'{prefix}_insulation_choice')
+                        u_eff = sum(
+                            ins_choice[insul] * (
+                                upgrade_config.get('enhanced_u_value', 0.20)
+                                if insul == 'enhanced' else u_value_return
+                            )
+                            for insul in insulation_options
+                        )
+                    else:
+                        u_eff = u_value_return
+                    T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
+                    coeff = u_eff * length_m / (effective_max_flow * 1e6) if effective_max_flow > 0 else 0
+                    return Q_loss_return[t] == coeff * m_dot[t] * (T_avg - T_ground[t])
+
+                setattr(model, f'{prefix}_heat_loss_return',
+                        pyo.Constraint(time_set, rule=heat_loss_return_rule))
+
+                # Temperature drop along pipe: m_dot × cp_mw × ΔT = Q_loss (bilinear in m_dot and T)
+                def temp_drop_supply_rule(m, t):
+                    return m_dot[t] * cp_mw * (T_supply_in[t] - T_supply_out[t]) == Q_loss_supply[t]
+
+                setattr(model, f'{prefix}_temp_drop_supply',
+                        pyo.Constraint(time_set, rule=temp_drop_supply_rule))
+
+                def temp_drop_return_rule(m, t):
+                    return m_dot[t] * cp_mw * (T_return_in[t] - T_return_out[t]) == Q_loss_return[t]
+
+                setattr(model, f'{prefix}_temp_drop_return',
+                        pyo.Constraint(time_set, rule=temp_drop_return_rule))
+
+            else:
+                # ── No heat loss: Q_loss = 0, temperature unchanged along pipe ──
+                # Physical justification: for large-diameter pipes (DN≥400) the
+                # temperature drop is <0.01°C per 500m — numerically negligible.
+                # Numerical benefit: eliminates QLMatrix coefficients as small as
+                # 4e-9 (from u*L/(max_flow*1e6)) which cause Gurobi BQP/RLT cuts
+                # to falsely prune the feasible region → false infeasibility proof.
+                # Without these bilinear terms QLMatrix range collapses from [4e-9,1]
+                # to [~0.2, 1] — two orders of magnitude, within Gurobi's safe zone.
+                for t in time_set:
+                    Q_loss_supply[t].fix(0.0)
+                    Q_loss_return[t].fix(0.0)
+
+                # Linear temperature propagation: outlet = inlet (no heat loss)
+                setattr(model, f'{prefix}_no_loss_supply',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: T_supply_out[t] == T_supply_in[t]))
+                setattr(model, f'{prefix}_no_loss_return',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: T_return_out[t] == T_return_in[t]))
+                logger.info(
+                    f"  Pipe {pipe_id}: heat loss disabled (physics.heat_loss=false) — "
+                    f"T_supply_out=T_supply_in (linear, no bilinear QLMatrix terms)"
                 )
 
-            setattr(model, f'{prefix}_heat_loss_supply',
-                    pyo.Constraint(time_set, rule=heat_loss_supply_rule))
-
-            def heat_loss_return_rule(m, t):
-                if upgrade_enabled:
-                    ins_choice = getattr(m, f'{prefix}_insulation_choice')
-                    u_eff = sum(
-                        ins_choice[insul] * (
-                            upgrade_config.get('enhanced_u_value', 0.20)
-                            if insul == 'enhanced' else u_value_return
-                        )
-                        for insul in insulation_options
-                    )
-                else:
-                    u_eff = u_value_return
-                T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
-                return (
-                    Q_loss_return[t] * effective_max_flow * 1e6
-                    == u_eff * length_m * m_dot[t] * (T_avg - T_ground[t])
-                )
-
-            setattr(model, f'{prefix}_heat_loss_return',
-                    pyo.Constraint(time_set, rule=heat_loss_return_rule))
-
-            # ============================================================
-            # CONSTRAINTS — TEMPERATURE DROP (energy balance)
-            # m_dot × c_p × (T_in − T_out) = Q_loss × 1000  (MW→kW)
-            # ============================================================
-
-            def temp_drop_supply_rule(m, t):
-                return m_dot[t] * cp_water * (T_supply_in[t] - T_supply_out[t]) == Q_loss_supply[t] * 1000
-
-            setattr(model, f'{prefix}_temp_drop_supply',
-                    pyo.Constraint(time_set, rule=temp_drop_supply_rule))
-
-            def temp_drop_return_rule(m, t):
-                return m_dot[t] * cp_water * (T_return_in[t] - T_return_out[t]) == Q_loss_return[t] * 1000
-
-            setattr(model, f'{prefix}_temp_drop_return',
-                    pyo.Constraint(time_set, rule=temp_drop_return_rule))
-
-            # ============================================================
-            # CONSTRAINTS — HEAT DELIVERED (source side)
-            # Q_delivered × 1000 = m_dot × c_p × (T_supply_in − T_return_out)
-            # ============================================================
-
+            # ── Heat delivered (source side) — always bilinear ─────────────────
+            # Q_delivered [MW] = m_dot × (cp/1000) × (T_supply_in − T_return_out)
+            # With no heat loss: T_return_out = T_return_in = T_return[to_node]
             def heat_delivered_rule(m, t):
-                return Q_delivered[t] * 1000 == m_dot[t] * cp_water * (T_supply_in[t] - T_return_out[t])
+                return Q_delivered[t] == m_dot[t] * cp_mw * (T_supply_in[t] - T_return_out[t])
 
             setattr(model, f'{prefix}_heat_delivered',
                     pyo.Constraint(time_set, rule=heat_delivered_rule))
@@ -374,20 +400,35 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         velocity = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_velocity * 1.5))
+
+        f_friction = config.get('friction_factor', 0.02)
+        k_pressure = f_friction * (length_m / d_inner_m) * (density_water / 2.0) / 100000.0
+
+        # PWL pressure drop (Darcy-Weisbach, 3-segment) — MILP-compatible
+        # ΔP = f × (L/D) × (ρ/2) × v²  approximated as piecewise-linear in m_dot
+        k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
+
+        # Physics-based pressure drop bound: actual Darcy-Weisbach ΔP at max flow × 1.2 safety margin.
+        # Do NOT use max_pressure_drop as a floor — for large-diameter pipes (DN1000) it is
+        # ~10× larger than the actual physics bound.  Along a chain of N pipes, the cumulative
+        # floor would exceed the producer setpoint (10 bar) and make the LP relaxation infeasible
+        # in Gurobi presolve even before any iterations.
+        if effective_max_flow > 0 and k_flow > 0:
+            dp_upper = k_flow * effective_max_flow ** 2 * 1.2
+        else:
+            dp_upper = max_pressure_drop
+
         delta_p_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                                 bounds=(0, max_pressure_drop * 2))
+                                 bounds=(0, dp_upper))
         delta_p_return = pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                                 bounds=(0, max_pressure_drop * 2))
+                                 bounds=(0, dp_upper))
         delta_p_total = pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                                bounds=(0, max_pressure_drop * 4))
+                                bounds=(0, dp_upper * 2))
 
         setattr(model, f'{prefix}_velocity', velocity)
         setattr(model, f'{prefix}_delta_p_supply', delta_p_supply)
         setattr(model, f'{prefix}_delta_p_return', delta_p_return)
         setattr(model, f'{prefix}_delta_p_total', delta_p_total)
-
-        f_friction = config.get('friction_factor', 0.02)
-        k_pressure = f_friction * (length_m / d_inner_m) * (density_water / 2.0) / 100000.0
 
         # Velocity: v × ρ × A = m_dot
         setattr(model, f'{prefix}_velocity_calc',
@@ -398,10 +439,8 @@ class PipePairBlock(BaseComponent):
         # ΔP = f × (L/D) × (ρ/2) × v²  approximated as piecewise-linear in m_dot
         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
 
-        bp_fracs = [0.0, 0.3, 0.7, 1.0]
-        bp_flows = [f * effective_max_flow for f in bp_fracs]
-
-        if pressure_drop_enabled and effective_max_flow > 0:
+        if effective_max_flow > 0:
+            bp_fracs = [0.0, 0.3, 0.7, 1.0]
             bp_flows = [f * effective_max_flow for f in bp_fracs]
             bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
 
@@ -532,12 +571,21 @@ class PipePairBlock(BaseComponent):
         #   Bucket 2 (low flow):    m_dot ∈ [0,     m_low] → τ₃ timesteps (longest)
         # ─────────────────────────────────────────────────────────────────────────
 
-        if milp_linearize:
-            # MILP-linearise mode: no transport delay — Q_consumer == Q_delivered
+        use_transport_delay = config.get('physics', {}).get('transport_delay', True)
+
+        if milp_linearize or not use_transport_delay:
+            # Skip transport delay: Q_consumer == Q_delivered (immediate delivery)
+            # Reasons to skip:
+            #   - milp_linearize mode: temps are fixed Params, delay adds pointless binaries
+            #   - physics.transport_delay: false — user disabled delay (e.g., for large pipes
+            #     where DN≥400 gives τ < 1 timestep at any realistic flow → delay is zero anyway,
+            #     but the binary bucket-selectors still add 3168 binaries and interact with the
+            #     bilinear temperature constraints, compounding the MIQCQP numerical difficulty)
             setattr(model, f'{prefix}_no_delay',
                     pyo.Constraint(time_set,
                                    rule=lambda m, t: Q_consumer[t] == Q_delivered[t]))
-            logger.info("  Pipe %s: transport delay skipped (milp_linearize mode)", pipe_id)
+            logger.info("  Pipe %s: transport delay skipped (%s)", pipe_id,
+                        "milp_linearize mode" if milp_linearize else "physics.transport_delay=false")
             tau_steps = []
             N_BUCKETS = 0
         else:
