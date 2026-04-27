@@ -482,6 +482,7 @@ class NetworkManager:
         _tn = self.config.get('thermal_network', {})
         milp_linearize = _tn.get('milp_linearize', False)
         temperature_linearize_pipe = _tn.get('temperature_linearize', None)
+        physics_cfg = _tn.get('physics', {})  # Pass physics flags (heat_loss, transport_delay) to pipe
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -493,6 +494,7 @@ class NetworkManager:
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
                 'temperature_linearize': temperature_linearize_pipe,
+                'physics': physics_cfg,  # Allows pipe to respect heat_loss / transport_delay flags
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }
@@ -1025,7 +1027,11 @@ class NetworkManager:
             from_P_supply = node_components[from_node]['pressure_supply']
             from_P_return = node_components[from_node]['pressure_return']
 
-            # p_return[t] = p_supply[t] - ΔP_supply[t] - ΔP_return[t]
+            # p_return[t] <= p_supply[t] - ΔP_supply[t] - ΔP_return[t]
+            # Inequality (not equality): for branched networks the producer pump
+            # must overcome the worst-case branch pressure drop.  Using equality
+            # on each pipe individually over-constrains P_return when multiple
+            # pipes leave the same producer, forcing an impossible flow ratio.
             setattr(
                 model,
                 f"pump_head_{pipe_id}",
@@ -1034,7 +1040,7 @@ class NetworkManager:
                     rule=lambda m, t,
                         _ps=from_P_supply, _pr=from_P_return,
                         _dps=delta_p_supply, _dpr=delta_p_return: (
-                        _pr[t] == _ps[t] - _dps[t] - _dpr[t]
+                        _pr[t] <= _ps[t] - _dps[t] - _dpr[t]
                     ),
                 ),
             )

@@ -106,14 +106,51 @@ def _solve_scenario(
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
 
-        solver_result = opt.solve(model, tee=False)
+        solver_result = opt.solve(model, tee=True)
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
 
-        # Export solver solution and thermal network results
+        # Check feasibility BEFORE attempting to read any variable values.
+        # Gurobi leaves all variables uninitialized when infeasible — reading them
+        # causes a flood of "No value for uninitialized VarData" errors that hide
+        # the actual IIS diagnosis.
+        term_cond = solver_meta["termination_condition"].lower()
+        if "infeasible" in term_cond or "unbounded" in term_cond:
+            logger.error(
+                "Solver returned %s. Model is %s. "
+                "Check constraints: heat balance, storage limits, terminal policy.",
+                solver_meta["status"], term_cond
+            )
+            # Try Gurobi IIS to identify the infeasible constraint set
+            try:
+                grb_model = opt._solver_model
+                grb_model.computeIIS()
+                iis_constraints = []
+                for c in grb_model.getConstrs():
+                    if c.IISConstr:
+                        iis_constraints.append(c.ConstrName)
+                iis_bounds = []
+                for v in grb_model.getVars():
+                    if v.IISLB:
+                        iis_bounds.append(f"LB({v.VarName})")
+                    if v.IISUB:
+                        iis_bounds.append(f"UB({v.VarName})")
+                logger.error("IIS constraints (%d): %s", len(iis_constraints), iis_constraints[:20])
+                logger.error("IIS bounds (%d): %s", len(iis_bounds), iis_bounds[:20])
+                solver_meta["iis_constraints"] = iis_constraints
+                solver_meta["iis_bounds"] = iis_bounds
+            except Exception as iis_err:
+                logger.debug("IIS computation failed: %s", iis_err)
+
+            series, summary, costs = _collect_timeseries_and_summary(
+                table, cfg, dt_h, None
+            )
+            return ScenarioResult(table, series, summary, costs, solver_meta)
+
+        # Export solver solution and thermal network results (only when a solution exists)
         export_cfg = cfg.get('output', {})
         if export_cfg.get('export_thermal_network', True) or export_cfg.get('export_solver_solution', True):
             try:
@@ -147,19 +184,6 @@ def _solve_scenario(
                 logger.warning(f"[EXPORT] Failed to export thermal network results: {e}")
                 import traceback
                 traceback.print_exc()
-
-        # Check if solver found a feasible solution
-        term_cond = solver_meta["termination_condition"].lower()
-        if "infeasible" in term_cond or "unbounded" in term_cond:
-            logger.error(
-                "Solver returned %s. Model is %s. "
-                "Check constraints: heat balance, storage limits, terminal policy.",
-                solver_meta["status"], term_cond
-            )
-            series, summary, costs = _collect_timeseries_and_summary(
-                table, cfg, dt_h, None
-            )
-            return ScenarioResult(table, series, summary, costs, solver_meta)
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
