@@ -1,0 +1,270 @@
+# =============================================================================
+# PAPER STUDY — Level 2: Regional Demand Fractions (Dispatch-Only)
+# =============================================================================
+# RESEARCH FOCUS: Intermediate complexity model with demand fractions and pipes
+#
+# Level 2 is an intermediate configuration between L1 (single node) and L3
+# (15 junctions with individual demands). It has ~8-10 junctions representing
+# major supply regions, each with a demand fraction. Fewer pipes than L3 but
+# still captures key network effects (transport delay, pressure drop, heat loss).
+#
+# TOPOLOGY:                                          
+#   Star of regions: plant → 7 regional distribution nodes
+#   Total nodes: 8 (1 producer, 7 regional junctions)
+#   Total pipes: 7 connections (producer to each region)
+#   Total pipe length: ~1,500 m
+#   Demand distribution: V_1–V_27 aggregated into 7 regional demand fractions
+#
+# REGIONAL MAPPING (from L3 topology):
+# - Region 1 (j_2): V_1, V_2, V_3, V_4, V_5, V_6, V_7 (South branch, 7 consumers)
+# - Region 2 (j_3): V_8, V_9, V_10, V_11, V_12, V_13, V_14 (South-East, 7 consumers)
+# - Region 3 (j_4): V_15, V_16 (East main, 2 consumers)
+# - Region 4 (j_5): V_17, V_18 (East, 2 consumers)
+# - Region 5 (j_6): V_19, V_20, V_21, V_22, V_23, V_24 (East secondary, 6 consumers)
+# - Region 6 (j_7): V_25, V_26 (Terminal 1, 2 consumers)
+# - Region 7 (j_8): V_27 (Terminal 2, 1 consumer)
+#
+# PHYSICS:
+# - Heat loss: Physics-based PWL model (identical to L3)
+# - Pressure drop: PWL(m_dot)
+# - Transport delay: 3-bucket SOS2 formulation
+#
+# SYSTEM SUMMARY (Fixed Assets — identical to L3):
+#   Peak demand:   76 MW (same as L3)
+#   Annual demand: 517 GWh (approx.)
+#   Boiler:        500 MW gas, η = 0.90
+#   Storage:       1000 MWh / 50 MW
+#
+# COMPARISON BASIS:
+# L2 vs L1: Shows impact of network topology (pipes, delays, losses)
+# L2 vs L3: Shows impact of demand granularity (fractions vs individual zones)
+# =============================================================================
+
+site:
+  input_xlsx: "data/2025_04_14_Import_Data_Memmingen.xlsx"
+  columns:
+    datetime:  "Datum"
+    price:     "strompreis_EUR_MWh"
+    co2_grid:  "grid_co2_kg_MWh"
+
+scenario:
+  name: "Memmingen L2 - Regional Demand Fractions (Dispatch-Only)"
+  description: "8-node network with 7 regions and demand fractions"
+  run_mode: PF_ONLY
+  milp_linearize: true
+  horizon:
+    start: "2025-01-01 00:00"
+    end: "2025-12-31 23:00"
+
+# ── Network (8-node regional distribution)
+network:
+  milp_linearize: true
+  physics:
+    heat_loss: true
+    pressure_drop: true
+    transport_delay: true
+
+  supply_temp_c: 100
+  return_temp_c: 40
+  ground_temp_c: 10
+
+  linearization:
+    method: "pwl"
+    temperature_profile:
+      load_fractions: [0.0, 0.3, 0.6, 1.0]
+      T_supply_c:     [70.0, 80.0, 90.0, 100.0]
+      T_return_c:     [55.0, 50.0, 45.0, 40.0]
+
+  max_velocity_m_s:      2.5
+  pump_efficiency:       0.75
+  pipe_roughness_mm:     0.5
+  max_pressure_drop_bar: 2.0
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # NODES — 8 Junctions (1 producer, 7 regional)
+  # ══════════════════════════════════════════════════════════════════════════
+  nodes:
+    # ── Producer-junction with assets
+    j_1:
+      assets: [chp_main, tes_main, hp_main]
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.0  # Producer node has no local demand
+
+    # ── Region 1: South (V_1–V_7, 7 consumers, 7/27 = 25.9%)
+    j_2:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.2593
+
+    # ── Region 2: South-East (V_8–V_14, 7 consumers, 7/27 = 25.9%)
+    j_3:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.2593
+
+    # ── Region 3: East Main (V_15–V_16, 2 consumers, 2/27 = 7.4%)
+    j_4:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.0741
+
+    # ── Region 4: East (V_17–V_18, 2 consumers, 2/27 = 7.4%)
+    j_5:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.0741
+
+    # ── Region 5: East Secondary (V_19–V_24, 6 consumers, 6/27 = 22.2%)
+    j_6:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.2222
+
+    # ── Region 6: Terminal 1 (V_25–V_26, 2 consumers, 2/27 = 7.4%)
+    j_7:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.0741
+
+    # ── Region 7: Terminal 2 (V_27, 1 consumer, 1/27 = 3.7%)
+    j_8:
+      consumers:
+        - column: "waermebedarf_MWth"
+          demand_fraction: 0.0370
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PIPES — 7 Star Distribution (producer to each region)
+  # ══════════════════════════════════════════════════════════════════════════
+  # Dimensioning: 76 MW peak, 100/40°C, v_max=2.5 m/s
+  pipes:
+    # Region 1: 41% of 76 MW = ~31 MW → DN300 (43.2 MW, +39%)
+    j1_to_j2:
+      from: j_1
+      to: j_2
+      length_m: 200
+      diameter_mm: 300
+
+    # Region 2: 26% of 76 MW = ~20 MW → DN250 (30.0 MW, +50%)
+    j1_to_j3:
+      from: j_1
+      to: j_3
+      length_m: 240
+      diameter_mm: 250
+
+    # Region 3: 8% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
+    j1_to_j4:
+      from: j_1
+      to: j_4
+      length_m: 180
+      diameter_mm: 150
+
+    # Region 4: 8% of 76 MW = ~6 MW → DN150 (10.8 MW, +80%)
+    j1_to_j5:
+      from: j_1
+      to: j_5
+      length_m: 160
+      diameter_mm: 150
+
+    # Region 5: 22% of 76 MW = ~17 MW → DN250 (30.0 MW, +76%)
+    j1_to_j6:
+      from: j_1
+      to: j_6
+      length_m: 220
+      diameter_mm: 250
+
+    # Region 6: 8% of 76 MW = ~6 MW → DN125 (7.5 MW, +25%)
+    j1_to_j7:
+      from: j_1
+      to: j_7
+      length_m: 140
+      diameter_mm: 125
+
+    # Region 7: 4% of 76 MW = ~3 MW → DN100 (4.8 MW, +60%)
+    j1_to_j8:
+      from: j_1
+      to: j_8
+      length_m: 100
+      diameter_mm: 100
+
+# ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L1/L3)
+assets:
+  chp_main:
+    type: chp
+    fuel: gas
+    capacity_mw: 20.0
+    thermal_output_mw: 20.0
+    min_load: 0.3
+    electrical_efficiency: 0.40
+    thermal_efficiency_total: 0.80
+  hp_main:
+    type: heat_pump
+    capacity_mw: 100.0
+    min_load: 0.2
+    cop_method: analytical_lmtd
+    sink_temp_c: 90.0
+    source_columns: ["wrg1_temp", "wrg2_temp"]
+    carnot_efficiency: 0.6
+    cop_default: 3.0
+  tes_main:
+    type: storage
+    energy_capacity_mwh: 1000.0
+    power_capacity_mw: 50.0
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+    min_load_mw: 0.0
+    round_trip_efficiency: 0.90
+    soc_min: 0.0
+    soc_max: 1.0
+    soc0_mwh: 500.0
+    terminal:
+      state: cyclic
+      policy: equal
+
+# ── GRID SETTINGS
+grid:
+  max_import_mw: 5000.0
+  max_export_mw: 5000.0
+  gridcost_eur_mwh: 35.0
+
+# ── FUELS
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+
+# ── COSTS
+costs:
+  co2_price_eur_per_t: 1000.0
+  dump_cost_eur_per_mwh_th: 1000.0
+
+# ── RUN SETTINGS
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    MIPGap: 0.01
+    TimeLimit: 3600
+    OutputFlag: 1
+    LogToConsole: 1
+    LogFile: "gurobi_L2.log"
+
+# ── OUTPUT SETTINGS
+output:
+  log_dir: "output/logs"
+  export_dir: "output/results"
+  export_thermal_network: true
+  export_solver_solution: true
+
+# ── NOTES
+# L2 INTERMEDIATE MODEL:
+# - 7 regional demand fractions (derived from L3 topology grouping)
+# - 7 pipes with transport delay, pressure drop, and heat loss
+# - Star distribution: all regions fed directly from producer
+# - Expected solve time: ~5–10 minutes (more complex than L1, simpler than L3)
+# - Use for sensitivity analysis: compare L1→L2→L3 progression
+#
+# REGIONAL FRACTIONS (from L3 consumer counts, normalized):
+#   j_2: 7/27 = 0.2593   j_3: 7/27 = 0.2593   j_4: 2/27 = 0.0741
+#   j_5: 2/27 = 0.0741   j_6: 6/27 = 0.2222   j_7: 2/27 = 0.0741   j_8: 1/27 = 0.0370
+# Total: 27/27 = 1.0000

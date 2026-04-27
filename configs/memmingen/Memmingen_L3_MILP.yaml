@@ -60,8 +60,8 @@ scenario:
   run_mode: PF_ONLY
   milp_linearize: true
   horizon:
-    start: "2025-01-01"
-    end: "2025-01-31 23:00"
+    start: "2025-01-01 00:00"
+    end: "2025-12-31 23:00"
   # fix_design: false               # [DEFAULT: false bei PF_ONLY] Kapazitäten nach PF-Lauf fixieren und in RH nicht mehr optimieren
   # rolling_horizon:                # Nur relevant bei run_mode: RH_ONLY oder PF_THEN_RH
   #   heat_horizon_hours: 168       # [DEFAULT: konstante aus constants.py] Planungshorizont je RH-Fenster (Stunden)
@@ -111,8 +111,8 @@ network:
 
   # ── Rohrparameter ──────────────────────────────────────────────────────────
   max_velocity_m_s:      2.5
-  pump_efficiency:       0.70
-  pipe_roughness_mm:     0.05
+  pump_efficiency:       0.75
+  pipe_roughness_mm:     0.5
   max_pressure_drop_bar: 2.0
   # ══════════════════════════════════════════════════════════════════════════
   # NODES — 15 Junctions, alle 27 Verbraucher direkt eingebettet
@@ -377,12 +377,12 @@ grid:
 fuels:
   gas:
     price_eur_mwh: 45.0
-    ef_kg_per_mwh_fuel: 500.0
+    ef_kg_per_mwh_fuel: 200.0
 
 # ── COSTS ───────────────────────────────────────────────────────────────────
 costs:
   co2_price_eur_per_t: 1000.0
-  dump_cost_eur_per_mwh_th: 10.0
+  dump_cost_eur_per_mwh_th: 1000.0
   # ── Flags: welche Kostenterme in die Zielfunktion eingehen ──────────────
   # include_gridcost_in_energy: false       # [DEFAULT: false] gridcost_eur_mwh + energy_fee auf Kaufpreis addieren
   # include_demand_charge_in_rh: true       # [DEFAULT: true]  Leistungspreis in RH-Fenstern aktiv (wirkt nur wenn demand_charge_eur_per_mw_y > 0)
@@ -395,22 +395,13 @@ costs:
 # ── RUN SETTINGS ────────────────────────────────────────────────────────────
 run:
   dt_h: 1.0
-  solver: highs # gurobi oder highs
-  mip_gap: 0.01
-  time_limit_s: 3600
-  load_solutions: false      # Prevents RuntimeError on infeasibility
-
-  # ── Logging & Diagnose ──
-  log_to_file: true          # Log-Datei erstellen (solver_*.log)
-  verbose_logging: true      # ← ÄNDERN: Diagnose auch auf Konsole ausgeben
-
-  # ── Gurobi-spezifische Optionen ──
+  solver: gurobi
   solver_options:
-    OutputFlag: 1            # Gurobi Konsolenausgabe (0=aus, 1=an)
-    LogToConsole: 1          # Solver-Fortschritt anzeigen
-    # MIPFocus: 1            # Optional: 1=feasibility, 2=optimality, 3=bound
-    # Presolve: 2            # Optional: Aggressives Presolve
-    # NumericFocus: 1        # Optional: Bei numerischen Problemen
+    MIPGap: 0.01
+    TimeLimit: 3600
+    OutputFlag: 1
+    LogToConsole: 1
+    LogFile: "gurobi_L3_MILP.log"
 
 # ── OUTPUT SETTINGS ─────────────────────────────────────────────────────────
 output:
