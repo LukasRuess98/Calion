@@ -142,7 +142,9 @@ class ThermalNodeBlock(BaseComponent):
         return_temp_max = max(90, return_temp_c + 20)
 
         # T_supply: Var by default, but fixed Param in MILP-linearized mode
-        milp_linearize_temp = config.get('temperature_linearize', config.get('milp_linearize', False))
+        milp_linearize_temp = config.get('temperature_linearize')
+        if milp_linearize_temp is None:
+            milp_linearize_temp = config.get('milp_linearize', False)
 
         if milp_linearize_temp and node_type in ('consumer', 'junction'):
             # MILP mode: fix supply temperature to nominal value → eliminates bilinear products

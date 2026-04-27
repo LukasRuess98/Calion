@@ -1,0 +1,6 @@
+{
+  "SOC_avg_MWh": 481.8760353047357,
+  "SOC_min_MWh": 464.1948424575769,
+  "SOC_max_MWh": 500.0,
+  "uses_pwl_losses": false
+}

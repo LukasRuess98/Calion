@@ -240,7 +240,7 @@ class ModelFinalizer:
             if pump_el_flows:
                 self.buses.el_in.extend(pump_el_flows)
                 logger.info(
-                    "[FINALIZE] Added %d pump power flows to electricity bus (el_in)",
+                    "[FINALIZE] Added %d aggregated producer pump load(s) to electricity bus (el_in)",
                     len(pump_el_flows)
                 )
 
@@ -369,7 +369,7 @@ class ModelFinalizer:
             if pump_el_flows:
                 self.buses.el_in.extend(pump_el_flows)
                 logger.info(
-                    "[FINALIZE] Added %d pump power flows to electricity bus (el_in)",
+                    "[FINALIZE] Added %d aggregated producer pump load(s) to electricity bus (el_in)",
                     len(pump_el_flows)
                 )
 

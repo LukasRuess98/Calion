@@ -1,0 +1,81 @@
+# Multi-temperature district heating network example
+# Two networks at different supply temperatures linked by a heat exchanger.
+#
+# High-temp network (HT): 90/55°C — industrial loads and large consumers
+# Low-temp network (LT):  60/40°C — residential zones (heat exchanger fed from HT)
+
+networks:
+  - id: high_temp
+    name: "High Temperature Network"
+    supply_temp_c: 90
+    return_temp_c: 55
+    nodes:
+      plant_ht:
+        type: producer
+        assets: [boiler_ht]
+      zone_industrial:
+        type: consumer
+        demand_fraction: 0.6
+        demand:
+          column: "waermebedarf_MWth"
+      zone_commercial:
+        type: consumer
+        demand_fraction: 0.4
+        demand:
+          column: "waermebedarf_MWth"
+    pipes:
+      ht_plant_to_ind:
+        from: plant_ht
+        to: zone_industrial
+        length_m: 400
+        diameter_mm: 250
+      ht_plant_to_com:
+        from: plant_ht
+        to: zone_commercial
+        length_m: 600
+        diameter_mm: 200
+
+  - id: low_temp
+    name: "Low Temperature Network"
+    supply_temp_c: 60
+    return_temp_c: 40
+    nodes:
+      hx_feed:
+        type: producer
+        assets: []
+      zone_residential_a:
+        type: consumer
+        demand_fraction: 0.5
+        demand:
+          column: "waermebedarf_MWth"
+      zone_residential_b:
+        type: consumer
+        demand_fraction: 0.5
+        demand:
+          column: "waermebedarf_MWth"
+    pipes:
+      lt_feed_to_res_a:
+        from: hx_feed
+        to: zone_residential_a
+        length_m: 300
+        diameter_mm: 150
+      lt_feed_to_res_b:
+        from: hx_feed
+        to: zone_residential_b
+        length_m: 500
+        diameter_mm: 150
+
+heat_exchangers:
+  - id: ht_to_lt
+    name: "HT→LT Heat Exchanger"
+    source_network: high_temp
+    sink_network: low_temp
+    capacity_mw: 10.0
+    efficiency: 0.95
+
+assets:
+  boiler_ht:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 50
+    thermal_efficiency: 0.92

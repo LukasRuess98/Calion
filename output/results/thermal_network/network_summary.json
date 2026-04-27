@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "export_timestamp": "2026-04-24T13:43:36.918044",
+    "export_timestamp": "2026-04-27T16:53:54.792020",
     "total_timesteps": 744,
     "dt_hours": 1.0,
     "total_hours": 744.0
@@ -13,8 +13,8 @@
       "consumer": 19,
       "junction": 3
     },
-    "total_pipe_length_m": 4870.0,
-    "total_pipe_length_km": 4.87
+    "total_pipe_length_m": 4375.0,
+    "total_pipe_length_km": 4.375
   },
   "parameters": {
     "supply_temp_nominal_c": 100.0,
@@ -22,9 +22,9 @@
     "ground_temp_default_c": 10.0
   },
   "energy": {
-    "total_network_loss_mwh": 64.71092607862268,
-    "avg_network_loss_mw": 0.08697705118094445,
-    "max_network_loss_mw": 0.08766000000000004
+    "total_network_loss_mwh": 58.59,
+    "avg_network_loss_mw": 0.07875,
+    "max_network_loss_mw": 0.07875
   },
   "hydraulics": {}
 }

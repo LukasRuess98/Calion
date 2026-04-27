@@ -28,6 +28,15 @@ except ImportError:  # pragma: no cover
     pyo = None
 
 
+def _is_milp_linearized(cfg: dict[str, Any]) -> bool:
+    """Read linearization mode across legacy and unified config layouts."""
+    return bool(
+        cfg.get('thermal_network', {}).get('milp_linearize', False)
+        or cfg.get('network', {}).get('milp_linearize', False)
+        or cfg.get('scenario', {}).get('milp_linearize', False)
+    )
+
+
 def _resolve_solver_executable(solver_name: str) -> str | None:
     """Locate a solver executable when it is not already on PATH."""
     if solver_name.lower() != "ipopt":
@@ -67,7 +76,7 @@ def _solve_scenario(
     }
     if model is not None and HAVE_PYOMO:
         # Warn if nonlinear model is paired with an LP/MILP-only solver
-        milp_linearize = cfg.get('thermal_network', {}).get('milp_linearize', False)
+        milp_linearize = _is_milp_linearized(cfg)
         lp_only_solvers = ('highs', 'appsi_highs', 'cbc', 'glpk')
         if not milp_linearize and any(s in solver_name.lower() for s in lp_only_solvers):
             logger.warning(

@@ -155,6 +155,7 @@ class PipePairBlock(BaseComponent):
         # PIPE GEOMETRY
         # ============================================================
 
+        pressure_drop_enabled = config.get('pressure_drop_enabled', True)
         max_velocity = config.get('max_velocity_m_s', 2.5)
         max_pressure_drop = config.get('max_pressure_drop_bar', 2.0)
         pipe_roughness = config.get('pipe_roughness_mm', 0.05)
@@ -201,7 +202,9 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         milp_linearize = config.get('milp_linearize', False)
-        temperature_linearize = config.get('temperature_linearize', milp_linearize)
+        temperature_linearize = config.get('temperature_linearize')
+        if temperature_linearize is None:
+            temperature_linearize = milp_linearize
 
         if temperature_linearize:
             # Fix temperatures at nominal values → all T×m_dot products become linear
@@ -395,8 +398,10 @@ class PipePairBlock(BaseComponent):
         # ΔP = f × (L/D) × (ρ/2) × v²  approximated as piecewise-linear in m_dot
         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
 
-        if effective_max_flow > 0:
-            bp_fracs = [0.0, 0.3, 0.7, 1.0]
+        bp_fracs = [0.0, 0.3, 0.7, 1.0]
+        bp_flows = [f * effective_max_flow for f in bp_fracs]
+
+        if pressure_drop_enabled and effective_max_flow > 0:
             bp_flows = [f * effective_max_flow for f in bp_fracs]
             bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
 
@@ -451,7 +456,7 @@ class PipePairBlock(BaseComponent):
         # ── Pump Power (PWL, per pipe) ──────────────────────────────────────────────
         # P_pump[t] = (ΔP_supply + ΔP_return) × m_dot × 1e5 / (ρ × η × 1e6)  [MW]
         # Approximated as PWL using same breakpoints as pressure drop.
-        pump_enabled = config.get('pump_enabled', True)
+        pump_enabled = config.get('pump_enabled', pressure_drop_enabled)
         eta_pump = float(config.get('pump_efficiency', 0.70))
 
         if effective_max_flow > 0:
@@ -468,7 +473,7 @@ class PipePairBlock(BaseComponent):
         P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, P_pump_max))
         setattr(model, f'{prefix}_P_pump', P_pump)
 
-        if not pump_enabled or effective_max_flow <= 0:
+        if not pump_enabled or not pressure_drop_enabled or effective_max_flow <= 0:
             for t in time_set:
                 P_pump[t].fix(0.0)
         else:
@@ -702,7 +707,7 @@ class PipePairBlock(BaseComponent):
             'tau_steps': tau_steps,
             'delay_buckets': N_BUCKETS,
             'P_pump': P_pump,
-            'pump_enabled': pump_enabled,
+            'pump_enabled': pump_enabled and pressure_drop_enabled,
             'eta_pump': eta_pump,
             'prefix': prefix,
         }

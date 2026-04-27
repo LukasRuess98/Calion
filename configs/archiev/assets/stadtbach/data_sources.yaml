@@ -1,0 +1,237 @@
+# =============================================================================
+# STADTBACH - DATA SOURCES & TIME SERIES MAPPING
+# =============================================================================
+# Maps time series columns from input data files to model variables
+# =============================================================================
+
+time_series:
+  description: "Time series data for Stadtbach district heating system"
+
+  # Primary data source
+  primary_source:
+    file: "stadtbach_2023_full.xlsx"       # Excel file with all time series
+    sheet: "timeseries"                     # Sheet name
+    date_column: "timestamp"                # Timestamp column
+    frequency: hourly                       # Data frequency
+
+  # ===========================================================================
+  # HEAT DEMAND
+  # ===========================================================================
+  demand:
+    total_demand:
+      column: "heatd_MW"                    # Total heat demand [MW]
+      unit: MW
+      description: "Total district heating demand"
+
+    # Disaggregated demand by district
+    demand_north:
+      column: "demand_north_MW"
+      unit: MW
+      description: "North district demand"
+      fraction_of_total: 0.30               # ~30% of total
+
+    demand_west:
+      column: "demand_west_MW"
+      unit: MW
+      description: "West district demand"
+      fraction_of_total: 0.35               # ~35% of total
+
+    demand_east:
+      column: "demand_east_MW"
+      unit: MW
+      description: "East district demand"
+      fraction_of_total: 0.20               # ~20% of total
+
+    demand_industrial:
+      column: "demand_industrial_MW"
+      unit: MW
+      description: "Industrial demand"
+      fraction_of_total: 0.15               # ~15% of total
+
+  # ===========================================================================
+  # WASTE HEAT SOURCES (for heat pumps)
+  # ===========================================================================
+  waste_heat:
+    WRG1:
+      temperature:
+        column: "WRG1_T_K"                  # Source temperature [K]
+        unit: K
+        alternative_column: "WRG1_T_°C"     # If in Celsius
+        conversion: add_273.15
+
+      available_power:
+        column: "WRG1_Q_MW"                 # Available thermal power [MW]
+        unit: MW
+
+      description: "Waste heat source 1 - Industrial process cooling"
+
+    WRG2:
+      temperature:
+        column: "WRG2_T_K"
+        unit: K
+        alternative_column: "WRG2_T_°C"
+        conversion: add_273.15
+
+      available_power:
+        column: "WRG2_Q_MW"
+        unit: MW
+
+      description: "Waste heat source 2 - Data center cooling"
+
+    WRG3:
+      temperature:
+        column: "WRG3_T_K"
+        unit: K
+        alternative_column: "WRG3_T_°C"
+        conversion: add_273.15
+
+      available_power:
+        column: "WRG3_Q_MW"
+        unit: MW
+
+      description: "Waste heat source 3 - Industrial exhaust"
+
+    WRG4:
+      temperature:
+        column: "WRG4_T_K"
+        unit: K
+        alternative_column: "WRG4_T_°C"
+        conversion: add_273.15
+
+      available_power:
+        column: "WRG4_Q_MW"
+        unit: MW
+
+      description: "Waste heat source 4 - Process heat recovery"
+
+  # ===========================================================================
+  # WEATHER DATA
+  # ===========================================================================
+  weather:
+    outdoor_temperature:
+      column: "T_outdoor_C"                 # Outdoor air temperature [°C]
+      unit: celsius
+      description: "Ambient air temperature for heating curve"
+
+    ground_temperature:
+      column: "T_ground_C"                  # Ground temperature [°C]
+      unit: celsius
+      description: "Ground temperature for pipe heat losses"
+      default_value: 10.0                   # If not available
+
+    solar_irradiance:
+      column: "solar_W_per_m2"              # Solar irradiance [W/m²]
+      unit: W_per_m2
+      description: "Solar radiation (future: solar thermal)"
+      optional: true
+
+  # ===========================================================================
+  # ELECTRICITY MARKET
+  # ===========================================================================
+  electricity:
+    spot_price:
+      column: "strompreis_EUR_MWh"          # Day-ahead spot price [EUR/MWh]
+      unit: EUR_per_MWh
+      description: "EPEX SPOT day-ahead price"
+
+    grid_co2_intensity:
+      column: "grid_co2_kg_MWh"             # Grid CO2 intensity [kg/MWh]
+      unit: kg_CO2_per_MWh
+      description: "Time-varying grid emission factor"
+
+  # ===========================================================================
+  # FUEL PRICES (if time-varying)
+  # ===========================================================================
+  fuel_prices:
+    natural_gas:
+      column: "gas_price_EUR_MWh"           # Natural gas price [EUR/MWh]
+      unit: EUR_per_MWh
+      description: "Natural gas wholesale price"
+      optional: true                        # Use default if not available
+      default_value: 40.0
+
+    biomass:
+      column: "biomass_price_EUR_MWh"
+      unit: EUR_per_MWh
+      description: "Biomass fuel price"
+      optional: true
+      default_value: 25.0
+
+# ===========================================================================
+# DATA VALIDATION
+# ===========================================================================
+validation:
+  description: "Data quality checks"
+
+  # Required columns (must be present)
+  required_columns:
+    - timestamp
+    - heatd_MW
+    - strompreis_EUR_MWh
+    - grid_co2_kg_MWh
+    - T_outdoor_C
+
+  # Value ranges (warnings if exceeded)
+  value_ranges:
+    heatd_MW:
+      min: 0
+      max: 300                              # Sanity check (max demand)
+      warn_below: 10                        # Warning if unusually low
+
+    strompreis_EUR_MWh:
+      min: -100                             # Negative prices possible
+      max: 500                              # Sanity check
+      warn_above: 200
+
+    T_outdoor_C:
+      min: -25                              # Design winter
+      max: 40                               # Design summer
+
+    grid_co2_kg_MWh:
+      min: 0
+      max: 1000                             # Coal-only would be ~1000
+
+  # Missing data handling
+  missing_data:
+    strategy: interpolate                   # Options: interpolate, forward_fill, error
+    max_consecutive_missing: 3              # Max hours of missing data
+    fill_method: linear                     # Linear interpolation
+
+  # Outlier detection
+  outlier_detection:
+    enabled: true
+    method: iqr                             # Interquartile range
+    threshold: 3.0                          # 3x IQR for outliers
+    action: warn                            # Options: warn, remove, cap
+
+# ===========================================================================
+# DATA PREPROCESSING
+# ===========================================================================
+preprocessing:
+  description: "Data transformations before optimization"
+
+  # Resampling (if needed)
+  resampling:
+    enabled: false                          # Keep original resolution
+    target_frequency: hourly
+
+  # Smoothing (optional)
+  smoothing:
+    enabled: false
+    method: moving_average
+    window_hours: 3
+
+  # Derived variables
+  derived:
+    # Calculate heating degree days
+    heating_degree_days:
+      base_temp_c: 15.0
+      formula: "max(base_temp - T_outdoor, 0)"
+
+    # Estimate demand fractions if disaggregated not available
+    estimate_district_fractions:
+      enabled: true
+      north_fraction: 0.30
+      west_fraction: 0.35
+      east_fraction: 0.20
+      industrial_fraction: 0.15

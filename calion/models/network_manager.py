@@ -357,11 +357,16 @@ class NetworkManager:
         node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
 
         milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+        pressure_drop_enabled = self.config.get('thermal_network', {}).get('physics', {}).get('pressure_drop', True)
 
         self._link_pipe_temperatures(model, time_set, pipe_components, node_components)
         self._link_consumer_demands(model, time_set, pipe_components, node_components)
-        self._link_pressure_propagation(model, time_set, pipe_components, node_components)
-        pump_el_flows = self._link_pump_head(model, time_set, pipe_components, node_components)
+        if pressure_drop_enabled:
+            self._link_pressure_propagation(model, time_set, pipe_components, node_components)
+            pump_el_flows = self._link_pump_head(model, time_set, pipe_components, node_components)
+        else:
+            logger.info("Pressure drop disabled: skipping pressure propagation and pump head constraints")
+            pump_el_flows = []
 
         if not milp_linearize:
             # Full physics: junction temp mixing + plant return temp (bilinear)
@@ -482,6 +487,7 @@ class NetworkManager:
         _tn = self.config.get('thermal_network', {})
         milp_linearize = _tn.get('milp_linearize', False)
         temperature_linearize_pipe = _tn.get('temperature_linearize', None)
+        pressure_drop_enabled = _tn.get('physics', {}).get('pressure_drop', True)
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -493,6 +499,8 @@ class NetworkManager:
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
                 'temperature_linearize': temperature_linearize_pipe,
+                'pressure_drop_enabled': pressure_drop_enabled,
+                'pump_enabled': pressure_drop_enabled and pipe_dict.get('pump_enabled', True),
                 'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
                 **self.parameters,
             }
@@ -988,60 +996,81 @@ class NetworkManager:
     def _link_pump_head(
         self, model, time_set, pipe_components: dict, node_components: dict
     ) -> list:
-        """Link pump head to nodal pressure balance and collect P_pump for el bus.
+        """Link producer supply/return pressure by a nodal pump head.
 
-        For each pipe with pump_enabled=True:
+        The previous formulation added one equality per outgoing producer pipe:
           p_return_from[t] = p_supply_from[t] - delta_p_supply[t] - delta_p_return[t]
+        which overconstrained branched networks by forcing the same total pressure
+        drop on every outgoing branch. Instead, we model one pump head per producer
+        node and aggregate the outgoing pipe pump powers into one electricity load
+        per producer.
 
-        Returns list of P_pump variable references for electricity bus.
+        Returns a list of aggregated producer pump-power variables for the
+        electricity bus.
         """
-        logger.info("\nSetting up pump head constraints...")
+        logger.info("\nSetting up producer pump head constraints...")
         pump_el_flows = []
 
+        producer_pipes: dict[str, list[tuple[str, dict]]] = {}
         for pipe_id, pipe_comp in pipe_components.items():
             if not pipe_comp.get('pump_enabled', False):
-                continue
-
-            P_pump = pipe_comp.get('P_pump')
-            if P_pump is None:
                 continue
 
             from_node = pipe_comp['from_node']
             if from_node not in node_components:
                 continue
-
-            # Only link pump head at producer (from) nodes
             if node_components[from_node]['type'] != 'producer':
                 continue
 
-            pipe_prefix = pipe_comp.get('prefix', pipe_id.upper().replace('-', '_'))
-            delta_p_supply = getattr(model, f"{pipe_prefix}_delta_p_supply", None)
-            delta_p_return = getattr(model, f"{pipe_prefix}_delta_p_return", None)
+            producer_pipes.setdefault(from_node, []).append((pipe_id, pipe_comp))
 
-            if delta_p_supply is None or delta_p_return is None:
-                logger.warning(f"  ⚠ {pipe_id}: pressure drop vars missing, skipping pump head")
-                continue
+        for node_id, pipes in producer_pipes.items():
+            node_P_supply = node_components[node_id]['pressure_supply']
+            node_P_return = node_components[node_id]['pressure_return']
+            head_max = self.nodes.get(node_id, {}).get('pressure', {}).get('setpoint_bar', 10.0) * 2.0
 
-            from_P_supply = node_components[from_node]['pressure_supply']
-            from_P_return = node_components[from_node]['pressure_return']
+            pump_head = pyo.Var(
+                time_set,
+                domain=pyo.NonNegativeReals,
+                bounds=(0.0, max(float(head_max), 1.0)),
+            )
+            setattr(model, f"producer_{node_id}_pump_head", pump_head)
 
-            # p_return[t] = p_supply[t] - ΔP_supply[t] - ΔP_return[t]
             setattr(
                 model,
-                f"pump_head_{pipe_id}",
+                f"producer_{node_id}_pump_head_balance",
                 pyo.Constraint(
                     time_set,
-                    rule=lambda m, t,
-                        _ps=from_P_supply, _pr=from_P_return,
-                        _dps=delta_p_supply, _dpr=delta_p_return: (
-                        _pr[t] == _ps[t] - _dps[t] - _dpr[t]
+                    rule=lambda m, t, _ps=node_P_supply, _pr=node_P_return, _h=pump_head: (
+                        _h[t] == _ps[t] - _pr[t]
                     ),
                 ),
             )
-            pump_el_flows.append(P_pump)
-            logger.info(f"  ✓ {pipe_id}: pump head constraint added (from_node={from_node})")
 
-        logger.info(f"  Total pump power flows registered: {len(pump_el_flows)}")
+            agg_pump_power = pyo.Var(time_set, domain=pyo.NonNegativeReals)
+            setattr(model, f"producer_{node_id}_P_pump", agg_pump_power)
+            setattr(
+                model,
+                f"producer_{node_id}_pump_power_agg",
+                pyo.Constraint(
+                    time_set,
+                    rule=lambda m, t, _agg=agg_pump_power, _pipes=pipes: (
+                        _agg[t] == sum(
+                            pipe_comp.get('P_pump')[t]
+                            for _, pipe_comp in _pipes
+                            if pipe_comp.get('P_pump') is not None
+                        )
+                    ),
+                ),
+            )
+            pump_el_flows.append(agg_pump_power)
+
+            logger.info(
+                f"  ✓ producer {node_id}: nodal pump head + aggregated pump power "
+                f"for {len(pipes)} outgoing pipe(s)"
+            )
+
+        logger.info(f"  Total aggregated producer pump loads registered: {len(pump_el_flows)}")
         return pump_el_flows
 
     def _setup_network_losses(self, model, time_set, pipe_components) -> None:
