@@ -81,7 +81,7 @@ network:
     pressure_drop: true         # ΔP = PWL(m_dot) — quadratic via 3-segment PWL
     transport_delay: true       # Transportverzögerung aktiv (3-Bucket SOS2, kein Problem)
 
-  supply_temp_c: 1000            # Nominale Vorlauftemperatur (Startpunkt/Bound)
+  supply_temp_c: 100            # Nominale Vorlauftemperatur (Startpunkt/Bound)
   return_temp_c: 40             # Nominale Rücklauftemperatur
   ground_temp_c: 10
 
@@ -94,22 +94,27 @@ network:
   pipe_roughness_mm:     0.05
   max_pressure_drop_bar: 2.0
 
+   # ══════════════════════════════════════════════════════════════════════════
+  # NODES — 15 Junctions, alle 27 Verbraucher direkt eingebettet
+  # ══════════════════════════════════════════════════════════════════════════
   nodes:
+    # ── Root: producer-junction (Heizwerk E1 + V_1) ─────────────────────── # ← GEÄNDERT: V_1 hier eingebettet
     j_1:
-      assets: [boiler_main, tes_main]
-
-    V_1:
+      assets: [chp_main, tes_main, hp_main]  # ← GEÄNDERT: HP hier eingebettet, da er Wärme direkt am Erzeuger bereitstellt
       consumers:
         - column: "V_1_demand_MWth"
 
+    # ── Trunk junction j_2: serves V_2 ──────────────────────────────────
     j_2:
       consumers:
         - column: "V_2_demand_MWth"
 
+    # ── Trunk junction j_3: splits to j_4 and j_9, serves V_3 ───────────
     j_3:
       consumers:
         - column: "V_3_demand_MWth"
 
+    # ── Branch j_4: serves V_4–V_7 ──────────────────────────────────────
     j_4:
       consumers:
         - column: "V_4_demand_MWth"
@@ -117,201 +122,221 @@ network:
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
 
+    # ── Branch j_5: serves V_8–V_9, splits to j_6 and j_7 ──────────────
     j_5:
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
 
+    # ── Terminal branch j_6: serves V_10–V_12 ────────────────────────────
     j_6:
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
 
+    # ── Branch j_7: serves V_13 ─────────────────────────────────────────
     j_7:
       consumers:
         - column: "V_13_demand_MWth"
 
+    # ── Terminal branch j_8: serves V_14 ─────────────────────────────────
     j_8:
       consumers:
         - column: "V_14_demand_MWth"
 
+    # ── Branch j_9: serves V_15–V_16 ────────────────────────────────────
     j_9:
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
 
+    # ── Branch j_10: serves V_17 ────────────────────────────────────────
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
 
-    j_11: {}
-    j_12: {}
-    j_13: {}
+    # ── Junction j_11: serves V_18 ──────────────────────────────────────  # ← GEÄNDERT: war leer, V_18 eingebettet
+    j_11:
+      consumers:
+        - column: "V_18_demand_MWth"
 
+    # ── Junction j_12: serves V_19–V_21 ─────────────────────────────────  # ← GEÄNDERT: war leer, V_19–V_21 eingebettet
+    j_12:
+      consumers:
+        - column: "V_19_demand_MWth"
+        - column: "V_20_demand_MWth"
+        - column: "V_21_demand_MWth"
+
+    # ── Junction j_13: serves V_22–V_24 ─────────────────────────────────  # ← GEÄNDERT: war leer, V_22–V_24 eingebettet
+    j_13:
+      consumers:
+        - column: "V_22_demand_MWth"
+        - column: "V_23_demand_MWth"
+        - column: "V_24_demand_MWth"
+
+    # ── Terminal branch j_14: serves V_25–V_26 ───────────────────────────
     j_14:
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
 
+    # ── Terminal branch j_15: serves V_27 ────────────────────────────────
     j_15:
       consumers:
         - column: "V_27_demand_MWth"
 
-    V_18:
-      consumers:
-        - column: "V_18_demand_MWth"
-    V_19:
-      consumers:
-        - column: "V_19_demand_MWth"
-    V_20:
-      consumers:
-        - column: "V_20_demand_MWth"
-    V_21:
-      consumers:
-        - column: "V_21_demand_MWth"
-    V_22:
-      consumers:
-        - column: "V_22_demand_MWth"
-    V_23:
-      consumers:
-        - column: "V_23_demand_MWth"
-    V_24:
-      consumers:
-        - column: "V_24_demand_MWth"
+    # ← GEÄNDERT: V_1, V_18, V_19, V_20, V_21, V_22, V_23, V_24 als
+    #   separate Knoten ENTFERNT — Demands jetzt in Junctions eingebettet
 
+  # ══════════════════════════════════════════════════════════════════════════
+  # PIPES — 14 Stück, nur Junction-zu-Junction
+  # ══════════════════════════════════════════════════════════════════════════
+  # Dimensionierung: 76 MW Spitzenlast, 100/40°C, v_max=2.5 m/s
+  # Proportionale Lastverteilung nach Verbraucheranzahl + 25–75% Sicherheit
+  #
+  # Pipe-Parameter (globale Defaults, können pro Rohr überschrieben werden):
+  #   u_value_supply_w_per_m_k: 0.28   # [DEFAULT: 0.28]
+  #   u_value_return_w_per_m_k: 0.30   # [DEFAULT: 0.30]
+  #   max_velocity_m_s: 2.5            # [DEFAULT: 2.5]
+  #   pipe_roughness_mm: 0.05          # [DEFAULT: 0.05]
+  #   pump_efficiency: 0.70            # [DEFAULT: 0.70]
+  #   lifetime_years: 40               # [DEFAULT: 40]
   pipes:
-    j1_to_V_1:
-      from: j_1
-      to: V_1
-      length_m: 5
-      diameter_mm: 1000
-
+    # ── Hauptstrang (J1 → J2 → J3) ──────────────────────────────────────
+    # 26 Verbraucher downstream, ~72 MW → DN450 (97.2 MW, +35%)
     j1_to_j2:
       from: j_1
       to: j_2
-      length_m: 500
-      diameter_mm: 1000
+      length_m: 350
+      diameter_mm: 450
 
+    # 25 Verbraucher downstream, ~70 MW → DN450 (97.2 MW, +39%)
     j2_to_j3:
       from: j_2
       to: j_3
-      length_m: 1000
-      diameter_mm: 1000
+      length_m: 300
+      diameter_mm: 450
 
+    # ── J3 verzweigt: Süd → J4, Ost → J9 ────────────────────────────────
+    # Süd-Ast: 11 Verbraucher, ~31 MW → DN300 (43.2 MW, +39%)
     j3_to_j4:
       from: j_3
       to: j_4
-      length_m: 500
-      diameter_mm: 1000
+      length_m: 260
+      diameter_mm: 300
 
+    # Ost-Ast: 13 Verbraucher, ~37 MW → DN350 (58.8 MW, +59%)
     j3_to_j9:
       from: j_3
       to: j_9
-      length_m: 50
-      diameter_mm: 1000
+      length_m: 450
+      diameter_mm: 350
 
+    # ── Süd-Ast (J4 → J5 → J6/J7 → J8) ─────────────────────────────────
+    # 7 Verbraucher downstream, ~20 MW → DN250 (30.0 MW, +50%)
     j4_to_j5:
       from: j_4
       to: j_5
-      length_m: 400
-      diameter_mm: 1000
+      length_m: 240
+      diameter_mm: 250
 
+    # 3 Verbraucher downstream, ~8 MW → DN150 (10.8 MW, +35%)
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 160
-      diameter_mm: 1000
+      length_m: 150
+      diameter_mm: 150
 
+    # 2 Verbraucher downstream, ~6 MW → DN125 (7.5 MW, +25%)
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 300
-      diameter_mm: 1000
+      length_m: 220
+      diameter_mm: 125
 
+    # 1 Verbraucher, ~3 MW → DN100 (4.8 MW, +60%)
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 30
-      diameter_mm: 1000
+      length_m: 80
+      diameter_mm: 100
 
+    # ── Ost-Ast (J9 → J10 → J11 → J12 → J13 → J14/J15) ────────────────
+    # 11 Verbraucher downstream, ~31 MW → DN300 (43.2 MW, +39%)
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 50
-      diameter_mm: 1000
+      length_m: 200
+      diameter_mm: 300
 
+    # 10 Verbraucher downstream, ~28 MW → DN300 (43.2 MW, +54%)
     j10_to_j11:
       from: j_10
       to: j_11
-      length_m: 50
-      diameter_mm: 1000
+      length_m: 230
+      diameter_mm: 300
 
-    j11_to_V18:
-      from: j_11
-      to: V_18
-      length_m: 180
-      diameter_mm: 1000
-
+    # 9 Verbraucher downstream, ~25 MW → DN300 (43.2 MW, +73%)
     j11_to_j12:
       from: j_11
       to: j_12
-      length_m: 200
-      diameter_mm: 1000
+      length_m: 250
+      diameter_mm: 300
 
-    j12_to_V19:
-      from: j_12
-      to: V_19
-      length_m: 180
-      diameter_mm: 1000
-
-    j12_to_V20:
-      from: j_12
-      to: V_20
-      length_m: 130
-      diameter_mm: 1000
-
-    j12_to_V21:
-      from: j_12
-      to: V_21
-      length_m: 140
-      diameter_mm: 1000
-
+    # 6 Verbraucher downstream, ~17 MW → DN250 (30.0 MW, +76%)
     j12_to_j13:
       from: j_12
       to: j_13
-      length_m: 200
-      diameter_mm: 1000
+      length_m: 220
+      diameter_mm: 250
 
-    j13_to_V22:
-      from: j_13
-      to: V_22
-      length_m: 145
-      diameter_mm: 1000
-
-    j13_to_V23:
-      from: j_13
-      to: V_23
-      length_m: 170
-      diameter_mm: 1000
-
-    j13_to_V24:
-      from: j_13
-      to: V_24
-      length_m: 150
-      diameter_mm: 1000
-
+    # 2 Verbraucher downstream, ~6 MW → DN125 (7.5 MW, +25%)
     j13_to_j14:
       from: j_13
       to: j_14
-      length_m: 190
-      diameter_mm: 1000
+      length_m: 180
+      diameter_mm: 125
 
+    # 1 Verbraucher, ~3 MW → DN100 (4.8 MW, +60%)
     j13_to_j15:
       from: j_13
       to: j_15
-      length_m: 140
-      diameter_mm: 1000
+      length_m: 125
+      diameter_mm: 100
+# ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L3) ──────────────────────────
+assets:
+  chp_main:
+    type: chp
+    fuel: gas
+    capacity_mw: 20.0
+    thermal_output_mw: 20.0
+    min_load: 0.3
+    electrical_efficiency: 0.40
+    thermal_efficiency_total: 0.80
+  hp_main:
+    type: heat_pump
+    capacity_mw: 100.0
+    min_load: 0.2
+    cop_method: analytical_lmtd
+    sink_temp_c: 90.0
+    source_columns: ["wrg1_temp", "wrg2_temp"]
+    carnot_efficiency: 0.6
+    cop_default: 3.0
+  tes_main:
+    type: storage
+    energy_capacity_mwh: 1000.0
+    power_capacity_mw: 50.0
+    charge_efficiency: 0.95
+    discharge_efficiency: 0.95
+    min_load_mw: 0.0
+    round_trip_efficiency: 0.90
+    soc_min: 0.0
+    soc_max: 1.0
+    soc0_mwh: 500.0
+    terminal:
+      state: cyclic
+      policy: equal
 
 # ── FIXED ASSETS ──────────────────────────────────────────────────────────────
 assets:

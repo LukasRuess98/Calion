@@ -109,6 +109,11 @@ network:
   #   T_outdoor_high_c: 20.0                       # [DEFAULT: 20]  Außentemp. Heizkurve oben (°C)
   #   T_outdoor_low_c: -10.0                       # [DEFAULT: -10] Außentemp. Heizkurve unten (°C)
 
+  # ── Rohrparameter ──────────────────────────────────────────────────────────
+  max_velocity_m_s:      2.5
+  pump_efficiency:       0.70
+  pipe_roughness_mm:     0.05
+  max_pressure_drop_bar: 2.0
   # ══════════════════════════════════════════════════════════════════════════
   # NODES — 15 Junctions, alle 27 Verbraucher direkt eingebettet
   # ══════════════════════════════════════════════════════════════════════════
@@ -207,105 +212,118 @@ network:
   # ══════════════════════════════════════════════════════════════════════════
   # PIPES — 14 Stück, nur Junction-zu-Junction
   # ══════════════════════════════════════════════════════════════════════════
-  # ENTFERNT: j1_to_V_1, j11_to_V18, j12_to_V19, j12_to_V20,
-  #           j12_to_V21, j13_to_V22, j13_to_V23, j13_to_V24
+  # Dimensionierung: 76 MW Spitzenlast, 100/40°C, v_max=2.5 m/s
+  # Proportionale Lastverteilung nach Verbraucheranzahl + 25–75% Sicherheit
   #
   # Pipe-Parameter (globale Defaults, können pro Rohr überschrieben werden):
-  #   u_value_supply_w_per_m_k: 0.28   # [DEFAULT: 0.28] Wärmeverlustkoeffizient Vorlaufrohr (W/(m·K))
-  #   u_value_return_w_per_m_k: 0.30   # [DEFAULT: 0.30] Wärmeverlustkoeffizient Rücklaufrohr (W/(m·K))
-  #   max_velocity_m_s: 2.5            # [DEFAULT: 2.5]  Max. Strömungsgeschwindigkeit (nur bei pressure_drop: true)
-  #   pipe_roughness_mm: 0.05          # [DEFAULT: 0.05] Rauigkeit Rohrinnenwand (nur bei pressure_drop: true)
-  #   pump_efficiency: 0.70            # [DEFAULT: 0.70] Pumpenwirkungsgrad (nur bei pressure_drop: true)
-  #   lifetime_years: 40               # [DEFAULT: 40]   Lebensdauer für CAPEX-Annualisierung (nur bei Rohrsanierung)
+  #   u_value_supply_w_per_m_k: 0.28   # [DEFAULT: 0.28]
+  #   u_value_return_w_per_m_k: 0.30   # [DEFAULT: 0.30]
+  #   max_velocity_m_s: 2.5            # [DEFAULT: 2.5]
+  #   pipe_roughness_mm: 0.05          # [DEFAULT: 0.05]
+  #   pump_efficiency: 0.70            # [DEFAULT: 0.70]
+  #   lifetime_years: 40               # [DEFAULT: 40]
   pipes:
     # ── Hauptstrang (J1 → J2 → J3) ──────────────────────────────────────
+    # 26 Verbraucher downstream, ~72 MW → DN450 (97.2 MW, +35%)
     j1_to_j2:
       from: j_1
       to: j_2
       length_m: 350
-      diameter_mm: 1000
+      diameter_mm: 450
 
+    # 25 Verbraucher downstream, ~70 MW → DN450 (97.2 MW, +39%)
     j2_to_j3:
       from: j_2
       to: j_3
       length_m: 300
-      diameter_mm: 1000
+      diameter_mm: 450
 
     # ── J3 verzweigt: Süd → J4, Ost → J9 ────────────────────────────────
+    # Süd-Ast: 11 Verbraucher, ~31 MW → DN300 (43.2 MW, +39%)
     j3_to_j4:
       from: j_3
       to: j_4
       length_m: 260
-      diameter_mm: 1000
+      diameter_mm: 300
 
+    # Ost-Ast: 13 Verbraucher, ~37 MW → DN350 (58.8 MW, +59%)
     j3_to_j9:
       from: j_3
       to: j_9
       length_m: 450
-      diameter_mm: 1000
+      diameter_mm: 350
 
     # ── Süd-Ast (J4 → J5 → J6/J7 → J8) ─────────────────────────────────
+    # 7 Verbraucher downstream, ~20 MW → DN250 (30.0 MW, +50%)
     j4_to_j5:
       from: j_4
       to: j_5
       length_m: 240
-      diameter_mm: 1000
+      diameter_mm: 250
 
+    # 3 Verbraucher downstream, ~8 MW → DN150 (10.8 MW, +35%)
     j5_to_j6:
       from: j_5
       to: j_6
       length_m: 150
-      diameter_mm: 1000
+      diameter_mm: 150
 
+    # 2 Verbraucher downstream, ~6 MW → DN125 (7.5 MW, +25%)
     j5_to_j7:
       from: j_5
       to: j_7
       length_m: 220
-      diameter_mm: 1000
+      diameter_mm: 125
 
+    # 1 Verbraucher, ~3 MW → DN100 (4.8 MW, +60%)
     j7_to_j8:
       from: j_7
       to: j_8
       length_m: 80
-      diameter_mm: 1000
+      diameter_mm: 100
 
     # ── Ost-Ast (J9 → J10 → J11 → J12 → J13 → J14/J15) ────────────────
+    # 11 Verbraucher downstream, ~31 MW → DN300 (43.2 MW, +39%)
     j9_to_j10:
       from: j_9
       to: j_10
       length_m: 200
-      diameter_mm: 1000
+      diameter_mm: 300
 
+    # 10 Verbraucher downstream, ~28 MW → DN300 (43.2 MW, +54%)
     j10_to_j11:
       from: j_10
       to: j_11
       length_m: 230
-      diameter_mm: 1000
+      diameter_mm: 300
 
+    # 9 Verbraucher downstream, ~25 MW → DN300 (43.2 MW, +73%)
     j11_to_j12:
       from: j_11
       to: j_12
       length_m: 250
-      diameter_mm: 1000
+      diameter_mm: 300
 
+    # 6 Verbraucher downstream, ~17 MW → DN250 (30.0 MW, +76%)
     j12_to_j13:
       from: j_12
       to: j_13
       length_m: 220
-      diameter_mm: 1000
+      diameter_mm: 250
 
+    # 2 Verbraucher downstream, ~6 MW → DN125 (7.5 MW, +25%)
     j13_to_j14:
       from: j_13
       to: j_14
       length_m: 180
-      diameter_mm: 1000
+      diameter_mm: 125
 
+    # 1 Verbraucher, ~3 MW → DN100 (4.8 MW, +60%)
     j13_to_j15:
       from: j_13
       to: j_15
       length_m: 125
-      diameter_mm: 1000
-
+      diameter_mm: 100
 # ── FIXED ASSETS (Dispatch-Only, IDENTICAL TO L3) ──────────────────────────
 assets:
   chp_main:
