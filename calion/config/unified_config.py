@@ -114,9 +114,12 @@ class NodeConfig(BaseModel):
         if demand_raw is not None:
             demand = DemandConfig.from_dict(demand_raw)
 
-        # Infer type if not explicit: assets → producer, consumers → consumer, else junction
+        # Infer type if not explicit: assets+demands → mixed, assets → producer,
+        # consumers → consumer, else junction
         if "type" in raw:
             node_type = raw["type"]
+        elif assets and (demands or demand is not None):
+            node_type = "mixed"
         elif assets:
             node_type = "producer"
         elif demands or demand is not None:
@@ -124,9 +127,9 @@ class NodeConfig(BaseModel):
         else:
             node_type = "junction"
 
-        if node_type not in ("producer", "consumer", "junction"):
+        if node_type not in ("producer", "consumer", "junction", "mixed"):
             raise ValueError(
-                f"Node '{node_id}': type must be producer/consumer/junction, got '{node_type}'"
+                f"Node '{node_id}': type must be producer/consumer/junction/mixed, got '{node_type}'"
             )
 
         demand_fraction = raw.get("demand_fraction", 1.0)

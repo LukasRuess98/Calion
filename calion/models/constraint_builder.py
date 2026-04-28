@@ -117,7 +117,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     # Identify the primary producer (first in iteration order) to avoid double-counting
     # network losses and consumer demands when multiple producers exist.
     producer_node_ids = [
-        nid for nid, nc in unified_config.nodes.items() if nc.type == "producer"
+        nid for nid, nc in unified_config.nodes.items() if nc.type in ("producer", "mixed")
     ]
     primary_producer_id = producer_node_ids[0] if producer_node_ids else None
 
@@ -125,7 +125,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     _all_consumer_demand_params = []
     if unified_config is not None:
         for cnid, cnode in unified_config.nodes.items():
-            if cnode.type == 'consumer':
+            if cnode.type in ('consumer', 'mixed'):
                 attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
                 q = getattr(model, attr, None)
                 if q is not None:
@@ -143,45 +143,56 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
         # Only the primary producer carries the full network loss; secondary producers carry zero
         _is_primary = (node_id == primary_producer_id)
 
-        if node_cfg.type == "producer":
-            # Producer: sum(ht_out) == demand_at_node (if any) + dump + storage_charge + pipe_outflow
-            # Pipe outflow is handled by NetworkManager constraints
-            # If producer has demand, include it
-            if node_cfg.demand is not None and hasattr(model, f"heatd_{node_id}"):
-                demand_param = getattr(model, f"heatd_{node_id}")
+        if node_cfg.type in ("producer", "mixed"):
+            # Primary producer accounts for ALL consumer demands + network losses.
+            # Secondary producers (e.g. heat pump at a junction) only balance their
+            # own local demand (if any) — the pipe network propagates their output.
+            if _is_primary:
+                # Sum all consumer Q_demand params (includes mixed-node local demands)
+                consumer_demand_params = _all_consumer_demand_params
 
-                def producer_balance(m, t, _out=ht_out, _in=ht_in, _d=dump_var, _dem=demand_param,
-                                     _primary=_is_primary):
-                    supply = sum((f[t] for f in _out), start=0)
-                    charge = sum((f[t] for f in _in), start=0)
-                    network_loss = 0
-                    if _primary and hasattr(m, 'network_Q_loss_per_timestep'):
-                        network_loss = m.network_Q_loss_per_timestep[t]
-                    return supply == _dem[t] + _d[t] + charge + network_loss
-
-                setattr(model, f"ht_balance_{node_id}",
-                        pyo.Constraint(model.t, rule=producer_balance))
-            else:
-                # Producer without demand: the primary producer also accounts for all consumer
-                # demand delivered via the network; secondary producers only balance their own assets.
-                consumer_demand_params = _all_consumer_demand_params if _is_primary else []
-
-                def producer_no_demand(
-                    m, t, _out=ht_out, _in=ht_in, _d=dump_var, _qc=consumer_demand_params,
-                    _primary=_is_primary
+                def primary_producer_balance(
+                    m, t, _out=ht_out, _in=ht_in, _d=dump_var, _qc=consumer_demand_params
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
                     network_loss = 0
-                    if _primary and hasattr(m, 'network_Q_loss_per_timestep'):
+                    if hasattr(m, 'network_Q_loss_per_timestep'):
                         network_loss = m.network_Q_loss_per_timestep[t]
-                    consumer_demand = sum(q[t] for q in _qc)
-                    return supply == _d[t] + charge + network_loss + consumer_demand
+                    return supply == _d[t] + charge + network_loss + sum(q[t] for q in _qc)
 
                 setattr(model, f"ht_balance_{node_id}",
-                        pyo.Constraint(model.t, rule=producer_no_demand))
+                        pyo.Constraint(model.t, rule=primary_producer_balance))
+            else:
+                # Secondary producer: balance against own local demand only (if any)
+                has_local_demand = (
+                    (node_cfg.demand is not None or node_cfg.demands)
+                    and hasattr(model, f"heatd_{node_id}")
+                )
+                if has_local_demand:
+                    demand_param = getattr(model, f"heatd_{node_id}")
 
-            logger.info("[CONSTRAINT] Producer %s: heat balance with %d sources, %d sinks",
+                    def secondary_producer_balance(
+                        m, t, _out=ht_out, _in=ht_in, _d=dump_var, _dem=demand_param
+                    ):
+                        supply = sum((f[t] for f in _out), start=0)
+                        charge = sum((f[t] for f in _in), start=0)
+                        return supply == _dem[t] + _d[t] + charge
+
+                    setattr(model, f"ht_balance_{node_id}",
+                            pyo.Constraint(model.t, rule=secondary_producer_balance))
+                else:
+                    def secondary_producer_no_demand(
+                        m, t, _out=ht_out, _in=ht_in, _d=dump_var
+                    ):
+                        supply = sum((f[t] for f in _out), start=0)
+                        charge = sum((f[t] for f in _in), start=0)
+                        return supply == _d[t] + charge
+
+                    setattr(model, f"ht_balance_{node_id}",
+                            pyo.Constraint(model.t, rule=secondary_producer_no_demand))
+
+            logger.info("[CONSTRAINT] Producer/mixed %s: heat balance with %d sources, %d sinks",
                         node_id, len(ht_out), len(ht_in))
 
         elif node_cfg.type == "consumer":

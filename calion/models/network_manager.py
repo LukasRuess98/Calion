@@ -543,7 +543,10 @@ class NetworkManager:
                 'return_temp_c': return_temp,
                 'milp_linearize': milp_linearize,
                 'temperature_linearize': temperature_linearize,
-                'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
+                'linearization': lin_cfg,
+                'pressure_drop_enabled': pressure_drop_enabled,
+                'delta_p_min_consumer_bar': delta_p_min_consumer,
+                'state_validation': self.config.get('state_validation', {}),
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
@@ -618,7 +621,7 @@ class NetworkManager:
         logger.info("\nConnecting consumer demands to pipes...")
 
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] != 'consumer':
+            if node_comp['type'] not in ('consumer', 'mixed'):
                 continue
 
             incoming_pipes = node_comp.get('incoming_pipes', [])

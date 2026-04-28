@@ -13,6 +13,9 @@ __pycache__/
 # Virtual environments
 HeatGrid/
 
+# Importdaten
+Data/
+
 # Coverage artifacts
 .coverage
 coverage.xml

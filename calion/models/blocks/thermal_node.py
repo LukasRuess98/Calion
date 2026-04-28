@@ -70,15 +70,15 @@ class ThermalNodeBlock(BaseComponent):
             if field not in config:
                 raise ValueError(f"ThermalNode config missing required field: {field}")
 
-        # Accept 'plant' as an alias for 'producer' (backward compatibility)
-        valid_types = ['producer', 'plant', 'consumer', 'junction']
+        # Accept 'plant' as alias for 'producer', 'mixed' for producer+consumer
+        valid_types = ['producer', 'plant', 'consumer', 'junction', 'mixed']
         if config['type'] not in valid_types:
             raise ValueError(f"Node {config['id']}: type must be one of {valid_types}")
 
-        if config['type'] == 'consumer':
-            if 'demand_fraction' not in config and 'demand_profile' not in config:
+        if config['type'] in ('consumer', 'mixed'):
+            if 'demand_fraction' not in config and 'demand_profile' not in config and 'consumers' not in config:
                 raise ValueError(
-                    f"Consumer node {config['id']}: must specify demand_fraction or demand_profile"
+                    f"Consumer node {config['id']}: must specify demand_fraction, demand_profile, or consumers"
                 )
 
     @staticmethod
@@ -146,7 +146,7 @@ class ThermalNodeBlock(BaseComponent):
         if milp_linearize_temp is None:
             milp_linearize_temp = config.get('milp_linearize', False)
 
-        if milp_linearize_temp and node_type in ('consumer', 'junction'):
+        if milp_linearize_temp and node_type in ('consumer', 'junction', 'mixed'):
             # MILP mode: fix supply temperature to nominal value → eliminates bilinear products
             setattr(model, f'{prefix}_T_supply',
                     pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
@@ -161,7 +161,7 @@ class ThermalNodeBlock(BaseComponent):
         return_temp_range = config.get('return_temp_range', None)
         return_temp_load_factor = config.get('return_temp_load_factor', 0.0)
 
-        if node_type == 'consumer' and return_temp_profile is not None:
+        if node_type in ('consumer', 'mixed') and return_temp_profile is not None:
             # Explicit time-varying profile → Param
             def return_temp_init(m, t):
                 return return_temp_profile.get(t, return_temp_c)
@@ -172,7 +172,7 @@ class ThermalNodeBlock(BaseComponent):
                 f"(range: {min(return_temp_profile.values()):.1f}-"
                 f"{max(return_temp_profile.values()):.1f}°C)"
             )
-        elif node_type == 'consumer' and return_temp_range is None and return_temp_load_factor == 0:
+        elif node_type in ('consumer', 'mixed') and return_temp_range is None and return_temp_load_factor == 0:
             # Constant return temperature → Param
             setattr(model, f'{prefix}_T_return',
                     pyo.Param(time_set, initialize=return_temp_c, mutable=True))
@@ -287,6 +287,14 @@ class ThermalNodeBlock(BaseComponent):
                     pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 20.0)))
             delta_p_valve_var = getattr(model, f'{prefix}_delta_p_valve')
 
+            # Minimum differential pressure at consumer station (Übergabestation):
+            # P_supply - P_return >= delta_p_min_station (e.g. 0.7 bar = 70 kPa)
+            if config.get('pressure_drop_enabled', False):
+                def _station_dp_rule(m, t, _ps=pressure_supply, _pr=pressure_return, _dp=delta_p_min_station):
+                    return _ps[t] - _pr[t] >= _dp
+                setattr(model, f'{prefix}_station_dp',
+                        pyo.Constraint(time_set, rule=_station_dp_rule))
+
         # ============================================================
         # CONSTRAINTS
         # ============================================================
@@ -372,11 +380,11 @@ class ThermalNodeBlock(BaseComponent):
         skip_producer_mass_balance = milp_linearize_temp and node_type == 'producer'
         skip_consumer_mass_balance = (
             milp_linearize_temp
-            and node_type == 'consumer'
+            and node_type in ('consumer', 'mixed')
             and not outgoing_pipes
         )
         skip_mass_balance = skip_producer_mass_balance or skip_consumer_mass_balance
-        if not skip_mass_balance and (incoming_pipes or (node_type != 'producer' and outgoing_pipes)):
+        if not skip_mass_balance and (incoming_pipes or (node_type not in ('producer', 'mixed') and outgoing_pipes)):
             def mass_balance_rule(m, t, _in=incoming_pipes, _out=outgoing_pipes):
                 total_in = sum(
                     getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
@@ -386,7 +394,7 @@ class ThermalNodeBlock(BaseComponent):
                     getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t]
                     for p in _out
                 )
-                if node_type == 'consumer':
+                if node_type in ('consumer', 'mixed'):
                     demand_var = getattr(m, f'{prefix}_m_dot_demand')
                     return total_in == total_out + demand_var[t]
                 return total_in == total_out
@@ -398,7 +406,7 @@ class ThermalNodeBlock(BaseComponent):
         # Q_demand [MW] = m_dot [kg/s] × c_p [kJ/(kg·K)] × (T_supply - T_return) [K] / 1000
         milp_linearize = config.get('milp_linearize', False)
 
-        if node_type == 'consumer':
+        if node_type in ('consumer', 'mixed'):
             if milp_linearize and not outgoing_pipes:
                 # Terminal consumer in MILP mode: demand is enforced through
                 # Q_consumer == Q_demand in the network manager.  The heat_demand
@@ -497,7 +505,7 @@ class ThermalNodeBlock(BaseComponent):
             result['m_dot_demand'] = m_dot_demand
             result['demand_fraction'] = config.get('demand_fraction', 0.0)
 
-        if node_type == 'producer':
+        if node_type in ('producer', 'mixed'):
             result['components'] = config.get('components', {})
 
         return result
@@ -542,7 +550,7 @@ class ThermalNodeBlock(BaseComponent):
             'avg_return_temp_c': sum(t_return_series) / len(t_return_series),
         }
 
-        if node_type == 'consumer':
+        if node_type in ('consumer', 'mixed'):
             Q_demand = getattr(model, f'{prefix}_Q_demand')
             m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 

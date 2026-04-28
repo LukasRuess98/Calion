@@ -41,7 +41,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/2025_04_14_Import_Data_Memmingen.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epornet.xlsx"
   columns:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"
@@ -75,10 +75,11 @@ network:
       T_supply_c:     [70.0, 80.0, 90.0, 100.0]
       T_return_c:     [55.0, 50.0, 45.0, 40.0]
 
-  max_velocity_m_s:      2.5
-  pump_efficiency:       0.75
-  pipe_roughness_mm:     0.5
-  max_pressure_drop_bar: 2.0
+  max_velocity_m_s:          2.5
+  pump_efficiency:           0.75
+  pipe_roughness_mm:         0.5
+  max_pressure_drop_bar:     2.0
+  delta_p_min_consumer_bar:  0.7   # 70 kPa Druckverlust pro Übergabestation
 
   # ══════════════════════════════════════════════════════════════════════════
   # NODES — 8 Junctions (1 producer, 7 regional)
@@ -86,7 +87,7 @@ network:
   nodes:
     # ── Producer-junction with assets
     j_1:
-      assets: [chp_main, tes_main, hp_main]
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "waermebedarf_MWth"
           demand_fraction: 0.0  # Producer node has no local demand
@@ -111,6 +112,7 @@ network:
 
     # ── Region 4: East (V_17–V_18, 2 consumers, 2/27 = 7.4%)
     j_5:
+      assets: [hp_main, eboiler_main]  # Add heat pump and electric boiler at this junction
       consumers:
         - column: "waermebedarf_MWth"
           demand_fraction: 0.0741
@@ -206,26 +208,43 @@ assets:
   chp_main:
     type: chp
     fuel: gas
-    capacity_mw: 20.0
-    thermal_output_mw: 20.0
+    capacity_mw: 0.20
+    thermal_output_mw: 0.20
     min_load: 0.3
+    electrical_efficiency: 0.40
+    thermal_efficiency_total: 0.80
+  gasboiler_main:
+    type: boiler
+    fuel: gas
+    thermal_output_mw: 13
+    min_load: 0.1
+    thermal_efficiency_total: 0.90
+  Biomass_main:
+    type: boiler
+    fuel: biomass
+    thermal_output_mw: 3.3
+    min_load: 0.1
+    thermal_efficiency_total: 0.85
+  eboiler_main:
+    type: boiler
+    fuel: electricity
+    thermal_output_mw: 5
+    min_load: 0.1
+    thermal_efficiency_total: 0.95
     electrical_efficiency: 0.40
     thermal_efficiency_total: 0.80
   hp_main:
     type: heat_pump
-    capacity_mw: 100.0
+    capacity_mw: 5.0
     min_load: 0.2
-    cop_method: analytical_lmtd
-    sink_temp_c: 90.0
-    source_columns: ["wrg1_temp", "wrg2_temp"]
-    carnot_efficiency: 0.6
+    wrg_sources: [WRG1]    # needs WRG1_T °C + WRG1_Q MW columns in Excel
     cop_default: 3.0
   tes_main:
     type: storage
-    energy_capacity_mwh: 1000.0
-    power_capacity_mw: 50.0
-    charge_efficiency: 0.95
-    discharge_efficiency: 0.95
+    energy_capacity_mwh: 500.0
+    power_capacity_mw: 30.0
+    charge_efficiency: 0.98
+    discharge_efficiency: 0.98
     min_load_mw: 0.0
     round_trip_efficiency: 0.90
     soc_min: 0.0
@@ -234,6 +253,20 @@ assets:
     terminal:
       state: cyclic
       policy: equal
+
+# ── HEAT PUMP COP MODEL
+heat_pumps:
+  cop:
+    sink_defaults:
+      Tsink_out_K: 373.15    # 100°C supply temperature (= network supply_temp_c)
+      Tsink_in_K: 313.15     # 40°C return temperature (= network return_temp_c)
+    deltaT_K: 20.0
+    deltaTpp_K: 5.0
+    cop_fallback: 3.0
+  types:
+    standard:
+      eta: 0.6               # Lorenz-Gütegrad (= carnot_efficiency)
+      FQ: 0.10
 
 # ── GRID SETTINGS
 grid:

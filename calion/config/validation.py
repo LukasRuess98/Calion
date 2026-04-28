@@ -230,8 +230,8 @@ class ConfigValidator:
                     adjacency[tn].append(fn)
 
         # BFS from all producer nodes
-        producer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) == 'producer']
-        consumer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) == 'consumer']
+        producer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) in ('producer', 'mixed')]
+        consumer_ids = [nid for nid, n in nodes.items() if getattr(n, 'type', None) in ('consumer', 'mixed')]
 
         if producer_ids:
             visited = set()
@@ -275,22 +275,16 @@ class ConfigValidator:
 
         for node_id, node in nodes.items():
             node_type = getattr(node, 'type', None)
-            if node_type == "producer":
+            if node_type in ("producer", "mixed"):
                 has_producer = True
-                if not getattr(node, 'components', None):
+                if not getattr(node, 'assets', None) and not getattr(node, 'components', None):
                     self.result.add_warning(
                         "network",
                         f"Producer node '{node_id}' has no components attached",
                         location=f"{net_id}.nodes.{node_id}",
                     )
-            elif node_type == "consumer":
+            if node_type in ("consumer", "mixed"):
                 has_consumer = True
-                if not getattr(node, 'demand_column', None):
-                    self.result.add_error(
-                        "network",
-                        f"Consumer node '{node_id}' has no demand_column specified",
-                        location=f"{net_id}.nodes.{node_id}",
-                    )
 
         if not has_producer:
             self.result.add_error("network", f"Network '{net_id}' has no producer nodes")

@@ -3,7 +3,7 @@
 # DO NOT use for paper runs — use Memmingen_L3_MILP.yaml (8760h, Gurobi).
 
 site:
-  input_xlsx: "data/2025_04_14_Import_Data_Memmingen.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epornet.xlsx"
   columns:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"
@@ -36,70 +36,104 @@ network:
       T_supply_c:     [70.0, 80.0, 90.0, 100.0]
       T_return_c:     [55.0, 50.0, 45.0, 40.0]
 
-  max_velocity_m_s:      2.5
-  pump_efficiency:       0.75
-  pipe_roughness_mm:     0.5
-  max_pressure_drop_bar: 2.0
+  max_velocity_m_s:          2.5
+  pump_efficiency:           0.75
+  pipe_roughness_mm:         0.5
+  max_pressure_drop_bar:     2.0
+  delta_p_min_consumer_bar:  0.7   # 70 kPa Druckverlust pro Übergabestation
 
   nodes:
+    # ── Root: producer-junction (Heizwerk E1 + V_1) ─────────────────────── # ← GEÄNDERT: V_1 hier eingebettet
     j_1:
-      assets: [chp_main, tes_main, hp_main]
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main]  # ← GEÄNDERT: HP hier eingebettet, da er Wärme direkt am Erzeuger bereitstellt
       consumers:
         - column: "V_1_demand_MWth"
+
+    # ── Trunk junction j_2: serves V_2 ──────────────────────────────────
     j_2:
       consumers:
         - column: "V_2_demand_MWth"
+
+    # ── Trunk junction j_3: splits to j_4 and j_9, serves V_3 ───────────
     j_3:
       consumers:
         - column: "V_3_demand_MWth"
+
+    # ── Branch j_4: serves V_4–V_7 ──────────────────────────────────────
     j_4:
       consumers:
         - column: "V_4_demand_MWth"
         - column: "V_5_demand_MWth"
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
+
+    # ── Branch j_5: serves V_8–V_9, splits to j_6 and j_7 ──────────────
     j_5:
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
+
+    # ── Terminal branch j_6: serves V_10–V_12 ────────────────────────────
     j_6:
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
+
+    # ── Branch j_7: serves V_13 ─────────────────────────────────────────
     j_7:
       consumers:
         - column: "V_13_demand_MWth"
+
+    # ── Terminal branch j_8: serves V_14 ─────────────────────────────────
     j_8:
       consumers:
         - column: "V_14_demand_MWth"
+
+    # ── Branch j_9: serves V_15–V_16 ────────────────────────────────────
     j_9:
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
+
+    # ── Branch j_10: serves V_17 ────────────────────────────────────────
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
+
+    # ── Junction j_11: serves V_18 ──────────────────────────────────────  # ← GEÄNDERT: war leer, V_18 eingebettet
     j_11:
       consumers:
         - column: "V_18_demand_MWth"
+
+    # ── Junction j_12: serves V_19–V_21 ─────────────────────────────────  # ← GEÄNDERT: war leer, V_19–V_21 eingebettet
     j_12:
+      assets: [hp_main, eboiler_main]  # ← GEÄNDERT: HP hier eingebettet, da er Wärme direkt am Erzeuger bereitstellt
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
         - column: "V_21_demand_MWth"
+
+    # ── Junction j_13: serves V_22–V_24 ─────────────────────────────────  # ← GEÄNDERT: war leer, V_22–V_24 eingebettet
     j_13:
       consumers:
         - column: "V_22_demand_MWth"
         - column: "V_23_demand_MWth"
         - column: "V_24_demand_MWth"
+
+    # ── Terminal branch j_14: serves V_25–V_26 ───────────────────────────
     j_14:
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
+
+    # ── Terminal branch j_15: serves V_27 ────────────────────────────────
     j_15:
       consumers:
         - column: "V_27_demand_MWth"
+
+    # ← GEÄNDERT: V_1, V_18, V_19, V_20, V_21, V_22, V_23, V_24 als
+    #   separate Knoten ENTFERNT — Demands jetzt in Junctions eingebettet
 
   pipes:
     j1_to_j2:
@@ -205,26 +239,43 @@ assets:
   chp_main:
     type: chp
     fuel: gas
-    capacity_mw: 20.0
-    thermal_output_mw: 20.0
+    capacity_mw: 0.20
+    thermal_output_mw: 0.20
     min_load: 0.3
+    electrical_efficiency: 0.40
+    thermal_efficiency_total: 0.80
+  gasboiler_main:
+    type: boiler
+    fuel: gas
+    thermal_output_mw: 13
+    min_load: 0.1
+    thermal_efficiency_total: 0.90
+  Biomass_main:
+    type: boiler
+    fuel: biomass
+    thermal_output_mw: 3.3
+    min_load: 0.1
+    thermal_efficiency_total: 0.85
+  eboiler_main:
+    type: boiler
+    fuel: electricity
+    thermal_output_mw: 5
+    min_load: 0.1
+    thermal_efficiency_total: 0.95
     electrical_efficiency: 0.40
     thermal_efficiency_total: 0.80
   hp_main:
     type: heat_pump
-    capacity_mw: 100.0
+    capacity_mw: 5.0
     min_load: 0.2
-    cop_method: analytical_lmtd
-    sink_temp_c: 90.0
-    source_columns: ["wrg1_temp", "wrg2_temp"]
-    carnot_efficiency: 0.6
+    wrg_sources: [WRG1]    # needs WRG1_T °C + WRG1_Q MW columns in Excel
     cop_default: 3.0
   tes_main:
     type: storage
-    energy_capacity_mwh: 1000.0
-    power_capacity_mw: 50.0
-    charge_efficiency: 0.95
-    discharge_efficiency: 0.95
+    energy_capacity_mwh: 500.0
+    power_capacity_mw: 30.0
+    charge_efficiency: 0.98
+    discharge_efficiency: 0.98
     min_load_mw: 0.0
     round_trip_efficiency: 0.90
     soc_min: 0.0
@@ -233,6 +284,20 @@ assets:
     terminal:
       state: cyclic
       policy: equal
+
+# ── HEAT PUMP COP MODEL
+heat_pumps:
+  cop:
+    sink_defaults:
+      Tsink_out_K: 373.15    # 100°C supply temperature (= network supply_temp_c)
+      Tsink_in_K: 313.15     # 40°C return temperature (= network return_temp_c)
+    deltaT_K: 20.0
+    deltaTpp_K: 5.0
+    cop_fallback: 3.0
+  types:
+    standard:
+      eta: 0.6               # Lorenz-Gütegrad (= carnot_efficiency)
+      FQ: 0.10
 
 grid:
   max_import_mw: 5000.0

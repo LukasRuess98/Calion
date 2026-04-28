@@ -269,7 +269,10 @@ class ModelFinalizer:
                 "id": nid,
                 "type": node.type,
             }
-            if node.demand is not None:
+            # Forward multi-consumer demand list (consumers: [...] in YAML)
+            if node.demands:
+                node_dict["consumers"] = [{"column": d.column} for d in node.demands]
+            elif node.demand is not None:
                 node_dict["demand_column"] = node.demand.column
             if node.demand_fraction is not None:
                 node_dict["demand_fraction"] = node.demand_fraction
