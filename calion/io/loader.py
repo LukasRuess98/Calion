@@ -257,7 +257,7 @@ def load_input_excel(
 
     price = [_to_float(rec.get(price_col)) for rec in records]
     heat = [_to_float(rec.get(heat_col)) for rec in records]
-    co2 = [_to_float(rec.get(co2_col)) for rec in records]
+    co2 = [_to_float(rec.get(co2_col)) for rec in records] if co2_col else [0.0] * len(records)
 
     # Outdoor temperature (optional, for heating curve)
     outdoor_temp: list[float] = []

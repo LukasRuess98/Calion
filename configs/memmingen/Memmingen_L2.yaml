@@ -41,11 +41,8 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epornet.xlsx"
-  columns:
-    datetime:  "Datum"
-    price:     "strompreis_EUR_MWh"
-    co2_grid:  "grid_co2_kg_MWh"
+  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
+  # Column detection: uses fallbacks from loader if not specified
 
 scenario:
   name: "Memmingen L2 - Regional Demand Fractions (Dispatch-Only)"

@@ -3,7 +3,7 @@
 # DO NOT use for paper runs — use Memmingen_L3_MILP.yaml (8760h, Gurobi).
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epornet.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
   columns:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"

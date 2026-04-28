@@ -53,7 +53,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epornet.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
   columns:
     datetime:  "Datum"
     price:     "strompreis_EUR_MWh"
