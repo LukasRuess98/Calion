@@ -10,52 +10,68 @@ You now have three files in this folder:
 
 ---
 
-## Workflow in PowerShell 7
+## How to run the paper
 
-From your repo root:
+All configs, synthetic networks, and tooling are already set up.
+**Single command to run everything:**
 
-```powershell
-# 1. Drop the deliverables next to your repo
-Copy-Item .\downloads\CLAUDE_CODE_TASKS.md       .\CLAUDE_CODE_TASKS.md
-Copy-Item .\downloads\EQUATION_VERIFICATION.md  .\EQUATION_VERIFICATION.md
-Copy-Item .\downloads\Paper_draft_v2.tex        .\Paper_draft.tex   # overwrites old draft
+```bash
+# All phases — primary runs + sensitivity + synthetic + tables + fill paper
+python scripts/paper/run_paper_full.py
 
-# 2. Open Claude Code in the repo
-claude code
+# Preview plan without running any solver
+python scripts/paper/run_paper_full.py --dry-run
 
-# 3. Inside Claude Code, hand it the brief in two stages.
-#    Stage A — config harmonisation + run pipeline:
-#       "Read CLAUDE_CODE_TASKS.md and execute it section by section.
-#        Stop at every [CHECK] gate and report the result. Do not
-#        proceed past §1 until I confirm the user-input questions
-#        in §10."
-#
-#    Stage B — equation audit (after §1 fixes are merged):
-#       "Read EQUATION_VERIFICATION.md and execute it.
-#        Generate output/paper_runs/EQUATION_AUDIT.md and ask me to
-#        decide every ❌ or ⚠️ row before changing code."
+# Skip L3NL if Gurobi is not available
+python scripts/paper/run_paper_full.py --skip-nl
+
+# Run specific phases only
+python scripts/paper/run_paper_full.py --phases 1          # primary runs only
+python scripts/paper/run_paper_full.py --phases 1 2        # primary + sensitivity
+python scripts/paper/run_paper_full.py --phases 3          # synthetic runs only
+python scripts/paper/run_paper_full.py --phases 4 5        # tables + fill paper
 ```
 
-The two files were intentionally split so you can let Claude Code run the equation audit in a separate context window — equation checking is detail-heavy and benefits from a fresh start.
+### Phase order
+
+| Phase | Script | Output |
+|-------|--------|--------|
+| 1 | `paper_runner.py` (called internally) | `output/paper_runs/L1/`, `L2/`, `L3/`, `L3plus/`, `L3NL/` |
+| 2 | `sensitivity_runner.py` (called internally) | `output/paper_runs/sensitivity/<level>_<scenario>/` |
+| 3 | synth loop over `synth_configs/*.yaml` | `output/paper_runs/synth/<id>_<level>/` |
+| 4 | `tools/tablegen.py` | `output/paper_runs/tables/*.tex` |
+| 5 | `tools/fill_paper.py --auto` | `output/paper_runs/Paper_filled.tex` |
+
+### Gurobi notes
+
+- L1 / L2 / L3 / L3+ work with **HiGHS** (free). Gurobi not required.
+- L3NL (`Memmingen_L3_MIQP.yaml`) requires **Gurobi** with `NonConvex=2`.
+- Without Gurobi, L3NL runs are skipped automatically and logged in `run_log.json`.
+
+### Restart safety
+
+Phase 3 (synthetic) checks for existing `meta.json` before running — safe to interrupt and resume.
+All run results logged to `output/paper_runs/run_log.json`.
 
 ---
 
-## Things you should answer before Claude Code runs Stage A
+## Equation audit (separate task)
 
-`CLAUDE_CODE_TASKS.md` §10 contains nine questions. The **must-answer-now** subset is:
+After runs are done, hand `EQUATION_VERIFICATION.md` to Claude Code in a fresh context:
 
-1. HP capacity — 100 MW or 10 MW? (Suspect typo.)
-2. Electrode boiler — does the Memmingen site actually have one?
-3. Validation data — file path / sheet name?
-4. Pipe roughness — 0.5 mm (aged) confirmed?
-5. CO₂ price — 1000 €/t as primary?
-6. Time horizon — 8760 h confirmed?
-
-Send the answers as a single message to Claude Code; it will write them to `output/paper_runs/00_user_answers.md` and proceed.
+> "Read EQUATION_VERIFICATION.md and execute it.
+>  Generate output/paper_runs/EQUATION_AUDIT.md and ask me to
+>  decide every fail or warn row before changing code."
 
 ---
 
-## Critical issues recap (already documented inside the files)
+## Pre-run questions (already answered)
+
+All §10 questions answered in `output/paper_runs/00_user_answers.md`. No action needed.
+
+---
+
+## Critical issues (resolved) (already documented inside the files)
 
 | Tag | Issue | Where it lives |
 |---|---|---|
@@ -74,12 +90,12 @@ Everything above is captured inside the deliverables; this README is just an exe
 
 ## After the runs
 
-Once Claude Code reports `Definition-of-Done` (TASKS §11), do this manually:
+Once `run_paper_full.py` completes all 5 phases:
 
-1. Open `Paper_draft.tex` and search for `% INTERNAL TRACKING — REMOVE BEFORE SUBMISSION`. Delete the whole block.
-2. Search for `\todo{`. Resolve every one.
-3. Search for `\placeholder{`. Anything remaining is something `fill_paper.py` could not auto-fill — interpret manually.
-4. Search for `\result{` / `\figref{` to confirm everything resolved to a real number / figure.
-5. Pick the journal (Applied Energy → author-year style; ECM → numbered) and adjust `\bibliographystyle{}`.
+1. Open `output/paper_runs/Paper_filled.tex`. Search `\placeholder{` — anything remaining needs manual fill.
+2. Search `\todo{` — resolve every open issue.
+3. Search `% INTERNAL TRACKING — REMOVE BEFORE SUBMISSION` — delete that block.
+4. Search `\result{` / `\figref{` — confirm all resolved to real numbers / figures.
+5. Journal: **Applied Energy** → `\bibliographystyle{elsarticle-harv}` (already set).
 
 That's the path to a submission-ready draft.
