@@ -8,12 +8,22 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 FIGURE_SCRIPTS = [
-    "scripts.paper.figures.fig_cost_topology",
-    "scripts.paper.figures.fig_cost_extended",
-    "scripts.paper.figures.fig_storage_winterweek",
-    "scripts.paper.figures.fig_dispatch_heatmap",
-    "scripts.paper.figures.fig_solve_time",
-    "scripts.paper.figures.fig_tornado_sensitivity",
+    # No external data needed
+    "scripts.paper.figures.fig_comparison_design",   # F1
+    "scripts.paper.figures.fig_topology",            # F2
+    # Needs run data (placeholder if absent)
+    "scripts.paper.figures.fig_cost_topology",       # F3
+    "scripts.paper.figures.fig_cost_extended",       # F4
+    "scripts.paper.figures.fig_cost_waterfall",      # F5
+    "scripts.paper.figures.fig_pump_pwl_vs_quad",    # F6
+    "scripts.paper.figures.fig_storage_winterweek",  # F7
+    "scripts.paper.figures.fig_storage_charge_hour", # F8
+    "scripts.paper.figures.fig_dispatch_heatmap",    # F9
+    "scripts.paper.figures.fig_synth_topology_gap",  # F10 (Gurobi)
+    "scripts.paper.figures.fig_synth_physics_gap",   # F11 (Gurobi)
+    "scripts.paper.figures.fig_synth_lin_error",     # F12 (Gurobi)
+    "scripts.paper.figures.fig_tornado_sensitivity", # F13
+    "scripts.paper.figures.fig_solve_time",          # F14
 ]
 
 

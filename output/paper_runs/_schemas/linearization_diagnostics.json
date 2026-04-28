@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "linearization_diagnostics.csv",
+  "description": "Per-pipe linearization error metrics — L3+ and L3NL only (§3.6)",
+  "type": "object",
+  "required": [
+    "pipe_id", "K_breakpoints",
+    "dp_PWL_max_err_Pa", "dp_PWL_RMSE_Pa",
+    "phi_PWL_max_err", "taylor_residual_K"
+  ],
+  "properties": {
+    "pipe_id":           {"type": "string"},
+    "K_breakpoints":     {"type": "integer", "minimum": 2},
+    "dp_PWL_max_err_Pa": {"type": "number", "minimum": 0},
+    "dp_PWL_RMSE_Pa":    {"type": "number", "minimum": 0},
+    "phi_PWL_max_err":   {"type": "number", "minimum": 0},
+    "taylor_residual_K": {"type": "number", "minimum": 0}
+  }
+}

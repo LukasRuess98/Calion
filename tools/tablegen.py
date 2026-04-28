@@ -1,4 +1,4 @@
-"""
+r"""
 §7 LaTeX Table Generator
 
 Reads CSVs from output/paper_runs/ and writes booktabs LaTeX snippets
