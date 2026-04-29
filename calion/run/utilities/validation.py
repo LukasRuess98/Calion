@@ -36,8 +36,12 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
         for asset_name in node.get("assets", []):
             asset_cfg = asset_cfgs.get(asset_name, {})
             asset_type = asset_cfg.get("type")
-            if asset_type in ("thermal_generator", "heat_pump"):
+            if asset_type in ("thermal_generator", "heat_pump", "heat_pumps"):
                 capacity = asset_cfg.get("capacity_mw", 0.0)
+                cap += float(capacity)
+            elif asset_type in ("boiler", "chp", "generators", "p2h"):
+                # boiler and chp use thermal_output_mw as their capacity field
+                capacity = asset_cfg.get("thermal_output_mw", 0.0)
                 cap += float(capacity)
 
     # Backward compatibility: single-node legacy config under system key
@@ -45,8 +49,11 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
     for asset_name in system_node.get("assets", []):
         asset_cfg = asset_cfgs.get(asset_name, {})
         asset_type = asset_cfg.get("type")
-        if asset_type in ("thermal_generator", "heat_pump"):
+        if asset_type in ("thermal_generator", "heat_pump", "heat_pumps"):
             capacity = asset_cfg.get("capacity_mw", 0.0)
+            cap += float(capacity)
+        elif asset_type in ("boiler", "chp", "generators", "p2h"):
+            capacity = asset_cfg.get("thermal_output_mw", 0.0)
             cap += float(capacity)
 
     # Old structure fallback

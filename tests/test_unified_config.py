@@ -227,6 +227,47 @@ class TestMultiNodeParsing:
         assert ucfg.nodes["south"].demand.column == "demand_south_MW"
         assert ucfg.nodes["industrial"].demand.column == "demand_industrial_MW"
 
+    def test_consumer_entry_demand_fraction(self):
+        cfg = _5node_cfg()
+        cfg["network"]["nodes"]["north"].pop("demand")
+        cfg["network"]["nodes"]["north"]["consumers"] = [
+            {"column": "waermebedarf_MWth", "demand_fraction": 0.25}
+        ]
+
+        ucfg = parse_unified_config(cfg)
+
+        assert ucfg.nodes["north"].demand_fraction == 0.25
+        assert ucfg.nodes["north"].demands[0].demand_fraction == 0.25
+
+    def test_asset_aliases_are_normalized(self):
+        cfg = _5node_cfg()
+        cfg["assets"]["boiler_alias"] = {
+            "type": "boiler",
+            "fuel": "gas",
+            "thermal_output_mw": 13.0,
+            "thermal_efficiency_total": 0.9,
+        }
+        cfg["assets"]["hp_alias"] = {
+            "type": "heat_pumps",
+            "capacity_mw": 5.0,
+        }
+        cfg["assets"]["eboiler_alias"] = {
+            "type": "boiler",
+            "fuel": "electricity",
+            "thermal_output_mw": 4.0,
+            "thermal_efficiency_total": 0.95,
+        }
+
+        ucfg = parse_unified_config(cfg)
+
+        assert ucfg.assets["boiler_alias"].type == "thermal_generator"
+        assert ucfg.assets["boiler_alias"].params["capacity_mw"] == 13.0
+        assert ucfg.assets["boiler_alias"].params["thermal_efficiency"] == 0.9
+        assert ucfg.assets["hp_alias"].type == "heat_pump"
+        assert ucfg.assets["eboiler_alias"].type == "p2h"
+        assert ucfg.assets["eboiler_alias"].params["capacity_mw"] == 4.0
+        assert ucfg.assets["eboiler_alias"].params["efficiency"] == 0.95
+
     def test_distributed_assets(self):
         cfg = _5node_cfg()
         ucfg = parse_unified_config(cfg)

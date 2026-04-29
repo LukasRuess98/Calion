@@ -210,14 +210,24 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
     if T == 0:
         return pd.DataFrame()
 
-    # Build timestamp index from table if available
+    # Build timestamp index from table if available — always clip to T
     try:
-        timestamps = list(table.index)
+        timestamps = list(table.index)[:T]
+        if len(timestamps) < T:
+            timestamps += [f"t{i}" for i in range(len(timestamps), T)]
     except Exception:
         timestamps = [f"t{i}" for i in range(T)]
 
     def s(key: str) -> list:
-        return series.get(key) or [0.0] * T
+        raw = series.get(key)
+        if not raw:
+            return [0.0] * T
+        # Clip or pad to exactly T to guard against length mismatches
+        if len(raw) > T:
+            return list(raw[:T])
+        if len(raw) < T:
+            return list(raw) + [0.0] * (T - len(raw))
+        return list(raw)
 
     # Map series keys to §3.3 schema columns
     # Network pipe data: read from framework export if available
@@ -234,7 +244,10 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
             pdf = pd.read_csv(pipe_ts, sep=";", index_col=0)
             loss_cols_sup = [c for c in pdf.columns if c.endswith("_Q_loss_supply")]
             loss_cols_ret = [c for c in pdf.columns if c.endswith("_Q_loss_return")]
-            q_loss_total = (pdf[loss_cols_sup].sum(axis=1) + pdf[loss_cols_ret].sum(axis=1)).tolist()
+            raw_loss = (pdf[loss_cols_sup].sum(axis=1) + pdf[loss_cols_ret].sum(axis=1)).tolist()
+            # Clip/pad to T
+            q_loss_total = (raw_loss[:T] if len(raw_loss) >= T
+                            else raw_loss + [0.0] * (T - len(raw_loss)))
         except Exception:
             pass
 
@@ -273,6 +286,11 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
             rows["lambda_buy_eur_MWh"] = list(table[price_col[0]])[:T]
     except Exception:
         pass
+
+    # Final guard: truncate any array that ended up longer than T
+    for k, v in rows.items():
+        if isinstance(v, list) and len(v) != T:
+            rows[k] = (v[:T] if len(v) > T else v + [0.0] * (T - len(v)))
 
     df = pd.DataFrame(rows)
     df.to_csv(outdir / "dispatch_hourly.csv", index=False)

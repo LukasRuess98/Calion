@@ -33,6 +33,9 @@ outputs/dashboard/
 *.xlsx
 *.png
 *.pdf
+# Results
+output/
+outputs/
 
 # IDE settings (personal configurations)
 .vscode/

@@ -115,12 +115,20 @@ def _solve_scenario(
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
 
-        solver_result = opt.solve(model, tee=True)
+        # Defer solution loading until after we inspect the solver status.
+        # Gurobi can return "aborted/maxTimeLimit" with no incumbent for hard
+        # MIQCPs; eager loading raises before we can return useful diagnostics.
+        solver_result = opt.solve(model, tee=True, load_solutions=False)
         solver_meta["solver_used"] = solver_used
         solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
+        try:
+            solution_count = len(solver_result.solution)
+        except Exception:
+            solution_count = 0
+        solver_meta["solution_count"] = solution_count
 
         # Check feasibility BEFORE attempting to read any variable values.
         # Gurobi leaves all variables uninitialized when infeasible — reading them
@@ -158,6 +166,20 @@ def _solve_scenario(
                 table, cfg, dt_h, None
             )
             return ScenarioResult(table, series, summary, costs, solver_meta)
+
+        if solution_count <= 0:
+            logger.error(
+                "Solver returned %s/%s without an incumbent solution. "
+                "No variable values will be extracted.",
+                solver_meta["status"],
+                solver_meta["termination_condition"],
+            )
+            series, summary, costs = _collect_timeseries_and_summary(
+                table, cfg, dt_h, None
+            )
+            return ScenarioResult(table, series, summary, costs, solver_meta)
+
+        model.solutions.load_from(solver_result)
 
         # Export solver solution and thermal network results (only when a solution exists)
         export_cfg = cfg.get('output', {})

@@ -97,7 +97,7 @@ def _preflight_network_check(network_mgr) -> None:
     nodes = network_mgr.nodes
     pipes = network_mgr.pipes
 
-    producer_ids = [nid for nid, n in nodes.items() if n.get('type') == 'producer']
+    producer_ids = [nid for nid, n in nodes.items() if n.get('type') in ('producer', 'mixed')]
     if not producer_ids:
         issues.append("No producer node found in topology (need at least one)")
 
@@ -271,7 +271,16 @@ class ModelFinalizer:
             }
             # Forward multi-consumer demand list (consumers: [...] in YAML)
             if node.demands:
-                node_dict["consumers"] = [{"column": d.column} for d in node.demands]
+                node_dict["consumers"] = [
+                    {
+                        "column": d.column,
+                        **(
+                            {"demand_fraction": d.demand_fraction}
+                            if d.demand_fraction is not None else {}
+                        ),
+                    }
+                    for d in node.demands
+                ]
             elif node.demand is not None:
                 node_dict["demand_column"] = node.demand.column
             if node.demand_fraction is not None:

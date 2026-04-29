@@ -70,16 +70,18 @@ class DemandConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     column: str
+    demand_fraction: float | None = None
 
     @staticmethod
     def from_dict(raw: Any) -> DemandConfig:
         if isinstance(raw, str):
             return DemandConfig(column=raw)
         if isinstance(raw, dict):
-            col = raw.get("column")
+            col = raw.get("column") or raw.get("col") or raw.get("demand_column")
             if not col:
                 raise ValueError("demand config must have 'column' key")
-            return DemandConfig(column=col)
+            fraction = raw.get("demand_fraction", raw.get("fraction", raw.get("share")))
+            return DemandConfig(column=col, demand_fraction=fraction)
         raise ValueError(f"Invalid demand config: {raw!r}")
 
 
@@ -132,7 +134,13 @@ class NodeConfig(BaseModel):
                 f"Node '{node_id}': type must be producer/consumer/junction/mixed, got '{node_type}'"
             )
 
-        demand_fraction = raw.get("demand_fraction", 1.0)
+        demand_fraction = raw.get("demand_fraction")
+        if demand_fraction is None and len(demands) == 1:
+            demand_fraction = demands[0].demand_fraction
+        if demand_fraction is None and demand is not None:
+            demand_fraction = demand.demand_fraction
+        if demand_fraction is None:
+            demand_fraction = 1.0
 
         return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demands=demands, demand_fraction=demand_fraction)
 
@@ -192,7 +200,31 @@ class AssetConfig(BaseModel):
         asset_type = raw.get("type")
         if not asset_type:
             raise ValueError(f"Asset '{asset_id}': must have 'type' field")
+        asset_type = str(asset_type)
         params = {k: v for k, v in raw.items() if k != "type"}
+
+        if asset_type in ("heat_pumps", "hp"):
+            asset_type = "heat_pump"
+        elif asset_type in ("generators", "generator", "boiler", "chp", "thermal_gen"):
+            if params.get("fuel") == "electricity" and asset_type == "boiler":
+                asset_type = "p2h"
+            else:
+                asset_type = "thermal_generator"
+
+        if asset_type in ("thermal_generator", "p2h"):
+            if "capacity_mw" not in params and "thermal_output_mw" in params:
+                params["capacity_mw"] = params["thermal_output_mw"]
+
+        if asset_type == "thermal_generator":
+            if "thermal_efficiency" not in params and "thermal_efficiency_total" in params:
+                params["thermal_efficiency"] = params["thermal_efficiency_total"]
+            if "el_eff" not in params and "electrical_efficiency" in params:
+                params["el_eff"] = params["electrical_efficiency"]
+
+        if asset_type == "p2h":
+            if "efficiency" not in params and "thermal_efficiency_total" in params:
+                params["efficiency"] = params["thermal_efficiency_total"]
+
         return AssetConfig(id=asset_id, type=asset_type, params=params)
 
 
@@ -256,8 +288,8 @@ class UnifiedSystemConfig(BaseModel):
         return {nid: n for nid, n in self.nodes.items() if n.type == "consumer"}
 
     def producer_nodes(self) -> dict[str, NodeConfig]:
-        """Return all producer nodes."""
-        return {nid: n for nid, n in self.nodes.items() if n.type == "producer"}
+        """Return all producer nodes (including mixed nodes that have assets + local demand)."""
+        return {nid: n for nid, n in self.nodes.items() if n.type in ("producer", "mixed")}
 
 
 # ─── Parser ───────────────────────────────────────────────────────────────────
@@ -344,8 +376,8 @@ def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
                 f"Consumer node '{nid}' must have 'demand.column' or 'consumers:' specified"
             )
 
-    # 4. At least one producer node
-    producer_ids = [nid for nid, n in nodes.items() if n.type == "producer"]
+    # 4. At least one producer node (includes "mixed" nodes that have assets + local demand)
+    producer_ids = [nid for nid, n in nodes.items() if n.type in ("producer", "mixed")]
     if not producer_ids and nodes:
         issues.append("At least one producer node is required")
 

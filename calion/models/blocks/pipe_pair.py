@@ -304,12 +304,25 @@ class PipePairBlock(BaseComponent):
             use_heat_loss = config.get('physics', {}).get('heat_loss', True)
 
             if use_heat_loss:
-                # ── Bilinear heat loss formulation ─────────────────────────────
-                # Q_loss = u*L*m_dot*(T_avg - T_ground) / (max_flow * 1e6)
-                # Coefficient O(1e-7..1e-9) on bilinear product → QLMatrix min ~4e-9.
-                # Only enable when heat_loss: true; disable for large pipes (DN≥500)
-                # where the temperature drop is <0.01°C and the tiny coefficients
-                # cause Gurobi BQP/RLT cuts to falsely prove infeasibility.
+                # ── m_dot normalization for numerical stability ────────────────────────
+                # Root cause of false infeasibility: Q_loss = u*L/(max_flow*1e6) * m_dot * ΔT
+                # gives QLMatrix coefficient ~4e-9 for DN1000 (effective_max_flow≈1500 kg/s).
+                # Gurobi's BQP/RLT cuts become unreliable when QLMatrix spans [4e-9, 1]
+                # (ratio ~2.5e8) and prove infeasibility after ~1000s despite feasible LP relaxation.
+                #
+                # Fix: introduce m_dot_frac = m_dot / effective_max_flow ∈ [0, 1].
+                # Heat loss becomes: Q_loss = (u*L/1e6) * m_dot_frac * ΔT
+                # Coefficient u*L/1e6 ≈ 1.4e-5 → QLMatrix [1.4e-5, 1] → ratio ~7e4 (safe zone).
+                # The temp_drop constraints keep m_dot (coefficient cp_mw ≈ 4e-3, already O(1)).
+                m_dot_frac = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0.0, 1.0))
+                setattr(model, f'{prefix}_m_dot_frac', m_dot_frac)
+                setattr(model, f'{prefix}_m_dot_frac_link',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: m_dot[t] == m_dot_frac[t] * effective_max_flow))
+
+                # ── Bilinear heat loss using m_dot_frac ───────────────────────────────
+                # Coefficient u*L/1e6 is O(1e-5..1e-4) — 5 orders of magnitude better
+                # than the old u*L/(max_flow*1e6) ≈ 4e-9 for large-diameter pipes.
                 def heat_loss_supply_rule(m, t):
                     if upgrade_enabled:
                         ins_choice = getattr(m, f'{prefix}_insulation_choice')
@@ -323,8 +336,8 @@ class PipePairBlock(BaseComponent):
                     else:
                         u_eff = u_value_supply
                     T_avg = (T_supply_in[t] + T_supply_out[t]) / 2.0
-                    coeff = u_eff * length_m / (effective_max_flow * 1e6) if effective_max_flow > 0 else 0
-                    return Q_loss_supply[t] == coeff * m_dot[t] * (T_avg - T_ground[t])
+                    coeff = u_eff * length_m / 1e6  # O(1e-5..1e-4) — safe for Gurobi QLMatrix
+                    return Q_loss_supply[t] == coeff * m_dot_frac[t] * (T_avg - T_ground[t])
 
                 setattr(model, f'{prefix}_heat_loss_supply',
                         pyo.Constraint(time_set, rule=heat_loss_supply_rule))
@@ -342,13 +355,14 @@ class PipePairBlock(BaseComponent):
                     else:
                         u_eff = u_value_return
                     T_avg = (T_return_in[t] + T_return_out[t]) / 2.0
-                    coeff = u_eff * length_m / (effective_max_flow * 1e6) if effective_max_flow > 0 else 0
-                    return Q_loss_return[t] == coeff * m_dot[t] * (T_avg - T_ground[t])
+                    coeff = u_eff * length_m / 1e6
+                    return Q_loss_return[t] == coeff * m_dot_frac[t] * (T_avg - T_ground[t])
 
                 setattr(model, f'{prefix}_heat_loss_return',
                         pyo.Constraint(time_set, rule=heat_loss_return_rule))
 
-                # Temperature drop along pipe: m_dot × cp_mw × ΔT = Q_loss (bilinear in m_dot and T)
+                # Temperature drop: m_dot × cp_mw × ΔT = Q_loss  (bilinear in m_dot and T)
+                # Uses original m_dot (not m_dot_frac): cp_mw ≈ 4e-3 → coefficient O(1), already safe.
                 def temp_drop_supply_rule(m, t):
                     return m_dot[t] * cp_mw * (T_supply_in[t] - T_supply_out[t]) == Q_loss_supply[t]
 
@@ -572,9 +586,21 @@ class PipePairBlock(BaseComponent):
         # ─────────────────────────────────────────────────────────────────────────
 
         use_transport_delay = config.get('physics', {}).get('transport_delay', True)
+        if temperature_linearize:
+            useful_heat_expr = Q_delivered
+        else:
+            # In nonlinear mode Q_delivered is measured at the pipe inlet:
+            # m_dot * cp * (T_supply_in - T_return_out). With heat losses this
+            # includes useful consumer heat plus supply and return pipe losses.
+            # Q_consumer must represent the useful heat at the receiving node.
+            useful_heat_expr = {
+                t: Q_delivered[t] - Q_loss_supply[t] - Q_loss_return[t]
+                for t in time_set
+            }
 
         if milp_linearize or not use_transport_delay:
-            # Skip transport delay: Q_consumer == Q_delivered (immediate delivery)
+            # Skip transport delay: Q_consumer equals useful heat arriving at
+            # the receiving node (immediate delivery).
             # Reasons to skip:
             #   - milp_linearize mode: temps are fixed Params, delay adds pointless binaries
             #   - physics.transport_delay: false — user disabled delay (e.g., for large pipes
@@ -583,7 +609,7 @@ class PipePairBlock(BaseComponent):
             #     bilinear temperature constraints, compounding the MIQCQP numerical difficulty)
             setattr(model, f'{prefix}_no_delay',
                     pyo.Constraint(time_set,
-                                   rule=lambda m, t: Q_consumer[t] == Q_delivered[t]))
+                                   rule=lambda m, t: Q_consumer[t] == useful_heat_expr[t]))
             logger.info("  Pipe %s: transport delay skipped (%s)", pipe_id,
                         "milp_linearize mode" if milp_linearize else "physics.transport_delay=false")
             tau_steps = []
@@ -607,68 +633,76 @@ class PipePairBlock(BaseComponent):
                 f"flow bounds={[(f'{lo:.1f}', f'{hi:.1f}') for lo, hi in m_bounds]} kg/s"
             )
 
-            time_list = sorted(list(time_set))
-            t_idx = {t: i for i, t in enumerate(time_list)}
+            if max(tau_steps, default=0) <= 0:
+                setattr(model, f'{prefix}_no_delay',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: Q_consumer[t] == useful_heat_expr[t]))
+                logger.info("  Pipe %s: transport delay skipped (all delay buckets are 0)", pipe_id)
+                tau_steps = []
+                N_BUCKETS = 0
+            else:
+                time_list = sorted(list(time_set))
+                t_idx = {t: i for i, t in enumerate(time_list)}
 
-            z_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.Binary)
-            setattr(model, f'{prefix}_z_delay', z_delay)
+                z_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.Binary)
+                setattr(model, f'{prefix}_z_delay', z_delay)
 
-            setattr(model, f'{prefix}_sos2_delay',
-                    pyo.Constraint(time_set,
-                                   rule=lambda m, t: sum(z_delay[n, t] for n in range(N_BUCKETS)) == 1))
+                setattr(model, f'{prefix}_sos2_delay',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: sum(z_delay[n, t] for n in range(N_BUCKETS)) == 1))
 
-            M_FLOW_BIG = effective_max_flow * 1.1
+                M_FLOW_BIG = effective_max_flow * 1.1
 
-            def delay_flow_lb_rule(m, n, t):
-                m_lower, _ = m_bounds[n]
-                return m_dot[t] >= m_lower * z_delay[n, t]
+                def delay_flow_lb_rule(m, n, t):
+                    m_lower, _ = m_bounds[n]
+                    return m_dot[t] >= m_lower * z_delay[n, t]
 
-            def delay_flow_ub_rule(m, n, t):
-                _, m_upper = m_bounds[n]
-                return m_dot[t] <= m_upper + M_FLOW_BIG * (1 - z_delay[n, t])
+                def delay_flow_ub_rule(m, n, t):
+                    _, m_upper = m_bounds[n]
+                    return m_dot[t] <= m_upper + M_FLOW_BIG * (1 - z_delay[n, t])
 
-            setattr(model, f'{prefix}_delay_flow_lb',
-                    pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_lb_rule))
-            setattr(model, f'{prefix}_delay_flow_ub',
-                    pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_ub_rule))
+                setattr(model, f'{prefix}_delay_flow_lb',
+                        pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_lb_rule))
+                setattr(model, f'{prefix}_delay_flow_ub',
+                        pyo.Constraint(range(N_BUCKETS), time_set, rule=delay_flow_ub_rule))
 
-            M_Q = max_heat_delivered_mw
-            w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
-                              bounds=(0, M_Q))
-            setattr(model, f'{prefix}_w_delay', w_delay)
+                M_Q = max_heat_delivered_mw
+                w_delay = pyo.Var(range(N_BUCKETS), time_set, domain=pyo.NonNegativeReals,
+                                  bounds=(0, M_Q))
+                setattr(model, f'{prefix}_w_delay', w_delay)
 
-            def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
-                i = _tidx[t]
-                if i < tau_steps[n]:
-                    # Warm-up: bound by initial pipe heat flow (default 0 = cold start).
-                    Q_init = config.get('Q_pipe_initial_mw', 0.0)
-                    return w_delay[n, t] <= Q_init
-                delayed_t = _tlist[i - tau_steps[n]]
-                return w_delay[n, t] <= Q_delivered[delayed_t]
+                def w_ub_q_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+                    i = _tidx[t]
+                    if i < tau_steps[n]:
+                        # Warm-up: bound by initial pipe heat flow (default 0 = cold start).
+                        Q_init = config.get('Q_pipe_initial_mw', 0.0)
+                        return w_delay[n, t] <= Q_init
+                    delayed_t = _tlist[i - tau_steps[n]]
+                    return w_delay[n, t] <= useful_heat_expr[delayed_t]
 
-            def w_ub_z_rule(m, n, t):
-                return w_delay[n, t] <= M_Q * z_delay[n, t]
+                def w_ub_z_rule(m, n, t):
+                    return w_delay[n, t] <= M_Q * z_delay[n, t]
 
-            def w_lb_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
-                i = _tidx[t]
-                if i < tau_steps[n]:
-                    # Warm-up period: no lower bound from Q_delivered.
-                    return pyo.Constraint.Skip
-                delayed_t = _tlist[i - tau_steps[n]]
-                return w_delay[n, t] >= Q_delivered[delayed_t] - M_Q * (1 - z_delay[n, t])
+                def w_lb_rule(m, n, t, _tlist=time_list, _tidx=t_idx):
+                    i = _tidx[t]
+                    if i < tau_steps[n]:
+                        # Warm-up period: no lower bound from Q_delivered.
+                        return pyo.Constraint.Skip
+                    delayed_t = _tlist[i - tau_steps[n]]
+                    return w_delay[n, t] >= useful_heat_expr[delayed_t] - M_Q * (1 - z_delay[n, t])
 
-            setattr(model, f'{prefix}_w_ub_q',
-                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_q_rule))
-            setattr(model, f'{prefix}_w_ub_z',
-                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_z_rule))
-            setattr(model, f'{prefix}_w_lb',
-                    pyo.Constraint(range(N_BUCKETS), time_set, rule=w_lb_rule))
+                setattr(model, f'{prefix}_w_ub_q',
+                        pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_q_rule))
+                setattr(model, f'{prefix}_w_ub_z',
+                        pyo.Constraint(range(N_BUCKETS), time_set, rule=w_ub_z_rule))
+                setattr(model, f'{prefix}_w_lb',
+                        pyo.Constraint(range(N_BUCKETS), time_set, rule=w_lb_rule))
 
-            setattr(model, f'{prefix}_delayed_delivery',
-                    pyo.Constraint(time_set,
-                                   rule=lambda m, t: Q_consumer[t] == sum(
-                                       w_delay[n, t] for n in range(N_BUCKETS)
-                                   )))
+                setattr(model, f'{prefix}_delayed_delivery',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: Q_consumer[t] == sum(
+                                           w_delay[n, t] for n in range(N_BUCKETS)
+                                       )))
 
         # ============================================================
         # COST CALCULATION

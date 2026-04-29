@@ -121,15 +121,65 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     ]
     primary_producer_id = producer_node_ids[0] if producer_node_ids else None
 
-    # Pre-collect consumer demand params once (used by producer_no_demand logic)
+    # Pre-collect consumer demand params for the primary producer balance.
+    # Rules:
+    #   - Pure consumer nodes: always included (their demand is served by pipes from j_1;
+    #     demand_heat_rule in network_manager forces Q_pipe == Q_demand, so we can use
+    #     Q_demand as a proxy for the pipe delivery in j_1's balance)
+    #   - Primary mixed producer: included (e.g. single-node L1 where j_1 IS the only
+    #     node — its Q_demand is also its local consumption)
+    #   - Secondary mixed nodes (non-primary producers with local generators + demand):
+    #     EXCLUDED from demand params.  For these nodes the pipe from j_1 carries a
+    #     variable amount of supplemental heat (Q_consumer, not = Q_demand), so we add
+    #     the pipe's Q_consumer variable directly to j_1's balance instead (see
+    #     _secondary_mixed_q_pipes below).  This keeps the global energy balance closed:
+    #       j_1: supply == Σ_consumer_D + Σ_secondary_Q_pipe + losses + dump + charge
+    #       j_5: Q_gen_j5 + Q_pipe_j5 == D_j5 + dump_j5
+    #       Sum: total_gen == total_D + losses + total_dump + charge  ✓
+    # Precompute which nodes have outgoing pipes (needed to distinguish terminal vs passthrough)
+    _nodes_with_outgoing = set()
+    if unified_config is not None:
+        for pipe_cfg in unified_config.pipes.values():
+            _nodes_with_outgoing.add(pipe_cfg.from_node)
+
     _all_consumer_demand_params = []
+    _secondary_mixed_q_pipes = []   # Q_consumer vars for pipes into TERMINAL secondary mixed nodes
     if unified_config is not None:
         for cnid, cnode in unified_config.nodes.items():
-            if cnode.type in ('consumer', 'mixed'):
+            is_consumer = cnode.type == 'consumer'
+            is_primary_mixed = cnode.type == 'mixed' and cnid == primary_producer_id
+            if is_consumer or is_primary_mixed:
                 attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
                 q = getattr(model, attr, None)
                 if q is not None:
                     _all_consumer_demand_params.append(q)
+            elif cnode.type == 'mixed' and cnid != primary_producer_id:
+                is_terminal = cnid not in _nodes_with_outgoing
+                if is_terminal:
+                    # Terminal secondary mixed node (e.g. j_5 in L2):
+                    # Its demand is handled by its own combined balance
+                    # (local_gen + Q_pipe_in = demand + dump), so we use the pipe's
+                    # Q_consumer variable in j_1's balance instead of Q_demand.
+                    # This avoids double-counting while keeping the global energy balance:
+                    #   j_1: supply = Σ_consumer_D + Q_consumer_j5 + losses + dump + C
+                    #   j_5: Q_gen_j5 + Q_consumer_j5 = D_j5 + dump_j5
+                    #   Sum: total_gen = total_D + losses + total_dump + C  ✓
+                    for pipe_id, pipe_cfg in unified_config.pipes.items():
+                        if pipe_cfg.to_node == cnid:
+                            pipe_pfx = pipe_id.upper().replace('-', '_')
+                            qp = getattr(model, f'{pipe_pfx}_Q_consumer',
+                                         getattr(model, f'{pipe_pfx}_Q_delivered', None))
+                            if qp is not None:
+                                _secondary_mixed_q_pipes.append(qp)
+                else:
+                    # Non-terminal secondary mixed node (e.g. j_12 in L3):
+                    # It passes heat downstream — keep its demand in the primary balance.
+                    # Adding Q_consumer for its incoming pipe would double-count the
+                    # downstream demands (j_13+j_14+j_15) that flow through it.
+                    attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
+                    q = getattr(model, attr, None)
+                    if q is not None:
+                        _all_consumer_demand_params.append(q)
 
     # Per-node heat balance constraints
     for node_id, node_cfg in unified_config.nodes.items():
@@ -148,49 +198,127 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             # Secondary producers (e.g. heat pump at a junction) only balance their
             # own local demand (if any) — the pipe network propagates their output.
             if _is_primary:
-                # Sum all consumer Q_demand params (includes mixed-node local demands)
                 consumer_demand_params = _all_consumer_demand_params
+                secondary_q_pipes = _secondary_mixed_q_pipes
 
                 def primary_producer_balance(
-                    m, t, _out=ht_out, _in=ht_in, _d=dump_var, _qc=consumer_demand_params
+                    m, t, _out=ht_out, _in=ht_in, _d=dump_var,
+                    _qc=consumer_demand_params, _qp=secondary_q_pipes
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
                     network_loss = 0
                     if hasattr(m, 'network_Q_loss_per_timestep'):
                         network_loss = m.network_Q_loss_per_timestep[t]
-                    return supply == _d[t] + charge + network_loss + sum(q[t] for q in _qc)
+                    # Consumer demands: use Q_demand param (= Q_pipe via demand_heat_rule)
+                    # Secondary mixed nodes: use actual Q_consumer pipe variable (variable,
+                    # not fixed to D_j5) so the optimizer can set pipe flow freely.
+                    return supply == (_d[t] + charge + network_loss
+                                      + sum(q[t] for q in _qc)
+                                      + sum(qp[t] for qp in _qp))
 
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=primary_producer_balance))
             else:
-                # Secondary producer: balance against own local demand only (if any)
+                # Secondary producer: balance against own local demand (if any).
+                # For mixed nodes that also receive network heat via an incoming pipe,
+                # the pipe delivery supplements local generation:
+                #   local_gen + Q_pipe_in == demand + dump + charge
+                # This replaces the old "supply == demand + dump" which double-counted
+                # demand when the primary balance already required j_1 to cover it.
                 has_local_demand = (
                     (node_cfg.demand is not None or node_cfg.demands)
                     and hasattr(model, f"heatd_{node_id}")
                 )
+
+                # Find incoming pipe's Q_consumer variable (first incoming pipe in tree)
+                q_pipe_in = None
+                if unified_config is not None:
+                    for pipe_id, pipe_cfg in unified_config.pipes.items():
+                        if pipe_cfg.to_node == node_id:
+                            pipe_pfx = pipe_id.upper().replace('-', '_')
+                            q_pipe_in = getattr(
+                                model, f'{pipe_pfx}_Q_consumer',
+                                getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            )
+                            break  # use first (typically only) incoming pipe
+
+                # Collect outgoing pipes' Q_delivered variables.
+                # For non-terminal nodes (e.g. j_12 in L3) the heat balance must include
+                # the supply-side heat leaving into downstream pipes:
+                #   Q_gen + Q_consumer_in = D_node + Q_delivered_out + dump + charge
+                # For terminal nodes there are no outgoing pipes, so the sum is empty and
+                # the constraint reduces to the standard combined balance.
+                q_pipes_out: list = []
+                if unified_config is not None:
+                    for pipe_id, pipe_cfg in unified_config.pipes.items():
+                        if pipe_cfg.from_node == node_id:
+                            pipe_pfx = pipe_id.upper().replace('-', '_')
+                            qd = getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            if qd is not None:
+                                q_pipes_out.append(qd)
+
                 if has_local_demand:
                     demand_param = getattr(model, f"heatd_{node_id}")
 
-                    def secondary_producer_balance(
-                        m, t, _out=ht_out, _in=ht_in, _d=dump_var, _dem=demand_param
-                    ):
-                        supply = sum((f[t] for f in _out), start=0)
-                        charge = sum((f[t] for f in _in), start=0)
-                        return supply == _dem[t] + _d[t] + charge
+                    if q_pipe_in is not None:
+                        # Combined balance (works for both terminal and non-terminal):
+                        #   local_gen + pipe_in = demand + Σ_out_delivered + dump + charge
+                        # Terminal nodes: q_pipes_out is empty → reduces to the simple form.
+                        # Non-terminal nodes: q_pipes_out accounts for downstream heat so
+                        # the pass-through flow no longer inflates the dump term.
+                        def secondary_combined_balance(
+                            m, t, _out=ht_out, _in=ht_in, _d=dump_var,
+                            _dem=demand_param, _qp=q_pipe_in, _qpo=q_pipes_out
+                        ):
+                            supply = sum((f[t] for f in _out), start=0)
+                            charge = sum((f[t] for f in _in), start=0)
+                            return (supply + _qp[t]
+                                    == _dem[t] + sum(qo[t] for qo in _qpo) + _d[t] + charge)
 
-                    setattr(model, f"ht_balance_{node_id}",
-                            pyo.Constraint(model.t, rule=secondary_producer_balance))
+                        setattr(model, f"ht_balance_{node_id}",
+                                pyo.Constraint(model.t, rule=secondary_combined_balance))
+                        logger.info(
+                            "[CONSTRAINT] Secondary mixed %s: combined balance "
+                            "(local_gen + pipe_in = demand + %d downstream pipes + dump)",
+                            node_id, len(q_pipes_out)
+                        )
+                    else:
+                        # No incoming pipe (satellite plant): generators alone cover demand
+                        def secondary_producer_balance(
+                            m, t, _out=ht_out, _in=ht_in, _d=dump_var, _dem=demand_param
+                        ):
+                            supply = sum((f[t] for f in _out), start=0)
+                            charge = sum((f[t] for f in _in), start=0)
+                            return supply == _dem[t] + _d[t] + charge
+
+                        setattr(model, f"ht_balance_{node_id}",
+                                pyo.Constraint(model.t, rule=secondary_producer_balance))
                 else:
-                    def secondary_producer_no_demand(
-                        m, t, _out=ht_out, _in=ht_in, _d=dump_var
-                    ):
-                        supply = sum((f[t] for f in _out), start=0)
-                        charge = sum((f[t] for f in _in), start=0)
-                        return supply == _d[t] + charge
+                    if q_pipe_in is not None:
+                        # No local demand but has incoming pipe:
+                        #   gen + pipe_in = Σ_out_delivered + dump + charge
+                        def secondary_no_demand_with_pipe(
+                            m, t, _out=ht_out, _in=ht_in, _d=dump_var,
+                            _qp=q_pipe_in, _qpo=q_pipes_out
+                        ):
+                            supply = sum((f[t] for f in _out), start=0)
+                            charge = sum((f[t] for f in _in), start=0)
+                            return (supply + _qp[t]
+                                    == sum(qo[t] for qo in _qpo) + _d[t] + charge)
 
-                    setattr(model, f"ht_balance_{node_id}",
-                            pyo.Constraint(model.t, rule=secondary_producer_no_demand))
+                        setattr(model, f"ht_balance_{node_id}",
+                                pyo.Constraint(model.t, rule=secondary_no_demand_with_pipe))
+                    else:
+                        def secondary_producer_no_demand(
+                            m, t, _out=ht_out, _in=ht_in, _d=dump_var
+                        ):
+                            supply = sum((f[t] for f in _out), start=0)
+                            charge = sum((f[t] for f in _in), start=0)
+                            return supply == _d[t] + charge
+
+                        setattr(model, f"ht_balance_{node_id}",
+                                pyo.Constraint(model.t, rule=secondary_producer_no_demand))
 
             logger.info("[CONSTRAINT] Producer/mixed %s: heat balance with %d sources, %d sinks",
                         node_id, len(ht_out), len(ht_in))

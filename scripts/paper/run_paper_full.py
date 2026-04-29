@@ -173,8 +173,20 @@ def _load_yaml(path: Path) -> dict:
 def _dump_yaml(cfg: dict, path: Path) -> None:
     try:
         import yaml
-        path.write_text(yaml.dump(cfg, allow_unicode=True, default_flow_style=False,
-                                  sort_keys=False), encoding="utf-8")
+
+        # simple_yaml requires list items at STRICTLY greater indent than the
+        # parent key.  PyYAML's default Dumper writes them at the same level
+        # (indentless sequences), which breaks parsing.  Override increase_indent
+        # to always indent list items by the full indent width.
+        class _IndentedDumper(yaml.Dumper):
+            def increase_indent(self, flow=False, **_):
+                return super().increase_indent(flow=flow, indentless=False)
+
+        path.write_text(
+            yaml.dump(cfg, Dumper=_IndentedDumper, allow_unicode=True,
+                      default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
     except ImportError:
         raise RuntimeError("PyYAML required: pip install pyyaml")
 

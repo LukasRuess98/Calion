@@ -296,6 +296,15 @@ def load_input_excel(
     # fill missing numbers using simple forward/backward fill
     for key, values in data.items():
         data[key] = fill_gaps(values)
+        if key == "waermebedarf_MWth" or demand_pattern.match(key):
+            negative_count = sum(1 for value in data[key] if value < 0)
+            if negative_count:
+                logger.warning(
+                    "[LOAD] Clipping %d negative heat demand value(s) to zero in column '%s'",
+                    negative_count,
+                    key,
+                )
+                data[key] = [max(0.0, value) for value in data[key]]
         _require(all(v == v for v in data[key]), f"NaN in column {key}")
 
     dt_hours = float(dt_hours if dt_hours is not None else site_cfg.get("dt_h", 1.0))
@@ -333,4 +342,3 @@ def load_input_excel(
     )
 
     return table
-

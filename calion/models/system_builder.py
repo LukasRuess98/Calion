@@ -123,18 +123,31 @@ def _build_model_unified(
         # Multi-node: per-node demand parameters
         m.node_demand = {}
         for nid, node in ucfg.nodes.items():
-            # Collect all demand columns for this node (singular + list)
-            node_demand_cols = []
+            # Collect all demand columns for this node (singular + list).
+            # Each entry keeps its own fraction; for legacy single-demand nodes
+            # the node-level demand_fraction is the scaling factor.
+            node_demand_specs = []
             if node.demand is not None:
-                node_demand_cols.append(_find_demand_column(table, node.demand.column))
+                node_demand_specs.append((
+                    _find_demand_column(table, node.demand.column),
+                    node.demand.demand_fraction
+                    if node.demand.demand_fraction is not None
+                    else node.demand_fraction,
+                ))
             for d in node.demands:
-                node_demand_cols.append(_find_demand_column(table, d.column))
-            if node_demand_cols:
+                node_demand_specs.append((
+                    _find_demand_column(table, d.column),
+                    d.demand_fraction
+                    if d.demand_fraction is not None
+                    else (node.demand_fraction if len(node.demands) == 1 else 1.0),
+                ))
+            if node_demand_specs:
                 # For multi-consumer nodes, create indexed parameters
-                if len(node_demand_cols) > 1:
-                    for consumer_idx, col in enumerate(node_demand_cols):
+                if len(node_demand_specs) > 1:
+                    for consumer_idx, (col, frac) in enumerate(node_demand_specs):
+                        frac = 1.0 if frac is None else float(frac)
                         demand_data = {
-                            i + 1: float(table[col][i])
+                            i + 1: float(table[col][i]) * frac
                             for i in range(T)
                         }
                         param_name = f"heatd_{nid}_{consumer_idx}"
@@ -142,7 +155,10 @@ def _build_model_unified(
                 
                 # Always create the aggregated parameter (for both single and multi-consumer)
                 demand_data = {
-                    i + 1: sum(float(table[col][i]) for col in node_demand_cols)
+                    i + 1: sum(
+                        float(table[col][i]) * (1.0 if frac is None else float(frac))
+                        for col, frac in node_demand_specs
+                    )
                     for i in range(T)
                 }
                 param_name = f"heatd_{nid}"
@@ -150,16 +166,29 @@ def _build_model_unified(
                 m.node_demand[nid] = getattr(m, param_name)
 
         # Also create global m.heatd as sum of all node demands (for compatibility)
-        all_demand_cols = []
+        all_demand_specs = []
         for node in ucfg.nodes.values():
             if node.demand is not None:
                 actual_col = _find_demand_column(table, node.demand.column)
-                all_demand_cols.append(actual_col)
+                frac = (
+                    node.demand.demand_fraction
+                    if node.demand.demand_fraction is not None
+                    else node.demand_fraction
+                )
+                all_demand_specs.append((actual_col, frac))
             for d in node.demands:
-                all_demand_cols.append(_find_demand_column(table, d.column))
-        if all_demand_cols:
+                all_demand_specs.append((
+                    _find_demand_column(table, d.column),
+                    d.demand_fraction
+                    if d.demand_fraction is not None
+                    else (node.demand_fraction if len(node.demands) == 1 else 1.0),
+                ))
+        if all_demand_specs:
             global_demand = {
-                i + 1: sum(float(table[col][i]) for col in all_demand_cols)
+                i + 1: sum(
+                    float(table[col][i]) * (1.0 if frac is None else float(frac))
+                    for col, frac in all_demand_specs
+                )
                 for i in range(T)
             }
         else:

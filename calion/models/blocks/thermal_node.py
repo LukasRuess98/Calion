@@ -220,9 +220,28 @@ class ThermalNodeBlock(BaseComponent):
                     setattr(model, f'{prefix}_m_dot_demand_{i}',
                             pyo.Var(time_set, domain=pyo.NonNegativeReals))
 
+                # Aggregate Q_demand Param = sum of per-consumer demands.
+                # network_manager constraint rules expect a subscriptable Q_demand[t].
+                # Must be created before m_dot_demand so _mdot_ub can use Q_demand.
+                def _q_agg_init(m, t, _pfx=prefix, _n=n_consumers):
+                    return sum(pyo.value(getattr(m, f'{_pfx}_Q_demand_{ii}')[t])
+                               for ii in range(_n))
+                setattr(model, f'{prefix}_Q_demand',
+                        pyo.Param(time_set, initialize=_q_agg_init))
+                Q_demand = getattr(model, f'{prefix}_Q_demand')
+
+                # Compute UB for aggregate m_dot_demand (same logic as single-consumer)
+                _dT_min = max(supply_temp_min - return_temp_c, 5.0)
+                _cp_mw = cp_water / 1000
+                _q_peak = max(
+                    (pyo.value(Q_demand[t]) for t in time_set),
+                    default=10.0
+                )
+                _mdot_ub = _q_peak / (_cp_mw * _dT_min) * 1.5
+
                 # Aggregate m_dot_demand = sum of per-consumer flows
                 setattr(model, f'{prefix}_m_dot_demand',
-                        pyo.Var(time_set, domain=pyo.NonNegativeReals))
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, _mdot_ub)))
                 m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 
                 def _m_dot_sum_rule(m, t, _n=n_consumers, _pfx=prefix):
@@ -232,54 +251,47 @@ class ThermalNodeBlock(BaseComponent):
                 setattr(model, f'{prefix}_m_dot_demand_sum',
                         pyo.Constraint(time_set, rule=_m_dot_sum_rule))
 
-                # Aggregate Q_demand Param = sum of per-consumer demands.
-                # network_manager constraint rules expect a subscriptable Q_demand[t].
-                def _q_agg_init(m, t, _pfx=prefix, _n=n_consumers):
-                    return sum(pyo.value(getattr(m, f'{_pfx}_Q_demand_{ii}')[t])
-                               for ii in range(_n))
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=_q_agg_init))
+            else:
+                # Single-consumer: create Q_demand from heatd param or demand profile
+                _node_heatd_attr = f'heatd_{node_id}'
+                _demand_fraction = config.get('demand_fraction', 1.0)
+                if hasattr(model, _node_heatd_attr):
+                    # Prefer node-specific demand param (avoids triple-counting when multiple
+                    # consumer nodes reference the same demand column — m.heatd is their sum)
+                    _node_heatd = getattr(model, _node_heatd_attr)
+                    def demand_init(m, t, _h=_node_heatd, _frac=_demand_fraction):
+                        return pyo.value(_h[t]) * _frac
+                    setattr(model, f'{prefix}_Q_demand',
+                            pyo.Param(time_set, initialize=demand_init))
+                elif hasattr(model, 'heatd'):
+                    def demand_init(m, t, _frac=_demand_fraction):
+                        return pyo.value(m.heatd[t]) * _frac
+                    setattr(model, f'{prefix}_Q_demand',
+                            pyo.Param(time_set, initialize=demand_init))
+                elif 'demand_profile' in config:
+                    demand_profile = config['demand_profile']
+                    setattr(model, f'{prefix}_Q_demand',
+                            pyo.Param(time_set, initialize=demand_profile))
+                else:
+                    raise ValueError(f"Consumer node {node_id}: no demand data available")
+
                 Q_demand = getattr(model, f'{prefix}_Q_demand')
 
-            _node_heatd_attr = f'heatd_{node_id}'
-            _demand_fraction = config.get('demand_fraction', 1.0)
-            if hasattr(model, _node_heatd_attr):
-                # Prefer node-specific demand param (avoids triple-counting when multiple
-                # consumer nodes reference the same demand column — m.heatd is their sum)
-                _node_heatd = getattr(model, _node_heatd_attr)
-                def demand_init(m, t, _h=_node_heatd, _frac=_demand_fraction):
-                    return pyo.value(_h[t]) * _frac
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_init))
-            elif hasattr(model, 'heatd'):
-                def demand_init(m, t, _frac=_demand_fraction):
-                    return pyo.value(m.heatd[t]) * _frac
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_init))
-            elif 'demand_profile' in config:
-                demand_profile = config['demand_profile']
-                setattr(model, f'{prefix}_Q_demand',
-                        pyo.Param(time_set, initialize=demand_profile))
-            else:
-                raise ValueError(f"Consumer node {node_id}: no demand data available")
+                # Compute upper bound on m_dot_demand for McCormick relaxation quality.
+                # Without an explicit UB the bilinear product m_dot_demand × T_supply has
+                # only a one-sided McCormick envelope, making BQP cuts ineffective.
+                # UB = peak_Q / (cp/1000 × ΔT_min) where ΔT_min = T_supply_min - T_return.
+                _dT_min = max(supply_temp_min - return_temp_c, 5.0)  # at least 5°C
+                _cp_mw = cp_water / 1000
+                _q_peak = max(
+                    (pyo.value(Q_demand[t]) for t in time_set),
+                    default=10.0
+                )
+                _mdot_ub = _q_peak / (_cp_mw * _dT_min) * 1.5  # 50% safety margin
 
-            Q_demand = getattr(model, f'{prefix}_Q_demand')
-
-            # Compute upper bound on m_dot_demand for McCormick relaxation quality.
-            # Without an explicit UB the bilinear product m_dot_demand × T_supply has
-            # only a one-sided McCormick envelope, making BQP cuts ineffective.
-            # UB = peak_Q / (cp/1000 × ΔT_min) where ΔT_min = T_supply_min - T_return.
-            _dT_min = max(supply_temp_min - return_temp_c, 5.0)  # at least 5°C
-            _cp_mw = cp_water / 1000
-            _q_peak = max(
-                (pyo.value(Q_demand[t]) for t in time_set),
-                default=10.0
-            )
-            _mdot_ub = _q_peak / (_cp_mw * _dT_min) * 1.5  # 50% safety margin
-
-            setattr(model, f'{prefix}_m_dot_demand',
-                    pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, _mdot_ub)))
-            m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
+                setattr(model, f'{prefix}_m_dot_demand',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, _mdot_ub)))
+                m_dot_demand = getattr(model, f'{prefix}_m_dot_demand')
 
             # Valve differential pressure — absorbs excess pump head at consumer stations.
             delta_p_min_station = config.get('delta_p_min_consumer_bar', 0.7)

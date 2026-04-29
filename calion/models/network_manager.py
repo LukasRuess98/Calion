@@ -605,10 +605,10 @@ class NetworkManager:
                         pyo.Constraint(time_set, rule=return_link_rule))
                 logger.info(f"    {pipe_id}.T_return_in ← {to_node}.T_return")
 
-            # Track return pipes for producer nodes (used by _link_plant_return_temps)
+            # Track return pipes for producer/mixed nodes (used by _link_plant_return_temps)
             if from_node in node_components:
                 from_node_comp = node_components[from_node]
-                if from_node_comp['type'] == 'producer':
+                if from_node_comp['type'] in ('producer', 'mixed'):
                     if 'return_pipes' not in from_node_comp:
                         from_node_comp['return_pipes'] = []
                     from_node_comp['return_pipes'].append(pipe_id)
@@ -630,6 +630,15 @@ class NetworkManager:
             node_Q_demand = node_comp.get('Q_demand')
 
             if len(incoming_pipes) == 1 and not has_outgoing:
+                # Mixed terminal nodes: constraint_builder adds a combined balance
+                #   (local_gen + Q_pipe_in = demand + dump).  Forcing Q_pipe == demand
+                #   here would double-count demand alongside that combined balance.
+                if node_comp['type'] == 'mixed':
+                    logger.info(
+                        f"  ✓ {node_id} (mixed terminal — combined balance in constraint_builder)"
+                    )
+                    continue
+
                 # Simple terminal consumer: one pipe in, no downstream
                 pipe_id = incoming_pipes[0]
                 pipe_comp = pipe_components[pipe_id]
@@ -892,9 +901,11 @@ class NetworkManager:
         """
         logger.info("\nSetting up pressure propagation constraints...")
 
-        # Fix producer supply pressure setpoints
+        # Fix producer supply pressure setpoints. Mixed nodes have assets and
+        # local demand, so they behave as pressure sources for the hydraulic
+        # model too.
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] != 'producer':
+            if node_comp['type'] not in ('producer', 'mixed'):
                 continue
             node_cfg = self.nodes.get(node_id, {})
             setpoint = node_cfg.get('pressure', {}).get('setpoint_bar', 10.0)
@@ -916,9 +927,9 @@ class NetworkManager:
                 f"P_return determined by pump head"
             )
 
-        # Collect producer node IDs (have fixed pressure setpoints)
+        # Collect producer/mixed node IDs (have fixed pressure setpoints)
         producer_nodes = {
-            nid for nid, nc in node_components.items() if nc['type'] == 'producer'
+            nid for nid, nc in node_components.items() if nc['type'] in ('producer', 'mixed')
         }
 
         # Propagate pressure through pipes
@@ -1024,7 +1035,7 @@ class NetworkManager:
             from_node = pipe_comp['from_node']
             if from_node not in node_components:
                 continue
-            if node_components[from_node]['type'] != 'producer':
+            if node_components[from_node]['type'] not in ('producer', 'mixed'):
                 continue
 
             producer_pipes.setdefault(from_node, []).append((pipe_id, pipe_comp))

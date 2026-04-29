@@ -1,187 +1,72 @@
 [
   {
     "phase": 1,
+    "run_id": "L1",
+    "status": "ok",
+    "solve_s": 186.8,
+    "obj_eur": -3906.685985950504
+  },
+  {
+    "phase": 1,
+    "run_id": "L2",
+    "status": "ok",
+    "solve_s": 457.9,
+    "obj_eur": 90524.21174399578
+  },
+  {
+    "phase": 1,
+    "run_id": "L3",
+    "status": "ok",
+    "solve_s": 701.5,
+    "obj_eur": 646278.3305154605
+  },
+  {
+    "phase": 1,
+    "run_id": "L3plus",
+    "status": "ok",
+    "solve_s": 802.6,
+    "obj_eur": 646278.3305154605
+  },
+  {
+    "phase": 1,
     "run_id": "L3NL",
-    "status": "skipped"
+    "status": "error",
+    "error": "Perfect Foresight optimization failed: infeasibleorunbounded. Hint: Verify generator capacities, storage configuration, and input data."
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p1_s12h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_baseline",
+    "status": "ok",
+    "solve_s": 195.1
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_gas_high",
+    "status": "ok",
+    "solve_s": 185.3
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p4_s12h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_elec_low",
+    "status": "ok",
+    "solve_s": 182.4
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p4_s6h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_co2_high",
+    "status": "ok",
+    "solve_s": 186.1
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p8_s2h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_co2_market",
+    "status": "ok",
+    "solve_s": 185.0
   },
   {
-    "phase": 3,
-    "run_id": "synth_n05_L15p0km_hi0p8_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L1p0km_hi0p4_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L1p0km_hi0p4_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L1p0km_hi0p4_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L5p0km_hi0p1_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L5p0km_hi0p1_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L5p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L5p0km_hi0p4_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n05_L5p0km_hi0p8_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L15p0km_hi0p1_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L15p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L15p0km_hi0p4_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L15p0km_hi0p8_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L1p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L1p0km_hi0p8_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L1p0km_hi0p8_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L5p0km_hi0p1_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L5p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L5p0km_hi0p4_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n15_L5p0km_hi0p8_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p1_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p1_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p4_s12h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p4_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L15p0km_hi0p8_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L5p0km_hi0p1_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L5p0km_hi0p1_s6h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L5p0km_hi0p4_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L5p0km_hi0p8_s2h_L3NL",
-    "status": "skipped"
-  },
-  {
-    "phase": 3,
-    "run_id": "synth_n30_L5p0km_hi0p8_s6h_L3NL",
-    "status": "skipped"
+    "phase": 2,
+    "run_id": "L1_cold",
+    "status": "ok",
+    "solve_s": 385.8
   }
 ]
