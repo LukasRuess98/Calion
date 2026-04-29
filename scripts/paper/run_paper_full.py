@@ -2,19 +2,24 @@
 Full paper run orchestrator — executes all phases in order.
 
 Phases:
-  1. Primary runs     (§2): L1, L2, L3, L3+, L3NL
-  2. Sensitivity runs (§4): 7 scenarios x L1/L2/L3/L3+
-  3. Synthetic runs   (§5): 36 configs x 5 levels = 180 runs
-  4. Tables           (§7): tablegen.py
-  5. Fill paper       (§8): fill_paper.py --auto
+  0. Validation       (§4.2): legacy model + two-stage validation pipeline
+  1. Primary runs     (§2):   L1, L2, L3, L3+, L3NL
+  2. Sensitivity runs (§4):   8 scenarios x L1/L2/L3/L3+
+  3. Synthetic runs   (§5):   36 configs x 5 levels = 180 runs
+  4. Tables           (§7):   tools/tablegen.py
+  5. Figures          (§8):   tools/figgen.py
+  6. Fill paper       (§9):   tools/fill_paper.py --auto
 
 Usage:
-    python scripts/paper/run_paper_full.py                  # all phases
-    python scripts/paper/run_paper_full.py --phases 1 2     # only primary + sensitivity
-    python scripts/paper/run_paper_full.py --phases 3       # only synthetic
-    python scripts/paper/run_paper_full.py --phases 4 5     # tables + fill paper
-    python scripts/paper/run_paper_full.py --skip-nl        # skip all L3NL runs (no Gurobi)
-    python scripts/paper/run_paper_full.py --dry-run        # print plan, do not run
+    python scripts/paper/run_paper_full.py                   # all phases
+    python scripts/paper/run_paper_full.py --phases 0        # validation only
+    python scripts/paper/run_paper_full.py --phases 1 2      # primary + sensitivity
+    python scripts/paper/run_paper_full.py --phases 3        # synthetic only
+    python scripts/paper/run_paper_full.py --phases 4 5 6    # tables + figures + fill
+    python scripts/paper/run_paper_full.py --skip-nl         # skip all L3NL runs (no Gurobi)
+    python scripts/paper/run_paper_full.py --dry-run         # print plan, do not run
+    python scripts/paper/run_paper_full.py --phases 0 --skip-model  # validation, reuse legacy run
+    python scripts/paper/run_paper_full.py --phases 5 --figs F2 FV1  # specific figures only
 
 Notes:
   - L1/L2/L3/L3+ fall back to HiGHS if Gurobi is unavailable.
@@ -22,6 +27,8 @@ Notes:
   - Results go to output/paper_runs/<run_id>/.
   - Sensitivity to output/paper_runs/sensitivity/<level>_<scenario>/.
   - Synthetic  to output/paper_runs/synth/<synth_id>_<level>/.
+  - Validation to output/validation/.
+  - Figures    to output/paper_runs/figures/.
 """
 from __future__ import annotations
 
@@ -101,7 +108,7 @@ PRIMARY_RUNS = [
 # ──────────────────────────────────────────────────────────────────────────────
 
 SENSITIVITY_SCENARIOS = {
-    "baseline": {},
+    "baseline":  {},
     "gas_high":  {"fuels": {"gas": {"price_eur_mwh": 54.0}}},           # x1.20
     "elec_low":  {"_market_scale": 0.80},                                # spot x0.80 (applied at runtime)
     "co2_high":  {"costs": {"co2_price_eur_per_t": 200.0}},
@@ -166,7 +173,6 @@ def _load_yaml(path: Path) -> dict:
         import yaml
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except ImportError:
-        import json as _json
         raise RuntimeError("PyYAML required: pip install pyyaml")
 
 
@@ -174,10 +180,9 @@ def _dump_yaml(cfg: dict, path: Path) -> None:
     try:
         import yaml
 
-        # simple_yaml requires list items at STRICTLY greater indent than the
-        # parent key.  PyYAML's default Dumper writes them at the same level
-        # (indentless sequences), which breaks parsing.  Override increase_indent
-        # to always indent list items by the full indent width.
+        # PyYAML's default Dumper writes list items at the same indent level as
+        # the parent key (indentless sequences), which breaks calion's YAML parser.
+        # _IndentedDumper forces list items to be indented by the full indent width.
         class _IndentedDumper(yaml.Dumper):
             def increase_indent(self, flow=False, **_):
                 return super().increase_indent(flow=flow, indentless=False)
@@ -227,7 +232,77 @@ def _record(log: list[dict], entry: dict) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Phase runners
+# Phase 0 — Validation (NEW)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def phase0_validation(skip_model: bool, dry_run: bool, log: list) -> None:
+    """
+    Two-stage validation pipeline (tools/validation_runner.py).
+
+    Stage 1: Runs legacy-only model (HP/TES/EBoiler capacity=0) then compares
+             simulated T_supply, T_return, flow against historical Excel data.
+    Stage 2: Asset plausibility checks from L3 dispatch (COP bounds, eboiler
+             price-response, TES SOC, energy balance).
+
+    Outputs → output/validation/
+      stage1_timeseries_{winter,summer}.png
+      stage1_error_histograms.png
+      stage1_scatter_Tsupply.png
+      stage1_heatmap_Terr.png
+      stage2_COP_scatter.png
+      stage2_eboiler_price.png
+      stage2_TES_SOC.png
+      stage2_energy_stacked_bar.png
+      validation_summary_table.png
+      validation_report.md
+      kpis.json           ← read by fill_paper.py --auto
+    """
+    print("\n" + "="*70)
+    print("PHASE 0 — Validation pipeline (§4.2)")
+    print("="*70)
+
+    val_script = ROOT / "tools" / "validation_runner.py"
+    if not val_script.exists():
+        print(f"  [WARN] {val_script} not found — copy tools/validation_runner.py first")
+        _record(log, {"phase": 0, "status": "missing_script"})
+        return
+
+    cmd = [sys.executable, str(val_script)]
+    if dry_run:
+        cmd.append("--dry-run")
+    if skip_model:
+        cmd.append("--skip-model")
+
+    print(f"  [CMD] {' '.join(cmd)}")
+    if dry_run:
+        print("  [DRY] Would run two-stage validation pipeline")
+        return
+
+    t0 = time.perf_counter()
+    result = subprocess.run(cmd, cwd=ROOT, capture_output=False, text=True)
+    elapsed = time.perf_counter() - t0
+
+    # returncode 1 = threshold warning (not a crash), still log as warn
+    status = "ok" if result.returncode == 0 else "warn_threshold"
+    print(f"\n  [PHASE 0] done in {elapsed:.0f}s — status={status}")
+
+    _record(log, {"phase": 0, "status": status, "solve_s": round(elapsed, 1)})
+
+    # Print KPI summary from kpis.json
+    kpi_path = ROOT / "output" / "validation" / "kpis.json"
+    if kpi_path.exists():
+        try:
+            kpis = json.loads(kpi_path.read_text())
+            print("  Stage 1 KPIs:")
+            for k, v in kpis.get("stage1", {}).items():
+                if isinstance(v, (int, float)):
+                    print(f"    {k}: {v:.4f}")
+        except Exception:
+            pass
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 1 — Primary runs
 # ──────────────────────────────────────────────────────────────────────────────
 
 def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> None:
@@ -236,10 +311,10 @@ def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> Non
     print("="*70)
 
     for spec in PRIMARY_RUNS:
-        run_id  = spec["run_id"]
-        config  = spec["config"]
+        run_id    = spec["run_id"]
+        config    = spec["config"]
         overrides = spec.get("overrides")
-        needs_g = spec["needs_gurobi"]
+        needs_g   = spec["needs_gurobi"]
 
         if (needs_g and not gurobi) or (skip_nl and run_id == "L3NL"):
             print(f"\n[SKIP] {run_id} — {'no Gurobi' if needs_g else 'skip-nl flag'}")
@@ -274,8 +349,13 @@ def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> Non
         except Exception as exc:
             elapsed = time.perf_counter() - t0
             print(f"      ERROR after {elapsed:.1f}s: {exc}")
-            _record(log, {"phase": 1, "run_id": run_id, "status": "error", "error": str(exc)})
+            _record(log, {"phase": 1, "run_id": run_id, "status": "error",
+                          "error": str(exc)})
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 2 — Sensitivity runs
+# ──────────────────────────────────────────────────────────────────────────────
 
 def phase2_sensitivity(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> None:
     print("\n" + "="*70)
@@ -286,7 +366,8 @@ def phase2_sensitivity(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) ->
     sens_base.mkdir(parents=True, exist_ok=True)
 
     combos = [(lvl, sc) for lvl in SENSITIVITY_LEVELS for sc in SENSITIVITY_SCENARIOS]
-    print(f"  {len(combos)} runs total ({len(SENSITIVITY_LEVELS)} levels x {len(SENSITIVITY_SCENARIOS)} scenarios)")
+    print(f"  {len(combos)} runs total "
+          f"({len(SENSITIVITY_LEVELS)} levels x {len(SENSITIVITY_SCENARIOS)} scenarios)")
 
     for level, scenario in combos:
         run_id  = f"{level}_{scenario}"
@@ -294,23 +375,19 @@ def phase2_sensitivity(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) ->
         config  = primary["config"]
 
         if not config.exists():
-            print(f"\n[SKIP] {run_id} — config missing")
-            _record(log, {"phase": 2, "run_id": run_id, "status": "missing_config"})
             continue
 
-        if dry_run:
-            print(f"  [DRY] {run_id}")
-            continue
-
-        # Build override: merge physics preset + scenario delta
-        physics_override = primary.get("overrides") or {}
+        physics_override = SYNTH_PHYSICS.get(level, {})
         scenario_delta   = SENSITIVITY_SCENARIOS[scenario]
-        # Skip special keys (handled externally — spot/demand scaling not yet wired)
-        clean_delta = {k: v for k, v in scenario_delta.items() if not k.startswith("_")}
-        overrides = _deep_merge(physics_override, clean_delta)
+        clean_delta      = {k: v for k, v in scenario_delta.items() if not k.startswith("_")}
+        overrides        = _deep_merge(physics_override, clean_delta) if clean_delta else physics_override
 
         outdir = sens_base / run_id
         outdir.mkdir(parents=True, exist_ok=True)
+
+        if dry_run:
+            print(f"\n[DRY] {run_id}")
+            continue
 
         print(f"\n[RUN] {run_id}")
         t0 = time.perf_counter()
@@ -324,7 +401,8 @@ def phase2_sensitivity(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) ->
         except Exception as exc:
             elapsed = time.perf_counter() - t0
             print(f"      ERROR: {exc}")
-            _record(log, {"phase": 2, "run_id": run_id, "status": "error", "error": str(exc)})
+            _record(log, {"phase": 2, "run_id": run_id, "status": "error",
+                          "error": str(exc)})
 
     # Roll-up summary CSV
     _write_sensitivity_summary(sens_base)
@@ -341,7 +419,6 @@ def _write_sensitivity_summary(sens_base: Path) -> None:
                 df = pd.read_csv(econ)
                 if not df.empty:
                     row = df.iloc[0].to_dict()
-                    # Parse level and scenario from folder name
                     parts = sub.name.rsplit("_", 1)
                     row["level"]    = parts[0] if len(parts) == 2 else sub.name
                     row["scenario"] = parts[1] if len(parts) == 2 else "unknown"
@@ -352,6 +429,10 @@ def _write_sensitivity_summary(sens_base: Path) -> None:
     except Exception as e:
         print(f"\n  [WARN] sensitivity summary failed: {e}")
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 3 — Synthetic runs
+# ──────────────────────────────────────────────────────────────────────────────
 
 def phase3_synthetic(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> None:
     print("\n" + "="*70)
@@ -413,6 +494,10 @@ def phase3_synthetic(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> N
                               "error": str(exc)})
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 4 — Tables
+# ──────────────────────────────────────────────────────────────────────────────
+
 def phase4_tables(dry_run: bool, log: list) -> None:
     print("\n" + "="*70)
     print("PHASE 4 — Generate LaTeX tables (§7)")
@@ -432,9 +517,69 @@ def phase4_tables(dry_run: bool, log: list) -> None:
         _record(log, {"phase": 4, "status": "ok"})
 
 
-def phase5_fill_paper(dry_run: bool, log: list) -> None:
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 5 — Figure generation (NEW)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def phase5_figures(dry_run: bool, log: list,
+                   figs: list[str] | None = None) -> None:
+    """
+    Generate all publication figures via tools/figgen.py.
+
+      F1   Experimental design matrix (topology × physics)
+      F2   Network topology schematic (Hari et al. style, plasma colormap)
+      F3   Annual cost stacked bars (L1/L2/L3)
+      F4   Dispatch time series — representative winter week
+      F5   Cost waterfall: L3 → pumping → loss-reduction → L3⁺ → lin.err → L3ᴺᴸ
+      F6   Pumping scatter: L3⁺ vs L3ᴺᴸ (R² annotation)
+      FV1  Validation time series (copies from output/validation/ if available)
+      F7   TES SOC comparison across all five levels
+      F8   Generalizability heatmap (requires Phase 3 synthetic results)
+    """
     print("\n" + "="*70)
-    print("PHASE 5 — Fill paper placeholders (§8)")
+    print("PHASE 5 — Figure generation (§8)")
+    print("="*70)
+
+    fig_script = ROOT / "tools" / "figgen.py"
+    if not fig_script.exists():
+        print(f"  [WARN] {fig_script} not found — copy tools/figgen.py first")
+        _record(log, {"phase": 5, "status": "missing_script"})
+        return
+
+    cmd = [sys.executable, str(fig_script)]
+    if figs:
+        cmd += ["--fig"] + figs
+
+    print(f"  [CMD] {' '.join(cmd)}")
+    if dry_run:
+        target_str = ", ".join(figs) if figs else "F1 F2 F3 F4 F5 F6 FV1 F7 F8"
+        print(f"  [DRY] Would generate: {target_str}")
+        return
+
+    t0 = time.perf_counter()
+    result = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    elapsed = time.perf_counter() - t0
+
+    print(result.stdout)
+    if result.returncode != 0:
+        print(f"  [WARN] figgen exited {result.returncode}: {result.stderr[:500]}")
+        _record(log, {"phase": 5, "status": "error",
+                      "stderr": result.stderr[:500], "solve_s": round(elapsed, 1)})
+    else:
+        fig_dir = OUT_BASE / "figures"
+        n_figs  = len(list(fig_dir.glob("*.png"))) if fig_dir.exists() else 0
+        print(f"  [OK] {n_figs} figures in {fig_dir}")
+        _record(log, {"phase": 5, "status": "ok",
+                      "n_figures": n_figs, "solve_s": round(elapsed, 1)})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 6 — Fill paper (formerly Phase 5)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def phase6_fill_paper(dry_run: bool, log: list) -> None:
+    print("\n" + "="*70)
+    print("PHASE 6 — Fill paper placeholders (§9)")
     print("="*70)
     fill_py = ROOT / "tools" / "fill_paper.py"
     if dry_run:
@@ -447,9 +592,9 @@ def phase5_fill_paper(dry_run: bool, log: list) -> None:
     print(result.stdout)
     if result.returncode != 0:
         print(f"  [WARN] fill_paper exited {result.returncode}: {result.stderr[:500]}")
-        _record(log, {"phase": 5, "status": "error", "stderr": result.stderr[:500]})
+        _record(log, {"phase": 6, "status": "error", "stderr": result.stderr[:500]})
     else:
-        _record(log, {"phase": 5, "status": "ok"})
+        _record(log, {"phase": 6, "status": "ok"})
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -463,10 +608,14 @@ def main(argv: list[str] | None = None) -> int:
         epilog=__doc__,
     )
     parser.add_argument(
-        "--phases", nargs="+", type=int, choices=[1, 2, 3, 4, 5],
-        default=[1, 2, 3, 4, 5],
+        "--phases", nargs="+", type=int, choices=[0, 1, 2, 3, 4, 5, 6],
+        default=[0, 1, 2, 3, 4, 5, 6],
         metavar="N",
-        help="Phases to run (default: all). 1=primary 2=sensitivity 3=synth 4=tables 5=fill",
+        help=(
+            "Phases to run (default: all). "
+            "0=validation  1=primary  2=sensitivity  3=synth  "
+            "4=tables  5=figures  6=fill"
+        ),
     )
     parser.add_argument("--skip-nl", action="store_true",
                         help="Skip all L3NL (Gurobi NonConvex) runs unconditionally")
@@ -474,6 +623,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Print plan only — do not run any solver")
     parser.add_argument("--fail-on-skip", action="store_true",
                         help="Exit non-zero if any run is skipped due to missing Gurobi")
+    parser.add_argument("--skip-model", action="store_true",
+                        help="(Phase 0) Skip re-running the legacy model; reuse existing output")
+    parser.add_argument("--figs", nargs="*",
+                        metavar="FIG",
+                        help="(Phase 5) Specific figure IDs, e.g. --figs F2 FV1 F5")
     args = parser.parse_args(argv)
 
     OUT_BASE.mkdir(parents=True, exist_ok=True)
@@ -492,11 +646,13 @@ def main(argv: list[str] | None = None) -> int:
     t_total = time.perf_counter()
 
     phase_map = {
+        0: lambda: phase0_validation(args.skip_model, args.dry_run, log),
         1: lambda: phase1_primary(gurobi, args.skip_nl, args.dry_run, log),
         2: lambda: phase2_sensitivity(gurobi, args.skip_nl, args.dry_run, log),
         3: lambda: phase3_synthetic(gurobi, args.skip_nl, args.dry_run, log),
         4: lambda: phase4_tables(args.dry_run, log),
-        5: lambda: phase5_fill_paper(args.dry_run, log),
+        5: lambda: phase5_figures(args.dry_run, log, figs=args.figs),
+        6: lambda: phase6_fill_paper(args.dry_run, log),
     }
 
     for p in sorted(args.phases):
