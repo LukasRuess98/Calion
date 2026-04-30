@@ -383,6 +383,59 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
     return calibrated
 
 
+def fit_heating_curve(hist: pd.DataFrame) -> dict | None:
+    """
+    Fit linear Heizkurve T_supply = slope * T_outdoor + intercept from
+    measured V_1_flow_temp vs outdoor temperature (heating season only).
+    Returns calion heating_curve config dict, or None if data insufficient.
+    """
+    t_sup = hist.get("V_1_flow_temp")
+
+    # Detect outdoor temp column (Excel may use various names)
+    outdoor_col = None
+    for candidate in ["outdoor_temp_C", "T_outdoor_C", "Aussentemperatur_C",
+                      "Aussentemperatur", "outdoor_temp", "T_aussen_C"]:
+        if candidate in hist.columns:
+            outdoor_col = candidate
+            break
+
+    if t_sup is None or outdoor_col is None:
+        print("  [HEATING CURVE] Missing V_1_flow_temp or outdoor_temp column — skipping")
+        return None
+
+    t_out = hist[outdoor_col]
+    df = pd.DataFrame({"t_sup": t_sup, "t_out": t_out}).dropna()
+    # Heating season only: cold outdoor temps with active supply temperature
+    df = df[(df["t_out"] < 15.0) & (df["t_sup"] > 50.0)]
+
+    if len(df) < 100:
+        print(f"  [HEATING CURVE] Insufficient heating-season data ({len(df)} rows) — skipping")
+        return None
+
+    coeffs = np.polyfit(df["t_out"], df["t_sup"], 1)
+    slope, intercept = float(coeffs[0]), float(coeffs[1])
+
+    # Anchor points: cold design day and heating cutoff
+    T_out_low  = float(np.clip(df["t_out"].quantile(0.02), -20.0, 0.0))
+    T_out_high = 15.0
+    T_sup_low  = float(np.clip(slope * T_out_low  + intercept, 60.0, 120.0))
+    T_sup_high = float(np.clip(slope * T_out_high + intercept, 50.0, 100.0))
+
+    r2 = float(np.corrcoef(df["t_out"], df["t_sup"])[0, 1] ** 2)
+    print(f"  [HEATING CURVE] Fitted: T_sup = {slope:.3f}×T_out + {intercept:.1f}°C  R²={r2:.3f}")
+    print(f"    {T_out_low:.0f}°C outdoor → {T_sup_low:.1f}°C supply")
+    print(f"    {T_out_high:.0f}°C outdoor → {T_sup_high:.1f}°C supply")
+
+    return {
+        "enabled": True,
+        "outdoor_temp_column": outdoor_col,
+        "supply_temp_at_outdoor_low_c":  round(T_sup_low,  1),
+        "supply_temp_at_outdoor_high_c": round(T_sup_high, 1),
+        "outdoor_temp_low_c":  round(T_out_low,  1),
+        "outdoor_temp_high_c": T_out_high,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Stage 2 helpers
 # ---------------------------------------------------------------------------
@@ -1267,7 +1320,8 @@ def generate_report(kpis: dict, s2_results: dict, calibrated_u: dict,
     print(f"  [REPORT] {report_path.name}")
 
 
-def save_kpis_json(kpis: dict, s2_results: dict, out_dir: Path) -> None:
+def save_kpis_json(kpis: dict, s2_results: dict, out_dir: Path,
+                   heating_curve_params: dict | None = None) -> None:
     """Save machine-readable KPI summary for fill_paper.py integration."""
     out = {
         "stage1": kpis,
@@ -1280,6 +1334,7 @@ def save_kpis_json(kpis: dict, s2_results: dict, out_dir: Path) -> None:
             "balance_mean_err_pct":  s2_results.get("balance",{}).get("mean_err_pct"),
         },
         "thresholds": THRESHOLDS,
+        "heating_curve": heating_curve_params,
     }
     kpi_path = out_dir / "kpis.json"
     kpi_path.write_text(json.dumps(out, indent=2, default=str), encoding="utf-8")
@@ -1290,33 +1345,41 @@ def save_kpis_json(kpis: dict, s2_results: dict, out_dir: Path) -> None:
 # Legacy model run helper
 # ---------------------------------------------------------------------------
 
-def run_legacy_model(dry_run: bool = False) -> bool:
+def run_legacy_model(dry_run: bool = False,
+                     heating_curve_params: dict | None = None) -> bool:
     """
     Run L3-MILP with HP/TES/EBoiler disabled (capacity=0).
+    If heating_curve_params provided (from fit_heating_curve), injects measured
+    Heizkurve so simulated T_supply tracks actual measured delivery temperature.
     Results go to output/paper_runs/legacy/.
     """
     print("\n  [LEGACY] Running legacy-only simulation (HP/TES/eboiler disabled)")
+    if heating_curve_params:
+        print("  [LEGACY] Variable T_supply from measured Heizkurve ENABLED")
 
-    legacy_overrides = {
-    "scenario": {"name": "Memmingen L3 — Legacy Only (no HP/TES/EBoiler)"},
-    "assets": {
-        "hp_main":      {"capacity_mw": 0.0},
-        "eboiler_main": {"capacity_mw": 0.0},
-        "tes_main":     {
-            "energy_mwh": 0.0,
-            "power_mw": 0.0,
-            "soc0_mwh": 0.0,          # ← FIX: muss auch 0 sein!
-        },
-    },
-    # Außerdem: Physics explizit setzen für Reproduzierbarkeit
-    "network": {
+    network_overrides: dict = {
         "physics": {
             "heat_loss": True,
-            "pressure_drop": False,    # ← Legacy ohne PD (stabiler)
+            "pressure_drop": False,
             "transport_delay": False,
         }
-    },
-}
+    }
+    if heating_curve_params:
+        network_overrides["heating_curve"] = heating_curve_params
+
+    legacy_overrides = {
+        "scenario": {"name": "Memmingen L3 — Legacy Only (no HP/TES/EBoiler)"},
+        "assets": {
+            "hp_main":      {"capacity_mw": 0.0},
+            "eboiler_main": {"capacity_mw": 0.0},
+            "tes_main": {
+                "energy_mwh": 0.0,
+                "power_mw": 0.0,
+                "soc0_mwh": 0.0,
+            },
+        },
+        "network": network_overrides,
+    }
 
     config_path = CONFIGS_DIR / "Memmingen_L3_MILP.yaml"
     if not config_path.exists():
@@ -1414,6 +1477,7 @@ def main(argv: list[str] | None = None) -> int:
     kpis: dict = {}
     s2_results: dict = {}
     calibrated_u: dict = {}
+    heating_curve_params: dict | None = None
     measured_agg: pd.DataFrame | None = None
     sim_legacy: pd.DataFrame | None = None
     hist: pd.DataFrame | None = None
@@ -1430,6 +1494,8 @@ def main(argv: list[str] | None = None) -> int:
         measured_agg = aggregate_source_measurements(hist)
         weeks = identify_representative_weeks(measured_agg)
         print(f"      Representative weeks: {list(weeks.keys())}")
+        print("  Fitting Heizkurve from measured data...")
+        heating_curve_params = fit_heating_curve(hist)
     elif run_s1 and args.dry_run:
         print("\n[DRY] Would load:", data_path)
     elif run_s1:
@@ -1443,7 +1509,8 @@ def main(argv: list[str] | None = None) -> int:
 
         # Run legacy model if needed
         if not args.skip_model:
-            run_legacy_model(dry_run=args.dry_run)
+            run_legacy_model(dry_run=args.dry_run,
+                             heating_curve_params=heating_curve_params)
 
         # Load simulated results
         legacy_dispatch = LEGACY_DIR / "dispatch_hourly.csv"
@@ -1535,7 +1602,8 @@ def main(argv: list[str] | None = None) -> int:
         if kpis or s2_results:
             plot_validation_summary_table(kpis, s2_results, OUT_DIR)
             generate_report(kpis, s2_results, calibrated_u, OUT_DIR)
-            save_kpis_json(kpis, s2_results, OUT_DIR)
+            save_kpis_json(kpis, s2_results, OUT_DIR,
+                           heating_curve_params=heating_curve_params)
         else:
             print("       [SKIP] No KPIs or Stage 2 results to summarize")
 
