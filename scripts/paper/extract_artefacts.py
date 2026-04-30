@@ -253,30 +253,36 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
 
     rows = {
         "timestamp": timestamps,
-        "Q_demand_total_MW": s("Q_demand_total_MW") or s("hp_main_Q_th_MW"),  # fallback
-        "Q_chp_MW": s("chp_main_Q_th_MW"),
-        "P_chp_el_MW": s("chp_main_Pel_MW"),
-        "F_chp_gas_MW": s("chp_main_F_gas_MW"),
+        "Q_demand_total_MW": s("Q_demand_total_MW") or [0.0] * T,
+        # --- CHP (uppercase in result_collector) ---
+        "Q_chp_MW": s("CHP_MAIN_Q_th_MW"),
+        "P_chp_el_MW": s("CHP_MAIN_Pel_MW"),
+        "F_chp_gas_MW": s("CHP_MAIN_fuel_MW"),
+        # --- Gas Boiler (NEU - fehlte komplett!) ---
+        "Q_gasboiler_MW": s("GASBOILER_MAIN_Q_th_MW"),
+        "F_gasboiler_MW": s("GASBOILER_MAIN_fuel_MW"),
+        # --- Biomass Boiler (NEU - fehlte komplett!) ---
+        "Q_biomass_MW": s("BIOMASS_MAIN_Q_th_MW"),
+        "F_biomass_MW": s("BIOMASS_MAIN_fuel_MW"),
+        # --- Heat Pump (lowercase - HP uses asset.id directly) ---
         "Q_hp_total_MW": s("hp_main_Q_th_MW"),
         "Q_hp_wrg_MW": s("hp_main_Q_wrg_MW"),
         "Q_hp_def_MW": s("hp_main_Q_def_MW"),
         "P_hp_el_MW": s("hp_main_Pel_MW"),
         "COP_hp_wrg": s("hp_main_COP"),
-        "Q_ek_MW": s("ek_main_Q_th_MW"),
-        "P_ek_el_MW": s("ek_main_Pel_MW"),
+        # --- E-Boiler (uppercase after P2H fix in result_collector) ---
+        "Q_ek_MW": s("EBOILER_MAIN_Q_th_MW"),
+        "P_ek_el_MW": s("EBOILER_MAIN_Pel_MW"),
+        # --- Storage ---
         "Q_storage_charge_MW": s("TES_charge_MW"),
         "Q_storage_discharge_MW": s("TES_discharge_MW"),
         "SOC_MWh": s("TES_SOC_MWh"),
+        # --- Grid ---
         "P_buy_MW": s("P_buy_MW"),
         "P_sell_MW": s("P_sell_MW"),
-        "lambda_buy_eur_MWh": [0.0] * T,  # spot price not in series by default
+        "lambda_buy_eur_MWh": [0.0] * T,
         "lambda_sell_eur_MWh": [0.0] * T,
-        "ef_grid_kg_MWh": s("grid_co2_kg_MWh"),
-        "P_pump_MW": p_pump,
-        "T_supply_C": t_supply,
-        "T_return_C": t_return,
-        "Q_loss_total_MW": q_loss_total,
-        "Q_dump_MW": s("Q_dump_MWth"),
+        "ef_grid_kg_MWh": s("grid_co2_kg_MWh")
     }
 
     # Try to fill lambda_buy from table

@@ -138,8 +138,15 @@ Examples:
                 idx, len(runs), horizon, step, overlap,
             )
 
-        result = _wf.run_workflow(args.configs, overrides=override_cfg or None)
-        steps_label = " -> ".join(result.plan.steps)
+        try:
+            result = _wf.run_workflow(args.configs, overrides=override_cfg or None)
+        except Exception as exc:
+            logger.error("[workflow] Sweep run %d/%d FAILED: %s", idx, len(runs), exc)
+            continue
+        if result.plan and result.plan.steps:
+            steps_label = " -> ".join(result.plan.steps)
+        else:
+            steps_label = "(no steps)"
         logger.info("[workflow] Executed steps: %s", steps_label)
 
         # -- summary -------------------------------------------------------

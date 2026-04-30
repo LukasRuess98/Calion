@@ -421,7 +421,8 @@ def _build_model_legacy(
         include_storage_install=flags.include_storage_install,
     )
 
-    grid_co2_series_dict = {i + 1: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
+    grid_co2_series_dict = {i: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
+    
     co2_calc = EmissionsCalculator(
         co2_price_param=m.co2_price,
         grid_co2_series=grid_co2_series_dict,

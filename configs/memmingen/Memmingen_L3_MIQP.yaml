@@ -1,24 +1,8 @@
 # =============================================================================
-# PAPER STUDY - Level 3: Nichtlineares Modell (NLP/QCQP) mit Gurobi
+# PAPER STUDY - Level 3: Nichtlineares Modell — Fix-and-Relax
 # =============================================================================
-# Basis: Memmingen_L3_pressure_transport.yaml
-# Solver: Gurobi (NLP/QCQP-faehig)
-# Linearisierung: DEAKTIVIERT -> bilineare Terme, kontinuierliche Temperaturen
-#
-# UNTERSCHIEDE ZU MILP-Variante:
-#   - milp_linearize: false   -> keine PWL-Temperaturen, keine Binaervariablen
-#   - solver: gurobi          -> kann nichtlineare (QCQP) Modelle loesen
-#   - T_supply, T_return: Entscheidungsvariablen (Var) statt fixer Parameter
-#   - Waermeverluste, Waermeuebertragung: bilinear (m_dot x T) -> exakt
-#
-# SYSTEM SUMMARY (Fixed Assets):
-#   Peak demand:     ~76 MW
-#   CHP:             0.2 MW_th / 0.1 MW_el
-#   Gas boiler:      80 MW_th, eta = 0.90 (Spitzenlast-Backup)
-#   Biomass boiler:  3.3 MW_th, eta = 0.85
-#   Heat pump:       5 MW_th, COP ~3.0
-#   E-Boiler (P2H):  5 MW_th, eta = 0.95
-#   Storage:         500 MWh / 30 MW
+# Strategie: Binärvariablen aus L3plus fixieren → reines NLP lösen
+# Zeigt den Mehrwert bilinearer Physik bei gleichen ON/OFF-Entscheidungen
 # =============================================================================
 
 site:
@@ -29,15 +13,14 @@ site:
     co2_grid: "grid_co2_kg_MWh"
 
 scenario:
-  name: "Memmingen L3 - Nichtlinear (NLP) mit Gurobi"
-  description: "15-Knoten-Netz, bilinear, Gurobi QCQP, keine Linearisierung"
+  name: "Memmingen L3 - NLP Fix-and-Relax (from L3plus)"
+  description: "15-node, bilinear physics, binaries fixed from L3plus MILP"
   run_mode: PF_ONLY
   milp_linearize: false
   horizon:
     start: "2025-01-01 00:00"
     end: "2025-12-31 23:00"
 
-# --- Network (15-node junction network, NLP mode) ---
 network:
   milp_linearize: false
   physics:
@@ -45,8 +28,8 @@ network:
     pressure_drop: true
     transport_delay: true
 
-  supply_temp_c: 100
-  return_temp_c: 40
+  supply_temp_c: 85
+  return_temp_c: 55
   ground_temp_c: 10
 
   max_velocity_m_s: 2.5
@@ -55,100 +38,68 @@ network:
   max_pressure_drop_bar: 2.0
   delta_p_min_consumer_bar: 0.7
 
-  # --- NODES: 15 Junctions ---
   nodes:
-    # Root: producer-junction (Heizwerk E1 + V_1)
     j_1:
       assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
-
-    # Trunk junction j_2: serves V_2
     j_2:
       consumers:
         - column: "V_2_demand_MWth"
-
-    # Trunk junction j_3: splits to j_4 and j_9, serves V_3
     j_3:
       consumers:
         - column: "V_3_demand_MWth"
-
-    # Branch j_4: serves V_4-V_7
     j_4:
       consumers:
         - column: "V_4_demand_MWth"
         - column: "V_5_demand_MWth"
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
-
-    # Branch j_5: serves V_8-V_9, splits to j_6 and j_7
     j_5:
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
-
-    # Terminal branch j_6: serves V_10-V_12
     j_6:
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
-
-    # Branch j_7: serves V_13
     j_7:
       consumers:
         - column: "V_13_demand_MWth"
-
-    # Terminal branch j_8: serves V_14
     j_8:
       consumers:
         - column: "V_14_demand_MWth"
-
-    # Branch j_9: serves V_15-V_16
     j_9:
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
-
-    # Branch j_10: serves V_17
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
-
-    # Junction j_11: serves V_18
     j_11:
       consumers:
         - column: "V_18_demand_MWth"
-
-    # Junction j_12: serves V_19-V_21, has HP + E-Boiler
     j_12:
       assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
         - column: "V_21_demand_MWth"
-
-    # Junction j_13: serves V_22-V_24
     j_13:
       consumers:
         - column: "V_22_demand_MWth"
         - column: "V_23_demand_MWth"
         - column: "V_24_demand_MWth"
-
-    # Terminal branch j_14: serves V_25-V_26
     j_14:
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
-
-    # Terminal branch j_15: serves V_27
     j_15:
       consumers:
         - column: "V_27_demand_MWth"
 
-  # --- PIPES: 14 Junction-to-Junction ---
   pipes:
-    # Hauptstrang (J1 -> J2 -> J3)
     j1_to_j2:
       from: j_1
       to: j_2
@@ -156,7 +107,6 @@ network:
       diameter_mm: 450
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j2_to_j3:
       from: j_2
       to: j_3
@@ -164,8 +114,6 @@ network:
       diameter_mm: 450
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
-    # J3 verzweigt: Sued -> J4, Ost -> J9
     j3_to_j4:
       from: j_3
       to: j_4
@@ -173,7 +121,6 @@ network:
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j3_to_j9:
       from: j_3
       to: j_9
@@ -181,8 +128,6 @@ network:
       diameter_mm: 350
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
-    # Sued-Ast (J4 -> J5 -> J6/J7 -> J8)
     j4_to_j5:
       from: j_4
       to: j_5
@@ -190,7 +135,6 @@ network:
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j5_to_j6:
       from: j_5
       to: j_6
@@ -198,7 +142,6 @@ network:
       diameter_mm: 150
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
-
     j5_to_j7:
       from: j_5
       to: j_7
@@ -206,7 +149,6 @@ network:
       diameter_mm: 125
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
-
     j7_to_j8:
       from: j_7
       to: j_8
@@ -214,8 +156,6 @@ network:
       diameter_mm: 100
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
-
-    # Ost-Ast (J9 -> J10 -> J11 -> J12 -> J13 -> J14/J15)
     j9_to_j10:
       from: j_9
       to: j_10
@@ -223,7 +163,6 @@ network:
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j10_to_j11:
       from: j_10
       to: j_11
@@ -231,7 +170,6 @@ network:
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j11_to_j12:
       from: j_11
       to: j_12
@@ -239,7 +177,6 @@ network:
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j12_to_j13:
       from: j_12
       to: j_13
@@ -247,7 +184,6 @@ network:
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-
     j13_to_j14:
       from: j_13
       to: j_14
@@ -255,7 +191,6 @@ network:
       diameter_mm: 125
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
-
     j13_to_j15:
       from: j_13
       to: j_15
@@ -264,8 +199,6 @@ network:
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
 
-# --- Assets (Dispatch-Only, Fixed Capacities) ---
-# --- Assets: IDENTICAL to L3 (copy-paste) ---
 assets:
   chp_main:
     type: thermal_generator
@@ -280,7 +213,7 @@ assets:
     fuel: gas
     capacity_mw: 13.0
     thermal_efficiency: 0.90
-    min_load: 0.1
+    min_load: 0.0
 
   biomass_main:
     type: thermal_generator
@@ -314,12 +247,11 @@ assets:
       state: cyclic
       policy: equal
 
-# --- Heat Pump COP Model: IDENTICAL to L3 ---
 heat_pumps:
   cop:
     sink_defaults:
-      Tsink_out_K: 373.15
-      Tsink_in_K: 313.15
+      Tsink_out_K: 358.15
+      Tsink_in_K: 328.15
     deltaT_K: 20.0
     deltaTpp_K: 5.0
     cop_fallback: 3.0
@@ -328,13 +260,11 @@ heat_pumps:
       eta: 0.6
       FQ: 0.10
 
-# --- Grid: IDENTICAL to L3 ---
 grid:
   max_import_mw: 5000.0
   max_export_mw: 5000.0
-  gridcost_eur_mwh: 20.0
+  gridcost_eur_mwh: 25.0
 
-# --- Fuels: IDENTICAL to L3 ---
 fuels:
   gas:
     price_eur_mwh: 45.0
@@ -343,16 +273,17 @@ fuels:
     price_eur_mwh: 40.0
     ef_kg_per_mwh_fuel: 20.0
 
-# --- Costs: IDENTICAL to L3 ---
 costs:
   co2_price_eur_per_t: 100.0
   dump_cost_eur_per_mwh_th: 1000.0
 
-# --- Run Settings (Gurobi QCQP) ---
+# ═══════════════════════════════════════════════════════════════════════
+# RUN SETTINGS: Fix-and-Relax
+# ═══════════════════════════════════════════════════════════════════════
 run:
   dt_h: 1.0
   solver: gurobi
-  warmstart_from: "output/paper_runs/L3plus"  # ← NEU
+  fix_binaries_from: "output/paper_runs/L3plus"   # ← KEY SETTING
   solver_options:
     NonConvex: 2
     MIPGap: 0.005          # lockerer (war 0.005)
@@ -362,25 +293,10 @@ run:
     NumericFocus: 2       # von 3 auf 2 (3 ist zu konservativ)
     OutputFlag: 1
     LogToConsole: 1
-    LogFile: "gurobi_L3_MIQP.log"
 
-
-#run:
-#  dt_h: 1.0
-#  solver: gurobi
-#  solver_options:
-#    NonConvex: 2
-#    MIPGap: 0.005
-#    TimeLimit: 86400
-#    NumericFocus: 3
-#    Heuristics: 0.2
-#    OutputFlag: 1
-#    LogToConsole: 1
-#    LogFile: "gurobi_L3_MIQP.log"
-
-# --- Output ---
 output:
   log_dir: "output/logs"
   export_dir: "output/results"
   export_thermal_network: true
   export_solver_solution: true
+

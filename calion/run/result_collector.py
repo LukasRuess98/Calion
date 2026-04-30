@@ -142,9 +142,10 @@ def _gather_component_metadata_unified(cfg: dict[str, Any]) -> dict[str, Any]:
                 "fuel_emission": float(fuel_info.get("ef_kg_per_mwh_fuel", 0.0)),
                 "has_el": asset_data.get("el_eff") is not None,
             })
+        # In _gather_component_metadata_unified(), ersetze:
         elif atype == "p2h":
             meta["p2h"] = {
-                "name": "P2H",
+                "name": asset_id.upper(),  # "EBOILER_MAIN" statt "P2H"
                 "cap_th": float(asset_data.get("capacity_mw", 0.0)),
                 "eff": float(asset_data.get("efficiency", 0.99)),
             }
@@ -260,7 +261,7 @@ def _gather_component_metadata(cfg: dict[str, Any]) -> dict[str, Any]:
         meta["generators"].append(
             {
                 "key": key,
-                "name": key.upper(),
+                "name": key,
                 "cap_th": float(par.get("cap_th_mw", 0.0)),
                 "fuel_bus": fuel_bus,
                 "fuel_price": float(fuel_info.get("price_eur_mwh", 0.0)),
@@ -634,7 +635,30 @@ def _collect_timeseries_and_summary(
 
     price_series = _find_col(table.data, ["strompreis_EUR_MWh", "electricity_price_EUR_MWh", "price_eur_mwh"], n)
     grid_co2_series = _find_col(table.data, ["grid_co2_kg_MWh", "grid_co2_kg_mwh", "co2_kg_mwh"], n)
-    demand_series = _find_col(table.data, ["waermebedarf_MWth", "heat_demand_MWth", "demand_mwth"], n)
+    # Ersetze die Zeile durch:
+    demand_candidates = ["waermebedarf_MWth", "heat_demand_MWth", "demand_mwth"]
+    # Ersetze die Zeile mit _find_col für demand_series:
+    demand_series = None
+    for name in ["waermebedarf_MWth", "heat_demand_MWth", "demand_mwth"]:
+        if name in table.data:
+            demand_series = table.data[name]
+            break
+
+    if demand_series is None and model is not None and hasattr(model, 'heatd'):
+        demand_series = [float(pyo.value(model.heatd[t])) for t in times]
+        logger.info("Q_demand_total read from model.heatd (%.1f MWh total)",
+                    sum(demand_series) * dt_h)
+
+    if demand_series is None:
+        v_cols = [c for c in table.data if c.endswith("_demand_MWth")]
+        if v_cols:
+            demand_series = [
+                sum(float(table.data[col][i]) for col in v_cols)
+                for i in range(n)
+            ]
+        else:
+            demand_series = [0.0] * n
+            logger.warning("No demand data found for reporting!")
 
     series["grid_co2_kg_MWh"] = list(grid_co2_series)
     series["Fuel_CO2_emissions_t_per_step"] = [0.0] * n
