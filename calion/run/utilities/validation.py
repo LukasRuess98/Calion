@@ -91,8 +91,9 @@ def _assert_capacity_vs_demand(
         RuntimeError: If capacity is insufficient to meet peak demand
     """
     from calion.constants import CAPACITY_SAFETY_FACTOR
-
-    safety = CAPACITY_SAFETY_FACTOR
+    if safety is None:
+        safety = CAPACITY_SAFETY_FACTOR
+    
     peak_demand = max(table["waermebedarf_MWth"])
     cap = _estimate_max_thermal_capacity(cfg)
 

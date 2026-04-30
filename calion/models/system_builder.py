@@ -286,8 +286,11 @@ def _build_model_unified(
 
     # ── Component Assembly (unified path) ─────────────────────────────────
     assembler = ComponentAssembler(m, m.t, table, cfg, dt_h, inv_calc, co2_calc)
-    sys_buses = assembler.assemble_all(ucfg)
-
+    sys_buses = assembler.assemble_all(
+        ucfg,
+        soc_init_override=soc_init_override,
+        terminal_target_override=terminal_target_override,
+    )
     # Store unified config and system buses on model for export/inspection
     m._unified_config = ucfg
     m._system_buses = sys_buses
@@ -418,7 +421,7 @@ def _build_model_legacy(
         include_storage_install=flags.include_storage_install,
     )
 
-    grid_co2_series_dict = {i: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
+    grid_co2_series_dict = {i + 1: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
     co2_calc = EmissionsCalculator(
         co2_price_param=m.co2_price,
         grid_co2_series=grid_co2_series_dict,

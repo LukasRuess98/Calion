@@ -257,9 +257,9 @@ class ModelFinalizer:
                 self.m._network_enabled = False
 
         except Exception as exc:
-            logger.info("[FINALIZE] ERROR: Failed to integrate network: %s", exc)
+            logger.error("[FINALIZE] Failed to integrate network: %s", exc)
             self.m._network_enabled = False
-            traceback.print_exc()
+            logger.debug(traceback.format_exc())
 
     def _unified_to_network_cfg(self, ucfg) -> dict[str, Any]:
         """Convert unified config to thermal_network dict for NetworkManager."""
@@ -361,8 +361,8 @@ class ModelFinalizer:
             network_mgr = NetworkManager(cfg_with_network, config_dir=config_dir)
 
             if not network_mgr.network_enabled:
-                logger.info("[FINALIZE] WARNING: Thermal network failed to load (check topology file)")
-                logger.info("[FINALIZE] Continuing without thermal network...")
+                logger.warning("[FINALIZE] Thermal network failed to load (check topology file)")
+                logger.warning("[FINALIZE] Continuing without thermal network...")
                 self.m._network_enabled = False
                 return
 
@@ -400,10 +400,10 @@ class ModelFinalizer:
                 self.m._network_enabled = False
 
         except Exception as exc:
-            logger.info("[FINALIZE] ERROR: Failed to integrate thermal network: %s", exc)
-            logger.info("[FINALIZE] Continuing without thermal network...")
+            logger.error("[FINALIZE] Failed to integrate thermal network: %s", exc)
+            logger.warning("[FINALIZE] Continuing without thermal network...")
             self.m._network_enabled = False
-            traceback.print_exc()
+            logger.debug(traceback.format_exc())
 
     # ── Balance Constraints ────────────────────────────────────────────────────
 
@@ -505,7 +505,11 @@ class ModelFinalizer:
             include_capex=flags.include_capex,
             include_activation=flags.include_activation,
             include_tie_breaker=flags.include_tie_breaker,
+            include_storage_install=flags.include_storage_install,
         )
+
+        if not flags.include_storage_install:
+            storage_install_total = 0
 
         co2_term = co2_cost_total if flags.include_co2 else 0
         terminal_value = getattr(m, "terminal_value_term", None) or 0

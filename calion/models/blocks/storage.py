@@ -238,8 +238,20 @@ class StorageBlock(BaseComponent):
 
         setattr(m, f"{comp}_soc", pyo.Constraint(Tset, rule=soc_dyn))
 
-        if self.soc0 > 0:
+        if self.soc0 > 0 and self.investable:
+            # Only constrain soc0 <= cap_e when capacity is a free variable.
+            # When investment is disabled, cap_e is fixed and soc0 should already
+            # be <= cap_e (validated by caller in RH handover logic).
             setattr(m, f"{comp}_soc0_cap", pyo.Constraint(expr=self.soc0 <= cap_e))
+        elif self.soc0 > 0 and not self.investable:
+            # Validate at build time that fixed capacity accommodates initial SOC
+            if self.soc0 > self.e_cap_init + 1e-6:
+                logger.warning(
+                    "[STORAGE] soc0 (%.2f MWh) exceeds fixed capacity (%.2f MWh) — "
+                    "clamping soc0 to capacity.",
+                    self.soc0, self.e_cap_init,
+                )
+                self.soc0 = self.e_cap_init
 
         # NOTE: Terminal constraint is created at the system_builder level (system_builder.py:685-699)
         # to allow for policy-based constraints (==, >=) based on terminal_policy.

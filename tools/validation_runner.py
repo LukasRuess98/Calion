@@ -45,6 +45,8 @@ import sys
 import warnings
 from pathlib import Path
 
+
+import uuid
 import numpy as np
 import pandas as pd
 
@@ -95,8 +97,17 @@ NODE_CONSUMERS = {
 # ---------------------------------------------------------------------------
 
 def load_historical(path: Path, resample_to_1h: bool = True) -> pd.DataFrame:
-    """Load Excel monitoring data; quality-filter and optionally resample to 1h."""
-    print(f"  [LOAD] {path.name}")
+    """Load Excel monitoring data with Parquet cache; quality-filter and resample."""
+    cache_path = path.with_suffix(".parquet")
+
+    # Use Parquet cache if it exists and is newer than the source Excel
+    if cache_path.exists() and cache_path.stat().st_mtime > path.stat().st_mtime:
+        print(f"  [CACHE] Loading {cache_path.name} (fast)")
+        df = pd.read_parquet(cache_path)
+        print(f"    → {len(df)} hourly records, {df.index[0]} – {df.index[-1]}")
+        return df
+
+    print(f"  [LOAD] {path.name} (first run — building cache)")
     df = pd.read_excel(path, sheet_name=0, header=0)
 
     # Parse datetime
@@ -109,14 +120,13 @@ def load_historical(path: Path, resample_to_1h: bool = True) -> pd.DataFrame:
     df = df.dropna(subset=["timestamp"]).set_index("timestamp").sort_index()
 
     # Apply quality flags: set measurement columns to NaN where flag ≠ 1
-    for v in range(1, 28):
-        for mtype in ["flow_rate", "flow_temp", "return_temp", "temp_diff", "power",
-                      "total_energy", "total_volume"]:
-            val_col  = f"V_{v}_{mtype}"
-            qual_col = f"V_{v}_{mtype}_quality"
-            if val_col in df.columns and qual_col in df.columns:
-                bad = df[qual_col].astype(float, errors="ignore") != 1
-                df.loc[bad, val_col] = np.nan
+    # Optimized: only iterate over existing quality columns
+    quality_cols = [c for c in df.columns if c.endswith("_quality")]
+    for qual_col in quality_cols:
+        val_col = qual_col.replace("_quality", "")
+        if val_col in df.columns:
+            bad = pd.to_numeric(df[qual_col], errors="coerce") != 1
+            df.loc[bad, val_col] = np.nan
 
     # Drop purely-auxiliary columns we won't use
     drop_patterns = ["_quality", "total_energy", "total_volume"]
@@ -132,12 +142,26 @@ def load_historical(path: Path, resample_to_1h: bool = True) -> pd.DataFrame:
             df.loc[bad, [ts, tr]] = np.nan
 
     if resample_to_1h:
-        # Mean resample (preserves temperatures); sum resample for flow
+        # Drop non-numeric columns before resampling (e.g. time strings)
+        non_numeric = df.select_dtypes(exclude="number").columns.tolist()
+        if non_numeric:
+            print(f"    [INFO] Dropping {len(non_numeric)} non-numeric column(s) "
+                  f"before resample: {non_numeric[:5]}{'...' if len(non_numeric) > 5 else ''}")
+            df = df.drop(columns=non_numeric)
+
+        # Mean resample (preserves temperatures); mean for flow rate too
         flow_cols  = [c for c in df.columns if "_flow_rate" in c]
         other_cols = [c for c in df.columns if c not in flow_cols]
-        df_flow  = df[flow_cols].resample("1h").mean()      # flow rate → mean
-        df_other = df[other_cols].resample("1h").mean()
+        df_flow  = df[flow_cols].resample("1h").mean()
+        df_other = df[other_cols].resample("1h").mean(numeric_only=True)
         df = pd.concat([df_flow, df_other], axis=1)
+
+    # Save Parquet cache for subsequent runs
+    try:
+        df.to_parquet(cache_path)
+        print(f"  [CACHE] Saved {cache_path.name} for next run")
+    except Exception as e:
+        print(f"  [WARN] Could not write cache: {e}")
 
     print(f"    → {len(df)} hourly records, {df.index[0]} – {df.index[-1]}")
     return df
@@ -150,39 +174,58 @@ def aggregate_source_measurements(hist: pd.DataFrame) -> pd.DataFrame:
     # Supply temperature at source ≈ V_1_flow_temp (j_1 is adjacent to plant)
     result["T_supply_source_C"] = hist.get("V_1_flow_temp")
 
-    # Return temperature at source: demand-weighted average across all consumers
-    num = sum_col = None
+    # Return temperature at source: flow-weighted average across all consumers
+    num = None
+    sum_weight = None
     for v in range(1, 28):
         tr = hist.get(f"V_{v}_return_temp")
-        q  = hist.get(f"V_{v}_demand_MWth") if f"V_{v}_demand_MWth" in hist.columns else None
-        if tr is not None and q is not None:
+        # Use flow_rate as weight (more robust than demand_MWth which may not exist)
+        w = hist.get(f"V_{v}_flow_rate")
+        if w is None:
+            w = hist.get(f"V_{v}_demand_MWth")
+        if tr is not None and w is not None:
+            tr_valid = tr.fillna(0)
+            w_valid = w.fillna(0)
             if num is None:
-                num = tr.fillna(0) * q.fillna(0)
-                sum_col = q.fillna(0)
+                num = tr_valid * w_valid
+                sum_weight = w_valid
             else:
-                num = num + tr.fillna(0) * q.fillna(0)
-                sum_col = sum_col + q.fillna(0)
-    if num is not None and sum_col is not None:
-        result["T_return_source_C"] = num / sum_col.replace(0, np.nan)
+                num = num + tr_valid * w_valid
+                sum_weight = sum_weight + w_valid
+    if num is not None and sum_weight is not None:
+        result["T_return_source_C"] = num / sum_weight.replace(0, np.nan)
 
     # Far-end supply temperature = V_27_flow_temp (j_15, furthest node)
     result["T_supply_farend_C"] = hist.get("V_27_flow_temp")
 
     # Total flow at source [m³/h]: sum of all valid consumer flow rates
-    # Exclude outliers: drop if flow_rate × ΔT implies COP < 0 or > 200 kW per m³/h
     flow_sum = None
     for v in range(1, 28):
         fr = hist.get(f"V_{v}_flow_rate")
         if fr is not None:
-            # Very rough outlier guard: >60 m³/h for a single consumer is suspect
+            # Outlier guard: >60 m³/h for a single consumer is suspect
             fr_clean = fr.where(fr < 60, np.nan)
             flow_sum = fr_clean if flow_sum is None else flow_sum.add(fr_clean, fill_value=0)
     result["flow_source_m3h"] = flow_sum
 
-    # Total demand [MWth]
+    # Total demand [MWth] — compute from flow_rate × ΔT if demand column missing
     demand_cols = [c for c in hist.columns if c.startswith("V_") and c.endswith("_demand_MWth")]
     if demand_cols:
         result["Q_demand_MWth"] = hist[demand_cols].sum(axis=1)
+    else:
+        # Derive from flow × ΔT: Q [MW] = ṁ[m³/h] × ρ × cp × ΔT / 3600
+        # With ρ≈1000 kg/m³, cp≈4.186 kJ/(kg·K): Q = ṁ × 4.186 × ΔT / 3600
+        q_total = None
+        for v in range(1, 28):
+            fr = hist.get(f"V_{v}_flow_rate")
+            ts = hist.get(f"V_{v}_flow_temp")
+            tr = hist.get(f"V_{v}_return_temp")
+            if fr is not None and ts is not None and tr is not None:
+                dt = (ts - tr).clip(lower=0)
+                q_v = fr * 4.186 * dt / 3600  # MW
+                q_total = q_v if q_total is None else q_total.add(q_v, fill_value=0)
+        if q_total is not None:
+            result["Q_demand_MWth"] = q_total
 
     # Electricity price (for Stage 2 eboiler checks)
     if "strompreis_EUR_MWh" in hist.columns:
@@ -267,36 +310,23 @@ def compute_kpis(measured: pd.DataFrame, simulated: pd.DataFrame) -> dict:
         kpis["T_return_source_RMSE_C"] = float(np.sqrt((s - m).pow(2).mean()))
 
     # Flow at source (MAPE)
-    # Simulated Q_demand → convert to m³/h: Q[MW] / (cp * ΔT) * 3600
-    # Use cp=4.186 kJ/(kg·K), ΔT from simulated T_supply - T_return
     m_flow = measured.get("flow_source_m3h")
     s_q    = simulated.get("Q_demand_total_MW")
     s_tsup = simulated.get("T_supply_C")
     s_tret = simulated.get("T_return_C")
-    if m_flow is not None and s_q is not None and s_tsup is not None:
+    if m_flow is not None and s_q is not None and s_tsup is not None and s_tret is not None:
         dt = (s_tsup - s_tret).replace(0, np.nan)
-        s_flow = s_q * 1e3 / (4.186 * dt) * 3.6  # kg/s × 3.6 → m³/h
+        s_flow = s_q * 1e3 / (4.186 * dt) * 3.6  # → m³/h
         idx = m_flow.dropna().index.intersection(s_flow.dropna().index)
         if len(idx) > 24:
             m_f, s_f = m_flow.loc[idx], s_flow.loc[idx]
             mape = ((s_f - m_f).abs() / m_f.replace(0, np.nan)).mean() * 100
             kpis["flow_source_MAPE_pct"] = float(mape)
 
-    # Energy balance closure
-    s_demand = simulated.get("Q_demand_total_MW")
-    s_loss   = simulated.get("Q_loss_total_MW")
-    s_chp    = simulated.get("Q_chp_MW")
-    s_boiler_cols = [simulated.get(f"Q_boiler_{x}_MW")
-                     for x in ["gas", "biomass", "gasboiler"] if f"Q_boiler_{x}_MW" in simulated]
-    # Simple balance: sum of generation ≥ demand + losses
-    if s_demand is not None and s_loss is not None and s_chp is not None:
-        # Compute from economics if series not sufficient
-        pass  # filled from economics.csv in report
-
     # Far-end temperature
     m_fe = measured.get("T_supply_farend_C")
     s_fe = simulated.get("T_supply_farend_C")
-    if m_fe is None and "T_supply_j15_C" in simulated.columns:
+    if s_fe is None and simulated is not None and "T_supply_j15_C" in simulated.columns:
         s_fe = simulated["T_supply_j15_C"]
     if m_fe is not None and s_fe is not None:
         idx = m_fe.dropna().index.intersection(s_fe.dropna().index)
@@ -323,18 +353,7 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
 
     print("  [CALIBRATE] U-value calibration (main trunk first)")
 
-    # For now, report calibration is possible but return nominal values.
-    # Full implementation requires access to calion's thermal model internals.
-    # This is a placeholder that documents the calibration method.
     calibrated = {}
-    pipe_order = [
-        "j1_to_j2", "j2_to_j3",           # main trunk
-        "j3_to_j4", "j3_to_j9",            # primary branches
-        "j4_to_j5", "j9_to_j10",           # secondary
-        "j5_to_j6", "j5_to_j7", "j7_to_j8",       # south terminals
-        "j10_to_j11", "j11_to_j12", "j12_to_j13",  # east mid
-        "j13_to_j14", "j13_to_j15",         # east terminals
-    ]
     nominal_u = {
         "j1_to_j2": 0.32, "j2_to_j3": 0.32,
         "j3_to_j4": 0.32, "j3_to_j9": 0.32,
@@ -349,7 +368,6 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
     if m_ts is None or s_ts is None:
         return nominal_u
 
-    # Check if calibration is needed
     idx = m_ts.dropna().index.intersection(s_ts.dropna().index)
     if len(idx) < 24:
         return nominal_u
@@ -357,23 +375,11 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
     rmse_before = float(np.sqrt(((s_ts.loc[idx] - m_ts.loc[idx]) ** 2).mean()))
     print(f"    RMSE before calibration: {rmse_before:.3f}°C")
 
-    # Calibration would require re-running the model for each iteration.
-    # Documented structure for Claude Code implementation:
-    # for pipe_id in pipe_order:
-    #     def objective(u_val):
-    #         updated_cfg = modify_u_value(base_cfg, pipe_id, u_val[0])
-    #         result = run_legacy_model(updated_cfg)
-    #         t_sim = extract_supply_temp(result)
-    #         return np.sqrt(np.mean((t_sim - m_ts) ** 2))
-    #     res = minimize(objective, x0=[nominal_u[pipe_id]],
-    #                    bounds=[(0.1*nominal_u[pipe_id], 3*nominal_u[pipe_id])],
-    #                    method='L-BFGS-B')
-    #     calibrated[pipe_id] = res.x[0]
-
+    # Placeholder: full calibration requires calion model re-runs
     for pid, u in nominal_u.items():
-        calibrated[pid] = u  # placeholder: return nominal
+        calibrated[pid] = u
     print("    [NOTE] Full calibration loop requires calion model re-runs.")
-    print("           Returning nominal U-values. Set up iterative re-runs in Claude Code.")
+    print("           Returning nominal U-values.")
     return calibrated
 
 
@@ -383,7 +389,8 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
 
 def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> dict:
     """COP bounds, min-load violations, full-load hours."""
-    results = {"checks": [], "full_load_hours": None, "cop_mean": None}
+    results = {"checks": [], "full_load_hours": None, "cop_mean": None,
+               "cop_min": None, "cop_max": None}
 
     cop = dispatch.get("COP_hp_wrg")
     q_hp = dispatch.get("Q_hp_total_MW")
@@ -395,7 +402,19 @@ def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> 
     if not active.any():
         results["checks"].append("INFO: HP never dispatched")
         return results
-
+    
+    def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> dict:
+        ...
+        active = q_hp > 0.01
+        if not active.any():
+            results["checks"].append("INFO: HP never dispatched")
+            results["checks"].append(
+                "HINT: Check if CO2 price makes HP uneconomic vs biomass. "
+                "Expected: co2_price ≤ 150 EUR/t AND grid_cost ≤ 30 EUR/MWh "
+                "for HP dispatch at COP=3."
+            )
+            return results
+        
     cop_active = cop[active]
     cop_min_actual = float(cop_active.min())
     cop_max_actual = float(cop_active.max())
@@ -404,7 +423,7 @@ def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> 
     results["cop_max"]   = cop_max_actual
 
     if cop_min_actual < 2.5:
-        n_low = (cop_active < 2.5).sum()
+        n_low = int((cop_active < 2.5).sum())
         results["checks"].append(
             f"WARN: {n_low} timesteps with COP < 2.5 (min={cop_min_actual:.2f})"
         )
@@ -412,7 +431,7 @@ def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> 
         results["checks"].append(f"PASS: COP_min={cop_min_actual:.2f} >= 2.5")
 
     if cop_max_actual > 5.5:
-        n_high = (cop_active > 5.5).sum()
+        n_high = int((cop_active > 5.5).sum())
         results["checks"].append(
             f"WARN: {n_high} timesteps with COP > 5.5 (max={cop_max_actual:.2f})"
         )
@@ -421,7 +440,7 @@ def check_hp_plausibility(dispatch: pd.DataFrame, hist: pd.DataFrame | None) -> 
 
     # Min-load violations
     q_min = 0.2 * 5.0  # 20% × 5 MW capacity
-    n_minload = ((q_hp > 0.01) & (q_hp < q_min)).sum()
+    n_minload = int(((q_hp > 0.01) & (q_hp < q_min)).sum())
     if n_minload > 0:
         results["checks"].append(
             f"WARN: {n_minload} HP timesteps below min-load ({q_min:.1f} MW)"
@@ -462,7 +481,7 @@ def check_eboiler_plausibility(dispatch: pd.DataFrame) -> dict:
 
     # Capacity check
     cap = 5.0
-    n_over = (q_ek > cap * 1.01).sum()
+    n_over = int((q_ek > cap * 1.01).sum())
     if n_over > 0:
         results["checks"].append(
             f"FAIL: {n_over} timesteps exceed capacity ({cap} MW)"
@@ -473,16 +492,17 @@ def check_eboiler_plausibility(dispatch: pd.DataFrame) -> dict:
     # Efficiency
     if p_ek is not None:
         eta = (q_ek[active] / p_ek[active].replace(0, np.nan)).dropna()
-        eta_mean = float(eta.mean())
-        results["efficiency_mean"] = eta_mean
-        if 0.93 <= eta_mean <= 1.02:
-            results["checks"].append(
-                f"PASS: Eboiler efficiency = {eta_mean:.3f} (target 0.95–0.99)"
-            )
-        else:
-            results["checks"].append(
-                f"WARN: Eboiler efficiency = {eta_mean:.3f} (outside 0.95–0.99)"
-            )
+        if len(eta) > 0:
+            eta_mean = float(eta.mean())
+            results["efficiency_mean"] = eta_mean
+            if 0.93 <= eta_mean <= 1.02:
+                results["checks"].append(
+                    f"PASS: Eboiler efficiency = {eta_mean:.3f} (target 0.95–0.99)"
+                )
+            else:
+                results["checks"].append(
+                    f"WARN: Eboiler efficiency = {eta_mean:.3f} (outside 0.95–0.99)"
+                )
 
     # Price-response correlation
     if price is not None:
@@ -518,8 +538,8 @@ def check_tes_plausibility(dispatch: pd.DataFrame) -> dict:
     soc_min_frac, soc_max_frac = 0.05, 0.95
 
     # SOC bounds
-    n_low  = (soc < cap * soc_min_frac).sum()
-    n_high = (soc > cap * soc_max_frac).sum()
+    n_low  = int((soc < cap * soc_min_frac).sum())
+    n_high = int((soc > cap * soc_max_frac).sum())
     if n_low > 0:
         results["checks"].append(
             f"WARN: {n_low} timesteps SOC < {soc_min_frac*100:.0f}% of capacity"
@@ -537,14 +557,14 @@ def check_tes_plausibility(dispatch: pd.DataFrame) -> dict:
     # Power limits
     power_cap = 30.0
     if q_ch is not None:
-        n_over = (q_ch > power_cap * 1.01).sum()
+        n_over = int((q_ch > power_cap * 1.01).sum())
         if n_over:
             results["checks"].append(f"FAIL: {n_over} timesteps charge power > {power_cap} MW")
         else:
             results["checks"].append("PASS: Charge power <= 30 MW")
 
     if q_dis is not None:
-        n_over = (q_dis > power_cap * 1.01).sum()
+        n_over = int((q_dis > power_cap * 1.01).sum())
         if n_over:
             results["checks"].append(f"FAIL: {n_over} timesteps discharge power > {power_cap} MW")
         else:
@@ -552,7 +572,7 @@ def check_tes_plausibility(dispatch: pd.DataFrame) -> dict:
 
     # Simultaneous charge + discharge
     if q_ch is not None and q_dis is not None:
-        n_simult = ((q_ch > 0.1) & (q_dis > 0.1)).sum()
+        n_simult = int(((q_ch > 0.1) & (q_dis > 0.1)).sum())
         if n_simult > 0:
             results["checks"].append(
                 f"WARN: {n_simult} simultaneous charge+discharge events"
@@ -564,7 +584,6 @@ def check_tes_plausibility(dispatch: pd.DataFrame) -> dict:
     if q_ch is not None and q_dis is not None:
         net_ch = (q_ch.fillna(0) - q_dis.fillna(0))
         sign   = np.sign(net_ch)
-        # A "full cycle" ≈ each charge→discharge transition
         cycles = ((sign.diff() != 0) & (sign != 0)).sum() / 2
         results["cycling_per_year"] = int(cycles)
         if 50 <= cycles <= 200:
@@ -589,17 +608,23 @@ def check_energy_balance(dispatch: pd.DataFrame) -> dict:
     gen_cols = ["Q_chp_MW", "Q_hp_total_MW", "Q_ek_MW",
                 "Q_boiler_gas_MW", "Q_boiler_biomass_MW",
                 "Q_gasboiler_MW", "Q_biomass_MW"]
-    gen = sum(dispatch[c].fillna(0) for c in gen_cols if c in dispatch.columns)
+
+    # FIX: sum() over empty list returns 0 (int), not pd.Series
+    available_gen_cols = [c for c in gen_cols if c in dispatch.columns]
+    if not available_gen_cols:
+        results["checks"].append("WARN: No generation columns found in dispatch")
+        return results
+
+    gen = dispatch[available_gen_cols].fillna(0).sum(axis=1)
 
     dem  = dispatch.get("Q_demand_total_MW")
     loss = dispatch.get("Q_loss_total_MW")
-    soc  = dispatch.get("SOC_MWh")
     q_ch = dispatch.get("Q_storage_charge_MW")
-    q_dis= dispatch.get("Q_storage_discharge_MW")
+    q_dis = dispatch.get("Q_storage_discharge_MW")
     dump = dispatch.get("Q_dump_MW")
 
-    if dem is None or not isinstance(gen, pd.Series):
-        results["checks"].append("WARN: Cannot compute energy balance — missing series")
+    if dem is None:
+        results["checks"].append("WARN: Cannot compute energy balance — Q_demand_total_MW missing")
         return results
 
     rhs = dem.fillna(0)
@@ -619,7 +644,7 @@ def check_energy_balance(dispatch: pd.DataFrame) -> dict:
     if len(balance_err):
         max_err  = float(balance_err.max())
         mean_err = float(balance_err.mean())
-        n_flag   = (balance_err > 5.0).sum()
+        n_flag   = int((balance_err > 5.0).sum())
         results["max_err_pct"]  = max_err
         results["mean_err_pct"] = mean_err
 
@@ -639,6 +664,8 @@ def check_energy_balance(dispatch: pd.DataFrame) -> dict:
             results["checks"].append(
                 f"WARN: {n_flag} timesteps with balance error > 5% (numerical issue)"
             )
+    else:
+        results["checks"].append("WARN: Energy balance computation yielded no valid timesteps")
 
     return results
 
@@ -788,6 +815,11 @@ def plot_stage1_scatter(measured: pd.DataFrame, simulated: pd.DataFrame,
     m_vals = m_ts.loc[idx]
     s_vals = s_ts.loc[idx]
 
+    # Guard against constant series (stddev=0 → NaN correlation)
+    if m_vals.std() == 0 or s_vals.std() == 0:
+        print("  [WARN] Scatter plot skipped — constant series (stddev=0)")
+        return
+
     fig, ax = plt.subplots(figsize=(3.54, 3.54))
     ax.scatter(m_vals, s_vals, c=np.arange(len(idx)),
                cmap="plasma", s=4, alpha=0.5, linewidths=0)
@@ -842,12 +874,14 @@ def plot_stage1_heatmap(measured: pd.DataFrame, simulated: pd.DataFrame,
         "hour": err.index.hour,
         "doy":  err.index.dayofyear,
     })
-    # Pivot: rows = hour, columns = day of year
     pivot = err_df.pivot_table(index="hour", columns="doy", values="error", aggfunc="mean")
 
     fig, ax = plt.subplots(figsize=(7.09, 3.0))
-    vmax = max(abs(pivot.values[np.isfinite(pivot.values)].max()),
-               abs(pivot.values[np.isfinite(pivot.values)].min()), 2.0)
+    finite_vals = pivot.values[np.isfinite(pivot.values)]
+    if len(finite_vals) == 0:
+        plt.close(fig)
+        return
+    vmax = max(abs(finite_vals.max()), abs(finite_vals.min()), 2.0)
     im = ax.imshow(pivot.values, aspect="auto", cmap="RdBu_r",
                    vmin=-vmax, vmax=vmax, origin="lower",
                    extent=[pivot.columns.min(), pivot.columns.max(),
@@ -877,9 +911,10 @@ def plot_stage2_cop_scatter(dispatch: pd.DataFrame, hist: pd.DataFrame | None,
         return
 
     active = q_hp > 0.01
+    if not active.any():
+        return
 
     # T_source from historical WRG column or assume 15°C
-    t_src_col = None
     if hist is not None and "T_wrg_source_C" in hist.columns:
         t_src = hist["T_wrg_source_C"].reindex(dispatch.index, method="nearest")
     else:
@@ -889,17 +924,18 @@ def plot_stage2_cop_scatter(dispatch: pd.DataFrame, hist: pd.DataFrame | None,
     cop_a  = cop[active]
     t_src_a = t_src.reindex(dispatch.index[active])
 
+    if len(t_lift) == 0:
+        return
+
     fig, ax = plt.subplots(figsize=(3.54, 3.0))
     scatter = ax.scatter(t_lift, cop_a,
                          c=t_src_a, cmap="plasma", s=8, alpha=0.6, linewidths=0)
     plt.colorbar(scatter, ax=ax, label="$T_{\\rm source}$ [°C]", shrink=0.8)
 
     # Carnot reference × 0.5
-    t_lift_ref = np.linspace(t_lift.min() if len(t_lift) else 20,
-                              t_lift.max() if len(t_lift) else 70, 100)
-    # COP_Lorenz = eta * T_sink / (T_sink - T_src) ≈ eta * (Tsink) / (T_lift)
+    t_lift_ref = np.linspace(t_lift.min(), t_lift.max(), 100)
     t_sink = 373.15  # K (100°C)
-    cop_carnot = 0.5 * t_sink / (t_lift_ref + 273.15)  # simplified
+    cop_carnot = 0.5 * t_sink / (t_lift_ref + 273.15)
     ax.plot(t_lift_ref, cop_carnot, "k--", lw=1.0, label="Carnot × 0.5")
 
     ax.axhline(2.5, color="r", lw=0.8, ls=":", alpha=0.7, label="COP=2.5")
@@ -916,7 +952,7 @@ def plot_stage2_cop_scatter(dispatch: pd.DataFrame, hist: pd.DataFrame | None,
 
 
 def plot_stage2_eboiler(dispatch: pd.DataFrame, weeks: dict, out_dir: Path) -> None:
-    """Plot 6: Electrode boiler dispatch vs electricity price (2 weeks)."""
+    """Plot 6: Electrode boiler dispatch vs electricity price."""
     plt, mpl = _fig_setup()
     if plt is None:
         return
@@ -928,7 +964,6 @@ def plot_stage2_eboiler(dispatch: pd.DataFrame, weeks: dict, out_dir: Path) -> N
 
     season = "winter" if "winter" in weeks else (list(weeks.keys())[0] if weeks else None)
     if season is None:
-        # Use first 2 weeks
         start = dispatch.index[0]
         end   = dispatch.index[min(336, len(dispatch) - 1)]
     else:
@@ -963,7 +998,7 @@ def plot_stage2_eboiler(dispatch: pd.DataFrame, weeks: dict, out_dir: Path) -> N
 
 
 def plot_stage2_tes(dispatch: pd.DataFrame, out_dir: Path) -> None:
-    """Plot 7: TES SOC time series (full year) with charge/discharge shading."""
+    """Plot 7: TES SOC time series with charge/discharge shading."""
     plt, mpl = _fig_setup()
     if plt is None:
         return
@@ -1009,10 +1044,14 @@ def plot_stage2_energy_bars(dispatch: pd.DataFrame, out_dir: Path) -> None:
 
     dispatch = dispatch.copy()
     dispatch.index = pd.to_datetime(dispatch.index, errors="coerce")
-    dispatch = dispatch.dropna(axis=0, how="all", subset=[c for c in [
-        "Q_chp_MW", "Q_hp_total_MW", "Q_ek_MW"] if c in dispatch.columns])
 
-    monthly = dispatch.resample("ME").sum()
+    # Only keep rows where at least one generation column has data
+    gen_check_cols = [c for c in ["Q_chp_MW", "Q_hp_total_MW", "Q_ek_MW"]
+                     if c in dispatch.columns]
+    if gen_check_cols:
+        dispatch = dispatch.dropna(axis=0, how="all", subset=gen_check_cols)
+
+    monthly = dispatch.resample("ME").sum(numeric_only=True)
 
     asset_cols = {
         "Q_chp_MW":          ("CHP",   "#B71C1C"),
@@ -1087,24 +1126,29 @@ def plot_validation_summary_table(kpis: dict, s2_results: dict, out_dir: Path) -
             "✓ PASS" if pass_ is True else ("✗ FAIL" if pass_ is False else "—"),
         ])
 
-    # Stage 2 rows
+    # Stage 2 rows — use `or 0` to guard against None values
     hp_res   = s2_results.get("hp",     {})
     tes_res  = s2_results.get("tes",    {})
     ek_res   = s2_results.get("eboiler",{})
     bal_res  = s2_results.get("balance",{})
 
-    rows.append(["HP COP range", f"[{hp_res.get('cop_min',0):.2f}, {hp_res.get('cop_max',0):.2f}]",
-                 "[2.5, 5.5]", "✓" if hp_res.get("cop_min", 0) >= 2.5 else "?"])
+    cop_min = hp_res.get("cop_min") or 0
+    cop_max = hp_res.get("cop_max") or 0
+    flh     = hp_res.get("full_load_hours") or 0
+    cycles  = tes_res.get("cycling_per_year") or 0
+    eff     = ek_res.get("efficiency_mean") or 0
+
+    rows.append(["HP COP range", f"[{cop_min:.2f}, {cop_max:.2f}]",
+                 "[2.5, 5.5]", "✓" if cop_min >= 2.5 else "?"])
     rows.append(["HP full-load hours [h/yr]",
-                 f"{hp_res.get('full_load_hours', 0):.0f}", "2000–5000",
-                 "✓" if 2000 <= hp_res.get("full_load_hours", 0) <= 5000 else "?"])
+                 f"{flh:.0f}", "2000–5000",
+                 "✓" if 2000 <= flh <= 5000 else "?"])
     rows.append(["TES cycling [cycles/yr]",
-                 f"{tes_res.get('cycling_per_year', 0)}",
-                 "50–200",
-                 "✓" if 50 <= (tes_res.get("cycling_per_year") or 0) <= 200 else "?"])
+                 f"{cycles}", "50–200",
+                 "✓" if 50 <= cycles <= 200 else "?"])
     rows.append(["Eboiler efficiency",
-                 f"{ek_res.get('efficiency_mean', 0):.3f}", "0.95–0.99",
-                 "✓" if 0.93 <= (ek_res.get("efficiency_mean") or 0) <= 1.02 else "?"])
+                 f"{eff:.3f}", "0.95–0.99",
+                 "✓" if 0.93 <= eff <= 1.02 else "?"])
 
     col_labels = ["KPI", "Result", "Target", "Pass?"]
     fig, ax = plt.subplots(figsize=(7.09, 0.4 * len(rows) + 1.0))
@@ -1119,12 +1163,14 @@ def plot_validation_summary_table(kpis: dict, s2_results: dict, out_dir: Path) -
         if row == 0:
             cell.set_facecolor("#455A64")
             cell.set_text_props(color="white", fontweight="bold")
-        elif rows[row - 1][3] == "✓ PASS" or rows[row - 1][3] == "✓":
-            cell.set_facecolor("#E8F5E9")
-        elif "FAIL" in str(rows[row - 1][3]):
-            cell.set_facecolor("#FFEBEE")
-        else:
-            cell.set_facecolor("#FFFFFF" if row % 2 else "#F5F5F5")
+        elif row <= len(rows):
+            pass_val = rows[row - 1][3]
+            if pass_val in ("✓ PASS", "✓"):
+                cell.set_facecolor("#E8F5E9")
+            elif "FAIL" in str(pass_val):
+                cell.set_facecolor("#FFEBEE")
+            else:
+                cell.set_facecolor("#FFFFFF" if row % 2 else "#F5F5F5")
 
     fig.tight_layout()
     fname = out_dir / "validation_summary_table.png"
@@ -1252,13 +1298,25 @@ def run_legacy_model(dry_run: bool = False) -> bool:
     print("\n  [LEGACY] Running legacy-only simulation (HP/TES/eboiler disabled)")
 
     legacy_overrides = {
-        "scenario": {"name": "Memmingen L3 — Legacy Only (no HP/TES/EBoiler)"},
-        "assets": {
-            "hp_main":      {"capacity_mw": 0.0},
-            "eboiler_main": {"capacity_mw": 0.0},
-            "tes_main":     {"energy_mwh":  0.0, "power_mw": 0.0},
+    "scenario": {"name": "Memmingen L3 — Legacy Only (no HP/TES/EBoiler)"},
+    "assets": {
+        "hp_main":      {"capacity_mw": 0.0},
+        "eboiler_main": {"capacity_mw": 0.0},
+        "tes_main":     {
+            "energy_mwh": 0.0,
+            "power_mw": 0.0,
+            "soc0_mwh": 0.0,          # ← FIX: muss auch 0 sein!
         },
-    }
+    },
+    # Außerdem: Physics explizit setzen für Reproduzierbarkeit
+    "network": {
+        "physics": {
+            "heat_loss": True,
+            "pressure_drop": False,    # ← Legacy ohne PD (stabiler)
+            "transport_delay": False,
+        }
+    },
+}
 
     config_path = CONFIGS_DIR / "Memmingen_L3_MILP.yaml"
     if not config_path.exists():
@@ -1270,15 +1328,25 @@ def run_legacy_model(dry_run: bool = False) -> bool:
         return True
 
     try:
-        import yaml, time
+        import copy
+        import time
+        import yaml
         from calion.run.workflow import run_workflow
         from scripts.paper.extract_artefacts import extract_all
 
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
+        # Load YAML with encoding fallback
+        cfg = None
+        for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                cfg = yaml.safe_load(config_path.read_text(encoding=enc))
+                break
+            except UnicodeDecodeError:
+                continue
+        if cfg is None:
+            print(f"  [ERROR] Cannot decode {config_path} with any known encoding")
+            return False
 
         # Deep-merge overrides
-        import copy
         def deep_merge(base, ov):
             result = copy.deepcopy(base)
             for k, v in ov.items():
@@ -1290,13 +1358,23 @@ def run_legacy_model(dry_run: bool = False) -> bool:
 
         cfg = deep_merge(cfg, legacy_overrides)
 
-        tmp_cfg = CONFIGS_DIR / "_tmp_legacy.yaml"
-        with open(tmp_cfg, "w") as f:
-            yaml.dump(cfg, f, allow_unicode=True)
+        # Write temp config with indented sequences (required by calion parser)
+        class _IndentedDumper(yaml.Dumper):
+            def increase_indent(self, flow=False, **_):
+                return super().increase_indent(flow=flow, indentless=False)
+
+        tmp_cfg = CONFIGS_DIR / f"_tmp_legacy_{uuid.uuid4().hex[:8]}.yaml"
+        tmp_cfg.write_text(
+            yaml.dump(cfg, Dumper=_IndentedDumper, allow_unicode=True,
+                      default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
 
         t0 = time.perf_counter()
         wf = run_workflow([str(tmp_cfg)])
         elapsed = time.perf_counter() - t0
+
+        LEGACY_DIR.mkdir(parents=True, exist_ok=True)
         extract_all("legacy", str(tmp_cfg), wf, elapsed, outdir=LEGACY_DIR)
         tmp_cfg.unlink(missing_ok=True)
         print(f"  [LEGACY] Done in {elapsed:.1f}s → {LEGACY_DIR}")
@@ -1304,9 +1382,11 @@ def run_legacy_model(dry_run: bool = False) -> bool:
 
     except Exception as e:
         print(f"  [LEGACY ERROR] {e}")
+        # Clean up temp file on failure
+        tmp_cfg = CONFIGS_DIR / "_tmp_legacy.yaml"
+        if tmp_cfg.exists():
+            tmp_cfg.unlink(missing_ok=True)
         return False
-
-
 # ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
@@ -1343,17 +1423,19 @@ def main(argv: list[str] | None = None) -> int:
     print("VALIDATION PIPELINE")
     print("="*65)
 
-    # ----- Load historical data -----
-    if not args.dry_run and data_path.exists():
+    # ----- Load historical data (only if Stage 1 needs it) -----
+    if run_s1 and not args.dry_run and data_path.exists():
         print("\n[1/5] Loading historical data...")
         hist = load_historical(data_path, resample_to_1h=True)
         measured_agg = aggregate_source_measurements(hist)
         weeks = identify_representative_weeks(measured_agg)
         print(f"      Representative weeks: {list(weeks.keys())}")
-    elif args.dry_run:
+    elif run_s1 and args.dry_run:
         print("\n[DRY] Would load:", data_path)
-    else:
+    elif run_s1:
         print(f"\n[WARN] Historical data not found: {data_path}")
+    else:
+        print("\n[1/5] Skipping historical data load (not needed for Stage 2 only)")
 
     # ----- Stage 1 -----
     if run_s1:
@@ -1369,10 +1451,12 @@ def main(argv: list[str] | None = None) -> int:
             print("       Loading legacy simulation results...")
             sim_legacy = pd.read_csv(legacy_dispatch, index_col=0, parse_dates=True)
         else:
-            print("       [WARN] Legacy dispatch not found — using L3 results as fallback")
-            l3_dispatch = L3_DIR / "dispatch_hourly.csv"
-            if l3_dispatch.exists() and not args.dry_run:
-                sim_legacy = pd.read_csv(l3_dispatch, index_col=0, parse_dates=True)
+            # DO NOT fall back to L3 — comparison would be meaningless
+            print("       [ERROR] Legacy dispatch not found: {legacy_dispatch}")
+            print("               Cannot compare full L3 (with HP/TES) against historical data.")
+            print("               Fix: resolve YAML encoding issue or run legacy model manually.")
+            print("               Hint: use --skip-model if legacy/dispatch_hourly.csv exists.")
+            sim_legacy = None
 
         # Compute KPIs
         if measured_agg is not None and sim_legacy is not None:
@@ -1392,10 +1476,12 @@ def main(argv: list[str] | None = None) -> int:
                                                    CONFIGS_DIR / "Memmingen_L3_MILP.yaml")
         elif args.dry_run:
             print("  [DRY] Would compute Stage 1 KPIs")
+        else:
+            print("       [SKIP] Cannot compute KPIs — missing measured or simulated data")
 
         # Plots
-        print("       Generating Stage 1 plots...")
         if measured_agg is not None and sim_legacy is not None:
+            print("       Generating Stage 1 plots...")
             plot_stage1_timeseries(measured_agg, sim_legacy, weeks, OUT_DIR)
             plot_stage1_scatter(measured_agg, sim_legacy, OUT_DIR)
             plot_stage1_heatmap(measured_agg, sim_legacy, OUT_DIR)
@@ -1437,8 +1523,11 @@ def main(argv: list[str] | None = None) -> int:
             plot_stage2_eboiler(dispatch, weeks, OUT_DIR)
             plot_stage2_tes(dispatch, OUT_DIR)
             plot_stage2_energy_bars(dispatch, OUT_DIR)
+        elif args.dry_run:
+            print("  [DRY] Would run Stage 2 asset plausibility checks")
         else:
             print(f"  [WARN] L3 dispatch not found: {l3_dispatch_path}")
+            print("         Run Phase 1 (optimization) first to generate dispatch results.")
 
     # ----- Summary -----
     print("\n[4/5] Generating summary outputs...")
@@ -1447,6 +1536,8 @@ def main(argv: list[str] | None = None) -> int:
             plot_validation_summary_table(kpis, s2_results, OUT_DIR)
             generate_report(kpis, s2_results, calibrated_u, OUT_DIR)
             save_kpis_json(kpis, s2_results, OUT_DIR)
+        else:
+            print("       [SKIP] No KPIs or Stage 2 results to summarize")
 
     print("\n[5/5] Validation pipeline complete.")
     print(f"       Outputs: {OUT_DIR}")

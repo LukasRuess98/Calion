@@ -163,15 +163,19 @@ def _apply_design_fix(cfg: dict[str, Any], design: DesignData) -> dict[str, Any]
         storage_cfg["max_energy_mwh"] = actual_capacity
         storage_cfg["max_power_mw"] = actual_power
 
-        # Force terminal to free
+        # Preserve existing terminal policy if already set (e.g. by _apply_terminal_policy)
+        # Only default to "free" if no policy has been configured
         terminal_cfg = storage_cfg.setdefault("terminal", {})
-        terminal_cfg["state"] = "free"
-        terminal_cfg["policy"] = "free"
-        terminal_cfg.pop("target_mwh", None)
-        terminal_cfg.pop("target", None)
-        storage_cfg.pop("terminal_soc_mwh", None)
-        storage_cfg["terminal_state"] = "free"
-        logger.info("[DESIGN_FIX] Storage terminal → FREE")
+        if not terminal_cfg.get("policy"):
+            terminal_cfg["state"] = "free"
+            terminal_cfg["policy"] = "free"
+            terminal_cfg.pop("target_mwh", None)
+            terminal_cfg.pop("target", None)
+            storage_cfg.pop("terminal_soc_mwh", None)
+            storage_cfg["terminal_state"] = "free"
+            logger.info("[DESIGN_FIX] Storage terminal → FREE (no prior policy set)")
+        else:
+            logger.info("[DESIGN_FIX] Storage terminal policy preserved: %s", terminal_cfg["policy"])
 
         invest_cfg = storage_cfg.setdefault("investment", {})
         if isinstance(invest_cfg, dict):

@@ -60,15 +60,10 @@ def calculate_demand_charge_zonal_dynamic(
 ) -> any:
     """Calculate demand charge with DYNAMIC zonal costs (CSV-based).
     
-    Uses hourly tariffs from zone_demand_charge_ts if available.
-    Falls back to static zone costs, then global.
-    
-    Args:
-        model: Pyomo model with zone_demand_charge_ts[zone][t] or fallbacks
-        include_demand: Whether to include demand charges
-    
-    Returns:
-        Pyomo expression for total demand charge (sum over zones and time)
+    NOTE: Dynamic per-timestep zonal pricing is not yet fully implemented.
+    Currently falls back to static zonal or global demand charges.
+    Requires model.P_buy_by_zone (per-zone peak tracking) which is not yet
+    created in the model builder.
     """
     if not HAVE_PYOMO:
         raise ImportError("Pyomo is required for cost calculation")
@@ -76,19 +71,11 @@ def calculate_demand_charge_zonal_dynamic(
     if not include_demand:
         return 0
     
-    # CHECK 1: Dynamic zonal costs (hourly)?
-    if hasattr(model, 'zone_demand_charge_ts') and model.zone_demand_charge_ts:
-        # ✓ DYNAMIC ZONAL MODE: Sum over zones × timesteps
-        demand_cost = sum(
-            model.zone_demand_charge_ts[zone_id][t] * 
-            model.P_buy_by_zone.get(zone_id, model.P_buy)[t] *
-            model.dt_h  # dt_h should be set on model
-            for zone_id in model.zone_demand_charge_ts.keys()
-            for t in model.t
-        )
-        return demand_cost
-    
-    # CHECK 2: Static zonal costs (fallback)?
+    logger.warning(
+        "[COST] Dynamic zonal demand charges not yet implemented — "
+        "falling back to static zonal charges."
+    )
+       
     if hasattr(model, 'zone_demand_charge') and model.zone_demand_charge:
         # ✓ STATIC ZONAL MODE: Per-zone, annual, all sharing the single grid peak
         demand_cost = sum(
@@ -97,7 +84,7 @@ def calculate_demand_charge_zonal_dynamic(
         )
         return demand_cost
     
-    # CHECK 3: Global (fallback)
+
     if hasattr(model, 'P_buy_peak') and hasattr(model, 'demand_charge_y'):
         return model.demand_charge_y * model.year_frac * model.P_buy_peak
     

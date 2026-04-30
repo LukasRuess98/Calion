@@ -215,26 +215,28 @@ def _rh_step(context: WorkflowContext) -> None:
         save_optimization_results(extracted_results, design_config.save_result_to)
         logger.info("[DESIGN] Saved optimized design to %s", design_config.save_result_to)
 
+    
     # Transfer investment costs from PF to RH when fix_design is active
     if context.pf_result and context.rh_result and context.plan.fix_design:
-        pf_costs = context.pf_result.costs
-        rh_costs = context.rh_result.costs
+        pf_costs = context.pf_result.costs or {}
+        rh_costs = context.rh_result.costs or {}
+        if not pf_costs or not rh_costs:
+            logger.debug("[RH] Skipping investment transfer: PF or RH costs are empty")
+        else:
+            investment_transferred = False
+            for inv_key in _INVESTMENT_KEYS:
+                if inv_key in pf_costs:
+                    pf_value = pf_costs[inv_key]
+                    if isinstance(pf_value, (int, float)) and pf_value > 0:
+                        rh_costs[inv_key] = float(pf_value)
+                        investment_transferred = True
 
-        investment_transferred = False
-        for inv_key in _INVESTMENT_KEYS:
-            if inv_key in pf_costs:
-                pf_value = pf_costs[inv_key]
-                if isinstance(pf_value, (int, float)) and pf_value > 0:
-                    rh_costs[inv_key] = float(pf_value)
-                    investment_transferred = True
-
-        if investment_transferred:
-            _recompute_objective_costs(rh_costs)
-            logger.info(
-                f"Transferred investment costs from PF to RH result "
-                f"(CAPEX: {rh_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
-            )
-
+            if investment_transferred:
+                _recompute_objective_costs(rh_costs)
+                logger.info(
+                    f"Transferred investment costs from PF to RH result "
+                    f"(CAPEX: {rh_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+                )
 
 def _mpc_step(context: WorkflowContext) -> None:
     """Model Predictive Control with forecast updates."""
@@ -280,25 +282,28 @@ def _mpc_step(context: WorkflowContext) -> None:
     if context.mpc_result.investments is not None:
         context.investments = context.investments or context.mpc_result.investments
 
+ 
     # Transfer investment costs from PF to MPC
     if context.pf_result and context.mpc_result and context.plan.fix_design:
-        pf_costs = context.pf_result.costs
-        mpc_costs = context.mpc_result.costs
+        pf_costs = context.pf_result.costs or {}
+        mpc_costs = context.mpc_result.costs or {}
+        if not pf_costs or not mpc_costs:
+            logger.debug("[MPC] Skipping investment transfer: PF or MPC costs are empty")
+        else:
+            investment_transferred = False
+            for inv_key in _INVESTMENT_KEYS:
+                if inv_key in pf_costs:
+                    pf_value = pf_costs[inv_key]
+                    if isinstance(pf_value, (int, float)) and pf_value > 0:
+                        mpc_costs[inv_key] = float(pf_value)
+                        investment_transferred = True
 
-        investment_transferred = False
-        for inv_key in _INVESTMENT_KEYS:
-            if inv_key in pf_costs:
-                pf_value = pf_costs[inv_key]
-                if isinstance(pf_value, (int, float)) and pf_value > 0:
-                    mpc_costs[inv_key] = float(pf_value)
-                    investment_transferred = True
-
-        if investment_transferred:
-            _recompute_objective_costs(mpc_costs)
-            logger.info(
-                f"Transferred investment costs from PF to MPC result "
-                f"(CAPEX: {mpc_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
-            )
+            if investment_transferred:
+                _recompute_objective_costs(mpc_costs)
+                logger.info(
+                    f"Transferred investment costs from PF to MPC result "
+                    f"(CAPEX: {mpc_costs.get('objective.Capex_cost_EUR', 0):,.0f} EUR)"
+                )
 
 
 def _register_default_steps() -> None:

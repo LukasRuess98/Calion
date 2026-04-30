@@ -324,16 +324,40 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                         node_id, len(ht_out), len(ht_in))
 
         elif node_cfg.type == "consumer":
-            # Consumer nodes: demand is satisfied by incoming pipe flow
-            # Local assets (if any) contribute to the pipe flow balance
-            # Consumer heat balance is handled by NetworkManager's
-            # _link_consumer_demands() which connects pipe Q_consumer to Q_demand
-            if ht_out:
-                # Consumer has local assets — add their output to node demand satisfaction
-                # The balance is: pipe_delivered + local_ht_out = demand + dump + local_storage_charge
-                if hasattr(model, f"heatd_{node_id}"):
-                    logger.info("[CONSTRAINT] Consumer %s: %d local assets contribute to demand",
-                                node_id, len(ht_out))
+            # Consumer nodes: demand is satisfied by incoming pipe flow + local assets
+            if ht_out and hasattr(model, f"heatd_{node_id}"):
+                # Consumer has local generation assets — create a combined balance:
+                #   local_gen + pipe_in == demand + dump + storage_charge
+                demand_param = getattr(model, f"heatd_{node_id}")
+
+                # Find incoming pipe's Q_consumer variable
+                q_pipe_in = None
+                if unified_config is not None:
+                    for pipe_id, pipe_cfg in unified_config.pipes.items():
+                        if pipe_cfg.to_node == node_id:
+                            pipe_pfx = pipe_id.upper().replace('-', '_')
+                            q_pipe_in = getattr(
+                                model, f'{pipe_pfx}_Q_consumer',
+                                getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            )
+                            break
+
+                def consumer_with_assets_balance(
+                    m, t, _out=ht_out, _in=ht_in, _d=dump_var,
+                    _dem=demand_param, _qp=q_pipe_in
+                ):
+                    local_supply = sum((f[t] for f in _out), start=0)
+                    charge = sum((f[t] for f in _in), start=0)
+                    pipe_in = _qp[t] if _qp is not None else 0
+                    return local_supply + pipe_in == _dem[t] + _d[t] + charge
+
+                setattr(model, f"ht_balance_{node_id}",
+                        pyo.Constraint(model.t, rule=consumer_with_assets_balance))
+                logger.info(
+                    "[CONSTRAINT] Consumer %s: combined balance with %d local assets",
+                    node_id, len(ht_out),
+                )
+            # else: pure consumer without local assets — demand handled by NetworkManager
 
         elif node_cfg.type == "junction":
             # Junction: flow balance handled by NetworkManager

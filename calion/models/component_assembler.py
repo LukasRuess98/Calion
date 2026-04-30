@@ -204,7 +204,13 @@ class ComponentAssembler:
 
     # ── Unified Assembly (new config) ──────────────────────────────────────────
 
-    def assemble_all(self, ucfg) -> SystemBusConnections:
+    def assemble_all(
+        self,
+        ucfg,
+        *,
+        soc_init_override: float | None = None,
+        terminal_target_override: float | None = None,
+    ) -> SystemBusConnections:
         """Assemble all components from a UnifiedSystemConfig.
 
         Iterates over nodes and their assets, attaching each component to the
@@ -213,6 +219,8 @@ class ComponentAssembler:
 
         Args:
             ucfg: A UnifiedSystemConfig instance.
+            soc_init_override: Override for initial storage SOC (from RH handover).
+            terminal_target_override: Override for terminal SOC target.
 
         Returns:
             SystemBusConnections with per-node and system-level bus connections.
@@ -220,6 +228,10 @@ class ComponentAssembler:
         from calion.config.unified_config import unified_generators_defaults
 
         sys_buses = SystemBusConnections()
+
+        # Store overrides for use by _attach_storage_from_unified
+        self._soc_init_override = soc_init_override
+        self._terminal_target_override = terminal_target_override
 
         # Build generator defaults lookup for config compatibility
         gen_defaults = unified_generators_defaults(ucfg)
@@ -341,7 +353,10 @@ class ComponentAssembler:
         old_sys = self.cfg.get("system")
         self.cfg.setdefault("system", {})["storage"] = sto_cfg
         try:
-            self.assemble_storage()
+            self.assemble_storage(
+                soc_init_override=getattr(self, '_soc_init_override', None),
+                terminal_target_override=getattr(self, '_terminal_target_override', None),
+            )
         finally:
             if old_sys is None:
                 self.cfg.pop("system", None)

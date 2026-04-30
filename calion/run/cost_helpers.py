@@ -57,9 +57,7 @@ def _accumulate_costs(
             once_costs.add(key)
             target[key] = float(target.get(key, 0.0) + float(value))
             continue
-        scaled_value = float(value)
-        if key.startswith("objective."):
-            scaled_value *= commit_fraction
+        scaled_value = float(value) * commit_fraction
         target[key] = float(target.get(key, 0.0) + scaled_value)
 
 

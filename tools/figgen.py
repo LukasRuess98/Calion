@@ -250,8 +250,6 @@ def fig_F1(out_dir: Path) -> None:
                     xytext=(0, 8), textcoords="offset points")
 
     # Arrows indicating experimental comparisons
-    arrow_kw = dict(arrowstyle="-|>", color="gray", lw=1.2)
-    from matplotlib.patches import FancyArrowPatch
     def _arrow(x0, y0, x1, y1, label="", color="gray"):
         ax.annotate("", xy=(x1, y1), xytext=(x0, y0),
                     arrowprops=dict(arrowstyle="-|>", color=color, lw=1.1,
@@ -475,7 +473,11 @@ def fig_F3(out_dir: Path) -> None:
 def fig_F4(out_dir: Path) -> None:
     """Stacked area chart of asset dispatch for a representative winter week."""
     plt, mpl = _mpl_setup()
-    dispatch = _load_dispatch("L3plus") or _load_dispatch("L3")
+
+    # FIX: avoid `DataFrame or DataFrame` which raises ValueError
+    dispatch = _load_dispatch("L3plus")
+    if dispatch is None:
+        dispatch = _load_dispatch("L3")
     if dispatch is None:
         print("  [SKIP] F4 — no dispatch data")
         return
@@ -587,11 +589,12 @@ def fig_F5(out_dir: Path) -> None:
 
     for i, (label, val, base, kind, color) in enumerate(steps):
         if kind == "start":
-            ax.bar(i, val * scale, 0, color=color, alpha=0.85, width=0.6, zorder=3)
+            # FIX: removed positional '0' that conflicted with width kwarg
+            ax.bar(i, val * scale, color=color, alpha=0.85, width=0.6, zorder=3)
             ax.text(i, val * scale * 1.01, f"{val*scale:.0f}k€", ha="center",
                     va="bottom", fontsize=6)
         elif kind == "end":
-            ax.bar(i, val * scale, 0, color=color, alpha=0.85, width=0.6, zorder=3)
+            ax.bar(i, val * scale, color=color, alpha=0.85, width=0.6, zorder=3)
             ax.text(i, val * scale * 1.01, f"{val*scale:.0f}k€", ha="center",
                     va="bottom", fontsize=6)
         else:
@@ -699,10 +702,12 @@ def fig_FV1(out_dir: Path) -> None:
 
     # Minimal fallback plot
     fig, ax = plt.subplots(figsize=(7.09, 2.5))
-    ax.text(0.5, 0.5,
-            f"Validation time series\nRun Phase 0 (validation_runner.py) first.\n"
-            f"T_supply source MAE = {mae:.3f}°C" if isinstance(mae, float)
-            else "Run Phase 0 first.",
+    if isinstance(mae, float):
+        msg = (f"Validation time series\nRun Phase 0 (validation_runner.py) first.\n"
+               f"T_supply source MAE = {mae:.3f}°C")
+    else:
+        msg = "Run Phase 0 first."
+    ax.text(0.5, 0.5, msg,
             ha="center", va="center", transform=ax.transAxes, fontsize=9)
     ax.axis("off")
     fname = out_dir / "FV1_validation_timeseries.png"
@@ -730,8 +735,11 @@ def fig_F7(out_dir: Path) -> None:
         print("  [SKIP] F7 — no SOC data")
         return
 
-    # Find a representative winter week from L3
-    ref = available.get("L3") or next(iter(available.values()))
+    # FIX: avoid `DataFrame or DataFrame` which raises ValueError
+    ref = available.get("L3")
+    if ref is None:
+        ref = next(iter(available.values()))
+
     dem_col = "Q_demand_total_MW"
     if dem_col in ref.columns:
         weekly = ref[dem_col].resample("W").mean()
@@ -807,7 +815,8 @@ def fig_F8(out_dir: Path) -> None:
 
         # Annotate cells
         for i in range(pivot.shape[0]):
-            for j in pivot.shape[1]:
+            # FIX: was `for j in pivot.shape[1]` → int is not iterable
+            for j in range(pivot.shape[1]):
                 v = pivot.values[i, j]
                 if np.isfinite(v):
                     ax.text(j, i, f"{v:.1f}", ha="center", va="center",

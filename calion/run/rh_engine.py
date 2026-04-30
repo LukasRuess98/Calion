@@ -361,14 +361,28 @@ def _run_rolling_horizon(
                 f"or if storage terminal_policy='equal' cannot be satisfied."
             )
 
-        commit_len = min(step_steps - overlap_steps, len(window_table)) if step_steps > overlap_steps else 0
-        if commit_len <= 0:
+        effective_step = step_steps - overlap_steps if step_steps > overlap_steps else 0
+        if effective_step <= 0:
             raise RuntimeError(
                 f"Rolling horizon produced a zero commit length – ensure STEP_HOURS exceeds OVERLAP_HOURS. "
+                f"Got: step_steps={step_steps}, overlap_steps={overlap_steps}"
+            )
+
+        # In the last window, commit all remaining time steps to cover the full series
+        remaining_after_commit = n - (start + effective_step)
+        is_last_window = remaining_after_commit <= 0
+        if is_last_window:
+            commit_len = min(n - start, len(window_table))
+        else:
+            commit_len = min(effective_step, len(window_table))
+
+        if commit_len <= 0:
+            raise RuntimeError(
+                f"Rolling horizon produced a zero commit length. "
                 f"Got: step_steps={step_steps}, overlap_steps={overlap_steps}, "
                 f"window_length={len(window_table)}, commit_len={commit_len}"
             )
-
+        
         _extend_series(aggregated_series, window_result.series, commit_len)
         aggregated_indices.extend(indices[:commit_len])
         commit_fraction = float(commit_len / len(window_table)) if len(window_table) else 0.0

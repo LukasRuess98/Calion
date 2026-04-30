@@ -140,6 +140,9 @@ _RUN_MODE_ALIASES = {
     "PF_AND_RH": "PF_THEN_RH",
     "RH": "RH_ONLY",
     "RH_ONLY": "RH_ONLY",
+    "MPC": "MPC_ONLY",
+    "MPC_ONLY": "MPC_ONLY",
+    "PF_THEN_MPC": "PF_THEN_MPC",
 }
 
 

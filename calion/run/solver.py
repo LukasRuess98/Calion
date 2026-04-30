@@ -89,9 +89,13 @@ def _solve_scenario(
         solver_used = solver_name
         try:
             opt = pyo.SolverFactory(solver_name)
-        except (AttributeError, OSError, RuntimeError):  # pragma: no cover - solver fallback
-            solver_used = "cbc"
-            opt = pyo.SolverFactory("cbc")
+        except (AttributeError, OSError, RuntimeError) as exc:  # pragma: no cover - solver fallback
+            logger.warning(
+                "Solver '%s' not available (%s), falling back to 'gurobi'.",
+                solver_name, exc,
+            )
+            solver_used = "gurobi"
+            opt = pyo.SolverFactory("gurobi")
 
         solver_executable = None
         if hasattr(opt, "available") and not opt.available(exception_flag=False):
@@ -114,6 +118,69 @@ def _solve_scenario(
             for key, value in solver_options.items():
                 opt.options[key] = value
             logger.debug(f"Applied solver options: {solver_options}")
+
+        # === WARMSTART: inject L3plus solution as MIPStart ===
+        warmstart_path = run_cfg.get("warmstart_from")  # e.g. "output/paper_runs/L3plus"
+        if warmstart_path:
+            from pathlib import Path
+            import pandas as pd
+            ws_file = Path(warmstart_path) / "unified_timeseries.csv"
+            if ws_file.exists():
+                logger.info("Loading warmstart from %s", ws_file)
+                ws_df = pd.read_csv(ws_file, sep=";", index_col=0)
+                
+                # Set .value hints for all matching Pyomo Vars
+                n_set = 0
+                for var in model.component_objects(pyo.Var, active=True):
+                    for idx in var:
+                        var_name = f"{var.name}[{idx}]" if idx is not None else var.name
+                        # Match column names from timeseries (simplified mapping)
+                        if hasattr(var[idx], 'set_value'):
+                            # Gurobi reads var.value as Start hint
+                            pass  # see mapping below
+                    
+                # Simpler approach: use Gurobi's native .sol file
+                try:
+                    grb_model = opt._solver_model  # after model translation
+                    # Can't access before solve — use callback instead
+                    pass
+                except Exception:
+                    pass
+                
+                # BEST approach: set Pyomo Var.value before solve
+                # Gurobi Pyomo interface reads var.value as MIPStart
+                for t_idx in model.t:
+                    row = t_idx - 1  # 0-indexed
+                    if row < len(ws_df):
+                        # Storage SOC
+                        if hasattr(model, 'SOC') and t_idx in model.SOC:
+                            soc_val = ws_df.iloc[row].get("storage_SOC_MWh")
+                            if soc_val is not None and not pd.isna(soc_val):
+                                model.SOC[t_idx].value = float(soc_val)
+                                n_set += 1
+                        # Mass flow per pipe
+                        for pipe_id in getattr(model, '_pipe_ids', []):
+                            col = f"{pipe_id}_m_dot"
+                            if col in ws_df.columns and hasattr(model, 'm_dot'):
+                                val = ws_df.iloc[row].get(col)
+                                if val is not None and not pd.isna(val):
+                                    model.m_dot[pipe_id, t_idx].value = float(val)
+                                    n_set += 1
+                        # Node temperatures
+                        for node_id in getattr(model, '_node_ids', []):
+                            ts_col = f"{node_id}_T_supply"
+                            tr_col = f"{node_id}_T_return"
+                            if hasattr(model, 'T_supply'):
+                                val = ws_df.iloc[row].get(ts_col)
+                                if val is not None and not pd.isna(val):
+                                    model.T_supply[node_id, t_idx].value = float(val)
+                                    n_set += 1
+                            if hasattr(model, 'T_return'):
+                                val = ws_df.iloc[row].get(tr_col)
+                                if val is not None and not pd.isna(val):
+                                    model.T_return[node_id, t_idx].value = float(val)
+                                    n_set += 1
+                logger.info("Warmstart: set %d variable hints from L3plus solution", n_set)
 
         # Defer solution loading until after we inspect the solver status.
         # Gurobi can return "aborted/maxTimeLimit" with no incumbent for hard
@@ -224,7 +291,7 @@ def _solve_scenario(
         table,
         cfg,
         dt_h,
-        model if HAVE_PYOMO else None,
+        model if (HAVE_PYOMO and model is not None) else None,
     )
     investments = InvestmentDecisions.from_summary(summary)
     return ScenarioResult(table, series, summary, costs, solver_meta, investments)

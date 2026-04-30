@@ -622,6 +622,9 @@ def _collect_timeseries_and_summary(
         times = list(range(1, n + 1))
         objective["OBJ_value_EUR"] = 0.0
         objective["P_buy_peak_MW"] = max(series["P_buy_MW"], default=0.0)
+        # No model available — return early with zero-filled results
+        flat = _flatten_summary(summary_sections)
+        return series, summary_sections, flat
 
     def _find_col(data, candidates, fallback_len):
         for name in candidates:
@@ -953,7 +956,11 @@ def _collect_timeseries_and_summary(
 
     total_emissions_t = float(grid_co2_t + fuel_emissions_t)
     co2_price = float(cfg.get("costs", {}).get("co2_price_eur_per_t", 0.0))
-    co2_cost = float(co2_price * total_emissions_t) if include_co2 else 0.0
+    # Prefer model-computed CO2 cost (includes CHP selfuse correction) over naive recalculation
+    if include_co2 and "CO2_total_cost_EUR" in objective:
+        co2_cost = float(objective["CO2_total_cost_EUR"])
+    else:
+        co2_cost = float(co2_price * total_emissions_t) if include_co2 else 0.0
     dump_cost = float(dump_cost_rate * heat_dump)
 
     demand_cost = 0.0

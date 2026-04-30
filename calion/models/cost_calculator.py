@@ -137,6 +137,7 @@ def calculate_investment_costs(
     include_capex: bool = True,
     include_activation: bool = True,
     include_tie_breaker: bool = True,
+    include_storage_install: bool = True,
 ) -> tuple[Any, Any, Any, Any]:
     """Calculate total investment costs.
 
@@ -148,6 +149,7 @@ def calculate_investment_costs(
         include_capex: Include CAPEX in total
         include_activation: Include activation costs in total
         include_tie_breaker: Include tie-breaker costs in total
+        include_storage_install: Include storage installation costs in total
 
     Returns:
         Tuple of (capex_total, activation_total, tie_break_total, storage_install_total)
@@ -155,7 +157,7 @@ def calculate_investment_costs(
     capex = sum(capex_terms) if (capex_terms and include_capex) else 0
     activation = sum(activation_terms) if (activation_terms and include_activation) else 0
     tie_break = sum(tie_breaker_terms) if (tie_breaker_terms and include_tie_breaker) else 0
-    storage_install = sum(storage_install_terms) if storage_install_terms else 0
+    storage_install = sum(storage_install_terms) if (storage_install_terms and include_storage_install) else 0
 
     return capex, activation, tie_break, storage_install
 
