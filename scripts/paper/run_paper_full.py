@@ -108,7 +108,7 @@ PRIMARY_RUNS = [
     # In PRIMARY_RUNS, ersetze den L3NL-Eintrag:
     {
         "run_id": "L3NL",
-        "config": CONFIGS / "Memmingen_L3_MIQP.yaml",
+        "config": CONFIGS / "Memmingen_L3_NLP.yaml",
         "overrides": None,   # fix_binaries_from ist bereits in der YAML
         "needs_gurobi": True,
     },

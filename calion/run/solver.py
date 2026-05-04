@@ -28,6 +28,11 @@ except ImportError:  # pragma: no cover
     pyo = None
 
 
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
 def _is_milp_linearized(cfg: dict[str, Any]) -> bool:
     """Read linearization mode across legacy and unified config layouts."""
     return bool(
@@ -53,6 +58,159 @@ def _resolve_solver_executable(solver_name: str) -> str | None:
     return None
 
 
+# =============================================================================
+# WARMSTART FUNCTIONS
+# =============================================================================
+
+
+def _find_col(df, candidates: list[str]) -> str | None:
+    """Erste passende Spalte im DataFrame finden."""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
+def _infer_binary_from_ws(var, idx, ws_df, times) -> int | None:
+    """Infer binary value from prior solution.
+
+    Returns 0 or 1 only when we have clear evidence from the CSV data.
+    Returns None otherwise → variable is left unset (partial MIP start).
+    Gurobi will complete missing values internally.
+    """
+    import pandas as pd
+
+    var_name = var.name.lower() if hasattr(var, 'name') else ""
+
+    # Zeitindex extrahieren
+    t_idx = None
+    if isinstance(idx, (int, float)):
+        t_idx = int(idx) - 1
+    elif isinstance(idx, tuple):
+        for elem in reversed(idx):
+            if isinstance(elem, (int, float)):
+                t_idx = int(elem) - 1
+                break
+
+    # ── Grid mode (buy=1, sell=0) ─────────────────────────────────
+    if "grid" in var_name and "mode" in var_name:
+        p_buy_col = _find_col(ws_df, ["P_buy_MW", "electricity_purchase_MW", "grid_buy_MW"])
+        p_sell_col = _find_col(ws_df, ["P_sell_MW", "electricity_sell_MW", "grid_sell_MW"])
+        if p_buy_col and t_idx is not None and 0 <= t_idx < len(ws_df):
+            p_buy = float(ws_df.iloc[t_idx].get(p_buy_col, 0))
+            p_sell = float(ws_df.iloc[t_idx].get(p_sell_col, 0)) if p_sell_col else 0
+            if p_buy > 0.001:
+                return 1
+            elif p_sell > 0.001:
+                return 0
+            else:
+                return 1  # Default: buy mode when idle
+        return None
+
+    # ── Generator on/off ──────────────────────────────────────────
+    for gen_key in ["chp", "gasboiler", "biomass", "eboiler"]:
+        if gen_key in var_name and ("on" in var_name or "commit" in var_name):
+            q_col = _find_col(ws_df, [
+                f"{gen_key}_main_Q_th_MW",
+                f"Q_{gen_key}_MW",
+                f"{gen_key}_heat_MW",
+                f"{gen_key}_Q_th_MW",
+            ])
+            if q_col and t_idx is not None and 0 <= t_idx < len(ws_df):
+                q_val = float(ws_df.iloc[t_idx].get(q_col, 0))
+                return 1 if q_val > 0.01 else 0
+            return None
+
+    # ── HP on/off ─────────────────────────────────────────────────
+    if "hp" in var_name and ("on" in var_name or "commit" in var_name):
+        hp_col = _find_col(ws_df, ["Q_hp_total_MW", "hp_main_Q_th_MW", "hp_heat_MW"])
+        if hp_col and t_idx is not None and 0 <= t_idx < len(ws_df):
+            val = float(ws_df.iloc[t_idx].get(hp_col, 0))
+            return 1 if val > 0.01 else 0
+        return None
+
+    # ── Storage charge/discharge mode ─────────────────────────────
+    if ("tes" in var_name or "storage" in var_name) and "mode" in var_name:
+        soc_col = _find_col(ws_df, ["SOC_MWh", "storage_SOC_MWh", "TES_SOC_MWh"])
+        if soc_col and t_idx is not None and 0 <= t_idx < len(ws_df) - 1:
+            soc_now = float(ws_df.iloc[t_idx].get(soc_col, 0))
+            soc_next = float(ws_df.iloc[t_idx + 1].get(soc_col, 0))
+            if abs(soc_next - soc_now) > 0.1:
+                return 1 if soc_next > soc_now else 0
+            else:
+                return None  # Idle → uncertain
+        return None
+
+    # ── Alles andere: KEIN HINT ───────────────────────────────────
+    # Pipe regime buckets, startup/shutdown, SOS constraints etc.
+    # Gurobi ergänzt diese selbst konsistent.
+    return None
+
+
+def _apply_warmstart(model, warmstart_path: str) -> bool:
+    """Set .value hints on BINARY variables where we can reliably infer them.
+
+    Uses a PARTIAL MIP start strategy: only variables with clear evidence
+    from the prior solution get a hint. All others are left at None so
+    Gurobi can complete them consistently (avoids SOS/logic violations).
+
+    Returns True if hints were successfully loaded.
+    """
+    import pandas as pd
+
+    logger.info("[WARMSTART] Loading solution hints from: %s", warmstart_path)
+
+    base_path = Path(warmstart_path)
+
+    # Datei finden
+    ts_path = None
+    for candidate in [
+        base_path / "unified_timeseries.csv",
+        base_path / "dispatch_hourly.csv",
+    ]:
+        if candidate.exists():
+            ts_path = candidate
+            break
+
+    if ts_path is None:
+        logger.warning("[WARMSTART] No solution file found in %s — skipping", warmstart_path)
+        return False
+
+    sep = ";" if "unified" in ts_path.name else ","
+    ws_df = pd.read_csv(ts_path, sep=sep, index_col=0)
+    logger.info("[WARMSTART] Loaded %d rows x %d cols from %s", len(ws_df), len(ws_df.columns), ts_path.name)
+
+    times = list(model.t)
+    n_hints = 0
+    n_skipped = 0
+
+    for var in model.component_objects(pyo.Var, active=True):
+        for idx in var:
+            v = var[idx]
+            if v.is_fixed():
+                continue
+            if v.is_binary() or v.is_integer():
+                val = _infer_binary_from_ws(var, idx, ws_df, times)
+                if val is not None:
+                    v.value = val
+                    n_hints += 1
+                else:
+                    v.value = None  # Kein Hint → Gurobi ergänzt selbst
+                    n_skipped += 1
+
+    logger.info(
+        "[WARMSTART] Set %d binary hints, skipped %d (partial MIP start). "
+        "Gurobi will complete missing values internally.",
+        n_hints, n_skipped,
+    )
+    return n_hints > 0
+
+
+# =============================================================================
+# MAIN SOLVER FUNCTION
+# =============================================================================
+
+
 def _solve_scenario(
     table: TimeSeriesTable,
     cfg: dict[str, Any],
@@ -74,8 +232,9 @@ def _solve_scenario(
         "pyomo_available": HAVE_PYOMO,
         "model_built": model is not None,
     }
+
     if model is not None and HAVE_PYOMO:
-        # Warn if nonlinear model is paired with an LP/MILP-only solver
+        # ─── Solver compatibility check ──────────────────────────────
         milp_linearize = _is_milp_linearized(cfg)
         lp_only_solvers = ('highs', 'appsi_highs', 'cbc', 'glpk')
         if not milp_linearize and any(s in solver_name.lower() for s in lp_only_solvers):
@@ -86,10 +245,11 @@ def _solve_scenario(
                 solver_name,
             )
 
+        # ─── Solver factory ───────────────────────────────────────────
         solver_used = solver_name
         try:
             opt = pyo.SolverFactory(solver_name)
-        except (AttributeError, OSError, RuntimeError) as exc:  # pragma: no cover - solver fallback
+        except (AttributeError, OSError, RuntimeError) as exc:
             logger.warning(
                 "Solver '%s' not available (%s), falling back to 'gurobi'.",
                 solver_name, exc,
@@ -111,83 +271,34 @@ def _solve_scenario(
         if solver_executable:
             solver_meta["solver_executable"] = solver_executable
 
-        # Apply solver options if configured
+        # ─── Solver options ───────────────────────────────────────────
         run_cfg = cfg.get("run", {})
         solver_options = run_cfg.get("solver_options", {})
         if solver_options:
             for key, value in solver_options.items():
                 opt.options[key] = value
-            logger.debug(f"Applied solver options: {solver_options}")
+            logger.debug("Applied solver options: %s", solver_options)
 
-        # === WARMSTART: inject L3plus solution as MIPStart ===
-        warmstart_path = run_cfg.get("warmstart_from")  # e.g. "output/paper_runs/L3plus"
+        # ─── WARMSTART: Partial MIP Start aus vorherigem Lauf ─────────
+        warmstart_path = run_cfg.get("warmstart_from")
+        use_warmstart = False
+
         if warmstart_path:
-            from pathlib import Path
-            import pandas as pd
-            ws_file = Path(warmstart_path) / "unified_timeseries.csv"
-            if ws_file.exists():
-                logger.info("Loading warmstart from %s", ws_file)
-                ws_df = pd.read_csv(ws_file, sep=";", index_col=0)
-                
-                # Set .value hints for all matching Pyomo Vars
-                n_set = 0
-                for var in model.component_objects(pyo.Var, active=True):
-                    for idx in var:
-                        var_name = f"{var.name}[{idx}]" if idx is not None else var.name
-                        # Match column names from timeseries (simplified mapping)
-                        if hasattr(var[idx], 'set_value'):
-                            # Gurobi reads var.value as Start hint
-                            pass  # see mapping below
-                    
-                # Simpler approach: use Gurobi's native .sol file
-                try:
-                    grb_model = opt._solver_model  # after model translation
-                    # Can't access before solve — use callback instead
-                    pass
-                except Exception:
-                    pass
-                
-                # BEST approach: set Pyomo Var.value before solve
-                # Gurobi Pyomo interface reads var.value as MIPStart
-                for t_idx in model.t:
-                    row = t_idx - 1  # 0-indexed
-                    if row < len(ws_df):
-                        # Storage SOC
-                        if hasattr(model, 'SOC') and t_idx in model.SOC:
-                            soc_val = ws_df.iloc[row].get("storage_SOC_MWh")
-                            if soc_val is not None and not pd.isna(soc_val):
-                                model.SOC[t_idx].value = float(soc_val)
-                                n_set += 1
-                        # Mass flow per pipe
-                        for pipe_id in getattr(model, '_pipe_ids', []):
-                            col = f"{pipe_id}_m_dot"
-                            if col in ws_df.columns and hasattr(model, 'm_dot'):
-                                val = ws_df.iloc[row].get(col)
-                                if val is not None and not pd.isna(val):
-                                    model.m_dot[pipe_id, t_idx].value = float(val)
-                                    n_set += 1
-                        # Node temperatures
-                        for node_id in getattr(model, '_node_ids', []):
-                            ts_col = f"{node_id}_T_supply"
-                            tr_col = f"{node_id}_T_return"
-                            if hasattr(model, 'T_supply'):
-                                val = ws_df.iloc[row].get(ts_col)
-                                if val is not None and not pd.isna(val):
-                                    model.T_supply[node_id, t_idx].value = float(val)
-                                    n_set += 1
-                            if hasattr(model, 'T_return'):
-                                val = ws_df.iloc[row].get(tr_col)
-                                if val is not None and not pd.isna(val):
-                                    model.T_return[node_id, t_idx].value = float(val)
-                                    n_set += 1
-                logger.info("Warmstart: set %d variable hints from L3plus solution", n_set)
+            use_warmstart = _apply_warmstart(model, warmstart_path)
 
-        # Defer solution loading until after we inspect the solver status.
-        # Gurobi can return "aborted/maxTimeLimit" with no incumbent for hard
-        # MIQCPs; eager loading raises before we can return useful diagnostics.
-        solver_result = opt.solve(model, tee=True, load_solutions=False)
+        # ─── SOLVE ────────────────────────────────────────────────────
+        solver_result = opt.solve(
+            model,
+            tee=True,
+            warmstart=use_warmstart,
+            load_solutions=False,
+        )
+
         solver_meta["solver_used"] = solver_used
-        solver_meta["status"] = str(getattr(getattr(solver_result, "solver", None), "status", "unknown"))
+        solver_meta["warmstart_applied"] = use_warmstart
+        solver_meta["status"] = str(
+            getattr(getattr(solver_result, "solver", None), "status", "unknown")
+        )
         solver_meta["termination_condition"] = str(
             getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
         )
@@ -197,18 +308,15 @@ def _solve_scenario(
             solution_count = 0
         solver_meta["solution_count"] = solution_count
 
-        # Check feasibility BEFORE attempting to read any variable values.
-        # Gurobi leaves all variables uninitialized when infeasible — reading them
-        # causes a flood of "No value for uninitialized VarData" errors that hide
-        # the actual IIS diagnosis.
+        # ─── Feasibility check ────────────────────────────────────────
         term_cond = solver_meta["termination_condition"].lower()
         if "infeasible" in term_cond or "unbounded" in term_cond:
             logger.error(
                 "Solver returned %s. Model is %s. "
                 "Check constraints: heat balance, storage limits, terminal policy.",
-                solver_meta["status"], term_cond
+                solver_meta["status"], term_cond,
             )
-            # Try Gurobi IIS to identify the infeasible constraint set
+            # Try Gurobi IIS
             try:
                 grb_model = opt._solver_model
                 grb_model.computeIIS()
@@ -234,6 +342,7 @@ def _solve_scenario(
             )
             return ScenarioResult(table, series, summary, costs, solver_meta)
 
+        # ─── No incumbent check ───────────────────────────────────────
         if solution_count <= 0:
             logger.error(
                 "Solver returned %s/%s without an incumbent solution. "
@@ -246,9 +355,10 @@ def _solve_scenario(
             )
             return ScenarioResult(table, series, summary, costs, solver_meta)
 
+        # ─── Load solution ────────────────────────────────────────────
         model.solutions.load_from(solver_result)
 
-        # Export solver solution and thermal network results (only when a solution exists)
+        # ─── Export results ───────────────────────────────────────────
         export_cfg = cfg.get('output', {})
         if export_cfg.get('export_thermal_network', True) or export_cfg.get('export_solver_solution', True):
             try:
@@ -272,21 +382,23 @@ def _solve_scenario(
                 export_files = export_result.get('files', {})
                 network_data = export_result.get('data', {}).get('network', {})
 
-                logger.info(f"[EXPORT] Exported {len(export_files)} files to {export_dir}")
+                logger.info("[EXPORT] Exported %d files to %s", len(export_files), export_dir)
 
                 solver_meta['export_files'] = export_files
                 solver_meta['export_dir'] = export_dir
                 solver_meta['network_data'] = network_data
 
             except Exception as e:
-                logger.warning(f"[EXPORT] Failed to export thermal network results: {e}")
+                logger.warning("[EXPORT] Failed to export thermal network results: %s", e)
                 import traceback
                 traceback.print_exc()
+
     else:
         solver_meta["solver_used"] = solver_name
         solver_meta["status"] = "not_run"
         solver_meta["termination_condition"] = None
 
+    # ─── Collect results ──────────────────────────────────────────
     series, summary, costs = _collect_timeseries_and_summary(
         table,
         cfg,

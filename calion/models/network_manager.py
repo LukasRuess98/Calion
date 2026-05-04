@@ -1,60 +1,7 @@
 """
 Network Manager for Thermal District Heating Networks
 ======================================================
-
-This module coordinates pipe and node components for district heating network
-optimization using a single unified physics model.
-
-Key Concepts:
--------------
-- **Always network-based**: even "no network" is just one node with all components attached
-- **No special cases**: every topology goes through the same code path
-- **Nodes** handle: mass balance, enthalpy balance, pressure variables (T and P are
-  *calculated*, not fixed parameters)
-- **Pipes** handle: temperature loss, pressure loss (Darcy-Weisbach), and transport
-  time delay (linearised with 3-bucket SOS2 binary selection)
-- **Single-node fallback**: when no pipes are configured, a virtual `_network_root`
-  node is auto-created so calling code never needs to check `network_enabled`
-
-Network Components:
--------------------
-- **Nodes**: Producers (heat sources), Consumers (heat sinks), Junctions
-- **Pipes**: Supply and return pipes connecting nodes, characterised by:
-  - length_m: Pipe length [m]
-  - current_diameter_supply_mm: Pipe diameter [mm]
-  - u_value_supply/return_w_per_m_k: Heat loss coefficients [W/(m·K)]
-
-Configuration (topology.yaml):
---------------------------------
-```yaml
-nodes:
-  - id: plant_node
-    type: producer
-    components: [HKW, HP1]
-  - id: consumer_A
-    type: consumer
-    demand_fraction: 0.6
-  - id: junction_1
-    type: junction
-
-pipes:
-  - id: pipe_1
-    from_node: plant_node
-    to_node: consumer_A
-    length_m: 500
-    current_diameter_supply_mm: 200
-```
-
-Single-node fallback (no `pipes:` key):
-  All components → one implicit "_network_root" node.
-
-Usage:
-------
-    >>> nm = NetworkManager(config, config_dir=Path('.'))
-    >>> nm.attach_to_model(model, config, time_set)
-    >>> results = nm.get_results(model, config, time_set)
-
-Author: CALION Development Team
+... (Docstring bleibt wie gehabt) ...
 """
 
 import logging
@@ -82,23 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 class NetworkManager:
-    """
-    Manages thermal network components and topology.
-
-    Responsibilities:
-    - Parse network YAML/Excel configuration
-    - Create and attach pipe and node components
-    - Connect network to heat sources and demands
-    - Coordinate constraints between components
-    - Export results for dashboard
-    """
+    """Manages thermal network components and topology."""
 
     def __init__(self, config: dict[str, Any], config_dir: Path | None = None):
         """
-        Initialize network manager.
-
         Args:
-            config: Full configuration dict containing 'thermal_network' section
+            config: Full configuration dict containing 'thermal_network' or 'network' section
             config_dir: Base directory for resolving relative topology file paths
         """
         self.config = config
@@ -110,10 +46,49 @@ class NetworkManager:
         self.topology = {}     # Dict — raw topology data from file
         self.parameters = {}   # Dict — network parameters (temps, pressures)
 
-        self.network_enabled = config.get('thermal_network', {}).get('enabled', False)
+        # ─── FIX: Check BOTH 'thermal_network' AND 'network' config keys ───
+        tn_cfg = config.get('thermal_network', {})
+        net_cfg = config.get('network', {})
+        self.network_enabled = (
+            tn_cfg.get('enabled', False)
+            or net_cfg.get('enabled', False)
+            # Auto-enable: if pipes are defined inline, the network is active
+            or bool(net_cfg.get('pipes'))
+            or bool(tn_cfg.get('pipes'))
+            or bool(tn_cfg.get('topology_file'))
+            or bool(tn_cfg.get('topology_excel'))
+        )
 
         if self.network_enabled:
             self._load_network_topology()
+
+    # ── Unified config properties (DRY) ───────────────────────────────────────
+
+    @property
+    def _net_cfg(self) -> dict:
+        """Unified network config — resolves 'thermal_network' vs 'network' key.
+
+        Priority: 'thermal_network' (more specific) > 'network' (YAML shorthand).
+        """
+        tn = self.config.get('thermal_network', {})
+        if tn:
+            return tn
+        return self.config.get('network', {})
+
+    @property
+    def _physics_cfg(self) -> dict:
+        """Physics sub-config from unified network config."""
+        return self._net_cfg.get('physics', {})
+
+    @property
+    def _milp_linearize(self) -> bool:
+        """Whether MILP linearization is enabled."""
+        return self._net_cfg.get('milp_linearize', False)
+
+    @property
+    def _pressure_drop_enabled(self) -> bool:
+        """Whether pressure drop calculation is enabled."""
+        return self._physics_cfg.get('pressure_drop', True)
 
     # ── Path helpers ───────────────────────────────────────────────────────────
 
@@ -152,7 +127,11 @@ class NetworkManager:
 
     def _load_network_topology(self):
         """Load network topology from YAML file, Excel file, or inline config."""
+        # ─── FIX: Read from BOTH config keys ───
         network_config = self.config.get('thermal_network', {})
+        if not network_config:
+            network_config = self.config.get('network', {})
+
         topology_file = network_config.get('topology_file')
         topology_excel = network_config.get('topology_excel')
 
@@ -202,6 +181,7 @@ class NetworkManager:
                 self.network_enabled = False
                 return
         else:
+            # Inline config: topology is embedded directly in the network section
             topology_data = network_config
 
         self.topology = topology_data
@@ -219,7 +199,7 @@ class NetworkManager:
         Supported formats:
         1. Unified list:  nodes: [{id: ..., type: ...}, ...]
         2. Nested dict:   networks.{net_id}.nodes.{node_id}: {type: ...}
-           (stadtbach network_topology.yaml uses this format)
+        (stadtbach network_topology.yaml uses this format)
         3. Legacy lists:  production_plants / pump_stations / consumer_zones
         """
         # Format 1: flat nodes list with explicit 'id' field
@@ -328,6 +308,82 @@ class NetworkManager:
                 "No pipes configured — created virtual single-node hub: _network_root"
             )
 
+    # ── Outdoor temperature loader ────────────────────────────────────────────
+
+    def _load_outdoor_temp_from_data(self, time_set) -> list[float] | None:
+        """Try to load outdoor temperature series from the site input data.
+
+        Searches for common outdoor temperature column names in the input
+        Excel/CSV file referenced by the site config section.
+        """
+        import pandas as pd
+
+        site_cfg = self.config.get('site', {})
+        input_file = site_cfg.get('input_xlsx') or site_cfg.get('input_csv')
+        if not input_file:
+            return None
+
+        input_path = self._resolve_path(input_file)
+        if not input_path.exists():
+            logger.warning(f"  Input file not found: {input_path}")
+            return None
+
+        try:
+            if input_path.suffix in ('.xlsx', '.xls'):
+                df = pd.read_excel(input_path, sheet_name=0)
+            else:
+                df = pd.read_csv(input_path)
+        except Exception as e:
+            logger.warning(f"  Could not read input file for outdoor temp: {e}")
+            return None
+
+        # Search for outdoor temperature column (exact matches first)
+        outdoor_candidates = [
+            "outdoor_temp_C", "T_outdoor_C", "Aussentemperatur_C",
+            "Aussentemperatur", "outdoor_temp", "T_aussen_C",
+            "T_ambient_C", "ambient_temp_C",
+        ]
+
+        # Also check if heating_curve config specifies the column name
+        hc_cfg = self._net_cfg.get('heating_curve', {})
+        explicit_col = hc_cfg.get('outdoor_temp_column')
+        if explicit_col:
+            outdoor_candidates.insert(0, explicit_col)
+
+        outdoor_col = None
+        for candidate in outdoor_candidates:
+            if candidate in df.columns:
+                outdoor_col = candidate
+                break
+
+        # Fuzzy match: any column containing 'aussen' or 'outdoor' or 'ambient'
+        if outdoor_col is None:
+            for col in df.columns:
+                if any(kw in col.lower() for kw in ['aussen', 'outdoor', 'ambient']):
+                    outdoor_col = col
+                    break
+
+        if outdoor_col is None:
+            logger.warning(
+                f"  No outdoor temperature column found in {input_path.name}. "
+                f"Tried: {outdoor_candidates[:5]}..."
+            )
+            return None
+
+        series = pd.to_numeric(df[outdoor_col], errors='coerce').dropna()
+        n_timesteps = len(list(time_set))
+
+        if len(series) < n_timesteps:
+            logger.warning(
+                f"  Outdoor temp series too short ({len(series)} < {n_timesteps} timesteps)"
+            )
+            return None
+
+        # Trim to match time_set length
+        outdoor_values = series.iloc[:n_timesteps].tolist()
+        logger.info(f"  Found outdoor temp column: '{outdoor_col}' ({len(outdoor_values)} values)")
+        return outdoor_values
+
     # ── Main entry point ──────────────────────────────────────────────────────
 
     def attach_to_model(self, model, time_set, buses: dict) -> dict[str, Any]:
@@ -356,8 +412,8 @@ class NetworkManager:
         pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup)
         node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
 
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
-        pressure_drop_enabled = self.config.get('thermal_network', {}).get('physics', {}).get('pressure_drop', True)
+        milp_linearize = self._milp_linearize
+        pressure_drop_enabled = self._pressure_drop_enabled
 
         self._link_pipe_temperatures(model, time_set, pipe_components, node_components)
         self._link_consumer_demands(model, time_set, pipe_components, node_components)
@@ -399,26 +455,68 @@ class NetworkManager:
     # ── Private helpers ────────────────────────────────────────────────────────
 
     def _setup_temperatures(self, model, time_set) -> dict[str, Any]:
-        """Setup temperature profiles.
+        """Setup temperature profiles with proper config resolution.
 
-        Returns a dict with keys: supply_temp, return_temp, ground_temp,
-        use_heating_curve, use_outdoor_temp, supply_temp_dict.
-        Also sets model.outdoor_temp and model.supply_temp_series.
+        Resolves heating curve parameters from both 'thermal_network' and 'network'
+        config keys. Auto-enables outdoor temperature loading when heating curve is
+        configured.
         """
-        supply_temp_nominal = self.parameters.get('supply_temp_nominal_c', 90.0)
-        return_temp = self.parameters.get('return_temp_nominal_c', 50.0)
-        ground_temp = self.parameters.get('ground_temp_default_c', 10.0)
+        net_cfg = self._net_cfg
 
-        use_outdoor_temp = self.config.get('thermal_network', {}).get('use_outdoor_temperature', False)
+        supply_temp_nominal = self.parameters.get(
+            'supply_temp_nominal_c',
+            net_cfg.get('supply_temp_c', 90.0)
+        )
+        return_temp = self.parameters.get(
+            'return_temp_nominal_c',
+            net_cfg.get('return_temp_c', 50.0)
+        )
+        ground_temp = self.parameters.get(
+            'ground_temp_default_c',
+            net_cfg.get('ground_temp_c', 10.0)
+        )
+
+        # ─── Determine if outdoor temperature is needed/available ───
+        use_outdoor_temp = (
+            net_cfg.get('use_outdoor_temperature', False)
+            # AUTO-ENABLE: if heating_curve.enabled=true, we need outdoor temp
+            or net_cfg.get('heating_curve', {}).get('enabled', False)
+            or self.parameters.get('heating_curve', {}).get('enabled', False)
+        )
+
         if use_outdoor_temp and hasattr(model, 'outdoor_temp'):
             logger.info("Using time-varying outdoor temperature from model")
             outdoor_temp_series = [model.outdoor_temp[t] for t in time_set]
+        elif use_outdoor_temp and not hasattr(model, 'outdoor_temp'):
+            # Try to load outdoor temp from site input data
+            logger.warning(
+                "Heating curve needs outdoor temperature but model.outdoor_temp not set! "
+                "Attempting to load from site data..."
+            )
+            outdoor_temp_series = self._load_outdoor_temp_from_data(time_set)
+            if outdoor_temp_series is not None:
+                model.outdoor_temp = {t: outdoor_temp_series[i] for i, t in enumerate(time_set)}
+                logger.info(
+                    f"  Loaded outdoor temp: {min(outdoor_temp_series):.1f}°C "
+                    f"to {max(outdoor_temp_series):.1f}°C"
+                )
+            else:
+                logger.warning(
+                    "  Could not load outdoor temperature — falling back to fixed supply temp!"
+                )
+                use_outdoor_temp = False
+                model.outdoor_temp = {t: ground_temp for t in time_set}
+                outdoor_temp_series = [ground_temp for _ in time_set]
         else:
             model.outdoor_temp = {t: ground_temp for t in time_set}
             outdoor_temp_series = [ground_temp for _ in time_set]
             logger.info(f"Using fixed ground temperature: {ground_temp}°C")
 
+        # ─── Resolve heating curve config from multiple locations ───
         heating_curve_config_raw = self.parameters.get('heating_curve', {})
+        if not heating_curve_config_raw:
+            heating_curve_config_raw = net_cfg.get('heating_curve', {})
+
         heating_curve_config = resolve_heating_curve_profile(
             heating_curve_config_raw,
             config_dir=self.config_dir,
@@ -446,7 +544,7 @@ class NetworkManager:
                 T_outdoor_high_c=T_outdoor_high,
                 T_outdoor_low_c=T_outdoor_low,
             )
-            logger.info("\n  HEATING CURVE (Heizkurve) enabled:")
+            logger.info("\n  HEATING CURVE (Heizkurve) ACTIVE:")
             logger.info(f"    Formula: {curve_params['formula']}")
             logger.info(
                 f"    Range: {T_supply_min}°C (at {T_outdoor_high}°C outdoor) "
@@ -462,8 +560,18 @@ class NetworkManager:
             supply_temp = supply_temp_nominal
             model.supply_temp_series = {t: supply_temp for t in time_set}
             if use_heating_curve and not use_outdoor_temp:
-                logger.warning("  Heating curve enabled but outdoor temperature not available!")
-                logger.warning("  Set 'use_outdoor_temperature: true' in config to enable heating curve.")
+                logger.warning(
+                    "  Heating curve enabled but outdoor temperature not available!"
+                )
+                logger.warning(
+                    f"  → Supply temp FIXED at {supply_temp:.1f}°C for all timesteps!"
+                )
+                logger.warning(
+                    "  Fix: ensure outdoor_temp_C column exists in input data, "
+                    "or set 'outdoor_temp_column' in heating_curve config."
+                )
+            else:
+                logger.info(f"  Using fixed supply temperature: {supply_temp:.1f}°C")
 
         return {
             'supply_temp': supply_temp,
@@ -483,12 +591,11 @@ class NetworkManager:
         pipe_components: dict = {}
         logger.info(f"\nAttaching {len(self.pipes)} pipe pairs...")
 
-        # Propagate flags from thermal_network config
-        _tn = self.config.get('thermal_network', {})
-        milp_linearize = _tn.get('milp_linearize', False)
-        temperature_linearize_pipe = _tn.get('temperature_linearize', None)
-        pressure_drop_enabled = _tn.get('physics', {}).get('pressure_drop', True)
-        physics_cfg = _tn.get('physics', {})  # Pass physics flags (heat_loss, transport_delay) to pipe
+        # Read flags from unified config
+        milp_linearize = self._milp_linearize
+        temperature_linearize_pipe = self._net_cfg.get('temperature_linearize', None)
+        pressure_drop_enabled = self._pressure_drop_enabled
+        physics_cfg = self._physics_cfg
 
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
@@ -496,21 +603,26 @@ class NetworkManager:
                 **pipe_dict,
                 'supply_temp_nominal_c': supply_temp,
                 'return_temp_nominal_c': return_temp,
+                # Per-timestep supply temperature (from heating curve or fixed nominal).
+                # PipePairBlock uses this to initialize T_supply_in Params in MILP mode,
+                # enabling variable delivery temperatures that track the Heizkurve.
+                'supply_temp_dict': temp_setup['supply_temp_dict'],
                 'use_outdoor_temperature': use_outdoor_temp,
                 'pipe_catalog': self.pipe_catalog,
                 'milp_linearize': milp_linearize,
                 'temperature_linearize': temperature_linearize_pipe,
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'pump_enabled': pressure_drop_enabled and pipe_dict.get('pump_enabled', True),
-                'physics': physics_cfg,  # Allows pipe to respect heat_loss / transport_delay flags
-                'state_validation': self.config.get('state_validation', {}),  # Pass global state_validation config
+                'physics': physics_cfg,
+                'state_validation': self.config.get('state_validation', {}),
                 **self.parameters,
             }
             PipePairBlock.validate_config(enriched_config)
             pipe_result = PipePairBlock.attach(model, time_set, enriched_config, buses)
             pipe_components[pipe_id] = pipe_result
             logger.info(
-                f"  ✓ {pipe_id}: {pipe_config['from_node']} → {pipe_config['to_node']} "
+                f"  ✓ {pipe_id}: {pipe_config.get('from_node', pipe_config.get('from'))} → "
+                f"{pipe_config.get('to_node', pipe_config.get('to'))} "
                 f"({pipe_config['length_m']}m)"
             )
 
@@ -521,15 +633,13 @@ class NetworkManager:
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
-        # Propagate flags from thermal_network config
-        tn_cfg = self.config.get('thermal_network', {})
-        milp_linearize = tn_cfg.get('milp_linearize', False)
-        temperature_linearize = tn_cfg.get('temperature_linearize', None)
-        physics_cfg = tn_cfg.get('physics', {})
-        pressure_drop_enabled = physics_cfg.get('pressure_drop', True)
-        network_cfg = self.config.get('network', {})
-        delta_p_min_consumer = network_cfg.get('delta_p_min_consumer_bar', 0.7)
-        lin_cfg = tn_cfg.get('linearization', {})
+        # Read flags from unified config
+        milp_linearize = self._milp_linearize
+        temperature_linearize = self._net_cfg.get('temperature_linearize', None)
+        pressure_drop_enabled = self._pressure_drop_enabled
+        net_cfg = self._net_cfg
+        delta_p_min_consumer = net_cfg.get('delta_p_min_consumer_bar', 0.7)
+        lin_cfg = net_cfg.get('linearization', {})
 
         node_components: dict = {}
         logger.info(f"\nAttaching {len(self.nodes)} thermal nodes...")
@@ -567,7 +677,7 @@ class NetworkManager:
         - T_return_in  linked to to_node.T_return   (consumer/junction sets return temp)
         Also tracks which pipes return to each producer node.
         """
-        milp_linearize = self.config.get('thermal_network', {}).get('milp_linearize', False)
+        milp_linearize = self._milp_linearize
         logger.info("\nConnecting pipe temperatures to nodes...")
 
         for pipe_id, pipe_comp in pipe_components.items():
@@ -631,8 +741,6 @@ class NetworkManager:
 
             if len(incoming_pipes) == 1 and not has_outgoing:
                 # Mixed terminal nodes: constraint_builder adds a combined balance
-                #   (local_gen + Q_pipe_in = demand + dump).  Forcing Q_pipe == demand
-                #   here would double-count demand alongside that combined balance.
                 if node_comp['type'] == 'mixed':
                     logger.info(
                         f"  ✓ {node_id} (mixed terminal — combined balance in constraint_builder)"
@@ -742,10 +850,6 @@ class NetworkManager:
 
             setattr(model, f"junction_{node_id}_flow_balance",
                     pyo.Constraint(time_set, rule=junction_flow_rule))
-
-            # Note: Return-side mass balance is identical to supply-side because
-            # m_dot is symmetric (same variable for supply and return pipes).
-            # No separate return constraint needed.
 
             logger.info(
                 f"  ✓ {node_id}: flow balance {len(incoming_pipes)} in = {len(outgoing_pipes)} out"
@@ -893,24 +997,21 @@ class NetworkManager:
         """A1 — Pressure propagation through the pipe network.
 
         For each pipe (from_node → to_node):
-          Supply side:  P_supply[to_node, t]   == P_supply[from_node, t] - delta_p_supply[pipe, t]
-          Return side:  P_return[from_node, t] == P_return[to_node, t]   - delta_p_return[pipe, t]
+        Supply side:  P_supply[to_node, t]   == P_supply[from_node, t] - delta_p_supply[pipe, t]
+        Return side:  P_return[from_node, t] == P_return[to_node, t]   - delta_p_return[pipe, t]
 
         Producer nodes have their supply pressure fixed to the configured setpoint.
         Consumer nodes get a minimum pressure constraint (min_required_bar).
         """
         logger.info("\nSetting up pressure propagation constraints...")
 
-        # Fix producer supply pressure setpoints. Mixed nodes have assets and
-        # local demand, so they behave as pressure sources for the hydraulic
-        # model too.
+        # Fix producer supply pressure setpoints
         for node_id, node_comp in node_components.items():
             if node_comp['type'] not in ('producer', 'mixed'):
                 continue
             node_cfg = self.nodes.get(node_id, {})
             setpoint = node_cfg.get('pressure', {}).get('setpoint_bar', 10.0)
             node_P_supply = node_comp['pressure_supply']
-            node_P_return = node_comp['pressure_return']
 
             setattr(
                 model,
@@ -920,14 +1021,12 @@ class NetworkManager:
                     rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] == _sp,
                 ),
             )
-            # Return pressure at producer is determined by pump head constraint
-            # (added in _link_pump_head) — no hardcoded setpoint here.
             logger.info(
                 f"  ✓ Producer {node_id}: P_supply fixed = {setpoint} bar, "
                 f"P_return determined by pump head"
             )
 
-        # Collect producer/mixed node IDs (have fixed pressure setpoints)
+        # Collect producer/mixed node IDs
         producer_nodes = {
             nid for nid, nc in node_components.items() if nc['type'] in ('producer', 'mixed')
         }
@@ -940,9 +1039,7 @@ class NetworkManager:
             if from_node not in node_components or to_node not in node_components:
                 continue
 
-            # Skip loop-closing pipes: if to_node is a producer (fixed pressure),
-            # chaining the pressure drop back to it would force the total loop drop
-            # to zero, making any nonzero flow infeasible.
+            # Skip loop-closing pipes
             if to_node in producer_nodes:
                 logger.info(
                     f"  ⊘ {pipe_id}: loop-closing pipe ({from_node} → producer {to_node}) "
@@ -1014,12 +1111,8 @@ class NetworkManager:
     ) -> list:
         """Link producer supply/return pressure by a nodal pump head.
 
-        The previous formulation added one equality per outgoing producer pipe:
-          p_return_from[t] = p_supply_from[t] - delta_p_supply[t] - delta_p_return[t]
-        which overconstrained branched networks by forcing the same total pressure
-        drop on every outgoing branch. Instead, we model one pump head per producer
-        node and aggregate the outgoing pipe pump powers into one electricity load
-        per producer.
+        Models one pump head per producer node and aggregates the outgoing pipe
+        pump powers into one electricity load per producer.
 
         Returns a list of aggregated producer pump-power variables for the
         electricity bus.
@@ -1166,7 +1259,6 @@ class NetworkManager:
         )
 
         if total_heat_delivered <= 0 and hasattr(model, 'network_Q_loss_per_timestep'):
-            # Single-node fallback: derive from network loss var
             total_heat_loss = sum(
                 pyo.value(model.network_Q_loss_per_timestep[t]) * dt_h / 1000
                 for t in time_set

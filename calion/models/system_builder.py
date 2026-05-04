@@ -196,11 +196,29 @@ def _build_model_unified(
         m.heatd = pyo.Param(m.t, initialize=global_demand, mutable=True)
 
     # ── Outdoor temperature ───────────────────────────────────────────────
-    outdoor_temp_series = column_series("outdoor_temp_C")
+    # Try multiple column names that the Excel might use for outdoor temperature.
+    _OUTDOOR_TEMP_CANDIDATES = [
+        "outdoor_temp_C", "outdoor_temp_c", "T_outdoor_C", "T_outdoor_c",
+        "Aussentemperatur_C", "Aussentemperatur", "outdoor_temp",
+        "T_aussen_C", "T_ambient_C", "ambient_temp_C",
+    ]
+    # Also honour explicit mapping in site.columns.outdoor_temp
+    _outdoor_col_override = (
+        ucfg.raw.get("site", {}).get("columns", {}).get("outdoor_temp")
+    )
+    if _outdoor_col_override:
+        _OUTDOOR_TEMP_CANDIDATES = [_outdoor_col_override] + _OUTDOOR_TEMP_CANDIDATES
+    outdoor_temp_series = None
+    for _col in _OUTDOOR_TEMP_CANDIDATES:
+        outdoor_temp_series = column_series(_col)
+        if outdoor_temp_series is not None:
+            logger.info("[BUILD-UNIFIED] Outdoor temperature loaded from column '%s'", _col)
+            break
     if outdoor_temp_series is not None:
         m.outdoor_temp = {i + 1: float(outdoor_temp_series[i]) for i in range(T)}
     else:
         m.outdoor_temp = None
+        logger.info("[BUILD-UNIFIED] No outdoor temperature column found — heating curve disabled")
 
     # ── Grid / cost parameters ────────────────────────────────────────────
     costs = ucfg.costs

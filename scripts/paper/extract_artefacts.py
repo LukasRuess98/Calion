@@ -236,18 +236,46 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
 
     q_loss_total = [0.0] * T
     p_pump = [0.0] * T
-    t_supply = [100.0] * T
-    t_return = [40.0] * T
+    t_supply = [None] * T
+    t_return = [None] * T
 
     if pipe_ts.exists():
         try:
             pdf = pd.read_csv(pipe_ts, sep=";", index_col=0)
+
+            # Total heat losses across all pipes
             loss_cols_sup = [c for c in pdf.columns if c.endswith("_Q_loss_supply")]
             loss_cols_ret = [c for c in pdf.columns if c.endswith("_Q_loss_return")]
             raw_loss = (pdf[loss_cols_sup].sum(axis=1) + pdf[loss_cols_ret].sum(axis=1)).tolist()
-            # Clip/pad to T
             q_loss_total = (raw_loss[:T] if len(raw_loss) >= T
                             else raw_loss + [0.0] * (T - len(raw_loss)))
+
+            # Source supply temperature: T_supply_in of the first pipe leaving j_1.
+            # Column format: "{pipe_id}_T_supply_in" (e.g. "j1_to_j2_T_supply_in").
+            # We prefer pipes whose name starts with "j1_to" or "j_1_to",
+            # falling back to the first available T_supply_in column.
+            sup_in_cols = [c for c in pdf.columns if c.endswith("_T_supply_in")]
+            src_col = next(
+                (c for c in sup_in_cols
+                 if c.startswith("j1_to") or c.startswith("j_1_to")),
+                sup_in_cols[0] if sup_in_cols else None,
+            )
+            if src_col is not None:
+                raw_tsup = pdf[src_col].tolist()
+                t_supply = (raw_tsup[:T] if len(raw_tsup) >= T
+                            else raw_tsup + [None] * (T - len(raw_tsup)))
+
+            # Source return temperature: T_return_in of the same pipe
+            ret_in_cols = [c for c in pdf.columns if c.endswith("_T_return_in")]
+            src_ret_col = next(
+                (c for c in ret_in_cols
+                 if c.startswith("j1_to") or c.startswith("j_1_to")),
+                ret_in_cols[0] if ret_in_cols else None,
+            )
+            if src_ret_col is not None:
+                raw_tret = pdf[src_ret_col].tolist()
+                t_return = (raw_tret[:T] if len(raw_tret) >= T
+                            else raw_tret + [None] * (T - len(raw_tret)))
         except Exception:
             pass
 
@@ -282,7 +310,11 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         "P_sell_MW": s("P_sell_MW"),
         "lambda_buy_eur_MWh": [0.0] * T,
         "lambda_sell_eur_MWh": [0.0] * T,
-        "ef_grid_kg_MWh": s("grid_co2_kg_MWh")
+        "ef_grid_kg_MWh": s("grid_co2_kg_MWh"),
+        # --- Network temperatures (from pipes_timeseries.csv) ---
+        "T_supply_C": t_supply,
+        "T_return_C": t_return,
+        "Q_loss_total_MW": q_loss_total,
     }
 
     # Try to fill lambda_buy from table

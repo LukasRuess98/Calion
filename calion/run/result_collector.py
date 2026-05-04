@@ -357,7 +357,7 @@ def _collect_timeseries_and_summary(
 
     if meta["p2h"]:
         series["P2H_Q_th_MW"] = [0.0] * n
-        series["P2H_Pel_MW"] = [0.0] * n
+        series["P2H_Pel_MW"]  = [0.0] * n
 
     objective = OrderedDict(
         [
@@ -473,8 +473,14 @@ def _collect_timeseries_and_summary(
                 _extract(getattr(model, f"{comp}_Pel", None), f"{comp}_Pel_MW")
 
         if meta["p2h"]:
-            _extract(getattr(model, "P2H_Qth", None), "P2H_Q_th_MW")
-            _extract(getattr(model, "P2H_Pel", None), "P2H_Pel_MW")
+            # Try comp-specific attr name (network model: EBOILER_MAIN_Qth) then legacy P2H_Qth
+            _p2h_comp = meta["p2h"]["name"]
+            _p2h_qth = getattr(model, f"{_p2h_comp}_Qth",
+                               getattr(model, "P2H_Qth", None))
+            _p2h_pel = getattr(model, f"{_p2h_comp}_Pel",
+                               getattr(model, "P2H_Pel", None))
+            _extract(_p2h_qth, "P2H_Q_th_MW")
+            _extract(_p2h_pel, "P2H_Pel_MW")
 
         if hasattr(model, "obj"):
             model_obj_value = float(pyo.value(model.obj))
@@ -818,7 +824,10 @@ def _collect_timeseries_and_summary(
 
         cap_value = float(hp.get("cap_init", hp["max_th"]))
         build_value = 1.0 if cap_value > 0 else 0.0
-        if model is not None and HAVE_PYOMO:
+        if model is not None and HAVE_PYOMO and hp.get("invest_enabled", False):
+            # Only read capacity/build from the model for investable HPs — for fixed HPs
+            # the values are config constants that Gurobi may not include in the solution,
+            # causing pyo.value() to return 0 after load_from().
             cap_var = getattr(model, f"{comp}_cap_mw", None)
             build_var = getattr(model, f"{comp}_build", None)
             if cap_var is not None:
@@ -915,8 +924,10 @@ def _collect_timeseries_and_summary(
 
     if meta["p2h"]:
         comp = meta["p2h"]["name"]
-        heat_series = series[f"{comp}_Q_th_MW"]
-        pel_series = series[f"{comp}_Pel_MW"]
+        _zero_n = [0.0] * n
+        # comp name is "EBOILER_MAIN"; series key is legacy "P2H_Q_th_MW" — fall back to it
+        heat_series = series.get(f"{comp}_Q_th_MW", series.get("P2H_Q_th_MW", _zero_n))
+        pel_series  = series.get(f"{comp}_Pel_MW",  series.get("P2H_Pel_MW",  _zero_n))
         heat_mwh = float(sum(heat_series) * dt_h)
         pel_mwh = float(sum(pel_series) * dt_h)
         p2h_section = OrderedDict(

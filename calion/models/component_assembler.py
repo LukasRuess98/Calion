@@ -375,11 +375,13 @@ class ComponentAssembler:
         sys_buses.activation_terms.extend(self.buses.activation_terms)
         sys_buses.tie_breaker_terms.extend(self.buses.tie_breaker_terms)
         sys_buses.storage_install_terms.extend(self.buses.storage_install_terms)
+        sys_buses.fuel_cost_terms.extend(self.buses.fuel_cost_terms)
         sys_buses.terminal_value_term = self.buses.terminal_value_term
         self.buses.capex_terms.clear()
         self.buses.activation_terms.clear()
         self.buses.tie_breaker_terms.clear()
         self.buses.storage_install_terms.clear()
+        self.buses.fuel_cost_terms.clear()
 
     def _attach_generator_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
         """Attach a thermal generator from unified config to per-node buses."""
@@ -688,6 +690,27 @@ class ComponentAssembler:
         self.buses.activation_terms.extend(sto_inv_terms.activation)
         self.buses.tie_breaker_terms.extend(sto_inv_terms.tie_breaker)
         self.buses.storage_install_terms.extend(sto_inv_terms.storage_install)
+
+        # ── Cycling cost (wear + spurious-arbitrage deterrent) ─────────────
+        # Charged per MWh flowing through the storage (charge + discharge).
+        # Keeps arbitrage honest: only genuine price spreads > 2×cycling_cost
+        # are exploited. Set via storage.cycling_cost_eur_per_mwh in the YAML.
+        cycling_cost_eur = float(
+            sto_cfg.get("cycling_cost_eur_per_mwh",
+                        storage_defaults.get("cycling_cost_eur_per_mwh", 0.0))
+        )
+        if cycling_cost_eur > 0.0:
+            Qc = fs["Q_th_in"]
+            Qd = fs["Q_th_out"]
+            cycling_expr = sum(
+                cycling_cost_eur * (Qc[t] + Qd[t]) * self.dt_h for t in self.t
+            )
+            self.buses.fuel_cost_terms.append(cycling_expr)
+            logger.info(
+                "[STORAGE] Cycling cost %.2f €/MWh added to objective "
+                "(arbitrage requires spread > %.2f €/MWh_th round-trip).",
+                cycling_cost_eur, 2.0 * cycling_cost_eur,
+            )
 
     # ── Thermal Generator / P2H Assembly ──────────────────────────────────────
 

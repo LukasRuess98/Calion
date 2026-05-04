@@ -207,9 +207,17 @@ class PipePairBlock(BaseComponent):
             temperature_linearize = milp_linearize
 
         if temperature_linearize:
-            # Fix temperatures at nominal values → all T×m_dot products become linear
-            T_supply_in = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
-            T_supply_out = pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True)
+            # Fix temperatures as Params → all T×m_dot products become linear.
+            # When a per-timestep heating curve is available (supply_temp_dict),
+            # initialize T_supply with those values so the simulated supply
+            # temperature tracks the Heizkurve and matches measured data.
+            supply_temp_dict = config.get('supply_temp_dict')
+            if supply_temp_dict and isinstance(supply_temp_dict, dict):
+                _supply_init = supply_temp_dict
+            else:
+                _supply_init = supply_temp_nominal_c
+            T_supply_in = pyo.Param(time_set, initialize=_supply_init, mutable=True)
+            T_supply_out = pyo.Param(time_set, initialize=_supply_init, mutable=True)
             T_return_in = pyo.Param(time_set, initialize=return_temp_nominal_c, mutable=True)
             T_return_out = pyo.Param(time_set, initialize=return_temp_nominal_c, mutable=True)
         else:
@@ -271,25 +279,30 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         if temperature_linearize:
-            # MILP mode: heat losses computed from fixed nominal temperatures
-            # Q_loss is fully determined (no bilinear products)
+            # MILP mode: heat losses computed from Param temperatures.
+            # T_supply_in[t] holds the per-timestep heating-curve value (or fixed
+            # nominal when no heating curve is configured). Using T_supply_in[t]
+            # directly (it is a Param, so all expressions remain linear in m_dot).
             def heat_loss_supply_rule_milp(m, t):
-                T_avg = supply_temp_nominal_c  # fixed nominal
-                return Q_loss_supply[t] == (u_value_supply * length_m * (T_avg - T_ground[t])) / 1e6
+                return Q_loss_supply[t] == (
+                    u_value_supply * length_m * (T_supply_in[t] - T_ground[t])
+                ) / 1e6
 
             setattr(model, f'{prefix}_heat_loss_supply',
                     pyo.Constraint(time_set, rule=heat_loss_supply_rule_milp))
 
             def heat_loss_return_rule_milp(m, t):
-                T_avg = return_temp_nominal_c  # fixed nominal
-                return Q_loss_return[t] == (u_value_return * length_m * (T_avg - T_ground[t])) / 1e6
+                return Q_loss_return[t] == (
+                    u_value_return * length_m * (T_return_in[t] - T_ground[t])
+                ) / 1e6
 
             setattr(model, f'{prefix}_heat_loss_return',
                     pyo.Constraint(time_set, rule=heat_loss_return_rule_milp))
 
-            # MILP mode: Q_delivered linked to m_dot via fixed ΔT (linear)
+            # MILP mode: Q_delivered linked to m_dot via per-timestep ΔT (linear,
+            # since T_supply_in and T_return_in are Params, not Variables).
             def heat_delivered_rule_milp(m, t):
-                dT = supply_temp_nominal_c - return_temp_nominal_c
+                dT = T_supply_in[t] - T_return_in[t]
                 return Q_delivered[t] * 1000 == m_dot[t] * cp_water * dT
 
             setattr(model, f'{prefix}_heat_delivered',

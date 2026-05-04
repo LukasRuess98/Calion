@@ -310,15 +310,21 @@ class ModelFinalizer:
             or tn_cfg.get('linearization')
             or {}
         )
+        # Pass heating curve from network section into thermal_network.parameters
+        # so NetworkManager._setup_temperatures() picks it up.
+        heating_curve_cfg = net_cfg.get('heating_curve', tn_cfg.get('heating_curve', {}))
+        parameters: dict = {
+            "supply_temp_nominal_c": ucfg.physics.supply_temp_c,
+            "return_temp_nominal_c": ucfg.physics.return_temp_c,
+            "ground_temp_default_c": ucfg.physics.ground_temp_c,
+        }
+        if heating_curve_cfg:
+            parameters["heating_curve"] = heating_curve_cfg
         return {
             "enabled": True,
             "nodes": nodes_list,
             "pipes": pipes_list,
-            "parameters": {
-                "supply_temp_nominal_c": ucfg.physics.supply_temp_c,
-                "return_temp_nominal_c": ucfg.physics.return_temp_c,
-                "ground_temp_default_c": ucfg.physics.ground_temp_c,
-            },
+            "parameters": parameters,
             "milp_linearize": (
                 tn_cfg.get('milp_linearize', False)
                 or net_cfg.get('milp_linearize', False)
