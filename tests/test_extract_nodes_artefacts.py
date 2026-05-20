@@ -102,6 +102,11 @@ def test_write_nodes_data_computes_delta_and_seasonal(tmp_path, monkeypatch):
     assert (outdir / "nodes_summary.csv").exists()
     assert (outdir / "nodes_seasonal.csv").exists()
     assert (outdir / "nodes_state_hourly.parquet").exists()
+    assert (outdir / "node_temperatures.csv").exists()
+
+    node_t = pd.read_csv(outdir / "node_temperatures.csv")
+    assert "T_node_j_1" in node_t.columns
+    assert "T_node_j_2" in node_t.columns
 
 
 def test_write_nodes_data_missing_input_writes_empty_artefacts(tmp_path, monkeypatch, capsys):
@@ -128,6 +133,7 @@ def test_write_nodes_data_missing_input_writes_empty_artefacts(tmp_path, monkeyp
 
     summary_csv = pd.read_csv(outdir / "nodes_summary.csv")
     seasonal_csv = pd.read_csv(outdir / "nodes_seasonal.csv")
+    node_temp_csv = pd.read_csv(outdir / "node_temperatures.csv")
 
     assert list(summary_csv.columns) == [
         "node_id",
@@ -148,3 +154,4 @@ def test_write_nodes_data_missing_input_writes_empty_artefacts(tmp_path, monkeyp
         "Q_demand_total_mwh",
         "P_avg_bar",
     ]
+    assert list(node_temp_csv.columns) == ["timestamp"]

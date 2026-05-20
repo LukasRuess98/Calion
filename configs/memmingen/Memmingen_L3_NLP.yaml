@@ -183,100 +183,100 @@ network:
       to: j_2
       length_m: 350
       diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j2_to_j3:
       from: j_2
       to: j_3
       length_m: 300
       diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j3_to_j4:
       from: j_3
       to: j_4
       length_m: 260
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j3_to_j9:
       from: j_3
       to: j_9
       length_m: 450
       diameter_mm: 350
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j4_to_j5:
       from: j_4
       to: j_5
       length_m: 240
       diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j5_to_j6:
       from: j_5
       to: j_6
       length_m: 150
       diameter_mm: 150
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
     j5_to_j7:
       from: j_5
       to: j_7
       length_m: 220
       diameter_mm: 125
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
     j7_to_j8:
       from: j_7
       to: j_8
       length_m: 80
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
     j9_to_j10:
       from: j_9
       to: j_10
       length_m: 200
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j10_to_j11:
       from: j_10
       to: j_11
       length_m: 230
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j11_to_j12:
       from: j_11
       to: j_12
       length_m: 250
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j12_to_j13:
       from: j_12
       to: j_13
       length_m: 220
       diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
     j13_to_j14:
       from: j_13
       to: j_14
       length_m: 180
       diameter_mm: 125
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
     # u-values calibrated from V_27 measurements (validation: 4.68x nominal)
     j13_to_j15:
       from: j_13
       to: j_15
       length_m: 125
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 1.31
+      u_value_return_w_per_m_k: 1.4
 
 assets:
   chp_main:

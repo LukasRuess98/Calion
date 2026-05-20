@@ -11,6 +11,7 @@ Output layout (all under outdir/):
   nodes_summary.csv
   nodes_seasonal.csv
   nodes_state_hourly.parquet
+  node_temperatures.csv
   validation.json
   linearization_diagnostics.csv  (L3+, L3NL only)
 """
@@ -535,6 +536,34 @@ def _write_empty_node_artefacts(outdir: Path) -> None:
     pd.DataFrame(columns=summary_cols).to_csv(outdir / "nodes_summary.csv", index=False)
     pd.DataFrame(columns=seasonal_cols).to_csv(outdir / "nodes_seasonal.csv", index=False)
     pd.DataFrame(columns=state_cols).to_parquet(outdir / "nodes_state_hourly.parquet", index=False)
+    pd.DataFrame().to_csv(outdir / "node_temperatures.csv", index_label="timestamp")
+
+
+def _write_node_temperatures_csv(outdir: Path, nodes_state: pd.DataFrame) -> None:
+    """Write wide node temperature CSV (timestamp x T_node_j_x columns)."""
+    out_path = outdir / "node_temperatures.csv"
+    if nodes_state.empty:
+        pd.DataFrame().to_csv(out_path, index_label="timestamp")
+        return
+
+    needed = {"timestamp", "node_id", "T_supply_c"}
+    if not needed.issubset(set(nodes_state.columns)):
+        pd.DataFrame().to_csv(out_path, index_label="timestamp")
+        return
+
+    df = nodes_state[["timestamp", "node_id", "T_supply_c"]].copy()
+    # Keep timestamp as-is when datetime parsing fails (e.g., integer timesteps).
+    ts_dt = pd.to_datetime(df["timestamp"], errors="coerce")
+    if ts_dt.notna().sum() >= max(1, int(0.8 * len(df))):
+        df["timestamp"] = ts_dt
+
+    wide = (
+        df.pivot_table(index="timestamp", columns="node_id", values="T_supply_c", aggfunc="mean")
+        .sort_index()
+    )
+    wide.columns = [f"T_node_{str(c)}" for c in wide.columns]
+    wide.index.name = "timestamp"
+    wide.to_csv(out_path)
 
 
 def write_nodes_data(
@@ -719,6 +748,7 @@ def write_nodes_data(
             nodes_seasonal = grouped[seasonal_cols].copy()
 
     nodes_seasonal.to_csv(outdir / "nodes_seasonal.csv", index=False)
+    _write_node_temperatures_csv(outdir, nodes_state)
     return nodes_summary, nodes_seasonal, nodes_state
 
 

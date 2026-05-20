@@ -211,8 +211,8 @@ network:
       to: j_2
       length_m: 350
       diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 25 Verbraucher downstream, ~70 MW -> DN450
     j2_to_j3:
@@ -220,8 +220,8 @@ network:
       to: j_3
       length_m: 300
       diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # J3 verzweigt: Sued -> J4, Ost -> J9
     # Sued-Ast: 11 Verbraucher, ~31 MW -> DN300
@@ -230,8 +230,8 @@ network:
       to: j_4
       length_m: 260
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # Ost-Ast: 13 Verbraucher, ~37 MW -> DN350
     j3_to_j9:
@@ -239,8 +239,8 @@ network:
       to: j_9
       length_m: 450
       diameter_mm: 350
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # Sued-Ast (J4 -> J5 -> J6/J7 -> J8)
     # 7 Verbraucher downstream, ~20 MW -> DN250
@@ -249,8 +249,8 @@ network:
       to: j_5
       length_m: 240
       diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 3 Verbraucher downstream, ~8 MW -> DN150
     j5_to_j6:
@@ -258,8 +258,8 @@ network:
       to: j_6
       length_m: 150
       diameter_mm: 150
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
 
     # 2 Verbraucher downstream, ~6 MW -> DN125
     j5_to_j7:
@@ -267,8 +267,8 @@ network:
       to: j_7
       length_m: 220
       diameter_mm: 125
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
 
     # 1 Verbraucher, ~3 MW -> DN100
     j7_to_j8:
@@ -276,8 +276,8 @@ network:
       to: j_8
       length_m: 80
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
 
     # Ost-Ast (J9 -> J10 -> J11 -> J12 -> J13 -> J14/J15)
     # 11 Verbraucher downstream, ~31 MW -> DN300
@@ -286,8 +286,8 @@ network:
       to: j_10
       length_m: 200
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 10 Verbraucher downstream, ~28 MW -> DN300
     j10_to_j11:
@@ -295,8 +295,8 @@ network:
       to: j_11
       length_m: 230
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 9 Verbraucher downstream, ~25 MW -> DN300
     j11_to_j12:
@@ -304,8 +304,8 @@ network:
       to: j_12
       length_m: 250
       diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 6 Verbraucher downstream, ~17 MW -> DN250
     j12_to_j13:
@@ -313,8 +313,8 @@ network:
       to: j_13
       length_m: 220
       diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.1
-      u_value_return_w_per_m_k: 0.11
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
 
     # 2 Verbraucher downstream, ~6 MW -> DN125
     j13_to_j14:
@@ -322,8 +322,8 @@ network:
       to: j_14
       length_m: 180
       diameter_mm: 125
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.3
 
     # 1 Verbraucher, ~3 MW -> DN100
     # u-values calibrated from V_27 measurements (validation: 4.68x nominal)
@@ -332,8 +332,8 @@ network:
       to: j_15
       length_m: 125
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.08
-      u_value_return_w_per_m_k: 0.08
+      u_value_supply_w_per_m_k: 1.31
+      u_value_return_w_per_m_k: 1.4
 
 # --- Assets (Dispatch-Only, Fixed Capacities) ---
 # --- Assets: IDENTICAL to L3 (copy-paste) ---

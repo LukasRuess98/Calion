@@ -827,19 +827,23 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
     """
     print("  [CALIBRATE] U-value estimation from temperature drop")
     
-    calibrated = {pid: info["U_nom"] for pid, info in PIPE_CATALOG.items()}
-    
+    # Return ratios (multipliers relative to nominal), not absolute U-values.
+    # Default ratio = 1.0 for all pipes; _persist_calibrated_u_values skips
+    # pipes whose ratio is within 1% of 1.0, so a fallback preserves any
+    # previously hand-calibrated values in the YAML.
+    calibrated = {pid: 1.0 for pid in PIPE_CATALOG}
+
     m_drop = measured.get("T_supply_drop_measured_C")
     if m_drop is None:
         print("    [SKIP] No T_drop data")
         return calibrated
-    
+
     mean_drop_measured = float(m_drop.dropna().mean())
     std_drop_measured  = float(m_drop.dropna().std())
     print(f"    Measured ΔT(j1→j15): {mean_drop_measured:.2f} ± {std_drop_measured:.2f}°C")
     print(f"    Trunk length: {TRUNK_LENGTH_M} m")
     print(f"    Specific loss: {mean_drop_measured/TRUNK_LENGTH_M*1000:.2f} °C/km")
-    
+
     # Check if simulation has far-end data
     s_fe = simulated.get("T_supply_farend_C")
     if s_fe is None:
@@ -847,30 +851,26 @@ def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
             s_fe = simulated.get(alt)
             if s_fe is not None:
                 break
-    
+
     if s_fe is not None:
         bc_val = bc_info.get("median_C") or bc_info.get("mean_C", 86.5)
         mean_drop_simulated = bc_val - float(s_fe.dropna().mean())
         print(f"    Simulated ΔT(j1→j15): {mean_drop_simulated:.2f}°C")
-        
+
         if mean_drop_simulated > 0.1:
-            ratio = mean_drop_measured / mean_drop_simulated
-            ratio_clipped = float(np.clip(ratio, 0.3, 3.0))
-            print(f"    Correction ratio: {ratio:.3f} (clipped: {ratio_clipped:.3f})")
-            
+            ratio_clipped = float(np.clip(
+                mean_drop_measured / mean_drop_simulated, 0.3, 3.0
+            ))
+            print(f"    Correction ratio: {mean_drop_measured/mean_drop_simulated:.3f} "
+                  f"(clipped: {ratio_clipped:.3f})")
             for pid in calibrated:
-                u_nom = PIPE_CATALOG[pid]["U_nom"]
-                calibrated[pid] = float(np.clip(
-                    u_nom * ratio_clipped,
-                    u_nom * 0.1,
-                    u_nom * 3.0
-                ))
+                calibrated[pid] = ratio_clipped
         else:
             print("    [WARN] Simulated ΔT ≈ 0 — nominal U-values retained")
     else:
         print("    [INFO] No simulated far-end data — using nominal U-values")
         print("           (Full calibration requires model re-run loop)")
-    
+
     return calibrated
 
 
@@ -2961,6 +2961,40 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  [WARN] {l3_path} not found — run optimization first")
 
     # ── Step 4: Outputs ───────────────────────────────────────────────────
+    # Extended multi-node spatial validation (optional, late import to avoid circular import)
+    if not args.dry_run:
+        try:
+            from tools.validation_spatial import run_spatial_validation
+
+            print("\n" + "=" * 70)
+            print("  EXTENDED: Multi-Node Spatial Validation (14 nodes)")
+            print("=" * 70)
+
+            spatial_results = run_spatial_validation(
+                skip_calibration=getattr(args, "no_calibrate", False)
+            )
+
+            kpis["spatial_validation"] = {
+                "n_validated_nodes": spatial_results.get("node_count"),
+                "model_levels": spatial_results.get("model_levels_available"),
+                "methodology": "independent_cal_val_nodes_with_temporal_split",
+            }
+
+            test_report = spatial_results.get("reports", {}).get("test")
+            if test_report and getattr(test_report, "summary", None):
+                for level, stats in test_report.summary.items():
+                    if isinstance(stats, dict):
+                        if "mean_MAE_VAL_C" in stats:
+                            kpis[f"spatial_mean_MAE_{level}_test_C"] = stats.get("mean_MAE_VAL_C")
+                        if "max_MAE_VAL_C" in stats:
+                            kpis[f"spatial_max_MAE_{level}_test_C"] = stats.get("max_MAE_VAL_C")
+        except ImportError as exc:
+            print(f"  [SKIP] Spatial validation not available: {exc}")
+        except Exception as exc:
+            print(f"  [ERROR] Spatial validation failed: {exc}")
+            import traceback
+            traceback.print_exc()
+
     print("\n[4/5] Summary outputs...")
     if not args.dry_run and (kpis or s2_results):
         plot_validation_summary_table(kpis, s2_results, OUT_DIR)
