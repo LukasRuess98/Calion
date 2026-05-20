@@ -2927,6 +2927,7 @@ def main(argv: list[str] | None = None) -> int:
         l3_path = L3_DIR / "dispatch_hourly.csv"
         if l3_path.exists() and not args.dry_run:
             dispatch = pd.read_csv(l3_path, index_col=0, parse_dates=True)
+            dispatch = _fix_sim_legacy(dispatch)
 
             s2_results = {
                 "hp":      check_hp_plausibility(dispatch, measured_agg),

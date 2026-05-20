@@ -279,6 +279,26 @@ class PipePairBlock(BaseComponent):
         # TEMPERATURE VARIABLES (or PARAMS in MILP-linearized mode)
         # ============================================================
 
+        # Variables that are fully assigned in NLP mode (else branch below) but are
+        # also referenced outside that branch (pressure-drop, transport-delay, return
+        # dict at the end of attach_pipe_pair).  Initialise safe defaults here so
+        # that MILP mode never hits an UnboundLocalError.
+        warmup_slack = None
+        warmup_flow_slack = None
+        active_flag = None
+        flow_activity_threshold = 0.0
+        flow_guard_kg_s = 0.0
+        stagnation_mode = 'guard'
+        _warmup_times: list = []
+        _warmup_lookup: set = set()
+
+        def _warmup_flow_slack_term(t):  # noqa: E306  — referenced in pressure-drop section
+            if warmup_flow_slack is None:
+                return 0.0
+            if t in _warmup_lookup:
+                return warmup_flow_slack[t]
+            return 0.0
+
         milp_linearize = config.get('milp_linearize', False)
         temperature_linearize = config.get('temperature_linearize')
         if temperature_linearize is None:
