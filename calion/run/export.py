@@ -300,15 +300,15 @@ def export_workflow_results(
 
     # Phase 1: Network state validation (if thermal network enabled)
     validation_files: dict[str, str] = {}
-    if network_files and hasattr(active_result, 'series'):
+    if network_files:
         try:
             from calion.models.network_validator import NetworkValidator
             
-            # Get time set from result
-            time_set = list(active_result.table.index) if hasattr(active_result, 'table') else []
-            
-            if time_set:
-                validator = NetworkValidator(active_result, workflow.config, time_set)
+            # Prefer explicit time axis from result table when available.
+            time_set = list(active_result.table.index) if hasattr(active_result, 'table') else None
+
+            if network_data:
+                validator = NetworkValidator(network_data, workflow.config, time_set)
                 val_results = validator.validate_all()
                 
                 # Export validation report

@@ -7,26 +7,24 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from pathlib import Path
 
+from scripts.paper.mpl_export import AE_RCPARAMS, save_figure_bundle
+
 ROOT = Path(__file__).resolve().parents[3]
 FIG_DIR = ROOT / "output" / "paper_runs" / "figures"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
+FIG_FORMATS = ("png", "pdf", "pgf")
+FIG_RASTER_DPI = 600
 
 # Applied Energy style
-STYLE = {
-    "font.family": "serif",
+STYLE = dict(AE_RCPARAMS)
+STYLE.update({
     "font.size": 9,
     "axes.labelsize": 9,
     "axes.titlesize": 9,
     "xtick.labelsize": 8,
     "ytick.labelsize": 8,
     "legend.fontsize": 8,
-    "figure.dpi": 150,
-    "savefig.dpi": 300,
-    "axes.grid": True,
-    "grid.alpha": 0.3,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-}
+})
 
 LEVEL_COLORS = {
     "L1":    "#2166AC",
@@ -60,8 +58,12 @@ def apply_style() -> None:
 
 def save_fig(fig: plt.Figure, stem: str) -> None:
     apply_style()
-    for ext in ("pdf", "png"):
-        p = FIG_DIR / f"{stem}.{ext}"
-        fig.savefig(p, bbox_inches="tight", facecolor="white")
-    print(f"[FIG] {stem}.pdf / .png saved to {FIG_DIR}")
+    saved = save_figure_bundle(
+        fig,
+        FIG_DIR / stem,
+        formats=FIG_FORMATS,
+        raster_dpi=FIG_RASTER_DPI,
+    )
+    suffixes = ", ".join(path.suffix for path in saved)
+    print(f"[FIG] {stem} ({suffixes}) saved to {FIG_DIR}")
     plt.close(fig)

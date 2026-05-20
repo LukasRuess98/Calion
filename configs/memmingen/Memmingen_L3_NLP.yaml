@@ -1,7 +1,7 @@
+﻿# =============================================================================
+# PAPER STUDY - Level 3: Nichtlineares Modell â€” Fix-and-Relax
 # =============================================================================
-# PAPER STUDY - Level 3: Nichtlineares Modell — Fix-and-Relax
-# =============================================================================
-# Strategie: Binärvariablen aus L3plus fixieren → reines NLP lösen
+# Strategie: BinÃ¤rvariablen aus L3plus fixieren â†’ reines NLP lÃ¶sen
 # Zeigt den Mehrwert bilinearer Physik bei gleichen ON/OFF-Entscheidungen
 # =============================================================================
 
@@ -28,16 +28,40 @@ network:
     pressure_drop: true
     transport_delay: true
 
-  supply_temp_c: 85
-  return_temp_c: 55
+  supply_temp_c: 86.0
+  return_temp_c: 63.6
   ground_temp_c: 10
+
+  temperature_frame:
+    default_return_band_c: 4.0
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 88.6
+        return_c: 61.0
+        return_band_c: 3.0
+      spring:
+        months: [3, 4, 5]
+        supply_c: 87.6
+        return_c: 64.1
+        return_band_c: 3.0
+      summer:
+        months: [6, 7, 8]
+        supply_c: 83.4
+        return_c: 68.6
+        return_band_c: 2.5
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 84.2
+        return_c: 61.1
+        return_band_c: 3.0
 
   # Variable delivery temperature via outdoor-temperature Heizkurve.
   # In MILP-linearized mode this initialises T_supply_in Params per timestep.
   heating_curve:
     enabled: true
-    T_supply_max_c: 90.0    # supply temp at coldest design day (ca. -15°C)
-    T_supply_min_c: 65.0    # supply temp at heating cutoff (ca. +15°C)
+    T_supply_max_c: 90.0    # supply temp at coldest design day (ca. -15Â°C)
+    T_supply_min_c: 65.0    # supply temp at heating cutoff (ca. +15Â°C)
     T_outdoor_low_c: -15.0
     T_outdoor_high_c: 15.0
 
@@ -49,62 +73,107 @@ network:
 
   nodes:
     j_1:
-      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main, hp_main, eboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
     j_2:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_2_demand_MWth"
     j_3:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_3_demand_MWth"
     j_4:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_4_demand_MWth"
         - column: "V_5_demand_MWth"
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
     j_5:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
     j_6:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
     j_7:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_13_demand_MWth"
     j_8:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_14_demand_MWth"
     j_9:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
     j_10:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_17_demand_MWth"
     j_11:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_18_demand_MWth"
     j_12:
-      assets: [hp_main, eboiler_main]
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
+      #assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
         - column: "V_21_demand_MWth"
     j_13:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_22_demand_MWth"
         - column: "V_23_demand_MWth"
         - column: "V_24_demand_MWth"
     j_14:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
     j_15:
+      return_temp_range: [50.0, 70.0]
+      return_temp_load_factor: 0.20
+      return_temp_band_c: 3.0
       consumers:
         - column: "V_27_demand_MWth"
 
@@ -200,13 +269,14 @@ network:
       diameter_mm: 125
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
+    # u-values calibrated from V_27 measurements (validation: 4.68x nominal)
     j13_to_j15:
       from: j_13
       to: j_15
       length_m: 125
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.28
-      u_value_return_w_per_m_k: 0.30
+      u_value_supply_w_per_m_k: 1.31
+      u_value_return_w_per_m_k: 1.4
 
 assets:
   chp_main:
@@ -241,7 +311,7 @@ assets:
     type: heat_pump
     capacity_mw: 5.0
     min_load: 0.2
-    wrg_source_column: "WRG_1 °C"
+    wrg_source_column: "WRG_1 Â°C"
     wrg_capacity_column: "WRG1Q MW"
     cop_default: 3.0
 
@@ -252,7 +322,7 @@ assets:
     eff_charge: 0.98
     eff_discharge: 0.98
     loss_hour: 0.9999
-    soc0_mwh: 250.0           # 50% start — realistic mid-year level
+    soc0_mwh: 250.0           # 50% start â€” realistic mid-year level
     min_energy_mwh: 25.0      # 5% SOC floor
     cycling_cost_eur_per_mwh: 2.0
     terminal:
@@ -289,13 +359,13 @@ costs:
   co2_price_eur_per_t: 100.0
   dump_cost_eur_per_mwh_th: 1000.0
 
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # RUN SETTINGS: Fix-and-Relax
-# ═══════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 run:
   dt_h: 1.0
   solver: gurobi
-  warmstart_from: "output/paper_runs/L3plus"         # ← NEU
+  warmstart_from: "output/paper_runs/L3plus"         # â† NEU
   solver_options:
     NonConvex: 2
     MIPGap: 0.005
@@ -303,7 +373,7 @@ run:
     MIPFocus: 1
     Heuristics: 0.8
     NumericFocus: 2
-    StartNodeLimit: -1      # ← NEU: mehr Aufwand für MIP-Start-Reparatur
+    StartNodeLimit: -1      # â† NEU: mehr Aufwand fÃ¼r MIP-Start-Reparatur
     OutputFlag: 1
     LogToConsole: 1
 
@@ -312,4 +382,5 @@ output:
   export_dir: "output/results"
   export_thermal_network: true
   export_solver_solution: true
+
 

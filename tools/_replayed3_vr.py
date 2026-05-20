@@ -32,17 +32,16 @@ Usage
 Outputs
 -------
   output/validation/
-    stage1_timeseries_winter.(png|pdf|pgf)
-    stage1_timeseries_summer.(png|pdf|pgf)
-    stage1_error_histograms.(png|pdf|pgf)
-    stage1_scatter_Tsupply_farend.(png|pdf|pgf)
-    stage1_heatmap_Terr.(png|pdf|pgf)
-    stage2_COP_scatter.(png|pdf|pgf)
-    stage2_eboiler_price.(png|pdf|pgf)
-    stage2_TES_SOC.(png|pdf|pgf)
-    stage2_energy_stacked_bar.(png|pdf|pgf)
-    validation_summary_table.(png|pdf|pgf)
-    validation_summary_table.tex
+    stage1_timeseries_winter.png
+    stage1_timeseries_summer.png
+    stage1_error_histograms.png
+    stage1_scatter_Tsupply_farend.png
+    stage1_heatmap_Terr.png
+    stage2_COP_scatter.png
+    stage2_eboiler_price.png
+    stage2_TES_SOC.png
+    stage2_energy_stacked_bar.png
+    validation_summary_table.png
     validation_report.md
     kpis.json
 """
@@ -60,24 +59,14 @@ import pandas as pd
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-try:
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-except Exception:
-    pass
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-
-from scripts.paper.mpl_export import AE_RCPARAMS, save_figure_bundle
 
 DATA_PATH      = ROOT / "data" / "Import_Data_Memmingen_epronet.xlsx"
 LEGACY_DIR     = ROOT / "output" / "paper_runs" / "legacy"
 L3_DIR         = ROOT / "output" / "paper_runs" / "L3"
 OUT_DIR        = ROOT / "output" / "validation"
 CONFIGS_DIR    = ROOT / "configs" / "memmingen"
-PLOT_FORMATS   = ("png", "pdf", "pgf")
-PLOT_RASTER_DPI = 600
 
 # ---------------------------------------------------------------------------
 # KPI thresholds (Boundary-Condition-Matching approach)
@@ -339,36 +328,10 @@ def extract_supply_temperature_bc(hist: pd.DataFrame) -> dict:
     return result
 
 
-def _get_node_flow_m3h(v: int, df: pd.DataFrame) -> pd.Series:
-    """Return V_{v}_flow_rate in m³/h, auto-correcting if stored in L/h.
-
-    Detection: if median(implied_heat_from_flow [MW]) > 100 × median(measured_demand [MW]),
-    the flow is in L/h (factor 1000 too large) and is divided by 1000.
-    Catches data-source inconsistencies like V_24 in the Memmingen dataset.
-    """
-    fr_col = f"V_{v}_flow_rate"
-    if fr_col not in df.columns:
-        return pd.Series(np.nan, index=df.index)
-    fr = df[fr_col].copy().astype(float)
-    dem_col = f"V_{v}_demand_MWth"
-    ret_col = f"V_{v}_return_temp"
-    sup_col = "V_1_flow_temp"
-    if dem_col in df.columns and ret_col in df.columns and sup_col in df.columns:
-        dt = (df[sup_col] - df[ret_col]).clip(lower=0.5)
-        impl_q = (fr / 3.6) * 4186.0 * dt / 1e6
-        meas_q = df[dem_col].astype(float)
-        valid = impl_q.gt(0) & meas_q.gt(0.001)
-        if int(valid.sum()) > 10:
-            ratio = float((impl_q[valid] / meas_q[valid]).median())
-            if ratio > 100.0:
-                fr = fr / 1000.0
-    return fr
-
-
 def aggregate_source_measurements(hist: pd.DataFrame) -> pd.DataFrame:
     """
     Compute network-level aggregates from the ACTUAL column names.
-
+    
     Uses:
       - V_1_flow_temp: supply temperature at source (BC)
       - V_27_flow_temp: supply temperature at far-end (j_15)
@@ -397,21 +360,20 @@ def aggregate_source_measurements(hist: pd.DataFrame) -> pd.DataFrame:
     den = pd.Series(0.0, index=hist.index)
     for v in range(1, 28):
         tr_col = f"V_{v}_return_temp"
-        if tr_col not in hist.columns or f"V_{v}_flow_rate" not in hist.columns:
-            continue
-        tr = hist[tr_col]
-        fr = _get_node_flow_m3h(v, hist)
-        valid = tr.notna() & fr.notna() & (fr > 0.01)
-        num = num + (tr * fr).where(valid, 0)
-        den = den + fr.where(valid, 0)
+        fr_col = f"V_{v}_flow_rate"
+        if tr_col in hist.columns and fr_col in hist.columns:
+            tr = hist[tr_col]
+            fr = hist[fr_col]
+            valid = tr.notna() & fr.notna() & (fr > 0.01)
+            num = num + (tr * fr).where(valid, 0)
+            den = den + fr.where(valid, 0)
     result["T_return_source_C"] = (num / den.replace(0, np.nan))
 
     # ── Total volume flow at source [m³/h] ──
-    total_flow = pd.Series(0.0, index=hist.index)
-    for v in range(1, 28):
-        if f"V_{v}_flow_rate" in hist.columns:
-            total_flow = total_flow + _get_node_flow_m3h(v, hist).fillna(0.0)
-    result["flow_source_m3h"] = total_flow.replace(0.0, np.nan)
+    flow_cols = [f"V_{v}_flow_rate" for v in range(1, 28)
+                 if f"V_{v}_flow_rate" in hist.columns]
+    if flow_cols:
+        result["flow_source_m3h"] = hist[flow_cols].sum(axis=1, min_count=1)
 
     # ── Total thermal demand [MWth] — use pre-computed column ──
     if "Waermebedarf_MWth" in hist.columns:
@@ -509,7 +471,7 @@ def identify_representative_weeks(agg: pd.DataFrame) -> dict[str, tuple]:
 # ---------------------------------------------------------------------------
 
 def compute_stage1_kpis(measured: pd.DataFrame, simulated: pd.DataFrame,
-                        bc_info: dict, warmup_h: int = 0) -> dict:
+                        bc_info: dict) -> dict:
     """
     Compute Stage 1 KPIs with Boundary-Condition-Matching methodology.
     
@@ -550,9 +512,6 @@ def compute_stage1_kpis(measured: pd.DataFrame, simulated: pd.DataFrame,
                 break
     
     if m_fe is not None:
-        if warmup_h > 0 and len(m_fe) > warmup_h:
-            m_fe = m_fe.iloc[warmup_h:]
-            s_fe = s_fe.iloc[warmup_h:]
         err = s_fe - m_fe
         kpis["T_supply_farend_MAE_C"]  = float(err.abs().mean())
         kpis["T_supply_farend_RMSE_C"] = float(np.sqrt((err**2).mean()))
@@ -743,85 +702,11 @@ def compute_stage1_kpis(measured: pd.DataFrame, simulated: pd.DataFrame,
     return kpis
 
 
-def estimate_u_from_measurements(hist: pd.DataFrame, measured_agg: pd.DataFrame) -> dict:
-    """
-    Estimate U multiplier for j13_to_j15 from measured V_27 flow and temperature.
-
-    Pipe j13_to_j15 (125m, DN100) connects j13 to j15 (far end).
-    V_27_flow_rate gives the actual pipe flow; V_27_flow_temp the outlet temperature.
-    V_1_flow_temp is used as a proxy for the inlet temperature at j13 — this
-    slightly overestimates ΔT (source is ~0.5°C warmer than j13) so the estimated
-    U implicitly absorbs a fraction of upstream trunk heat loss.
-
-    The formula is evaluated per timestep; the P75 percentile is used instead of the
-    median because cold/shoulder-season operation (low V_27 flow, large ΔT) matches
-    the MIQP validation windows (winter + transition).  Using the annual median (P50)
-    systematically underestimates the temperature drop during these periods.
-    P75 = 7.32× ≈ the drop-ratio correction derived from MIQP feedback (×1.553 × 4.68×).
-
-    Multiplier applied only to j13_to_j15; all other pipes stay nominal (1.0×) to
-    avoid supply_ge_return infeasibility on near-zero branch flows.
-
-    Returns {pipe_id: multiplier} compatible with run_miqp_model(u_ratios=...).
-    """
-    print("  [U-ESTIMATE] Physics-based U estimation for j13_to_j15 from V_27 measurements")
-    result = {pid: 1.0 for pid in PIPE_CATALOG}
-
-    if "V_1_flow_temp" not in hist.columns or "V_27_flow_temp" not in hist.columns:
-        print("    [SKIP] V_1_flow_temp or V_27_flow_temp missing")
-        return result
-
-    # j13_to_j15 geometry
-    L_j15  = PIPE_CATALOG["j13_to_j15"]["length_m"]   # 125 m
-    U_nom  = PIPE_CATALOG["j13_to_j15"]["U_nom"]       # 0.28 W/(m·K)
-
-    # Pipe flow: V_27_flow_rate is the flow through j13_to_j15 (V-24 auto-corrected)
-    m_dot = _get_node_flow_m3h(27, hist).fillna(0.0) / 3.6  # kg/s
-
-    t_in  = hist["V_1_flow_temp"].astype(float)   # source proxy for T at j13
-    t_out = hist["V_27_flow_temp"].astype(float)  # measured T at j15
-
-    dt    = (t_in - t_out).clip(lower=0)
-
-    t_gnd = pd.Series(
-        hist.index.month.map(_GROUND_TEMP_BY_MONTH).values.astype(float),
-        index=hist.index,
-    )
-    t_avg = (t_in + t_out) / 2.0
-
-    valid = (
-        (m_dot > 0.2)              # meaningful j15 flow
-        & (dt > 0.3)               # meaningful temperature drop j1→j15
-        & ((t_avg - t_gnd) > 5.0) # pipe above ground temp
-    )
-    n_valid = int(valid.sum())
-    if n_valid < 24:
-        print(f"    [SKIP] Only {n_valid} valid hours (need >=24)")
-        return result
-
-    cp = 4186.0  # J/(kg·K)
-    u_vals = (m_dot[valid] * cp * dt[valid]) / (L_j15 * (t_avg[valid] - t_gnd[valid]))
-    u_vals = u_vals.replace([np.inf, -np.inf], np.nan).dropna()
-
-    u_p50  = float(np.percentile(u_vals, 50))
-    u_p75  = float(np.percentile(u_vals, 75))
-    u_p25  = float(np.percentile(u_vals, 25))
-    # P50 (median) minimises bias: MIQP runs confirm P50 bias ≈ 0, P75 bias = −1.82°C.
-    multiplier = float(np.clip(u_p50 / U_nom, 0.5, 12.0))
-
-    print(f"    j13_to_j15 U: P50={u_p50:.4f}  P75={u_p75:.4f}  P25={u_p25:.4f} W/(m·K)  (n={n_valid})")
-    print(f"    Nominal: {U_nom:.3f} W/(m·K)  ->  multiplier (P50) = {multiplier:.2f}x")
-    print(f"    Applied to: j13_to_j15 only (all other pipes stay nominal)")
-
-    result["j13_to_j15"] = multiplier
-    return result
-
-
 def calibrate_u_values(measured: pd.DataFrame, simulated: pd.DataFrame,
                        bc_info: dict) -> dict:
     """
     Estimate calibrated U-values from measured temperature drop.
-
+    
     Method: Compare measured ΔT(j1→j15) with simulated.
     Scale all trunk U-values proportionally.
     """
@@ -1169,71 +1054,16 @@ def _fig_setup():
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        matplotlib.rcParams.update(AE_RCPARAMS)
+        matplotlib.rcParams.update({
+            "figure.dpi": 300, "savefig.dpi": 300,
+            "font.size": 8, "axes.labelsize": 8, "axes.titlesize": 9,
+            "xtick.labelsize": 7, "ytick.labelsize": 7, "legend.fontsize": 7,
+            "lines.linewidth": 1.0, "axes.linewidth": 0.7,
+            "grid.linewidth": 0.4, "grid.alpha": 0.4,
+        })
         return plt, matplotlib
     except ImportError:
         return None, None
-
-
-def _save_plot(fig, out_dir: Path, stem: str, plt) -> None:
-    saved = save_figure_bundle(
-        fig,
-        out_dir / stem,
-        formats=PLOT_FORMATS,
-        raster_dpi=PLOT_RASTER_DPI,
-    )
-    plt.close(fig)
-    suffixes = ", ".join(path.suffix for path in saved)
-    print(f"  [PLOT] {stem} ({suffixes})")
-
-
-def _write_validation_summary_latex(rows: list[list[str]], out_dir: Path) -> None:
-    """Export validation summary table as LaTeX (booktabs)."""
-    tex_path = out_dir / "validation_summary_table.tex"
-    def _tex_safe(value: str) -> str:
-        text = str(value)
-        replacements = {
-            "≤": r"$\leq$",
-            "â‰¤": r"$\leq$",
-            "≥": r"$\geq$",
-            "â‰¥": r"$\geq$",
-            "—": "--",
-            "â€”": "--",
-            "°": r"$^\circ$",
-            "Â°": r"$^\circ$",
-            "%": r"\%",
-            "_": r"\_",
-        }
-        for src, dst in replacements.items():
-            text = text.replace(src, dst)
-        return text
-
-    lines = [
-        r"\begin{tabular}{lccc}",
-        r"\toprule",
-        r"KPI & Result & Target & Pass? \\",
-        r"\midrule",
-    ]
-    for row in rows:
-        # Keep content simple and LaTeX-safe for current symbols.
-        kpi, result, target, status = row
-        status_tex = (
-            status
-            .replace("✓", r"\checkmark")
-            .replace("âœ“", r"\checkmark")
-            .replace("✗", r"$\times$")
-            .replace("âœ—", r"$\times$")
-        )
-        line = " & ".join([
-            _tex_safe(kpi),
-            _tex_safe(result),
-            _tex_safe(target),
-            _tex_safe(status_tex),
-        ]) + r" \\"
-        lines.append(line)
-    lines.extend([r"\bottomrule", r"\end{tabular}"])
-    tex_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"  [PLOT] {tex_path.name}")
 
 
 def plot_stage1_timeseries(measured: pd.DataFrame, simulated: pd.DataFrame,
@@ -1292,7 +1122,10 @@ def plot_stage1_timeseries(measured: pd.DataFrame, simulated: pd.DataFrame,
 
         fig.suptitle(f"Stage 1 BC-Matching — {season.capitalize()} Week", fontsize=9)
         fig.tight_layout()
-        _save_plot(fig, out_dir, f"stage1_timeseries_{season}", plt)
+        fname = out_dir / f"stage1_timeseries_{season}.png"
+        fig.savefig(fname, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage1_scatter_farend(measured: pd.DataFrame, simulated: pd.DataFrame,
@@ -1347,7 +1180,10 @@ def plot_stage1_scatter_farend(measured: pd.DataFrame, simulated: pd.DataFrame,
     ax.grid(True)
     ax.set_title("Far-end validation (heat loss model)", fontsize=8)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage1_scatter_Tsupply_farend", plt)
+    fname = out_dir / "stage1_scatter_Tsupply_farend.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage1_error_histograms(kpis: dict, out_dir: Path) -> None:
@@ -1388,7 +1224,10 @@ def plot_stage1_error_histograms(kpis: dict, out_dir: Path) -> None:
 
     fig.suptitle("Stage 1 KPIs — BC-Matching Validation", fontsize=9)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage1_error_histograms", plt)
+    fname = out_dir / "stage1_error_histograms.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage1_heatmap(measured: pd.DataFrame, simulated: pd.DataFrame,
@@ -1431,7 +1270,10 @@ def plot_stage1_heatmap(measured: pd.DataFrame, simulated: pd.DataFrame,
     ax.set_ylabel("Hour")
     ax.set_title("$T_{sup}$ error at j₁₅ — identifies systematic patterns")
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage1_heatmap_Terr", plt)
+    fname = out_dir / "stage1_heatmap_Terr.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage2_cop_scatter(dispatch: pd.DataFrame, hist_agg: pd.DataFrame | None,
@@ -1479,7 +1321,10 @@ def plot_stage2_cop_scatter(dispatch: pd.DataFrame, hist_agg: pd.DataFrame | Non
     ax.legend(frameon=False, fontsize=6)
     ax.grid(True)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage2_COP_scatter", plt)
+    fname = out_dir / "stage2_COP_scatter.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage2_eboiler(dispatch: pd.DataFrame, weeks: dict, out_dir: Path) -> None:
@@ -1511,7 +1356,10 @@ def plot_stage2_eboiler(dispatch: pd.DataFrame, weeks: dict, out_dir: Path) -> N
     ax1.legend(lines1+lines2, l1+l2, frameon=False, fontsize=7, loc="upper right")
     ax1.grid(True, alpha=0.3)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage2_eboiler_price", plt)
+    fname = out_dir / "stage2_eboiler_price.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage2_tes(dispatch: pd.DataFrame, out_dir: Path) -> None:
@@ -1541,7 +1389,10 @@ def plot_stage2_tes(dispatch: pd.DataFrame, out_dir: Path) -> None:
     ax.legend(frameon=False, fontsize=6, ncol=3, loc="upper right")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage2_TES_SOC", plt)
+    fname = out_dir / "stage2_TES_SOC.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_stage2_energy_bars(dispatch: pd.DataFrame, out_dir: Path) -> None:
@@ -1581,7 +1432,10 @@ def plot_stage2_energy_bars(dispatch: pd.DataFrame, out_dir: Path) -> None:
     ax.legend(frameon=False, fontsize=6, ncol=3)
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
-    _save_plot(fig, out_dir, "stage2_energy_stacked_bar", plt)
+    fname = out_dir / "stage2_energy_stacked_bar.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 def plot_validation_summary_table(kpis: dict, s2_results: dict, out_dir: Path) -> None:
@@ -1618,7 +1472,6 @@ def plot_validation_summary_table(kpis: dict, s2_results: dict, out_dir: Path) -
     rows.append(["HP FLH [h/yr]", f"{flh:.0f}", "2000–5000",
                  "✓" if 2000 <= flh <= 5000 else "?"])
 
-    _write_validation_summary_latex(rows, out_dir)
     col_labels = ["KPI", "Result", "Target", "Pass?"]
     fig, ax = plt.subplots(figsize=(7.09, 0.4*len(rows)+1.0))
     ax.axis("off")
@@ -1635,7 +1488,10 @@ def plot_validation_summary_table(kpis: dict, s2_results: dict, out_dir: Path) -
             elif pv == "✗": cell.set_facecolor("#FFEBEE")
 
     fig.tight_layout()
-    _save_plot(fig, out_dir, "validation_summary_table", plt)
+    fname = out_dir / "validation_summary_table.png"
+    fig.savefig(fname, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  [PLOT] {fname.name}")
 
 
 # ---------------------------------------------------------------------------
@@ -1980,13 +1836,8 @@ def save_kpis_json(kpis: dict, s2_results: dict, bc_info: dict,
 # Legacy model run
 # ---------------------------------------------------------------------------
 
-def run_legacy_model(
-    dry_run: bool = False,
-    bc_info: dict | None = None,
-    hist: "pd.DataFrame | None" = None,
-    measured_agg: "pd.DataFrame | None" = None,
-) -> bool:
-    """Run L3-MILP with HP/TES/EBoiler=0 and measured T_supply+T_return as BCs."""
+def run_legacy_model(dry_run: bool = False, bc_info: dict | None = None) -> bool:
+    """Run L3-MILP with HP/TES/EBoiler=0 and measured T_supply as BC."""
     print("\n  [LEGACY] Running legacy simulation (BC-matching)")
 
     # Determine T_supply BC value
@@ -2020,21 +1871,6 @@ def run_legacy_model(
             },
         },
     }
-
-    # ── Inject hourly T_return from measurements (MILP uses as fixed Param) ──
-    if hist is not None or measured_agg is not None:
-        _src = measured_agg if measured_agg is not None else hist
-        scenario_start = pd.Timestamp("2025-01-01 00:00")
-        scenario_end   = pd.Timestamp("2025-12-31 23:00")
-        ret_profile = _build_return_ref_profile(
-            hist if hist is not None else _src,
-            scenario_start, scenario_end, measured_agg)
-        if ret_profile:
-            legacy_overrides["network"].setdefault("parameters", {})
-            legacy_overrides["network"]["parameters"]["return_temp_dict"] = ret_profile
-            mean_ret = np.mean(list(ret_profile.values()))
-            print(f"  [LEGACY] Hourly T_return profile injected: "
-                  f"{len(ret_profile)} steps, mean={mean_ret:.1f}°C (MILP fixed Param per step)")
 
     config_path = CONFIGS_DIR / "Memmingen_L3_MILP.yaml"
     if not config_path.exists():
@@ -2154,181 +1990,26 @@ def _build_return_ref_profile(
     return profile if len(profile) >= n_steps // 2 else {}
 
 
-def _compute_seasonal_return_medians(measured_agg: "pd.DataFrame") -> "dict[str, float]":
-    """Compute measured T_return median per season from measured_agg."""
-    season_map = {1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring",
-                  6: "summer", 7: "summer", 8: "summer", 9: "autumn", 10: "autumn",
-                  11: "autumn", 12: "winter"}
-    if "T_return_source_C" not in measured_agg.columns:
-        return {}
-    src = measured_agg["T_return_source_C"].dropna()
-    result: dict[str, float] = {}
-    for season in ("winter", "spring", "summer", "autumn"):
-        months = [m for m, s in season_map.items() if s == season]
-        mask = src.index.month.isin(months)
-        vals = src[mask]
-        if len(vals) >= 24:
-            result[season] = round(float(np.median(vals)), 1)
-    return result
-
-
-def _update_yaml_seasonal_return_temps(
-    measured_agg: "pd.DataFrame",
-    config_paths: "list[Path]",
-) -> None:
-    """Update temperature_frame.seasons.*.return_c in YAML files with measured medians.
-
-    Uses text-based line replacement so comments, ordering, and formatting are preserved.
-    """
-    import re
-
-    medians = _compute_seasonal_return_medians(measured_agg)
-    if not medians:
-        print("  [YAML-UPDATE] No T_return medians computed — skipping YAML update")
-        return
-
-    annual_mean = round(float(measured_agg["T_return_source_C"].dropna().mean()), 1)
-    print("  [YAML-UPDATE] Measured seasonal T_return medians:")
-    for s, v in medians.items():
-        print(f"    {s}: {v:.1f}°C")
-    print(f"  [YAML-UPDATE] Annual mean T_return: {annual_mean:.1f}°C")
-
-    season_names = set(medians.keys())
-
-    for config_path in config_paths:
-        if not config_path.exists():
-            continue
-        text = config_path.read_text(encoding="utf-8")
-        original = text
-
-        lines = text.split("\n")
-        out: list[str] = []
-        current_season: str | None = None
-
-        for line in lines:
-            stripped = line.lstrip()
-            indent = len(line) - len(stripped)
-
-            # Detect season heading (e.g. "      winter:" at YAML indent 6)
-            bare = stripped.rstrip(":")
-            if indent == 6 and bare in season_names and stripped.endswith(":"):
-                current_season = bare
-            elif indent <= 5:
-                current_season = None
-
-            # Replace top-level network.return_temp_c (indent=2)
-            if (indent == 2 and stripped.startswith("return_temp_c:")
-                    and not stripped.startswith("#")):
-                line = re.sub(r"(return_temp_c:\s*)\S+", f"\\g<1>{annual_mean}", line)
-
-            # Replace return_c inside a season block (indent=8)
-            if (current_season and indent == 8
-                    and stripped.startswith("return_c:")
-                    and not stripped.startswith("#")):
-                new_val = medians[current_season]
-                line = re.sub(r"(return_c:\s*)\S+", f"\\g<1>{new_val}", line)
-
-            out.append(line)
-
-        new_text = "\n".join(out)
-        if new_text != original:
-            config_path.write_text(new_text, encoding="utf-8")
-            print(f"  [YAML-UPDATE] Updated {config_path.name}")
-
-
-def _persist_calibrated_u_values(
-    u_ratios: "dict[str, float]",
-    config_paths: "list[Path]",
-) -> None:
-    """Write calibrated U-value multipliers back to YAML pipe definitions.
-
-    Only updates pipes whose ratio differs from 1.0 by more than 1%. Preserves
-    comments and formatting via text-based line replacement.
-    """
-    import re
-
-    changed_pipes = {p: r for p, r in u_ratios.items() if abs(r - 1.0) > 0.01}
-    if not changed_pipes:
-        return
-
-    # Nominal U-values per pipe (supply/return) — must match the YAML defaults
-    _NOMINAL_U = {
-        "j1_to_j2":   (0.32, 0.34), "j2_to_j3":   (0.32, 0.34),
-        "j3_to_j4":   (0.32, 0.34), "j3_to_j9":    (0.32, 0.34),
-        "j4_to_j5":   (0.32, 0.34), "j5_to_j6":    (0.28, 0.30),
-        "j5_to_j7":   (0.28, 0.30), "j7_to_j8":    (0.28, 0.30),
-        "j9_to_j10":  (0.32, 0.34), "j10_to_j11":  (0.32, 0.34),
-        "j11_to_j12": (0.32, 0.34), "j12_to_j13":  (0.32, 0.34),
-        "j13_to_j14": (0.28, 0.30), "j13_to_j15":  (0.28, 0.30),
-    }
-
-    for config_path in config_paths:
-        if not config_path.exists():
-            continue
-        text = config_path.read_text(encoding="utf-8")
-        original = text
-        lines = text.split("\n")
-        out: list[str] = []
-        current_pipe: str | None = None
-
-        for line in lines:
-            stripped = line.lstrip()
-            indent = len(line) - len(stripped)
-
-            # Detect pipe key at indent=4 inside pipes block
-            bare = stripped.rstrip(":")
-            if indent == 4 and bare in changed_pipes and stripped.endswith(":"):
-                current_pipe = bare
-            elif indent <= 4 and stripped.endswith(":") and bare not in changed_pipes:
-                current_pipe = None
-
-            if current_pipe and not stripped.startswith("#"):
-                nom_sup, nom_ret = _NOMINAL_U.get(current_pipe, (0.28, 0.30))
-                ratio = changed_pipes[current_pipe]
-                if indent == 6 and stripped.startswith("u_value_supply_w_per_m_k:"):
-                    new_val = round(nom_sup * ratio, 2)
-                    line = re.sub(r"(u_value_supply_w_per_m_k:\s*)\S+", f"\\g<1>{new_val}", line)
-                elif indent == 6 and stripped.startswith("u_value_return_w_per_m_k:"):
-                    new_val = round(nom_ret * ratio, 2)
-                    line = re.sub(r"(u_value_return_w_per_m_k:\s*)\S+", f"\\g<1>{new_val}", line)
-
-            out.append(line)
-
-        new_text = "\n".join(out)
-        if new_text != original:
-            config_path.write_text(new_text, encoding="utf-8")
-            updated = [f"{p} ({r:.2f}x)" for p, r in changed_pipes.items()]
-            print(f"  [U-PERSIST] {config_path.name}: updated {', '.join(updated)}")
-
-
 def run_miqp_model(
     window: dict,
     hist: "pd.DataFrame | None",
     bc_info: "dict | None",
-    measured_agg: "pd.DataFrame | None" = None,
     u_ratios: "dict | None" = None,
-    t_ret_season_c: "float | None" = None,
-    candidate_time_limit_s: int = 900,
     dry_run: bool = False,
 ) -> "pd.DataFrame | None":
     """
     Run a 49-hour NLP (bilinear MIQCQP) seasonal validation window.
 
-    Injects measured hourly T_supply and T_return as per-timestep BCs and
-    seasonal ground temperatures. T_return is injected as a soft constraint
-    (±1.5°C band) so the optimizer tracks measurements while maintaining
-    physical feasibility. pressure_drop and transport_delay are disabled.
+    Injects measured hourly T_supply as per-timestep BC and seasonal ground
+    temperatures. pressure_drop and transport_delay are disabled so the model
+    only validates heat-loss and T_return physics.
 
     Args:
-        window:             dict with 'name', 'start', 'end' (Timestamps or strings).
-        hist:               Raw hourly historical DataFrame (output of load_historical).
-        bc_info:            BC summary dict from extract_supply_temperature_bc().
-        u_ratios:           Per-pipe U-value calibration factors {pipe_id: ratio}.
-        t_ret_season_c:     Measured mean T_return for this window; overrides YAML
-                            temperature_frame.seasons.[season].return_c so the soft
-                            band constraint targets the correct measured reference.
-        candidate_time_limit_s: Gurobi TimeLimit in seconds.
-        dry_run:            If True, print plan and return None without running.
+        window:   dict with 'name', 'start', 'end' (Timestamps or strings).
+        hist:     Raw hourly historical DataFrame (output of load_historical).
+        bc_info:  BC summary dict from extract_supply_temperature_bc().
+        u_ratios: Per-pipe U-value calibration factors {pipe_id: ratio}.
+        dry_run:  If True, print plan and return None without running.
 
     Returns:
         dispatch_hourly DataFrame with T_supply_C, T_return_C, T_supply_farend_C,
@@ -2376,60 +2057,15 @@ def run_miqp_model(
         ts = start + pd.Timedelta(hours=i)
         ground_dict[i + 1] = _GROUND_TEMP_BY_MONTH[ts.month]
 
-    # ── Build per-timestep return temperature BC (hourly measured profile) ───
-    # Injected via parameters.return_temp_dict → network_manager applies it as
-    # return_temp_ref_profile per node (NLP soft band ±band_c). This eliminates
-    # the MAE floor caused by the constant seasonal override vs hourly variation.
-    return_ref_profile: dict[int, float] = {}
-    if hist is not None:
-        return_ref_profile = _build_return_ref_profile(hist, start, end, measured_agg)
-    return_band_dict: dict[int, float] = {i + 1: 0.5 for i in range(n_steps)}
-    if return_ref_profile:
-        profile_mean = np.mean(list(return_ref_profile.values()))
-        print(f"  [MIQP-{name.upper()}] Hourly T_return profile: "
-              f"{len(return_ref_profile)}/{n_steps} steps, mean={profile_mean:.1f}°C")
-
-    # ── Seasonal frame init for warm-start and fallback ─────────────────────
+    # ── Build mean return temperature BC (seasonal frame) ─────────────────
+    # In BCM mode the return temperature is a FREE physics output.
+    # Set return_temp_c to a reasonable seasonal estimate for warm-start init
+    # (not a hard constraint — the NLP optimises it freely).
     month = start.month
-    return_temp_map = {1: 61.0, 2: 61.0, 3: 60.0, 4: 60.0, 5: 60.0,
-                       6: 66.0, 7: 66.0, 8: 66.0, 9: 62.0, 10: 62.0,
-                       11: 62.0, 12: 61.0}
-    season_name_map = {1: "winter", 2: "winter", 12: "winter",
-                       3: "spring", 4: "spring", 5: "spring",
-                       6: "summer", 7: "summer", 8: "summer",
-                       9: "autumn", 10: "autumn", 11: "autumn"}
-    t_ret_init = float(t_ret_season_c) if t_ret_season_c is not None else return_temp_map.get(month, 62.0)
-    season_key = season_name_map.get(month, "winter")
-
-    params_block: dict = {
-        "supply_temp_dict": supply_dict,
-        "ground_temp_dict": ground_dict,
-    }
-    if return_ref_profile:
-        params_block["return_temp_dict"] = return_ref_profile
-        params_block["return_temp_band_dict"] = return_band_dict
-
-    # Apply SOFT frame constraint to all consumer nodes j_2–j_15 (NOT j_1).
-    #
-    # Strategy: soft anchor (return_temp_soft_anchor_enabled=True) with tight ±1°C
-    # band around the hourly measured T_return profile. The soft anchor adds penalty
-    # terms to the objective instead of hard constraints, so the model is always
-    # feasible. The penalty (3000 €/°C) strongly dominates fuel-cost differences from
-    # T_return, guiding all substations to return near the measured temperature.
-    #
-    # j_1 (plant) is NOT constrained: its T_return is determined by pipe mixing
-    # physics from j_2, which is already anchored. j_1 follows naturally.
-    _consumer_node_ids = [f"j_{i}" for i in range(2, 16)]
-    node_frame_overrides: dict = {}
-    if return_ref_profile:
-        node_frame_overrides = {
-            nid: {
-                "return_temp_frame_on_passthrough": True,
-                "return_temp_soft_anchor_enabled": True,
-                "return_temp_soft_anchor_weight_frame": 3000,
-            }
-            for nid in _consumer_node_ids
-        }
+    return_temp_map = {1: 52.3, 2: 52.3, 3: 53.2, 4: 53.2, 5: 53.2,
+                       6: 68.6, 7: 68.6, 8: 68.6, 9: 53.6, 10: 53.6,
+                       11: 53.6, 12: 52.3}
+    t_ret_init = return_temp_map.get(month, 55.0)
 
     miqp_overrides: dict = {
         "scenario": {
@@ -2443,22 +2079,24 @@ def run_miqp_model(
         "network": {
             "milp_linearize": False,
             "supply_temp_c":  round(supply_dict.get(1, t_sup_mean), 1),
-            "return_temp_c":  round(t_ret_init, 1),
+            "return_temp_c":  t_ret_init,
             "heating_curve":  {"enabled": False},
             "physics": {
                 "heat_loss":       True,
                 "pressure_drop":   False,
                 "transport_delay": False,
             },
-            "parameters": params_block,
-            **({"nodes": node_frame_overrides} if node_frame_overrides else {}),
+            "parameters": {
+                "supply_temp_dict": supply_dict,
+                "ground_temp_dict": ground_dict,
+            },
         },
         "run": {
             "warmstart_from":           None,
             "fix_binaries_from_warmstart": False,
             "solver_options": {
                 "NonConvex":    2,
-                "TimeLimit":    int(candidate_time_limit_s),
+                "TimeLimit":    600,
                 "MIPGap":       0.02,
                 "OutputFlag":   0,
                 "LogToConsole": 0,
@@ -2470,21 +2108,264 @@ def run_miqp_model(
         },
     }
 
-    # ── Override temperature_frame season reference if measured T_return provided ──
-    if t_ret_season_c is not None:
-        t_ret_measured = float(t_ret_season_c)
-        t_ret_range_lo = max(40.0, t_ret_measured - 15.0)
-        t_ret_range_hi = min(85.0, t_ret_measured + 15.0)
-        miqp_overrides["network"]["temperature_frame"] = {
-            "seasons": {
-                season_key: {
-                    "return_c": round(t_ret_measured, 1),
-                    "return_band_c": 3.0,
+    # ── Apply per-pipe U-value calibration ────────────────────────────────
+    if u_ratios:
+        for pipe_id, ratio in u_ratios.items():
+            if pipe_id in PIPE_CATALOG:
+                u_nom = PIPE_CATALOG[pipe_id]["U_nom"]
+                miqp_overrides.setdefault("network", {}).setdefault("pipes", {})[pipe_id] = {
+                    "u_value_supply_w_per_m_k": round(u_nom * ratio, 4),
+                    "u_value_return_w_per_m_k": round(u_nom * ratio * 1.0625, 4),
                 }
-            }
-        }
-        print(f"  [MIQP] T_return ref override: {season_key}.return_c = {t_ret_measured:.1f}°C "
-              f"(measured mean, band ±3°C)")
+
+    if dry_run:
+        t_sup_range = f"{min(supply_dict.values()):.1f}–{max(supply_dict.values()):.1f}°C"
+        t_gnd_range = f"{min(ground_dict.values()):.1f}–{max(ground_dict.values()):.1f}°C"
+        print(f"  [DRY] MIQP {name}: T_supply BC {t_sup_range}, "
+              f"T_ground {t_gnd_range}, u_ratios={u_ratios}")
+        return None
+
+    config_path = CONFIGS_DIR / "Memmingen_L3_NLP.yaml"
+    if not config_path.exists():
+        print(f"  [ERROR] NLP config not found: {config_path}")
+        return None
+
+    tmp_cfg: "Path | None" = None
+    try:
+        cfg = None
+        for enc in ("utf-8-sig", "utf-8", "latin-1"):
+            try:
+                cfg = yaml.safe_load(config_path.read_text(encoding=enc))
+                break
+            except UnicodeDecodeError:
+                continue
+        if cfg is None:
+            print(f"  [ERROR] Cannot decode {config_path}")
+            return None
+
+        def deep_merge(base, ov):
+            r = copy.deepcopy(base)
+            for k, v in ov.items():
+                if isinstance(v, dict) and isinstance(r.get(k), dict):
+                    r[k] = deep_merge(r[k], v)
+                else:
+                    r[k] = v
+            return r
+
+        cfg = deep_merge(cfg, miqp_overrides)
+
+        # Apply per-pipe U-value overrides directly into network.pipes (YAML structure)
+        if u_ratios and "network" in cfg and "pipes" in cfg["network"]:
+            for pipe_id, ratio in u_ratios.items():
+                if pipe_id in PIPE_CATALOG and pipe_id in cfg["network"]["pipes"]:
+                    u_nom = PIPE_CATALOG[pipe_id]["U_nom"]
+                    cfg["network"]["pipes"][pipe_id]["u_value_supply_w_per_m_k"] = round(u_nom * ratio, 4)
+                    cfg["network"]["pipes"][pipe_id]["u_value_return_w_per_m_k"] = round(u_nom * ratio * 1.0625, 4)
+
+        class _IndentedDumper(yaml.Dumper):
+            def increase_indent(self, flow=False, **_):
+                return super().increase_indent(flow=flow, indentless=False)
+
+        tmp_cfg = CONFIGS_DIR / f"_tmp_miqp_{name}_{uuid.uuid4().hex[:8]}.yaml"
+        tmp_cfg.write_text(
+            yaml.dump(cfg, Dumper=_IndentedDumper, allow_unicode=True,
+                      default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        t0 = time.perf_counter()
+        wf = run_workflow([str(tmp_cfg)])
+        elapsed = time.perf_counter() - t0
+
+        out_dir = MIQP_DIR / name
+        out_dir.mkdir(parents=True, exist_ok=True)
+        extract_all(f"miqp_{name}", str(tmp_cfg), wf, elapsed, outdir=out_dir)
+        tmp_cfg.unlink(missing_ok=True)
+        print(f"  [MIQP-{name.upper()}] Solved in {elapsed:.1f}s -> {out_dir}")
+
+        dispatch_path = out_dir / "dispatch_hourly.csv"
+        if dispatch_path.exists():
+            df = pd.read_csv(dispatch_path, index_col=0, parse_dates=True)
+            return df
+        return None
+
+    except Exception as exc:
+        print(f"  [MIQP ERROR {name}] {exc}")
+        import traceback
+        traceback.print_exc()
+        if tmp_cfg is not None:
+            try:
+                tmp_cfg.unlink(missing_ok=True)
+            except Exception:
+                pass
+        return None
+
+
+# ---------------------------------------------------------------------------
+# MIQP seasonal window runner
+# ---------------------------------------------------------------------------
+
+MIQP_DIR = ROOT / "output" / "paper_runs" / "miqp"
+
+# EN ISO 13370 seasonal ground temperature profile for Memmingen (buried ~1 m depth).
+# Used in heat-loss calculation: Q_loss = U × L × (T_pipe − T_ground).
+_GROUND_TEMP_BY_MONTH = {
+    1: 2.4, 2: 3.1, 3: 5.8, 4: 9.0, 5: 12.5, 6: 16.0,
+    7: 17.8, 8: 17.2, 9: 14.5, 10: 10.8, 11: 6.5, 12: 3.6,
+}
+
+
+def _build_return_ref_profile(
+    hist: "pd.DataFrame",
+    start: "pd.Timestamp",
+    end: "pd.Timestamp",
+    measured_agg: "pd.DataFrame | None" = None,
+) -> "dict[int, float]":
+    """
+    Build a {timestep_1based: measured_T_return_C} dict for a MIQP window.
+    Uses T_return_source_C (flow-weighted mean of all 27 consumers) from
+    measured_agg as reference — this matches exactly what compute_stage1_kpis
+    validates against, avoiding systematic bias from individual consumer temps.
+    Falls back to V_1_return_temp from hist if measured_agg is unavailable.
+    Returns empty dict if data coverage < 50 %.
+    """
+    n_steps = max(1, int((end - start).total_seconds() / 3600))
+    profile: dict[int, float] = {}
+
+    # Prefer flow-weighted aggregate (matches KPI validation target exactly).
+    if measured_agg is not None and "T_return_source_C" in measured_agg.columns:
+        src = measured_agg["T_return_source_C"]
+    elif "V_1_return_temp" in hist.columns:
+        src = hist["V_1_return_temp"]
+    else:
+        return profile
+
+    for i in range(n_steps):
+        ts = start + pd.Timedelta(hours=i)
+        if ts in src.index:
+            raw = src.loc[ts]
+            if pd.notna(raw):
+                profile[i + 1] = round(float(raw), 2)
+    return profile if len(profile) >= n_steps // 2 else {}
+
+
+def run_miqp_model(
+    window: dict,
+    hist: "pd.DataFrame | None",
+    bc_info: "dict | None",
+    u_ratios: "dict | None" = None,
+    dry_run: bool = False,
+) -> "pd.DataFrame | None":
+    """
+    Run a 49-hour NLP (bilinear MIQCQP) seasonal validation window.
+
+    Injects measured hourly T_supply as per-timestep BC and seasonal ground
+    temperatures. pressure_drop and transport_delay are disabled so the model
+    only validates heat-loss and T_return physics.
+
+    Args:
+        window:   dict with 'name', 'start', 'end' (Timestamps or strings).
+        hist:     Raw hourly historical DataFrame (output of load_historical).
+        bc_info:  BC summary dict from extract_supply_temperature_bc().
+        u_ratios: Per-pipe U-value calibration factors {pipe_id: ratio}.
+        dry_run:  If True, print plan and return None without running.
+
+    Returns:
+        dispatch_hourly DataFrame with T_supply_C, T_return_C, T_supply_farend_C,
+        or None on failure / dry-run.
+    """
+    import copy
+    import time
+    import yaml
+    from calion.run.workflow import run_workflow
+    from scripts.paper.extract_artefacts import extract_all
+
+    name = window["name"]
+    start = pd.Timestamp(window["start"])
+    end = pd.Timestamp(window["end"])
+    n_steps = max(1, int((end - start).total_seconds() / 3600))
+
+    print(f"\n  [MIQP-{name.upper()}] {start.strftime('%Y-%m-%d')} to "
+          f"{end.strftime('%Y-%m-%d')} ({n_steps}h)")
+
+    # ── Build per-timestep supply temperature BC ───────────────────────────
+    # Priority: measured hourly column → bc_info mean → 86.5 °C fallback.
+    t_sup_mean = float((bc_info or {}).get("mean_C", 86.5))
+    supply_dict: dict[int, float] = {}
+
+    src_temp_col = None
+    if hist is not None:
+        # V_1_flow_temp is the supply temperature at the source node (j_1).
+        for cand in ("V_1_flow_temp", "T_supply_source_C"):
+            if cand in hist.columns:
+                src_temp_col = cand
+                break
+
+    for i in range(n_steps):
+        ts = start + pd.Timedelta(hours=i)
+        val = t_sup_mean
+        if src_temp_col is not None and hist is not None and ts in hist.index:
+            raw = hist.loc[ts, src_temp_col]
+            if pd.notna(raw):
+                val = float(raw)
+        supply_dict[i + 1] = round(val, 2)
+
+    # ── Build per-timestep ground temperature (EN ISO 13370 monthly) ──────
+    ground_dict: dict[int, float] = {}
+    for i in range(n_steps):
+        ts = start + pd.Timedelta(hours=i)
+        ground_dict[i + 1] = _GROUND_TEMP_BY_MONTH[ts.month]
+
+    # ── Build mean return temperature BC (seasonal frame) ─────────────────
+    # In BCM mode the return temperature is a FREE physics output.
+    # Set return_temp_c to a reasonable seasonal estimate for warm-start init
+    # (not a hard constraint — the NLP optimises it freely).
+    month = start.month
+    return_temp_map = {1: 52.3, 2: 52.3, 3: 53.2, 4: 53.2, 5: 53.2,
+                       6: 68.6, 7: 68.6, 8: 68.6, 9: 53.6, 10: 53.6,
+                       11: 53.6, 12: 52.3}
+    t_ret_init = return_temp_map.get(month, 55.0)
+
+    miqp_overrides: dict = {
+        "scenario": {
+            "name": f"Memmingen MIQP-BCM {name}",
+            "horizon": {
+                "start": start.strftime("%Y-%m-%d %H:%M"),
+                "end":   end.strftime("%Y-%m-%d %H:%M"),
+            },
+            "milp_linearize": False,
+        },
+        "network": {
+            "milp_linearize": False,
+            "supply_temp_c":  round(supply_dict.get(1, t_sup_mean), 1),
+            "return_temp_c":  t_ret_init,
+            "heating_curve":  {"enabled": False},
+            "physics": {
+                "heat_loss":       True,
+                "pressure_drop":   False,
+                "transport_delay": False,
+            },
+            "parameters": {
+                "supply_temp_dict": supply_dict,
+                "ground_temp_dict": ground_dict,
+            },
+        },
+        "run": {
+            "warmstart_from":           None,
+            "fix_binaries_from_warmstart": False,
+            "solver_options": {
+                "NonConvex":    2,
+                "TimeLimit":    600,
+                "MIPGap":       0.02,
+                "OutputFlag":   0,
+                "LogToConsole": 0,
+            },
+        },
+        "output": {
+            "export_thermal_network": True,
+            "export_solver_solution": False,
+        },
+    }
 
     # ── Apply per-pipe U-value calibration ────────────────────────────────
     if u_ratios:
@@ -2618,19 +2499,74 @@ def _fix_sim_legacy(sim: pd.DataFrame) -> pd.DataFrame:
     return sim
 
 
-def _fix_sim_miqp(sim: pd.DataFrame) -> pd.DataFrame:
-    """Fix known gaps in MIQP dispatch_hourly.csv: recompute Q_demand if zero."""
-    sim = sim.copy()
-    if "Q_demand_total_MW" in sim.columns and sim["Q_demand_total_MW"].abs().sum() < 0.1:
-        gen_cols = [c for c in ["Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
-                                 "Q_hp_total_MW", "Q_ek_MW"] if c in sim.columns]
-        q_gen  = sim[gen_cols].fillna(0).sum(axis=1) if gen_cols else pd.Series(0.0, index=sim.index)
-        q_dis  = sim["Q_storage_discharge_MW"].fillna(0) if "Q_storage_discharge_MW" in sim.columns else 0.0
-        q_ch   = sim["Q_storage_charge_MW"].fillna(0)    if "Q_storage_charge_MW"    in sim.columns else 0.0
-        q_loss = sim["Q_loss_total_MW"].fillna(0)        if "Q_loss_total_MW"        in sim.columns else 0.0
-        q_dump = sim["Q_dump_MWth"].fillna(0)            if "Q_dump_MWth"            in sim.columns else 0.0
-        sim["Q_demand_total_MW"] = (q_gen + q_dis - q_ch - q_loss - q_dump).clip(lower=0.0)
-    return sim
+# ---------------------------------------------------------------------------
+# Stage-2 forced-dispatch (synthetic plausibility test)
+# ---------------------------------------------------------------------------
+
+def run_stage2_forced_dispatch() -> dict:
+    """
+    Run Stage-2 plausibility checks on a synthetic but physically realistic
+    dispatch sequence when the real L3 dispatch never activates HP or EBoiler.
+
+    This ensures the check logic can be exercised and its thresholds verified
+    even when the optimizer chose not to dispatch these assets.  All results
+    are tagged source='synthetic_forced' so they cannot be confused with
+    real-dispatch results.
+    """
+    print("  [S2-FORCED] Generating synthetic dispatch for HP/EBoiler/TES plausibility checks")
+    n = 8760
+    idx = pd.date_range("2025-01-01", periods=n, freq="h")
+
+    # HP: active for 48 hours at 3.5 MW with COP 3.5
+    q_hp = np.zeros(n)
+    q_hp[100:148] = 3.5
+    cop = np.full(n, np.nan)
+    cop[100:148] = 3.5
+
+    # EBoiler: active 24 hours at 4 MW
+    q_ek = np.zeros(n)
+    q_ek[200:224] = 4.0
+    p_ek = np.zeros(n)
+    p_ek[200:224] = 4.0 / 0.95
+
+    # TES: linearly discharge from 500 to 250 MWh over 24 h, rest constant
+    soc = np.full(n, 250.0)
+    soc[300:324] = np.linspace(500.0, 250.0, 24)
+    q_ch = np.zeros(n)
+    q_dis = np.zeros(n)
+    q_dis[300:324] = (500.0 - 250.0) / 24.0
+
+    # Electricity price (varies between 20 and 120 EUR/MWh)
+    price = 70.0 + 50.0 * np.sin(np.linspace(0, 4 * np.pi, n))
+
+    dispatch = pd.DataFrame({
+        "Q_hp_total_MW": q_hp,
+        "COP_hp_wrg": cop,
+        "Q_ek_MW": q_ek,
+        "P_ek_el_MW": p_ek,
+        "SOC_MWh": soc,
+        "Q_storage_charge_MW": q_ch,
+        "Q_storage_discharge_MW": q_dis,
+        "lambda_buy_eur_MWh": price,
+        "Q_gasboiler_MW": 8.0,
+        "Q_demand_total_MW": 8.0 + q_hp + q_ek + q_dis - q_ch,
+    }, index=idx)
+
+    results = {
+        "hp":      check_hp_plausibility(dispatch, None),
+        "eboiler": check_eboiler_plausibility(dispatch),
+        "tes":     check_tes_plausibility(dispatch),
+        "source":  "synthetic_forced",
+    }
+
+    print("  [S2-FORCED] Synthetic Stage-2 checks complete "
+          f"(HP COP={results['hp'].get('cop_mean'):.2f}, "
+          f"FLH={results['hp'].get('full_load_hours'):.0f}h, "
+          f"EBoiler η={results['eboiler'].get('efficiency_mean')})")
+    print("  [S2-FORCED] WARNING: Stage-2 ran on synthetic data — real dispatch was zero. "
+          "Results are logic/threshold checks only, not operational validation.")
+
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -2724,32 +2660,6 @@ def main(argv: list[str] | None = None) -> int:
             "HP/EBoiler dispatch is zero. Results are tagged synthetic_forced."
         ),
     )
-    parser.add_argument(
-        "--miqp-seasons",
-        type=str,
-        default=None,
-        dest="miqp_seasons",
-        help="Comma-separated MIQP seasons to run (e.g. 'winter,transition').",
-    )
-    parser.add_argument(
-        "--miqp-only",
-        action="store_true",
-        dest="miqp_only",
-        help="Skip MILP (legacy) run; only run MIQP for specified seasons.",
-    )
-    parser.add_argument(
-        "--miqp-time-limit",
-        type=int,
-        default=900,
-        dest="miqp_time_limit",
-        help="Gurobi TimeLimit per MIQP solve in seconds (default: 600).",
-    )
-    parser.add_argument(
-        "--reuse-miqp",
-        action="store_true",
-        dest="reuse_miqp",
-        help="Skip Gurobi solve; reload existing dispatch_hourly.csv for KPI recomputation.",
-    )
     args = parser.parse_args(argv)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -2785,14 +2695,6 @@ def main(argv: list[str] | None = None) -> int:
             # Store WRG mean in bc_info for report
             if "T_wrg_source_C" in measured_agg.columns:
                 bc_info["wrg_mean_C"] = float(measured_agg["T_wrg_source_C"].dropna().mean())
-
-            # Update YAML seasonal return_c values with measured medians
-            if not args.no_calibrate:
-                _update_yaml_seasonal_return_temps(
-                    measured_agg,
-                    [CONFIGS_DIR / "Memmingen_L3_NLP.yaml",
-                     CONFIGS_DIR / "Memmingen_L3_MILP.yaml"],
-                )
         else:
             print(f"  [ERROR] {data_path} not found")
             if not run_s2:
@@ -2802,18 +2704,13 @@ def main(argv: list[str] | None = None) -> int:
         bc_info = {"mode": "constant", "mean_C": 86.5, "median_C": 86.5,
                    "std_C": 1.8, "is_quasi_constant": True, "r2_vs_outdoor": 0.08}
 
-    # ── Step 2: Stage 1 MILP (legacy BC-match run) ───────────────────────
-    miqp_seasons_set: set[str] = set()
-    if args.miqp_seasons:
-        miqp_seasons_set = {s.strip().lower() for s in args.miqp_seasons.split(",") if s.strip()}
-
-    if run_s1 and not getattr(args, "miqp_only", False):
-        print("\n[2/5] Stage 1 — Network validation (BC-matching, MILP)")
-        print("  BC = measured T_supply | Validates: energy balance, Q_annual")
+    # ── Step 2: Stage 1 ───────────────────────────────────────────────────
+    if run_s1:
+        print("\n[2/5] Stage 1 — Network validation (BC-matching)")
+        print("  BC = measured T_supply | Validates: heat loss, hydraulics, T_return")
 
         if not args.skip_model:
-            run_legacy_model(dry_run=args.dry_run, bc_info=bc_info,
-                             hist=hist, measured_agg=measured_agg)
+            run_legacy_model(dry_run=args.dry_run, bc_info=bc_info)
 
         legacy_path = LEGACY_DIR / "dispatch_hourly.csv"
         if legacy_path.exists() and not args.dry_run:
@@ -2833,7 +2730,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if measured_agg is not None and sim_legacy is not None:
             kpis = compute_stage1_kpis(measured_agg, sim_legacy, bc_info)
-
+            
             if not args.no_calibrate:
                 calibrated_u = calibrate_u_values(measured_agg, sim_legacy, bc_info)
 
@@ -2843,82 +2740,6 @@ def main(argv: list[str] | None = None) -> int:
             plot_stage1_scatter_farend(measured_agg, sim_legacy, OUT_DIR)
             plot_stage1_heatmap(measured_agg, sim_legacy, OUT_DIR)
             plot_stage1_error_histograms(kpis, OUT_DIR)
-
-    # ── Step 2b: MIQP seasonal validation ────────────────────────────────
-    _SEASON_WINDOW_DEFAULTS = {
-        "winter":     {"name": "winter",     "start": "2026-01-05 00:00", "end": "2026-01-07 00:00"},
-        "transition": {"name": "transition", "start": "2025-03-31 00:00", "end": "2025-04-02 00:00"},
-        "summer":     {"name": "summer",     "start": "2025-07-07 00:00", "end": "2025-07-09 00:00"},
-    }
-    # If --miqp-only, derive U-values directly from measurements (no MILP needed)
-    if getattr(args, "miqp_only", False) and not calibrated_u and hist is not None and measured_agg is not None:
-        calibrated_u = estimate_u_from_measurements(hist, measured_agg)
-
-    # Persist calibrated U-values back to L3 planning configs so optimization
-    # runs use physics consistent with the validated model.
-    if calibrated_u and not args.no_calibrate and not args.dry_run:
-        _persist_calibrated_u_values(
-            calibrated_u,
-            [CONFIGS_DIR / "Memmingen_L3_NLP.yaml",
-             CONFIGS_DIR / "Memmingen_L3_MILP.yaml"],
-        )
-
-    if run_s1 and miqp_seasons_set and not args.dry_run and hist is not None and measured_agg is not None:
-        print(f"\n[2b/5] MIQP seasonal validation: {sorted(miqp_seasons_set)}")
-        print("  BC = measured T_supply + corrected T_return ref | Validates: T_supply_farend, T_return")
-
-        miqp_frames: list[pd.DataFrame] = []
-        for season in sorted(miqp_seasons_set):
-            if season not in _SEASON_WINDOW_DEFAULTS:
-                print(f"  [WARN] Unknown season '{season}', skipping")
-                continue
-            window = _SEASON_WINDOW_DEFAULTS[season]
-            w_start = pd.Timestamp(window["start"])
-            w_end = pd.Timestamp(window["end"])
-
-            # Compute V-24-corrected measured T_return mean for this window
-            sub = measured_agg.loc[w_start:w_end, "T_return_source_C"].dropna()
-            t_ret_ref = float(sub.mean()) if len(sub) > 0 else None
-            if t_ret_ref is not None:
-                print(f"  [{season.upper()}] Measured T_return mean (V-24 corrected): {t_ret_ref:.2f}°C")
-
-            if getattr(args, "reuse_miqp", False):
-                _dispatch_path = MIQP_DIR / season / "dispatch_hourly.csv"
-                if _dispatch_path.exists():
-                    sim_miqp = pd.read_csv(_dispatch_path, index_col=0, parse_dates=True)
-                    print(f"  [{season.upper()}] Reusing existing dispatch: {_dispatch_path}")
-                else:
-                    print(f"  [WARN] --reuse-miqp: no dispatch at {_dispatch_path}, skipping")
-                    sim_miqp = None
-            else:
-                sim_miqp = run_miqp_model(
-                    window=window,
-                    hist=hist,
-                    bc_info=bc_info,
-                    measured_agg=measured_agg,
-                    u_ratios=calibrated_u if calibrated_u else None,
-                    t_ret_season_c=t_ret_ref,
-                    candidate_time_limit_s=args.miqp_time_limit,
-                    dry_run=False,
-                )
-            if sim_miqp is not None:
-                sim_miqp["_season"] = season
-                miqp_frames.append(sim_miqp)
-                print(f"  [{season.upper()}] MIQP completed: {len(sim_miqp)} timesteps")
-
-        if miqp_frames:
-            sim_miqp_combined = pd.concat(miqp_frames)
-            sim_miqp_fixed = _fix_sim_miqp(sim_miqp_combined) if hasattr(sim_miqp_combined, 'columns') else sim_miqp_combined
-            kpis_miqp = compute_stage1_kpis(measured_agg, sim_miqp_fixed, bc_info, warmup_h=10)
-            # Merge: MIQP KPIs override MILP where MIQP is more informative
-            for k, v in kpis_miqp.items():
-                if v is not None and (k not in kpis or kpis.get(k) is None):
-                    kpis[k] = v
-                elif k in ("T_supply_farend_MAE_C", "T_return_source_MAE_C",
-                            "T_return_source_RMSE_C", "T_supply_drop_MAE_C",
-                            "Q_annual_error_pct", "Q_annual_measured_MWh",
-                            "Q_annual_simulated_MWh", "Q_demand_total_MAPE_pct"):
-                    kpis[k] = v  # Always prefer MIQP for temperature and Q KPIs
 
     # ── Step 3: Stage 2 ───────────────────────────────────────────────────
     if run_s2:
@@ -2934,6 +2755,16 @@ def main(argv: list[str] | None = None) -> int:
                 "tes":     check_tes_plausibility(dispatch),
                 "balance": check_energy_balance(dispatch),
             }
+
+            # If HP and EBoiler were never dispatched, optionally run synthetic checks
+            hp_dispatched = (dispatch.get("Q_hp_total_MW", pd.Series(0.0)) > 0.01).any()
+            ek_dispatched = (dispatch.get("Q_ek_MW", pd.Series(0.0)) > 0.01).any()
+            if getattr(args, "stage2_force_dispatch", False) and not (hp_dispatched and ek_dispatched):
+                print("  [S2] HP/EBoiler not dispatched in real run — running forced synthetic checks")
+                s2_forced = run_stage2_forced_dispatch()
+                s2_results["hp_forced"]      = s2_forced["hp"]
+                s2_results["eboiler_forced"] = s2_forced["eboiler"]
+                s2_results["tes_forced"]     = s2_forced["tes"]
 
             # If HP and EBoiler were never dispatched, optionally run synthetic checks
             hp_dispatched = (dispatch.get("Q_hp_total_MW", pd.Series(0.0)) > 0.01).any()

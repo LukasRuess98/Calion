@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # PAPER STUDY - Level 3: Independent Zone Demands (Dispatch-Only)
 # =============================================================================
 # RESEARCH FOCUS: Impact of Independent Zone Demand Profiles vs. Fractioned Demand
@@ -60,19 +60,41 @@ network:
     heat_loss: true
     pressure_drop: true
     transport_delay: true
-  # configs/memmingen/Memmingen_L3_MILP.yaml — relevanter Abschnitt
+  # configs/memmingen/Memmingen_L3_MILP.yaml â€” relevanter Abschnitt
 
   # Wird vom Validation-Runner per Override auf gemessenen Wert gesetzt:
-  supply_temp_c: 86.5          # ← gemessener Mittelwert (statt 100.0)
-  return_temp_c: 55.0
+  supply_temp_c: 86.0
+  return_temp_c: 63.6
   ground_temp_c: 10
-
+  temperature_frame:
+    default_return_band_c: 4.0
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 88.6
+        return_c: 61.0
+        return_band_c: 3.0
+      spring:
+        months: [3, 4, 5]
+        supply_c: 87.6
+        return_c: 64.1
+        return_band_c: 3.0
+      summer:
+        months: [6, 7, 8]
+        supply_c: 83.4
+        return_c: 68.6
+        return_band_c: 2.5
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 84.2
+        return_c: 61.1
+        return_band_c: 3.0
   # Variable delivery temperature via outdoor-temperature Heizkurve.
   # NetworkManager uses this when outdoor_temp_C is available in the data.
   heating_curve:
     enabled: true
-    T_supply_max_c: 100.0   # supply temp at coldest design day (ca. -15°C)
-    T_supply_min_c: 50.0    # supply temp at heating cutoff (ca. +15°C)
+    T_supply_max_c: 100.0   # supply temp at coldest design day (ca. -15Â°C)
+    T_supply_min_c: 50.0    # supply temp at heating cutoff (ca. +15Â°C)
     T_outdoor_low_c: -15.0
     T_outdoor_high_c: 30.0
 
@@ -304,13 +326,14 @@ network:
       u_value_return_w_per_m_k: 0.30
 
     # 1 Verbraucher, ~3 MW -> DN100
+    # u-values calibrated from V_27 measurements (validation: 4.68x nominal)
     j13_to_j15:
       from: j_13
       to: j_15
       length_m: 125
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.28
-      u_value_return_w_per_m_k: 0.30
+      u_value_supply_w_per_m_k: 1.31
+      u_value_return_w_per_m_k: 1.4
 
 # --- Assets (Dispatch-Only, Fixed Capacities) ---
 # --- Assets: IDENTICAL to L3 (copy-paste) ---
@@ -347,7 +370,7 @@ assets:
     type: heat_pump
     capacity_mw: 5.0
     min_load: 0.2
-    wrg_source_column: "WRG_1 °C"
+    wrg_source_column: "WRG_1 Â°C"
     wrg_capacity_column: "WRG1Q MW"
     cop_default: 3.0
 
@@ -358,9 +381,9 @@ assets:
     eff_charge: 0.98
     eff_discharge: 0.98
     loss_hour: 0.9999
-    soc0_mwh: 250.0           # 50% start — realistic mid-year level (was 500 = always full)
-    min_energy_mwh: 25.0      # 5% SOC floor — prevents full depletion
-    cycling_cost_eur_per_mwh: 2.0  # wear deterrent; HP arbitrage needs spread > 4 €/MWh_th round-trip
+    soc0_mwh: 250.0           # 50% start â€” realistic mid-year level (was 500 = always full)
+    min_energy_mwh: 25.0      # 5% SOC floor â€” prevents full depletion
+    cycling_cost_eur_per_mwh: 2.0  # wear deterrent; HP arbitrage needs spread > 4 â‚¬/MWh_th round-trip
     terminal:
       state: cyclic
       policy: equal
@@ -408,7 +431,7 @@ run:
     MIPGap: 0.005          # lockerer (war 0.005)
     TimeLimit: 86400      # 4h statt 24h
     MIPFocus: 1           # Fokus auf feasible solution
-    Heuristics: 0.8       # war 0.2 — viel zu niedrig!
+    Heuristics: 0.8       # war 0.2 â€” viel zu niedrig!
     NumericFocus: 2       # von 3 auf 2 (3 ist zu konservativ)
     OutputFlag: 1
     LogToConsole: 1

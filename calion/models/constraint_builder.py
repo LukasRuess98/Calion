@@ -142,17 +142,28 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
         for pipe_cfg in unified_config.pipes.values():
             _nodes_with_outgoing.add(pipe_cfg.from_node)
 
-    _all_consumer_demand_params = []
+    _all_consumer_demand_nodes = []
     _secondary_mixed_q_pipes = []   # Q_consumer vars for pipes into TERMINAL secondary mixed nodes
+
+    def _node_effective_demand(m, node_id, t):
+        """Return node demand net of optional feasibility slack."""
+        pfx = node_id.upper().replace('-', '_')
+        q = getattr(m, f'{pfx}_Q_demand', None)
+        if q is None:
+            q = getattr(m, f'heatd_{node_id}', None)
+        if q is None:
+            return 0
+        slack = getattr(m, f'{pfx}_Q_demand_slack', None)
+        if slack is None:
+            return q[t]
+        return q[t] - slack[t]
+
     if unified_config is not None:
         for cnid, cnode in unified_config.nodes.items():
             is_consumer = cnode.type == 'consumer'
             is_primary_mixed = cnode.type == 'mixed' and cnid == primary_producer_id
             if is_consumer or is_primary_mixed:
-                attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
-                q = getattr(model, attr, None)
-                if q is not None:
-                    _all_consumer_demand_params.append(q)
+                _all_consumer_demand_nodes.append(cnid)
             elif cnode.type == 'mixed' and cnid != primary_producer_id:
                 is_terminal = cnid not in _nodes_with_outgoing
                 if is_terminal:
@@ -176,10 +187,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     # It passes heat downstream — keep its demand in the primary balance.
                     # Adding Q_consumer for its incoming pipe would double-count the
                     # downstream demands (j_13+j_14+j_15) that flow through it.
-                    attr = f'{cnid.upper().replace("-", "_")}_Q_demand'
-                    q = getattr(model, attr, None)
-                    if q is not None:
-                        _all_consumer_demand_params.append(q)
+                    _all_consumer_demand_nodes.append(cnid)
 
     # Per-node heat balance constraints
     for node_id, node_cfg in unified_config.nodes.items():
@@ -198,12 +206,12 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             # Secondary producers (e.g. heat pump at a junction) only balance their
             # own local demand (if any) — the pipe network propagates their output.
             if _is_primary:
-                consumer_demand_params = _all_consumer_demand_params
+                consumer_demand_nodes = _all_consumer_demand_nodes
                 secondary_q_pipes = _secondary_mixed_q_pipes
 
                 def primary_producer_balance(
                     m, t, _out=ht_out, _in=ht_in, _d=dump_var,
-                    _qc=consumer_demand_params, _qp=secondary_q_pipes
+                    _qc=consumer_demand_nodes, _qp=secondary_q_pipes
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
@@ -214,7 +222,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     # Secondary mixed nodes: use actual Q_consumer pipe variable (variable,
                     # not fixed to D_j5) so the optimizer can set pipe flow freely.
                     return supply == (_d[t] + charge + network_loss
-                                      + sum(q[t] for q in _qc)
+                                      + sum(_node_effective_demand(m, nid, t) for nid in _qc)
                                       + sum(qp[t] for qp in _qp))
 
                 setattr(model, f"ht_balance_{node_id}",
@@ -260,6 +268,9 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
 
                 if has_local_demand:
                     demand_param = getattr(model, f"heatd_{node_id}")
+                    demand_slack = getattr(
+                        model, f"{node_id.upper().replace('-', '_')}_Q_demand_slack", None
+                    )
 
                     if q_pipe_in is not None:
                         # Combined balance (works for both terminal and non-terminal):
@@ -269,12 +280,14 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                         # the pass-through flow no longer inflates the dump term.
                         def secondary_combined_balance(
                             m, t, _out=ht_out, _in=ht_in, _d=dump_var,
-                            _dem=demand_param, _qp=q_pipe_in, _qpo=q_pipes_out
+                            _dem=demand_param, _dem_slack=demand_slack,
+                            _qp=q_pipe_in, _qpo=q_pipes_out
                         ):
                             supply = sum((f[t] for f in _out), start=0)
                             charge = sum((f[t] for f in _in), start=0)
+                            dem_t = _dem[t] - _dem_slack[t] if _dem_slack is not None else _dem[t]
                             return (supply + _qp[t]
-                                    == _dem[t] + sum(qo[t] for qo in _qpo) + _d[t] + charge)
+                                    == dem_t + sum(qo[t] for qo in _qpo) + _d[t] + charge)
 
                         setattr(model, f"ht_balance_{node_id}",
                                 pyo.Constraint(model.t, rule=secondary_combined_balance))
@@ -290,6 +303,8 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                         ):
                             supply = sum((f[t] for f in _out), start=0)
                             charge = sum((f[t] for f in _in), start=0)
+                            if demand_slack is not None:
+                                return supply == (_dem[t] - demand_slack[t]) + _d[t] + charge
                             return supply == _dem[t] + _d[t] + charge
 
                         setattr(model, f"ht_balance_{node_id}",
@@ -329,6 +344,9 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 # Consumer has local generation assets — create a combined balance:
                 #   local_gen + pipe_in == demand + dump + storage_charge
                 demand_param = getattr(model, f"heatd_{node_id}")
+                demand_slack = getattr(
+                    model, f"{node_id.upper().replace('-', '_')}_Q_demand_slack", None
+                )
 
                 # Find incoming pipe's Q_consumer variable
                 q_pipe_in = None
@@ -344,12 +362,13 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
 
                 def consumer_with_assets_balance(
                     m, t, _out=ht_out, _in=ht_in, _d=dump_var,
-                    _dem=demand_param, _qp=q_pipe_in
+                    _dem=demand_param, _dem_slack=demand_slack, _qp=q_pipe_in
                 ):
                     local_supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
                     pipe_in = _qp[t] if _qp is not None else 0
-                    return local_supply + pipe_in == _dem[t] + _d[t] + charge
+                    dem_t = _dem[t] - _dem_slack[t] if _dem_slack is not None else _dem[t]
+                    return local_supply + pipe_in == dem_t + _d[t] + charge
 
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=consumer_with_assets_balance))
@@ -445,6 +464,7 @@ def create_objective(
     storage_install_cost=0,
     terminal_value=0,
     demand_slack_cost=0,
+    return_anchor_cost=0,
 ):
     """Create the cost minimization objective function."""
     if not HAVE_PYOMO:
@@ -468,6 +488,7 @@ def create_objective(
             + storage_install_cost
             + terminal_value
             + demand_slack_cost
+            + return_anchor_cost
         ),
         sense=pyo.minimize,
     )

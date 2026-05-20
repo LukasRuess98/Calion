@@ -2,19 +2,29 @@
 Full paper run orchestrator — executes all phases in order.
 
 Phases:
-  0. Validation Stage 1 (§4.2): legacy model + network validation (quality gate)
-  1. Primary runs       (§2):   L1, L2, L3, L3+, L3NL
-  2. Validation Stage 2 (§4.2): asset plausibility checks (needs Phase 1 results)
-  3. Sensitivity runs   (§4):   8 scenarios x L1/L2/L3/L3+
-  4. Synthetic runs     (§5):   36 configs x 5 levels = 180 runs
-  5. Tables             (§7):   tools/tablegen.py
-  6. Figures            (§8):   tools/figgen.py
-  7. Fill paper         (§9):   tools/fill_paper.py --auto
+  0.  Validation Stage 1 (§4.2): legacy model + network validation (quality gate)
+  1.  Primary runs        (§2):  L1, L2, L3, L3+, L3NL
+  1b. Cross-level check   (§2):  auto-injected after Phase 1 — verifies model
+      hierarchy (L1≤L2≤L3 costs, L1 losses=0, pump cost L3+≥L3) and computes
+      the linearization error KPI (L3NL vs L3).
+      → output/paper_runs/level_consistency.json
+  2.  Validation Stage 2  (§4.2): asset plausibility checks (needs Phase 1 results)
+  3.  Sensitivity runs    (§4):  11 scenarios x 4 levels
+  4.  Synthetic runs      (§5):  N configs x 5 levels
+  5.  Tables              (§7):  tools/tablegen.py
+  6.  Figures             (§8):  tools/figgen.py
+  7.  Fill paper          (§9):  tools/fill_paper.py --auto
 
 Pipeline logic:
   Phase 0 (Stage 1) is a QUALITY GATE: validates the network model against
   historical measurements BEFORE running any optimization. If T_supply MAE
   exceeds thresholds, the user is warned to recalibrate.
+  Note: with MILP only 1/5 Stage 1 KPIs are evaluable (annual energy balance).
+  Temperature KPIs require the MIQP run (Gurobi NonConvex=2).
+
+  Phase 1b runs automatically after Phase 1 (use --skip-consistency to disable).
+  It verifies that the model hierarchy holds and writes the linearization error
+  (core paper result: how much does MILP approximation distort cost vs NLP?).
 
   Phase 2 (Stage 2) runs AFTER optimization (Phase 1) because it checks
   asset dispatch plausibility (COP, SOC, eboiler) from dispatch_hourly.csv.
@@ -22,7 +32,8 @@ Pipeline logic:
 Usage:
     python scripts/paper/run_paper_full.py                   # all phases
     python scripts/paper/run_paper_full.py --phases 0        # validation Stage 1 only
-    python scripts/paper/run_paper_full.py --phases 1 2      # primary + asset validation
+    python scripts/paper/run_paper_full.py --phases 1 2      # primary + consistency + asset validation
+    python scripts/paper/run_paper_full.py --phases 1 --skip-consistency  # primary only, no check
     python scripts/paper/run_paper_full.py --phases 3        # sensitivity only
     python scripts/paper/run_paper_full.py --phases 4        # synthetic only
     python scripts/paper/run_paper_full.py --phases 5 6 7    # tables + figures + fill
@@ -34,6 +45,7 @@ Usage:
 Notes:
   - Phase 0 (Stage 1) is a quality gate: if T_supply MAE > threshold, consider
     recalibrating before proceeding.
+  - Phase 1b (level_consistency.json) is the paper's core sanity check — always review it.
   - Phase 2 (Stage 2) requires Phase 1 dispatch results (L3/dispatch_hourly.csv).
   - L1/L2/L3/L3+ fall back to HiGHS if Gurobi is unavailable.
   - L3NL is skipped automatically if Gurobi is not installed (unless --fail-on-skip).
@@ -48,6 +60,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 import subprocess
 import sys
 import time
@@ -55,6 +68,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 OUT_BASE   = ROOT / "output" / "paper_runs"
 SYNTH_DIR  = ROOT / "synth_configs"
@@ -407,6 +426,246 @@ def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> Non
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Phase 1b — Cross-level consistency check (runs after Phase 1)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _read_economics(run_id: str) -> dict | None:
+    """Load economics.csv for a completed run, return first row as dict."""
+    path = OUT_BASE / run_id / "economics.csv"
+    if not path.exists():
+        return None
+    try:
+        import pandas as pd
+        df = pd.read_csv(path)
+        if df.empty:
+            return None
+        return df.iloc[0].to_dict()
+    except Exception:
+        return None
+
+
+def _read_pipes_summary(run_id: str) -> dict | None:
+    """Return aggregated pipe statistics from pipes.csv."""
+    path = OUT_BASE / run_id / "pipes.csv"
+    if not path.exists():
+        return None
+    try:
+        import pandas as pd
+        df = pd.read_csv(path)
+        if df.empty:
+            return None
+        return {
+            "total_annual_loss_MWh": float(df["annual_loss_MWh"].sum()),
+            "n_pipes": len(df),
+        }
+    except Exception:
+        return None
+
+
+def _read_dispatch_summary(run_id: str) -> dict | None:
+    """Return aggregate dispatch statistics from dispatch_hourly.csv."""
+    path = OUT_BASE / run_id / "dispatch_hourly.csv"
+    if not path.exists():
+        return None
+    try:
+        import pandas as pd
+        df = pd.read_csv(path)
+        if df.empty:
+            return None
+        result: dict = {}
+        for col in ("Q_loss_total_MW", "P_hp_el_MW", "P_ek_el_MW", "P_chp_el_MW"):
+            if col in df.columns:
+                result[col.replace("_MW", "_MWh")] = float(df[col].fillna(0).sum())
+        if "P_buy_MW" in df.columns:
+            result["P_buy_total_MWh"] = float(df["P_buy_MW"].fillna(0).sum())
+        return result
+    except Exception:
+        return None
+
+
+def phase1b_level_consistency(dry_run: bool, log: list) -> None:
+    """
+    Cross-level consistency checks after primary runs complete.
+
+    Verifies:
+      1. Cost hierarchy: L1 ≤ L2 ≤ L3 ≤ L3plus  (relaxed constraints → lower bound)
+      2. Heat losses:    L1 = 0, L2/L3/L3plus/L3NL > 0
+      3. Pressure drop:  L3plus pump energy >= L3 pump energy
+      4. Linearization error: |L3NL_cost - L3_cost| / L3NL_cost × 100  (paper's core KPI)
+      5. Per-run energy-balance closure from validation.json
+
+    Outputs → output/paper_runs/level_consistency.json
+    """
+    print("\n" + "="*70)
+    print("PHASE 1b — Cross-level consistency check")
+    print("="*70)
+    print("  Purpose: Verify model hierarchy and quantify linearization error.")
+
+    if dry_run:
+        print("  [DRY] Would check L1/L2/L3/L3plus/L3NL economics, losses, pump energy.")
+        _record(log, {"phase": "1b", "status": "dry_run"})
+        return
+
+    run_ids = ["L1", "L2", "L3", "L3plus", "L3NL"]
+    eco:   dict[str, dict] = {}
+    pipes: dict[str, dict] = {}
+    disp:  dict[str, dict] = {}
+
+    for rid in run_ids:
+        e = _read_economics(rid)
+        if e:
+            eco[rid] = e
+        p = _read_pipes_summary(rid)
+        if p:
+            pipes[rid] = p
+        d = _read_dispatch_summary(rid)
+        if d:
+            disp[rid] = d
+
+    available = sorted(eco.keys())
+    print(f"  Available runs: {available}")
+
+    checks: list[dict] = []
+
+    # ── 1. Cost table ──────────────────────────────────────────────────────────
+    print("\n  ┌─ Objective costs [EUR] ──────────────────────────────────────────┐")
+    costs: dict[str, float] = {}
+    for rid in ["L1", "L2", "L3", "L3plus", "L3NL"]:
+        if rid in eco:
+            c = float(eco[rid].get("cost_total_eur", 0.0))
+            costs[rid] = c
+            print(f"  │  {rid:<8} {c:>15,.0f} EUR")
+    print("  └──────────────────────────────────────────────────────────────────┘")
+
+    # ── 2. Cost hierarchy check (L1 ≤ L2 ≤ L3 ≤ L3plus) ─────────────────────
+    hierarchy = [("L1", "L2"), ("L2", "L3"), ("L3", "L3plus")]
+    for lower, upper in hierarchy:
+        if lower not in costs or upper not in costs:
+            continue
+        ok = costs[lower] <= costs[upper] * 1.005  # 0.5% tolerance for solver gap
+        pct_diff = (costs[upper] - costs[lower]) / max(abs(costs[lower]), 1) * 100
+        status = "PASS" if ok else "WARN"
+        msg = (f"Cost hierarchy {lower}≤{upper}: "
+               f"{costs[lower]:,.0f} ≤ {costs[upper]:,.0f} ({pct_diff:+.2f}%)")
+        print(f"  [{status}] {msg}")
+        checks.append({"check": f"cost_hierarchy_{lower}_le_{upper}",
+                        "pass": ok, "detail": msg,
+                        "pct_diff": round(pct_diff, 3)})
+
+    # ── 3. Heat-loss check ─────────────────────────────────────────────────────
+    for rid in ["L1", "L2", "L3", "L3plus", "L3NL"]:
+        if rid not in disp:
+            continue
+        loss_mwh = disp[rid].get("Q_loss_total_MWh", 0.0)
+        if rid == "L1":
+            ok = loss_mwh < 1.0  # copperplate: must have no losses
+            status = "PASS" if ok else "FAIL"
+            msg = f"L1 heat losses = {loss_mwh:.1f} MWh (must be ~0)"
+        else:
+            ok = loss_mwh > 0.0
+            status = "PASS" if ok else "WARN"
+            msg = f"{rid} heat losses = {loss_mwh:,.0f} MWh (must be >0)"
+        print(f"  [{status}] {msg}")
+        checks.append({"check": f"heat_loss_{rid}", "pass": ok, "detail": msg,
+                        "loss_MWh": round(loss_mwh, 1)})
+
+    # ── 4. Pressure-drop effect: L3plus pump energy ≥ L3 ─────────────────────
+    pump_key = "P_buy_total_MWh"  # proxy: L3plus buys more electricity for pumps
+    # More direct: compare cost_pump_eur from economics
+    pump_l3     = float(eco.get("L3",     {}).get("cost_pump_eur", 0.0))
+    pump_l3plus = float(eco.get("L3plus", {}).get("cost_pump_eur", 0.0))
+    if pump_l3 > 0 or pump_l3plus > 0:
+        ok = pump_l3plus >= pump_l3 * 0.95  # allow 5% tolerance
+        status = "PASS" if ok else "WARN"
+        msg = (f"Pump cost L3={pump_l3:,.0f} EUR, L3+={pump_l3plus:,.0f} EUR "
+               f"(L3+ should be ≥ L3 since pressure-drop is active)")
+        print(f"  [{status}] {msg}")
+        checks.append({"check": "pump_cost_L3plus_ge_L3", "pass": ok, "detail": msg,
+                        "pump_L3_eur": round(pump_l3, 0),
+                        "pump_L3plus_eur": round(pump_l3plus, 0)})
+
+    # ── 5. Linearization error: L3NL vs L3 ────────────────────────────────────
+    lin_err: dict | None = None
+    if "L3NL" in costs and "L3" in costs:
+        c_nl = costs["L3NL"]
+        c_l3 = costs["L3"]
+        # Linearization error = (L3_cost - L3NL_cost) / L3NL_cost
+        # L3NL is nonlinear (exact), L3 is MILP (linearized).
+        # L3 can be cheaper (relaxation) or more expensive (over-conservatism from
+        # PWL approximation), so report signed error.
+        err_pct = (c_l3 - c_nl) / max(abs(c_nl), 1.0) * 100
+        abs_err = abs(c_l3 - c_nl)
+        lin_err = {
+            "L3NL_cost_eur": round(c_nl, 0),
+            "L3_cost_eur": round(c_l3, 0),
+            "abs_diff_eur": round(abs_err, 0),
+            "signed_error_pct": round(err_pct, 3),
+            "abs_error_pct": round(abs(err_pct), 3),
+            "note": ("L3 (MILP) vs L3NL (NLP). Positive = MILP over-estimates cost "
+                     "vs exact nonlinear solution."),
+        }
+        print(f"\n  ┌─ Linearization error (paper core KPI) ──────────────────────────┐")
+        print(f"  │  L3  (MILP) : {c_l3:>15,.0f} EUR")
+        print(f"  │  L3NL (NLP) : {c_nl:>15,.0f} EUR")
+        print(f"  │  Δ (signed) : {err_pct:>+14.3f} %")
+        print(f"  │  Δ (abs)    : {abs_err:>15,.0f} EUR")
+        print(f"  └──────────────────────────────────────────────────────────────────┘")
+        checks.append({"check": "linearization_error_L3_vs_L3NL",
+                        "pass": True,  # informational — no pass/fail threshold
+                        "detail": f"MILP linearization error = {err_pct:+.3f}%",
+                        **lin_err})
+    else:
+        missing = [r for r in ("L3", "L3NL") if r not in costs]
+        print(f"  [SKIP] Linearization error: missing {missing}")
+
+    # ── 6. Energy-balance closure from per-run validation.json ────────────────
+    print("\n  ┌─ Energy-balance closure per run ────────────────────────────────────┐")
+    for rid in run_ids:
+        vpath = OUT_BASE / rid / "validation.json"
+        if not vpath.exists():
+            continue
+        try:
+            vdata = json.loads(vpath.read_text())
+            eb = vdata.get("energy_balance", {})
+            err = eb.get("closure_error_pct")
+            passed = eb.get("closure_pass")
+            if err is not None:
+                status = "PASS" if passed else "WARN"
+                print(f"  │  [{status}] {rid:<8}  closure error = {err:.3f}%")
+                checks.append({"check": f"energy_balance_closure_{rid}",
+                                "pass": bool(passed),
+                                "closure_error_pct": err})
+        except Exception:
+            pass
+    print("  └──────────────────────────────────────────────────────────────────┘")
+
+    # ── 7. Persist results ─────────────────────────────────────────────────────
+    n_fail = sum(1 for c in checks if not c.get("pass", True))
+    n_pass = sum(1 for c in checks if c.get("pass", True))
+
+    result_payload = {
+        "checks": checks,
+        "summary": {
+            "n_checks": len(checks),
+            "n_pass": n_pass,
+            "n_fail": n_fail,
+            "available_runs": available,
+        },
+        "costs_eur": costs,
+        "linearization_error": lin_err,
+    }
+
+    out_path = OUT_BASE / "level_consistency.json"
+    out_path.write_text(json.dumps(result_payload, indent=2, default=str), encoding="utf-8")
+    print(f"\n  [OK] level_consistency.json written ({n_pass} pass, {n_fail} fail/warn)")
+
+    status_str = "ok" if n_fail == 0 else "warn"
+    _record(log, {"phase": "1b", "status": status_str,
+                  "n_checks": len(checks), "n_fail": n_fail,
+                  "linearization_error_pct": lin_err.get("abs_error_pct") if lin_err else None})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Phase 2 — Validation Stage 2: Asset plausibility (AFTER optimization)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -716,6 +975,11 @@ def phase6_figures(dry_run: bool, log: list,
       FV1  Validation time series
       F7   TES SOC comparison
       F8   Generalizability heatmap (requires Phase 4)
+      F9   Node averages (annual + seasonal)
+      F10  Node topology heatmap (annual + seasonal spread)
+      F11  Critical-path profile (temperature + pressure)
+      F12  Extended duration curves (L1/L2/L3/L3plus/L3NL)
+      F13  Annual energy Sankey
     """
     print("\n" + "="*70)
     print("PHASE 6 — Figure generation (§8)")
@@ -733,7 +997,7 @@ def phase6_figures(dry_run: bool, log: list,
 
     print(f"  [CMD] {' '.join(cmd)}")
     if dry_run:
-        target_str = ", ".join(figs) if figs else "F1 F2 F3 F4 F5 F6 FV1 F7 F8"
+        target_str = ", ".join(figs) if figs else "F1 F2 F3 F4 F5 F6 FV1 F7 F8 F9 F10 F11 F12 F13"
         print(f"  [DRY] Would generate: {target_str}")
         return
 
@@ -749,10 +1013,31 @@ def phase6_figures(dry_run: bool, log: list,
                       "stderr": result.stderr[:500], "solve_s": round(elapsed, 1)})
     else:
         fig_dir = OUT_BASE / "figures"
-        n_figs  = len(list(fig_dir.glob("*.png"))) if fig_dir.exists() else 0
-        print(f"  [OK] {n_figs} figures in {fig_dir} ({_elapsed_str(elapsed)})")
+        fig_lines = []
+        if result.stdout:
+            fig_lines = [ln.strip() for ln in result.stdout.splitlines() if "[FIG]" in ln]
+
+        n_figs = len(fig_lines)
+        n_files = 0
+        for ln in fig_lines:
+            match = re.search(r"\(([^)]*)\)\s*$", ln)
+            if not match:
+                continue
+            suffixes = [s.strip() for s in match.group(1).split(",") if s.strip()]
+            n_files += len(suffixes)
+
+        # Fallback: when figgen output cannot be parsed, count current directory content.
+        if n_figs == 0 and fig_dir.exists():
+            stems: set[str] = set()
+            for ext in ("*.png", "*.pdf", "*.pgf"):
+                files = list(fig_dir.glob(ext))
+                n_files += len(files)
+                stems.update(f.stem for f in files)
+            n_figs = len(stems)
+
+        print(f"  [OK] {n_figs} figure stems / {n_files} files in {fig_dir} ({_elapsed_str(elapsed)})")
         _record(log, {"phase": 6, "status": "ok",
-                      "n_figures": n_figs, "solve_s": round(elapsed, 1)})
+                      "n_figures": n_figs, "n_files": n_files, "solve_s": round(elapsed, 1)})
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -808,7 +1093,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help=(
             "Phases to run (default: all). "
-            "0=val-stage1(pre)  1=primary  2=val-stage2(post)  "
+            "0=val-stage1(pre)  1=primary(+1b auto)  2=val-stage2(post)  "
             "3=sensitivity  4=synth  5=tables  6=figures  7=fill"
         ),
     )
@@ -820,9 +1105,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="Exit non-zero if any run is skipped due to missing Gurobi")
     parser.add_argument("--skip-model", action="store_true",
                         help="(Phase 0) Skip re-running the legacy model; reuse existing output")
+    parser.add_argument("--skip-consistency", action="store_true",
+                        help="Skip Phase 1b cross-level consistency check after primary runs")
     parser.add_argument("--figs", nargs="*",
                         metavar="FIG",
-                        help="(Phase 6) Specific figure IDs, e.g. --figs F2 FV1 F5")
+                        help="(Phase 6) Specific figure IDs, e.g. --figs F2 FV1 F5 F10 F13")
     args = parser.parse_args(argv)
 
     OUT_BASE.mkdir(parents=True, exist_ok=True)
@@ -844,16 +1131,22 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Phase execution order ──
     # The order is important:
-    #   0: Validate network (quality gate) → BEFORE optimization
-    #   1: Run optimization (L1, L2, L3, L3+, L3NL)
-    #   2: Validate assets (plausibility) → AFTER optimization
+    #   0:  Validate network (quality gate) → BEFORE optimization
+    #   1:  Run optimization (L1, L2, L3, L3+, L3NL)
+    #   1b: Cross-level consistency check → auto-injected after Phase 1
+    #   2:  Validate assets (plausibility) → AFTER optimization
     #   3-7: Post-processing
 
     t_total = time.perf_counter()
 
+    def _run_phase1_with_consistency():
+        phase1_primary(gurobi, args.skip_nl, args.dry_run, log)
+        if not getattr(args, "skip_consistency", False):
+            phase1b_level_consistency(args.dry_run, log)
+
     phase_map = {
         0: lambda: phase0_validation_stage1(args.skip_model, args.dry_run, log),
-        1: lambda: phase1_primary(gurobi, args.skip_nl, args.dry_run, log),
+        1: _run_phase1_with_consistency,
         2: lambda: phase2_validation_stage2(args.dry_run, log),
         3: lambda: phase3_sensitivity(gurobi, args.skip_nl, args.dry_run, log),
         4: lambda: phase4_synthetic(gurobi, args.skip_nl, args.dry_run, log),
@@ -870,12 +1163,28 @@ def main(argv: list[str] | None = None) -> int:
     skipped = sum(1 for e in log if e.get("status") == "skipped")
     errors  = sum(1 for e in log if e.get("status") == "error")
     ok      = sum(1 for e in log if e.get("status") == "ok")
-    warns   = sum(1 for e in log if e.get("status") == "warn_threshold")
+    warns   = sum(1 for e in log if e.get("status") in ("warn_threshold", "warn"))
 
     print(f"\n{'='*70}")
     print(f"DONE  total={_elapsed_str(elapsed)}  ok={ok}  warns={warns}  "
           f"errors={errors}  skipped={skipped}")
     print(f"  log → {OUT_BASE / 'run_log.json'}")
+
+    # Show linearization error if Phase 1b ran
+    consist_path = OUT_BASE / "level_consistency.json"
+    if consist_path.exists():
+        try:
+            consist = json.loads(consist_path.read_text())
+            lin = consist.get("linearization_error")
+            if lin:
+                print(f"  Linearization error (L3 vs L3NL): {lin.get('signed_error_pct'):+.3f}%  "
+                      f"(abs: {lin.get('abs_diff_eur'):,.0f} EUR)")
+            n_fail = consist.get("summary", {}).get("n_fail", 0)
+            if n_fail:
+                print(f"  ⚠️  {n_fail} consistency check(s) failed — review level_consistency.json")
+        except Exception:
+            pass
+
     print(f"{'='*70}")
 
     if errors:

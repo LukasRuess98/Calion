@@ -8,6 +8,9 @@ Output layout (all under outdir/):
   dispatch_hourly.csv
   pipes.csv
   pipe_state_hourly.parquet
+  nodes_summary.csv
+  nodes_seasonal.csv
+  nodes_state_hourly.parquet
   validation.json
   linearization_diagnostics.csv  (L3+, L3NL only)
 """
@@ -24,6 +27,13 @@ from typing import Any
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
+SEASON_BY_MONTH = {
+    12: "winter", 1: "winter", 2: "winter",
+    3: "transition", 4: "transition", 5: "transition",
+    6: "summer", 7: "summer", 8: "summer",
+    9: "transition", 10: "transition", 11: "transition",
+}
+SEASON_ORDER = ["winter", "transition", "summer"]
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +76,27 @@ def _safe(val: Any, default: float = 0.0) -> float:
 
 def _summary_val(summary: dict, section: str, key: str, default: float = 0.0) -> float:
     return _safe(summary.get(section, {}).get(key, default), default)
+
+
+def _node_sort_key(node_id: str) -> tuple[int, str]:
+    """Sort node ids naturally, e.g. j_2 before j_10."""
+    parts = "".join(ch if ch.isdigit() else " " for ch in str(node_id)).split()
+    if parts:
+        try:
+            return (int(parts[-1]), str(node_id))
+        except ValueError:
+            pass
+    return (10**9, str(node_id))
+
+
+def _season_of_timestamp(ts: pd.Timestamp | str) -> str | None:
+    try:
+        dt = pd.to_datetime(ts, errors="coerce")
+    except Exception:
+        return None
+    if pd.isna(dt):
+        return None
+    return SEASON_BY_MONTH.get(int(dt.month))
 
 
 # ---------------------------------------------------------------------------
@@ -137,14 +168,23 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
     cost_dump = _safe(obj.get("Dump_cost_EUR"))
     cost_demand = _safe(obj.get("Demand_charge_cost_EUR"))
 
-    # Pump cost: not directly in summary — compute from series if available
+    # Pump cost: use actual time-varying electricity price where available.
+    # Falls back to the summary buy cost if the price series is missing.
     p_pump_series = series.get("P_pump_total_MW") or series.get("pump_P_MW") or []
-    cost_pump = sum(p_pump_series) * 35.0 if p_pump_series else 0.0  # approx grid price
+    price_series = series.get("strompreis_EUR_MWh") or series.get("lambda_buy_EUR_MWh") or []
+    if p_pump_series and price_series and len(price_series) == len(p_pump_series):
+        cost_pump = float(sum(p * lam for p, lam in zip(p_pump_series, price_series)))
+    elif p_pump_series:
+        # Fallback: use mean buy price from summary if price series unavailable
+        mean_price = (cost_energy_buy / energy_buy) if energy_buy > 0 else 35.0
+        cost_pump = sum(p_pump_series) * mean_price
+    else:
+        cost_pump = 0.0
 
     energy_buy = _safe(grid.get("Energy_from_grid_MWh"))
     energy_sell = _safe(grid.get("Energy_to_grid_MWh"))
 
-    # Gas consumption: from fuel summary
+    # Gas consumption: from fuel summary (CHP + all boiler types)
     gas_mwh = 0.0
     for sec, vals in summary.items():
         if "chp" in sec.lower() or "boiler" in sec.lower():
@@ -162,8 +202,20 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
 
     hp_total = _safe(hp.get("Heat_output_MWh"))
     share_HP = (hp_total / heat_demand_MWh * 100) if heat_demand_MWh > 0 else 0.0
-    share_CHP = 0.0  # TODO: add CHP section when CHP summary available
-    share_EK = 0.0   # No electrode boiler
+
+    # CHP heat share: sum Q_th from all CHP assets in summary
+    chp_total = 0.0
+    for sec, vals in summary.items():
+        if "chp" in sec.lower():
+            chp_total += _safe(vals.get("Heat_output_MWh") or vals.get("Q_th_MWh"))
+    share_CHP = (chp_total / heat_demand_MWh * 100) if heat_demand_MWh > 0 else 0.0
+
+    # EBoiler / P2H heat share
+    ek_total = 0.0
+    for sec, vals in summary.items():
+        if "eboiler" in sec.lower() or "p2h" in sec.lower() or "electrode" in sec.lower():
+            ek_total += _safe(vals.get("Heat_output_MWh") or vals.get("Q_th_MWh"))
+    share_EK = (ek_total / heat_demand_MWh * 100) if heat_demand_MWh > 0 else 0.0
 
     row = {
         "run_id": run_id,
@@ -238,6 +290,7 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
     p_pump = [0.0] * T
     t_supply = [None] * T
     t_return = [None] * T
+    t_supply_farend = [None] * T
 
     if pipe_ts.exists():
         try:
@@ -265,17 +318,39 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
                 t_supply = (raw_tsup[:T] if len(raw_tsup) >= T
                             else raw_tsup + [None] * (T - len(raw_tsup)))
 
-            # Source return temperature: T_return_in of the same pipe
-            ret_in_cols = [c for c in pdf.columns if c.endswith("_T_return_in")]
+            # Source return temperature: use source-side return (T_return_out)
+            # of the first pipe leaving j_1. This aligns with measured source
+            # return temperature and avoids accidentally using consumer-side
+            # return (T_return_in).
+            ret_out_cols = [c for c in pdf.columns if c.endswith("_T_return_out")]
             src_ret_col = next(
-                (c for c in ret_in_cols
+                (c for c in ret_out_cols
                  if c.startswith("j1_to") or c.startswith("j_1_to")),
-                ret_in_cols[0] if ret_in_cols else None,
+                ret_out_cols[0] if ret_out_cols else None,
             )
             if src_ret_col is not None:
                 raw_tret = pdf[src_ret_col].tolist()
                 t_return = (raw_tret[:T] if len(raw_tret) >= T
                             else raw_tret + [None] * (T - len(raw_tret)))
+
+            # Far-end supply temperature: T_supply_out of the last trunk pipe (j13→j15).
+            # This is the supply temperature arriving at the far end of the network (j15),
+            # which is the primary validation KPI for heat-loss physics (BCM methodology).
+            # Trunk path: j1→j2→j3→j9→j10→j11→j12→j13→j15; last segment is j13_to_j15.
+            sup_out_cols = [c for c in pdf.columns if c.endswith("_T_supply_out")]
+            farend_candidates = ["j13_to_j15", "j13-to-j15", "j_13_to_j_15"]
+            farend_col = next(
+                (c for c in sup_out_cols
+                 if any(c.startswith(cand) for cand in farend_candidates)),
+                None,
+            )
+            if farend_col is None and sup_out_cols:
+                # Fallback: last pipe in sorted order (heuristic for trunk end)
+                farend_col = sorted(sup_out_cols)[-1]
+            if farend_col is not None:
+                raw_fe = pdf[farend_col].tolist()
+                t_supply_farend = (raw_fe[:T] if len(raw_fe) >= T
+                                   else raw_fe + [None] * (T - len(raw_fe)))
         except Exception:
             pass
 
@@ -314,6 +389,7 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         # --- Network temperatures (from pipes_timeseries.csv) ---
         "T_supply_C": t_supply,
         "T_return_C": t_return,
+        "T_supply_farend_C": t_supply_farend,
         "Q_loss_total_MW": q_loss_total,
     }
 
@@ -435,15 +511,309 @@ def write_pipe_state(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# §3.6 node_state / node_summary exports
+# ---------------------------------------------------------------------------
+
+def _to_float_or_none(val: Any) -> float | None:
+    try:
+        v = float(val)
+        return v if math.isfinite(v) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _write_empty_node_artefacts(outdir: Path) -> None:
+    summary_cols = [
+        "node_id", "node_type", "T_supply_avg_c", "T_return_avg_c",
+        "delta_t_avg_c", "Q_demand_total_mwh", "P_avg_bar",
+    ]
+    seasonal_cols = ["season"] + summary_cols
+    state_cols = [
+        "timestamp", "node_id", "T_supply_c", "T_return_c",
+        "delta_t_c", "P_bar", "Q_demand_mw",
+    ]
+    pd.DataFrame(columns=summary_cols).to_csv(outdir / "nodes_summary.csv", index=False)
+    pd.DataFrame(columns=seasonal_cols).to_csv(outdir / "nodes_seasonal.csv", index=False)
+    pd.DataFrame(columns=state_cols).to_parquet(outdir / "nodes_state_hourly.parquet", index=False)
+
+
+def write_nodes_data(
+    outdir: Path,
+    run_id: str,
+    workflow,
+    dt_h: float = 1.0,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Export node-level summary, seasonal and hourly state artefacts."""
+    result = workflow.pf_result
+    if result is None:
+        _write_empty_node_artefacts(outdir)
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    net_export = Path(result.solver.get("export_dir", ""))
+    nodes_dir = net_export / "thermal_network" / "nodes"
+    summary_json = nodes_dir / "nodes_summary.json"
+    ts_csv = nodes_dir / "nodes_timeseries.csv"
+
+    if not summary_json.exists() and not ts_csv.exists():
+        print(f"  [WARN] node exports missing for {run_id} ({nodes_dir})")
+        _write_empty_node_artefacts(outdir)
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    # ---- summary source (json) ----
+    raw_summary: list[dict] = []
+    if summary_json.exists():
+        try:
+            payload = json.loads(summary_json.read_text(encoding="utf-8"))
+            if isinstance(payload, list):
+                raw_summary = payload
+        except Exception as exc:
+            print(f"  [WARN] Could not read nodes_summary.json: {exc}")
+
+    summary_map: dict[str, dict] = {}
+    for row in raw_summary:
+        node_id = str(row.get("node_id") or row.get("id") or "").strip()
+        if not node_id:
+            continue
+        summary_map[node_id] = {
+            "node_id": node_id,
+            "node_type": row.get("type") or "unknown",
+            "T_supply_avg_c": _to_float_or_none(row.get("T_supply_avg_c")),
+            "T_return_avg_c": _to_float_or_none(row.get("T_return_avg_c")),
+            "Q_demand_total_mwh": _to_float_or_none(row.get("Q_demand_total_mwh")),
+            "P_avg_bar": _to_float_or_none(row.get("P_avg_bar")),
+        }
+
+    # ---- hourly source (wide csv -> long parquet) ----
+    long_cols = [
+        "timestamp", "node_id", "T_supply_c", "T_return_c",
+        "delta_t_c", "P_bar", "Q_demand_mw",
+    ]
+    wide = pd.DataFrame()
+    if ts_csv.exists():
+        try:
+            wide = pd.read_csv(ts_csv, sep=";", index_col=0)
+        except Exception as exc:
+            print(f"  [WARN] Could not read nodes_timeseries.csv: {exc}")
+            wide = pd.DataFrame()
+
+    records: list[dict] = []
+    if not wide.empty:
+        node_ids: set[str] = set()
+        suffixes = ("_T_supply", "_T_return", "_P", "_Q_demand")
+        for col in wide.columns:
+            for suffix in suffixes:
+                if col.endswith(suffix):
+                    node_ids.add(col[:-len(suffix)])
+                    break
+        for node_id in sorted(node_ids, key=_node_sort_key):
+            c_sup = f"{node_id}_T_supply"
+            c_ret = f"{node_id}_T_return"
+            c_p = f"{node_id}_P"
+            c_q = f"{node_id}_Q_demand"
+            for ts, row in wide.iterrows():
+                t_supply = _to_float_or_none(row.get(c_sup)) if c_sup in wide.columns else None
+                t_return = _to_float_or_none(row.get(c_ret)) if c_ret in wide.columns else None
+                p_bar = _to_float_or_none(row.get(c_p)) if c_p in wide.columns else None
+                q_dem = _to_float_or_none(row.get(c_q)) if c_q in wide.columns else None
+                delta_t = (t_supply - t_return) if (t_supply is not None and t_return is not None) else None
+                records.append({
+                    "timestamp": ts,
+                    "node_id": node_id,
+                    "T_supply_c": t_supply,
+                    "T_return_c": t_return,
+                    "delta_t_c": delta_t,
+                    "P_bar": p_bar,
+                    "Q_demand_mw": q_dem,
+                })
+
+    nodes_state = pd.DataFrame(records, columns=long_cols)
+    nodes_state.to_parquet(outdir / "nodes_state_hourly.parquet", index=False)
+
+    # ---- annual summary ----
+    annual_from_state = pd.DataFrame()
+    if not nodes_state.empty:
+        annual_from_state = (
+            nodes_state.groupby("node_id", as_index=False)
+            .agg(
+                T_supply_avg_c=("T_supply_c", "mean"),
+                T_return_avg_c=("T_return_c", "mean"),
+                delta_t_avg_c=("delta_t_c", "mean"),
+                Q_demand_total_mwh=("Q_demand_mw", lambda x: float(x.fillna(0).sum()) * dt_h),
+                P_avg_bar=("P_bar", "mean"),
+            )
+        )
+
+    annual_rows: list[dict] = []
+    all_nodes = set(summary_map.keys())
+    if not annual_from_state.empty:
+        all_nodes.update(annual_from_state["node_id"].astype(str).tolist())
+
+    state_map = {}
+    if not annual_from_state.empty:
+        state_map = {
+            str(row["node_id"]): row
+            for _, row in annual_from_state.iterrows()
+        }
+
+    for node_id in sorted(all_nodes, key=_node_sort_key):
+        srow = summary_map.get(node_id, {})
+        arow = state_map.get(node_id, {})
+        t_sup = srow.get("T_supply_avg_c")
+        t_ret = srow.get("T_return_avg_c")
+        q_mwh = srow.get("Q_demand_total_mwh")
+        p_avg = srow.get("P_avg_bar")
+        if t_sup is None and arow is not None:
+            t_sup = _to_float_or_none(arow.get("T_supply_avg_c"))
+        if t_ret is None and arow is not None:
+            t_ret = _to_float_or_none(arow.get("T_return_avg_c"))
+        if q_mwh is None and arow is not None:
+            q_mwh = _to_float_or_none(arow.get("Q_demand_total_mwh"))
+        if p_avg is None and arow is not None:
+            p_avg = _to_float_or_none(arow.get("P_avg_bar"))
+        delta = (t_sup - t_ret) if (t_sup is not None and t_ret is not None) else _to_float_or_none(arow.get("delta_t_avg_c"))
+        annual_rows.append({
+            "node_id": node_id,
+            "node_type": srow.get("node_type", "unknown"),
+            "T_supply_avg_c": t_sup,
+            "T_return_avg_c": t_ret,
+            "delta_t_avg_c": delta,
+            "Q_demand_total_mwh": q_mwh,
+            "P_avg_bar": p_avg,
+        })
+
+    nodes_summary = pd.DataFrame(annual_rows, columns=[
+        "node_id", "node_type", "T_supply_avg_c", "T_return_avg_c",
+        "delta_t_avg_c", "Q_demand_total_mwh", "P_avg_bar",
+    ])
+    nodes_summary.to_csv(outdir / "nodes_summary.csv", index=False)
+
+    # ---- seasonal summary ----
+    seasonal_cols = [
+        "season", "node_id", "node_type", "T_supply_avg_c",
+        "T_return_avg_c", "delta_t_avg_c", "Q_demand_total_mwh", "P_avg_bar",
+    ]
+    if nodes_state.empty:
+        nodes_seasonal = pd.DataFrame(columns=seasonal_cols)
+    else:
+        seasonal_df = nodes_state.copy()
+        seasonal_df["season"] = seasonal_df["timestamp"].map(_season_of_timestamp)
+        seasonal_df = seasonal_df[seasonal_df["season"].notna()].copy()
+        if seasonal_df.empty:
+            nodes_seasonal = pd.DataFrame(columns=seasonal_cols)
+        else:
+            grouped = (
+                seasonal_df.groupby(["node_id", "season"], as_index=False)
+                .agg(
+                    T_supply_avg_c=("T_supply_c", "mean"),
+                    T_return_avg_c=("T_return_c", "mean"),
+                    delta_t_avg_c=("delta_t_c", "mean"),
+                    Q_demand_total_mwh=("Q_demand_mw", lambda x: float(x.fillna(0).sum()) * dt_h),
+                    P_avg_bar=("P_bar", "mean"),
+                )
+            )
+            grouped["node_type"] = grouped["node_id"].map(
+                lambda nid: summary_map.get(str(nid), {}).get("node_type", "unknown")
+            )
+            grouped["season"] = pd.Categorical(grouped["season"], categories=SEASON_ORDER, ordered=True)
+            grouped = grouped.sort_values(["node_id", "season"], key=lambda col: col.map(_node_sort_key) if col.name == "node_id" else col)
+            nodes_seasonal = grouped[seasonal_cols].copy()
+
+    nodes_seasonal.to_csv(outdir / "nodes_seasonal.csv", index=False)
+    return nodes_summary, nodes_seasonal, nodes_state
+
+
+# ---------------------------------------------------------------------------
 # §3.7 validation.json
 # ---------------------------------------------------------------------------
 
 def write_validation(outdir: Path, measured_data_path: str | None = None) -> None:
-    if measured_data_path is None:
-        (outdir / "validation.json").write_text(
-            json.dumps({"status": "no_measured_data"}, indent=2), encoding="utf-8"
-        )
-    # TODO: implement once measured data is provided
+    """Write per-run validation.json.
+
+    Links to the shared validation runner kpis.json when it exists (the
+    validation_runner produces a single network-level result used by all runs).
+    Includes a run-level energy-balance closure check derived from
+    dispatch_hourly.csv if that artefact is already written.
+    """
+    shared_kpis_path = ROOT / "output" / "validation" / "kpis.json"
+
+    payload: dict = {
+        "status": "linked",
+        "note": (
+            "Per-run validation.json. Network-level Stage 1/2 KPIs are in "
+            "output/validation/kpis.json (produced by tools/validation_runner.py). "
+            "This file contains the run-level energy-balance closure check."
+        ),
+        "shared_kpis": str(shared_kpis_path.relative_to(ROOT))
+        if shared_kpis_path.exists()
+        else None,
+    }
+
+    # Pull the overall pass/fail summary from the shared kpis.json if available.
+    if shared_kpis_path.exists():
+        try:
+            shared = json.loads(shared_kpis_path.read_text(encoding="utf-8"))
+            effective = shared.get("stage1_kpis_effective", {})
+            thresholds = shared.get("thresholds", {})
+            gate_results = {}
+            for kpi, thresh in thresholds.items():
+                val = effective.get(kpi)
+                if val is not None:
+                    gate_results[kpi] = {
+                        "value": val,
+                        "threshold": thresh,
+                        "pass": float(val) <= float(thresh),
+                    }
+            payload["stage1_gate"] = gate_results
+            payload["status"] = "ok" if all(
+                r["pass"] for r in gate_results.values()
+            ) else "warn_threshold"
+        except Exception as exc:
+            payload["shared_kpis_read_error"] = str(exc)
+
+    # Run-level energy-balance closure from dispatch_hourly.csv.
+    dispatch_path = outdir / "dispatch_hourly.csv"
+    if dispatch_path.exists():
+        try:
+            disp = pd.read_csv(dispatch_path)
+            gen_cols = [
+                "Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
+                "Q_hp_total_MW", "Q_ek_MW",
+            ]
+            discharge_cols = ["Q_storage_discharge_MW"]
+            charge_cols = ["Q_storage_charge_MW"]
+            loss_col = "Q_loss_total_MW"
+            demand_col = "Q_demand_total_MW"
+
+            gen_total = sum(
+                disp[c].fillna(0).sum() for c in gen_cols if c in disp.columns
+            )
+            discharge = sum(
+                disp[c].fillna(0).sum() for c in discharge_cols if c in disp.columns
+            )
+            charge = sum(
+                disp[c].fillna(0).sum() for c in charge_cols if c in disp.columns
+            )
+            losses = disp[loss_col].fillna(0).sum() if loss_col in disp.columns else 0.0
+            demand = disp[demand_col].fillna(0).sum() if demand_col in disp.columns else 0.0
+
+            supply = gen_total + discharge - charge
+            closure_err_pct = (
+                abs(supply - losses - demand) / demand * 100 if demand > 0 else None
+            )
+            payload["energy_balance"] = {
+                "generation_MWh": round(gen_total, 1),
+                "net_storage_MWh": round(discharge - charge, 1),
+                "losses_MWh": round(losses, 1),
+                "demand_MWh": round(demand, 1),
+                "closure_error_pct": round(closure_err_pct, 3) if closure_err_pct is not None else None,
+                "closure_pass": bool(closure_err_pct is not None and closure_err_pct <= 2.0),
+            }
+        except Exception as exc:
+            payload["energy_balance_error"] = str(exc)
+
+    (outdir / "validation.json").write_text(
+        json.dumps(payload, indent=2, default=str), encoding="utf-8"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +841,11 @@ def extract_all(
         write_pipe_state(outdir, run_id, workflow)
     except Exception as e:
         print(f"  [WARN] pipe_state_hourly.parquet skipped: {e}")
+    try:
+        write_nodes_data(outdir, run_id, workflow)
+    except Exception as e:
+        print(f"  [WARN] node artefacts skipped: {e}")
+        _write_empty_node_artefacts(outdir)
     write_validation(outdir, measured_data_path)
 
     print(f"  [EXTRACT] {run_id} → {outdir}")

@@ -244,6 +244,12 @@ class ComponentAssembler:
                 if asset is None:
                     logger.warning("Node '%s': asset '%s' not found, skipping", node_id, asset_id)
                     continue
+                if isinstance(asset.params, dict) and asset.params.get("enabled") is False:
+                    logger.info(
+                        "Node '%s': asset '%s' disabled via config (enabled=false), skipping",
+                        node_id, asset_id,
+                    )
+                    continue
 
                 if asset.type == "heat_pump":
                     self._attach_hp_from_unified(asset, node_buses, sys_buses)

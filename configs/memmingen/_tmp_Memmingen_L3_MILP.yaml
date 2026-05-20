@@ -5,7 +5,7 @@ site:
     price: strompreis_EUR_MWh
     co2_grid: grid_co2_kg_MWh
 scenario:
-  name: Memmingen L3 — Legacy Validation (BC-matching)
+  name: Memmingen L3 - Independent Zone Demands (Dispatch-Only)
   description: 15-node junction network, all consumers merged into junctions
   run_mode: PF_ONLY
   milp_linearize: true
@@ -16,13 +16,48 @@ network:
   milp_linearize: true
   physics:
     heat_loss: true
-    pressure_drop: false
-    transport_delay: false
-  supply_temp_c: 85.4
-  return_temp_c: 55.0
+    pressure_drop: true
+    transport_delay: true
+  supply_temp_c: 86.0
+  return_temp_c: 63.6
   ground_temp_c: 10
+  temperature_frame:
+    default_return_band_c: 4.0
+    seasons:
+      winter:
+        months:
+          - 1
+          - 2
+          - 12
+        supply_c: 88.6
+        return_c: 61.0
+        return_band_c: 3.0
+      spring:
+        months:
+          - 3
+          - 4
+          - 5
+        supply_c: 87.6
+        return_c: 64.1
+        return_band_c: 3.0
+      summer:
+        months:
+          - 6
+          - 7
+          - 8
+        supply_c: 83.4
+        return_c: 68.6
+        return_band_c: 2.5
+      autumn:
+        months:
+          - 9
+          - 10
+          - 11
+        supply_c: 84.2
+        return_c: 61.1
+        return_band_c: 3.0
   heating_curve:
-    enabled: false
+    enabled: true
     T_supply_max_c: 100.0
     T_supply_min_c: 50.0
     T_outdoor_low_c: -15.0
@@ -212,8 +247,8 @@ network:
       to: j_15
       length_m: 125
       diameter_mm: 100
-      u_value_supply_w_per_m_k: 0.28
-      u_value_return_w_per_m_k: 0.3
+      u_value_supply_w_per_m_k: 1.31
+      u_value_return_w_per_m_k: 1.4
 assets:
   chp_main:
     type: thermal_generator
@@ -243,7 +278,7 @@ assets:
     type: heat_pump
     capacity_mw: 5.0
     min_load: 0.2
-    wrg_source_column: WRG_1 °C
+    wrg_source_column: WRG_1 Â°C
     wrg_capacity_column: WRG1Q MW
     cop_default: 3.0
   tes_main:

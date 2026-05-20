@@ -2,10 +2,16 @@
 
 Encapsulates the ``build_model → SolverFactory → solve → extract`` pipeline
 so that callers only need to provide a table, config, and solver name.
+
+Two-stage Fix-and-Relax (for MIQCP validation):
+  Stage A: Solve MILP relaxation (milp_linearize=True) → extract all binary values
+  Stage B: Fix binaries in NLP model → solve pure nonconvex QCP (no branching)
+  Result: Temperature propagation solved in ~5-15 min instead of >1h with no solution.
 """
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -82,15 +88,21 @@ def _infer_binary_from_ws(var, idx, ws_df, times) -> int | None:
 
     var_name = var.name.lower() if hasattr(var, 'name') else ""
 
-    # Zeitindex extrahieren
+    # Zeitindex robust extrahieren (unterstützt 0-basierte und 1-basierte Indizes)
     t_idx = None
+    raw_t = None
     if isinstance(idx, (int, float)):
-        t_idx = int(idx) - 1
+        raw_t = int(idx)
     elif isinstance(idx, tuple):
         for elem in reversed(idx):
             if isinstance(elem, (int, float)):
-                t_idx = int(elem) - 1
+                raw_t = int(elem)
                 break
+    if raw_t is not None:
+        if 0 <= raw_t < len(ws_df):
+            t_idx = raw_t
+        elif 1 <= raw_t <= len(ws_df):
+            t_idx = raw_t - 1
 
     # ── Grid mode (buy=1, sell=0) ─────────────────────────────────
     if "grid" in var_name and "mode" in var_name:
@@ -147,18 +159,31 @@ def _infer_binary_from_ws(var, idx, ws_df, times) -> int | None:
     return None
 
 
-def _apply_warmstart(model, warmstart_path: str) -> bool:
-    """Set .value hints on BINARY variables where we can reliably infer them.
+def _apply_warmstart(
+    model,
+    warmstart_path: str,
+    fix_binaries: bool = False,
+    strict_unknown_fix: bool = False,
+) -> bool:
+    """Set .value hints or fix binary variables from a prior solution.
 
-    Uses a PARTIAL MIP start strategy: only variables with clear evidence
-    from the prior solution get a hint. All others are left at None so
-    Gurobi can complete them consistently (avoids SOS/logic violations).
+    Parameters
+    ----------
+    model : ConcreteModel
+        The Pyomo model to apply warmstart to.
+    warmstart_path : str
+        Path to directory containing prior solution CSV.
+    fix_binaries : bool
+        If True: Fix-and-Relax mode — all inferred binaries are FIXED
+        (removed from search space). Unknown binaries default to 0.
+        If False: Partial MIP start — only set .value hints.
 
-    Returns True if hints were successfully loaded.
+    Returns True if hints/fixes were successfully loaded.
     """
     import pandas as pd
 
-    logger.info("[WARMSTART] Loading solution hints from: %s", warmstart_path)
+    mode_str = "FIX-AND-RELAX" if fix_binaries else "PARTIAL MIP START"
+    logger.info("[WARMSTART] Loading solution (%s) from: %s", mode_str, warmstart_path)
 
     base_path = Path(warmstart_path)
 
@@ -182,6 +207,7 @@ def _apply_warmstart(model, warmstart_path: str) -> bool:
 
     times = list(model.t)
     n_hints = 0
+    n_fixed_unknown = 0
     n_skipped = 0
 
     for var in model.component_objects(pyo.Var, active=True):
@@ -192,18 +218,268 @@ def _apply_warmstart(model, warmstart_path: str) -> bool:
             if v.is_binary() or v.is_integer():
                 val = _infer_binary_from_ws(var, idx, ws_df, times)
                 if val is not None:
-                    v.value = val
+                    if fix_binaries:
+                        v.fix(val)
+                    else:
+                        v.value = val
                     n_hints += 1
                 else:
-                    v.value = None  # Kein Hint → Gurobi ergänzt selbst
-                    n_skipped += 1
+                    if fix_binaries:
+                        if strict_unknown_fix:
+                            # Optional strict mode: fix unknown binaries to 0.
+                            v.fix(0)
+                            n_fixed_unknown += 1
+                        else:
+                            # Robust default: relax unknown binaries to [0, 1]
+                            # to avoid hard infeasibility and combinatorial blow-up.
+                            try:
+                                v.domain = pyo.UnitInterval
+                            except Exception:
+                                pass
+                            try:
+                                v.setlb(0.0)
+                                v.setub(1.0)
+                                v.value = 0.0
+                            except Exception:
+                                pass
+                            n_skipped += 1
+                    else:
+                        v.value = None  # Kein Hint → Gurobi ergänzt selbst
+                        n_skipped += 1
+
+    if fix_binaries:
+        if strict_unknown_fix:
+            logger.info(
+                "[WARMSTART] FIX-AND-RELAX: Fixed %d binaries from data, "
+                "%d unknown binaries defaulted to 0. "
+                "Model is now a pure nonconvex QCP (no branching needed).",
+                n_hints, n_fixed_unknown,
+            )
+        else:
+            logger.info(
+                "[WARMSTART] FIX-AND-RELAX (robust): Fixed %d binaries from data, "
+                "relaxed %d unknown binaries to UnitInterval.",
+                n_hints, n_skipped,
+            )
+    else:
+        logger.info(
+            "[WARMSTART] Set %d binary hints, skipped %d (partial MIP start). "
+            "Gurobi will complete missing values internally.",
+            n_hints, n_skipped,
+        )
+    return n_hints > 0
+
+
+# =============================================================================
+# TWO-STAGE FIX-AND-RELAX
+# =============================================================================
+
+
+def _solve_milp_stage(
+    table: TimeSeriesTable,
+    cfg: dict[str, Any],
+    dt_h: float,
+    solver_name: str,
+    *,
+    soc_init_override: float | None = None,
+    terminal_target_override: float | None = None,
+    time_limit: int = 600,
+    mip_gap: float = 0.005,
+) -> dict[tuple[str, Any], int] | None:
+    """
+    Stage A of Fix-and-Relax: Solve MILP relaxation to obtain binary values.
+
+    Builds the same model with milp_linearize=True, solves it quickly,
+    then extracts all binary variable values.
+
+    Returns
+    -------
+    dict mapping (var_name, index) → int value, or None if solve failed.
+    """
+    logger.info("[FIX-RELAX] ═══ Stage A: Solving MILP relaxation ═══")
+
+    # Build linearized config
+    cfg_milp = copy.deepcopy(cfg)
+    cfg_milp.setdefault('scenario', {})['milp_linearize'] = True
+    cfg_milp.setdefault('network', {})['milp_linearize'] = True
+    if 'thermal_network' in cfg_milp:
+        cfg_milp['thermal_network']['milp_linearize'] = True
+
+    # Override solver options for fast MILP solve
+    cfg_milp.setdefault('run', {})['solver_options'] = {
+        'MIPGap': mip_gap,
+        'TimeLimit': time_limit,
+        'MIPFocus': 1,
+        'OutputFlag': 1,
+        'LogToConsole': 1,
+        'Threads': 0,
+    }
+
+    # Remove NLP-specific settings
+    cfg_milp.get('run', {}).pop('fix_binaries_from_milp', None)
+    cfg_milp.get('run', {}).pop('warmstart_from', None)
+
+    logger.info("[FIX-RELAX] Building MILP model (milp_linearize=True)...")
+    model_milp = build_model(
+        table,
+        cfg_milp,
+        dt_h=dt_h,
+        soc_init_override=soc_init_override,
+        terminal_target_override=terminal_target_override,
+    )
+
+    if model_milp is None:
+        logger.error("[FIX-RELAX] Stage A: Failed to build MILP model")
+        return None
+
+    # Solve MILP
+    try:
+        opt = pyo.SolverFactory(solver_name)
+        for key, value in cfg_milp['run']['solver_options'].items():
+            opt.options[key] = value
+
+        logger.info("[FIX-RELAX] Stage A: Solving MILP (TimeLimit=%ds, MIPGap=%.3f)...",
+                    time_limit, mip_gap)
+
+        solver_result = opt.solve(model_milp, tee=True, load_solutions=False)
+
+        # Check feasibility
+        term_cond = str(
+            getattr(getattr(solver_result, "solver", None), "termination_condition", "unknown")
+        ).lower()
+
+        try:
+            solution_count = len(solver_result.solution)
+        except Exception:
+            solution_count = 0
+
+        if "infeasible" in term_cond:
+            logger.error("[FIX-RELAX] Stage A: MILP infeasible!")
+            return None
+
+        if solution_count <= 0:
+            logger.error("[FIX-RELAX] Stage A: No incumbent solution found (status: %s)", term_cond)
+            return None
+
+        # Load solution
+        model_milp.solutions.load_from(solver_result)
+        logger.info("[FIX-RELAX] Stage A: MILP solved (%s)", term_cond)
+
+    except Exception as e:
+        logger.error("[FIX-RELAX] Stage A: Solve failed: %s", e)
+        return None
+
+    # Extract ALL binary values
+    binary_vals: dict[tuple[str, Any], int] = {}
+    n_binary = 0
+    n_integer = 0
+
+    for var in model_milp.component_objects(pyo.Var, active=True):
+        for idx in var:
+            v = var[idx]
+            if v.is_binary() or v.is_integer():
+                val = v.value
+                if val is not None:
+                    binary_vals[(var.name, idx)] = int(round(val))
+                    if v.is_binary():
+                        n_binary += 1
+                    else:
+                        n_integer += 1
+                else:
+                    # Variable not in solution (shouldn't happen after load)
+                    binary_vals[(var.name, idx)] = 0
 
     logger.info(
-        "[WARMSTART] Set %d binary hints, skipped %d (partial MIP start). "
-        "Gurobi will complete missing values internally.",
-        n_hints, n_skipped,
+        "[FIX-RELAX] Stage A: Extracted %d binary + %d integer = %d total discrete values",
+        n_binary, n_integer, len(binary_vals),
     )
-    return n_hints > 0
+
+    # Log some statistics
+    n_ones = sum(1 for v in binary_vals.values() if v == 1)
+    n_zeros = sum(1 for v in binary_vals.values() if v == 0)
+    logger.info("[FIX-RELAX] Stage A: %d=1, %d=0 (%.1f%% active)",
+                n_ones, n_zeros, n_ones / max(len(binary_vals), 1) * 100)
+
+    return binary_vals
+
+
+def _apply_binary_fixation(
+    model,
+    binary_vals: dict[tuple[str, Any], int],
+    *,
+    strict_unknown_fix: bool = False,
+) -> int:
+    """
+    Stage B: Fix all binary/integer variables in the NLP model from Stage A values.
+
+    After this, the model has 0 discrete variables → pure nonconvex QCP.
+    Gurobi solves this without branching (spatial branching only for bilinear).
+
+    Returns number of fixed variables.
+    """
+    logger.info("[FIX-RELAX] ═══ Stage B: Fixing binaries in NLP model ═══")
+
+    n_fixed = 0
+    n_not_found = 0
+    n_relaxed = 0
+    n_already_fixed = 0
+
+    for var in model.component_objects(pyo.Var, active=True):
+        for idx in var:
+            v = var[idx]
+            if v.is_fixed():
+                n_already_fixed += 1
+                continue
+            if v.is_binary() or v.is_integer():
+                key = (var.name, idx)
+                if key in binary_vals:
+                    v.fix(binary_vals[key])
+                    n_fixed += 1
+                else:
+                    # Binary in NLP but not in MILP (different model structure)
+                    if strict_unknown_fix:
+                        v.fix(0)
+                        n_not_found += 1
+                    else:
+                        try:
+                            v.domain = pyo.UnitInterval
+                        except Exception:
+                            pass
+                        try:
+                            v.setlb(0.0)
+                            v.setub(1.0)
+                            v.value = 0.0
+                        except Exception:
+                            pass
+                        n_relaxed += 1
+
+    if strict_unknown_fix:
+        logger.info(
+            "[FIX-RELAX] Stage B: Fixed %d from MILP, %d defaulted to 0, "
+            "%d already fixed. Model is now pure nonconvex QCP.",
+            n_fixed, n_not_found, n_already_fixed,
+        )
+    else:
+        logger.info(
+            "[FIX-RELAX] Stage B (robust): Fixed %d from MILP, relaxed %d unmatched "
+            "discrete vars to UnitInterval, %d already fixed.",
+            n_fixed, n_relaxed, n_already_fixed,
+        )
+
+    # Verify: count remaining unfixed discrete variables
+    n_remaining = 0
+    for var in model.component_objects(pyo.Var, active=True):
+        for idx in var:
+            v = var[idx]
+            if not v.is_fixed() and (v.is_binary() or v.is_integer()):
+                n_remaining += 1
+
+    if n_remaining > 0:
+        logger.warning("[FIX-RELAX] WARNING: %d discrete variables remain unfixed!", n_remaining)
+    else:
+        logger.info("[FIX-RELAX] ✓ All discrete variables fixed — 0 remaining")
+
+    return n_fixed
 
 
 # =============================================================================
@@ -279,23 +555,96 @@ def _solve_scenario(
                 opt.options[key] = value
             logger.debug("Applied solver options: %s", solver_options)
 
-        # ─── WARMSTART: Partial MIP Start aus vorherigem Lauf ─────────
-        warmstart_path = run_cfg.get("warmstart_from")
+        # ─── TWO-STAGE FIX-AND-RELAX (for MIQCP) ─────────────────────
+        fix_from_milp = run_cfg.get("fix_binaries_from_milp", False)
         use_warmstart = False
+        binary_vals = None
 
-        if warmstart_path:
-            use_warmstart = _apply_warmstart(model, warmstart_path)
+        if fix_from_milp and not milp_linearize:
+            # ── Stage A: Solve MILP to get binary values ──────────────
+            logger.info(
+                "[FIX-RELAX] Two-stage mode activated: "
+                "Stage A (MILP) → Stage B (fix binaries → QCP)"
+            )
+
+            milp_time_limit = run_cfg.get("milp_stage_time_limit", 600)
+            milp_gap = run_cfg.get("milp_stage_gap", 0.005)
+
+            binary_vals = _solve_milp_stage(
+                table, cfg, dt_h, solver_name,
+                soc_init_override=soc_init_override,
+                terminal_target_override=terminal_target_override,
+                time_limit=milp_time_limit,
+                mip_gap=milp_gap,
+            )
+
+            if binary_vals is not None:
+                # ── Stage B: Fix binaries in NLP model ────────────────
+                strict_fix = bool(run_cfg.get("strict_binary_fixing", False))
+                n_fixed = _apply_binary_fixation(
+                    model,
+                    binary_vals,
+                    strict_unknown_fix=strict_fix,
+                )
+                solver_meta["fix_relax_stage_a"] = "success"
+                solver_meta["fix_relax_n_fixed"] = n_fixed
+                solver_meta["fix_relax_strategy"] = "two_stage"
+
+                # Keep user-specified feasibility options (e.g., MIPFocus/Heuristics)
+                # and only harden numerical robustness for nonconvex QCP.
+                opt.options["NumericFocus"] = max(
+                    int(opt.options.get("NumericFocus", 0)), 2
+                )
+                # Reduce time limit — QCP should be fast
+                if opt.options.get("TimeLimit", 3600) > 1800:
+                    opt.options["TimeLimit"] = 1800  # 30 min max for QCP
+                    logger.info("[FIX-RELAX] Reduced TimeLimit to 1800s (QCP mode)")
+
+            else:
+                logger.warning(
+                    "[FIX-RELAX] Stage A failed — falling back to standard warmstart"
+                )
+                solver_meta["fix_relax_stage_a"] = "failed"
+                solver_meta["fix_relax_strategy"] = "fallback_warmstart"
+                fix_from_milp = False  # Fall through to normal warmstart
+
+        # ─── WARMSTART: Partial MIP Start (fallback or explicit) ──────
+        warmstart_path = run_cfg.get("warmstart_from")
+
+        if warmstart_path and not fix_from_milp:
+            # Only apply warmstart if we didn't already do fix-and-relax
+            fix_binaries_flag = run_cfg.get("fix_binaries_from_warmstart", False)
+            strict_fix = bool(run_cfg.get("strict_binary_fixing", False))
+            use_warmstart = _apply_warmstart(
+                model,
+                warmstart_path,
+                fix_binaries=fix_binaries_flag,
+                strict_unknown_fix=strict_fix,
+            )
+            if fix_binaries_flag and use_warmstart:
+                solver_meta["fix_relax_strategy"] = "warmstart_fix"
+                # Same QCP robustness adjustment, while preserving feasibility-focused
+                # search options provided by the caller.
+                opt.options["NumericFocus"] = max(
+                    int(opt.options.get("NumericFocus", 0)), 2
+                )
 
         # ─── SOLVE ────────────────────────────────────────────────────
+        # Determine if we should pass warmstart flag to Gurobi
+        # (only meaningful if we set .value hints, not if we .fix()'d)
+        pass_warmstart = use_warmstart and not fix_from_milp and not run_cfg.get(
+            "fix_binaries_from_warmstart", False
+        )
+
         solver_result = opt.solve(
             model,
             tee=True,
-            warmstart=use_warmstart,
+            warmstart=pass_warmstart,
             load_solutions=False,
         )
 
         solver_meta["solver_used"] = solver_used
-        solver_meta["warmstart_applied"] = use_warmstart
+        solver_meta["warmstart_applied"] = use_warmstart or (binary_vals is not None)
         solver_meta["status"] = str(
             getattr(getattr(solver_result, "solver", None), "status", "unknown")
         )
@@ -316,6 +665,19 @@ def _solve_scenario(
                 "Check constraints: heat balance, storage limits, terminal policy.",
                 solver_meta["status"], term_cond,
             )
+
+            # Additional hints for fix-and-relax infeasibility
+            if binary_vals is not None:
+                logger.error(
+                    "[FIX-RELAX] QCP infeasible with fixed binaries from MILP. "
+                    "Possible causes:\n"
+                    "  - Bilinear Q = m_dot * cp * dT constraints incompatible with "
+                    "fixed pipe regime buckets\n"
+                    "  - Temperature bounds violated when T propagates through pipes\n"
+                    "  - Consumer return temp assumptions inconsistent with NLP physics\n"
+                    "  Try: relax terminal_policy to 'free' or increase storage bounds"
+                )
+
             # Try Gurobi IIS
             try:
                 grb_model = opt._solver_model
@@ -332,10 +694,30 @@ def _solve_scenario(
                         iis_bounds.append(f"UB({v.VarName})")
                 logger.error("IIS constraints (%d): %s", len(iis_constraints), iis_constraints[:20])
                 logger.error("IIS bounds (%d): %s", len(iis_bounds), iis_bounds[:20])
+                try:
+                    out_dir = Path(cfg.get("output", {}).get("export_dir", "output/results"))
+                    out_solver_dir = out_dir / "solver"
+                    out_solver_dir.mkdir(parents=True, exist_ok=True)
+                    iis_path = out_solver_dir / "gurobi_infeasible.ilp"
+                    grb_model.write(str(iis_path))
+                    logger.error("IIS model written to %s", iis_path)
+                    solver_meta["iis_file"] = str(iis_path)
+                except Exception as write_err:
+                    logger.debug("Could not write IIS model file: %s", write_err)
                 solver_meta["iis_constraints"] = iis_constraints
                 solver_meta["iis_bounds"] = iis_bounds
             except Exception as iis_err:
-                logger.debug("IIS computation failed: %s", iis_err)
+                logger.error("IIS computation failed: %s", iis_err)
+                try:
+                    out_dir = Path(cfg.get("output", {}).get("export_dir", "output/results"))
+                    out_solver_dir = out_dir / "solver"
+                    out_solver_dir.mkdir(parents=True, exist_ok=True)
+                    lp_path = out_solver_dir / "infeasible_model.lp"
+                    model.write(str(lp_path), io_options={"symbolic_solver_labels": True})
+                    solver_meta["infeasible_model_lp"] = str(lp_path)
+                    logger.error("Infeasible model snapshot written to %s", lp_path)
+                except Exception as lp_err:
+                    logger.error("Failed to write infeasible model snapshot: %s", lp_err)
 
             series, summary, costs = _collect_timeseries_and_summary(
                 table, cfg, dt_h, None
@@ -357,6 +739,16 @@ def _solve_scenario(
 
         # ─── Load solution ────────────────────────────────────────────
         model.solutions.load_from(solver_result)
+
+        # ─── Log solution quality for fix-and-relax ───────────────────
+        if binary_vals is not None:
+            obj_val = pyo.value(model.obj) if hasattr(model, 'obj') else None
+            logger.info(
+                "[FIX-RELAX] Stage B solved successfully! "
+                "Objective = %s, Termination = %s",
+                f"{obj_val:.2f}" if obj_val is not None else "N/A",
+                solver_meta["termination_condition"],
+            )
 
         # ─── Export results ───────────────────────────────────────────
         export_cfg = cfg.get('output', {})

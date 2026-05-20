@@ -33,9 +33,33 @@ network:
     pressure_drop: false
     transport_delay: false
 
-  supply_temp_c: 100
-  return_temp_c: 40
+  supply_temp_c: 86.0
+  return_temp_c: 56.9
   ground_temp_c: 10
+
+  temperature_frame:
+    default_return_band_c: 4.0
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 88.6
+        return_c: 52.3
+        return_band_c: 3.0
+      spring:
+        months: [3, 4, 5]
+        supply_c: 87.6
+        return_c: 53.2
+        return_band_c: 3.0
+      summer:
+        months: [6, 7, 8]
+        supply_c: 83.4
+        return_c: 68.6
+        return_band_c: 2.5
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 84.2
+        return_c: 53.6
+        return_band_c: 3.0
 
   linearization:
     method: "pwl"

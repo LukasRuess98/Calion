@@ -1,5 +1,5 @@
 """
-Paper Figure Generator (Phase 5)
+Paper Figure Generator (Phase 6)
 =================================
 Reads simulation artefacts from output/paper_runs/ and generates
 all publication figures for the paper.
@@ -16,8 +16,13 @@ Figures produced
   FV1  — Validation time series: measured vs simulated (winter week)
   F7   — Storage SOC comparison across all five levels
   F8   — Generalizability heatmap: ΔCost (L1→L3) vs pipe-length × HI
+  F9   — Node averages (annual + seasonal)
+  F10  — Node topology heatmap (annual + seasonal spread)
+  F11  — Critical-path profile (temperature + pressure)
+  F12  — Extended duration curves (L1/L2/L3/L3plus/L3NL)
+  F13  — Annual energy Sankey
 
-Output directory: output/paper_runs/figures/
+Output directory: output/paper_runs/figures/ (PNG + PDF + PGF)
 
 Usage
 -----
@@ -39,10 +44,22 @@ import pandas as pd
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 ROOT    = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.paper.mpl_export import AE_RCPARAMS, save_figure_bundle
+
 RUNS    = ROOT / "output" / "paper_runs"
 FIGDIR  = RUNS / "figures"
 VALDIR  = ROOT / "output" / "validation"
+FIG_FORMATS = ("png", "pdf", "pgf")
+FIG_RASTER_DPI = 600
 
 # ---------------------------------------------------------------------------
 # Matplotlib setup
@@ -52,33 +69,20 @@ def _mpl_setup():
     """Return (plt, mpl) with journal-quality rcParams."""
     import matplotlib as mpl
     import matplotlib.pyplot as plt
-    mpl.rcParams.update({
-        "figure.dpi": 300,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
-        "font.family": "sans-serif",
-        "font.size": 8,
-        "axes.labelsize": 8,
-        "axes.titlesize": 9,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "legend.fontsize": 7,
-        "legend.frameon": False,
-        "lines.linewidth": 1.0,
-        "axes.linewidth": 0.7,
-        "grid.linewidth": 0.4,
-        "grid.alpha": 0.35,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-    })
-    try:
-        plt.style.use("seaborn-v0_8-paper")
-    except Exception:
-        try:
-            plt.style.use("seaborn-paper")
-        except Exception:
-            pass
+    mpl.rcParams.update(AE_RCPARAMS)
     return plt, mpl
+
+
+def _save_fig(fig, out_dir: Path, stem: str, plt) -> None:
+    saved = save_figure_bundle(
+        fig,
+        out_dir / stem,
+        formats=FIG_FORMATS,
+        raster_dpi=FIG_RASTER_DPI,
+    )
+    plt.close(fig)
+    suffixes = ", ".join(path.suffix for path in saved)
+    print(f"  [FIG] {stem} ({suffixes})")
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +146,80 @@ def _load_synth_results() -> pd.DataFrame | None:
         except Exception:
             pass
     return pd.DataFrame(rows) if rows else None
+
+
+def _node_sort_key(node_id: str) -> tuple[int, str]:
+    parts = "".join(ch if ch.isdigit() else " " for ch in str(node_id)).split()
+    if parts:
+        try:
+            return (int(parts[-1]), str(node_id))
+        except ValueError:
+            pass
+    return (10**9, str(node_id))
+
+
+def _season_sort_key(season: str) -> int:
+    order = {"winter": 0, "transition": 1, "summer": 2}
+    return order.get(str(season), 99)
+
+
+def _load_nodes_summary(run_id: str) -> pd.DataFrame | None:
+    p = RUNS / run_id / "nodes_summary.csv"
+    if not p.exists():
+        return None
+    try:
+        df = pd.read_csv(p)
+        return df if not df.empty else None
+    except Exception:
+        return None
+
+
+def _load_nodes_seasonal(run_id: str) -> pd.DataFrame | None:
+    p = RUNS / run_id / "nodes_seasonal.csv"
+    if not p.exists():
+        return None
+    try:
+        df = pd.read_csv(p)
+        return df if not df.empty else None
+    except Exception:
+        return None
+
+
+def _load_nodes_state(run_id: str) -> pd.DataFrame | None:
+    p = RUNS / run_id / "nodes_state_hourly.parquet"
+    if not p.exists():
+        return None
+    try:
+        df = pd.read_parquet(p)
+        if df.empty:
+            return None
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        return df
+    except Exception:
+        return None
+
+
+def _pick_node_run() -> str | None:
+    for rid in ("L3plus", "L3", "L3NL"):
+        if (RUNS / rid / "nodes_summary.csv").exists():
+            return rid
+    return None
+
+
+def _placeholder_figure(out_dir: Path, plt, stem: str, title: str, message: str) -> None:
+    fig, ax = plt.subplots(figsize=(6.8, 2.6))
+    ax.text(
+        0.5,
+        0.5,
+        f"{title}\n{message}",
+        ha="center",
+        va="center",
+        transform=ax.transAxes,
+        fontsize=9,
+    )
+    ax.axis("off")
+    _save_fig(fig, out_dir, stem, plt)
 
 
 # ---------------------------------------------------------------------------
@@ -282,9 +360,7 @@ def fig_F1(out_dir: Path) -> None:
                 fontsize=5.5, color="#9C27B0",
                 arrowprops=dict(arrowstyle="-|>", color="#9C27B0", lw=0.8))
 
-    fname = out_dir / "F1_experimental_design.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F1_experimental_design", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -410,9 +486,7 @@ def fig_F2(out_dir: Path, t_values: dict | None = None) -> None:
             rotation=-90, va="top")
     ax.text(4.5,  0.5, "East arm →", fontsize=6, color="gray", style="italic")
 
-    fname = out_dir / "F2_network_topology.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F2_network_topology", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -461,9 +535,7 @@ def fig_F3(out_dir: Path) -> None:
     ax.grid(True, axis="y")
     ax.set_ylim(0, max(bottoms) * 1.18)
 
-    fname = out_dir / "F3_cost_topology.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F3_cost_topology", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -541,9 +613,7 @@ def fig_F4(out_dir: Path) -> None:
     ax2.grid(True, alpha=0.3)
 
     fig.tight_layout()
-    fname = out_dir / "F4_dispatch_winter.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F4_dispatch_winter", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -614,9 +684,7 @@ def fig_F5(out_dir: Path) -> None:
     ax.set_title("Cost gap decomposition: L3 → L3⁺ → L3ᴺᴸ (RQ2 + RQ3)", fontsize=9)
     ax.grid(True, axis="y")
 
-    fname = out_dir / "F5_cost_waterfall.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F5_cost_waterfall", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -665,9 +733,7 @@ def fig_F6(out_dir: Path) -> None:
     ax.legend(fontsize=7)
     ax.grid(True)
 
-    fname = out_dir / "F6_pump_scatter.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F6_pump_scatter", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -685,9 +751,21 @@ def fig_FV1(out_dir: Path) -> None:
     # If validation plots exist, use them directly
     if stage1_winter.exists():
         import shutil
+        copied = []
+        for fmt in FIG_FORMATS:
+            src = val_dir / f"stage1_timeseries_winter.{fmt}"
+            if not src.exists():
+                continue
+            dst = out_dir / f"FV1_validation_timeseries.{fmt}"
+            shutil.copy2(src, dst)
+            copied.append(dst.suffix)
+        if copied:
+            print(f"  [FIG] FV1_validation_timeseries (copied: {', '.join(copied)})")
+            return
+        # Fallback to at least PNG copy if alternate formats are missing.
         dest = out_dir / "FV1_validation_timeseries.png"
         shutil.copy2(stage1_winter, dest)
-        print(f"  [FIG] FV1_validation_timeseries.png (copied from validation/)")
+        print("  [FIG] FV1_validation_timeseries (.png copied from validation/)")
         return
 
     # Fallback: generate from dispatch + kpis.json if available
@@ -710,9 +788,7 @@ def fig_FV1(out_dir: Path) -> None:
     ax.text(0.5, 0.5, msg,
             ha="center", va="center", transform=ax.transAxes, fontsize=9)
     ax.axis("off")
-    fname = out_dir / "FV1_validation_timeseries.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "FV1_validation_timeseries", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -766,9 +842,7 @@ def fig_F7(out_dir: Path) -> None:
     ax.grid(True)
     ax.set_title("Storage dispatch as diagnostic: SOC across model levels", fontsize=9)
 
-    fname = out_dir / "F7_TES_SOC_comparison.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F7_TES_SOC_comparison", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -827,9 +901,7 @@ def fig_F8(out_dir: Path) -> None:
     ax.set_title("Topology gap ΔCost (L1→L3) across\nsynthetic network configurations",
                  fontsize=9)
 
-    fname = out_dir / "F8_generalizability_heatmap.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name}")
+    _save_fig(fig, out_dir, "F8_generalizability_heatmap", plt)
 
 
 def _fig_F8_placeholder(out_dir: Path, plt) -> None:
@@ -838,9 +910,409 @@ def _fig_F8_placeholder(out_dir: Path, plt) -> None:
             "F8: Generalizability heatmap\nRun Phase 3 (synthetic) first.",
             ha="center", va="center", transform=ax.transAxes, fontsize=9)
     ax.axis("off")
-    fname = out_dir / "F8_generalizability_heatmap.png"
-    fig.savefig(fname); plt.close(fig)
-    print(f"  [FIG] {fname.name} (placeholder)")
+    _save_fig(fig, out_dir, "F8_generalizability_heatmap", plt)
+    print("  [FIG] F8_generalizability_heatmap (placeholder)")
+
+
+# ---------------------------------------------------------------------------
+# F9 — Node averages (annual + seasonal)
+# ---------------------------------------------------------------------------
+
+def fig_F9(out_dir: Path) -> None:
+    plt, _ = _mpl_setup()
+    run_id = _pick_node_run()
+    if run_id is None:
+        _placeholder_figure(
+            out_dir, plt, "F9_node_averages",
+            "Node averages",
+            "No nodes_summary.csv found (run Phase 1 first).",
+        )
+        return
+
+    summary = _load_nodes_summary(run_id)
+    seasonal = _load_nodes_seasonal(run_id)
+    if summary is None or summary.empty:
+        _placeholder_figure(
+            out_dir, plt, "F9_node_averages",
+            "Node averages",
+            f"{run_id}: nodes_summary.csv is empty.",
+        )
+        return
+
+    summary = summary.copy().sort_values("node_id", key=lambda c: c.map(_node_sort_key))
+    nodes = summary["node_id"].astype(str).tolist()
+    x = np.arange(len(nodes))
+
+    ts = summary.get("T_supply_avg_c", pd.Series(np.nan, index=summary.index)).astype(float)
+    tr = summary.get("T_return_avg_c", pd.Series(np.nan, index=summary.index)).astype(float)
+    dt = summary.get("delta_t_avg_c", pd.Series(np.nan, index=summary.index)).astype(float)
+
+    fig = plt.figure(figsize=(7.09, 5.2), constrained_layout=True)
+    gs = fig.add_gridspec(2, 3, height_ratios=[1.5, 1.0])
+    ax_main = fig.add_subplot(gs[0, :])
+    season_axes = [fig.add_subplot(gs[1, i]) for i in range(3)]
+
+    w = 0.26
+    ax_main.bar(x - w, ts, width=w, label="T_supply avg [°C]", color="#1f77b4", alpha=0.85)
+    ax_main.bar(x, tr, width=w, label="T_return avg [°C]", color="#ff7f0e", alpha=0.85)
+    ax_main.bar(x + w, dt, width=w, label="delta T avg [K]", color="#2ca02c", alpha=0.85)
+    ax_main.set_xticks(x)
+    ax_main.set_xticklabels(nodes, rotation=55, ha="right")
+    ax_main.set_ylabel("Annual mean")
+    ax_main.set_title(f"F9 Node averages ({run_id}) — annual + seasonal")
+    ax_main.grid(True, axis="y", alpha=0.3)
+    ax_main.legend(ncol=3, fontsize=6, loc="upper right")
+
+    season_names = ["winter", "transition", "summer"]
+    if seasonal is None or seasonal.empty:
+        for ax, season in zip(season_axes, season_names):
+            ax.text(
+                0.5,
+                0.5,
+                f"{season}\nno seasonal data",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=7,
+            )
+            ax.axis("off")
+    else:
+        sdf = seasonal.copy()
+        sdf["node_id"] = sdf["node_id"].astype(str)
+        for ax, season in zip(season_axes, season_names):
+            sub = sdf[sdf["season"].astype(str) == season]
+            if sub.empty:
+                ax.text(
+                    0.5,
+                    0.5,
+                    f"{season}\nno data",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                    fontsize=7,
+                )
+                ax.axis("off")
+                continue
+            sub = sub.sort_values("node_id", key=lambda c: c.map(_node_sort_key))
+            vals = sub.get("delta_t_avg_c", pd.Series(np.nan, index=sub.index)).astype(float).values
+            lbls = sub["node_id"].tolist()
+            xx = np.arange(len(lbls))
+            ax.bar(xx, vals, color="#2ca02c", alpha=0.85)
+            ax.set_xticks(xx)
+            ax.set_xticklabels(lbls, rotation=55, ha="right", fontsize=6)
+            ax.set_title(season, fontsize=8)
+            ax.set_ylabel("delta T [K]", fontsize=7)
+            ax.grid(True, axis="y", alpha=0.3)
+
+    _save_fig(fig, out_dir, "F9_node_averages", plt)
+
+
+# ---------------------------------------------------------------------------
+# F10 — Node topology heatmap (annual + seasonal spread)
+# ---------------------------------------------------------------------------
+
+def _draw_network_map(ax, values: dict[str, float], demand: dict[str, float], title: str, cmap_name: str):
+    import matplotlib.colors as mcolors
+    from matplotlib import colormaps
+
+    finite_vals = [v for v in values.values() if v is not None and np.isfinite(v)]
+    if finite_vals:
+        norm = mcolors.Normalize(vmin=min(finite_vals), vmax=max(finite_vals))
+    else:
+        norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
+    cmap = colormaps.get_cmap(cmap_name)
+
+    for frm, to, _, _ in PIPES:
+        x0, y0 = NODE_POS[frm]
+        x1, y1 = NODE_POS[to]
+        ax.plot([x0, x1], [y0, y1], color="#7f7f7f", lw=1.0, alpha=0.55, zorder=1)
+
+    dem_vals = [v for v in demand.values() if v is not None and np.isfinite(v) and v > 0]
+    d_min = min(dem_vals) if dem_vals else 0.0
+    d_max = max(dem_vals) if dem_vals else 1.0
+
+    def _size(node: str) -> float:
+        val = demand.get(node)
+        if val is None or not np.isfinite(val) or d_max <= d_min:
+            return 90.0
+        return 80.0 + 260.0 * ((val - d_min) / (d_max - d_min))
+
+    for node, (x, y) in NODE_POS.items():
+        v = values.get(node)
+        color = cmap(norm(v)) if v is not None and np.isfinite(v) else "#d9d9d9"
+        marker = "*" if node == "j_1" else ("D" if node == "j_12" else "o")
+        ax.scatter(x, y, s=_size(node), marker=marker, color=color, edgecolors="k", linewidths=0.6, zorder=3)
+        ax.text(x, y - 0.32, node, fontsize=6, ha="center", va="top", zorder=4)
+
+    from matplotlib.cm import ScalarMappable
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = ax.figure.colorbar(sm, ax=ax, shrink=0.8, pad=0.02)
+    cbar.ax.tick_params(labelsize=6)
+    ax.set_title(title, fontsize=8)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+
+def fig_F10(out_dir: Path) -> None:
+    plt, _ = _mpl_setup()
+    run_id = _pick_node_run()
+    if run_id is None:
+        _placeholder_figure(
+            out_dir, plt, "F10_node_topology_heatmap",
+            "Node topology heatmap",
+            "No node artefacts found.",
+        )
+        return
+
+    summary = _load_nodes_summary(run_id)
+    seasonal = _load_nodes_seasonal(run_id)
+    if summary is None or summary.empty:
+        _placeholder_figure(
+            out_dir, plt, "F10_node_topology_heatmap",
+            "Node topology heatmap",
+            f"{run_id}: nodes_summary.csv is empty.",
+        )
+        return
+
+    demand = {
+        str(r["node_id"]): float(r["Q_demand_total_mwh"])
+        for _, r in summary.iterrows()
+        if pd.notna(r.get("Q_demand_total_mwh"))
+    }
+    annual_supply = {
+        str(r["node_id"]): float(r["T_supply_avg_c"])
+        for _, r in summary.iterrows()
+        if pd.notna(r.get("T_supply_avg_c"))
+    }
+
+    spread = {}
+    if seasonal is not None and not seasonal.empty:
+        g = seasonal.groupby("node_id")["T_supply_avg_c"]
+        spread = {
+            str(node): float(series.max() - series.min())
+            for node, series in g
+            if pd.notna(series.max()) and pd.notna(series.min())
+        }
+
+    fig, axes = plt.subplots(1, 2, figsize=(7.09, 3.8), constrained_layout=True)
+    _draw_network_map(
+        axes[0],
+        annual_supply,
+        demand,
+        f"F10A Annual mean supply temperature ({run_id})",
+        "plasma",
+    )
+    _draw_network_map(
+        axes[1],
+        spread,
+        demand,
+        "F10B Seasonal spread of supply temperature [K]",
+        "viridis",
+    )
+    _save_fig(fig, out_dir, "F10_node_topology_heatmap", plt)
+
+
+# ---------------------------------------------------------------------------
+# F11 — Critical-path profile
+# ---------------------------------------------------------------------------
+
+def fig_F11(out_dir: Path) -> None:
+    plt, _ = _mpl_setup()
+    run_id = _pick_node_run()
+    if run_id is None:
+        _placeholder_figure(
+            out_dir, plt, "F11_critical_path_profile",
+            "Critical-path profile",
+            "No node artefacts found.",
+        )
+        return
+
+    summary = _load_nodes_summary(run_id)
+    seasonal = _load_nodes_seasonal(run_id)
+    if summary is None or summary.empty:
+        _placeholder_figure(
+            out_dir, plt, "F11_critical_path_profile",
+            "Critical-path profile",
+            f"{run_id}: nodes_summary.csv is empty.",
+        )
+        return
+
+    trunk = ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13", "j_15"]
+    idx = np.arange(len(trunk))
+    smap = summary.set_index("node_id")
+    t_sup = [float(smap.loc[n, "T_supply_avg_c"]) if n in smap.index and pd.notna(smap.loc[n, "T_supply_avg_c"]) else np.nan for n in trunk]
+    t_ret = [float(smap.loc[n, "T_return_avg_c"]) if n in smap.index and pd.notna(smap.loc[n, "T_return_avg_c"]) else np.nan for n in trunk]
+    p_avg = [float(smap.loc[n, "P_avg_bar"]) if n in smap.index and pd.notna(smap.loc[n, "P_avg_bar"]) else np.nan for n in trunk]
+
+    fig, axes = plt.subplots(2, 1, figsize=(7.09, 4.8), sharex=True, constrained_layout=True)
+    axes[0].plot(idx, t_sup, marker="o", color="#1f77b4", label="Annual T_supply")
+    axes[0].plot(idx, t_ret, marker="o", color="#ff7f0e", label="Annual T_return")
+
+    if seasonal is not None and not seasonal.empty:
+        sdf = seasonal.copy()
+        for season, color in [("winter", "#2ca02c"), ("transition", "#9467bd"), ("summer", "#d62728")]:
+            sub = sdf[sdf["season"].astype(str) == season].set_index("node_id")
+            sup_vals = [float(sub.loc[n, "T_supply_avg_c"]) if n in sub.index and pd.notna(sub.loc[n, "T_supply_avg_c"]) else np.nan for n in trunk]
+            axes[0].plot(idx, sup_vals, linestyle="--", linewidth=1.0, color=color, alpha=0.9, label=f"{season} T_supply")
+
+    axes[0].set_ylabel("Temperature [°C]")
+    axes[0].set_title(f"F11A Critical-path temperature profile ({run_id})")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend(ncol=3, fontsize=6)
+
+    axes[1].plot(idx, p_avg, marker="s", color="#4c4c4c", label="Annual pressure")
+    if seasonal is not None and not seasonal.empty:
+        sdf = seasonal.copy()
+        for season, color in [("winter", "#2ca02c"), ("transition", "#9467bd"), ("summer", "#d62728")]:
+            sub = sdf[sdf["season"].astype(str) == season].set_index("node_id")
+            p_vals = [float(sub.loc[n, "P_avg_bar"]) if n in sub.index and pd.notna(sub.loc[n, "P_avg_bar"]) else np.nan for n in trunk]
+            axes[1].plot(idx, p_vals, linestyle="--", linewidth=1.0, color=color, alpha=0.9, label=f"{season} pressure")
+    axes[1].set_ylabel("Pressure [bar]")
+    axes[1].set_title("F11B Critical-path pressure profile")
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend(ncol=2, fontsize=6)
+    axes[1].set_xticks(idx)
+    axes[1].set_xticklabels(trunk, rotation=25, ha="right")
+    axes[1].set_xlabel("Trunk node sequence")
+
+    _save_fig(fig, out_dir, "F11_critical_path_profile", plt)
+
+
+# ---------------------------------------------------------------------------
+# F12 — Extended duration curves
+# ---------------------------------------------------------------------------
+
+def fig_F12(out_dir: Path) -> None:
+    plt, _ = _mpl_setup()
+    levels = ["L1", "L2", "L3", "L3plus", "L3NL"]
+    colors = {
+        "L1": "#d62728",
+        "L2": "#ff7f0e",
+        "L3": "#2ca02c",
+        "L3plus": "#1f77b4",
+        "L3NL": "#9467bd",
+    }
+    dispatch = {rid: _load_dispatch(rid) for rid in levels}
+    available = {rid: df for rid, df in dispatch.items() if df is not None and not df.empty}
+    if not available:
+        _placeholder_figure(
+            out_dir, plt, "F12_duration_curves_extended",
+            "Extended duration curves",
+            "No dispatch_hourly.csv found.",
+        )
+        return
+
+    metrics = [
+        ("Q_demand_total_MW", "Heat demand duration"),
+        ("P_pump_MW", "Pump power duration"),
+        ("Q_loss_total_MW", "Heat loss duration"),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(7.09, 2.6), constrained_layout=True)
+    for ax, (col, title) in zip(axes, metrics):
+        plotted = 0
+        for rid in levels:
+            df = available.get(rid)
+            if df is None or col not in df.columns:
+                continue
+            vals = pd.to_numeric(df[col], errors="coerce").fillna(0.0).values
+            if len(vals) == 0:
+                continue
+            vals = np.sort(vals)[::-1]
+            x = np.linspace(0, 100, len(vals))
+            ax.plot(x, vals, label=rid, color=colors[rid], linewidth=1.0)
+            plotted += 1
+        if plotted == 0:
+            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes, fontsize=7)
+        ax.set_title(title, fontsize=8)
+        ax.set_xlabel("Percentile [%]")
+        ax.grid(True, alpha=0.3)
+    axes[0].set_ylabel("Power [MW]")
+    axes[-1].legend(fontsize=6, loc="upper right")
+    if "L3NL" not in available:
+        fig.text(
+            0.5,
+            0.01,
+            "L3NL missing: curve omitted.",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color="#555555",
+        )
+    fig.suptitle("F12 Extended duration curves across model levels", fontsize=9)
+    _save_fig(fig, out_dir, "F12_duration_curves_extended", plt)
+
+
+# ---------------------------------------------------------------------------
+# F13 — Annual energy Sankey
+# ---------------------------------------------------------------------------
+
+def fig_F13(out_dir: Path) -> None:
+    plt, _ = _mpl_setup()
+    run_id = "L3plus" if (RUNS / "L3plus" / "dispatch_hourly.csv").exists() else "L3"
+    df = _load_dispatch(run_id)
+    if df is None or df.empty:
+        _placeholder_figure(
+            out_dir, plt, "F13_energy_sankey",
+            "Annual energy Sankey",
+            "No dispatch data for L3plus/L3.",
+        )
+        return
+
+    def _sum_col(col: str) -> float:
+        if col not in df.columns:
+            return 0.0
+        return float(pd.to_numeric(df[col], errors="coerce").fillna(0.0).sum())
+
+    q_chp = _sum_col("Q_chp_MW")
+    q_bio = _sum_col("Q_biomass_MW") if "Q_biomass_MW" in df.columns else _sum_col("Q_boiler_biomass_MW")
+    q_gas = _sum_col("Q_gasboiler_MW") if "Q_gasboiler_MW" in df.columns else _sum_col("Q_boiler_gas_MW")
+    q_hp = _sum_col("Q_hp_total_MW")
+    q_ek = _sum_col("Q_ek_MW")
+    charge = _sum_col("Q_storage_charge_MW")
+    discharge = _sum_col("Q_storage_discharge_MW")
+    demand = _sum_col("Q_demand_total_MW")
+    losses = _sum_col("Q_loss_total_MW")
+
+    supply_tech = q_chp + q_bio + q_gas + q_hp + q_ek
+    storage_net = discharge - charge
+    imbalance = supply_tech + storage_net - demand - losses
+
+    fig, ax = plt.subplots(figsize=(7.09, 3.2))
+    try:
+        from matplotlib.sankey import Sankey
+
+        flows = [supply_tech, storage_net, -demand, -losses, -imbalance]
+        labels = ["Generation", "Storage net", "Demand", "Network losses", "Residual"]
+        orientations = [0, 1, -1, -1, -1]
+        scale = 1.0 / max(abs(supply_tech), abs(demand), 1.0)
+
+        sankey = Sankey(ax=ax, scale=scale, offset=0.2, unit=" MWh", format="%.0f")
+        sankey.add(
+            flows=flows,
+            labels=labels,
+            orientations=orientations,
+            pathlengths=[0.35, 0.25, 0.30, 0.30, 0.20],
+            facecolor="#4C72B0",
+            alpha=0.8,
+        )
+        sankey.finish()
+        ax.set_title(f"F13 Annual energy Sankey ({run_id})")
+        txt = (
+            f"CHP={q_chp:.0f}, Biomass={q_bio:.0f}, Gas={q_gas:.0f}, "
+            f"HP={q_hp:.0f}, EBoiler={q_ek:.0f} MWh"
+        )
+        ax.text(0.02, -0.08, txt, transform=ax.transAxes, fontsize=7)
+    except Exception as exc:
+        ax.axis("off")
+        ax.text(
+            0.5, 0.5,
+            f"Sankey not available.\n{run_id} annual balance:\n"
+            f"Generation={supply_tech:.0f} MWh, Storage net={storage_net:.0f} MWh,\n"
+            f"Demand={demand:.0f} MWh, Losses={losses:.0f} MWh\nError: {exc}",
+            ha="center", va="center", transform=ax.transAxes, fontsize=8
+        )
+    _save_fig(fig, out_dir, "F13_energy_sankey", plt)
 
 
 # ---------------------------------------------------------------------------
@@ -857,6 +1329,11 @@ FIGURES = {
     "FV1": fig_FV1,
     "F7":  fig_F7,
     "F8":  fig_F8,
+    "F9":  fig_F9,
+    "F10": fig_F10,
+    "F11": fig_F11,
+    "F12": fig_F12,
+    "F13": fig_F13,
 }
 
 

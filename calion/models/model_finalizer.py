@@ -264,6 +264,9 @@ class ModelFinalizer:
     def _unified_to_network_cfg(self, ucfg) -> dict[str, Any]:
         """Convert unified config to thermal_network dict for NetworkManager."""
         nodes_list = []
+        raw_nodes = self.cfg.get("network", {}).get("nodes", {})
+        if not isinstance(raw_nodes, dict):
+            raw_nodes = {}
         for nid, node in ucfg.nodes.items():
             node_dict: dict[str, Any] = {
                 "id": nid,
@@ -287,11 +290,58 @@ class ModelFinalizer:
                 node_dict["demand_fraction"] = node.demand_fraction
             if node.assets:
                 node_dict["components"] = {aid: {} for aid in node.assets}
+
+            # Preserve node-level thermal tuning fields from raw unified config.
+            # These keys are optional and used by thermal node constraints.
+            raw_node = raw_nodes.get(nid, {})
+            if isinstance(raw_node, dict):
+                for key in (
+                    "return_temp_c",
+                    "return_temp_profile",
+                    "return_temp_range",
+                    "return_temp_load_factor",
+                    "return_temp_load_mode",
+                    "return_temp_load_relax_c",
+                    "return_temp_apply_on_passthrough",
+                    "return_temp_frame_on_passthrough",
+                    "return_temp_ref_shift_c",
+                    "return_temp_peak_floor_mw",
+                    "return_temp_ref_profile",
+                    "return_temp_band_c",
+                    "return_temp_band_profile",
+                    "peak_demand_mw",
+                    # Return model V2 / soft-anchor / identification fields
+                    "return_model_mode",
+                    "return_v2_params",
+                    "return_state_init_c",
+                    "return_v2_outdoor_profile",
+                    "return_state_penalty_eur_per_c",
+                    "return_link_penalty_eur_per_c",
+                    "flow_anchor_profile_kg_s",
+                    "flow_anchor_penalty_eur_per_kg_s",
+                    "return_temp_soft_anchor_enabled",
+                    "return_temp_soft_anchor_weight_frame",
+                    "return_temp_soft_anchor_weight_load",
+                    # Summer feasibility + diagnostics fields
+                    "allow_heat_demand_slack",
+                    "max_heat_demand_slack_frac",
+                    "max_heat_demand_slack_abs_mw",
+                    "demand_slack_penalty_eur_per_mwh",
+                    "min_demand_mw",
+                    "min_demand_only_when_positive",
+                    # Node-level Phase-1/state-constraint overrides
+                    "state_validation",
+                ):
+                    if key in raw_node:
+                        node_dict[key] = raw_node[key]
             nodes_list.append(node_dict)
 
         pipes_list = []
+        raw_pipes = self.cfg.get("network", {}).get("pipes", {})
+        if not isinstance(raw_pipes, dict):
+            raw_pipes = {}
         for pid, pipe in ucfg.pipes.items():
-            pipes_list.append({
+            pipe_dict = {
                 "id": pid,
                 "from_node": pipe.from_node,
                 "to_node": pipe.to_node,
@@ -300,7 +350,26 @@ class ModelFinalizer:
                 "diameter_mm": pipe.diameter_mm,
                 "u_value_supply_w_per_m_k": pipe.u_value_supply_w_per_m_k,
                 "u_value_return_w_per_m_k": pipe.u_value_return_w_per_m_k,
-            })
+            }
+            raw_pipe = raw_pipes.get(pid, {})
+            if isinstance(raw_pipe, dict):
+                for key in (
+                    # Existing runtime tuning fields
+                    "heat_loss_flow_guard_kg_s",
+                    "stagnation_mode",
+                    "stagnation_flow_threshold_kg_s",
+                    # Summer warmup relax fields
+                    "summer_warmup_hours",
+                    "summer_warmup_penalty_eur_per_mwh",
+                    "summer_warmup_flow_relax_kg_s",
+                    "summer_warmup_flow_penalty_eur_per_kg_s",
+                    # Optional per-pipe overrides that should survive unified conversion
+                    "max_velocity_m_s",
+                    "state_validation",
+                ):
+                    if key in raw_pipe:
+                        pipe_dict[key] = raw_pipe[key]
+            pipes_list.append(pipe_dict)
 
         net_cfg = self.cfg.get('network', {})
         tn_cfg = self.cfg.get('thermal_network', {})
@@ -308,6 +377,11 @@ class ModelFinalizer:
         lin_cfg = (
             net_cfg.get('linearization')
             or tn_cfg.get('linearization')
+            or {}
+        )
+        temperature_frame_cfg = (
+            net_cfg.get("temperature_frame")
+            or tn_cfg.get("temperature_frame")
             or {}
         )
         # Pass heating curve from network section into thermal_network.parameters
@@ -320,6 +394,9 @@ class ModelFinalizer:
         }
         if heating_curve_cfg:
             parameters["heating_curve"] = heating_curve_cfg
+        raw_parameters = net_cfg.get("parameters", tn_cfg.get("parameters", {}))
+        if isinstance(raw_parameters, dict):
+            parameters.update(raw_parameters)
         return {
             "enabled": True,
             "nodes": nodes_list,
@@ -336,6 +413,7 @@ class ModelFinalizer:
                 self.cfg.get('scenario', {}).get('temperature_linearize', None)))
             ),
             "linearization": lin_cfg,
+            "temperature_frame": temperature_frame_cfg,
             "physics": physics_cfg,
         }
 
@@ -536,6 +614,16 @@ class ModelFinalizer:
                     slack_var[t] * penalty for t in T_set
                 )
 
+        # Soft return-temperature anchors (created in thermal_node).
+        return_anchor_cost = 0
+        return_anchor_terms = getattr(m, 'return_temp_anchor_penalty_terms', [])
+        if return_anchor_terms:
+            T_set = list(m.t)
+            for slack_var, penalty in return_anchor_terms:
+                return_anchor_cost = return_anchor_cost + sum(
+                    slack_var[t] * penalty for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -549,4 +637,5 @@ class ModelFinalizer:
             storage_install_cost=storage_install_total,
             terminal_value=terminal_value,
             demand_slack_cost=demand_slack_cost,
+            return_anchor_cost=return_anchor_cost,
         )

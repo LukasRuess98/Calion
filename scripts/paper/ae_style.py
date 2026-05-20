@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
+from scripts.paper.mpl_export import save_figure_bundle
+
 # ── Dimensions ────────────────────────────────────────────────────────────────
 MM = 1 / 25.4          # mm → inch conversion
 W1 = 85  * MM          # single column
@@ -104,14 +106,11 @@ def fig(ncols=1, nrows=1, width=None, height=None, **kwargs):
     return plt.subplots(nrows, ncols, figsize=(w, h), **kwargs)
 
 
-def save(fig, path_stem, formats=("pdf", "png")):
+def save(fig, path_stem, formats=("pdf", "png", "pgf")):
     """Save figure to one or more formats."""
     import pathlib
     p = pathlib.Path(path_stem)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    for fmt in formats:
-        dpi = 1000 if fmt in ("pdf", "eps", "svg") else 600
-        fig.savefig(p.with_suffix(f".{fmt}"), dpi=dpi)
+    save_figure_bundle(fig, p, formats=formats, raster_dpi=600)
     plt.close(fig)
 
 
