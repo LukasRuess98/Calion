@@ -1,0 +1,14 @@
+# Core dependencies (always required)
+pyomo>=6.0.0             # Optimization modelling (MILP solver interface)
+pyyaml>=6.0.0            # YAML config file parsing
+openpyxl>=3.0.0          # Excel input data reading
+typing-extensions>=4.0   # Backport type utilities (Python 3.10 compat)
+
+# Optional: visualisation
+# matplotlib>=3.5.0
+
+# Install everything at once:
+#   pip install -e ".[all]"
+#
+# Install with solver + dev tools only:
+#   pip install -e ".[dev]"

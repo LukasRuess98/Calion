@@ -58,8 +58,8 @@ network:
   milp_linearize: true
   physics:
     heat_loss: true
-    pressure_drop: true
-    transport_delay: true
+    pressure_drop: false
+    transport_delay: false
   # configs/memmingen/Memmingen_L3_MILP.yaml â€” relevanter Abschnitt
 
   # Wird vom Validation-Runner per Override auf gemessenen Wert gesetzt:

@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software or data, please cite as below."
+type: software
+title: "calion: District Heating Dispatch Optimization Framework"
+abstract: >
+  Code and data package for 'Topology Abstraction and Physics Fidelity Effects
+  on Dispatch Optimization of Electrified District Heating Networks'.
+  Five model levels (L1 copperplate to L3NL MIQCP) implemented in Pyomo/Gurobi,
+  validated against industrial operational data.
+authors:
+  - family-names: "[Nachname]"
+    given-names: "Lukas"
+    affiliation: "Technische Universität München"
+    orcid: "https://orcid.org/XXXX-XXXX-XXXX-XXXX"
+  - family-names: "[Betreuer Nachname]"
+    given-names: "[Betreuer Vorname]"
+    affiliation: "Technische Universität München"
+repository-code: "https://github.com/[username]/calion-dh-fidelity"
+license: MIT
+version: "1.0.0"
+date-released: "2025-06-01"
+keywords:
+  - district heating
+  - MILP
+  - MIQCP
+  - thermal energy storage
+  - heat pump optimization
+  - network modeling
+  - topology abstraction

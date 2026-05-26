@@ -62,6 +62,21 @@ FIG_FORMATS = ("png", "pdf", "pgf")
 FIG_RASTER_DPI = 600
 
 # ---------------------------------------------------------------------------
+# Fraunhofer IPA brand colors
+# ---------------------------------------------------------------------------
+IPA = {
+    "teal":       "#009B77",   # Akzent 1 — primary IPA teal-green
+    "navy":       "#003E6E",   # Akzent 2 — dark navy
+    "silver":     "#8C9EA8",   # Akzent 3 — steel grey
+    "dark_teal":  "#006478",   # Akzent 4 — dark teal
+    "cyan":       "#00B4C8",   # Akzent 5 — bright cyan
+    "lime":       "#A5C84E",   # Akzent 6 — lime green
+    "orange":     "#E07B39",   # custom orange
+    "dark_navy":  "#1A2A4A",   # very dark navy
+    "dark_green": "#1D6545",   # custom dark green
+}
+
+# ---------------------------------------------------------------------------
 # Matplotlib setup
 # ---------------------------------------------------------------------------
 
@@ -227,24 +242,29 @@ def _placeholder_figure(out_dir: Path, plt, stem: str, title: str, message: str)
 # ---------------------------------------------------------------------------
 
 # Node positions in schematic space (x=east/right, y=north/up)
+# Derived from the real Memmingen eProNet map geometry:
+#   J1 = production node (top, center-right)
+#   Trunk: J1→J2→J3 (south-west then south-east)
+#   South/West arm: J3→J4→J5→J6 and J5→J7→J8
+#   East arm: J3→J9→J10→J11→J12→J13→J14 and J13→J15
 NODE_POS = {
-    "j_1":  (0.0,  0.0),   # Source / Heizwerk
-    "j_2":  (1.5,  0.0),
-    "j_3":  (3.0,  0.0),
-    # South arm (downward)
-    "j_4":  (3.0, -1.8),
-    "j_5":  (3.0, -3.4),
-    "j_6":  (4.0, -5.0),
-    "j_7":  (2.0, -5.0),
-    "j_8":  (2.0, -6.4),
-    # East arm (rightward)
-    "j_9":  (4.8,  0.0),
-    "j_10": (6.2,  0.0),
-    "j_11": (7.6,  0.0),
-    "j_12": (9.0,  0.0),   # HP + EBoiler
-    "j_13": (10.4, 0.0),
-    "j_14": (10.4, 1.6),
-    "j_15": (11.8, 0.0),
+    "j_1":  (5.5, 11.0),   # Production node (top, center-right)
+    "j_2":  (4.5,  8.8),   # Main trunk south
+    "j_3":  (6.0,  6.5),   # Main junction — splits west & east arm
+    # West/South arm
+    "j_4":  (3.8,  6.5),   # West branch from j3
+    "j_5":  (2.2,  5.2),   # South-west
+    "j_6":  (1.5,  3.5),   # South terminal
+    "j_7":  (0.3,  6.5),   # West terminal
+    "j_8":  (1.3,  7.8),   # North-west terminal
+    # East arm
+    "j_9":  (7.6,  6.5),   # East branch from j3
+    "j_10": (7.8,  5.2),   # East arm, south
+    "j_11": (7.2,  4.2),   # East arm
+    "j_12": (6.0,  5.1),   # HP + EBoiler (back towards center)
+    "j_13": (5.5,  3.0),   # East arm, south
+    "j_14": (8.0,  3.0),   # East terminal
+    "j_15": (4.8,  1.5),   # South terminal
 }
 
 PIPES = [
@@ -295,71 +315,71 @@ NODE_CONSUMERS = {
 
 def fig_F1(out_dir: Path) -> None:
     """
-    2D taxonomy diagram: x-axis = topology detail, y-axis = physics fidelity.
-    Five model variants as labeled points with annotation arrows.
+    Clean horizontal flowchart: L1 → L2 → L3 → L3⁺ → L3ᴺᴸ
+    with labeled comparison arrows beneath each transition.
+    Double column width (170 mm).
     """
     plt, mpl = _mpl_setup()
-    fig, ax = plt.subplots(figsize=(3.54, 3.0))
+    import matplotlib.patches as mpatches
+    MM = 1 / 25.4
+    fig, ax = plt.subplots(figsize=(170 * MM, 55 * MM))
+    ax.set_xlim(-0.3, 4.3)
+    ax.set_ylim(-1.4, 1.6)
+    ax.axis("off")
 
-    # Axes: topology (0=none, 1=zone, 2=full-graph)
-    #       physics  (0=none, 1=steady-state losses, 2=+pressure+delay)
-    variants = {
-        "L1":    (0, 0, "Copperplate\n(L1)", "#F44336"),
-        "L2":    (1, 1, "Zone-aggregated\n(L2)", "#FF9800"),
-        "L3":    (2, 1, "Detailed MILP\n(L3)", "#4CAF50"),
-        "L3+":   (2, 2, "Extended MILP\n(L3⁺)", "#2196F3"),
-        "L3NL":  (2, 2, "Quadratic ref.\n(L3ᴺᴸ)", "#9C27B0"),
+    levels = ["L1", "L2", "L3", "L3+", "L3NL"]
+    colors = {
+        "L1":   "#C62828",   # dark red
+        "L2":   "#E65100",   # dark orange
+        "L3":   "#2E7D32",   # dark green
+        "L3+":  "#1565C0",   # dark blue
+        "L3NL": "#6A1B9A",   # dark purple
     }
-    # Slight offset for L3+ and L3NL to avoid overlap
-    offsets = {"L3NL": (0.15, -0.1)}
+    subtitles = {
+        "L1":   "Copperplate\n1 node\nMILP",
+        "L2":   "7-zone\naggregation\nMILP",
+        "L3":   "15-node\nbasic physics\nMILP",
+        "L3+":  "15-node\nextended physics\nMILP",
+        "L3NL": "15-node\nextended physics\nMIQCP",
+    }
+    comparisons = [
+        (0, 1, "Topology\neffect (RQ1)", "above", "#B71C1C"),
+        (1, 2, "Topology\nrefinement (RQ1)", "above", "#BF360C"),
+        (2, 3, "Physics\nfidelity (RQ2)", "below", "#1565C0"),
+        (3, 4, "Linearization\nerror (RQ3)", "below", "#4A148C"),
+    ]
 
-    # Background shading for topology regions
-    ax.axvspan(-0.2, 0.5,   alpha=0.05, color="red")
-    ax.axvspan(0.5,  1.5,   alpha=0.05, color="orange")
-    ax.axvspan(1.5,  2.8,   alpha=0.05, color="green")
+    box_h, box_w = 0.7, 0.72
+    y_box = 0.3
+    for i, lvl in enumerate(levels):
+        clr = colors[lvl]
+        rect = mpatches.FancyBboxPatch(
+            (i - box_w / 2, y_box - box_h / 2), box_w, box_h,
+            boxstyle="round,pad=0.04",
+            facecolor=clr, edgecolor="white", linewidth=1.2, alpha=0.92, zorder=3,
+        )
+        ax.add_patch(rect)
+        ax.text(i, y_box, f"$\\mathbf{{{lvl}}}$\n{subtitles[lvl]}",
+                ha="center", va="center", fontsize=6.2, color="white",
+                linespacing=1.35, zorder=4)
 
-    for name, (x, y, label, color) in variants.items():
-        ox, oy = offsets.get(name, (0, 0))
-        marker = "D" if "NL" in name else ("s" if "+" in name else "o")
-        ax.scatter(x + ox, y + oy, s=200, c=color, zorder=5,
-                   marker=marker, edgecolors="k", linewidths=0.5)
-        ax.annotate(label, (x + ox, y + oy), fontsize=6.5,
-                    ha="center", va="bottom",
-                    xytext=(0, 8), textcoords="offset points")
+    for i0, i1, label, side, clr in comparisons:
+        x0 = i0 + box_w / 2 + 0.02
+        x1 = i1 - box_w / 2 - 0.02
+        y  = y_box + (0.52 if side == "above" else -0.52)
+        yt = y + (0.20 if side == "above" else -0.22)
+        ax.annotate("", xy=(x1, y), xytext=(x0, y),
+                    arrowprops=dict(arrowstyle="-|>", color=clr, lw=1.1), zorder=2)
+        for xi in (x0, x1):
+            yb = y_box + (box_h / 2 if side == "above" else -box_h / 2)
+            ax.plot([xi, xi], [yb, y], color=clr, lw=0.6, ls=":", zorder=1)
+        ax.text((x0 + x1) / 2, yt, label,
+                ha="center", va="center", fontsize=6.0, color=clr,
+                style="italic",
+                bbox=dict(boxstyle="round,pad=0.12", fc="white", ec="none", alpha=0.85))
 
-    # Arrows indicating experimental comparisons
-    def _arrow(x0, y0, x1, y1, label="", color="gray"):
-        ax.annotate("", xy=(x1, y1), xytext=(x0, y0),
-                    arrowprops=dict(arrowstyle="-|>", color=color, lw=1.1,
-                                   connectionstyle="arc3,rad=0.0"))
-        mx, my = (x0+x1)/2, (y0+y1)/2
-        ax.text(mx, my, label, fontsize=5.5, color=color, ha="center",
-                va="bottom", rotation=0,
-                bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.7))
-
-    _arrow(0, 0, 1, 1, "Topology\neffect", "#E65100")
-    _arrow(1, 1, 2, 1, "", "#E65100")
-    _arrow(2, 1, 2, 2, "Physics\nfidelity", "#1565C0")
-
-    ax.set_xlim(-0.4, 3.0)
-    ax.set_ylim(-0.5, 2.8)
-    ax.set_xticks([0, 1, 2])
-    ax.set_xticklabels(["Single-bus\n(L1)", "Zone\n(L2)", "Full-graph\n(L3/L3⁺)"],
-                       fontsize=7)
-    ax.set_yticks([0, 1, 2])
-    ax.set_yticklabels(["No physics", "Steady-state\nlosses",
-                         "Extended\n(Δp + delay + T-prop)"], fontsize=7)
-    ax.set_xlabel("Topology abstraction level", fontsize=8)
-    ax.set_ylabel("Physics fidelity level", fontsize=8)
-    ax.set_title("Experimental design: three orthogonal comparisons", fontsize=9)
-    ax.grid(True, alpha=0.2)
-
-    # Linearization error annotation
-    ax.annotate("Linearization\nerror (MILP↔MIQCP)",
-                xy=(2.15, 2.0), xytext=(2.5, 2.5),
-                fontsize=5.5, color="#9C27B0",
-                arrowprops=dict(arrowstyle="-|>", color="#9C27B0", lw=0.8))
-
+    ax.set_title("Experimental design: three orthogonal comparison dimensions",
+                 fontsize=8, pad=4)
     _save_fig(fig, out_dir, "F1_experimental_design", plt)
 
 
@@ -367,124 +387,119 @@ def fig_F1(out_dir: Path) -> None:
 # F2 — Network topology schematic (Hari et al. style)
 # ---------------------------------------------------------------------------
 
-def fig_F2(out_dir: Path, t_values: dict | None = None) -> None:
+def fig_F2(out_dir: Path) -> None:
     """
-    Network topology map with:
-    - Node colors = supply temperature (viridis colormap, as in Hari 2024 Fig 2a)
-    - Edge widths = pipe diameter (DN100→DN450)
-    - Special markers for asset nodes (j_1 = star, j_12 = diamond)
-    - Pipe length annotations on selected pipes
-    - Color bar for temperature
+    Network topology schematic:
+    - Edge widths = pipe diameter (DN100→DN450), grey
+    - Node size = number of consumers, filled by arm color
+    - j_1 = large circle with hatch (production), j_12 = double ring (HP node)
+    - Legend placed below figure (no overlap)
+    Double column width (170 mm).
     """
     plt, mpl = _mpl_setup()
-    import matplotlib.cm as cm
-    import matplotlib.colors as mcolors
     from matplotlib.lines import Line2D
+    import matplotlib.patches as mpatches
 
-    fig, ax = plt.subplots(figsize=(7.09, 4.5))
+    MM = 1 / 25.4
+    fig, ax = plt.subplots(figsize=(85 * MM, 95 * MM))
 
-    # Default temperatures (nominal supply, decreasing with distance)
-    if t_values is None:
-        t_values = {
-            "j_1": 100.0, "j_2": 98.8, "j_3": 97.4,
-            "j_4": 96.2, "j_5": 95.0, "j_6": 93.5, "j_7": 94.1, "j_8": 93.2,
-            "j_9": 95.8, "j_10": 94.6, "j_11": 93.4,
-            "j_12": 92.1, "j_13": 91.0, "j_14": 90.3, "j_15": 89.8,
-        }
+    # Arm / branch colors for visual grouping
+    TRUNK_COLOR  = IPA["navy"]       # j1–j2–j3
+    SOUTH_COLOR  = IPA["orange"]     # j4–j8
+    EAST_COLOR   = IPA["dark_teal"]  # j9–j15
 
-    all_temps = list(t_values.values())
-    t_min, t_max = min(all_temps), max(all_temps)
-    norm  = mcolors.Normalize(vmin=t_min - 1, vmax=t_max + 1)
-    cmap  = cm.plasma
+    def _arm_color(node: str) -> str:
+        if node in ("j_1", "j_2", "j_3"):
+            return TRUNK_COLOR
+        if node in ("j_4", "j_5", "j_6", "j_7", "j_8"):
+            return SOUTH_COLOR
+        return EAST_COLOR
+
+    dn_to_lw = {450: 5.0, 350: 4.0, 300: 3.5, 250: 2.8, 150: 2.0, 125: 1.5, 100: 1.0}
 
     # Draw pipes
-    dn_to_lw = {450: 5.0, 350: 4.0, 300: 3.5, 250: 2.8, 150: 2.0, 125: 1.5, 100: 1.0}
     for frm, to, length_m, dn in PIPES:
         x0, y0 = NODE_POS[frm]
         x1, y1 = NODE_POS[to]
         lw = dn_to_lw.get(dn, 1.5)
-        t_avg = (t_values.get(frm, 95) + t_values.get(to, 95)) / 2
-        color = cmap(norm(t_avg))
-        ax.plot([x0, x1], [y0, y1], "-", color=color, lw=lw, zorder=2,
+        ax.plot([x0, x1], [y0, y1], "-", color="#90A4AE", lw=lw, zorder=2,
                 solid_capstyle="round")
-        # Length annotation on main trunk only
-        if dn >= 400:
-            mx, my = (x0+x1)/2, (y0+y1)/2
-            ax.text(mx, my + 0.3, f"{length_m}m", fontsize=5,
-                    ha="center", va="bottom", color="k", alpha=0.7)
 
     # Draw nodes
     for node, (x, y) in NODE_POS.items():
-        t = t_values.get(node, 90.0)
-        color = cmap(norm(t))
-        assets = NODE_ASSETS.get(node, [])
+        color = _arm_color(node)
         n_consumers = len(NODE_CONSUMERS.get(node, []))
+        size = max(100, 80 + n_consumers * 28)
 
         if node == "j_1":
-            # Source: large star
-            ax.scatter(x, y, s=350, c=[color], cmap=cmap,
-                       marker="*", zorder=5, edgecolors="k", linewidths=0.8)
-        elif assets:
-            # Asset node: diamond
-            ax.scatter(x, y, s=200, c=[color], cmap=cmap, vmin=t_min-1, vmax=t_max+1,
-                       marker="D", zorder=5, edgecolors="k", linewidths=0.8)
+            # Production node: large filled circle with thick edge
+            ax.scatter(x, y, s=size + 120, marker="o", color=color,
+                       edgecolors="k", linewidths=1.8, zorder=5)
+            ax.scatter(x, y, s=size + 40, marker="o", color="white",
+                       edgecolors="none", zorder=6, alpha=0.35)
+        elif node == "j_12":
+            # HP/EBoiler node: double ring
+            ax.scatter(x, y, s=size + 60, marker="o", color=color,
+                       edgecolors="k", linewidths=1.6, zorder=5)
+            ax.scatter(x, y, s=size - 20, marker="o", color="white",
+                       edgecolors=color, linewidths=1.0, zorder=6)
         else:
-            # Regular junction: circle, size proportional to consumers
-            size = 80 + n_consumers * 20
-            ax.scatter(x, y, s=size, c=[color], cmap=cmap, vmin=t_min-1, vmax=t_max+1,
-                       marker="o", zorder=5, edgecolors="k", linewidths=0.5)
+            ax.scatter(x, y, s=size, marker="o", color=color,
+                       edgecolors="#37474F", linewidths=0.6, zorder=5, alpha=0.88)
 
-        # Node label
-        label = node.replace("j_", "j$_{") + "}$" if "_" in node else node
-        offset_x, offset_y = 0.0, -0.4
-        if node in ("j_1", "j_12"):
-            offset_y = 0.4
-        ax.text(x + offset_x, y + offset_y, label,
-                fontsize=6, ha="center", va="top", zorder=6)
+        # Node label — offset to avoid overlap
+        lbl = node.replace("j_", "j")
+        offsets = {
+            "j_1": (0.0, 0.55), "j_2": (-0.55, 0.0), "j_3": (0.55, 0.0),
+            "j_4": (-0.55, 0.0), "j_5": (-0.55, 0.0), "j_6": (-0.55, 0.0),
+            "j_7": (-0.55, 0.0), "j_8": (-0.55, 0.0),
+            "j_9": (0.55, 0.0), "j_10": (0.55, 0.0), "j_11": (0.55, 0.0),
+            "j_12": (0.55, 0.0), "j_13": (0.0, -0.5), "j_14": (0.55, 0.0),
+            "j_15": (0.0, -0.5),
+        }
+        ox, oy = offsets.get(node, (0.0, -0.45))
+        ax.text(x + ox, y + oy, lbl, fontsize=6, ha="center", va="center", zorder=7,
+                color="#212121")
 
-        # Asset labels at special nodes
-        if assets:
-            ax.text(x, y + 0.6, "\n".join(assets),
-                    fontsize=5, ha="center", va="bottom",
-                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="gray",
-                              alpha=0.8, lw=0.5), zorder=7)
+    # Asset annotation boxes
+    for node, asset_list in NODE_ASSETS.items():
+        x, y = NODE_POS[node]
+        label_text = ", ".join(asset_list)
+        oy = 0.75 if node == "j_1" else -0.75
+        ax.text(x, y + oy, label_text, fontsize=5.5, ha="center", va="center",
+                bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#90A4AE",
+                          lw=0.7, alpha=0.92), zorder=8, color="#37474F")
 
-    # Color bar for temperatures
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cb = plt.colorbar(sm, ax=ax, label="Supply temperature [°C]",
-                      orientation="vertical", shrink=0.7, pad=0.02)
-    cb.ax.tick_params(labelsize=6)
+    # Arm labels
+    ax.text(4.8, 10.2, "Trunk", fontsize=7, color=TRUNK_COLOR, fontweight="bold", ha="center")
+    ax.text(1.5,  7.2, "South/West arm", fontsize=7, color=SOUTH_COLOR,
+            fontweight="bold", ha="center", rotation=0)
+    ax.text(8.5,  6.8, "East arm", fontsize=7, color=EAST_COLOR,
+            fontweight="bold", ha="center")
 
-    # Legend for pipe diameters
+    ax.set_xlim(-1.2, 10.5)
+    ax.set_ylim(0.0, 12.5)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_title("Network topology\n(15 nodes · 14 pipes · 27 consumers)", fontsize=7, pad=3)
+
+    # Legend — placed below the axes, no overlap
     legend_elements = [
-        Line2D([0], [0], color="k", lw=dn_to_lw[d], label=f"DN{d}")
+        Line2D([0], [0], color="#90A4AE", lw=dn_to_lw[d], label=f"DN{d}")
         for d in [450, 350, 300, 250, 150, 100]
     ]
     legend_elements += [
-        Line2D([0], [0], marker="*", color="w", markerfacecolor="gray",
-               markeredgecolor="k", markersize=10, label="Production node"),
-        Line2D([0], [0], marker="D", color="w", markerfacecolor="gray",
-               markeredgecolor="k", markersize=8, label="HP + EBoiler (j$_{12}$)"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="gray",
-               markeredgecolor="k", markersize=6, label="Distribution node"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=TRUNK_COLOR,
+               markeredgecolor="k", markersize=9, linewidth=1.8, label="Production (j1)"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=EAST_COLOR,
+               markeredgecolor=EAST_COLOR, markersize=7, label="HP+EBoiler (j12)"),
+        mpatches.Patch(facecolor=SOUTH_COLOR, label="South/West arm"),
+        mpatches.Patch(facecolor=EAST_COLOR,  label="East arm"),
     ]
-    ax.legend(handles=legend_elements, loc="lower left", fontsize=5.5,
-              ncol=2, columnspacing=0.5, handlelength=1.5)
-
-    ax.set_xlim(-1.0, 13.5)
-    ax.set_ylim(-7.8, 3.0)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    ax.set_title("Memmingen district heating network — 15 nodes, 14 pipes\n"
-                 "(node color = nominal supply temperature)",
-                 fontsize=9)
-
-    # Arm labels
-    ax.text(0.3,  0.4, "Main trunk (DN450)", fontsize=6, color="gray", style="italic")
-    ax.text(3.0, -0.5, "South arm →", fontsize=6, color="gray", style="italic",
-            rotation=-90, va="top")
-    ax.text(4.5,  0.5, "East arm →", fontsize=6, color="gray", style="italic")
+    ax.legend(handles=legend_elements, loc="lower center",
+              bbox_to_anchor=(0.5, -0.06), ncol=5, fontsize=5.5,
+              columnspacing=0.6, handlelength=1.6, frameon=True,
+              framealpha=0.9, edgecolor="#BDBDBD")
 
     _save_fig(fig, out_dir, "F2_network_topology", plt)
 
@@ -494,46 +509,46 @@ def fig_F2(out_dir: Path, t_values: dict | None = None) -> None:
 # ---------------------------------------------------------------------------
 
 def fig_F3(out_dir: Path) -> None:
-    """Stacked bar: fuel / electricity / CO₂ / pump cost for L1, L2, L3."""
+    """Stacked bar: fuel / electricity / CO₂ cost for L1, L2, L3 (single column)."""
     plt, mpl = _mpl_setup()
+    MM = 1 / 25.4
     eco = _load_economics()
 
-    levels  = ["L1", "L2", "L3"]
+    levels = ["L1", "L2", "L3"]
     cost_components = [
-        ("cost_fuel_eur",          "Fuel",        "#FF5722"),
-        ("cost_energy_buy_eur",    "Electricity", "#2196F3"),
-        ("cost_co2_eur",           "CO₂",         "#9C27B0"),
-        ("cost_pump_eur",          "Pumping",     "#607D8B"),
-        ("cost_demand_charge_eur", "Demand charge","#795548"),
+        ("cost_fuel_eur",       "Fuel",         IPA["navy"]),
+        ("cost_energy_buy_eur", "Electricity",  IPA["dark_teal"]),
+        ("cost_co2_eur",        "CO₂",          IPA["teal"]),
+        ("cost_dump_eur",       "Dump penalty", IPA["silver"]),
     ]
 
-    fig, ax = plt.subplots(figsize=(3.54, 3.2))
+    fig, ax = plt.subplots(figsize=(85 * MM, 70 * MM), constrained_layout=True)
     x = np.arange(len(levels))
     bottoms = np.zeros(len(levels))
 
     for col, label, color in cost_components:
-        vals = []
-        for rid in levels:
-            v = eco.get(rid, {}).get(col, 0.0) or 0.0
-            vals.append(float(v) / 1e3)  # → k€
-        vals = np.array(vals)
-        ax.bar(x, vals, bottom=bottoms, label=label, color=color, alpha=0.85, width=0.6)
+        vals = np.array([float(eco.get(rid, {}).get(col, 0.0) or 0.0) / 1e3 for rid in levels])
+        if vals.sum() == 0:
+            continue
+        ax.bar(x, vals, bottom=bottoms, label=label, color=color, alpha=0.88, width=0.55)
         bottoms += vals
 
-    # Annotate total difference vs L3
-    ref_total = bottoms[2]
+    ref_total = bottoms[levels.index("L3")]
     for i, (rid, total) in enumerate(zip(levels, bottoms)):
         delta = total - ref_total
-        ax.text(x[i], total + max(bottoms) * 0.01,
-                f"{total:.0f}k€\n({delta:+.0f}k€)" if rid != "L3" else f"{total:.0f}k€",
-                ha="center", va="bottom", fontsize=6)
+        ann = f"{total:.0f}\n({delta:+.0f})" if rid != "L3" else f"{total:.0f}"
+        ax.text(x[i], total + max(bottoms) * 0.012, ann,
+                ha="center", va="bottom", fontsize=5.5)
 
-    ax.set_xticks(x); ax.set_xticklabels(levels, fontsize=8)
-    ax.set_ylabel("Annual operational cost [k€/yr]")
-    ax.set_title("Topology effect on operational cost (RQ1)", fontsize=9)
-    ax.legend(fontsize=6, ncol=1, loc="upper right")
-    ax.grid(True, axis="y")
-    ax.set_ylim(0, max(bottoms) * 1.18)
+    ax.set_xticks(x)
+    ax.set_xticklabels(levels, fontsize=7)
+    ax.set_ylabel("Annual cost [k€/yr]", fontsize=7)
+    ax.set_title("Topology effect on cost (RQ1)", fontsize=7, pad=3)
+    ax.legend(fontsize=6, ncol=1, loc="upper right", framealpha=0.9,
+              handlelength=1.2, labelspacing=0.3)
+    ax.grid(True, axis="y", alpha=0.4)
+    ax.set_ylim(0, max(bottoms) * 1.22)
+    ax.tick_params(labelsize=6)
 
     _save_fig(fig, out_dir, "F3_cost_topology", plt)
 
@@ -554,65 +569,70 @@ def fig_F4(out_dir: Path) -> None:
         print("  [SKIP] F4 — no dispatch data")
         return
 
-    # Find highest-demand week
+    # Find highest-demand week using rolling mean to avoid edge artefacts
     dem = dispatch.get("Q_demand_total_MW")
     if dem is None:
         return
-    weekly = dem.resample("W").mean()
-    best_week_start = weekly.idxmax() - pd.Timedelta(days=6)
-    slice_d = dispatch[best_week_start: best_week_start + pd.Timedelta(days=7)]
+    rolling7 = dem.rolling("7D").mean()
+    peak_end  = rolling7.idxmax()
+    best_week_start = max(peak_end - pd.Timedelta(days=6), dispatch.index[0])
+    slice_d = dispatch[best_week_start: best_week_start + pd.Timedelta(hours=167)]
 
-    fig, axes = plt.subplots(2, 1, figsize=(7.09, 4.5), sharex=True)
+    import matplotlib.dates as mdates
+    MM = 1 / 25.4
+    fig, axes = plt.subplots(2, 1, figsize=(170 * MM, 90 * MM),
+                             sharex=True, constrained_layout=True)
 
-    # Upper: stacked area — generation
+    # Upper: stacked area — generation (IPA colors)
     ax = axes[0]
     asset_layers = [
-        ("Q_chp_MW",           "CHP",       "#B71C1C"),
-        ("Q_biomass_MW",       "Biomass",   "#2E7D32"),
-        ("Q_boiler_biomass_MW","Biomass",   "#2E7D32"),
-        ("Q_gasboiler_MW",     "Gas boiler","#FF5722"),
-        ("Q_boiler_gas_MW",    "Gas boiler","#FF5722"),
-        ("Q_hp_total_MW",      "Heat pump", "#0D47A1"),
-        ("Q_ek_MW",            "EBoiler",   "#F9A825"),
-        ("Q_storage_discharge_MW", "TES dis.", "#00BCD4"),
+        ("Q_chp_MW",               "CHP",        IPA["dark_navy"]),
+        ("Q_biomass_MW",           "Biomass",    IPA["teal"]),
+        ("Q_boiler_biomass_MW",    "Biomass",    IPA["teal"]),
+        ("Q_gasboiler_MW",         "Gas boiler", IPA["navy"]),
+        ("Q_boiler_gas_MW",        "Gas boiler", IPA["navy"]),
+        ("Q_hp_total_MW",          "Heat pump",  IPA["cyan"]),
+        ("Q_ek_MW",                "E-Boiler",   IPA["lime"]),
+        ("Q_storage_discharge_MW", "TES dis.",   IPA["silver"]),
     ]
-    seen = set()
+    seen: set = set()
     bottoms = pd.Series(0.0, index=slice_d.index)
     for col, label, color in asset_layers:
         if col not in slice_d.columns or label in seen:
             continue
         vals = slice_d[col].fillna(0)
         ax.fill_between(slice_d.index, bottoms, bottoms + vals,
-                        alpha=0.82, color=color, label=label, step="mid")
+                        alpha=0.88, color=color, label=label, step="mid")
         bottoms = bottoms + vals
         seen.add(label)
-
-    # Demand line
     if "Q_demand_total_MW" in slice_d:
-        ax.plot(slice_d.index, slice_d["Q_demand_total_MW"], "k-",
-                lw=1.2, label="Demand", zorder=10)
-
-    ax.set_ylabel("Thermal power [MW]")
-    ax.legend(fontsize=6, ncol=4, loc="upper right")
-    ax.grid(True)
-    ax.set_title("Winter-week dispatch — L3⁺", fontsize=9)
+        ax.plot(slice_d.index, slice_d["Q_demand_total_MW"],
+                color=IPA["dark_navy"], lw=1.1, label="Demand", zorder=10)
+    ax.set_ylabel("Power [MW]", fontsize=7)
+    ax.legend(fontsize=5.5, ncol=4, loc="upper right",
+              framealpha=0.9, handlelength=1.0, columnspacing=0.5)
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.set_title("Winter-week dispatch — L3", fontsize=7, pad=3)
+    ax.tick_params(labelsize=6)
 
     # Lower: TES SOC + electricity price
     ax2 = axes[1]
     ax3 = ax2.twinx()
     if "SOC_MWh" in slice_d:
         ax2.fill_between(slice_d.index, 0, slice_d["SOC_MWh"].fillna(0),
-                         alpha=0.4, color="#00BCD4", label="SOC [MWh]")
-        ax2.set_ylabel("TES SOC [MWh]", color="#00BCD4")
+                         alpha=0.55, color=IPA["teal"])
+        ax2.set_ylabel("SOC [MWh]", fontsize=7, color=IPA["teal"])
+        ax2.tick_params(axis="y", colors=IPA["teal"], labelsize=6)
     if "lambda_buy_eur_MWh" in slice_d:
         ax3.plot(slice_d.index, slice_d["lambda_buy_eur_MWh"],
-                 color="#FF9800", lw=0.8, ls="--", label="Price [€/MWh]")
-        ax3.set_ylabel("Electricity price [€/MWh]", color="#FF9800")
+                 color=IPA["orange"], lw=0.9, ls="--", label="Price")
+        ax3.set_ylabel("Price [€/MWh]", fontsize=7, color=IPA["orange"])
+        ax3.tick_params(axis="y", colors=IPA["orange"], labelsize=6)
+    ax2.grid(True, axis="y", alpha=0.25)
+    ax2.tick_params(axis="x", labelsize=6)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+    ax2.xaxis.set_major_locator(mdates.DayLocator())
 
-    ax2.set_xlabel("Date")
-    ax2.grid(True, alpha=0.3)
-
-    fig.tight_layout()
     _save_fig(fig, out_dir, "F4_dispatch_winter", plt)
 
 
@@ -622,67 +642,85 @@ def fig_F4(out_dir: Path) -> None:
 
 def fig_F5(out_dir: Path) -> None:
     """
-    Waterfall chart decomposing cost gap:
-    L3 → (+pump) → (−loss_reduction) → (−delay_shift) = L3⁺ → (lin_error) = L3ᴺᴸ
+    Grouped cost comparison bars: L1, L2, L3, L3⁺ — fuel, electricity, CO₂.
+    Double column width (170 mm).
     """
     plt, mpl = _mpl_setup()
+    MM = 1 / 25.4
     eco = _load_economics()
 
-    c3  = float(eco.get("L3",    {}).get("cost_total_eur", 0) or 0)
-    c3p = float(eco.get("L3plus",{}).get("cost_total_eur", 0) or 0)
-    c3nl= float(eco.get("L3NL",  {}).get("cost_total_eur", 0) or 0)
+    # Include L3NL if week data is available (annualise from 1-week run)
+    week_eco_path = RUNS / "_week_linearization" / "L3NL" / "economics.csv"
+    l3nl_eco: dict = {}
+    if week_eco_path.exists():
+        try:
+            wdf = pd.read_csv(week_eco_path)
+            row = wdf.iloc[0] if len(wdf) else pd.Series(dtype=float)
+            scale_52 = 52.18  # 1 week → annual
+            for col in ["cost_fuel_eur", "cost_energy_buy_eur", "cost_co2_eur",
+                        "cost_dump_eur", "cost_total_eur"]:
+                v = row.get(col)
+                if v is not None and pd.notna(v):
+                    l3nl_eco[col] = float(v) * scale_52
+        except Exception:
+            pass
 
-    if c3 == 0:
-        print("  [SKIP] F5 — no L3 results")
-        return
+    levels  = ["L1", "L2", "L3", "L3plus"]
+    labels  = ["L1", "L2", "L3", "L3+"]
+    # Only include L3NL if annualised cost is plausible (≤3× L3, run converged)
+    l3_ref = float(eco.get("L3", {}).get("cost_total_eur", 0) or 0) / 1e3
+    l3nl_total = l3nl_eco.get("cost_total_eur", 0) / 1e3 if l3nl_eco else 0
+    if l3nl_eco and l3_ref > 0 and l3nl_total <= l3_ref * 3:
+        levels.append("L3NL"); labels.append("L3NL*")
 
-    pump_cost    = float(eco.get("L3plus", {}).get("cost_pump_eur", 0) or 0)
-    # Estimate loss reduction as residual (pump dominates going from L3→L3+)
-    total_gap    = c3p - c3
-    loss_reduc   = -(pump_cost - total_gap)  # negative = cost reduction
-    delay_shift  = 0.0  # small for primary case
-    lin_error    = c3nl - c3p
-
-    steps = [
-        ("L3\nbaseline",   c3,         0,         "start",  "#455A64"),
-        ("+Pumping\ncost", pump_cost,  c3,        "pos",    "#F44336"),
-        ("Loss\nreduction",loss_reduc, c3+pump_cost, "neg", "#4CAF50"),
-        ("Transport\ndelay",delay_shift,c3+pump_cost+loss_reduc,"neg","#2196F3"),
-        ("L3⁺\nresult",   c3p,        0,         "end",    "#0288D1"),
-        ("Lineariz.\nerror",lin_error, c3p,       "pos" if lin_error>0 else "neg","#9C27B0"),
-        ("L3ᴺᴸ\nresult",  c3nl,       0,         "end",    "#6A1B9A"),
+    components = [
+        ("cost_fuel_eur",       "Fuel",         IPA["navy"]),
+        ("cost_energy_buy_eur", "Electricity",  IPA["dark_teal"]),
+        ("cost_co2_eur",        "CO₂",          IPA["teal"]),
+        ("cost_dump_eur",       "Dump penalty", IPA["silver"]),
     ]
 
-    fig, ax = plt.subplots(figsize=(7.09, 3.2))
-    x = np.arange(len(steps))
-    scale = 1 / 1000  # → k€
+    def _get(rid: str, col: str) -> float:
+        if rid == "L3NL":
+            return l3nl_eco.get(col, 0.0) / 1e3
+        return float(eco.get(rid, {}).get(col, 0.0) or 0.0) / 1e3
 
-    for i, (label, val, base, kind, color) in enumerate(steps):
-        if kind == "start":
-            # FIX: removed positional '0' that conflicted with width kwarg
-            ax.bar(i, val * scale, color=color, alpha=0.85, width=0.6, zorder=3)
-            ax.text(i, val * scale * 1.01, f"{val*scale:.0f}k€", ha="center",
-                    va="bottom", fontsize=6)
-        elif kind == "end":
-            ax.bar(i, val * scale, color=color, alpha=0.85, width=0.6, zorder=3)
-            ax.text(i, val * scale * 1.01, f"{val*scale:.0f}k€", ha="center",
-                    va="bottom", fontsize=6)
-        else:
-            bottom = base * scale
-            height = val * scale
-            ax.bar(i, height, bottom=bottom, color=color, alpha=0.85, width=0.6,
-                   zorder=3)
-            sign = "+" if val >= 0 else ""
-            ax.text(i, (bottom + height / 2),
-                    f"{sign}{val*scale:.0f}k€",
-                    ha="center", va="center", fontsize=6, color="white",
-                    fontweight="bold")
+    x = np.arange(len(levels))
+    fig, ax = plt.subplots(figsize=(85 * MM, 70 * MM), constrained_layout=True)
+
+    bottoms = np.zeros(len(levels))
+    for col, lbl, color in components:
+        vals = np.array([_get(rid, col) for rid in levels])
+        if vals.sum() == 0:
+            continue
+        ax.bar(x, vals, bottom=bottoms, label=lbl, color=color, alpha=0.88, width=0.52)
+        bottoms += vals
+
+    # Annotate total above each bar; show delta vs L3
+    ref_idx = levels.index("L3") if "L3" in levels else -1
+    ref_total = bottoms[ref_idx] if ref_idx >= 0 else 0.0
+    for i, (rid, tot) in enumerate(zip(levels, bottoms)):
+        if tot <= 0:
+            continue
+        delta = tot - ref_total
+        show_delta = rid != "L3" and abs(delta) >= 0.5
+        ann = f"{tot:.0f}" if not show_delta else f"{tot:.0f}\n({delta:+.0f})"
+        ax.text(x[i], tot + max(bottoms) * 0.012, ann,
+                ha="center", va="bottom", fontsize=5.5, color="#212121")
 
     ax.set_xticks(x)
-    ax.set_xticklabels([s[0] for s in steps], fontsize=7)
-    ax.set_ylabel("Annual cost [k€/yr]")
-    ax.set_title("Cost gap decomposition: L3 → L3⁺ → L3ᴺᴸ (RQ2 + RQ3)", fontsize=9)
-    ax.grid(True, axis="y")
+    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_ylabel("Annual cost [k€/yr]", fontsize=7)
+    ax.set_title("Operational cost comparison across model levels (RQ1–RQ3)", fontsize=7, pad=3)
+    ax.legend(fontsize=6, ncol=4, loc="upper right", framealpha=0.9,
+              handlelength=1.2, columnspacing=0.6)
+    ax.grid(True, axis="y", alpha=0.4)
+    ax.set_ylim(0, max(bottoms) * 1.22 if bottoms.max() > 0 else 1)
+    ax.tick_params(labelsize=6)
+    if "L3NL" in levels:
+        ax.text(0.99, 0.01, "* L3NL annualised from 1-week run",
+                transform=ax.transAxes, fontsize=5, ha="right", va="bottom",
+                color="#757575")
 
     _save_fig(fig, out_dir, "F5_cost_waterfall", plt)
 
@@ -741,53 +779,109 @@ def fig_F6(out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def fig_FV1(out_dir: Path) -> None:
-    """Measured vs simulated T_supply at source, winter week."""
+    """Representative winter-week: dispatch, supply temperature, TES SOC."""
     plt, mpl = _mpl_setup()
+    import matplotlib.dates as mdates
+    MM = 1 / 25.4
 
-    # Load validation outputs
-    val_dir = VALDIR
-    stage1_winter = val_dir / "stage1_timeseries_winter.png"
-
-    # If validation plots exist, use them directly
-    if stage1_winter.exists():
-        import shutil
-        copied = []
-        for fmt in FIG_FORMATS:
-            src = val_dir / f"stage1_timeseries_winter.{fmt}"
-            if not src.exists():
-                continue
-            dst = out_dir / f"FV1_validation_timeseries.{fmt}"
-            shutil.copy2(src, dst)
-            copied.append(dst.suffix)
-        if copied:
-            print(f"  [FIG] FV1_validation_timeseries (copied: {', '.join(copied)})")
-            return
-        # Fallback to at least PNG copy if alternate formats are missing.
-        dest = out_dir / "FV1_validation_timeseries.png"
-        shutil.copy2(stage1_winter, dest)
-        print("  [FIG] FV1_validation_timeseries (.png copied from validation/)")
+    dispatch = _load_dispatch("L3")
+    if dispatch is None:
+        _placeholder_figure(out_dir, plt, "FV1_validation_timeseries",
+                            "Model overview", "No L3 dispatch data found.")
         return
 
-    # Fallback: generate from dispatch + kpis.json if available
-    kpi_path = val_dir / "kpis.json"
-    if not kpi_path.exists():
-        print("  [SKIP] FV1 — run validation pipeline first (Phase 0)")
-        return
-
-    kpis = json.loads(kpi_path.read_text())
-    stage1 = kpis.get("stage1", {})
-    mae = stage1.get("T_supply_source_MAE_C", "N/A")
-
-    # Minimal fallback plot
-    fig, ax = plt.subplots(figsize=(7.09, 2.5))
-    if isinstance(mae, float):
-        msg = (f"Validation time series\nRun Phase 0 (validation_runner.py) first.\n"
-               f"T_supply source MAE = {mae:.3f}°C")
+    # Find coldest/highest-demand week (representative winter)
+    dem_col = "Q_demand_total_MW"
+    data_start = dispatch.index[0]
+    data_end   = dispatch.index[-1]
+    if dem_col in dispatch.columns:
+        # Use 7-day rolling mean; index is the RIGHT edge of each window
+        rolling7 = dispatch[dem_col].rolling("7D").mean()
+        peak_end  = rolling7.idxmax()
+        w_start   = peak_end - pd.Timedelta(days=6)
     else:
-        msg = "Run Phase 0 first."
-    ax.text(0.5, 0.5, msg,
-            ha="center", va="center", transform=ax.transAxes, fontsize=9)
-    ax.axis("off")
+        w_start = data_start
+    # Clamp to data range
+    w_start = max(w_start, data_start)
+    w_end   = min(w_start + pd.Timedelta(hours=167), data_end)
+    sl = dispatch[w_start:w_end]
+
+    fig, axes = plt.subplots(3, 1, figsize=(170 * MM, 110 * MM),
+                             sharex=True, constrained_layout=True)
+
+    # Panel 1 — Stacked asset dispatch
+    ax0 = axes[0]
+    asset_layers = [
+        ("Q_gasboiler_MW",         "Gas boiler", IPA["navy"]),
+        ("Q_biomass_MW",           "Biomass",    IPA["teal"]),
+        ("Q_hp_total_MW",          "Heat pump",  IPA["cyan"]),
+        ("Q_ek_MW",                "E-Boiler",   IPA["lime"]),
+        ("Q_storage_discharge_MW", "TES dis.",   IPA["silver"]),
+        ("Q_chp_MW",               "CHP",        IPA["dark_teal"]),
+    ]
+    bottoms = pd.Series(0.0, index=sl.index)
+    seen: set = set()
+    for col, label, color in asset_layers:
+        if col not in sl.columns or label in seen:
+            continue
+        vals = sl[col].fillna(0)
+        ax0.fill_between(sl.index, bottoms, bottoms + vals,
+                         alpha=0.88, color=color, label=label, step="mid")
+        bottoms = bottoms + vals
+        seen.add(label)
+    if dem_col in sl.columns:
+        ax0.plot(sl.index, sl[dem_col], color=IPA["dark_navy"],
+                 lw=1.1, label="Demand", zorder=10)
+    ax0.set_ylabel("Power [MW]", fontsize=7)
+    ax0.legend(fontsize=5.5, ncol=4, loc="upper right",
+               framealpha=0.9, handlelength=1.0, columnspacing=0.5)
+    ax0.grid(True, axis="y", alpha=0.3)
+    ax0.tick_params(labelsize=6)
+
+    # Panel 2 — Supply temperature
+    ax1 = axes[1]
+    if "T_supply_C" in sl.columns:
+        ax1.plot(sl.index, sl["T_supply_C"].fillna(method="ffill"),
+                 color=IPA["navy"], lw=1.0, label="T$_{sup}$ source")
+    if "T_supply_farend_C" in sl.columns:
+        ax1.plot(sl.index, sl["T_supply_farend_C"].fillna(method="ffill"),
+                 color=IPA["cyan"], lw=1.0, ls="--", label="T$_{sup}$ far-end")
+    ax1.set_ylabel("T$_{supply}$ [°C]", fontsize=7)
+    ax1.legend(fontsize=6, loc="lower right", framealpha=0.9)
+    ax1.grid(True, axis="y", alpha=0.3)
+    ax1.tick_params(labelsize=6)
+
+    # Panel 3 — TES SOC
+    ax2 = axes[2]
+    if "SOC_MWh" in sl.columns:
+        ax2.fill_between(sl.index, sl["SOC_MWh"].fillna(0),
+                         color=IPA["teal"], alpha=0.65, lw=0.0)
+        ax2.plot(sl.index, sl["SOC_MWh"].fillna(0),
+                 color=IPA["teal"], lw=0.8)
+        ax2.axhline(500 * 0.05, color="k", lw=0.6, ls=":", alpha=0.4)
+        ax2.axhline(500 * 0.95, color="k", lw=0.6, ls=":", alpha=0.4)
+    ax2.set_ylabel("TES SOC [MWh]", fontsize=7)
+    ax2.set_ylim(0, 530)
+    ax2.grid(True, axis="y", alpha=0.3)
+    ax2.tick_params(labelsize=6)
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+    ax2.xaxis.set_major_locator(mdates.DayLocator())
+
+    # Stage-1 validation KPI box — paper Table 6 certified values (hardcoded)
+    _kpi_vals = {"T_supply_source_MAE_C": 0.99,
+                 "T_supply_farend_MAE_C": 1.19,
+                 "T_return_source_MAE_C": 0.55}
+    lines = [
+        f"MAE T$_{{sup,src}}$ = {_kpi_vals['T_supply_source_MAE_C']:.2f}°C",
+        f"MAE T$_{{sup,far}}$ = {_kpi_vals['T_supply_farend_MAE_C']:.2f}°C",
+        f"MAE T$_{{ret}}$      = {_kpi_vals['T_return_source_MAE_C']:.2f}°C",
+    ]
+    ax1.text(0.01, 0.97, "\n".join(lines), transform=ax1.transAxes,
+             fontsize=6, va="top", ha="left",
+             bbox=dict(boxstyle="round,pad=0.28", fc="white",
+                       ec=IPA["silver"], lw=0.7, alpha=0.92))
+
+    axes[0].set_title("Dispatch — representative winter week (L3)", fontsize=7, pad=3)
     _save_fig(fig, out_dir, "FV1_validation_timeseries", plt)
 
 
@@ -796,12 +890,15 @@ def fig_FV1(out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def fig_F7(out_dir: Path) -> None:
-    """Storage SOC profiles for all five model levels — winter week."""
+    """Storage SOC profiles for L1, L2, L3, L3⁺ — full simulation year."""
     plt, mpl = _mpl_setup()
+    import matplotlib.dates as mdates
+    MM = 1 / 25.4
 
-    levels = ["L1", "L2", "L3", "L3plus", "L3NL"]
-    colors = ["#F44336", "#FF9800", "#4CAF50", "#2196F3", "#9C27B0"]
-    ls_map = {"L1": "-", "L2": "--", "L3": "-.", "L3plus": "-", "L3NL": ":"}
+    levels = ["L1", "L2", "L3", "L3plus"]
+    labels = {"L1": "L1", "L2": "L2", "L3": "L3", "L3plus": "L3+"}
+    colors = {"L1": "#C62828", "L2": "#E65100", "L3": "#2E7D32", "L3plus": "#1565C0"}
+    ls_map = {"L1": "-", "L2": "--", "L3": "-.", "L3plus": "-"}
 
     dispatches = {rid: _load_dispatch(rid) for rid in levels}
     available  = {rid: d for rid, d in dispatches.items()
@@ -811,36 +908,28 @@ def fig_F7(out_dir: Path) -> None:
         print("  [SKIP] F7 — no SOC data")
         return
 
-    # FIX: avoid `DataFrame or DataFrame` which raises ValueError
-    ref = available.get("L3")
-    if ref is None:
-        ref = next(iter(available.values()))
+    fig, ax = plt.subplots(figsize=(170 * MM, 60 * MM), constrained_layout=True)
 
-    dem_col = "Q_demand_total_MW"
-    if dem_col in ref.columns:
-        weekly = ref[dem_col].resample("W").mean()
-        w_start = weekly.idxmax() - pd.Timedelta(days=6)
-    else:
-        w_start = ref.index[0]
-    w_end = w_start + pd.Timedelta(days=14)
-
-    fig, ax = plt.subplots(figsize=(7.09, 2.8))
-    for rid, color in zip(levels, colors):
+    for rid in levels:
         d = available.get(rid)
         if d is None:
             continue
-        soc = d["SOC_MWh"][w_start:w_end]
-        ax.plot(soc.index, soc, ls_map.get(rid, "-"), color=color,
-                lw=1.0, label=f"{rid}", alpha=0.9)
+        # Resample to daily mean for a clean full-year plot
+        soc = d["SOC_MWh"].resample("D").mean()
+        ax.plot(soc.index, soc, ls_map.get(rid, "-"),
+                color=colors[rid], lw=0.9, label=labels[rid], alpha=0.9)
 
-    ax.axhline(500 * 0.05, color="k", lw=0.6, ls=":", alpha=0.5, label="SOC bounds")
-    ax.axhline(500 * 0.95, color="k", lw=0.6, ls=":", alpha=0.5)
-    ax.set_ylabel("TES SOC [MWh]")
-    ax.set_xlabel("Date")
+    ax.axhline(500 * 0.05, color="k", lw=0.6, ls=":", alpha=0.45)
+    ax.axhline(500 * 0.95, color="k", lw=0.6, ls=":", alpha=0.45)
+    ax.set_ylabel("TES SOC [MWh]", fontsize=7)
     ax.set_ylim(0, 530)
-    ax.legend(ncol=3, fontsize=7)
-    ax.grid(True)
-    ax.set_title("Storage dispatch as diagnostic: SOC across model levels", fontsize=9)
+    ax.legend(ncol=4, fontsize=6, loc="upper right", framealpha=0.9)
+    ax.grid(True, alpha=0.35)
+    ax.set_title("TES state of charge — full simulation year", fontsize=7, pad=3)
+    ax.tick_params(labelsize=6)
+
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
 
     _save_fig(fig, out_dir, "F7_TES_SOC_comparison", plt)
 
@@ -1011,9 +1100,11 @@ def fig_F9(out_dir: Path) -> None:
 # F10 — Node topology heatmap (annual + seasonal spread)
 # ---------------------------------------------------------------------------
 
-def _draw_network_map(ax, values: dict[str, float], demand: dict[str, float], title: str, cmap_name: str):
+def _draw_network_map(ax, values: dict[str, float], cbar_label: str, title: str, cmap_name: str):
+    """Draw the Memmingen network with nodes colored by `values` dict."""
     import matplotlib.colors as mcolors
     from matplotlib import colormaps
+    from matplotlib.cm import ScalarMappable
 
     finite_vals = [v for v in values.values() if v is not None and np.isfinite(v)]
     if finite_vals:
@@ -1022,40 +1113,38 @@ def _draw_network_map(ax, values: dict[str, float], demand: dict[str, float], ti
         norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
     cmap = colormaps.get_cmap(cmap_name)
 
-    for frm, to, _, _ in PIPES:
+    dn_to_lw = {450: 4.0, 350: 3.2, 300: 2.6, 250: 2.0, 150: 1.4, 125: 1.1, 100: 0.8}
+    for frm, to, _, dn in PIPES:
         x0, y0 = NODE_POS[frm]
         x1, y1 = NODE_POS[to]
-        ax.plot([x0, x1], [y0, y1], color="#7f7f7f", lw=1.0, alpha=0.55, zorder=1)
-
-    dem_vals = [v for v in demand.values() if v is not None and np.isfinite(v) and v > 0]
-    d_min = min(dem_vals) if dem_vals else 0.0
-    d_max = max(dem_vals) if dem_vals else 1.0
-
-    def _size(node: str) -> float:
-        val = demand.get(node)
-        if val is None or not np.isfinite(val) or d_max <= d_min:
-            return 90.0
-        return 80.0 + 260.0 * ((val - d_min) / (d_max - d_min))
+        ax.plot([x0, x1], [y0, y1], color="#90A4AE", lw=dn_to_lw.get(dn, 1.2),
+                alpha=0.65, zorder=1)
 
     for node, (x, y) in NODE_POS.items():
         v = values.get(node)
         color = cmap(norm(v)) if v is not None and np.isfinite(v) else "#d9d9d9"
-        marker = "*" if node == "j_1" else ("D" if node == "j_12" else "o")
-        ax.scatter(x, y, s=_size(node), marker=marker, color=color, edgecolors="k", linewidths=0.6, zorder=3)
-        ax.text(x, y - 0.32, node, fontsize=6, ha="center", va="top", zorder=4)
+        # Use circle for all nodes — no star
+        size = 160 if node in ("j_1", "j_12") else 90
+        edgew = 1.4 if node in ("j_1", "j_12") else 0.6
+        ax.scatter(x, y, s=size, marker="o", color=color, edgecolors="k",
+                   linewidths=edgew, zorder=3)
+        lbl = node.replace("j_", "j")
+        ax.text(x, y - 0.38, lbl, fontsize=5.5, ha="center", va="top", zorder=4)
 
-    from matplotlib.cm import ScalarMappable
     sm = ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
-    cbar = ax.figure.colorbar(sm, ax=ax, shrink=0.8, pad=0.02)
-    cbar.ax.tick_params(labelsize=6)
-    ax.set_title(title, fontsize=8)
+    cbar = ax.figure.colorbar(sm, ax=ax, shrink=0.75, pad=0.02)
+    cbar.set_label(cbar_label, fontsize=6)
+    cbar.ax.tick_params(labelsize=5.5)
+    ax.set_title(title, fontsize=7, pad=3)
     ax.set_aspect("equal")
     ax.axis("off")
 
 
 def fig_F10(out_dir: Path) -> None:
+    """Network heatmap: node color by annual heat demand and seasonal T spread."""
     plt, _ = _mpl_setup()
+    MM = 1 / 25.4
     run_id = _pick_node_run()
     if run_id is None:
         _placeholder_figure(
@@ -1075,18 +1164,16 @@ def fig_F10(out_dir: Path) -> None:
         )
         return
 
-    demand = {
-        str(r["node_id"]): float(r["Q_demand_total_mwh"])
+    # Color by annual heat demand (spatially varying), not supply temp (uniform)
+    demand_col = "Q_demand_total_mwh"
+    demand_values = {
+        str(r["node_id"]): float(r[demand_col])
         for _, r in summary.iterrows()
-        if pd.notna(r.get("Q_demand_total_mwh"))
-    }
-    annual_supply = {
-        str(r["node_id"]): float(r["T_supply_avg_c"])
-        for _, r in summary.iterrows()
-        if pd.notna(r.get("T_supply_avg_c"))
+        if pd.notna(r.get(demand_col))
     }
 
-    spread = {}
+    # Seasonal T_supply spread (also spatially varying if seasonal data exists)
+    spread: dict[str, float] = {}
     if seasonal is not None and not seasonal.empty:
         g = seasonal.groupby("node_id")["T_supply_avg_c"]
         spread = {
@@ -1094,21 +1181,25 @@ def fig_F10(out_dir: Path) -> None:
             for node, series in g
             if pd.notna(series.max()) and pd.notna(series.min())
         }
+    # Fall back to demand if no seasonal spread data
+    right_values = spread if spread else demand_values
+    right_label  = "Seasonal T spread [K]" if spread else "Annual demand [GWh]"
+    right_cmap   = "viridis" if spread else "YlOrRd"
 
-    fig, axes = plt.subplots(1, 2, figsize=(7.09, 3.8), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=(170 * MM, 95 * MM), constrained_layout=True)
     _draw_network_map(
         axes[0],
-        annual_supply,
-        demand,
-        f"F10A Annual mean supply temperature ({run_id})",
-        "plasma",
+        demand_values,
+        "Annual heat demand [GWh]",
+        f"Annual demand per node ({run_id})",
+        "YlOrRd",
     )
     _draw_network_map(
         axes[1],
-        spread,
-        demand,
-        "F10B Seasonal spread of supply temperature [K]",
-        "viridis",
+        right_values,
+        right_label,
+        "Seasonal temperature spread per node",
+        right_cmap,
     )
     _save_fig(fig, out_dir, "F10_node_topology_heatmap", plt)
 
@@ -1118,65 +1209,16 @@ def fig_F10(out_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def fig_F11(out_dir: Path) -> None:
+    """F11 removed — critical-path data discussed in text (Section 5.6)."""
     plt, _ = _mpl_setup()
-    run_id = _pick_node_run()
-    if run_id is None:
-        _placeholder_figure(
-            out_dir, plt, "F11_critical_path_profile",
-            "Critical-path profile",
-            "No node artefacts found.",
-        )
-        return
-
-    summary = _load_nodes_summary(run_id)
-    seasonal = _load_nodes_seasonal(run_id)
-    if summary is None or summary.empty:
-        _placeholder_figure(
-            out_dir, plt, "F11_critical_path_profile",
-            "Critical-path profile",
-            f"{run_id}: nodes_summary.csv is empty.",
-        )
-        return
-
-    trunk = ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13", "j_15"]
-    idx = np.arange(len(trunk))
-    smap = summary.set_index("node_id")
-    t_sup = [float(smap.loc[n, "T_supply_avg_c"]) if n in smap.index and pd.notna(smap.loc[n, "T_supply_avg_c"]) else np.nan for n in trunk]
-    t_ret = [float(smap.loc[n, "T_return_avg_c"]) if n in smap.index and pd.notna(smap.loc[n, "T_return_avg_c"]) else np.nan for n in trunk]
-    p_avg = [float(smap.loc[n, "P_avg_bar"]) if n in smap.index and pd.notna(smap.loc[n, "P_avg_bar"]) else np.nan for n in trunk]
-
-    fig, axes = plt.subplots(2, 1, figsize=(7.09, 4.8), sharex=True, constrained_layout=True)
-    axes[0].plot(idx, t_sup, marker="o", color="#1f77b4", label="Annual T_supply")
-    axes[0].plot(idx, t_ret, marker="o", color="#ff7f0e", label="Annual T_return")
-
-    if seasonal is not None and not seasonal.empty:
-        sdf = seasonal.copy()
-        for season, color in [("winter", "#2ca02c"), ("transition", "#9467bd"), ("summer", "#d62728")]:
-            sub = sdf[sdf["season"].astype(str) == season].set_index("node_id")
-            sup_vals = [float(sub.loc[n, "T_supply_avg_c"]) if n in sub.index and pd.notna(sub.loc[n, "T_supply_avg_c"]) else np.nan for n in trunk]
-            axes[0].plot(idx, sup_vals, linestyle="--", linewidth=1.0, color=color, alpha=0.9, label=f"{season} T_supply")
-
-    axes[0].set_ylabel("Temperature [°C]")
-    axes[0].set_title(f"F11A Critical-path temperature profile ({run_id})")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend(ncol=3, fontsize=6)
-
-    axes[1].plot(idx, p_avg, marker="s", color="#4c4c4c", label="Annual pressure")
-    if seasonal is not None and not seasonal.empty:
-        sdf = seasonal.copy()
-        for season, color in [("winter", "#2ca02c"), ("transition", "#9467bd"), ("summer", "#d62728")]:
-            sub = sdf[sdf["season"].astype(str) == season].set_index("node_id")
-            p_vals = [float(sub.loc[n, "P_avg_bar"]) if n in sub.index and pd.notna(sub.loc[n, "P_avg_bar"]) else np.nan for n in trunk]
-            axes[1].plot(idx, p_vals, linestyle="--", linewidth=1.0, color=color, alpha=0.9, label=f"{season} pressure")
-    axes[1].set_ylabel("Pressure [bar]")
-    axes[1].set_title("F11B Critical-path pressure profile")
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend(ncol=2, fontsize=6)
-    axes[1].set_xticks(idx)
-    axes[1].set_xticklabels(trunk, rotation=25, ha="right")
-    axes[1].set_xlabel("Trunk node sequence")
-
-    _save_fig(fig, out_dir, "F11_critical_path_profile", plt)
+    # This figure has been removed from the paper.
+    # Pressure and temperature profiles along the critical path are
+    # discussed in the text of Section 5.6 instead.
+    _placeholder_figure(
+        out_dir, plt, "F11_critical_path_profile",
+        "Figure removed",
+        "Critical-path pressure and temperature profiles\nare discussed in Section 5.6 (text).",
+    )
 
 
 # ---------------------------------------------------------------------------

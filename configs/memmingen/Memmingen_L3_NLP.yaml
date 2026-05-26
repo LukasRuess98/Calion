@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # PAPER STUDY - Level 3: Nichtlineares Modell â€” Fix-and-Relax
 # =============================================================================
 # Strategie: BinÃ¤rvariablen aus L3plus fixieren â†’ reines NLP lÃ¶sen
@@ -365,17 +365,17 @@ costs:
 run:
   dt_h: 1.0
   solver: gurobi
-  warmstart_from: "output/paper_runs/L3plus"         # â† NEU
+  warmstart_from: "output/paper_runs/L3plus"
   solver_options:
     NonConvex: 2
     MIPGap: 0.005
-    TimeLimit: 86400
+    TimeLimit: 28800
     MIPFocus: 1
     Heuristics: 0.8
     NumericFocus: 2
-    StartNodeLimit: -1      # â† NEU: mehr Aufwand fÃ¼r MIP-Start-Reparatur
     OutputFlag: 1
     LogToConsole: 1
+    LogFile: "gurobi_L3_NLP.log"
 
 output:
   log_dir: "output/logs"

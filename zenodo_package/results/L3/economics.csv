@@ -1,0 +1,2 @@
+run_id,cost_total_eur,cost_energy_buy_eur,revenue_sell_eur,cost_fuel_eur,cost_co2_eur,cost_dump_eur,cost_demand_charge_eur,cost_pump_eur,energy_buy_MWh,energy_sell_MWh,gas_consumption_MWh,co2_total_t,co2_grid_t,co2_fuel_t,peak_import_MW,peak_export_MW,lcoh_eur_per_MWh_th,share_HP_pct,share_CHP_pct,share_EK_pct
+L3,225717.06011398448,85188.50903685494,30779.60119055077,58381.80200208622,26152.17282694117,0.0,0.0,0.0,4709.503215362933,221.88925642935396,697.7061610819976,846.0627457246934,693.0290011315957,106.5200005209645,8.0,0.1,23.1078,88.82,5.71,18.1

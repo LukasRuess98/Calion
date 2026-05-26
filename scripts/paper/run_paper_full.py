@@ -64,6 +64,7 @@ import re
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -142,13 +143,16 @@ SENSITIVITY_SCENARIOS = {
     "baseline":   {},                                          # 100 EUR/t aus YAML
     "gas_high":   {"fuels": {"gas": {"price_eur_mwh": 60.0}}},
     "gas_low":    {"fuels": {"gas": {"price_eur_mwh": 35.0}}},
-    "elec_low":   {"grid": {"gridcost_eur_mwh": 15.0}},       # günstiger HP-Strom
-    "elec_high":  {"grid": {"gridcost_eur_mwh": 45.0}},       # teurer Strom
-    "co2_high":   {"costs": {"co2_price_eur_per_t": 200.0}},   # jetzt wirklich höher
-    "co2_low":    {"costs": {"co2_price_eur_per_t": 50.0}},    # niedriger
-    "cold":       {"_demand_scale": 1.15},                      # +15% statt +5%
-    "warm":       {"_demand_scale": 0.85},                      # -15% statt -5%
-    "cop_low":    {"heat_pumps": {"cop": {"types": {"standard": {"eta": 0.45}}}}},
+    "elec_low":   {"grid": {"gridcost_eur_mwh": 15.0},
+                   "costs": {"include_gridcost_in_energy": True}},   # +15 EUR/MWh adder
+    "elec_high":  {"grid": {"gridcost_eur_mwh": 45.0},
+                   "costs": {"include_gridcost_in_energy": True}},   # +45 EUR/MWh adder
+    "co2_high":   {"costs": {"co2_price_eur_per_t": 200.0}},
+    "co2_low":    {"costs": {"co2_price_eur_per_t": 50.0}},
+    "cold":       {"_demand_scale": 1.10,                             # +10% demand
+                   "run": {"solver_options": {"NumericFocus": 3}}},
+    "warm":       {"_demand_scale": 0.90},                           # -10% demand
+    "cop_low":    {"heat_pumps": {"types": {"standard": {"eta": 0.45}}}},
     "biomass_expensive": {"fuels": {"biomass": {"price_eur_mwh": 55.0}}},
 }
 
@@ -234,14 +238,32 @@ def _dump_yaml(cfg: dict, path: Path) -> None:
     )
 
 
+def _apply_demand_scale(cfg: dict, scale: float) -> dict:
+    """Scale all consumer demand_fraction values in network.nodes by scale."""
+    import copy
+    cfg = copy.deepcopy(cfg)
+    nodes = cfg.get("network", {}).get("nodes", {})
+    for node_cfg in nodes.values():
+        for consumer in node_cfg.get("consumers", []):
+            existing = consumer.get("demand_fraction", 1.0)
+            consumer["demand_fraction"] = round(float(existing) * scale, 6)
+    return cfg
+
+
 def _run_workflow_with_overrides(config_path: Path, overrides: dict | None):
     """Load config, apply overrides, run workflow, return workflow object."""
     from calion.run.workflow import run_workflow
     if not overrides:
         return run_workflow([str(config_path)])
+    # Extract special keys before deep-merge
+    demand_scale = overrides.pop("_demand_scale", None) if overrides else None
+    clean = {k: v for k, v in (overrides or {}).items() if not k.startswith("_")}
     cfg = _load_yaml(config_path)
-    cfg = _deep_merge(cfg, overrides)
-    tmp = config_path.parent / f"_tmp_{config_path.stem}.yaml"
+    if clean:
+        cfg = _deep_merge(cfg, clean)
+    if demand_scale is not None:
+        cfg = _apply_demand_scale(cfg, float(demand_scale))
+    tmp = config_path.parent / f"_tmp_{config_path.stem}_{uuid.uuid4().hex[:8]}.yaml"
     _dump_yaml(cfg, tmp)
     try:
         return run_workflow([str(tmp)])
@@ -289,7 +311,8 @@ def _elapsed_str(seconds: float) -> str:
 # Phase 0 — Validation Stage 1: Network (quality gate, BEFORE optimization)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def phase0_validation_stage1(skip_model: bool, dry_run: bool, log: list) -> None:
+def phase0_validation_stage1(skip_model: bool, dry_run: bool, log: list,
+                             miqp_seasons: str | None = None) -> None:
     """
     Stage 1 only: Runs legacy-only model (HP/TES/EBoiler capacity=0) then
     compares simulated T_supply, T_return, flow against historical Excel data.
@@ -321,6 +344,8 @@ def phase0_validation_stage1(skip_model: bool, dry_run: bool, log: list) -> None
         cmd.append("--dry-run")
     if skip_model:
         cmd.append("--skip-model")
+    if miqp_seasons:
+        cmd += ["--miqp-seasons", miqp_seasons]
 
     print(f"  [CMD] {' '.join(cmd)}")
     if dry_run:
@@ -371,7 +396,8 @@ def phase0_validation_stage1(skip_model: bool, dry_run: bool, log: list) -> None
 # Phase 1 — Primary runs
 # ──────────────────────────────────────────────────────────────────────────────
 
-def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> None:
+def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list,
+                   nlp_short: bool = False) -> None:
     """Run L1, L2, L3, L3+, L3NL optimization models."""
     print("\n" + "="*70)
     print("PHASE 1 — Primary runs (§2)")
@@ -388,9 +414,38 @@ def phase1_primary(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) -> Non
         overrides = spec.get("overrides")
         needs_g   = spec["needs_gurobi"]
 
-        if (needs_g and not gurobi) or (skip_nl and run_id == "L3NL"):
-            print(f"\n[SKIP] {run_id} — {'no Gurobi' if needs_g else 'skip-nl flag'}")
+        if needs_g and not gurobi:
+            print(f"\n[SKIP] {run_id} — no Gurobi")
             _record(log, {"phase": 1, "run_id": run_id, "status": "skipped"})
+            continue
+
+        if skip_nl and run_id == "L3NL":
+            print(f"\n[SKIP] {run_id} — skip-nl flag")
+            _record(log, {"phase": 1, "run_id": run_id, "status": "skipped"})
+            continue
+
+        # Route L3NL to the short-window script when full-year NLP is intractable
+        if run_id == "L3NL" and nlp_short:
+            if dry_run:
+                print(f"\n[DRY] {run_id} — would run _run_nlp_short.py (representative winter week)")
+                continue
+            print(f"\n[NLP-SHORT] {run_id} — representative winter week (full-year intractable)")
+            t0 = time.perf_counter()
+            try:
+                result = subprocess.run(
+                    [sys.executable, str(ROOT / "scripts" / "paper" / "_run_nlp_short.py")],
+                    cwd=ROOT, capture_output=False, text=True,
+                )
+                elapsed = time.perf_counter() - t0
+                status = "ok" if result.returncode == 0 else "error"
+                print(f"      done in {_elapsed_str(elapsed)} — {status}")
+                _record(log, {"phase": 1, "run_id": run_id, "status": status,
+                              "solve_s": round(elapsed, 1), "mode": "short_window"})
+            except Exception as exc:
+                elapsed = time.perf_counter() - t0
+                print(f"      ERROR: {exc}")
+                _record(log, {"phase": 1, "run_id": run_id, "status": "error",
+                              "error": str(exc)})
             continue
 
         if not config.exists():
@@ -775,9 +830,11 @@ def phase3_sensitivity(gurobi: bool, skip_nl: bool, dry_run: bool, log: list) ->
             continue
 
         physics_override = SYNTH_PHYSICS.get(level, {})
-        scenario_delta   = SENSITIVITY_SCENARIOS[scenario]
-        clean_delta      = {k: v for k, v in scenario_delta.items() if not k.startswith("_")}
-        overrides        = _deep_merge(physics_override, clean_delta) if clean_delta else physics_override
+        scenario_delta   = copy.deepcopy(SENSITIVITY_SCENARIOS[scenario])
+        # Keep _demand_scale (handled in _run_workflow_with_overrides); strip other _ keys
+        clean_delta      = {k: v for k, v in scenario_delta.items()
+                            if not k.startswith("_") or k == "_demand_scale"}
+        overrides        = _deep_merge(physics_override, clean_delta) if clean_delta else copy.deepcopy(physics_override)
 
         outdir = sens_base / run_id
         outdir.mkdir(parents=True, exist_ok=True)
@@ -1099,6 +1156,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--skip-nl", action="store_true",
                         help="Skip all L3NL (Gurobi NonConvex) runs unconditionally")
+    parser.add_argument("--nlp-short", action="store_true",
+                        help="Replace full-year L3NL with 1-week representative window (recommended: full-year NLP is intractable)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print plan only — do not run any solver")
     parser.add_argument("--fail-on-skip", action="store_true",
@@ -1107,6 +1166,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="(Phase 0) Skip re-running the legacy model; reuse existing output")
     parser.add_argument("--skip-consistency", action="store_true",
                         help="Skip Phase 1b cross-level consistency check after primary runs")
+    parser.add_argument("--miqp-val-seasons", type=str, default=None,
+                        dest="miqp_val_seasons",
+                        help="(Phase 0) MIQP seasonal validation seasons, e.g. 'winter' or 'winter,summer'")
     parser.add_argument("--figs", nargs="*",
                         metavar="FIG",
                         help="(Phase 6) Specific figure IDs, e.g. --figs F2 FV1 F5 F10 F13")
@@ -1123,7 +1185,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Gurobi:     {'✓ available' if gurobi else '✗ not found (L3NL will be skipped)'}")
     print(f"  Phases:     {sorted(args.phases)}")
     print(f"  Skip NL:    {args.skip_nl}")
+    print(f"  NLP short:  {getattr(args, 'nlp_short', False)} (representative week instead of full-year)")
     print(f"  Dry run:    {args.dry_run}")
+    print(f"  MIQP val:   {args.miqp_val_seasons or '(none — temperature KPIs skipped in Phase 0)'}")
     print(f"  Output:     {OUT_BASE}")
 
     if args.dry_run:
@@ -1140,12 +1204,14 @@ def main(argv: list[str] | None = None) -> int:
     t_total = time.perf_counter()
 
     def _run_phase1_with_consistency():
-        phase1_primary(gurobi, args.skip_nl, args.dry_run, log)
+        phase1_primary(gurobi, args.skip_nl, args.dry_run, log,
+                       nlp_short=getattr(args, "nlp_short", False))
         if not getattr(args, "skip_consistency", False):
             phase1b_level_consistency(args.dry_run, log)
 
     phase_map = {
-        0: lambda: phase0_validation_stage1(args.skip_model, args.dry_run, log),
+        0: lambda: phase0_validation_stage1(args.skip_model, args.dry_run, log,
+                                            miqp_seasons=args.miqp_val_seasons),
         1: _run_phase1_with_consistency,
         2: lambda: phase2_validation_stage2(args.dry_run, log),
         3: lambda: phase3_sensitivity(gurobi, args.skip_nl, args.dry_run, log),

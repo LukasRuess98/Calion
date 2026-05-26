@@ -1,0 +1,144 @@
+{
+  "methodology": "boundary_condition_matching",
+  "boundary_condition": {
+    "source_column": "V_1_flow_temp",
+    "mode": "timeseries",
+    "mean_C": 85.40141063513852,
+    "median_C": 85.25999999999999,
+    "std_C": 3.0884821767075907,
+    "is_quasi_constant": false,
+    "r2_vs_outdoor": 0.12628826862510495,
+    "wrg_source_temp_C": 41.75971862871928
+  },
+  "temperature_levels": {
+    "T_supply_source_measured_mean_C": 85.40141063513852,
+    "T_supply_source_measured_median_C": 85.25999999999999,
+    "T_supply_source_measured_std_C": 3.0884821767075907,
+    "T_supply_source_injected_bc_C": 85.25999999999999,
+    "T_return_source_measured_mean_C": 63.58126455307494,
+    "T_return_source_measured_std_C": 4.064778342991332,
+    "T_return_source_simulated_mean_C": 63.72191780821919,
+    "T_return_nominal_milp_C": 63.72191780821919,
+    "T_supply_drop_trunk_measured_mean_C": 8.227018092853891,
+    "T_supply_drop_trunk_measured_std_C": 6.180808120354846,
+    "note": "T_return simulated is the MILP nominal constant (not physically propagated). T_supply_source is injected as BC and not a validation target."
+  },
+  "stage1_kpis": {
+    "T_supply_farend_MAE_C": 9.2079214464429,
+    "T_supply_farend_RMSE_C": 11.305741699439071,
+    "T_supply_farend_bias_C": 9.2079214464429,
+    "T_supply_farend_n": 7061,
+    "T_supply_drop_measured_mean_C": 8.227018092853891,
+    "T_supply_drop_measured_std_C": 6.180808120354846,
+    "T_supply_drop_MAE_C": 9.09024569402229,
+    "T_supply_drop_simulated_mean_C": 0.0,
+    "T_return_source_mean_measured_C": 63.58126455307494,
+    "T_return_source_std_measured_C": 4.064778342991332,
+    "T_return_source_mean_simulated_C": 63.72191780821919,
+    "T_return_source_MAE_C": 2.0778565915138585,
+    "T_return_source_RMSE_C": 2.8688313078269796,
+    "T_return_source_bias_C": -0.31221260927703437,
+    "T_return_source_n": 8758,
+    "flow_source_MAPE_pct": 33.820415527939446,
+    "flow_source_n": 8749,
+    "Q_demand_total_MAPE_pct": 29.071461762912655,
+    "Q_annual_measured_MWh": 9895.274628165595,
+    "Q_annual_simulated_MWh": 9773.908659266872,
+    "Q_annual_error_pct": 1.2265043008838834,
+    "corridor_MAE_C": 8.324726779922274,
+    "corridor_bias_C": -7.7325464289918555,
+    "corridor_pass": false,
+    "corridor_note": "Supplements Stage 1 T_supply_farend_MAE. Multi-node validation not possible (mixing valve effect)."
+  },
+  "stage1_bc_verification": {
+    "BC_T_supply_mean_C": 85.40141063513852,
+    "BC_T_supply_std_C": 3.0884821767075907,
+    "BC_mode": "timeseries",
+    "BC_is_quasi_constant": false,
+    "BC_r2_vs_outdoor": 0.12628826862510495,
+    "BC_injection_MAE_C": 1.6740574303642486
+  },
+  "stage2": {
+    "hp": {
+      "checks": [
+        "PASS: COP_min = 2.53 ≥ 2.5",
+        "PASS: COP_max = 3.00 ≤ 5.5",
+        "PASS: No min-load violations",
+        "WARN: FLH = 1735 h/yr (outside 2000–5000)",
+        "INFO: WRG source temp (measured) = 41.8°C → expected COP ≈ 4.1 (Carnot×0.5)"
+      ],
+      "full_load_hours": 1735.1200809737227,
+      "cop_mean": 2.9897901939839953,
+      "cop_min": 2.533132062498442,
+      "cop_max": 3.0000000000000004
+    },
+    "eboiler": {
+      "checks": [
+        "INFO: Eboiler never dispatched"
+      ],
+      "efficiency_mean": null,
+      "price_correlation": null
+    },
+    "tes": {
+      "checks": [
+        "PASS: SOC < 5%: 0 timesteps (0% of year)",
+        "WARN: SOC > 95%: 442 timesteps",
+        "PASS: Charge ≤ 30 MW (0 violations)",
+        "PASS: Discharge ≤ 30 MW (0 violations)",
+        "PASS: Simultaneous ch/disch: 0 events",
+        "WARN: 252 cycles/yr (outside 50–200)"
+      ],
+      "cycling_per_year": 252,
+      "n_soc_low": 0,
+      "n_soc_high": 442,
+      "n_hours": 8760
+    },
+    "balance": {
+      "checks": [
+        "WARN: Mean balance error = 6.41%"
+      ],
+      "max_err_pct": 98.80513997999998,
+      "mean_err_pct": 6.409430353828459
+    }
+  },
+  "thresholds": {
+    "Q_annual_error_pct": 2.0,
+    "energy_balance_closure_pct": 2.0,
+    "T_supply_farend_MAE_C": 1.5,
+    "T_return_source_MAE_C": 1.0,
+    "T_return_source_RMSE_C": 1.5,
+    "T_supply_drop_MAE_C": 1.0
+  },
+  "calibrated_u_values": {
+    "j1_to_j2": 1.0,
+    "j2_to_j3": 1.0,
+    "j3_to_j4": 1.0,
+    "j3_to_j9": 1.0,
+    "j4_to_j5": 1.0,
+    "j5_to_j6": 1.0,
+    "j5_to_j7": 1.0,
+    "j7_to_j8": 1.0,
+    "j9_to_j10": 1.0,
+    "j10_to_j11": 1.0,
+    "j11_to_j12": 1.0,
+    "j12_to_j13": 1.0,
+    "j13_to_j14": 1.0,
+    "j13_to_j15": 1.0
+  },
+  "data_info": {
+    "excel_columns_used": [
+      "Datum",
+      "V_X_flow_temp",
+      "V_X_return_temp",
+      "V_X_flow_rate",
+      "V_X_demand_MWth",
+      "Waermebedarf_MWth",
+      "outdoor_temp_C",
+      "WRG_1 °C",
+      "strompreis_EUR_MWh",
+      "grid_co2_kg_MWh"
+    ],
+    "quality_filter": "quality != 1 → NaN",
+    "temporal_resolution": "15min → resampled to 1h (mean)"
+  }
+}

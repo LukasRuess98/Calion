@@ -116,24 +116,72 @@ def auto_fill_values() -> dict[str, str]:
             values[f"share_hp_{rid_key}"] = _safe(r.get("share_HP_pct"))
             values[f"pump_{rid_key}"] = _safe(r.get("cost_pump_eur"))
 
-    # Cost gaps
+    # Cost gaps — signed and absolute
     if "L1" in eco and "L3" in eco:
         c1 = float(eco["L1"].get("cost_total_eur", 0))
         c3 = float(eco["L3"].get("cost_total_eur", 1))
         if c3 > 0:
-            values["gap_l1_l3_pct"] = f"{(c3 - c1) / c1 * 100:.1f}"
+            values["gap_l1_l3_pct"] = f"{(c3 - c1) / c3 * 100:.1f}"
+            values["gap_l1_l3_abs_eur"] = _safe(c3 - c1)
+    if "L2" in eco and "L3" in eco:
+        c2 = float(eco["L2"].get("cost_total_eur", 0))
+        c3 = float(eco["L3"].get("cost_total_eur", 1))
+        if c3 > 0:
+            values["gap_l2_l3_pct"] = f"{(c3 - c2) / c3 * 100:.1f}"
     if "L3" in eco and "L3plus" in eco:
         c3 = float(eco["L3"].get("cost_total_eur", 1))
         c3p = float(eco["L3plus"].get("cost_total_eur", 0))
         if c3 > 0:
-            values["gap_l3_l3plus_pct"] = f"{(c3p - c3) / c3 * 100:.1f}"
+            values["gap_l3_l3plus_pct"] = f"{(c3p - c3) / c3 * 100:.2f}"
     if "L3plus" in eco and "L3NL" in eco:
         c3p = float(eco["L3plus"].get("cost_total_eur", 1))
         c3nl = float(eco["L3NL"].get("cost_total_eur", 0))
         if c3p > 0:
-            values["gap_l3plus_l3nl_pct"] = f"{(c3nl - c3p) / c3p * 100:.1f}"
+            values["gap_l3plus_l3nl_pct"] = f"{(c3nl - c3p) / c3p * 100:.2f}"
 
-    # Solve times from meta
+    # CO2 gaps
+    if "L1" in eco and "L3" in eco:
+        em1 = float(eco["L1"].get("co2_total_t", 0))
+        em3 = float(eco["L3"].get("co2_total_t", 1))
+        if em3 > 0:
+            values["gap_l1_l3_co2_pct"] = f"{(em3 - em1) / em3 * 100:.1f}"
+    if "L2" in eco and "L3" in eco:
+        em2 = float(eco["L2"].get("co2_total_t", 0))
+        em3 = float(eco["L3"].get("co2_total_t", 1))
+        if em3 > 0:
+            values["gap_l2_l3_co2_pct"] = f"{(em3 - em2) / em3 * 100:.1f}"
+
+    # Pipe losses per level (MWh/year)
+    for rid in ["L1", "L2", "L3", "L3plus"]:
+        pipes_p = OUT_BASE / rid / "pipes.csv"
+        if pipes_p.exists():
+            try:
+                import pandas as pd
+                df_p = pd.read_csv(pipes_p)
+                rid_key = rid.lower().replace("+", "plus")
+                if "annual_loss_MWh" in df_p.columns:
+                    total_loss = df_p["annual_loss_MWh"].sum()
+                    values[f"loss_{rid_key}_mwh"] = f"{total_loss:,.0f}".replace(",", r"\,")
+            except Exception:
+                pass
+
+    # Linearization error from level_consistency.json
+    consist_path = OUT_BASE / "level_consistency.json"
+    if consist_path.exists():
+        try:
+            import json as _json
+            consist = _json.loads(consist_path.read_text(encoding="utf-8"))
+            lin_err = consist.get("linearization_error", {})
+            if lin_err:
+                err_pct = lin_err.get("signed_error_pct")
+                abs_err = lin_err.get("abs_error_pct")
+                if err_pct is not None:
+                    values["linearization_error_pct"] = f"{err_pct:+.3f}"
+                    values["linearization_error_abs_pct"] = f"{abs(err_pct):.2f}"
+        except Exception:
+            pass
+
+    # Solve times and model size stats from meta
     for rid in ["L1", "L2", "L3", "L3plus", "L3NL"]:
         meta_path = OUT_BASE / rid / "meta.json"
         if meta_path.exists():
@@ -144,6 +192,19 @@ def auto_fill_values() -> dict[str, str]:
                 values[f"mip_gap_{rid_key}"] = _safe(
                     (m.get("mip_gap") or 0) * 100
                 )
+                # Variable/constraint counts (populated after stat-capture re-run)
+                def _fmt_count(v):
+                    if v is None:
+                        return None
+                    try:
+                        n = int(v)
+                        return f"{n:,}".replace(",", r"\,")
+                    except (TypeError, ValueError):
+                        return None
+                for stat_key in ["num_vars", "num_bin", "num_constr", "num_quad_constr"]:
+                    val = _fmt_count(m.get(stat_key))
+                    if val is not None:
+                        values[f"{stat_key}_{rid_key}"] = val
             except Exception:
                 pass
 

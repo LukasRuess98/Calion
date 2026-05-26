@@ -2960,40 +2960,34 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"  [WARN] {l3_path} not found — run optimization first")
 
-    # ── Step 4: Outputs ───────────────────────────────────────────────────
-    # Extended multi-node spatial validation (optional, late import to avoid circular import)
+    # ── Step 4: Supplementary corridor validation ─────────────────────────
+    # Informational only — not gating. Multi-node not possible (mixing valves).
     if not args.dry_run:
         try:
-            from tools.validation_spatial import run_spatial_validation
+            from tools.validation_spatial import run_spatial_validation as run_corridor
 
             print("\n" + "=" * 70)
-            print("  EXTENDED: Multi-Node Spatial Validation (14 nodes)")
+            print("  SUPPLEMENTARY: Corridor Validation (j_1 -> j_15)")
             print("=" * 70)
 
-            spatial_results = run_spatial_validation(
-                skip_calibration=getattr(args, "no_calibrate", False)
+            corridor_results = run_corridor(
+                skip_calibration=getattr(args, "no_calibrate", False),
+                run_diagnosis=True,
             )
 
-            kpis["spatial_validation"] = {
-                "n_validated_nodes": spatial_results.get("node_count"),
-                "model_levels": spatial_results.get("model_levels_available"),
-                "methodology": "independent_cal_val_nodes_with_temporal_split",
-            }
+            if corridor_results.get("corridor", {}).get("status") == "ok":
+                kpis["corridor_MAE_C"] = corridor_results["corridor"]["MAE_C"]
+                kpis["corridor_bias_C"] = corridor_results["corridor"]["bias_C"]
+                kpis["corridor_pass"] = corridor_results["corridor"]["pass"]
+                kpis["corridor_note"] = (
+                    "Supplements Stage 1 T_supply_farend_MAE. "
+                    "Multi-node validation not possible (mixing valve effect)."
+                )
 
-            test_report = spatial_results.get("reports", {}).get("test")
-            if test_report and getattr(test_report, "summary", None):
-                for level, stats in test_report.summary.items():
-                    if isinstance(stats, dict):
-                        if "mean_MAE_VAL_C" in stats:
-                            kpis[f"spatial_mean_MAE_{level}_test_C"] = stats.get("mean_MAE_VAL_C")
-                        if "max_MAE_VAL_C" in stats:
-                            kpis[f"spatial_max_MAE_{level}_test_C"] = stats.get("max_MAE_VAL_C")
-        except ImportError as exc:
-            print(f"  [SKIP] Spatial validation not available: {exc}")
+        except ImportError:
+            print("  [SKIP] validation_spatial.py not found")
         except Exception as exc:
-            print(f"  [ERROR] Spatial validation failed: {exc}")
-            import traceback
-            traceback.print_exc()
+            print(f"  [WARN] Corridor validation failed: {exc}")
 
     print("\n[4/5] Summary outputs...")
     if not args.dry_run and (kpis or s2_results):

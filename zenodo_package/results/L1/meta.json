@@ -1,0 +1,18 @@
+{
+  "run_id": "L1",
+  "config_path": "C:\\Users\\LKR\\Documents\\GitHub\\Energy_Framwork\\Planing-Framework-for-Heat\\configs\\memmingen\\Memmingen_L1.yaml",
+  "git_sha": "fe318ca",
+  "gurobi_version": "13.0.2",
+  "solve_time_s": 268.32,
+  "mip_gap": null,
+  "objective": 196298.45741241172,
+  "num_vars": 210246,
+  "num_bin": 52562,
+  "num_constr": 271567,
+  "num_quad_constr": 0,
+  "model_class": "MILP",
+  "wall_clock": "2026-05-26T14:09:46.940669",
+  "peak_RAM_GB": 0.856,
+  "solver_status": "optimal",
+  "python_version": "3.11.1"
+}
