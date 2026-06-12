@@ -70,8 +70,11 @@ def add_bus_balance_constraints(model, el_in, el_out, ht_in, ht_out):
         else:
             network_loss = 0
 
-        # Balance: supply = demand + dump + storage_charge + network_losses
-        return supply == demand + dump + storage_charge + network_loss
+        # Pipe thermal mass buffer (positive = charging pipes, negative = discharging)
+        buf_term = m.Q_net_buf[t] if hasattr(m, 'Q_net_buf') else 0
+
+        # Balance: supply = demand + dump + storage_charge + network_losses + pipe_buffer
+        return supply == demand + dump + storage_charge + network_loss + buf_term
 
     model.ht_balance = pyo.Constraint(model.t, rule=heat_balance_rule)
 
@@ -119,7 +122,18 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     producer_node_ids = [
         nid for nid, nc in unified_config.nodes.items() if nc.type in ("producer", "mixed")
     ]
-    primary_producer_id = producer_node_ids[0] if producer_node_ids else None
+    _cfg_primary = getattr(unified_config, 'primary_producer', None)
+    if _cfg_primary and _cfg_primary in producer_node_ids:
+        primary_producer_id = _cfg_primary
+        logger.info("[CONSTRAINT] Primary producer set from config: %s", primary_producer_id)
+    elif _cfg_primary:
+        logger.warning(
+            "[CONSTRAINT] primary_producer '%s' not found in producer nodes %s, falling back to first",
+            _cfg_primary, producer_node_ids,
+        )
+        primary_producer_id = producer_node_ids[0] if producer_node_ids else None
+    else:
+        primary_producer_id = producer_node_ids[0] if producer_node_ids else None
 
     # Pre-collect consumer demand params for the primary producer balance.
     # Rules:

@@ -158,6 +158,7 @@ class PipeConfig(BaseModel):
     insulation: str | None = None
     u_value_supply_w_per_m_k: float = 0.15
     u_value_return_w_per_m_k: float = 0.15
+    bidirectional: bool = False
 
     @staticmethod
     def from_dict(pipe_id: str, raw: dict[str, Any]) -> PipeConfig:
@@ -183,6 +184,7 @@ class PipeConfig(BaseModel):
             insulation=raw.get("insulation"),
             u_value_supply_w_per_m_k=float(raw.get("u_value_supply_w_per_m_k", 0.15)),
             u_value_return_w_per_m_k=float(raw.get("u_value_return_w_per_m_k", 0.15)),
+            bidirectional=bool(raw.get("bidirectional", False)),
         )
 
 
@@ -205,6 +207,8 @@ class AssetConfig(BaseModel):
 
         if asset_type in ("heat_pumps", "hp"):
             asset_type = "heat_pump"
+        elif asset_type in ("tall_tank", "tall_tank_storage", "pressure_tank"):
+            asset_type = "tall_tank"
         elif asset_type in ("generators", "generator", "boiler", "chp", "thermal_gen"):
             if params.get("fuel") == "electricity" and asset_type == "boiler":
                 asset_type = "p2h"
@@ -239,6 +243,9 @@ class PhysicsConfig(BaseModel):
     supply_temp_c: float = 90.0
     return_temp_c: float = 55.0
     ground_temp_c: float = 10.0
+    pipe_thermal_mass: bool = False
+    pipe_thermal_mass_dT_c: float = 5.0
+    pipe_thermal_mass_init_fraction: float = 0.5
 
     @staticmethod
     def from_dict(raw: dict[str, Any] | None, network_raw: dict[str, Any]) -> PhysicsConfig:
@@ -250,6 +257,9 @@ class PhysicsConfig(BaseModel):
             supply_temp_c=float(network_raw.get("supply_temp_c", 90.0)),
             return_temp_c=float(network_raw.get("return_temp_c", 55.0)),
             ground_temp_c=float(network_raw.get("ground_temp_c", 10.0)),
+            pipe_thermal_mass=bool(physics.get("pipe_thermal_mass", False)),
+            pipe_thermal_mass_dT_c=float(physics.get("pipe_thermal_mass_dT_c", 5.0)),
+            pipe_thermal_mass_init_fraction=float(physics.get("pipe_thermal_mass_init_fraction", 0.5)),
         )
 
 
@@ -268,6 +278,7 @@ class UnifiedSystemConfig(BaseModel):
     run: dict[str, Any]
     data: dict[str, Any]
     is_copperplate: bool
+    primary_producer: str | None = None
 
     # Raw config preserved for backward-compatible access
     raw: dict[str, Any] = Field(default_factory=dict)
@@ -388,6 +399,9 @@ def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
             + "\n".join(f"  - {i}" for i in issues)
         )
 
+    # ── Primary producer ─────────────────────────────────────────────────
+    primary_producer = (network_raw or {}).get("primary_producer") or None
+
     # ── Copperplate detection ─────────────────────────────────────────────
     is_copperplate = len(pipes) == 0
 
@@ -410,6 +424,7 @@ def parse_unified_config(cfg: dict[str, Any]) -> UnifiedSystemConfig:
         run=cfg.get("run", {}),
         data=cfg.get("data", {}),
         is_copperplate=is_copperplate,
+        primary_producer=primary_producer,
         raw=cfg,
     )
 

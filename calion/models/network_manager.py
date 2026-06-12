@@ -5,6 +5,7 @@ Network Manager for Thermal District Heating Networks
 """
 
 import logging
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -489,6 +490,9 @@ class NetworkManager:
             logger.info("MILP mode: skipped temperature mixing + plant return temps (temps are fixed Params)")
 
         self._setup_network_losses(model, time_set, pipe_components)
+        self._setup_pipe_thermal_buffer(model, time_set, pipe_components)
+        if pressure_drop_enabled:
+            self._attach_tall_tank_pressure(model, time_set, node_components)
         # Keep references for post-solve residual diagnostics.
         self._last_pipe_components = pipe_components
         self._last_node_components = node_components
@@ -1118,6 +1122,42 @@ class NetworkManager:
                 to_node_comp.setdefault('return_outgoing_pipe_links', []).append(pipe_id)
                 logger.info(f"    {pipe_id}.T_return_in â† {to_node}.T_return")
 
+            # For bidirectional pipes also link T_supply_out ← to_node.T_supply
+            # and T_return_out ← from_node.T_return so the Big-M auxiliary vars
+            # can select the correct inlet temperature regardless of flow direction.
+            is_bidir = bool(pipe_comp.get('bidirectional', False))
+            if is_bidir and not milp_linearize:
+                pipe_T_supply_out = pipe_comp.get('T_supply_out')
+                pipe_T_return_out = pipe_comp.get('T_return_out')
+
+                if to_node in node_components and pipe_T_supply_out is not None:
+                    to_node_comp = node_components[to_node]
+                    if 'T_supply' in to_node_comp:
+                        node_T_sup_out = to_node_comp['T_supply']
+                        cname = f"link_pipe_{pipe_id}_supply_out_to_node_{to_node}"
+
+                        def _sup_out_rule(m, t, _p=pipe_T_supply_out, _n=node_T_sup_out):
+                            if isinstance(_n, pyo.Param):
+                                return _p[t] == pyo.value(_n[t])
+                            return _p[t] == _n[t]
+
+                        setattr(model, cname, pyo.Constraint(time_set, rule=_sup_out_rule))
+                        logger.info(f"    {pipe_id}.T_supply_out <- {to_node}.T_supply (bidir)")
+
+                if from_node in node_components and pipe_T_return_out is not None:
+                    from_node_comp_bidir = node_components[from_node]
+                    if 'T_return' in from_node_comp_bidir:
+                        node_T_ret_out = from_node_comp_bidir['T_return']
+                        cname = f"link_pipe_{pipe_id}_return_out_to_node_{from_node}"
+
+                        def _ret_out_rule(m, t, _p=pipe_T_return_out, _n=node_T_ret_out):
+                            if isinstance(_n, pyo.Param):
+                                return _p[t] == pyo.value(_n[t])
+                            return _p[t] == _n[t]
+
+                        setattr(model, cname, pyo.Constraint(time_set, rule=_ret_out_rule))
+                        logger.info(f"    {pipe_id}.T_return_out <- {from_node}.T_return (bidir)")
+
             # Track return-side incoming pipes for producer/mixed nodes.
             if from_node in node_components:
                 from_node_comp = node_components[from_node]
@@ -1736,6 +1776,97 @@ class NetworkManager:
         if hasattr(model, 'pipe_capex_costs'):
             total_pipe_capex = sum(model.pipe_capex_costs.values())
             logger.info(f"  Total pipe CAPEX (annualized): {total_pipe_capex}")
+
+    def _setup_pipe_thermal_buffer(self, model, time_set, pipe_components) -> None:
+        """Aggregate pipe water-volume thermal inertia as a linear network buffer.
+
+        Creates model.Q_net_buf[t] (MW, signed charge/discharge) and model.E_net[t]
+        (MWh, state of charge). Enabled only when physics.pipe_thermal_mass: true.
+        """
+        physics = self._physics_cfg
+        if not physics.get('pipe_thermal_mass', False):
+            return
+
+        rho_kg_m3 = 997.0
+        cp_j_kgk = 4186.0
+        dT_K = float(physics.get('pipe_thermal_mass_dT_c', 5.0))
+        init_frac = float(physics.get('pipe_thermal_mass_init_fraction', 0.5))
+
+        E_max_J = 0.0
+        for pipe_id, pipe_comp in pipe_components.items():
+            L_m = float(pipe_comp.get('length_m', 0.0))
+            # Prefer result-dict key, fall back to raw pipe config (unified config uses
+            # 'current_diameter_supply_mm' or 'diameter_mm' in the raw pipe dict).
+            raw_pipe = self.pipes.get(pipe_id, {})
+            d_mm = (
+                pipe_comp.get('current_diameter_mm')
+                or raw_pipe.get('current_diameter_supply_mm')
+                or raw_pipe.get('diameter_mm')
+                or 200.0
+            )
+            d_m = float(d_mm) / 1000.0
+            V_m3 = math.pi * (d_m / 2.0) ** 2 * L_m
+            E_max_J += rho_kg_m3 * V_m3 * cp_j_kgk * dT_K * 2  # supply + return pipe
+        E_max_mwh = E_max_J / 3.6e9
+
+        if E_max_mwh <= 0:
+            logger.warning("[NET_MANAGER] pipe_thermal_mass enabled but E_max=0 — check pipe diameter/length config")
+            return
+
+        dt_h = float(getattr(model, 'dt_h', 1.0))
+        Q_buf_max = E_max_mwh / dt_h
+        E0 = E_max_mwh * max(0.0, min(1.0, init_frac))
+
+        time_list = sorted(list(time_set))
+        t0 = time_list[0]
+        t_last = time_list[-1]
+
+        model.E_net = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0.0, E_max_mwh))
+        model.Q_net_buf = pyo.Var(time_set, bounds=(-Q_buf_max, Q_buf_max))
+
+        def _soc_rule(mm, t, _tl=time_list, _t0=t0, _E0=E0, _dt=dt_h):
+            if t == _t0:
+                return mm.E_net[t] == _E0
+            idx = _tl.index(t)
+            return mm.E_net[t] == mm.E_net[_tl[idx - 1]] + mm.Q_net_buf[t] * _dt
+
+        model.pipe_buf_soc = pyo.Constraint(time_set, rule=_soc_rule)
+        model.pipe_buf_terminal = pyo.Constraint(expr=model.E_net[t_last] >= E0)
+
+        logger.info(
+            "[NET_MANAGER] Pipe thermal buffer: E_max=%.3f MWh, Q_buf_max=%.2f MW, E0=%.3f MWh, dt_h=%.2f h",
+            E_max_mwh, Q_buf_max, E0, dt_h,
+        )
+
+    def _attach_tall_tank_pressure(self, model, time_set, node_components) -> None:
+        """Add pressure-head constraints from TallTankStorageBlock to their network nodes.
+
+        P_head[t] from the tall-tank block is added to the node's pressure_supply[t]
+        as a lower bound: pressure_supply[t] >= P_head[t].
+        The P_head variables are stored on the model by component_assembler as
+        model._tall_tank_pressure_refs = {node_id: P_head_var}.
+        """
+        refs = getattr(model, "_tall_tank_pressure_refs", {})
+        if not refs:
+            return
+
+        for node_id, P_head_var in refs.items():
+            node_comp = node_components.get(node_id)
+            if node_comp is None:
+                logger.warning("[NET_MANAGER] TallTank pressure coupling: node '%s' not found, skipping", node_id)
+                continue
+            node_P_supply = node_comp.get("pressure_supply")
+            if node_P_supply is None:
+                logger.warning("[NET_MANAGER] TallTank: node '%s' has no pressure_supply var, skipping", node_id)
+                continue
+
+            cname = f"tall_tank_pressure_{node_id}"
+
+            def _pressure_rule(mm, t, _ps=node_P_supply, _ph=P_head_var):
+                return _ps[t] >= _ph[t]
+
+            setattr(model, cname, pyo.Constraint(time_set, rule=_pressure_rule))
+            logger.info("[NET_MANAGER] TallTank pressure coupled: node '%s' → constraint '%s'", node_id, cname)
 
     @staticmethod
     def _safe_numeric_value(expr, default: float = 0.0) -> float:

@@ -554,6 +554,15 @@ class ThermalNodeBlock(BaseComponent):
                 setattr(model, f'{prefix}_heat_demand',
                         pyo.Constraint(time_set, rule=heat_demand_rule))
 
+            # (3a) Optional hard minimum temperature spread T_supply - T_return >= min_dT
+            # Only meaningful in NLP mode where both are Vars. Default 0 = disabled.
+            min_dT_c = float(config.get('min_delta_T_c', 0.0))
+            if min_dT_c > 0 and not milp_linearize:
+                setattr(model, f'{prefix}_min_dT',
+                        pyo.Constraint(time_set,
+                                       rule=lambda m, t: T_supply[t] - T_return[t] >= min_dT_c))
+                logger.info("    Node %s: min ΔT = %.1f°C enforced", node_id, min_dT_c)
+
             # (3b) Optional load-dependent return temperature
             def _register_return_anchor_penalty(slack_var, weight_eur_per_c):
                 if weight_eur_per_c <= 0.0:

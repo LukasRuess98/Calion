@@ -338,6 +338,91 @@ class PipePairBlock(BaseComponent):
         setattr(model, f'{prefix}_T_return_in', T_return_in)
         setattr(model, f'{prefix}_T_return_out', T_return_out)
 
+        # ── Bidirectional auxiliary temperature variables ────────────────────
+        # For bidirectional NLP pipes the supply inlet is from_node when flow_dir=1
+        # (forward) and to_node when flow_dir=0 (reverse). We create T_eff_* vars
+        # that are linked to the correct original temperature var via Big-M
+        # inequalities, then rebind the local names so all downstream heat-loss
+        # and temp-drop rules use the directional variables without modification.
+        # Node-linking originals: always point to the raw pipe-end Var/Param so
+        # network_manager can link them to node temperatures unconditionally.
+        _T_node_sup_in = T_supply_in
+        _T_node_sup_out = T_supply_out
+        _T_node_ret_in = T_return_in
+        _T_node_ret_out = T_return_out
+
+        if bidirectional and not temperature_linearize:
+            M_T_sup = float(supply_temp_max - supply_temp_min)
+            M_T_ret = float(return_temp_max - return_temp_min)
+
+            T_eff_sup_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                   bounds=(supply_temp_min, supply_temp_max))
+            T_eff_sup_out = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                    bounds=(supply_temp_min, supply_temp_max))
+            T_eff_ret_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                   bounds=(return_temp_min, return_temp_max))
+            T_eff_ret_out = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                    bounds=(return_temp_min, return_temp_max))
+            setattr(model, f'{prefix}_T_eff_sup_in', T_eff_sup_in)
+            setattr(model, f'{prefix}_T_eff_sup_out', T_eff_sup_out)
+            setattr(model, f'{prefix}_T_eff_ret_in', T_eff_ret_in)
+            setattr(model, f'{prefix}_T_eff_ret_out', T_eff_ret_out)
+
+            # Capture originals before rebinding
+            _T_orig_sup_in = T_supply_in
+            _T_orig_sup_out = T_supply_out
+            _T_orig_ret_in = T_return_in
+            _T_orig_ret_out = T_return_out
+
+            # flow_dir=1 → forward (from→to): T_eff_sup_in = T_supply_in
+            # flow_dir=0 → reverse (to→from): T_eff_sup_in = T_supply_out
+            setattr(model, f'{prefix}_eff_sup_in_ub1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_in[t] <= _T_orig_sup_in[t] + M_T_sup * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_sup_in_lb1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_in[t] >= _T_orig_sup_in[t] - M_T_sup * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_sup_in_ub2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_in[t] <= _T_orig_sup_out[t] + M_T_sup * flow_dir[t]))
+            setattr(model, f'{prefix}_eff_sup_in_lb2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_in[t] >= _T_orig_sup_out[t] - M_T_sup * flow_dir[t]))
+
+            setattr(model, f'{prefix}_eff_sup_out_ub1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_out[t] <= _T_orig_sup_out[t] + M_T_sup * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_sup_out_lb1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_out[t] >= _T_orig_sup_out[t] - M_T_sup * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_sup_out_ub2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_out[t] <= _T_orig_sup_in[t] + M_T_sup * flow_dir[t]))
+            setattr(model, f'{prefix}_eff_sup_out_lb2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_sup_out[t] >= _T_orig_sup_in[t] - M_T_sup * flow_dir[t]))
+
+            setattr(model, f'{prefix}_eff_ret_in_ub1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_in[t] <= _T_orig_ret_in[t] + M_T_ret * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_ret_in_lb1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_in[t] >= _T_orig_ret_in[t] - M_T_ret * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_ret_in_ub2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_in[t] <= _T_orig_ret_out[t] + M_T_ret * flow_dir[t]))
+            setattr(model, f'{prefix}_eff_ret_in_lb2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_in[t] >= _T_orig_ret_out[t] - M_T_ret * flow_dir[t]))
+
+            setattr(model, f'{prefix}_eff_ret_out_ub1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_out[t] <= _T_orig_ret_out[t] + M_T_ret * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_ret_out_lb1', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_out[t] >= _T_orig_ret_out[t] - M_T_ret * (1 - flow_dir[t])))
+            setattr(model, f'{prefix}_eff_ret_out_ub2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_out[t] <= _T_orig_ret_in[t] + M_T_ret * flow_dir[t]))
+            setattr(model, f'{prefix}_eff_ret_out_lb2', pyo.Constraint(time_set,
+                rule=lambda m, t: T_eff_ret_out[t] >= _T_orig_ret_in[t] - M_T_ret * flow_dir[t]))
+
+            # Rebind locals so all downstream NLP heat-loss / temp-drop rules
+            # automatically use the direction-aware auxiliary variables.
+            T_supply_in = T_eff_sup_in
+            T_supply_out = T_eff_sup_out
+            T_return_in = T_eff_ret_in
+            T_return_out = T_eff_ret_out
+            logger.info(
+                "Pipe %s: bidirectional auxiliary T_eff vars added (16 Big-M constraints)",
+                pipe_id,
+            )
+
         # ============================================================
         # HEAT LOSS VARIABLES
         # ============================================================
@@ -1072,6 +1157,13 @@ class PipePairBlock(BaseComponent):
         # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         use_transport_delay = bool(physics_cfg.get('transport_delay', True))
+        if bidirectional and use_transport_delay:
+            use_transport_delay = False
+            logger.info(
+                "Pipe %s: transport delay disabled (bidirectional pipes do not support "
+                "backward-time lookup used by delay mechanism)",
+                pipe_id,
+            )
         delay_warmup_mode = str(
             config.get('delay_warmup_mode', physics_cfg.get('delay_warmup_mode', 'cold_zero'))
         ).strip().lower()
@@ -1101,15 +1193,8 @@ class PipePairBlock(BaseComponent):
                 * max(float(supply_temp_max - return_temp_min), 1.0),
             )
 
-        if milp_linearize or not use_transport_delay:
-            # Skip transport delay: Q_consumer equals useful heat arriving at
-            # the receiving node (immediate delivery).
-            # Reasons to skip:
-            #   - milp_linearize mode: temps are fixed Params, delay adds pointless binaries
-            #   - physics.transport_delay: false â€” user disabled delay (e.g., for large pipes
-            #     where DNâ‰¥400 gives Ï„ < 1 timestep at any realistic flow â†’ delay is zero anyway,
-            #     but the binary bucket-selectors still add 3168 binaries and interact with the
-            #     bilinear temperature constraints, compounding the MIQCQP numerical difficulty)
+        if not use_transport_delay:
+            # Skip transport delay: physics.transport_delay=false — user disabled delay.
             if active_flag is None:
                 if warmup_slack is None:
                     setattr(
@@ -1166,8 +1251,85 @@ class PipePairBlock(BaseComponent):
                         ),
                     ),
                 )
-            logger.info("  Pipe %s: transport delay skipped (%s)", pipe_id,
-                        "milp_linearize mode" if milp_linearize else "physics.transport_delay=false")
+            logger.info("  Pipe %s: transport delay skipped (physics.transport_delay=false)", pipe_id)
+            tau_steps = []
+            N_BUCKETS = 0
+        elif milp_linearize:
+            # MILP linear transport delay: fixed nominal τ from single-bucket compute_delay_buckets.
+            # No SOS2 binaries — purely linear lookback constraint.
+            _dt_h_d = float(getattr(model, 'dt_h', 1.0))
+            _delay_info = compute_delay_buckets(
+                length_m=length_m,
+                diameter_mm=d_inner_mm,
+                density_kg_per_m3=density_water,
+                m_max_kg_s=max(effective_max_flow, 0.001),
+                n_buckets=1,
+                dt_h=_dt_h_d,
+            )
+            _tau_list = _delay_info.get('tau_steps', [])
+            _tau = _tau_list[0] if _tau_list else 0
+            if _tau <= 0:
+                if active_flag is None:
+                    if warmup_slack is None:
+                        setattr(model, f'{prefix}_no_delay',
+                                pyo.Constraint(time_set, rule=lambda m, t: Q_consumer[t] == useful_heat_expr[t]))
+                    else:
+                        setattr(model, f'{prefix}_no_delay',
+                                pyo.Constraint(time_set, rule=lambda m, t: (
+                                    Q_consumer[t] - useful_heat_expr[t] <= _warmup_slack_term(t))))
+                        setattr(model, f'{prefix}_no_delay_lb',
+                                pyo.Constraint(time_set, rule=lambda m, t: (
+                                    useful_heat_expr[t] - Q_consumer[t] <= _warmup_slack_term(t))))
+                else:
+                    setattr(model, f'{prefix}_no_delay_ub',
+                            pyo.Constraint(time_set, rule=lambda m, t, _a=active_flag, _M=max_heat_delivered_mw: (
+                                Q_consumer[t] - useful_heat_expr[t] <= _M * (1 - _a[t]) + _warmup_slack_term(t))))
+                    setattr(model, f'{prefix}_no_delay_lb',
+                            pyo.Constraint(time_set, rule=lambda m, t, _a=active_flag, _M=max_heat_delivered_mw: (
+                                useful_heat_expr[t] - Q_consumer[t] <= _M * (1 - _a[t]) + _warmup_slack_term(t))))
+                    setattr(model, f'{prefix}_no_delay_qcap',
+                            pyo.Constraint(time_set, rule=lambda m, t, _a=active_flag, _M=max_heat_delivered_mw, _q0=q_idle_max: (
+                                Q_consumer[t] <= _q0 + _M * _a[t])))
+                logger.info("  Pipe %s: MILP linear delay τ=0, no delay applied", pipe_id)
+            else:
+                _tlist_d = sorted(list(time_set))
+                _tidx_d = {t: i for i, t in enumerate(_tlist_d)}
+                if active_flag is None:
+                    if warmup_slack is None:
+                        def _milp_delay_rule(mm, t, _tl=_tlist_d, _ti=_tidx_d, _tau=_tau, _expr=useful_heat_expr):
+                            i = _ti[t]
+                            delayed = _expr[_tl[i - _tau]] if i >= _tau else 0.0
+                            return Q_consumer[t] == delayed
+                        setattr(model, f'{prefix}_milp_delay',
+                                pyo.Constraint(time_set, rule=_milp_delay_rule))
+                    else:
+                        def _milp_delay_ub(mm, t, _tl=_tlist_d, _ti=_tidx_d, _tau=_tau, _expr=useful_heat_expr):
+                            i = _ti[t]
+                            de = _expr[_tl[i - _tau]] if i >= _tau else 0.0
+                            return Q_consumer[t] - de <= _warmup_slack_term(t)
+                        def _milp_delay_lb(mm, t, _tl=_tlist_d, _ti=_tidx_d, _tau=_tau, _expr=useful_heat_expr):
+                            i = _ti[t]
+                            de = _expr[_tl[i - _tau]] if i >= _tau else 0.0
+                            return de - Q_consumer[t] <= _warmup_slack_term(t)
+                        setattr(model, f'{prefix}_milp_delay', pyo.Constraint(time_set, rule=_milp_delay_ub))
+                        setattr(model, f'{prefix}_milp_delay_lb', pyo.Constraint(time_set, rule=_milp_delay_lb))
+                else:
+                    def _milp_dly_ub(mm, t, _tl=_tlist_d, _ti=_tidx_d, _tau=_tau, _expr=useful_heat_expr,
+                                     _a=active_flag, _M=max_heat_delivered_mw):
+                        i = _ti[t]
+                        de = _expr[_tl[i - _tau]] if i >= _tau else 0.0
+                        return Q_consumer[t] - de <= _M * (1 - _a[t]) + _warmup_slack_term(t)
+                    def _milp_dly_lb(mm, t, _tl=_tlist_d, _ti=_tidx_d, _tau=_tau, _expr=useful_heat_expr,
+                                     _a=active_flag, _M=max_heat_delivered_mw):
+                        i = _ti[t]
+                        de = _expr[_tl[i - _tau]] if i >= _tau else 0.0
+                        return de - Q_consumer[t] <= _M * (1 - _a[t]) + _warmup_slack_term(t)
+                    setattr(model, f'{prefix}_milp_delay_ub', pyo.Constraint(time_set, rule=_milp_dly_ub))
+                    setattr(model, f'{prefix}_milp_delay_lb', pyo.Constraint(time_set, rule=_milp_dly_lb))
+                    setattr(model, f'{prefix}_milp_delay_qcap',
+                            pyo.Constraint(time_set, rule=lambda m, t, _a=active_flag, _M=max_heat_delivered_mw, _q0=q_idle_max: (
+                                Q_consumer[t] <= _q0 + _M * _a[t])))
+                logger.info("  Pipe %s: MILP linear delay τ=%d steps (%.1f h)", pipe_id, _tau, _tau * _dt_h_d)
             tau_steps = []
             N_BUCKETS = 0
         else:
@@ -1399,10 +1561,10 @@ class PipePairBlock(BaseComponent):
             'm_dot': m_dot,
             'm_dot_abs': m_dot_abs,
             'flow_dir': flow_dir,
-            'T_supply_in': T_supply_in,
-            'T_supply_out': T_supply_out,
-            'T_return_in': T_return_in,
-            'T_return_out': T_return_out,
+            'T_supply_in': _T_node_sup_in,
+            'T_supply_out': _T_node_sup_out,
+            'T_return_in': _T_node_ret_in,
+            'T_return_out': _T_node_ret_out,
             'Q_loss_supply': Q_loss_supply,
             'Q_loss_return': Q_loss_return,
             'Q_delivered': Q_delivered,

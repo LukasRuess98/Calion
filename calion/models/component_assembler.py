@@ -34,6 +34,7 @@ from .blocks.heat_pump import HeatPumpBlock
 from .blocks.p2h import P2HBlock
 from .blocks.storage import StorageBlock
 from .blocks.stratified_storage import StratifiedStorageBlock
+from .blocks.tall_tank_storage import TallTankStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .cop_calculator import calculate_cop_series
 from .emissions_calculator import EmissionsCalculator
@@ -255,6 +256,8 @@ class ComponentAssembler:
                     self._attach_hp_from_unified(asset, node_buses, sys_buses)
                 elif asset.type == "storage":
                     self._attach_storage_from_unified(asset, node_buses, sys_buses)
+                elif asset.type == "tall_tank":
+                    self._attach_tall_tank_from_unified(asset, node_id, node_buses, sys_buses)
                 elif asset.type == "thermal_generator":
                     self._attach_generator_from_unified(asset, node_buses, sys_buses, gen_defaults)
                 elif asset.type == "p2h":
@@ -389,22 +392,91 @@ class ComponentAssembler:
         self.buses.storage_install_terms.clear()
         self.buses.fuel_cost_terms.clear()
 
+    def _attach_tall_tank_from_unified(self, asset, node_id, node_buses, sys_buses):
+        """Attach a TallTankStorageBlock from unified config."""
+        p = dict(asset.params)
+        name = asset.id
+
+        milp_mode = bool(self.cfg.get("milp_linearize", False))
+        T_hot = float(p.get("T_hot_C", 90.0))
+        T_cold = float(p.get("T_cold_C", 50.0))
+        height_m = float(p.get("height_m", 20.0))
+        diameter_m = float(p.get("diameter_m", 10.0))
+        soc0_fraction = float(p.get("soc0_fraction", 0.5))
+        cap_vol_min = float(p.get("cap_volume_min_m3", 0.0))
+        cap_vol_max = p.get("cap_volume_max_m3")
+        if cap_vol_max is not None:
+            cap_vol_max = float(cap_vol_max)
+
+        block = TallTankStorageBlock(
+            name=name,
+            T_hot_C=T_hot,
+            T_cold_C=T_cold,
+            height_m=height_m,
+            diameter_m=diameter_m,
+            dt_h=self.dt_h,
+            soc0_fraction=soc0_fraction,
+            cap_volume_min_m3=cap_vol_min,
+            cap_volume_max_m3=cap_vol_max,
+            milp_linearize=milp_mode,
+        )
+        fs = block.attach(self.m, self.t, self.cfg, {})
+
+        node_buses.ht_out.append(fs["Q_th_out"])
+        node_buses.ht_in.append(fs["Q_th_in"])
+
+        # Store P_head variable reference on model for network_manager pressure coupling
+        if not hasattr(self.m, "_tall_tank_pressure_refs"):
+            self.m._tall_tank_pressure_refs = {}
+        self.m._tall_tank_pressure_refs[node_id] = fs["pressure_head"]
+
+        # Investment costs: treat cap_volume [m³] as energy var, use capex_eur_per_m3 rate
+        capex_per_m3 = float(p.get("capex_eur_per_m3", 0.0))
+        activation_cost = float(p.get("activation_cost_eur", 0.0))
+        lifetime = float(p.get("lifetime_years", 30.0))
+        build_var = fs["build"]
+        cap_vol_var = fs["cap_volume"]
+        if (capex_per_m3 > 0.0 or activation_cost > 0.0) and cap_vol_var is not None:
+            from .investment_calculator import StorageInvestmentConfig
+            inv_cfg = StorageInvestmentConfig(
+                energy_capex_eur_per_mwh=capex_per_m3,  # [EUR/m³] — var is m³, math is correct
+                power_capex_eur_per_mw=0.0,
+                activation_cost_eur=activation_cost,
+                tie_breaker_eur_per_mwh=0.0,
+                lifetime_years=lifetime,
+            )
+            inv_terms = self.inv_calc.calculate_storage_costs(cap_vol_var, None, build_var, inv_cfg)
+            sys_buses.capex_terms.extend(inv_terms.capex)
+            sys_buses.activation_terms.extend(inv_terms.activation)
+
+        logger.info("[ASSEMBLE] TallTankStorage '%s' at node '%s' attached", name, node_id)
+
     def _attach_generator_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
         """Attach a thermal generator from unified config to per-node buses."""
         p = dict(asset.params)
         name = asset.id.upper()
 
-        th_eff = float(p.get("thermal_efficiency", 0.9))
+        th_eff = float(p.get("thermal_efficiency", p.get("th_eff", 0.9)))
         el_eff = p.get("el_eff")
-        cap_th = float(p.get("capacity_mw", 10.0))
+        cap_th = float(p.get("capacity_mw", p.get("cap_th_mw", 10.0)))
 
         block = ThermalGeneratorBlock(
             name,
             th_eff=th_eff,
             el_eff=el_eff,
             cap_th_mw=cap_th,
+            min_load_fraction=float(p.get("min_load", 0.0)),
+            min_uptime_h=float(p.get("min_uptime_h", 0.0)),
+            min_downtime_h=float(p.get("min_downtime_h", 0.0)),
+            max_ramp_up_mw_per_h=p.get("max_ramp_up_mw_per_h"),
+            max_ramp_down_mw_per_h=p.get("max_ramp_down_mw_per_h"),
+            startup_cost_eur=float(p.get("startup_cost_eur", 0.0)),
         )
         fs = block.attach(self.m, self.t, self.cfg, {})
+
+        if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0) > 0:
+            startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)
+            sys_buses.fuel_cost_terms.append(startup_expr)
 
         # Per-node heat output
         node_buses.ht_out.append(fs["Q_th_out"])
@@ -759,6 +831,12 @@ class ComponentAssembler:
             th_eff=float(gpar.get("th_eff", 0.9)),
             el_eff=gpar.get("el_eff", None),
             cap_th_mw=float(par.get("cap_th_mw", 10.0)),
+            min_load_fraction=float(gpar.get("min_load", 0.0)),
+            min_uptime_h=float(gpar.get("min_uptime_h", 0.0)),
+            min_downtime_h=float(gpar.get("min_downtime_h", 0.0)),
+            max_ramp_up_mw_per_h=gpar.get("max_ramp_up_mw_per_h"),
+            max_ramp_down_mw_per_h=gpar.get("max_ramp_down_mw_per_h"),
+            startup_cost_eur=float(gpar.get("startup_cost_eur", 0.0)),
         )
         fs = block.attach(self.m, self.t, self.cfg, {})
         self.buses.ht_out.append(fs["Q_th_out"])
@@ -778,6 +856,14 @@ class ComponentAssembler:
 
         fuel_cost_expr = sum(fs["fuel_in"][t] * price * self.dt_h for t in self.t)
         self.buses.fuel_cost_terms.append(fuel_cost_expr)
+
+        if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0.0) > 0:
+            startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)
+            self.buses.fuel_cost_terms.append(startup_expr)
+            logger.info(
+                "[ASSEMBLE] %s: startup cost %.0f EUR/start added to objective.",
+                key.upper(), fs["startup_cost_eur"],
+            )
 
         comp_name = key.upper()
         is_chp = fs.get("P_el_out") is not None
