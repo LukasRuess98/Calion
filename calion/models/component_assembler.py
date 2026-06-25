@@ -365,6 +365,7 @@ class ComponentAssembler:
             self.assemble_storage(
                 soc_init_override=getattr(self, '_soc_init_override', None),
                 terminal_target_override=getattr(self, '_terminal_target_override', None),
+                name=asset.id,
             )
         finally:
             if old_sys is None:
@@ -678,6 +679,7 @@ class ComponentAssembler:
         self,
         soc_init_override: float | None = None,
         terminal_target_override: float | None = None,
+        name: str = "TES",
     ) -> None:
         """Attach thermal energy storage if enabled."""
         syscfg = self.cfg.get("system", {})
@@ -720,11 +722,12 @@ class ComponentAssembler:
                 sto_cfg, eff_charge, eff_discharge, soc_init,
                 invest_enabled, e_cap_min, e_cap_max, p_cap_min, p_cap_max,
                 e_cap_init, p_cap_init, terminal_target_val,
+                name=name,
             )
         else:
             logger.info("[ASSEMBLE] Using simple storage (single-zone model)")
             block = StorageBlock(
-                "TES",
+                name,
                 e_min=sto_cfg.get("min_energy_mwh", 0.0),
                 e_max=sto_cfg.get("max_energy_mwh", 50000.0),
                 p_max=sto_cfg.get("max_power_mw", DEFAULT_STORAGE_POWER_MW),
@@ -752,10 +755,10 @@ class ComponentAssembler:
         self.buses.ht_out.append(fs["Q_th_out"])
         self.buses.ht_in.append(fs["Q_th_in"])
 
-        self._register_storage_references(fs, terminal_policy)
+        self._register_storage_references(fs, terminal_policy, name=name)
         self.buses.terminal_value_term = self._build_terminal_value_term(
             fs, sto_cfg, storage_defaults, terminal_policy, terminal_target_val,
-            invest_enabled, e_cap_init, e_cap_max, soc_init,
+            invest_enabled, e_cap_init, e_cap_max, soc_init, name=name,
         )
         self.m.terminal_value_term = self.buses.terminal_value_term
 
@@ -999,10 +1002,11 @@ class ComponentAssembler:
         self, sto_cfg, eff_charge, eff_discharge, soc_init,
         invest_enabled, e_cap_min, e_cap_max, p_cap_min, p_cap_max,
         e_cap_init, p_cap_init, terminal_target_val,
+        name: str = "TES",
     ) -> StratifiedStorageBlock:
         """Create a StratifiedStorageBlock from config."""
         return StratifiedStorageBlock(
-            "TES",
+            name,
             T_hot_C=float(sto_cfg.get("T_hot_C", 90.0)),
             T_cold_C=float(sto_cfg.get("T_cold_C", 40.0)),
             T_ambient_C=float(sto_cfg.get("T_ambient_C", 15.0)),
@@ -1027,25 +1031,25 @@ class ComponentAssembler:
             terminal_target=terminal_target_val,
         )
 
-    def _register_storage_references(self, fs: dict[str, Any], terminal_policy: str) -> None:
+    def _register_storage_references(self, fs: dict[str, Any], terminal_policy: str, name: str = "TES") -> None:
         """Register Pyomo References for storage variables on the model."""
-        for _name in [
-            "TES_SOC", "TES_charge_mode", "TES_discharge_mode", "TES_active",
-            "TES_soc_low", "TES_soc_high", "TES_soc_split",
-            "TES_terminal_slack_pos", "TES_terminal_slack_neg", "TES_terminal_soft",
+        for attr in [
+            f"{name}_SOC", f"{name}_charge_mode", f"{name}_discharge_mode", f"{name}_active",
+            f"{name}_soc_low", f"{name}_soc_high", f"{name}_soc_split",
+            f"{name}_terminal_slack_pos", f"{name}_terminal_slack_neg", f"{name}_terminal_soft",
         ]:
-            if hasattr(self.m, _name):
-                self.m.del_component(getattr(self.m, _name))
+            if hasattr(self.m, attr):
+                self.m.del_component(getattr(self.m, attr))
 
-        self.m.TES_SOC = pyo.Reference(fs["SOC"])
-        self.m.TES_charge_mode = pyo.Reference(fs["charge_mode"])
-        self.m.TES_discharge_mode = pyo.Reference(fs["discharge_mode"])
-        self.m.TES_active = pyo.Reference(fs["active"])
-        self.m.TES_terminal_policy = terminal_policy
+        setattr(self.m, f"{name}_SOC", pyo.Reference(fs["SOC"]))
+        setattr(self.m, f"{name}_charge_mode", pyo.Reference(fs["charge_mode"]))
+        setattr(self.m, f"{name}_discharge_mode", pyo.Reference(fs["discharge_mode"]))
+        setattr(self.m, f"{name}_active", pyo.Reference(fs["active"]))
+        setattr(self.m, f"{name}_terminal_policy", terminal_policy)
 
     def _build_terminal_value_term(
         self, fs, sto_cfg, storage_defaults, terminal_policy, terminal_target_val,
-        invest_enabled, e_cap_init, e_cap_max, soc_init,
+        invest_enabled, e_cap_init, e_cap_max, soc_init, name: str = "TES",
     ):
         """Build the terminal value expression and attach hard constraints to model."""
         terminal_cfg = sto_cfg.get("terminal", {})
@@ -1061,33 +1065,36 @@ class ComponentAssembler:
         terminal_value_term = None
 
         if terminal_target_val is not None:
-            self.m.TES_terminal_target = pyo.Param(initialize=terminal_target_val)
-            target_param = self.m.TES_terminal_target
+            setattr(self.m, f"{name}_terminal_target", pyo.Param(initialize=terminal_target_val))
+            target_param = getattr(self.m, f"{name}_terminal_target")
 
             if terminal_policy == "geq":
-                self.m.TES_terminal = pyo.Constraint(expr=fs["SOC"][last_t] >= target_param)
+                setattr(self.m, f"{name}_terminal", pyo.Constraint(expr=fs["SOC"][last_t] >= target_param))
                 logger.info("[ASSEMBLE] Terminal constraint: SOC[%s] >= %.1f MWh (geq)", last_t, terminal_target_val)
 
             elif terminal_policy == "equal":
-                self.m.TES_terminal = pyo.Constraint(expr=fs["SOC"][last_t] == target_param)
+                setattr(self.m, f"{name}_terminal", pyo.Constraint(expr=fs["SOC"][last_t] == target_param))
                 logger.info("[ASSEMBLE] Terminal constraint: SOC[%s] == %.1f MWh (equal)", last_t, terminal_target_val)
 
             elif terminal_policy == "value":
                 terminal_value_term = self._build_value_function(
-                    fs, terminal_defs, salvage_price, last_t, invest_enabled, e_cap_init, e_cap_max, soc_init
+                    fs, terminal_defs, salvage_price, last_t, invest_enabled, e_cap_init, e_cap_max, soc_init,
+                    name=name,
                 )
 
             elif terminal_policy == "soft":
-                self.m.TES_terminal_slack_pos = pyo.Var(domain=pyo.NonNegativeReals)
-                self.m.TES_terminal_slack_neg = pyo.Var(domain=pyo.NonNegativeReals)
-                self.m.TES_terminal_soft = pyo.Constraint(expr=fs["SOC"][last_t] + self.m.TES_terminal_slack_neg - self.m.TES_terminal_slack_pos == target_param)
+                setattr(self.m, f"{name}_terminal_slack_pos", pyo.Var(domain=pyo.NonNegativeReals))
+                setattr(self.m, f"{name}_terminal_slack_neg", pyo.Var(domain=pyo.NonNegativeReals))
+                setattr(self.m, f"{name}_terminal_soft", pyo.Constraint(
+                    expr=fs["SOC"][last_t] + getattr(self.m, f"{name}_terminal_slack_neg") - getattr(self.m, f"{name}_terminal_slack_pos") == target_param
+                ))
                 terminal_value_term = (
-                    soft_penalty * self.m.TES_terminal_slack_neg
-                    + (soft_penalty * 0.5) * self.m.TES_terminal_slack_pos
+                    soft_penalty * getattr(self.m, f"{name}_terminal_slack_neg")
+                    + (soft_penalty * 0.5) * getattr(self.m, f"{name}_terminal_slack_pos")
                 )
                 logger.info("[ASSEMBLE] Soft terminal constraint: target=%.1f, penalty=%.2f", terminal_target_val, soft_penalty)
         else:
-            for attr in ("TES_terminal", "TES_terminal_target"):
+            for attr in (f"{name}_terminal", f"{name}_terminal_target"):
                 if hasattr(self.m, attr):
                     delattr(self.m, attr)
 
@@ -1101,7 +1108,7 @@ class ComponentAssembler:
         return terminal_value_term
 
     def _build_value_function(self, fs, terminal_defs, salvage_price, last_t,
-                               invest_enabled, e_cap_init, e_cap_max, soc_init):
+                               invest_enabled, e_cap_init, e_cap_max, soc_init, name: str = "TES"):
         """Create the salvage value expression for the 'value' terminal policy."""
         value_func_type = str(terminal_defs.get("value_function_type", "constant")).lower()
         decay = float(terminal_defs.get("diminishing_decay", 0.3))
@@ -1115,16 +1122,16 @@ class ComponentAssembler:
                 soc_max = max(soc_max, soc_init * 1.1)
                 threshold = 0.5 * soc_max
 
-            self.m.TES_soc_low = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold))
-            self.m.TES_soc_high = pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold))
-            self.m.TES_soc_split = pyo.Constraint(
-                expr=fs["SOC"][last_t] == self.m.TES_soc_low + self.m.TES_soc_high
-            )
+            setattr(self.m, f"{name}_soc_low", pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, threshold)))
+            setattr(self.m, f"{name}_soc_high", pyo.Var(domain=pyo.NonNegativeReals, bounds=(0, soc_max - threshold)))
+            setattr(self.m, f"{name}_soc_split", pyo.Constraint(
+                expr=fs["SOC"][last_t] == getattr(self.m, f"{name}_soc_low") + getattr(self.m, f"{name}_soc_high")
+            ))
 
             price_low = salvage_price
             price_high = salvage_price * (1 - decay)
             logger.info("[ASSEMBLE] Diminishing terminal value: price_low=%.2f, price_high=%.2f", price_low, price_high)
-            return -(price_low * self.m.TES_soc_low + price_high * self.m.TES_soc_high)
+            return -(price_low * getattr(self.m, f"{name}_soc_low") + price_high * getattr(self.m, f"{name}_soc_high"))
 
         logger.info("[ASSEMBLE] Constant terminal value: salvage_price=%.2f EUR/MWh", salvage_price)
         return -salvage_price * fs["SOC"][last_t]

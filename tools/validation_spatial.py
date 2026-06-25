@@ -181,7 +181,7 @@ def compute_pipe_flows(
     for node, consumers in NODE_CONSUMERS.items():
         ret_cols = [f"{v}_return_temp" for v in consumers if f"{v}_return_temp" in hist.columns]
         if ret_cols:
-            t_ret = hist[ret_cols].mean(axis=1)
+            t_ret = hist[ret_cols].mean(axis=1).fillna(T_return_default)
         else:
             t_ret = pd.Series(T_return_default, index=hist.index)
 

@@ -282,6 +282,7 @@ def _build_model_unified(
     flags = CostFlags.from_config(cfg)
     inv_calc = InvestmentCalculator(
         period_frac=period_frac,
+        discount_rate=float(cfg.get("investment", {}).get("discount_rate", 0.0)),
         include_capex=flags.include_capex,
         include_activation=flags.include_activation,
         include_tie_breaker=flags.include_tie_breaker,
@@ -433,6 +434,7 @@ def _build_model_legacy(
     flags = CostFlags.from_config(cfg)
     inv_calc = InvestmentCalculator(
         period_frac=period_frac,
+        discount_rate=float(cfg.get("investment", {}).get("discount_rate", 0.0)),
         include_capex=flags.include_capex,
         include_activation=flags.include_activation,
         include_tie_breaker=flags.include_tie_breaker,
@@ -440,7 +442,7 @@ def _build_model_legacy(
     )
 
     grid_co2_series_dict = {i: float(table["grid_co2_kg_MWh"][i]) for i in range(T)}
-    
+
     co2_calc = EmissionsCalculator(
         co2_price_param=m.co2_price,
         grid_co2_series=grid_co2_series_dict,

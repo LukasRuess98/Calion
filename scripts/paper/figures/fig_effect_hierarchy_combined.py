@@ -2,7 +2,7 @@
 fig_effect_hierarchy_combined.py
 ================================
 Two-panel headline figure: cost gap per modelling step versus additional
-solve time. Data values are hardcoded from the paper and are not modified.
+solve time. Values derived from actual meta.json / economics.csv runs.
 """
 from __future__ import annotations
 
@@ -20,40 +20,47 @@ import numpy as np
 from scripts.paper.figures.fig_utils import (
     LEVEL_COLORS,
     apply_style,
-    polish_axes,
     save_fig,
 )
 
+
+def polish_axes(ax, grid_axis="both"):
+    ax.tick_params(which="both", length=3, width=0.6)
+    ax.grid(True, axis=grid_axis, linewidth=0.4, alpha=0.5)
+    ax.set_axisbelow(True)
+
 # (y-label, cost_gap_pct, additional_solve_time_s, bar_colour)
+# Cost gaps: L1/L2/L3/L3+ from annual economics.csv; L3NL from Jan 2025 window.
+# Solve times: incremental from meta.json (L3NL = Jan 2025 window, 744 h).
 STEPS = [
     (
         r"$\mathrm{L1} \to \mathrm{L2}$" + "\n(topology + heat loss)",
-        10.6,
+        10.5,
         182,
         LEVEL_COLORS["L2"],
     ),
     (
         r"$\mathrm{L2} \to \mathrm{L3}$" + "\n(spatial resolution)",
-        2.4,
-        200,
+        2.54,
+        201,
         LEVEL_COLORS["L3"],
     ),
     (
-        r"$\mathrm{L3} \to \mathrm{L}^{+}$" + "\n(pressure drop)",
+        r"$\mathrm{L3} \to \mathrm{L3}^{+}$" + "\n(pressure drop)",
         0.11,
-        515,
+        514,
         LEVEL_COLORS["L3plus"],
     ),
     (
-        r"$\mathrm{L}^{+} \to \mathrm{L}^{\mathrm{NL}}$" + "\n(lin. + transp. delay)",
+        r"$\mathrm{L3}^{+} \to \mathrm{L3}^{\mathrm{NL}}$" + "\n(lin. + transp. delay)",
         0.35,
-        14000,
+        13543,
         LEVEL_COLORS["L3NL"],
     ),
 ]
 
-COST_ANNOTS = ["+10.6 %", "+2.4 %", "+0.11 %", "+0.35 % (bound)"]
-TIME_ANNOTS = ["182 s", "200 s", "515 s", ">14 000 s (bound)"]
+COST_ANNOTS = ["+10.5 %", "+2.5 %", "+0.11 %", "+0.35 % (bound)"]
+TIME_ANNOTS = ["182 s", "201 s", "514 s", "13 543 s (bound)"]
 
 
 def main() -> None:

@@ -203,6 +203,78 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     # downstream demands (j_13+j_14+j_15) that flow through it.
                     _all_consumer_demand_nodes.append(cnid)
 
+    # ── Nodal balance for primary producer ───────────────────────────────────
+    # Multi-producer networks (Stadtbach) require a nodal balance at j_hkw.
+    # The old demand proxy (sum all consumer Q_demands) assumed j_hkw is the
+    # sole producer and breaks when secondary producers (j_hws, j_hww, east arm)
+    # serve part of the load — including backward flow through the bidirectional
+    # hkw_to_ost pipe when east arm excess exceeds east demand.
+    #
+    # Fix: use Q_delivered (supply side) for every outgoing pipe from j_hkw.
+    # Since Q_delivered = Q_consumer + pipe_loss, pipe losses are already embedded
+    # and no separate network_loss term is needed.  For single-producer networks
+    # (Memmingen) this is algebraically equivalent to the old approach.
+    _bidi_signed_q_terms = []   # list of callables t → Pyomo expression [MW]
+
+    if unified_config is not None and primary_producer_id is not None:
+        # Nodal balance for primary producer: collect Q_delivered (supply side) for
+        # every outgoing pipe.  Using supply-side quantities means pipe losses are
+        # already included, so neither a demand proxy nor a network_loss term is needed.
+        # For single-producer networks (Memmingen) this is equivalent to the old approach:
+        #   sum(Q_del_all) = sum(Q_consumer + loss) = sum(D) + total_losses.
+        _CP = 4.186  # kJ/(kg·K), same constant as pipe_pair.py
+
+        def _make_signed_q_fn(m_dot_v, T_sup_p, T_ret_p, cp=_CP):
+            def _signed_q(t):
+                coeff = cp * (pyo.value(T_sup_p[t]) - pyo.value(T_ret_p[t])) / 1000
+                return m_dot_v[t] * coeff
+            return _signed_q
+
+        for _out_pipe_id, _out_pipe_cfg in unified_config.pipes.items():
+            if _out_pipe_cfg.from_node != primary_producer_id:
+                continue
+            _out_pfx = _out_pipe_id.upper().replace('-', '_')
+            if _out_pipe_cfg.bidirectional:
+                # Signed Q: positive = j_hkw sends forward; negative = receives backward
+                _bidi_m_dot = getattr(model, f'{_out_pfx}_m_dot', None)
+                _bidi_T_sup = getattr(model, f'{_out_pfx}_T_supply_in', None)
+                _bidi_T_ret = getattr(model, f'{_out_pfx}_T_return_in', None)
+                if _bidi_m_dot is None or _bidi_T_sup is None or _bidi_T_ret is None:
+                    logger.warning(
+                        "[CONSTRAINT] Bidi pipe %s: m_dot or T params not found — skipped",
+                        _out_pipe_id,
+                    )
+                    continue
+                _bidi_signed_q_terms.append(
+                    _make_signed_q_fn(_bidi_m_dot, _bidi_T_sup, _bidi_T_ret)
+                )
+                logger.info("[CONSTRAINT] Nodal balance: bidi pipe %s signed-Q added", _out_pipe_id)
+            else:
+                _q_del = getattr(model, f'{_out_pfx}_Q_delivered', None)
+                if _q_del is None:
+                    logger.warning(
+                        "[CONSTRAINT] Pipe %s: Q_delivered not found — skipped from nodal balance",
+                        _out_pipe_id,
+                    )
+                    continue
+                _bidi_signed_q_terms.append(lambda t, _qd=_q_del: _qd[t])
+                logger.info("[CONSTRAINT] Nodal balance: pipe %s Q_delivered added", _out_pipe_id)
+
+        if _bidi_signed_q_terms:
+            # Nodal approach covers all outgoing pipes — demand proxy and secondary
+            # mixed pipe lists are no longer needed in primary balance.
+            _all_consumer_demand_nodes = []
+            _secondary_mixed_q_pipes = []
+            logger.info(
+                "[CONSTRAINT] Primary producer %s: nodal balance with %d outgoing pipe terms",
+                primary_producer_id, len(_bidi_signed_q_terms),
+            )
+        else:
+            logger.warning(
+                "[CONSTRAINT] Primary producer %s: no outgoing pipe Q_delivered found — "
+                "falling back to demand proxy", primary_producer_id,
+            )
+
     # Per-node heat balance constraints
     for node_id, node_cfg in unified_config.nodes.items():
         node_buses = system_buses.nodes.get(node_id)
@@ -225,19 +297,24 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
 
                 def primary_producer_balance(
                     m, t, _out=ht_out, _in=ht_in, _d=dump_var,
-                    _qc=consumer_demand_nodes, _qp=secondary_q_pipes
+                    _qc=consumer_demand_nodes, _qp=secondary_q_pipes,
+                    _bidi=_bidi_signed_q_terms
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
+                    # Nodal balance: _bidi contains Q_delivered (supply side) for all
+                    # outgoing pipes, so losses are already embedded — no network_loss term.
+                    # _qc and _qp are empty when nodal balance is active (multi-producer).
+                    # Legacy fallback: if nodal balance failed, _qc/_qp remain populated
+                    # and network_loss is still required.
                     network_loss = 0
-                    if hasattr(m, 'network_Q_loss_per_timestep'):
-                        network_loss = m.network_Q_loss_per_timestep[t]
-                    # Consumer demands: use Q_demand param (= Q_pipe via demand_heat_rule)
-                    # Secondary mixed nodes: use actual Q_consumer pipe variable (variable,
-                    # not fixed to D_j5) so the optimizer can set pipe flow freely.
+                    if _qc or _qp:
+                        if hasattr(m, 'network_Q_loss_per_timestep'):
+                            network_loss = m.network_Q_loss_per_timestep[t]
                     return supply == (_d[t] + charge + network_loss
                                       + sum(_node_effective_demand(m, nid, t) for nid in _qc)
-                                      + sum(qp[t] for qp in _qp))
+                                      + sum(qp[t] for qp in _qp)
+                                      + sum(f(t) for f in _bidi))
 
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=primary_producer_balance))
@@ -340,11 +417,12 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                                 pyo.Constraint(model.t, rule=secondary_no_demand_with_pipe))
                     else:
                         def secondary_producer_no_demand(
-                            m, t, _out=ht_out, _in=ht_in, _d=dump_var
+                            m, t, _out=ht_out, _in=ht_in, _d=dump_var,
+                            _qpo=q_pipes_out
                         ):
                             supply = sum((f[t] for f in _out), start=0)
                             charge = sum((f[t] for f in _in), start=0)
-                            return supply == _d[t] + charge
+                            return supply == sum(qo[t] for qo in _qpo) + _d[t] + charge
 
                         setattr(model, f"ht_balance_{node_id}",
                                 pyo.Constraint(model.t, rule=secondary_producer_no_demand))

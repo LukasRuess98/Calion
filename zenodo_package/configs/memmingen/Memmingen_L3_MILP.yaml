@@ -176,9 +176,8 @@ network:
       consumers:
         - column: "V_18_demand_MWth"
 
-    # Junction j_12: serves V_19-V_21, has HP + E-Boiler
+    # Junction j_12: serves V_19-V_21
     j_12:
-      #assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"

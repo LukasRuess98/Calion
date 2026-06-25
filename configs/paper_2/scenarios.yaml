@@ -1,0 +1,245 @@
+# =============================================================================
+# PAPER 2 — 20-Scenario Definition
+# =============================================================================
+# Defines all 20 MILP runs as a structured list.
+# scenario_runner.py iterates this list and applies per-scenario overrides.
+#
+# Scenario naming: {network}-{TES_location}-{heat_curve_stage}
+#   BC = Baseline (no investment)
+#   MM = Memmingen | SB = Stadtbach
+#   S1/S2/S3 = TES candidate node location
+#   HK0 = real (current) heat curve
+#   HK1/HK2 = optimized heat curve stages (lower T_VL_min, different k)
+#
+# TES node IDs (TODO — fill in once topology is confirmed):
+#   Memmingen: S1 = j_1 (Zentrale), S2 = j_12 (New, near eastern branch)
+#   Stadtbach: S1 = sb_1 (Zentrale), S2 = sb_TODO, S3 = sb_TODO_far
+#
+# Heat curve stages (TODO — confirm from network data):
+#   HK0 = current real curve (k=1.0, T_VL_min=55°C) — fixed, no optimization
+#   HK1 = moderate reduction (k=0.8, T_VL_min=50°C)
+#   HK2 = aggressive reduction (k=0.6, T_VL_min=45°C)
+# =============================================================================
+
+# Heat curve stages — network-keyed (Stadtbach runs at higher temperatures than Memmingen)
+# Memmingen: T_VL 55-100°C  |  Stadtbach: T_VL 70-122°C (from PPS measurements)
+heat_curve_stages:
+  memmingen:
+    HK0:
+      k: 1.0
+      T_VL_min_c: 74.0   # current operation floor (T_return=63.6 + historical ~10°C margin)
+      T_VL_max_c: 100.0
+      description: "Memmingen: current real heat curve"
+    HK1:
+      k: 0.8
+      T_VL_min_c: 70.0   # moderate reduction
+      T_VL_max_c: 100.0
+      description: "Memmingen: moderate reduction"
+    HK2:
+      k: 0.6
+      T_VL_min_c: 66.0   # aggressive reduction (close to T_return+2 floor)
+      T_VL_max_c: 100.0
+      description: "Memmingen: aggressive reduction"
+  stadtbach:
+    HK0:
+      k: 1.0
+      T_VL_min_c: 70.0
+      T_VL_max_c: 122.0
+      description: "Stadtbach: current real heat curve (PPS-calibrated)"
+    HK1:
+      k: 0.8
+      T_VL_min_c: 65.0
+      T_VL_max_c: 122.0
+      description: "Stadtbach: moderate reduction"
+    HK2:
+      k: 0.6
+      T_VL_min_c: 60.0
+      T_VL_max_c: 122.0
+      description: "Stadtbach: aggressive reduction"
+
+# TES candidate nodes
+tes_nodes:
+  memmingen:
+    S1: "j_1"     # Zentrale — producer node (existing TES location)
+    S2: "j_12"    # eastern branch midpoint
+  stadtbach:
+    S1: "j_hkw"   # Zentrale — all generators + existing TES
+    S2: "j_pss"   # Pumpstation Süd — midpoint to south zone
+    S3: "j_psw"   # Pumpstation West — midpoint to west zone
+
+# DSM consumers (TODO — confirm with user)
+dsm_consumers:
+  memmingen: []   # No DSM consumers defined yet — set after user input
+  stadtbach: []   # TODO: Identify flexible industrial consumers
+
+# 20 scenarios
+scenarios:
+
+  # ── Baseline cases (no investment, real heat curve) ──────────────────────
+  - id: "BC-MM"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: true
+    description: "Memmingen baseline — no new investment, real heat curve"
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          investment:
+            enabled: false
+            energy_capacity_max_mwh: 500.0
+            power_capacity_max_mw: 30.0
+
+  - id: "BC-SB"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: true
+    description: "Stadtbach baseline — no new investment, real heat curve"
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          investment:
+            enabled: false
+            energy_capacity_max_mwh: 0.0
+            power_capacity_max_mw: 0.0
+
+  # ── Memmingen optimization scenarios ─────────────────────────────────────
+  - id: "MM-S1-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1 (Zentrale), current heat curve"
+
+  - id: "MM-S1-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1 (Zentrale), reduced heat curve stage 1"
+
+  - id: "MM-S1-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1 (Zentrale), reduced heat curve stage 2"
+
+  - id: "MM-S2-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (New Zentrale), current heat curve"
+
+  - id: "MM-S2-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (New Zentrale), reduced heat curve stage 1"
+
+  - id: "MM-S2-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (New Zentrale), reduced heat curve stage 2"
+
+  # ── Stadtbach optimization scenarios ─────────────────────────────────────
+  - id: "SB-S1-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES at S1 (Zentrale), current heat curve"
+
+  - id: "SB-S1-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES at S1 (Zentrale), reduced heat curve stage 1"
+
+  - id: "SB-S1-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES at S1 (Zentrale), reduced heat curve stage 2"
+
+  - id: "SB-S2-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S2"
+    baseline: false
+    description: "Stadtbach: TES at S2 (New Zentrale), current heat curve"
+
+  - id: "SB-S2-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S2"
+    baseline: false
+    description: "Stadtbach: TES at S2 (New Zentrale), reduced heat curve stage 1"
+
+  - id: "SB-S2-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S2"
+    baseline: false
+    description: "Stadtbach: TES at S2 (New Zentrale), reduced heat curve stage 2"
+
+  - id: "SB-S3-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S3"
+    baseline: false
+    description: "Stadtbach: TES at S3 (Außenpunkt), current heat curve"
+
+  - id: "SB-S3-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S3"
+    baseline: false
+    description: "Stadtbach: TES at S3 (Außenpunkt), reduced heat curve stage 1"
+
+  - id: "SB-S3-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S3"
+    baseline: false
+    description: "Stadtbach: TES at S3 (Außenpunkt), reduced heat curve stage 2"

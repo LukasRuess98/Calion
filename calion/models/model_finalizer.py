@@ -350,6 +350,7 @@ class ModelFinalizer:
                 "diameter_mm": pipe.diameter_mm,
                 "u_value_supply_w_per_m_k": pipe.u_value_supply_w_per_m_k,
                 "u_value_return_w_per_m_k": pipe.u_value_return_w_per_m_k,
+                "bidirectional": pipe.bidirectional,
             }
             raw_pipe = raw_pipes.get(pid, {})
             if isinstance(raw_pipe, dict):
@@ -415,6 +416,9 @@ class ModelFinalizer:
             "linearization": lin_cfg,
             "temperature_frame": temperature_frame_cfg,
             "physics": physics_cfg,
+            "state_validation": (
+                net_cfg.get('state_validation') or tn_cfg.get('state_validation') or {}
+            ),
         }
 
     def _integrate_network_legacy(self) -> None:

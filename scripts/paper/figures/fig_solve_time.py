@@ -17,6 +17,9 @@ from scripts.paper.figures.fig_utils import apply_style, save_fig, LEVEL_COLORS
 RUNS = ROOT / "output" / "paper_runs"
 
 
+L3NL_META = RUNS / "linearization_windows" / "jan_2025" / "L3NL" / "meta.json"
+
+
 def main() -> None:
     apply_style()
 
@@ -25,7 +28,7 @@ def main() -> None:
     solve_times = []
 
     for rid in levels:
-        meta_p = RUNS / rid / "meta.json"
+        meta_p = L3NL_META if rid == "L3NL" else RUNS / rid / "meta.json"
         if meta_p.exists():
             m = json.loads(meta_p.read_text())
             solve_times.append(float(m.get("solve_time_s", 0) or 0))
@@ -49,12 +52,13 @@ def main() -> None:
     ax.set_title("Solver wall-clock time per fidelity level")
 
     # Annotate bars
-    for bar, t in zip(bars, solve_times):
+    for rid, bar, t in zip(levels, bars, solve_times):
         if t > 0:
+            suffix = "\n(Jan 744 h)" if rid == "L3NL" else ""
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() * 1.1,
-                f"{t:.0f}s",
+                f"{t:.0f}s{suffix}",
                 ha="center", va="bottom", fontsize=7,
             )
 

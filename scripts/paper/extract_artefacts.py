@@ -282,6 +282,16 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
             return list(raw) + [0.0] * (T - len(raw))
         return list(raw)
 
+    def s_agg(suffix: str, exclude_keys: set[str] | None = None) -> list:
+        """Sum all series whose key ends with suffix (fallback for multi-node topologies)."""
+        exclude = exclude_keys or set()
+        result = [0.0] * T
+        for k, raw in series.items():
+            if k.endswith(suffix) and k not in exclude and raw:
+                for i, v in enumerate(list(raw)[:T]):
+                    result[i] += float(v or 0.0)
+        return result
+
     # Map series keys to §3.3 schema columns
     # Network pipe data: read from framework export if available
     net_export = Path(workflow.pf_result.solver.get("export_dir", ""))
@@ -422,6 +432,37 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         if isinstance(v, list) and len(v) != T:
             rows[k] = (v[:T] if len(v) > T else v + [0.0] * (T - len(v)))
 
+    # Multi-node topology fallback: when all generation columns are zero but the series
+    # dict has asset-specific keys (e.g. "HKW_Q_th_MW", "hp_sb_Q_th_MW"), aggregate them.
+    # This handles topologies like Stadtbach where asset IDs differ from Memmingen's
+    # "MAIN" convention.  HP keys (start with "hp") go into Q_hp_total_MW; everything
+    # else goes into Q_chp_MW (combined non-HP thermal generation).
+    _gen_sum = sum(
+        sum(rows[k]) for k in ("Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
+                                "Q_hp_total_MW", "Q_ek_MW")
+    )
+    if _gen_sum == 0.0:
+        _known_main = {
+            "CHP_MAIN_Q_th_MW", "GASBOILER_MAIN_Q_th_MW", "BIOMASS_MAIN_Q_th_MW",
+            "hp_main_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
+        }
+        for k, raw in series.items():
+            if not k.endswith("_Q_th_MW") or k in _known_main or not raw:
+                continue
+            vals = [float(v or 0.0) for v in list(raw)[:T]]
+            if k.split("_")[0].lower().startswith("hp"):
+                # Heat pump asset (e.g. hp_sb_Q_th_MW)
+                rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
+            else:
+                # Thermal generator (CHP, boiler, biomass — combined into Q_chp_MW)
+                rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
+        # Also capture P2H / EBOILER variants not covered by the primary key
+        for ek_key in ("P2H_Q_th_MW",):
+            raw = series.get(ek_key)
+            if raw and sum(raw) > 0:
+                vals = [float(v or 0.0) for v in list(raw)[:T]]
+                rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
+
     # Q_demand: use model's own heat_demand_MW series (from unified_timeseries.csv) if
     # available — this is the consumer-side demand the optimizer solved for.
     # Fallback: energy balance (gen + net_storage - losses), but losses are post-processed
@@ -442,6 +483,17 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
 
     df = pd.DataFrame(rows)
     df.to_csv(outdir / "dispatch_hourly.csv", index=False)
+
+    # Per-asset thermal dispatch — for topology-aware validation (Stadtbach etc.)
+    # Columns: timestamp + {asset_key}_MW for every *_Q_th_MW series present.
+    per_asset: dict[str, list] = {"timestamp": timestamps}
+    for k, raw in series.items():
+        if k.endswith("_Q_th_MW") and raw:
+            col = k[: -len("_Q_th_MW")] + "_MW"
+            per_asset[col] = [float(v or 0.0) for v in list(raw)[:T]]
+    if len(per_asset) > 1:
+        pd.DataFrame(per_asset).to_csv(outdir / "dispatch_per_asset.csv", index=False)
+
     return df
 
 

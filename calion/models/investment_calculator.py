@@ -88,12 +88,14 @@ class InvestmentCalculator:
     def __init__(
         self,
         period_frac: float,
+        discount_rate: float = 0.0,
         include_capex: bool = True,
         include_activation: bool = True,
         include_tie_breaker: bool = True,
         include_storage_install: bool = True,
     ):
         self.period_frac = period_frac
+        self.discount_rate = discount_rate
         self.include_capex = include_capex
         self.include_activation = include_activation
         self.include_tie_breaker = include_tie_breaker
@@ -103,13 +105,18 @@ class InvestmentCalculator:
         """
         Compute the annualization factor for a given lifetime.
 
-        factor = period_frac / lifetime_years
+        When discount_rate > 0, uses the ANF formula: i*(1+i)^n / ((1+i)^n - 1) * period_frac.
+        When discount_rate == 0, falls back to period_frac / lifetime_years (linear depreciation).
 
         Returns 0.0 for zero or negative lifetimes (safe default).
         """
-        if lifetime_years > 0:
-            return self.period_frac / lifetime_years
-        return 0.0
+        if lifetime_years <= 0:
+            return 0.0
+        if self.discount_rate > 0:
+            i, n = self.discount_rate, lifetime_years
+            anf = i * (1 + i) ** n / ((1 + i) ** n - 1)
+            return anf * self.period_frac
+        return self.period_frac / lifetime_years
 
     def calculate_component_costs(
         self,
@@ -282,9 +289,91 @@ class InvestmentCalculator:
         )
 
 
+def annuity_factor(i: float, n: float) -> float:
+    """Compute the annuity factor ANF(i, n) for investment cost annualization.
+
+    ANF(i, n) = i * (1 + i)^n / ((1 + i)^n - 1)
+
+    Converts a one-time CAPEX into an equivalent annual payment stream.
+    Used in Paper 2 objective function:
+        CAPEX_annual = ANF(i, n) * CAPEX_total
+
+    Args:
+        i: Discount rate as a decimal fraction (e.g., 0.05 for 5%).
+        n: Economic lifetime [years].
+
+    Returns:
+        Annuity factor [1/year]. For i=0, returns 1/n (straight-line).
+    """
+    if n <= 0:
+        raise ValueError(f"Lifetime n must be positive, got {n}")
+    if i <= 0:
+        return 1.0 / n
+    factor = (1.0 + i) ** n
+    return i * factor / (factor - 1.0)
+
+
+@dataclass
+class P2InvestmentConfig:
+    """Paper 2 investment configuration using proper ANF annualization.
+
+    Unlike ComponentInvestmentConfig (which uses period_frac/lifetime),
+    this uses the full ANF formula and explicit α/β cost coefficients
+    from the Paper 2 spec.
+    """
+    alpha_eur_per_mw_or_m3: float
+    beta_eur: float
+    discount_rate: float
+    lifetime_years: float
+
+    def capex_annual_per_unit(self) -> float:
+        """Annualized CAPEX per unit capacity [€/year per MW or m³]."""
+        return annuity_factor(self.discount_rate, self.lifetime_years) * self.alpha_eur_per_mw_or_m3
+
+    def capex_annual_fixed(self) -> float:
+        """Annualized fixed (activation) CAPEX [€/year]."""
+        return annuity_factor(self.discount_rate, self.lifetime_years) * self.beta_eur
+
+
+class P2InvestmentCalculator:
+    """Investment cost calculator for Paper 2 using ANF annualization.
+
+    Computes CAPEX cost expressions for WP, EK, and TES components
+    following the spec linear cost model:
+        CAPEX_WP = alpha_WP * Q_WP + beta_WP * y_WP
+        CAPEX_EK = alpha_EK * Q_EK + beta_EK * y_EK
+        CAPEX_TES = alpha_TES * V_TES + beta_TES * y_TES
+
+    The annualized cost in the objective is:
+        ANF * CAPEX * period_frac
+    """
+
+    def __init__(self, discount_rate: float, period_frac: float = 1.0):
+        self.discount_rate = discount_rate
+        self.period_frac = period_frac
+
+    def calculate_annualized_cost(
+        self,
+        capacity_var: Any,
+        build_var: Any,
+        config: P2InvestmentConfig,
+    ) -> Any:
+        """Build a Pyomo expression for the annualized CAPEX contribution.
+
+        Returns:
+            Pyomo expression: ANF * period_frac * (alpha * cap + beta * build)
+        """
+        af = annuity_factor(config.discount_rate, config.lifetime_years)
+        scale = af * self.period_frac
+        return scale * (config.alpha_eur_per_mw_or_m3 * capacity_var + config.beta_eur * build_var)
+
+
 __all__ = [
     "ComponentInvestmentConfig",
     "InvestmentCalculator",
     "InvestmentTerms",
+    "P2InvestmentCalculator",
+    "P2InvestmentConfig",
     "StorageInvestmentConfig",
+    "annuity_factor",
 ]

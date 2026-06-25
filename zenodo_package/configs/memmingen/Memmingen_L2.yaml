@@ -84,7 +84,7 @@ network:
   delta_p_min_consumer_bar: 0.7
 
   nodes:
-    # Zone A: Producer (= L3 j_1) — all assets here, matching L3 where j_12 assets are commented out
+    # Zone A: Producer (= L3 j_1) — all assets here (HP and electrode boiler co-located with plant)
     zone_A:
       assets: [chp_main, tes_main, biomass_main, gasboiler_main, hp_main, eboiler_main]
       consumers:

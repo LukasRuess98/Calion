@@ -256,6 +256,10 @@ def load_input_excel(
         }
 
     price = [_to_float(rec.get(price_col)) for rec in records]
+    price_scale = float(site_cfg.get("price_scale_factor", 1.0))
+    if price_scale != 1.0:
+        price = [p * price_scale for p in price]
+        logger.info("[LOAD] Electricity price scaled by %.3f", price_scale)
     heat = [_to_float(rec.get(heat_col)) for rec in records]
     co2 = [_to_float(rec.get(co2_col)) for rec in records] if co2_col else [0.0] * len(records)
 
@@ -280,20 +284,44 @@ def load_input_excel(
         demand_values = [_to_float(rec.get(demand_col)) for rec in records]
         data[demand_col] = demand_values
 
+    # Pass through any remaining Excel columns not yet loaded (e.g. ACRON station demand
+    # columns like "August-Wessels-Str_MW" that don't match the V_*_demand_MWth pattern,
+    # or WRG columns referenced by original name in YAML like "WRG1Q_MW").
+    # Exclude only columns that are loaded under a DIFFERENT normalized key (price/heat/co2/
+    # outdoor) to avoid double-loading. WRG source cols are included so configs can reference
+    # them by their original Excel name.
+    _already_renamed = {time_col, price_col, heat_col, co2_col, outdoor_temp_col} | set(demand_columns)
+    _already_renamed.discard(None)
+    for col in header:
+        if col not in _already_renamed and col not in data:
+            try:
+                data[col] = [_to_float(rec.get(col)) for rec in records]
+            except (RuntimeError, ValueError, TypeError):
+                pass  # skip non-numeric columns (e.g. Tag/Zeit date-only columns)
+
     # Add outdoor temperature if available
     if outdoor_temp and any(t == t for t in outdoor_temp):  # Check for non-NaN values
         data["outdoor_temp_C"] = outdoor_temp
 
+    wrg_scale = float(site_cfg.get("wrg_scale_factor", 1.0))
     for i in range(1, 5):
         q_col = wrg_cols[i]["q"]
         t_col = wrg_cols[i]["t"]
         if q_col:
-            data[f"WRG{i}_Q_cap"] = [_to_float(rec.get(q_col)) for rec in records]
+            cap_vals = [_to_float(rec.get(q_col)) for rec in records]
+            if wrg_scale != 1.0:
+                cap_vals = [v * wrg_scale for v in cap_vals]
+            data[f"WRG{i}_Q_cap"] = cap_vals
         if t_col:
             temps = [_to_float(rec.get(t_col)) for rec in records]
             data[f"WRG{i}_T_K"] = [temp + 273.15 if temp == temp else temp for temp in temps]
+    if wrg_scale != 1.0:
+        logger.info("[LOAD] WRG capacity scaled by %.3f", wrg_scale)
+
+    _required_columns = {"strompreis_EUR_MWh", "waermebedarf_MWth", "grid_co2_kg_MWh"}
 
     # fill missing numbers using simple forward/backward fill
+    _nan_passthrough: list[str] = []
     for key, values in data.items():
         data[key] = fill_gaps(values)
         if key == "waermebedarf_MWth" or demand_pattern.match(key):
@@ -305,7 +333,14 @@ def load_input_excel(
                     key,
                 )
                 data[key] = [max(0.0, value) for value in data[key]]
-        _require(all(v == v for v in data[key]), f"NaN in column {key}")
+        if not all(v == v for v in data[key]):
+            if key in _required_columns:
+                _require(False, f"NaN in column {key}")
+            else:
+                _nan_passthrough.append(key)
+    for key in _nan_passthrough:
+        del data[key]
+        logger.debug("[LOAD] Dropped pass-through column '%s' (NaN after fill)", key)
 
     dt_hours = float(dt_hours if dt_hours is not None else site_cfg.get("dt_h", 1.0))
 

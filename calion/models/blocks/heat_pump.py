@@ -126,9 +126,13 @@ class HeatPumpBlock(BaseComponent):
         Pel_expr = pyo.Expression(Tset, rule=pel_expr_rule)
         setattr(m, f"{comp}_Pel", Pel_expr)
 
-        def cap_hi(mm):
-            return cap <= mm.__getattribute__(f"{comp}_cap_max") * build
-        setattr(m, f"{comp}_cap_hi", pyo.Constraint(rule=cap_hi))
+        if self.investable:
+            # When fixed (non-investable), cap is already fixed to cap_init_mw
+            # and build is fixed to 0 or 1 — no constraint needed, and
+            # capacity_max_mw: 0 from scenario overrides would make it infeasible.
+            def cap_hi(mm):
+                return cap <= mm.__getattribute__(f"{comp}_cap_max") * build
+            setattr(m, f"{comp}_cap_hi", pyo.Constraint(rule=cap_hi))
 
         def cap_lo(mm):
             return cap >= mm.__getattribute__(f"{comp}_cap_min") * build

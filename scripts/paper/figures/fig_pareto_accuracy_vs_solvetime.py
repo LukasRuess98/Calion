@@ -1,8 +1,11 @@
 """
 fig_pareto_accuracy_vs_solvetime.py
 ===================================
-Pareto-front figure: model fidelity versus solve time. Data values are
-hardcoded from the paper and are not modified.
+Pareto-front figure: model fidelity versus solve time.
+Solve times from meta.json. Cost gaps vs L3NL computed as cumulative sums:
+  L3+  = Jan-2025 window direct comparison (0.35%)
+  L3   = L3->L3+ (0.11%) + L3+->L3NL (0.35%) = 0.46%
+  L1/L2 = annual L1/L2->L3 gap + L3->L3NL (0.46%)
 """
 from __future__ import annotations
 
@@ -21,17 +24,22 @@ from scripts.paper.figures.fig_utils import (
     LEVEL_COLORS,
     LEVEL_LABELS,
     apply_style,
-    polish_axes,
     save_fig,
 )
 
+
+def polish_axes(ax, grid_axis="both"):
+    ax.tick_params(which="both", length=3, width=0.6)
+    ax.grid(True, axis=grid_axis, linewidth=0.4, alpha=0.5)
+    ax.set_axisbelow(True)
+
 # (level_key, solve_time_s, cost_gap_vs_LNL_pct)
 LEVELS = [
-    ("L1", 268, 13.45),
-    ("L2", 450, 2.85),
-    ("L3", 650, 0.46),
-    ("L3plus", 1165, 0.35),
-    ("L3NL", 14400, 0.00),
+    ("L1",     268,   13.50),
+    ("L2",     450,    3.00),
+    ("L3",     650,    0.46),
+    ("L3plus", 1165,   0.35),
+    ("L3NL",   14708,  0.00),
 ]
 
 _OFFSETS = {

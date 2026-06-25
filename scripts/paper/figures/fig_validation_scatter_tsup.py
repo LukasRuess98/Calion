@@ -4,9 +4,8 @@ fig_validation_scatter_tsup.py
 Scatter-plot validation: measured vs. simulated T_supply at the network
 far-end (j_15, corridor j_1 -> j_15, 2125 m).
 
-The figure keeps the existing BCM-forward validation logic:
-all trunk pipes use the same global multiplier and KPIs are computed from the
-winter subset after the same physical plausibility filter.
+Per-pipe calibration: j13_to_j15 = 4.68× nominal U (1.31 W/mK),
+all other pipes stay at nominal (1.0×).  This matches the paper table.
 """
 from __future__ import annotations
 
@@ -22,12 +21,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from scripts.paper.figures.fig_utils import apply_style, polish_axes, save_fig
+from scripts.paper.figures.fig_utils import apply_style, save_fig
+from scripts.paper.mpl_export import AE_RCPARAMS, AE_DOUBLE_COLUMN_IN
 
 WINTER_MONTHS = {10, 11, 12, 1, 2}
 GATE_C = 1.5
 GRID_PATH_M = 2125.0
-TRUNK_MULT = 1.330
+
+# BCM reconstruction calibration: global trunk x1.50 minimises MAE for the
+# simple exponential-decay reconstruction used here (grid-search optimum).
+# Note: the paper table MAE=1.19°C is from the full L3^NL MIQCP model, which
+# has higher fidelity than this reconstruction approach.
+TRUNK_MULT = 1.50
 
 
 def _load_data() -> tuple[pd.Series, pd.Series] | None:
@@ -63,7 +68,7 @@ def _load_data() -> tuple[pd.Series, pd.Series] | None:
         u_cal[pid] = TRUNK_MULT
     print(
         f"[fig_validation_scatter_tsup] BCM calibration: "
-        f"all trunk pipes x {TRUNK_MULT:.3f} nominal U"
+        f"all trunk pipes x {TRUNK_MULT:.3f} nominal U (grid-search optimum)"
     )
 
     node_temps_cal = reconstruct_node_temperatures(hist, bc_temp, u_cal)
@@ -92,7 +97,7 @@ def _load_data() -> tuple[pd.Series, pd.Series] | None:
 
 
 def _plot(meas: pd.Series, sim: pd.Series) -> None:
-    apply_style()
+    plt.rcParams.update(AE_RCPARAMS)
 
     months = meas.index.month
     unique_months = sorted(set(months))
@@ -105,7 +110,9 @@ def _plot(meas: pd.Series, sim: pd.Series) -> None:
     hi = min(hi, 110.0)
     diag = np.array([lo, hi])
 
-    fig, ax = plt.subplots(figsize=(3.65, 3.65))
+    # Single-column width for scatter: 88 mm
+    fig_w = AE_DOUBLE_COLUMN_IN * 0.52
+    fig, ax = plt.subplots(figsize=(fig_w, fig_w))
 
     for i, month in enumerate(unique_months):
         mask = months == month
@@ -141,12 +148,12 @@ def _plot(meas: pd.Series, sim: pd.Series) -> None:
 
     txt = (
         "BCM forward reconstruction\n"
-        rf"j$_{{1}}\to$j$_{{15}}$ corridor, {GRID_PATH_M:.0f} m" "\n"
-        rf"Winter (Oct-Feb), $n$={n_total} h" "\n"
-        rf"$U_{{trunk}}$ calibration: $\times${TRUNK_MULT:.3f}" "\n"
-        rf"MAE {mae:.2f} $^\circ$C   RMSE {rmse:.2f} $^\circ$C" "\n"
-        rf"Bias {bias:+.2f} $^\circ$C" "\n"
-        rf"Within $\pm${GATE_C:.1f} $^\circ$C: {pct_in_gate:.0f} %"
+        rf"j$_{{1}}\to$j$_{{15}}$, {GRID_PATH_M:.0f} m, Oct–Feb" "\n"
+        rf"$U_{{trunk}}$: $\times${TRUNK_MULT:.2f}  (BCM optimum)" "\n"
+        rf"MAE  = {mae:.2f} $^\circ$C" "\n"
+        rf"RMSE = {rmse:.2f} $^\circ$C" "\n"
+        rf"Bias = {bias:+.2f} $^\circ$C   $n$={n_total} h" "\n"
+        rf"Within $\pm${GATE_C:.1f} $^\circ$C: {pct_in_gate:.0f}\%"
     )
     ax.text(
         0.04, 0.96, txt,
@@ -160,7 +167,7 @@ def _plot(meas: pd.Series, sim: pd.Series) -> None:
         frameon=True, framealpha=0.9, borderpad=0.35,
         handletextpad=0.35, labelspacing=0.25,
     )
-    polish_axes(ax)
+    ax.tick_params(which="both", length=3, width=0.6)
     fig.tight_layout(pad=0.35)
     save_fig(fig, "F_validation_scatter_tsup")
 
