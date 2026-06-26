@@ -113,12 +113,13 @@ network:
     j_hww: {}   # pure junction — receives heat from j_psw via psw_to_hww
 
     # ---- Pump stations (secondary producers) ----
-    # HWS_BOILER at j_pss so its heat enters the nodal balance at pump-station
-    # level, reducing j_hkw's obligation through the j_pss secondary balance.
+    # T_supply_offset_c breaks the equal-coefficient degeneracy in L3-MILP mode.
     j_pss:
       assets: [hws_boiler]
+      T_supply_offset_c: 0.0   # DIAGNOSTIC: no offset, test if network is feasible
     j_psw:
       assets: [hww_boiler]
+      T_supply_offset_c: 0.0   # DIAGNOSTIC: no offset, test if network is feasible
 
     # ===== NETZ-MITTE consumers (HKW direct) =====
     j_man:

@@ -843,6 +843,9 @@ class NetworkManager:
             net_state_validation = {}
         merged_state_validation_global = {**root_state_validation, **net_state_validation}
 
+        # self.nodes is always a dict[str, dict] keyed by node_id; use it for T_offset
+        # lookups rather than self._net_cfg.get('nodes') which may be a list.
+        nodes_cfg = self.nodes
         for pipe_id, pipe_config in self.pipes.items():
             pipe_dict = pipe_config if isinstance(pipe_config, dict) else pipe_config.__dict__
             # Prevent runner/raw config profile dicts (often 0-based) from overriding
@@ -851,15 +854,34 @@ class NetworkManager:
             safe_parameters.pop('supply_temp_dict', None)
             safe_parameters.pop('return_temp_dict', None)
             safe_parameters.pop('return_temp_band_dict', None)
+
+            # Per-node T_supply offset: secondary producer nodes (e.g. j_pss, j_psw)
+            # can declare T_supply_offset_c < 0 to represent heat loss along the trunk
+            # that feeds them. This assigns different cp×ΔT coefficients to incoming vs
+            # outgoing pipes, breaking the equal-coefficient degeneracy that would
+            # otherwise make secondary generators algebraically equivalent to dump vars.
+            from_node = pipe_dict.get('from_node') or pipe_dict.get('from')
+            from_node_cfg = nodes_cfg.get(from_node, {})
+            if isinstance(from_node_cfg, dict):
+                T_offset = float(from_node_cfg.get('T_supply_offset_c', 0.0))
+            else:
+                T_offset = float(getattr(from_node_cfg, 'T_supply_offset_c', 0.0))
+            if T_offset != 0.0:
+                logger.info(f'  [T_OFFSET] {pipe_id}: from_node={from_node}, T_supply_offset={T_offset:+.1f}°C')
+            base_supply = temp_setup['supply_temp_dict']
+            pipe_supply_dict = (
+                {t: v + T_offset for t, v in base_supply.items()}
+                if T_offset != 0.0 else base_supply
+            )
+
             enriched_config = {
                 **pipe_dict,
                 **safe_parameters,
-                'supply_temp_nominal_c': supply_temp,
+                'supply_temp_nominal_c': supply_temp + T_offset,
                 'return_temp_nominal_c': return_temp,
-                # Per-timestep supply temperature (from heating curve or fixed nominal).
-                # PipePairBlock uses this to initialize T_supply_in Params in MILP mode,
-                # enabling variable delivery temperatures that track the Heizkurve.
-                'supply_temp_dict': temp_setup['supply_temp_dict'],
+                # Per-timestep supply temperature: per-node offset applied so downstream
+                # secondary-producer nodes get a slightly different coefficient than j_hkw.
+                'supply_temp_dict': pipe_supply_dict,
                 # Optional per-timestep return temperatures (seasonal frame / runner injection).
                 'return_temp_dict': temp_setup.get('return_temp_dict'),
                 'use_outdoor_temperature': use_outdoor_temp,

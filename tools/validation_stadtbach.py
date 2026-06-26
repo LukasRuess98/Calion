@@ -91,11 +91,11 @@ TVL_ALL_STATIONS: dict[str, tuple[str, str]] = {
 # Tier 4: producer stations with Waermeleistung
 # (folder, filename, sim_asset_key in dispatch_per_asset.csv column "{key}_MW")
 MEASURED_PRODUCERS: dict[str, tuple[str, str, str]] = {
-    "HKW":    ("HKW",            "HKW_Waermeleistung.xlsx",              "hkw"),
-    "GT-Ost": ("GT-Ost",         "GT-Ost_Waermeleistung.xlsx",           "gtost"),
-    "BMHKW":  ("BMHKW",         "BMHKW_Waermeleistung.xlsx",            "bmhkw"),
-    "AVA":    ("AVA",            "AVA_Waermeleistung.xlsx",              "ava_feed"),
-    "HWW":    ("HWW_prim_Einsp", "HWW_Waermeleistung_Primeinsp.xlsx",   "hww_boiler"),
+    "HKW":    ("HKW",            "HKW_Waermeleistung.xlsx",              "HKW"),
+    "GT-Ost": ("GT-Ost",         "GT-Ost_Waermeleistung.xlsx",           "GTOST"),
+    "BMHKW":  ("BMHKW",         "BMHKW_Waermeleistung.xlsx",            "BMHKW"),
+    "AVA":    ("AVA",            "AVA_Waermeleistung.xlsx",              "AVA_FEED"),
+    "HWW":    ("HWW_prim_Einsp", "HWW_Waermeleistung_Primeinsp.xlsx",   "HWW_BOILER"),
 }
 
 # HWS has no Waermeleistung file — computed from Durchfluss + ΔT
@@ -104,7 +104,7 @@ HWS_FILES = {
     "tvl":    "Heizwerk_Sued_Temp_VL.xlsx",
     "trl":    "Heizwerk_Sued_Temp_RL.xlsx",
     "flow":   "Heizwerk_Sued_Durchfluss.xlsx",  # m³/h
-    "asset":  "hws_boiler",
+    "asset":  "HWS_BOILER",
 }
 
 # Tier 5: zone boundary pump stations

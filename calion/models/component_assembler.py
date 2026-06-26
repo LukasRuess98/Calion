@@ -343,11 +343,26 @@ class ComponentAssembler:
         """Attach storage from unified config to per-node buses."""
         p = dict(asset.params)
 
+        base_energy_mwh = p.pop("energy_mwh", DEFAULT_STORAGE_ENERGY_MWH)
+        base_power_mw = p.pop("power_mw", DEFAULT_STORAGE_POWER_MW)
+
+        # When investment is enabled, the StorageBlock's hard e_max bound must be at least
+        # e_cap_max so that  E[t] <= e_max * active[t]  never undercuts the invested capacity.
+        # Without this fix:  energy_mwh=0 → e_max=0 → E[t]≤0 always (tes_sb bug);
+        # or energy_mwh=500, e_cap_max=5000 → SOC capped at 500 even when 5000 MW invested.
+        invest_cfg = p.get("investment", {})
+        invest_enabled = bool(invest_cfg.get("enabled", False))
+        if invest_enabled:
+            e_cap_max_inv = float(invest_cfg.get("energy_capacity_max_mwh", DEFAULT_STORAGE_ENERGY_MWH))
+            effective_energy_mwh = max(base_energy_mwh, e_cap_max_inv)
+        else:
+            effective_energy_mwh = base_energy_mwh
+
         sto_cfg = {
             "enabled": True,
             "type": p.pop("storage_type", "simple"),
-            "max_energy_mwh": p.pop("energy_mwh", DEFAULT_STORAGE_ENERGY_MWH),
-            "max_power_mw": p.pop("power_mw", DEFAULT_STORAGE_POWER_MW),
+            "max_energy_mwh": effective_energy_mwh,
+            "max_power_mw": base_power_mw,
         }
         for key in (
             "eff_charge", "eff_discharge", "loss_hour",

@@ -96,6 +96,7 @@ class NodeConfig(BaseModel):
     demand: DemandConfig | None = None
     demands: list[DemandConfig] = Field(default_factory=list)  # multi-column demand (consumers: list)
     demand_fraction: float | None = Field(default=1.0)  # Default to 100% (no scaling) if not specified
+    T_supply_offset_c: float = 0.0  # Per-node supply temperature offset (°C) for L3-MILP degeneracy breaking
 
     @staticmethod
     def from_dict(node_id: str, raw: dict[str, Any]) -> NodeConfig:
@@ -142,7 +143,15 @@ class NodeConfig(BaseModel):
         if demand_fraction is None:
             demand_fraction = 1.0
 
-        return NodeConfig(id=node_id, type=node_type, assets=assets, demand=demand, demands=demands, demand_fraction=demand_fraction)
+        return NodeConfig(
+            id=node_id,
+            type=node_type,
+            assets=assets,
+            demand=demand,
+            demands=demands,
+            demand_fraction=demand_fraction,
+            T_supply_offset_c=float(raw.get('T_supply_offset_c', 0.0)),
+        )
 
 
 class PipeConfig(BaseModel):

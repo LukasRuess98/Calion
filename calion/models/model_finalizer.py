@@ -331,9 +331,14 @@ class ModelFinalizer:
                     "min_demand_only_when_positive",
                     # Node-level Phase-1/state-constraint overrides
                     "state_validation",
+                    # Per-node supply temperature offset for L3-MILP degeneracy breaking
+                    "T_supply_offset_c",
                 ):
                     if key in raw_node:
                         node_dict[key] = raw_node[key]
+            # Also propagate from NodeConfig attribute (belt-and-suspenders)
+            if getattr(node, 'T_supply_offset_c', 0.0) != 0.0 and 'T_supply_offset_c' not in node_dict:
+                node_dict['T_supply_offset_c'] = node.T_supply_offset_c
             nodes_list.append(node_dict)
 
         pipes_list = []
