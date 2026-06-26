@@ -408,9 +408,9 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         "Q_hp_def_MW": s("hp_main_Q_def_MW"),
         "P_hp_el_MW": s("hp_main_Pel_MW"),
         "COP_hp_wrg": s("hp_main_COP"),
-        # --- E-Boiler (uppercase after P2H fix in result_collector) ---
-        "Q_ek_MW": s("EBOILER_MAIN_Q_th_MW"),
-        "P_ek_el_MW": s("EBOILER_MAIN_Pel_MW"),
+        # --- E-Boiler / P2H: aggregate EBOILER_MAIN and P2H variants ---
+        "Q_ek_MW": [a + b for a, b in zip(s("EBOILER_MAIN_Q_th_MW"), s("P2H_Q_th_MW"))],
+        "P_ek_el_MW": [a + b for a, b in zip(s("EBOILER_MAIN_Pel_MW"), s("P2H_Pel_MW"))],
         # --- Storage ---
         "Q_storage_charge_MW": s("TES_charge_MW"),
         "Q_storage_discharge_MW": s("TES_discharge_MW"),
@@ -441,11 +441,10 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         if isinstance(v, list) and len(v) != T:
             rows[k] = (v[:T] if len(v) > T else v + [0.0] * (T - len(v)))
 
-    # Multi-node topology fallback: when all generation columns are zero but the series
-    # dict has asset-specific keys (e.g. "HKW_Q_th_MW", "hp_sb_Q_th_MW"), aggregate them.
-    # This handles topologies like Stadtbach where asset IDs differ from Memmingen's
-    # "MAIN" convention.  HP keys (start with "hp") go into Q_hp_total_MW; everything
-    # else goes into Q_chp_MW (combined non-HP thermal generation).
+    # Multi-node topology fallback: when generation columns are zero but the series dict
+    # has asset-specific keys (e.g. "HKW_Q_th_MW", "hp_sb_Q_th_MW"), aggregate them.
+    # Handles topologies like Stadtbach where asset IDs differ from Memmingen's MAIN convention.
+    # Routing: hp* → Q_hp_total_MW; ek_*/p2h*/eboiler* → Q_ek_MW; else → Q_chp_MW.
     _gen_sum = sum(
         sum(rows[k]) for k in ("Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
                                 "Q_hp_total_MW", "Q_ek_MW")
@@ -459,18 +458,13 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
             if not k.endswith("_Q_th_MW") or k in _known_main or not raw:
                 continue
             vals = [float(v or 0.0) for v in list(raw)[:T]]
-            if k.split("_")[0].lower().startswith("hp"):
-                # Heat pump asset (e.g. hp_sb_Q_th_MW)
+            kl = k.lower()
+            if kl.split("_")[0].startswith("hp"):
                 rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
-            else:
-                # Thermal generator (CHP, boiler, biomass — combined into Q_chp_MW)
-                rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
-        # Also capture P2H / EBOILER variants not covered by the primary key
-        for ek_key in ("P2H_Q_th_MW",):
-            raw = series.get(ek_key)
-            if raw and sum(raw) > 0:
-                vals = [float(v or 0.0) for v in list(raw)[:T]]
+            elif "ek_" in kl or kl.startswith("ek") or "eboiler" in kl or "p2h" in kl:
                 rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
+            else:
+                rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
 
     # Q_demand: use model's own heat_demand_MW series (from unified_timeseries.csv) if
     # available — this is the consumer-side demand the optimizer solved for.
