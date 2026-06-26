@@ -461,9 +461,42 @@ def _collect_timeseries_and_summary(
                             pass
 
         if meta["storage"]:
-            _extract(getattr(model, "TES_E", None), "TES_SOC_MWh")
-            _extract(getattr(model, "TES_Qc", None), "TES_charge_MW")
-            _extract(getattr(model, "TES_Qd", None), "TES_discharge_MW")
+            # Multi-node models name storage vars {asset}_SOC / {asset}_Q_charge / {asset}_Q_discharge.
+            # Legacy single-node models use TES_E / TES_Qc / TES_Qd.
+            import pyomo.core as _pyo_core
+
+            def _find_sto_attrs(suffix: str, fallbacks: list[str]) -> list[str]:
+                found = []
+                for _a in dir(model):
+                    if not _a.endswith(f"_{suffix}"):
+                        continue
+                    _obj = getattr(model, _a, None)
+                    if _obj is None:
+                        continue
+                    if isinstance(_obj, (_pyo_core.base.var.IndexedVar,
+                                         _pyo_core.base.var.ScalarVar,
+                                         _pyo_core.base.reference.Reference,
+                                         _pyo_core.base.block.BlockData)):
+                        found.append(_a)
+                    elif hasattr(_obj, "__getitem__") and hasattr(_obj, "_index"):
+                        found.append(_a)
+                if not found:
+                    found = [fb for fb in fallbacks if getattr(model, fb, None) is not None]
+                return found
+
+            def _sum_sto(suffix: str, fallbacks: list[str], out_key: str) -> None:
+                combined = [0.0] * len(times)
+                hit = False
+                for _attr in _find_sto_attrs(suffix, fallbacks):
+                    for _i, _v in enumerate(_extract_pyomo_series(getattr(model, _attr), times, _attr)):
+                        combined[_i] += _v
+                    hit = True
+                if hit:
+                    series[out_key] = combined
+
+            _sum_sto("SOC", ["TES_E"], "TES_SOC_MWh")
+            _sum_sto("Q_charge", ["TES_Qc"], "TES_charge_MW")
+            _sum_sto("Q_discharge", ["TES_Qd"], "TES_discharge_MW")
 
         for gen in meta["generators"]:
             comp = gen["name"]

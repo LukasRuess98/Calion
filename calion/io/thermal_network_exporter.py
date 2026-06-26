@@ -571,6 +571,50 @@ def _export_physics_results(
     return files
 
 
+def _find_storage_attrs(model, suffix: str) -> list[str]:
+    """Return all model attribute names matching *_{suffix} that are Pyomo components.
+
+    Handles both the legacy single-storage name ('TES_SOC') and multi-node names
+    ('tes_sb_SOC', 'tes_existing_SOC', etc.) produced by component_assembler when
+    unified-config storage blocks are registered with their asset name as prefix.
+    """
+    import pyomo.core as pyo_core
+    matches = []
+    for attr in dir(model):
+        if not attr.endswith(f'_{suffix}'):
+            continue
+        obj = getattr(model, attr, None)
+        if obj is None:
+            continue
+        # Accept Pyomo Var, Reference, or any IndexedComponent
+        if isinstance(obj, (pyo_core.base.var.IndexedVar,
+                            pyo_core.base.var.ScalarVar,
+                            pyo_core.base.reference.Reference,
+                            pyo_core.base.block.BlockData)):
+            matches.append(attr)
+        elif hasattr(obj, '__getitem__') and hasattr(obj, '_index'):
+            matches.append(attr)
+    return matches
+
+
+def _sum_storage_timeseries(model, time_set, suffix: str) -> list[float] | None:
+    """Sum timeseries values across all storage units for the given variable suffix."""
+    attrs = _find_storage_attrs(model, suffix)
+    if not attrs:
+        return None
+    combined = [0.0] * len(time_set)
+    for attr in attrs:
+        obj = getattr(model, attr)
+        try:
+            for i, t in enumerate(time_set):
+                v = pyo.value(obj[t])
+                if v is not None:
+                    combined[i] += v
+        except Exception:
+            pass
+    return combined
+
+
 def _export_storage_results(
     model,
     time_set,
@@ -580,8 +624,8 @@ def _export_storage_results(
     """Export thermal storage results including PWL losses."""
     files = {}
 
-    # Check if storage exists
-    if not hasattr(model, 'TES_SOC'):
+    # Check if any storage SOC variable exists (multi-node: tes_sb_SOC etc.; legacy: TES_SOC)
+    if not _find_storage_attrs(model, 'SOC'):
         return files
 
     storage_dir = os.path.join(output_dir, "storage")
@@ -594,45 +638,34 @@ def _export_storage_results(
         'summary': {},
     }
 
-    # SOC timeseries
-    try:
-        soc_vals = [pyo.value(model.TES_SOC[t]) for t in time_set]
+    # SOC timeseries — summed across all storage units
+    soc_vals = _sum_storage_timeseries(model, time_set, 'SOC')
+    if soc_vals is not None:
         storage_data['timeseries']['SOC_MWh'] = soc_vals
         storage_data['summary']['SOC_avg_MWh'] = sum(soc_vals) / len(soc_vals)
         storage_data['summary']['SOC_min_MWh'] = min(soc_vals)
         storage_data['summary']['SOC_max_MWh'] = max(soc_vals)
-    except Exception as e:
-        logger.debug(f"Could not export TES_SOC: {e}")
 
-    # Charge/discharge
-    if hasattr(model, 'TES_Q_charge'):
-        try:
-            charge_vals = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
-            storage_data['timeseries']['Q_charge_MW'] = charge_vals
-            storage_data['summary']['total_charge_MWh'] = sum(charge_vals) * dt_h
-        except Exception as e:
-            logger.debug(f"Could not export TES_Q_charge: {e}")
+    # Charge/discharge — summed across all storage units
+    charge_vals = _sum_storage_timeseries(model, time_set, 'Q_charge')
+    if charge_vals is not None:
+        storage_data['timeseries']['Q_charge_MW'] = charge_vals
+        storage_data['summary']['total_charge_MWh'] = sum(charge_vals) * dt_h
 
-    if hasattr(model, 'TES_Q_discharge'):
-        try:
-            discharge_vals = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
-            storage_data['timeseries']['Q_discharge_MW'] = discharge_vals
-            storage_data['summary']['total_discharge_MWh'] = sum(discharge_vals) * dt_h
-        except Exception as e:
-            logger.debug(f"Could not export TES_Q_discharge: {e}")
+    discharge_vals = _sum_storage_timeseries(model, time_set, 'Q_discharge')
+    if discharge_vals is not None:
+        storage_data['timeseries']['Q_discharge_MW'] = discharge_vals
+        storage_data['summary']['total_discharge_MWh'] = sum(discharge_vals) * dt_h
 
     # Losses
-    if hasattr(model, 'TES_Q_loss'):
-        try:
-            loss_vals = [pyo.value(model.TES_Q_loss[t]) for t in time_set]
-            storage_data['timeseries']['Q_loss_MW'] = loss_vals
-            storage_data['summary']['total_loss_MWh'] = sum(loss_vals) * dt_h
-            storage_data['summary']['avg_loss_MW'] = sum(loss_vals) / len(loss_vals)
-        except Exception as e:
-            logger.debug(f"Could not export TES_Q_loss: {e}")
+    loss_vals = _sum_storage_timeseries(model, time_set, 'Q_loss')
+    if loss_vals is not None:
+        storage_data['timeseries']['Q_loss_MW'] = loss_vals
+        storage_data['summary']['total_loss_MWh'] = sum(loss_vals) * dt_h
+        storage_data['summary']['avg_loss_MW'] = sum(loss_vals) / len(loss_vals)
 
     # PWL loss info
-    if hasattr(model, 'TES_pwl_lambda'):
+    if _find_storage_attrs(model, 'pwl_lambda'):
         storage_data['summary']['uses_pwl_losses'] = True
         logger.info("    - PWL storage losses: Yes")
     else:
@@ -802,24 +835,18 @@ def _export_unified_timeseries(
             except Exception as e:
                 logger.debug(f"Could not export network_loss: {e}")
 
-        # 5. STORAGE
-        if hasattr(model, 'TES_SOC'):
-            try:
-                all_data['storage_SOC_MWh'] = [pyo.value(model.TES_SOC[t]) for t in time_set]
-            except Exception as e:
-                logger.debug(f"Could not export storage_SOC: {e}")
+        # 5. STORAGE (summed across all storage units for multi-node models)
+        _soc = _sum_storage_timeseries(model, time_set, 'SOC')
+        if _soc is not None:
+            all_data['storage_SOC_MWh'] = _soc
 
-        if hasattr(model, 'TES_Q_charge'):
-            try:
-                all_data['storage_charge_MW'] = [pyo.value(model.TES_Q_charge[t]) for t in time_set]
-            except Exception as e:
-                logger.debug(f"Could not export storage_charge: {e}")
+        _chg = _sum_storage_timeseries(model, time_set, 'Q_charge')
+        if _chg is not None:
+            all_data['storage_charge_MW'] = _chg
 
-        if hasattr(model, 'TES_Q_discharge'):
-            try:
-                all_data['storage_discharge_MW'] = [pyo.value(model.TES_Q_discharge[t]) for t in time_set]
-            except Exception as e:
-                logger.debug(f"Could not export storage_discharge: {e}")
+        _dis = _sum_storage_timeseries(model, time_set, 'Q_discharge')
+        if _dis is not None:
+            all_data['storage_discharge_MW'] = _dis
 
         # 6. HOURLY COSTS
         if hasattr(model, 'hourly_cost'):
