@@ -138,13 +138,13 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
         if co2_bc_t > 0:
             kpis["co2_reduction_pct"] = round((co2_bc_t - float(co2_t)) / co2_bc_t * 100, 2)
 
-    if dispatch_rows:
-        hp_col = _find_col(dispatch_rows[0], "Q_hp_total_MW", "hp_", "Q_WP")
-        demand_col = _find_col(dispatch_rows[0], "Q_demand_total_MW", "demand", "heat_demand")
-        if hp_col and demand_col and Q_total > 0:
-            Q_WP_sum = sum(row.get(hp_col, 0) or 0 for row in dispatch_rows)
-            kpis["electrification_pct"] = round(Q_WP_sum / Q_total * 100, 2)
-            kpis["renewable_heat_pct"] = round(Q_WP_sum / Q_total * 100, 2)
+    # Use share_HP_pct from economics (reliable across single- and multi-node topologies).
+    # Dispatch Q_hp_total_MW can include WRG passthrough (not true HP compression) and
+    # should not be used to compute these shares.
+    share_hp_eco = economics.get("share_HP_pct")
+    if share_hp_eco is not None:
+        kpis["electrification_pct"] = round(float(share_hp_eco), 2)
+        kpis["renewable_heat_pct"] = round(float(share_hp_eco), 2)
 
     # ── Technical KPIs ─────────────────────────────────────────────────────
     # Capacity values not directly in economics.csv; use share_HP_pct × total demand as proxy
@@ -179,19 +179,22 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
                     float(np.mean(soc_vals)) / kpis["E_TES_MWh"] * 100, 2
                 )
 
-    # WP operating hours and mean COP
+    # WP operating hours: use P_hp_el_MW > 0.01 threshold to detect true HP compression
+    # (avoids counting WRG-passthrough hours where HP runs with zero electricity input).
     if dispatch_rows:
-        hp_col = _find_col(dispatch_rows[0], "Q_hp_total_MW", "hp_", "q_wp")
         pel_col = _find_col(dispatch_rows[0], "P_hp_el_MW", "P_el", "pel_wp")
-        if hp_col:
+        hp_col = _find_col(dispatch_rows[0], "Q_hp_total_MW", "hp_", "q_wp")
+        if pel_col:
+            P_el_ts = [row.get(pel_col, 0) or 0 for row in dispatch_rows]
+            P_el_sum = sum(P_el_ts)
+            kpis["WP_hours_per_a"] = sum(1 for p in P_el_ts if p > 0.01)
+            if P_el_sum > 0 and hp_col:
+                Q_WP_ts = [row.get(hp_col, 0) or 0 for row in dispatch_rows]
+                Q_WP_sum_local = sum(Q_WP_ts)
+                kpis["COP_annual_mean"] = round(Q_WP_sum_local / P_el_sum, 2)
+        elif hp_col:
             Q_WP_ts = [row.get(hp_col, 0) or 0 for row in dispatch_rows]
             kpis["WP_hours_per_a"] = sum(1 for q in Q_WP_ts if q > 0.01)
-            if pel_col:
-                P_el_ts = [row.get(pel_col, 0) or 0 for row in dispatch_rows]
-                P_el_sum = sum(P_el_ts)
-                Q_WP_sum_local = sum(Q_WP_ts)
-                if P_el_sum > 0:
-                    kpis["COP_annual_mean"] = round(Q_WP_sum_local / P_el_sum, 2)
 
     # Pump energy
     pump_col = _find_col(dispatch_rows[0] if dispatch_rows else {}, "pump", "P_pump")

@@ -158,7 +158,14 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
 
     obj = summary.get("objective", {})
     grid = summary.get("grid", {})
-    hp = summary.get("heat_pump_hp_main", {})
+    # Aggregate across all heat_pump_* sections (multi-node models may use asset-specific keys
+    # like "heat_pump_hp_sb" rather than the Memmingen-specific "heat_pump_hp_main").
+    _hp_combined: dict[str, float] = {}
+    for _sec, _vals in summary.items():
+        if _sec.startswith("heat_pump_") and isinstance(_vals, dict):
+            for _k, _v in _vals.items():
+                _hp_combined[_k] = _hp_combined.get(_k, 0.0) + (_safe(_v) or 0.0)
+    hp = _hp_combined
 
     heat_demand_MWh = _safe(grid.get("Heat_demand_MWh"))
     cost_total = _safe(obj.get("OBJ_value_EUR"))
@@ -211,10 +218,12 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
             chp_total += _safe(vals.get("Heat_output_MWh") or vals.get("Q_th_MWh"))
     share_CHP = (chp_total / heat_demand_MWh * 100) if heat_demand_MWh > 0 else 0.0
 
-    # EBoiler / P2H heat share
+    # EBoiler / P2H / EK heat share — includes ek_sb (electrode boiler) and p2h variants
     ek_total = 0.0
     for sec, vals in summary.items():
-        if "eboiler" in sec.lower() or "p2h" in sec.lower() or "electrode" in sec.lower():
+        sec_l = sec.lower()
+        if ("eboiler" in sec_l or "p2h" in sec_l or "electrode" in sec_l
+                or "ek_sb" in sec_l or "_ek_" in sec_l or sec_l.startswith("ek_")):
             ek_total += _safe(vals.get("Heat_output_MWh") or vals.get("Q_th_MWh"))
     share_EK = (ek_total / heat_demand_MWh * 100) if heat_demand_MWh > 0 else 0.0
 
