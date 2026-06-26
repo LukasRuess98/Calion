@@ -148,17 +148,10 @@ network:
     j_hww: {}   # pure junction — receives heat from j_psw via psw_to_hww pipe
 
     # ── PUMP STATIONS (secondary producers) ──────────────────────────────────
-    # T_supply_offset_c: node temperature is slightly lower than j_hkw due to
-    # pipe heat losses. A non-zero offset assigns different cp×ΔT coefficients
-    # to the incoming vs outgoing pipes, breaking the equal-coefficient
-    # degeneracy that would otherwise make the local boiler algebraically
-    # equivalent to a dump variable in L3-MILP mode.
     j_pss:
       assets: [hws_boiler]
-      T_supply_offset_c: -1.0   # ~1°C loss along hkw_to_pss (4470m, DN400)
     j_psw:
       assets: [hww_boiler]
-      T_supply_offset_c: -0.8   # ~0.8°C loss along hkw_to_psw (2630m, DN500)
 
     # ── NETZ-MITTE CONSUMERS (connected directly to j_hkw) ──────────────────
     j_man:
