@@ -368,10 +368,10 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
                 t_return = (raw_tret[:T] if len(raw_tret) >= T
                             else raw_tret + [None] * (T - len(raw_tret)))
 
-            # Far-end supply temperature: T_supply_out of the last trunk pipe (j13→j15).
+            # Far-end supply temperature: T_supply_out of the last trunk pipe (j13->j15).
             # This is the supply temperature arriving at the far end of the network (j15),
             # which is the primary validation KPI for heat-loss physics (BCM methodology).
-            # Trunk path: j1→j2→j3→j9→j10→j11→j12→j13→j15; last segment is j13_to_j15.
+            # Trunk path: j1->j2->j3->j9->j10->j11->j12->j13->j15; last segment is j13_to_j15.
             sup_out_cols = [c for c in pdf.columns if c.endswith("_T_supply_out")]
             farend_candidates = ["j13_to_j15", "j13-to-j15", "j_13_to_j_15"]
             farend_col = next(
@@ -444,7 +444,7 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
     # Multi-node topology fallback: when generation columns are zero but the series dict
     # has asset-specific keys (e.g. "HKW_Q_th_MW", "hp_sb_Q_th_MW"), aggregate them.
     # Handles topologies like Stadtbach where asset IDs differ from Memmingen's MAIN convention.
-    # Routing: hp* → Q_hp_total_MW; ek_*/p2h*/eboiler* → Q_ek_MW; else → Q_chp_MW.
+    # Routing: hp* -> Q_hp_total_MW; ek_*/p2h*/eboiler* -> Q_ek_MW; else -> Q_chp_MW.
     _gen_sum = sum(
         sum(rows[k]) for k in ("Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
                                 "Q_hp_total_MW", "Q_ek_MW")
@@ -573,7 +573,7 @@ def write_pipe_state(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
         return pd.DataFrame()
 
     wide = pd.read_csv(pipe_ts_path, sep=";", index_col=0)
-    # Wide → long
+    # Wide -> long
     pipe_ids = sorted(set(c.rsplit("_", 1)[0] for c in wide.columns if "_" in c))
     records = []
     for ts in wide.index:
@@ -966,5 +966,5 @@ def extract_all(
         _write_empty_node_artefacts(outdir)
     write_validation(outdir, measured_data_path)
 
-    print(f"  [EXTRACT] {run_id} → {outdir}")
+    print(f"  [EXTRACT] {run_id} -> {outdir}")
     return outdir
