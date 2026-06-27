@@ -441,30 +441,28 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         if isinstance(v, list) and len(v) != T:
             rows[k] = (v[:T] if len(v) > T else v + [0.0] * (T - len(v)))
 
-    # Multi-node topology fallback: when generation columns are zero but the series dict
-    # has asset-specific keys (e.g. "HKW_Q_th_MW", "hp_sb_Q_th_MW"), aggregate them.
-    # Handles topologies like Stadtbach where asset IDs differ from Memmingen's MAIN convention.
-    # Routing: hp* -> Q_hp_total_MW; ek_*/p2h*/eboiler* -> Q_ek_MW; else -> Q_chp_MW.
-    _gen_sum = sum(
-        sum(rows[k]) for k in ("Q_chp_MW", "Q_gasboiler_MW", "Q_biomass_MW",
-                                "Q_hp_total_MW", "Q_ek_MW")
-    )
-    if _gen_sum == 0.0:
-        _known_main = {
-            "CHP_MAIN_Q_th_MW", "GASBOILER_MAIN_Q_th_MW", "BIOMASS_MAIN_Q_th_MW",
-            "hp_main_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
-        }
-        for k, raw in series.items():
-            if not k.endswith("_Q_th_MW") or k in _known_main or not raw:
-                continue
-            vals = [float(v or 0.0) for v in list(raw)[:T]]
-            kl = k.lower()
-            if kl.split("_")[0].startswith("hp"):
-                rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
-            elif "ek_" in kl or kl.startswith("ek") or "eboiler" in kl or "p2h" in kl:
-                rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
-            else:
-                rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
+    # Additive fallback: always aggregate asset-specific series keys that are NOT covered by
+    # the MAIN convention primary lookups above.  _known_main acts as a skip-list to prevent
+    # double-counting MAIN assets already captured in the primary rows.
+    # Routing: hp* -> Q_hp_total_MW; ek_*/eboiler*/p2h* -> Q_ek_MW; else -> Q_chp_MW.
+    # Stadtbach uses asset IDs (HKW, BMHKW, HWS_BOILER, hp_sb, ek_sb, P2H) rather than the
+    # Memmingen MAIN convention, so the fallback is the primary source for those keys.
+    # P2H is in _known_main (captured in primary Q_ek above) so it is skipped here.
+    _known_main = {
+        "CHP_MAIN_Q_th_MW", "GASBOILER_MAIN_Q_th_MW", "BIOMASS_MAIN_Q_th_MW",
+        "hp_main_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
+    }
+    for k, raw in series.items():
+        if not k.endswith("_Q_th_MW") or k in _known_main or not raw:
+            continue
+        vals = [float(v or 0.0) for v in list(raw)[:T]]
+        kl = k.lower()
+        if kl.split("_")[0].startswith("hp"):
+            rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
+        elif "ek_" in kl or kl.startswith("ek") or "eboiler" in kl or "p2h" in kl:
+            rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
+        else:
+            rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
 
     # Q_demand: use model's own heat_demand_MW series (from unified_timeseries.csv) if
     # available — this is the consumer-side demand the optimizer solved for.
