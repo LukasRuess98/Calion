@@ -370,3 +370,18 @@ output:
   export_dir: "output/paper2_runs"
   export_thermal_network: true
   export_solver_solution: true
+
+# --------------------------------------------------------------------------
+# Dispatch Series Map
+# Explicit routing of result_collector series keys to dispatch_hourly.csv columns.
+# For Memmingen all keys are in the primary MAIN-convention lookups, so this map
+# is informational only — the fallback loop in write_dispatch_hourly() never fires
+# for Memmingen series. Future networks should add their own map.
+# --------------------------------------------------------------------------
+dispatch_series_map:
+  CHP_MAIN_Q_th_MW:      Q_chp_MW
+  BIOMASS_MAIN_Q_th_MW:  Q_biomass_MW
+  GASBOILER_MAIN_Q_th_MW: Q_gasboiler_MW
+  hp_main_Q_th_MW:       Q_hp_total_MW
+  EBOILER_MAIN_Q_th_MW:  Q_ek_MW
+  P2H_Q_th_MW:           Q_ek_MW

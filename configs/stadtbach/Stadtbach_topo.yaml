@@ -704,3 +704,21 @@ output:
   export_dir: "output/paper2_runs"
   export_thermal_network: true
   export_solver_solution: true
+
+
+# =============================================================================
+# DISPATCH SERIES MAP
+# Explicit routing of result_collector series keys to dispatch_hourly.csv columns.
+# Overrides the heuristic fallback in extract_artefacts.write_dispatch_hourly().
+# Keys: series key as stored by result_collector ({ASSET_ID}_Q_th_MW or hp_{id}_Q_th_MW).
+# Values: target column in dispatch_hourly.csv.
+# Note: P2H_Q_th_MW is captured by the primary Q_ek sum and must NOT be listed here.
+# =============================================================================
+dispatch_series_map:
+  HKW_Q_th_MW:       Q_chp_MW        # gas CHP (75 MW, j_hkw)
+  GTOST_Q_th_MW:     Q_chp_MW        # gas turbine east (35 MW, j_gtost)
+  BMHKW_Q_th_MW:     Q_biomass_MW    # biomass CHP (14.5 MW, j_bmhkw)
+  AVA_FEED_Q_th_MW:  Q_biomass_MW    # AVA waste-heat feed-in (45 MW, j_ava) — zero CO2
+  HWS_BOILER_Q_th_MW: Q_gasboiler_MW # Heizwerk Süd gas boiler (40 MW, j_pss)
+  HWW_BOILER_Q_th_MW: Q_gasboiler_MW # Heizwerk West gas boiler (64 MW, j_psw)
+  hp_sb_Q_th_MW:     Q_hp_total_MW   # investable heat pump at j_ava

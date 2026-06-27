@@ -441,28 +441,38 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         if isinstance(v, list) and len(v) != T:
             rows[k] = (v[:T] if len(v) > T else v + [0.0] * (T - len(v)))
 
-    # Additive fallback: always aggregate asset-specific series keys that are NOT covered by
-    # the MAIN convention primary lookups above.  _known_main acts as a skip-list to prevent
-    # double-counting MAIN assets already captured in the primary rows.
-    # Routing: hp* -> Q_hp_total_MW; ek_*/eboiler*/p2h* -> Q_ek_MW; else -> Q_chp_MW.
-    # Stadtbach uses asset IDs (HKW, BMHKW, HWS_BOILER, hp_sb, ek_sb, P2H) rather than the
-    # Memmingen MAIN convention, so the fallback is the primary source for those keys.
-    # P2H is in _known_main (captured in primary Q_ek above) so it is skipped here.
-    _known_main = {
+    # Additive aggregation: collect asset-specific series keys not covered by the primary
+    # MAIN-convention lookups above.  Two-tier routing:
+    #   1. Config-driven: workflow.config["dispatch_series_map"] gives explicit {series_key: col}
+    #      mapping.  Preferred — avoids name-heuristic misrouting (e.g. BMHKW → Q_biomass_MW).
+    #   2. Heuristic fallback: used for networks without a dispatch_series_map entry (backward
+    #      compatibility).  hp* → Q_hp_total_MW; ek_*/eboiler*/p2h* → Q_ek_MW; else → Q_chp_MW.
+    # _primary_keys: series already summed in the primary rows dict — skip to prevent double-count.
+    _primary_keys = {
         "CHP_MAIN_Q_th_MW", "GASBOILER_MAIN_Q_th_MW", "BIOMASS_MAIN_Q_th_MW",
         "hp_main_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
     }
+    _dispatch_map: dict = {}
+    try:
+        _dispatch_map = (workflow.config or {}).get("dispatch_series_map", {})
+    except AttributeError:
+        pass
     for k, raw in series.items():
-        if not k.endswith("_Q_th_MW") or k in _known_main or not raw:
+        if not k.endswith("_Q_th_MW") or k in _primary_keys or not raw:
             continue
         vals = [float(v or 0.0) for v in list(raw)[:T]]
-        kl = k.lower()
-        if kl.split("_")[0].startswith("hp"):
-            rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
-        elif "ek_" in kl or kl.startswith("ek") or "eboiler" in kl or "p2h" in kl:
-            rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
+        if k in _dispatch_map:
+            dest = _dispatch_map[k]
+            if dest in rows:
+                rows[dest] = [rows[dest][i] + vals[i] for i in range(T)]
         else:
-            rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
+            kl = k.lower()
+            if kl.split("_")[0].startswith("hp"):
+                rows["Q_hp_total_MW"] = [rows["Q_hp_total_MW"][i] + vals[i] for i in range(T)]
+            elif "ek_" in kl or kl.startswith("ek") or "eboiler" in kl or "p2h" in kl:
+                rows["Q_ek_MW"] = [rows["Q_ek_MW"][i] + vals[i] for i in range(T)]
+            else:
+                rows["Q_chp_MW"] = [rows["Q_chp_MW"][i] + vals[i] for i in range(T)]
 
     # Q_demand: use model's own heat_demand_MW series (from unified_timeseries.csv) if
     # available — this is the consumer-side demand the optimizer solved for.
