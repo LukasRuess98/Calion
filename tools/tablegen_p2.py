@@ -66,7 +66,8 @@ def write_scenarios_kpi_table(out_base: Path, table_dir: Path) -> Path:
         bc_flag = r" (BC)" if r.get("baseline") in ("True", True, "true") else ""
         tac = _fval(float(r.get("TAC_eur_per_a") or 0) / 1000, ".0f")
         lcoh = _fval(r.get("LCOH_eur_per_MWh"), ".1f")
-        capex = _fval(float(r.get("CAPEX_annual_eur_per_a") or 0) / 1000, ".0f")
+        capex_raw = r.get("CAPEX_annual_eur_per_a")
+        capex = _fval(float(capex_raw) / 1000, ".0f") if capex_raw else "—"
         co2 = _fval(r.get("co2_t_per_a"), ".0f")
         cost_red = _fval(r.get("cost_reduction_pct"), ".1f")
         lines.append(

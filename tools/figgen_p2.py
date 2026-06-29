@@ -2,8 +2,8 @@
 
 Generates 10 publication-quality figures from output/paper2_runs/:
 
-  F-P2-1: Scenario matrix overview (20 scenarios: network × TES location × HK)
-  F-P2-2: TAC comparison across all 20 scenarios (grouped bar)
+  F-P2-1: Scenario matrix overview (17 scenarios: network × TES location × HK)
+  F-P2-2: TAC comparison across all 17 scenarios (grouped bar)
   F-P2-3: CAPEX vs OPEX breakdown (stacked bars)
   F-P2-4: Optimal WP/EK/TES sizing across scenarios (grouped)
   F-P2-5: TES geometry scatter (V vs h, colored by p_betr)
@@ -143,7 +143,7 @@ def fig_p2_1_scenario_matrix(rows: list[dict], fig_dir: Path) -> None:
 
 
 def fig_p2_2_tac_comparison(rows: list[dict], fig_dir: Path) -> None:
-    """F-P2-2: TAC comparison bar chart across all 20 scenarios."""
+    """F-P2-2: TAC comparison bar chart across all 17 scenarios."""
     if not HAS_MPL or not rows:
         return
     scen_ids = [r.get("scenario_id", "") for r in rows]
@@ -156,7 +156,7 @@ def fig_p2_2_tac_comparison(rows: list[dict], fig_dir: Path) -> None:
     ax.set_xticks(range(len(scen_ids)))
     ax.set_xticklabels(scen_ids, rotation=45, ha="right", fontsize=7)
     ax.set_ylabel("TAC [k€/a]")
-    ax.set_title("Total Annualized Cost — all 20 scenarios")
+    ax.set_title("Total Annualized Cost — all 17 scenarios")
     bc_patch = mpatches.Patch(color=IPA["gray"], label="Baseline")
     opt_patch = mpatches.Patch(color=IPA["teal"], label="Optimized")
     ax.legend(handles=[bc_patch, opt_patch])
@@ -248,9 +248,9 @@ def fig_p2_8_heizkurve(fig_dir: Path) -> None:
     T_aus = np.linspace(-15, 30, 200)
     networks = {
         "Memmingen": [
-            ("HK0 (current)",     1.0, 55.0, 100.0),
-            ("HK1 (moderate)",    0.8, 50.0, 100.0),
-            ("HK2 (aggressive)",  0.6, 45.0, 100.0),
+            ("HK0 (current)",     1.0, 74.0, 100.0),
+            ("HK1 (moderate)",    0.8, 70.0, 100.0),
+            ("HK2 (aggressive)",  0.6, 66.0, 100.0),
         ],
         "Stadtbach": [
             ("HK0 (current)",     1.0, 70.0, 122.0),

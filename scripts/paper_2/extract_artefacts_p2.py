@@ -214,14 +214,24 @@ def extract_all_p2(
 
     write_dsm_hourly_p2(outdir, wf_result)
 
-    # Scenario metadata
+    # Scenario metadata — include heat curve parameters for KPI calculator
+    _HK_PARAMS = {
+        "memmingen": {"HK0": (1.0, 74.0), "HK1": (0.8, 70.0), "HK2": (0.6, 66.0)},
+        "stadtbach":  {"HK0": (1.0, 70.0), "HK1": (0.8, 65.0), "HK2": (0.6, 60.0)},
+    }
+    network = scen.get("network", "")
+    hk_stage = scen.get("heat_curve_stage", "HK0")
+    hk_data = _HK_PARAMS.get(network, {}).get(hk_stage)
+    k_val, T_VL_min_val = hk_data if hk_data else (None, None)
     with open(outdir / "scenario_meta.json", "w", encoding="utf-8") as f:
         json.dump({
             "id": scen["id"],
-            "network": scen.get("network"),
-            "heat_curve_stage": scen.get("heat_curve_stage"),
+            "network": network,
+            "heat_curve_stage": hk_stage,
             "tes_node": scen.get("tes_node"),
             "baseline": scen.get("baseline", False),
+            "k": k_val,
+            "T_VL_min_c": T_VL_min_val,
         }, f, indent=2)
 
     return outdir
