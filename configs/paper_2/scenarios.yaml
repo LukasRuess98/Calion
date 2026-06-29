@@ -1,5 +1,5 @@
 # =============================================================================
-# PAPER 2 — 20-Scenario Definition
+# PAPER 2 — 17-Scenario Definition
 # =============================================================================
 # Defines all 20 MILP runs as a structured list.
 # scenario_runner.py iterates this list and applies per-scenario overrides.
@@ -72,7 +72,7 @@ dsm_consumers:
   memmingen: []   # No DSM consumers defined yet — set after user input
   stadtbach: []   # TODO: Identify flexible industrial consumers
 
-# 20 scenarios
+# 17 scenarios (2 BC + 6 MM investment + 9 SB investment)
 scenarios:
 
   # ── Baseline cases (no investment, real heat curve) ──────────────────────
