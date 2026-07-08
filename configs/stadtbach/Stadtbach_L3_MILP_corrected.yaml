@@ -452,53 +452,60 @@ network:
 # Capacities aligned to swa plan WV640 Bl.3 where available.
 # =============================================================================
 assets:
+  # 2026-07-08: capacity_mw = real THERMAL OUTPUT at Übergangszeiten (99/60 °C),
+  # user-provided/vouched-for; same correction as Stadtbach_topo.yaml -- see that
+  # file's asset-block comment for the Üzeiten-vs-design-point rationale.
+  # thermal_efficiency/el_eff remain the notebook-guaranteed conversion ratios.
   hkw:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 75.0          # simplified (real KWK ~127 MW_th, see WV640)
-    thermal_efficiency: 0.90
+    capacity_mw: 127.0          # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.743
+    el_eff: 0.177
     min_load: 0.1
 
   gtost:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 35.0          # WV640: 31 MW (125°C) ... 35 MW (102°C); now on EAST arm
-    thermal_efficiency: 0.85
+    capacity_mw: 35.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.466
+    el_eff: 0.36
     min_load: 0.1
 
   bmhkw:
     type: thermal_generator
     fuel: biomass
-    capacity_mw: 14.5          # WV640: 13 MW (120°C) ... 14.5 MW (91°C); on EAST arm
-    thermal_efficiency: 0.85
+    capacity_mw: 14.5           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.485
+    el_eff: 0.177
     min_load: 0.1
 
-  # AVA waste-heat take-over: real DIRECT feed-in 40-45 MW (WV640), not a heat pump.
+  # AVA waste-heat take-over: direct feed-in, th_eff=1.0.
   ava_feed:
     type: thermal_generator
     fuel: waste_heat            # zero-emission, near-zero marginal cost source
-    capacity_mw: 45.0
+    capacity_mw: 45.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
     thermal_efficiency: 1.0
     min_load: 0.0
 
   hws_boiler:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 40.0          # WV640 HWS: 40 MW / 550 t/h
-    thermal_efficiency: 0.90
+    capacity_mw: 32.0           # Heizwerk Süd, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.936
     min_load: 0.1
 
   hww_boiler:
     type: thermal_generator
     fuel: gas
-    capacity_mw: 64.0          # WV640 HWW: up to 64 MW (2 boilers + 2 HX)
-    thermal_efficiency: 0.90
+    capacity_mw: 104.0          # Heizwerk West, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.924
     min_load: 0.1
 
   p2h_existing:
     type: p2h
-    capacity_mw: 10.0
-    efficiency: 0.98
+    capacity_mw: 9.9            # = 10 MW electric (notebook P2H_Power bound) * P2H_eff 0.99
+    efficiency: 0.99
     min_load: 0.1
 
   # Small heat pump retained for AVA low-temperature lift (optional, keeps WRG columns).
@@ -512,13 +519,19 @@ assets:
 
   tes_existing:
     type: storage
-    energy_mwh: 500.0
-    power_mw: 50.0
+    # 2026-07-08: reverted to 0.0 (matches Stadtbach_L3_MILP.yaml's explicit
+    # "no existing TES in Stadtbach"). The 500.0/50.0/250.0/25.0 values that
+    # were here had no documented WV640 source or justifying comment, unlike
+    # every other WV640-cited asset in this file family -- this is where
+    # Stadtbach_topo.yaml's since-removed 500 MWh tes_existing figure
+    # originated from.
+    energy_mwh: 0.0             # no existing TES in Stadtbach
+    power_mw: 0.0
     eff_charge: 0.98
     eff_discharge: 0.98
     loss_hour: 0.9999
-    soc0_mwh: 250.0
-    min_energy_mwh: 25.0
+    soc0_mwh: 0.0
+    min_energy_mwh: 0.0
     cycling_cost_eur_per_mwh: 1.5
     terminal:
       state: cyclic
@@ -538,7 +551,9 @@ heat_pumps:
     cop_fallback: 3.0
   types:
     standard:
-      eta: 0.6
+      # 2026-07-08: eta corrected 0.6 -> 0.75 to match notebook exactly (see
+      # Stadtbach_topo.yaml's corresponding comment).
+      eta: 0.75
       FQ: 0.10
 
 

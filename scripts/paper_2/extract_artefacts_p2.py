@@ -48,15 +48,46 @@ def _pyomo_val(var, default: float = 0.0) -> float:
 def write_meta_p2(outdir: Path, scen_id: str, cfg: dict, wf_result, solve_s: float) -> dict:
     """Write meta.json with solver stats and scenario metadata."""
     pf = getattr(wf_result, "pf_result", None)
+    # 2026-07-08 (O-7): ScenarioResult has no `solver_status` attribute, so the
+    # old getattr() always wrote "unknown". Read the real solver metadata dict
+    # (termination_condition, status, solution_count) that solver.py populates,
+    # and derive an honest status: "no_incumbent" when solution_count <= 0 so a
+    # zero-cost / no-solution run is never silently recorded as a valid result.
+    solver_meta = getattr(pf, "solver", {}) if pf is not None else {}
+    if not isinstance(solver_meta, dict):
+        solver_meta = {}
+    term_cond = str(solver_meta.get("termination_condition", "")).strip()
+    sol_count = solver_meta.get("solution_count", None)
+    if sol_count is not None and sol_count <= 0:
+        status = "no_incumbent"
+    elif term_cond:
+        status = term_cond            # e.g. "optimal", "maxTimeLimit"
+    else:
+        status = str(solver_meta.get("status", "unknown"))
+
+    # Objective: read from the summary objective section (never fabricate 0);
+    # force None when there is no incumbent.
+    obj_eur = None
+    if sol_count is None or sol_count > 0:
+        summ = getattr(pf, "summary", {}) if pf is not None else {}
+        obj_section = summ.get("objective", {}) if hasattr(summ, "get") else {}
+        if isinstance(obj_section, dict):
+            for _k in ("OBJ_value_EUR", "Model_OBJ_value_EUR"):
+                if obj_section.get(_k) is not None:
+                    obj_eur = float(obj_section[_k])
+                    break
+
     meta = {
         "scenario_id": scen_id,
         "solver": cfg.get("run", {}).get("solver", "gurobi"),
         "solve_s": round(solve_s, 2),
-        "status": str(getattr(pf, "solver_status", "unknown")),
-        "mip_gap": _try_get(wf_result, "mip_gap"),
-        "obj_eur": _try_get(wf_result, "obj_value"),
-        "n_vars": _try_get(wf_result, "n_vars"),
-        "n_constraints": _try_get(wf_result, "n_constraints"),
+        "status": status,
+        "termination_condition": term_cond or None,
+        "solution_count": sol_count,
+        "mip_gap": solver_meta.get("mip_gap", _try_get(wf_result, "mip_gap")),
+        "obj_eur": obj_eur,
+        "n_vars": solver_meta.get("num_vars", _try_get(wf_result, "n_vars")),
+        "n_constraints": solver_meta.get("num_constr", _try_get(wf_result, "n_constraints")),
     }
     outdir.mkdir(parents=True, exist_ok=True)
     with open(outdir / "meta.json", "w", encoding="utf-8") as f:
@@ -67,59 +98,61 @@ def write_meta_p2(outdir: Path, scen_id: str, cfg: dict, wf_result, solve_s: flo
 def write_geometry_p2(outdir: Path, wf_result, scen: dict) -> dict | None:
     """Write geometry.csv: TES volume, height (derived), capacity, pressure.
 
-    Returns dict with geometry values, or None if no geometric TES found.
+    Reads the geometry scalars captured by result_collector in
+    summary["objective"]["tes_geometry"] (pf_result carries no model handle).
+    Returns dict with geometry values of the investable TES, or None.
     """
     try:
         pf = wf_result.pf_result
         if pf is None:
             return None
-        model = getattr(pf, "model", None)
-        if model is None:
+        summary = getattr(pf, "summary", None) or {}
+        obj_section = summary.get("objective", {}) if hasattr(summary, "get") else {}
+        geo_map = obj_section.get("tes_geometry") or {}
+        if not geo_map:
             return None
 
-        # Search for geometric storage block variables
-        geo_data = {}
-        for attr_name in dir(model):
-            if attr_name.endswith("_V_m3"):
-                comp = attr_name[:-5]  # strip _V_m3
-                V = _pyomo_val(getattr(model, attr_name))
-                build_attr = f"{comp}_build"
-                build = _pyomo_val(getattr(model, build_attr, None), 0.0)
+        rows = []
+        r_hd = 3.0
+        # Try to read the real aspect ratio from the scenario's asset params
+        for _acfg in (scen.get("overrides", {}) or {}).get("assets", {}).values():
+            if isinstance(_acfg, dict) and "r_hd" in _acfg:
+                r_hd = float(_acfg["r_hd"])
+        for comp, g in geo_map.items():
+            V = float(g.get("V_m3") or 0.0)
+            if V > 0:
+                # V = pi/(4*r_hd^2) * h^3  ->  h = (V * 4 * r_hd^2 / pi)^(1/3)
+                h = (V * 4.0 * r_hd**2 / math.pi) ** (1.0 / 3.0)
+            else:
+                h = 0.0
+            p_betr = _P_ATM + _RHO * _G * h / 1e5 if h > 0 else _P_ATM
+            rows.append({
+                "component": comp,
+                "build": round(float(g.get("build") or 0.0)),
+                "V_TES_m3": round(V, 2),
+                "h_TES_m": round(h, 2),
+                "E_TES_max_MWh": round(float(g.get("E_max_MWh") or 0.0), 2),
+                "cap_power_MW": round(float(g.get("cap_power_MW") or 0.0), 2),
+                "p_betr_bar": round(p_betr, 3),
+            })
 
-                # Derive h from V using h/d = r_hd (default 3)
-                r_hd = 3.0  # TODO: read from config
-                if V > 0:
-                    # V = pi/(4*r_hd^2) * h^3  ->  h = (V * 4 * r_hd^2 / pi)^(1/3)
-                    h = (V * 4.0 * r_hd**2 / math.pi) ** (1.0 / 3.0)
-                else:
-                    h = 0.0
+        # Endogenous site choice (if present)
+        endog_sites = {
+            "endog_hp_site": obj_section.get("endog_hp_site"),
+            "endog_tes_site": obj_section.get("endog_tes_site"),
+        }
 
-                p_betr = _P_ATM + _RHO * _G * h / 1e5 if h > 0 else _P_ATM
-
-                # Energy capacity (from E_max_expr or computed)
-                e_max_attr = f"{comp}_E_max_expr"
-                if hasattr(model, e_max_attr):
-                    E_max = _pyomo_val(getattr(model, e_max_attr))
-                else:
-                    E_max = 0.0
-
-                geo_data = {
-                    "component": comp,
-                    "build": round(build),
-                    "V_TES_m3": round(V, 2),
-                    "h_TES_m": round(h, 2),
-                    "E_TES_max_MWh": round(E_max, 2),
-                    "p_betr_bar": round(p_betr, 3),
-                }
-
-        if geo_data:
+        if rows:
             import csv
             csv_path = outdir / "geometry.csv"
             with open(csv_path, "w", newline="", encoding="utf-8") as f:
-                w = csv.DictWriter(f, fieldnames=list(geo_data.keys()))
+                w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
                 w.writeheader()
-                w.writerow(geo_data)
-            return geo_data
+                w.writerows(rows)
+            if any(v for v in endog_sites.values()):
+                with open(outdir / "endog_sites.json", "w", encoding="utf-8") as f:
+                    json.dump(endog_sites, f, indent=2)
+            return rows[0]
 
     except Exception as exc:
         logger.warning("geometry.csv extraction failed: %s", exc)

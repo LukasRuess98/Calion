@@ -216,8 +216,6 @@ class AssetConfig(BaseModel):
 
         if asset_type in ("heat_pumps", "hp"):
             asset_type = "heat_pump"
-        elif asset_type in ("tall_tank", "tall_tank_storage", "pressure_tank"):
-            asset_type = "tall_tank"
         elif asset_type in ("generators", "generator", "boiler", "chp", "thermal_gen"):
             if params.get("fuel") == "electricity" and asset_type == "boiler":
                 asset_type = "p2h"

@@ -49,7 +49,7 @@ KPI_COLS = [
     "scenario_id", "network", "heat_curve_stage", "tes_node", "baseline",
     # Economic
     "TAC_eur_per_a", "CAPEX_annual_eur_per_a", "OPEX_annual_eur_per_a",
-    "LCOH_eur_per_MWh", "payback_years", "cost_reduction_pct",
+    "LCOH_eur_per_MWh", "payback_years", "cost_reduction_pct", "NPV_eur",
     # Environmental
     "co2_t_per_a", "co2_reduction_pct", "electrification_pct", "renewable_heat_pct",
     # Technical
@@ -57,7 +57,15 @@ KPI_COLS = [
     "TES_cycles_per_a", "TES_utilization_pct", "WP_hours_per_a", "COP_annual_mean",
     "pump_energy_MWh_el_per_a", "waste_heat_utilization_pct",
     "DSM_activation_MWh_per_a", "k_opt", "T_VL_min_opt_c",
+    # Hydraulic / thermal (spec §6.3 additions)
+    "T_VL_avg_c", "p_max_bar", "p_min_bar", "endog_site",
 ]
+
+# NPV horizon parameters (spec §6.1: "Net present value berechnen").
+# NPV = Σ_{y=1..n} (TAC_BC − TAC_s) / (1+i)^y — annualized-cost framework,
+# consistent with ANF-based CAPEX annualization elsewhere.
+_NPV_DISCOUNT_RATE = 0.05
+_NPV_HORIZON_YEARS = 20
 
 
 def _read_json(path: Path) -> dict:
@@ -169,6 +177,10 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
         tac_bc = baseline_kpis.get("TAC_eur_per_a")
         if tac_bc and tac_bc > 0:
             kpis["cost_reduction_pct"] = round((tac_bc - TAC) / tac_bc * 100, 2)
+            # NPV over n years at discount rate i (present value of the annual
+            # total-cost saving vs. baseline; negative = worse than baseline)
+            _af = (1.0 - (1.0 + _NPV_DISCOUNT_RATE) ** -_NPV_HORIZON_YEARS) / _NPV_DISCOUNT_RATE
+            kpis["NPV_eur"] = round((tac_bc - TAC) * _af, 0)
             # Payback: incremental CAPEX / incremental OPEX savings
             capex_bc = baseline_kpis.get("CAPEX_annual_eur_per_a") or 0
             opex_bc  = baseline_kpis.get("OPEX_annual_eur_per_a") or 0
@@ -201,9 +213,16 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
         kpis["Q_WP_opt_MW"] = round(Q_WP_peak, 2)
         kpis["Q_EK_opt_MW"] = round(Q_EK_peak, 2)
 
-    # ── TES geometry from peak SOC ─────────────────────────────────────────
-    # E_TES_MWh ≈ max observed SOC (lower bound on installed capacity)
-    if dispatch_rows:
+    # ── TES geometry: prefer the ACTUAL solver values from geometry.csv ────
+    # (result_collector captures {tes}_V_m3 / E_max / build; geometry.csv is
+    # written by extract_artefacts_p2). Fallback: derive from peak SOC.
+    geo_row = _read_csv_first_row(scen_dir / "geometry.csv")
+    if geo_row and float(geo_row.get("V_TES_m3") or 0) > 0:
+        kpis["V_TES_m3"] = round(float(geo_row["V_TES_m3"]), 1)
+        kpis["h_TES_m"] = round(float(geo_row.get("h_TES_m") or 0), 2)
+        kpis["E_TES_MWh"] = round(float(geo_row.get("E_TES_max_MWh") or 0), 1)
+    elif dispatch_rows:
+        # E_TES_MWh ≈ max observed SOC (lower bound on installed capacity)
         E_TES = _col_max(dispatch_rows, "SOC_MWh", "tes_soc", "E_tes")
         if E_TES > 0:
             kpis["E_TES_MWh"] = round(E_TES, 1)
@@ -212,6 +231,11 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
             V, h = _tes_geometry(E_TES, delta_T)
             kpis["V_TES_m3"] = V
             kpis["h_TES_m"] = h
+
+    # Endogenous site choice (F3 scenarios)
+    endog = _read_json(scen_dir / "endog_sites.json")
+    if endog:
+        kpis["endog_site"] = endog.get("endog_tes_site") or endog.get("endog_hp_site")
 
     # TES cycles and utilization
     if dispatch_rows and kpis.get("E_TES_MWh"):
@@ -247,6 +271,9 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
         )
         kpis["DSM_activation_MWh_per_a"] = round(total_abs, 1)
 
+    # ── Hydraulic / thermal KPIs (spec §6.3: TVL average, max/min pressure) ─
+    _add_state_kpis(kpis, scen_dir)
+
     # ── Heat curve parameters from lookup ──────────────────────────────────
     network = scen_meta.get("network", "")
     hk_stage = scen_meta.get("heat_curve_stage", "HK0")
@@ -261,6 +288,46 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
     kpis["T_VL_min_opt_c"] = T_VL_min
 
     return kpis
+
+
+def _add_state_kpis(kpis: dict, scen_dir: Path) -> None:
+    """TVL average (system + per pipe) and max/min node pressure.
+
+    Sources: nodes_state_hourly.parquet (T_supply_c, P_bar per node·t) and
+    pipe_state_hourly.parquet (T_in_C/T_out_C per pipe·t). Writes the
+    per-pipe averages to tvl_per_pipe.csv alongside the scenario artefacts.
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+
+    nodes_pq = scen_dir / "nodes_state_hourly.parquet"
+    if nodes_pq.exists():
+        try:
+            df = pd.read_parquet(nodes_pq, columns=["node_id", "T_supply_c", "P_bar"])
+            t_sup = pd.to_numeric(df["T_supply_c"], errors="coerce").dropna()
+            if len(t_sup):
+                kpis["T_VL_avg_c"] = round(float(t_sup.mean()), 2)
+            p = pd.to_numeric(df["P_bar"], errors="coerce").dropna()
+            if len(p):
+                kpis["p_max_bar"] = round(float(p.max()), 3)
+                kpis["p_min_bar"] = round(float(p.min()), 3)
+        except Exception as exc:
+            logger.debug("nodes_state KPI read failed for %s: %s", scen_dir.name, exc)
+
+    pipes_pq = scen_dir / "pipe_state_hourly.parquet"
+    if pipes_pq.exists():
+        try:
+            dfp = pd.read_parquet(pipes_pq, columns=["pipe_id", "T_in_C", "T_out_C"])
+            per_pipe = dfp.groupby("pipe_id").agg(
+                T_in_avg_C=("T_in_C", "mean"),
+                T_out_avg_C=("T_out_C", "mean"),
+            ).round(2)
+            per_pipe["T_pipe_avg_C"] = ((per_pipe["T_in_avg_C"] + per_pipe["T_out_avg_C"]) / 2).round(2)
+            per_pipe.to_csv(scen_dir / "tvl_per_pipe.csv")
+        except Exception as exc:
+            logger.debug("pipe_state KPI read failed for %s: %s", scen_dir.name, exc)
 
 
 def _nodes_delta_T(nodes_sum: dict, network: str) -> float:
@@ -326,6 +393,16 @@ def compute_all_kpis(out_base: Path) -> Path:
         writer = csv.DictWriter(f, fieldnames=KPI_COLS, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(all_kpis)
+
+    # Spec §11: baseline_kpis.csv — BC results for both networks separately
+    bc_rows = [k for k in all_kpis if k.get("baseline")]
+    if bc_rows:
+        bc_path = out_base / "baseline_kpis.csv"
+        with open(bc_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=KPI_COLS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(bc_rows)
+        logger.info("Wrote %d baseline KPIs to %s", len(bc_rows), bc_path)
 
     logger.info("Wrote %d scenario KPIs to %s", len(all_kpis), out_path)
     return out_path

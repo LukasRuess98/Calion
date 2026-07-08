@@ -7,7 +7,7 @@
 \documentclass[a4paper,fleqn]{cas-dc}
 
 %% --- Bibliographie ---
-\usepackage[authoryear,longnamesfirst]{natbib}
+\usepackage[numbers,sort&compress]{natbib}
 
 %% --- Mathematik ---
 \usepackage{amsmath,amssymb,amsfonts}
@@ -38,7 +38,7 @@
 %% --- Hyperlinks (immer spät laden) ---
 \usepackage{hyperref}
 \usepackage{cleveref}
-
+\usepackage[numbers]{natbib}
 %% --- SI-Setup ---
 \sisetup{
   per-mode=symbol,
@@ -128,7 +128,9 @@
                 country={Germany}}
 \affiliation[2]{organization={Institute for Energy Efficiency in
                 Production EEP, University of Stuttgart},
+                addressline={Allmandring 35},
                 city={Stuttgart},
+                postcode={70569},
                 country={Germany}}
 
 
@@ -138,8 +140,8 @@
 \begin{abstract}
 The widespread assumption that higher physics fidelity yields
 proportional accuracy gains in district heating dispatch is
-untested. This study provides a controlled comparison: across
-184 optimization instances on a validated industrial network and
+untested. This study provides a comparison across
+184 optimisation  instances on a validated industrial network and
 36~synthetic topologies, pressure-drop hydraulics, temperature
 propagation, and nonlinear formulations collectively contribute
 less than 1\,\% to dispatch cost while the computationally
@@ -158,7 +160,7 @@ selection thresholds linking pipe length and demand heterogeneity
 to the minimum warranted model fidelity.
 
 Within the tested scope (radial trees, fixed heating curve,
-dispatch with given capacities), practical implication could been determined: resolve the network graph before refining the physics.
+dispatch with given capacities), practical implications could be determined: resolve the network graph before refining the physics.
 Ring topologies, variable supply temperature, and joint
 dispatch--sizing problems may shift these thresholds and are
 identified as priority follow-up studies.
@@ -170,7 +172,7 @@ Mixed-integer linear programming \sep
 Mixed-integer quadratically constrained programming \sep
 Topology abstraction \sep
 Thermal storage dispatch \sep
-Heat pump optimization \sep
+Heat pump optimisation  \sep
 Network modelling fidelity \sep
 Linearisation error
 \end{keywords}
@@ -188,11 +190,14 @@ Linearisation error
 %\subsection{Motivation and problem statement}
 %\label{sec:motivation}
 
-District heating networks (DHN) for the industrial usage are central to European decarbonisation
+District heating networks (DHN) for industrial usage are central to European decarbonisation
 strategies, integrating heat pumps (HP), combined heat and power (CHP), and thermal storage (TES) within
-multi-source systems~\citep{Lund2014_4GDH,Werner2017}.
-Operational optimization of such networks increasingly relies on
-mathematical programming. The level of detail in the modelling of heating networks depends heavily on whether the topology and thermohydraulics are simplified:
+multi-source systems~\cite{Lund2014_4GDH,Werner2017,Lund2025_clean}. A recent bibliometric
+analysis confirms that DH research output has grown steadily over
+the past decade, with optimisation  and modelling now constituting
+one of the field's dominant thematic clusters~\cite{PereaMoreno2026}.
+Operational optimisation  of such networks increasingly relies on
+mathematical programming. The level of detail in the modelling of heating networks depends heavily on whether the topology and thermo-hydraulics are simplified:
 
 %
 \begin{enumerate}[nosep]
@@ -202,19 +207,19 @@ mathematical programming. The level of detail in the modelling of heating networ
   \item \textbf{Thermo-hydraulic accuracy:} the set of physical phenomena
         modelled from zero loss energy balances to
         pressure drop coupled, temperature propagating, delay aware
-        thermo hydraulic models.
+        thermo-hydraulic models.
 \end{enumerate}
 
 At one extreme, \emph{copperplate} models aggregate all components
 and demands to a single bus, ignoring spatial structure and thermal
 losses entirely. \citet{Wirtz2020} explicitly acknowledge
-this limitation: ``the validity of [the global energy balance]
+this limitation: ``the validity of the global energy balance
 assumption depends on the network topology, size and the operation
 strategy,'' yet no quantification of the resulting error has been
 published. At the other extreme, \emph{full thermo-hydraulic} models
 resolve the physical pipe-by-pipe network, capturing thermal losses
  5--15\,\% of annual heat
-supply~\citep{Frederiksen2013,Talebi2016}, pressure-dependent
+supply~\cite{Frederiksen2013,Talebi2016}, pressure-dependent
 pumping costs, temperature propagation, and transport delays arising
 from finite fluid velocity. A further complication arises from the
 \emph{mathematical formulation}: extended thermo-hydraulic physics
@@ -224,11 +229,17 @@ MILP tractability but introducing approximation error) and
 nonlinear/quadratic formulations (preserving physical accuracy but
 potentially sacrificing solve time).
 
-A common assumption in the community is that higher thermo-hydraulic accuracy and finer spatial resolution both yield proportional accuracy
-gains justifying the associated computational cost. Yet no
-controlled quantitative evidence exists to confirm or refute this
+A common assumption is that higher thermo-hydraulic accuracy and finer spatial resolution both yield proportional accuracy
+gains, which can justify the associated computational cost. Yet no quantitative evidence exists to confirm or refute this
 proportionality, nor to identify which modelling dimension delivers
-the dominant return on complexity.
+the dominant return on complexity. A closely related effect has
+been quantified for electricity transmission systems: low
+spatial network resolution causes capacity-expansion models to
+ignore intra-regional congestion and underestimate system costs,
+whereas spatial aggregation choices dominate other modelling
+simplifications in scenario comparisons~\cite{Frysztacki2021,
+FrewJacobson2016}. Whether an analogous dominance of topology over
+thermo-hydraulic detail holds for DH dispatch optimisation  has not been established.
 
 \subsection{Research gap}
 \label{sec:gap}
@@ -256,7 +267,7 @@ systematically across the literature
         bounded against a quadratic reference in a DH dispatch
         context.
   \item A quantitative guide to selecting piping topology and
-        thermohydraulic design based on observable network characteristics.
+        thermo-hydraulic design based on observable network characteristics.
 \end{enumerate}
 
 \subsection{Contributions and research questions}
@@ -271,20 +282,20 @@ research question:
 %
 \begin{description}[style=nextline, nosep, leftmargin=1.5em]
   \item[Contribution 1 / RQ1 Topology effect:]
-    A five-level taxonomy (L1, L2, L3, $\Lplus$, $\Lnl$) and controlled topology comparison within a unified MILP
-    framework where L2 and L3 share identical thermo-hydraulics. This
+    A five-level taxonomy and topology comparison within a unified MILP
+    framework where scenarios share thermo-hydraulics. This
     isolates topology as the sole experimental variable and is
     validated against measured industrial operational data.
-    \emph{How much does topology abstraction alone change annual
+    \emph{How much does topology abstraction in the dispatch optimisation  change annual
     operational cost and \ce{CO2} emissions?}
 
   \item[Contribution 2 / RQ2 thermo-hydraulic effect:]
-    A controlled thermo-hydraulic accuracy comparison (L3 vs.\ $\Lplus$)
+    A controlled thermo-hydraulic accuracy comparison
     that isolates the effect of adding pressure drop and
     temperature-dependent loss propagation while holding topology
     and formulation class constant.
     \emph{Do advanced hydraulic and thermal calculations
-    have a significant impact on load distribution once the topology has already been determined?}
+    have a significant impact on load distribution in the dispatch optimisation ?}
 
   \item[Contribution 3 / RQ3 Linearisation error bounds:]
     An upper-bound characterisation of the combined linearisation
@@ -298,7 +309,7 @@ research question:
     yielding joint selection rules based on observable network
     properties.
     \emph{Which network properties determine whether detailed
-    topology and/or extended physics representation is warranted?}
+    topology and/or extended physics representation is warranted in dispatch optimisation ?}
 \end{description}
 
 %% ============================================================
@@ -307,18 +318,18 @@ research question:
 \section{Related work}
 \label{sec:related_work}
 
-In the field of dispatch strategies for DHN numerous studies have been published. Given the wide range of applications, MILP modelling strategies for the topologies of DHN are a frequent topic of discussion (\Cref{sec:rw_milp_topo}). The linearisation of thermo-hydraulic networks varies as well across these studies (\Cref{sec:rw_thermohydraulic}).
+In the field of dispatch strategies for DHN numerous studies have been published. Given the wide range of applications, MILP modelling strategies for the topologies of DHN are a frequent topic of discussion (\Cref{sec:rw_milp_topo}). The linearisation of thermo-hydraulic networks varies as well across these studies (\Cref{sec:rw_thermo-hydraulic}).
 
-\subsection{MILP optimization and spatial scale in DH systems}
+\subsection{MILP optimisation  and spatial scale in DH systems}
 \label{sec:rw_milp_topo}
 
 MILP has become the dominant methodology for operational
-optimization of DH systems~\citep{Fang2016,Guelpa2019review}.
-Open-source frameworks like oemof~\citep{Hilpert2018_oemof},
-PyPSA~\citep{Brown2018_pypsa}, FINE~\citep{Welder2018_FINE},
-Calliope~\citep{Pfenninger2018_calliope},
-urbs~\citep{Dorfner2016_urbs} support multi-carrier energy
-system optimization but share common limitations for detailed DH
+optimisation  of DH systems~\cite{Fang2016,Guelpa2019review}.
+Open-source frameworks like oemof~\cite{Hilpert2018_oemof},
+PyPSA~\cite{Brown2018_pypsa}, FINE~\cite{Welder2018_FINE},
+Calliope~\cite{Pfenninger2018_calliope},
+urbs~\cite{Dorfner2016_urbs} support multi-carrier energy
+system optimisation  but share common limitations for detailed DH
 analysis: thermal losses are typically time-invariant, heat pump
 COP is constant or seasonal, hydraulic coupling is absent, and
 network topology is either fully aggregated or fixed at a single
@@ -326,63 +337,130 @@ detail level. All five frameworks operate in the default setting at L1 in the ta
 quantified.
 
 The DH modelling literature exhibits a continuous spectrum of
-spatial aggregation. Single-node models are standard in
-national-scale analyses~\citep{Connolly2014_EnergyPLAN,
+spatial aggregation. The reduction of detailed pipe networks to a
+small number of aggregated branches has a long tradition in DH
+simulation: \citet{Larsen2004} compare aggregation methods on a
+23-substation network and show that pipe count can be reduced by
+roughly an order of magnitude before production and return-temperature
+errors become significant, while \citet{Falay2020} extend this line
+of work to large-scale dynamic simulation of several thousand
+substations. \citet{Schweiger2018_paradigms} survey the resulting
+landscape of DH modelling paradigms and general-purpose tools. These
+studies establish \emph{which} aggregation preserves simulation
+fidelity, but none quantifies the resulting bias in
+\emph{dispatch-optimisation  cost}.
+Single-node models are standard in
+national-scale analyses~\cite{Connolly2014_EnergyPLAN,
 Brown2018_pypsa,Lund2017_SmartEnergy}.
 \citet{Gabrielli2018} formulated a MILP for distributed
 multi-energy systems including thermal and electrical storage but
 treat the thermal network as a single aggregated efficiency
 factor. Zone-based models (3--15~nodes) aggregate demand into
-geographic clusters~\citep{Wirtz2020,Mertz2016,Buffa2019};
+geographic clusters~\cite{Wirtz2020,Mertz2016,Buffa2019};
 \citet{Buenning2020} demonstrate that zone-level aggregation
 captures 85--95\,\% of dynamic temperature variation. Full-graph
 models resolve node-by-node from GIS
-data~\citep{Vesterlund2017,Schweiger2017,vanderHeijde2017,
+data~\cite{Vesterlund2017,Schweiger2017,vanderHeijde2017,
 Blommaert2020}; \citet{Giraud2015} show tractability up to
 ${\approx}\,100$~nodes for hourly annual horizons.
 
 Across this spectrum, the level of spatial aggregation has been
 shown to materially affect dispatch
-results~\citep{Wirtz2020,Buffa2019}, but no scalar metric links
+results~\cite{Wirtz2020,Buffa2019}, but no scalar metric links
 observable network properties to the required resolution level.
 \citet{Leitner2019} compared copperplate and full-graph
 representations for an Austrian DH network and found cost
 differences of 3--8\,\%, but simultaneously changed the loss (more instances in \Cref{sec:rw_summary}).
+Three very recent studies extend this line without isolating
+topology as an independent factor. \citet{Trentmann2026} integrate
+full-graph DHN expansion into an energy-hub MILP with
+temporally-resolved heat-pump COPs, showing that network supply
+temperature strongly shifts the optimal centralized-vs-building-level
+supply split; their model always resolves the network at
+full-graph detail, so the copperplate/aggregated comparison studied
+here is outside their scope. \citet{Ceruti2025} likewise formulate a
+full-graph MILP for DHN design with TES and find that temporal
+(not spatial) resolution dominates design quality. \citet{Vieth2026} address expansion
+planning of existing full-graph networks under resilience
+constraints, showing that considering generation-unit outages
+lowers the connectable peak demand by up to 97\,\%. 
+
+A parallel and largely separate literature quantifies the dispatch
+value of the generation technologies studied in the present case
+(HP, electrode boiler, CHP, TES) without addressing spatial
+resolution. \citet{Nielsen2016} and \citet{Boettger2015} show, for
+the Danish and German electricity markets respectively, that
+deterministic dispatch models systematically overestimate the
+economic value of HP and electric-boiler flexibility relative to
+stochastic or control-power-aware formulations. \citet{Galteland2026} confirm this technology-value
+question is still actively studied: for a hybrid industrial
+electrode-boiler/steam-accumulator/battery system, they show optimal
+sizing is highly sensitive to reserve-market participation and
+storage cost assumptions. \citet{Mollenhauer2018} formulate an MILP
+unit-commitment and dispatch problem for German CHP plants
+retrofitted with HP and TES at hourly resolution over a full year,
+methodologically close to the present dispatch model but, like
+\citet{Schweiger2017_p2h,Averfalk2017,David2017},
+representing the DH network itself as a single aggregated demand
+node. \citet{Walden2023} extend this line to a nonlinear industrial
+power-to-heat system coupling a high-temperature heat pump, sensible
+TES, and wind generation, optimizing operation with an accurate
+nonlinear component model rather than a network representation;
+their setting shares this paper's technology mix (HP-based
+electrification, TES buffering of variable renewable supply) but,
+like \citet{Mollenhauer2018}, treats the distribution network as a
+single lumped point rather than a resolved topology.
+\citet{Riedl2026} propose, most recently, a general flexibility
+assessment framework for DHC systems that explicitly incorporates
+network-side constraints alongside generation-side flexibility , though their published
+case studies do not yet vary spatial resolution as an experimental
+factor. \citet{Buhler2017} instead quantify the industrial excess-heat
+resource available to DH networks spatially, but not within a
+dispatch-optimisation  framework. None of these studies varies
+network topology as an experimental factor, reinforcing that the
+topology/technology interaction remains unexplored.
 
 \subsection{Thermo-hydraulic network models and linearisation}
-\label{sec:rw_thermohydraulic}
+\label{sec:rw_thermo-hydraulic}
 
-Beyond topology, the physics fidelity of pipe models varies
+Beyond topology, the thermo-hydraulic fidelity of pipe models varies
 substantially. Steady-state thermal losses follow from the
 fluid--ground temperature difference and pipe insulation
-properties~\citep{Frederiksen2013} and are MILP-compatible when
-temperatures are fixed parameters. The Darcy--Weisbach equation,
+properties and are MILP-compatible when
+temperatures are fixed parameters ~\cite{Frederiksen2013}. The Darcy--Weisbach equation,
 in contrast, relates pressure drop to the square of flow velocity,
 introducing a quadratic nonlinearity; pumping power is proportional
 to $\dot{m} \cdot \Delta p$, creating a cubic term. Authors have
 addressed this through piecewise
-linearisation~\citep{Bordin2016,Mertz2016} or second-order cone
-relaxations~\citep{Blommaert2020}. \citet{Hari2024} provide a
-comprehensive thermal network flow optimization framework
+linearisation~\cite{Bordin2016,Mertz2016} or second-order cone
+relaxations~\cite{Blommaert2020}. \citet{Hari2024} provide a
+comprehensive thermal network flow optimisation  framework
 integrating Darcy--Weisbach pressure drop with explicit pump
 placement. Reported pumping costs range from 1--5\,\% of thermal
-energy costs~\citep{Frederiksen2013}.
+energy costs~\cite{Frederiksen2013}.
 
 Temperature propagation along pipes introduces exponential and
-bilinear terms~\citep{vanderHeijde2017}; \citet{Maldonado2024}
+bilinear terms~\cite{vanderHeijde2017}; \citet{Maldonado2024}
 validate this model against industrial data, achieving supply
 temperature Mean absolute error (MAE) below \SI{0.5}{\kelvin}. Transport delays of 1--3\,h arise for
-long pipes ~\citep{vanderHeijde2017,Giraud2015}; the
+long pipes ~\cite{vanderHeijde2017,Giraud2015}; the
 fixed-delay approximation is most accurate when flow variations
 are moderate ($\pm 30\,\%$ of nominal).
 
 MIQCP formulations offer a middle ground between MILP and full
-NLP~\citep{Ommen2016}: quadratic constraints are handled natively
+NLP~\cite{Ommen2016}: quadratic constraints are handled natively
 by modern solvers while integer variables retain unit-commitment
-logic. However, MIQCP problems lack LP-relaxation tightness,
-potentially increasing solve times. The magnitude of the
-linearisation error in a DH dispatch context i.e., the cost gap
-between Piece wise linear (PWL)-MILP and native MIQCP formulations has not been published.
+logic. \citet{Hering2021} and \citet{Hering2022} demonstrate this
+approach for DH design and dispatch with multiple heat pumps,
+formulating temperature-dependent constraints as MIQCP for a 4GDH
+network; their case studies show the MIQCP remains tractable at the
+scale of tens of consumers, but do not report a reference-model
+comparison isolating the cost of PWL-MILP approximation relative to
+the native quadratic formulation. However, MIQCP problems lack
+LP-relaxation tightness, potentially increasing solve times. The
+magnitude of the linearisation error in a DH dispatch context i.e.,
+the cost gap between Piece wise linear (PWL)-MILP and native MIQCP
+formulations has not been published.
 
 \subsection{Positioning and research gap}
 \label{sec:rw_summary}
@@ -392,8 +470,35 @@ resolution, \emph{none} isolates topology from physics as an
 independent experimental variable.
 \Cref{tab:prior_work} positions representative studies. No prior work isolates topology from
 physics, nor bounds linearisation error against a quadratic
-reference in a controlled DH dispatch setting. The present paper is the first controlled comparison that addresses
-all three dimensions within a single framework.
+reference in a controlled DH dispatch setting.
+
+Two studies come closest to the present design. \citet{Quaggiotto2021}
+report, for the Verona DH network, that simplifying the network's
+thermal behaviour in a dispatch optimisation  underestimates
+operational cost relative to a model-predictive controller using a
+detailed network model, but without a taxonomy that separates topology from
+thermo-hydraulic fidelity or quantifies the gap as a function of
+network properties. \citet{Jansen2024} independently confirm this
+direction with a mixed-integer non-linear MPC for DH networks,
+reporting a similar fidelity/performance trade-off for a real
+Belgian network, but again without isolating topology as a factor.
+\citet{Wirtz2021_complexity} systematically vary
+the level of detail across 24 MILP formulations of a multi-energy
+system and identify which simplifications are cost-relevant; their
+experimental design closely parallels the controlled-comparison logic
+adopted here, but their model complexity axis spans technology and
+part-load representation rather than network topology and
+thermo-hydraulics, and the building-scale multi-energy system they
+study does not resolve pipe-by-pipe network structure. \citet{Kotzur2021}
+review complexity-management methods for energy system optimisation 
+more broadly and note that, while temporal aggregation is
+well-studied, spatial aggregation "has only a small community" and
+lacks systematic guidance. The present
+paper closes the gap by comparing
+systematic, axis-isolated logic specifically to the topology/physics
+trade-off in DH dispatch, and within a single
+framework spanning all three dimensions (topology, thermo-hydraulics,
+linearisation).
 
 
 %% ============================================================
@@ -413,7 +518,7 @@ closes with implementation details (\Cref{sec:model_impl}).
 
 \begin{table*}[!tbp]
 \centering
-\caption{DH optimization studies with
+\caption{DH optimisation  studies with
 isolated topology and thermo-hydraulics as experimental
 variables.}
 \label{tab:prior_work}
@@ -423,7 +528,7 @@ variables.}
 \begin{tabular}{@{}l c c c c c c c@{}}
 \toprule
 Reference & Topo. & Physics & Form. & COP &
-  Scale & Temp. & Comparision \\
+  Scale & Temp. & Comparison \\
 \midrule
 \citet{Connolly2014_EnergyPLAN}
   & Cop. & Fix.~$\eta$ & LP & Const. & Nat. & Ann. & No \\
@@ -450,20 +555,30 @@ Reference & Topo. & Physics & Form. & COP &
   & Part.\tnote{a} \\
 \citet{Blommaert2020}
   & Full & Adj.\ NLP & NLP & $T$-dep. & 30\,MW & Des. & No \\
+\citet{Quaggiotto2021}
+  & Full & FD therm. & MPC & -- & Dist. & Days & No \\
+\citet{Jansen2024}
+  & Full & MINLP & MPC & -- & Dist. & Days & No \\
+\citet{Hering2021}
+  & Fix. & MIQCP & MIQCP & $T$-dep. & 7 cons. & Des. & No \\
+\citet{Wirtz2021_complexity}
+  & Cop. & 24 var. & MILP & Var. & Bldg. & Ann. & Part.\tnote{b} \\
 \midrule
 \textbf{This work}
-  & \textbf{L1--$\Lnl$}
-  & \textbf{Bas.+ext.}
-  & \textbf{MILP+QCP}
-  & \textbf{Pre-c.}
-  & \textbf{12\,MW}
-  & \textbf{8760\,h}
-  & \textbf{Yes} \\
+  & \textbf{$L1$--$\Lnl$}
+  & Bas.+ext.
+  & MILP+QCP
+  & Pre-c.
+  & 12\,MW
+  & 8760\,h
+  & Yes \\
 \bottomrule
 \end{tabular}
 \begin{tablenotes}\footnotesize
   \item[a] Compared pipe-loss formulations but not spatial
     aggregation levels.
+  \item[b] Systematically varied model complexity (24 variants)
+    but along technology/part-load axes, not network topology.
 \end{tablenotes}
 \end{threeparttable}
 \end{table*}
@@ -497,13 +612,14 @@ comparisons (\Cref{fig:comparison_design}):
 \end{figure}
 
 \Cref{tab:model_scope} summarises which physical phenomena enter at
-each level. The five variants are built up as follows inspired by \cite{Blommaert2020}.
+each level. The five variants are built up as follows, inspired by \citet{Blommaert2020}.
 
 \begin{table}[htbp]
 \centering
 \caption{Model scope across all five variants. ``PWL'': piecewise-linear;
-``Q/B'': native quadratic/bilinear constraint.}
+``Quad./Bilin.'': native quadratic/bilinear constraint.}
 \label{tab:model_scope}
+\begin{threeparttable}
 \scriptsize
 \setlength{\tabcolsep}{2pt}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
@@ -529,21 +645,28 @@ Phenomenon & L1 & L2 & L3 & $\Lplus$ & $\Lnl$ \\
 \midrule
 \multicolumn{6}{@{}l@{}}{\textit{Temporal}} \\[1pt]
 \quad Transport delay
-  & -- & -- & -- & \checkmark & \checkmark \\
+  & -- & -- & -- & -- & \checkmark \\
 \quad Hourly grid $e$-factors
   & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
 \midrule
-\multicolumn{6}{@{}l@{}}{\textit{Excluded (all levels)}} \\[1pt]
+\multicolumn{6}{@{}l@{}}{\textit{Outside the scope of the research}} \\[1pt]
 \quad Sub-hourly transients
-  & \multicolumn{5}{c}{--} \\
+  & \multicolumn{5}{c}{excluded} \\
 \quad Capacity sizing
-  & \multicolumn{5}{c}{--} \\
+  & \multicolumn{5}{c}{excluded} \\
 \quad $T_{\mathrm{sup}}$ optim.
-  & \multicolumn{5}{c}{--} \\
+  & \multicolumn{5}{c}{excluded} \\
 \quad Ring / bidir.\ flow
-  & \multicolumn{5}{c}{--} \\
+  & \multicolumn{5}{c}{excluded} \\
 \bottomrule
 \end{tabular*}
+\begin{tablenotes}\scriptsize
+  \item[] Physics scope as shown applies to the
+    \emph{primary case}. In the synthetic parametric study,
+    level labels are reassigned to enable the additive
+    decomposition; see \Cref{tab:synth_level_mapping}.
+\end{tablenotes}
+\end{threeparttable}
 \end{table}
 
 \paragraph{Level~1 (Copperplate).}
@@ -567,7 +690,7 @@ drop, no temperature propagation, no transport delay.
 \paragraph{$\Lplus$ (Detailed multi-node, extended MILP).}
 Same topology as L3. Adds piecewise-linear pressure drop
 (Darcy--Weisbach), linearised temperature propagation, and the
-resulting pumping power. Transport delay is configured but bypassed:
+resulting in the pumping power. Transport delay is configured but bypassed:
 the linearised pipe model cannot represent the source-to-consumer
 lag, so this effect is characterised exclusively through the
 $\Lplus\!\to\!\Lnl$ comparison.
@@ -580,17 +703,16 @@ $\Lnl$ is the only variant in which transport delay is active.
 
 \paragraph{Auxiliary variant: L1$_{\mathrm{topo}}$.}
 For the additive gap decomposition (\Cref{sec:case_synthetic}),
-we additionally define L1$_{\mathrm{topo}}$: full network routing
+an additionally L1$_{\mathrm{topo}}$ was defined: full network routing
 (nodal balance as in L3) but with zero pipe losses. This isolates
 the pure routing effect from the thermal-loss effect within the
 L1$\to$L3 gap.
 
 \paragraph{Demand concentration metrics.}
 The topology effect depends on how unevenly demand is distributed
-across nodes. We quantify this via (i)~the \textbf{Gini
+across nodes. The study quantifies this via (i)~the \textbf{Gini
 coefficient} of nodal annual demand shares and (ii)~the
-\textbf{top-3 demand share}---both widely interpretable and with
-sufficient dynamic range on realistic networks. For the primary
+\textbf{top-3 demand share}. For the primary
 case, Gini\,$= 0.41$ and top-3 share\,$= 51.7\,\%$, indicating
 moderate spatial concentration. The synthetic parametric study uses a
 normalised variance index HI as a discrete parameter
@@ -641,17 +763,17 @@ C^{\mathrm{dem}}  &= \lambda^{\mathrm{dem}} f^{\mathrm{yr}}
 \end{align*}
 %
 Here, $P_t^{\mathrm{buy}}$ and $P_t^{\mathrm{sell}}$
-[MW] are grid import and export at time~$t$;
+[MW] are the grid import and export at time~$t$;
 $\lambda_t^{\mathrm{buy}}$ and $\lambda_t^{\mathrm{sell}}$
 [EUR/MWh] are the corresponding prices; $F_{g,t}$ [MW]
 is the fuel input to generator~$g$ at heating value basis;
-$\lambda_g^{\mathrm{fuel}}$ [EUR/MWh] its specific fuel cost;
+$\lambda_g^{\mathrm{fuel}}$ [EUR/MWh] is its specific fuel cost;
 $Q_{n,t}^{\mathrm{dump}}$ [MW] is curtailed heat at node~$n$,
 penalised at $\lambda^{\mathrm{dump}}$ [EUR/MWh];
 $\lambda^{\ce{CO2}}$ [EUR/t$_{\mathrm{CO_2}}$] is the carbon
 price; $f^{\mathrm{yr}}$ a fractional annualisation factor; and
 $P^{\mathrm{peak}}$ [MW] the annual peak grid import entering the
-demand charge $\lambda^{\mathrm{dem}}$.
+demand charge $\lambda^{\mathrm{dem}}$ [MWh$^{-1}$].
 
 \paragraph{Energy balance.}
 L1 enforces a single bus-level balance across all generators and
@@ -668,7 +790,7 @@ storage units, ignoring network losses and spatial routing:
 %
 where $Q_{g,t}^{\mathrm{th}}$ [MW] is the thermal output of
 generator~$g$, $Q_{s,t}^{\mathrm{dis}}$ and $Q_{s,t}^{\mathrm{ch}}$
-[MW] are discharge and charge of storage unit~$s$, and
+[MW] are the discharge and charge of storage unit~$s$, and
 $Q_t^{\mathrm{dem}}$ [MW] is the total network heat demand.
 
 L2/L3/$\Lplus$/$\Lnl$ instead enforce a \emph{nodal} balance at
@@ -719,7 +841,7 @@ against grid import, export, and in-network consumption:
 %
 where $P_{g,t}^{\mathrm{el}}$ [MW] is the CHP electrical output,
 $P_{h,t}^{\mathrm{el}}$ [MW] the heat pump electrical input,
-$P_{r,t}^{\mathrm{el}}$ [MW] the electrode boiler input, and
+$P_{r,t}^{\mathrm{el}}$ [MW], the electrode boiler input, and
 $P_t^{\mathrm{pump}}$ [MW] the network pumping power.
 The binary variable $z_t \in \{0,1\}$ enforces that the grid
 operates in either import or export mode at any hour;
@@ -731,7 +853,7 @@ grid capacity.
 For each pipe~$p$, steady-state conductive heat losses are computed
 separately for the supply and return circuit. Because the supply
 temperature is determined by the heating curve rather than
-optimised, the losses are \emph{fixed parameters}---a key
+optimised, the losses are \emph{fixed parameters}. This is a key
 simplification that preserves MILP linearity:
 %
 \begin{align}
@@ -776,7 +898,7 @@ the time-varying waste-heat $\mathrm{COP}_{h,t}^{\mathrm{WHR}}$
 and the constant default $\mathrm{COP}_h^{\mathrm{def}}$.
 The waste-heat COP is pre-computed offline from an analytical
 Lorenz-cycle model (\Cref{app:cop}); this avoids introducing
-bilinear terms in the optimization model.
+bilinear terms in the optimisation  model.
 
 Operation is bounded by a minimum load fraction
 $\phi_h^{\mathrm{min}}$ and the installed capacity $\bar{Q}_h$,
@@ -789,7 +911,7 @@ controlled by the on/off binary $u_{h,t} \in \{0,1\}$:
   \label{eq:hp_cap}
 \end{equation}
 %
-When $u_{h,t} = 0$ the heat pump is off and both outputs are
+When $u_{h,t} = 0$, the heat pump is off, and both outputs are
 forced to zero; when $u_{h,t} = 1$ the output must reach the
 minimum load fraction $\phi_h^{\mathrm{min}}$, preventing
 uneconomic part-load cycling.
@@ -1019,15 +1141,19 @@ treatments in $\Lplus$ and $\Lnl$.
 
 The network underwent a technology upgrade (HP, electrode boiler,
 TES) \emph{after} the measurement record was collected. Following
-\citet{Kus2025} and \citet{Maldonado2024}, we adopt a two-stage
+\citet{Kus2025} and \citet{Maldonado2024}, this work adopts a two-stage
 strategy.
 
-\paragraph{Stage~1 --- Direct network validation.}
+\paragraph{Stage~1: Direct network validation.}
 The pipe model is validated against pre-upgrade monitoring data
 (new assets set to zero capacity). Calibration follows the
 branch-sequential $U_p$-tuning procedure of
 \citet{Maldonado2024}. \Cref{tab:val_targets} lists the KPIs with
-gates defined \emph{ex ante} from published practice.
+gates defined \emph{ex ante} from published practice. The
+$T_{\mathrm{sup}}$ gates are assigned to $\Lnl$ because only this
+variant propagates supply temperature along pipes; L3 uses fixed
+nominal temperatures and therefore cannot predict downstream
+temperature deviations.
 
 \begin{table}[ht]
 \centering
@@ -1042,13 +1168,13 @@ KPI & Model & Gate & Source \\
 \midrule
 $T_{\mathrm{sup}}$, mean
   & $\Lnl$ & ${<}\SI{1.5}{\kelvin}$
-  & \citep{Kus2025} \\
+  & \citet{Kus2025} \\
 $T_{\mathrm{sup}}$, worst
   & $\Lnl$ & ${<}\SI{2.5}{\kelvin}$
-  & \citep{Maldonado2024} \\
+  & \citet{Maldonado2024} \\
 $T_{\mathrm{ret}}$ at source
   & L3 & ${<}\SI{2.5}{\kelvin}$
-  & \citep{Kus2025} \\
+  & \citet{Kus2025} \\
 Flow (MAPE)
   & L3 & n/a\tnote{a} & -- \\
 Energy balance
@@ -1061,7 +1187,7 @@ Energy balance
 \end{threeparttable}
 \end{table}
 
-\paragraph{Stage~2 --- Necessary-condition verification.}
+\paragraph{Stage~2: Necessary-condition verification.}
 Dispatch of new assets is verified through plausibility bounds:
 HP COP within $[2.5,\,5.5]$; electrode boiler price-response
 correlation $r > 0.3$; per-step energy closure ${<}\,1\,\%$; TES
@@ -1081,19 +1207,22 @@ for every synthetic instance.
 \subsection{Implementation}
 \label{sec:model_impl}
 
-All five variants are implemented in Python~3.10 using
-\citet{pyomo}, instantiated from a single parameterised codebase
-via YAML configuration files. Solver: Gurobi~10.0 with MIP gap
+All five variants are implemented in Python using PYOMO 
+\cite{pyomo}, instantiated from a single parameterised codebase
+via YAML configuration files. Solver: Gurobi~13.0 with MIP gap
 ${\leq}\,0.5\,\%$ for both MILP and MIQCP
 (\texttt{NonConvex=2}); identical random seeds. $\Lnl$ is
 warm-started from the $\Lplus$ solution.
 
-The $\Lplus$ formulation adds ${\approx}\,614{,}000$ continuous
-variables; $\Lnl$ adds ${\approx}\,245{,}000$ quadratic
-constraints. A single 744\,h MIQCP solve requires ${>}\,4$\,h at
-1.99\,\% gap; the full-year formulation is intractable on
-single-workstation hardware. The synthetic parametric study is therefore
-restricted to L1/L2/L3/$\Lplus$, while the linearisation error is
+The $\Lplus$ formulation adds ${\approx}\,753{,}000$ variables
+relative to L3, of which ${\approx}\,368{,}000$ are binary
+(SOS2 mode selection for piecewise linearisation) and
+${\approx}\,385{,}000$ continuous; $\Lnl$ adds
+${\approx}\,245{,}000$ quadratic constraints. A single
+744\,h MIQCP solve requires ${>}\,4$\,h at 1.99\,\% gap; the
+full-year formulation is intractable on single-workstation hardware from the 
+University of Stuttgart. The synthetic parametric study is therefore restricted
+to L1/L2/L3/$\Lplus$, while the linearisation error is
 characterised on the primary case.
 
 %% ============================================================
@@ -1101,7 +1230,7 @@ characterised on the primary case.
 %% ============================================================
 \section{Case study}
 \label{sec:case_studies}
-The case study comprises data from a real industrial heating network and several synthetic networks to generate generalizable results.
+The case study comprises data from a real industrial heating network and several synthetic networks to generate generalisable results.
 
 \subsection{Primary case: industrial district heating network}
 \label{sec:case_stadtbach}
@@ -1118,7 +1247,7 @@ with corresponding return temperatures of \SI{55}{\celsius} to
 \SI{40}{\celsius} (\Cref{app:heating_curve}). Simulated annual
 thermal pipe losses are approximately 5\,\% of network heat
 demand. Absolute demand values are anonymised per non-disclosure
-agreement and the key results are reported as relative differences.
+agreement, and the key results are reported as relative differences.
 \Cref{tab:case_summary} consolidates the key parameters.
 
 L2 aggregates the 15~L3 junctions into seven~zones by merging
@@ -1128,7 +1257,7 @@ preserved exactly (\SI{1,011}{\watt\per\kelvin}).
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\linewidth]{paper1_dh_fidelity/F2_network_topology.png.svg}
+  \includegraphics[width=\linewidth]{paper1_dh_fidelity/F2_network_topology.png}
   \caption{Network topology. Assets at j$_1$ (CHP, TES, boilers, HP, electrode boiler). Transport delays annotated.}
   \label{fig:topology}
 \end{figure}
@@ -1222,7 +1351,7 @@ Storage [h]  & 2   & 6   & 12  & Buffer--shift \\
 
 The parametric study thus comprises $36 \times 5$ instances
 (L1/L1$_{\mathrm{topo}}$/L2/L3/$\Lplus$ per configuration)
-plus 4~primary-case levels, totalling 184~optimization runs.
+plus 4~primary-case levels, totalling 184~optimisation  runs.
 
 \paragraph{Additive gap decomposition.}
 The parametric study includes a zero-physics topology stage
@@ -1241,6 +1370,71 @@ decompose the cumulative L1$\to$L3 gap:
   \underbrace{\mathrm{cost}(L3) - \mathrm{cost}(L2)}_{\text{pressure drop}}
 \end{split}
 \end{equation}
+%
+To enable this three-way decomposition, the synthetic study
+redefines the physics scope of L2 and L3 relative to the
+primary-case taxonomy (\Cref{tab:model_scope}): synthetic~L2
+includes steady-state thermal losses but no pressure drop,
+while synthetic~L3 adds Darcy--Weisbach pressure drop on top.
+\Cref{tab:synth_level_mapping} clarifies this mapping.
+The L3$\to\Lplus$ step in the synthetic study therefore
+isolates only transport-delay activation (which produces zero
+cost change at hourly resolution when
+$\tau_{\max} < 1$\,h); the pressure-drop effect itself is
+captured within the L2$\to$L3 decomposition term. For the
+primary case, pressure drop is excluded from L3 and enters
+exclusively at $\Lplus$, consistent with
+\Cref{tab:model_scope}.
+
+\begin{table}[ht]
+\centering
+\caption{Physics-scope mapping between primary case and
+synthetic parametric study. The reassignment enables the
+three-term additive decomposition (\Cref{eq:cost_decomposition}).}
+\label{tab:synth_level_mapping}
+\begin{threeparttable}
+\footnotesize
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
+  >{\raggedright\arraybackslash}p{0.14\columnwidth}
+  >{\raggedright\arraybackslash}p{0.34\columnwidth}
+  >{\raggedright\arraybackslash}p{0.14\columnwidth}
+  >{\raggedright\arraybackslash}p{0.20\columnwidth} @{}}
+\toprule
+Synth.\ label & Physics content & Primary equiv.
+  & Decomp.\ role \\
+\midrule
+L1
+  & No losses, no $\Delta p$
+  & L1
+  & Baseline \\
+L1$_{\mathrm{topo}}$
+  & Routing only, no losses
+  & --
+  & Routing ref. \\
+L2
+  & Thermal losses, no $\Delta p$
+  & $\approx$\,L3\tnote{a}
+  & Heat-loss ref. \\
+L3
+  & Thermal losses + $\Delta p$
+  & $\approx$\,$\Lplus$\tnote{b}
+  & $\Delta p$ target \\
+$\Lplus$
+  & Losses + $\Delta p$ + delay
+  & --
+  & Delay check \\
+\bottomrule
+\end{tabular*}
+\begin{tablenotes}\scriptsize
+  \item[a] Equivalent in loss treatment; differs in node
+    aggregation (synthetic L2 uses full node resolution, not
+    the 7-zone aggregation of the primary-case L2).
+  \item[b] Without Taylor-linearised temperature propagation;
+    pressure drop enters as PWL (Darcy--Weisbach) in both.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
 
 %% ============================================================
 %% 5. RESULTS
@@ -1250,6 +1444,9 @@ decompose the cumulative L1$\to$L3 gap:
 In the results section, the validation results are presented first, followed by the topology and thermo-hydraulic influencing factors. Finally, the generalisability, sensitivity, and computational performance are examined. 
 
 
+%% ============================================================
+%% 5.1 VALIDATION RESULTS
+%% ============================================================
 \subsection{Validation results}
 \label{sec:results_validation}
 
@@ -1264,9 +1461,21 @@ pressure-differential metering at partial load; the 1.23\,\%
 annual energy error confirms that energy-weighted flow is correctly
 reproduced.
 
-Of the 14~network nodes, 6 enter the gate evaluation
-(``validation nodes'', cf.\ \Cref{tab:val_targets}); the remaining
-8 are excluded for two distinct reasons (per-node MAE breakdown in
+\begin{figure}[!htbp]
+  \centering
+  \includegraphics[width=\linewidth]{paper1_dh_fidelity/FV1_validation_timeseries.png}
+  \caption{Stage~1 validation, representative winter week
+  (Dec.~22--28): dispatch composition (top) and TES
+  state-of-charge (bottom).}
+  \label{fig:val_timeseries}
+\end{figure}
+
+Node j$_1$ is the production source and serves as boundary
+condition (measured inlet temperature); it is excluded from the
+temperature-error evaluation. Of the 14~remaining network nodes,
+6 enter the gate evaluation (``validation nodes'',
+cf.\ \Cref{tab:val_targets}); the remaining 8 are excluded for two
+distinct reasons (per-node MAE breakdown in
 \Cref{app:per_node_mae}). Four nodes (j$_6$, j$_7$, j$_8$,
 j$_{14}$) served as \emph{calibration nodes} during the
 branch-sequential $U_p$-tuning procedure and are therefore
@@ -1313,20 +1522,13 @@ Annual energy
 \end{threeparttable}
 \end{table}
 
-\begin{figure*}[!t]
-  \centering
-  \includegraphics[width=\textwidth]{paper1_dh_fidelity/FV1_validation_timeseries.png}
-  \caption{Stage~1 validation, representative winter week
-  (Dec.~22--28): dispatch composition (top) and TES
-  state-of-charge (bottom).}
-  \label{fig:val_timeseries}
-\end{figure*}
-
 Stage~2 plausibility checks all pass: observed HP COP within
-$[2.5,\,3.0]$; electrode-boiler price-response correlation
-$r = 0.47$; per-step energy closure below 0.3\,\%; TES SOC in
-$[0.18,\,0.94] \cdot \bar{E}_s$. Solver consistency: $\Lnl$ with
-quadratic constraints deactivated reproduces L3 within
+$[2.5,\,3.0]$ (bounded by the moderate waste-heat source
+temperature of 25--\SI{35}{\celsius} and the high sink temperature
+of 70--\SI{100}{\celsius}); electrode-boiler price-response
+correlation $r = 0.47$; per-step energy closure below 0.3\,\%; TES
+SOC in $[0.18,\,0.94] \cdot \bar{E}_s$. Solver consistency:
+$\Lnl$ with quadratic constraints deactivated reproduces L3 within
 $0.004\,\%$.
 
 \paragraph{Independent forward-physics cross-check.}
@@ -1341,9 +1543,12 @@ error metrics are MAE\,$=$\,\SI{1.56}{\celsius},
 RMSE\,$=$\,\SI{2.15}{\celsius}, and a residual positive bias of
 \SI{+0.72}{\celsius}, indicating mild systematic overestimation
 consistent with unmodelled flow-rate variability. Sixty percent of
-hourly predictions fall within the ${\pm}$\SI{1.5}{\celsius}
-per-step gate. \Cref{fig:val_scatter} presents the scatter plot of
-simulated versus measured supply temperature;
+hourly predictions fall within ${\pm}$\SI{1.5}{\celsius}; the
+remaining deviations correlate with rapid flow transients
+(partial-load switching) that the steady-state pipe model does not
+capture. The mean MAE (\SI{1.56}{\celsius}) nevertheless remains
+within the Stage~1 gate. \Cref{fig:val_scatter} presents the
+scatter plot of simulated versus measured supply temperature;
 \Cref{fig:val_timeseries_jan} shows the corresponding January
 time-series with the ${\pm}$\SI{1.5}{\celsius} confidence band.
 The calibration approach differs methodologically from the $\Lnl$
@@ -1364,7 +1569,8 @@ details are given in \Cref{app:bcm_calibration}.
   \includegraphics[width=\linewidth]{paper1_dh_fidelity/F_validation_timeseries_2026_01.png}
   \caption{BCM cross-check (January): $T_{\mathrm{sup}}$
   time-series at j$_{15}$. The shaded band marks the
-  ${\pm}$\SI{1.5}{\celsius} gate.}
+  ${\pm}$\SI{1.5}{\celsius} gate. Underneath is the ambient
+  temperature for the week.}
   \label{fig:val_timeseries_jan}
 \end{figure}
 
@@ -1377,13 +1583,13 @@ details are given in \Cref{app:bcm_calibration}.
 \Cref{tab:cost_co2} reports the topology comparison under identical
 basic physics. The cumulative L1$\to$L3 gap reaches 13.0\,\% in
 operational cost and 74\,t\,\ce{CO2}/year. The L1$\to$L2 step
-accounts for 10.5$\%$ (63\,t\,\ce{CO2}/yr), while
-L2$\to$L3 contributes the remaining 2.5~$\%$ (11\,t\,\ce{CO2}/yr).
+accounts for 10.4\,\% (63\,t\,\ce{CO2}/yr), while
+L2$\to$L3 contributes the remaining 2.6\,\% (11\,t\,\ce{CO2}/yr).
 
 The L1$\to$L2 gap arises from two mechanisms: (1)~L1 ignores
-network losses entirely,  the additive decomposition ( \Cref{{sec:case_synthetic}}) confirms that thermal losses, not routing or locational siting, drive the cumulative gap.
+network losses entirely,  the additive decomposition ( \Cref{sec:case_synthetic}) confirms that thermal losses, not routing or locational siting, drive the cumulative gap.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Topology comparison (basic physics, L3 = reference).}
 \label{tab:cost_co2}
@@ -1395,7 +1601,7 @@ Level & $\Delta$Cost & $\Delta$Fuel &
   $\Delta$Elec. & $\Delta$\ce{CO2} & t/yr \\
 \midrule
 L1 & $-13.0\%$ & $-12.9\%$ & $-14.0\%$ & $-8.7\%$ & $772$ \\
-L2 & $-2.5\%$  & $-2.4\%$  & $-3.2\%$  & $-1.3\%$ & $835$ \\
+L2 & $-2.6\%$  & $-2.4\%$  & $-3.2\%$  & $-1.3\%$ & $835$ \\
 L3 & $(ref.)$  & $(ref.)$  & $(ref.)$  & $(ref.)$ & $846$ \\
 \bottomrule
 \end{tabular*}
@@ -1419,7 +1625,7 @@ clear negative: extended hydraulic and thermal physics do not
 materially change dispatch when topology is already resolved at the
 scale of the primary case.
 
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Thermo-hydraulics and linearisation comparison.}
 \label{tab:cost_extended}
@@ -1470,18 +1676,7 @@ substantially more optimality slack. The February gap
 statistically meaningful bound. Together, both windows support
 the conclusion that the combined linearisation and
 transport-delay effect is ${\leq}\,0.5\,\%$ under winter
-operating conditions negligible for planning-accuracy dispatch. \Cref{fig:cost_waterfall} visualises the resulting cost decomposition across all five model levels on the primary case. L3 and 
-$\Lplus$ yield the highest total cost at approximately 170 k€/yr, whereas L1 produces the lowest at 147 k€/yr.
-
-\begin{figure}[ht]
-  \centering
-  \includegraphics[width=\linewidth]{paper1_dh_fidelity/F5_cost_waterfall.png}
-  \caption{Cost difference: topology resolution
-  (L1$\to$L2$\to$L3) dominates; the extended-physics
-  (L3$\to\Lplus$) and linearisation effects ($\Lplus\to\Lnl$)
-  are marginal. Values on the primary case.}
-  \label{fig:cost_waterfall}
-\end{figure}
+operating conditions. The effect is supposedly negligible for planning-accuracy dispatch.
 
 %% ============================================================
 %% 5.4 SYNTHETIC PARAMETRIC STUDY
@@ -1533,30 +1728,54 @@ Pipe length & $n$ & Median & p10--p90 \\
 
 \paragraph{Three-component decomposition.}
 Decomposing the gap into topology routing, heat losses, and
-pressure drop reveals an unambiguous driver
-(\Cref{fig:synth_sweep}b): the heat-loss component accounts for
-nearly the entire gap (median $+20.1\,\%$), while routing and
-pressure drop remain at or below the MIP-gap noise floor. The $+0.02\,\%$ pressure-drop component here measures its share
-\emph{within} the L1$\to$L3 gap (denominator: L3 total cost);
-the $+0.11\,\%$ reported in \Cref{sec:results_extended} measures
-the isolated L3$\to\Lplus$ increment (same denominator, different
-comparison pair). Both confirm that hydraulic physics are marginal. The
-surprising finding is not that losses matter this is physically
-obvious but that \emph{everything else does not}: routing
-constraints, pressure-drop physics, and nonlinear formulations each
-contribute less than 1\,\% even at 15\,km pipe length.
+pressure drop (\Cref{eq:cost_decomposition}) reveals an
+unambiguous driver (\Cref{fig:synth_sweep}b): the heat-loss
+component accounts for nearly the entire gap (median
+$+20.1\,\%$), while routing ($-0.7$ to $-8\,\%$ of the total
+gap\,\footnote{Negative routing contributions indicate that
+spatial flow-routing constraints marginally reduce cost by
+forcing locally efficient asset utilisation; the heat-loss
+component correspondingly exceeds 100\,\% of the net gap.}) and
+pressure drop ($+0.02\,\%$) remain at or below the MIP-gap
+noise floor. The $+0.02\,\%$ pressure-drop component is
+measured within the synthetic decomposition framework
+(\Cref{tab:synth_level_mapping}), where L3 includes
+Darcy--Weisbach physics; it is consistent with the $+0.11\,\%$
+L3$\to\Lplus$ increment for the primary case
+(\Cref{tab:cost_extended}), where pressure drop enters one
+level later.
 
-\paragraph{Sensitivity to parametric study variables.}
-Pipe length is the dominant predictor of the L1$\to$L3 gap. Within
-pipe-length bands, node count, demand HI, and storage ratio show no
-clear monotone trends. \Cref{fig:synth_surface} confirms this
-dominance across all 36~configurations: at 1\,km the gap remains
-below 5\,\%, rising to 14--20\,\% at 5\,km and exceeding 35\,\% at
-15\,km. Storage capacity has a secondary effect---larger reservoirs
-allow more temporal dispatch flexibility that the copperplate model
-cannot capture. The nearly vertical gradient confirms that network
+\paragraph{Parameter ranking.}
+\Cref{tab:synth_marginal} (\Cref{app:synth_detail}) ranks the
+four design parameters by their marginal effect on the L1$\to$L3
+gap. Pipe length dominates ($+35.8$\,pp across its range);
+storage capacity ranks second ($+29.6$\,pp) but is partially
+confounded with pipe length due to uneven feasibility filtering
+(\Cref{app:synth_detail}). Node count ($+7.1$\,pp) and demand
+heterogeneity ($-4.8$\,pp) are an order of magnitude weaker and
+non-monotone (\Cref{tab:synth_hi_effect}).
+
+\Cref{fig:synth_surface} confirms this dominance across all
+36~configurations: at 1\,km the gap remains below 5\,\%, rising
+to 14--20\,\% at 5\,km and exceeding 35\,\% at 15\,km. Storage
+capacity has a secondary effect: larger reservoirs allow more
+temporal dispatch flexibility that the copperplate model cannot
+capture. The nearly vertical gradient confirms that network
 topology (via thermal losses) rather than operational scheduling
 drives the cost underestimation.
+
+Notably, the L3$\to\Lplus$ gap is identically zero across all
+36~synthetic configurations (median and max, for each of the
+three pipe-length groups: 1\,km, $n{=}6$; 5\,km, $n{=}14$;
+15\,km, $n{=}16$). This
+arises because the synthetic L3 implementation includes
+Darcy--Weisbach pressure drop (\Cref{tab:synth_level_mapping});
+the L3$\to\Lplus$ step therefore isolates only transport-delay
+activation, which produces no cost change at hourly resolution
+when $\tau_{\max} < 1$\,h. The pressure-drop effect itself
+($+0.11\,\%$) is quantified exclusively on the primary case
+(\Cref{tab:cost_extended}), where L3 excludes hydraulic physics
+by design.
 
 \begin{figure}[!ht]
   \centering
@@ -1577,20 +1796,14 @@ Gap stability is assessed across 11~price and demand scenarios
 (\Cref{tab:gap_stability}). The L1--L3 gap remains in the
 12--14\,\% band regardless of fuel (${\pm}25\,\%$), electricity
 (${\pm}30\,\%$), or \ce{CO2} price assumptions
-(${\pm}50\,\%$) confirming that the topology effect is
+(${\pm}50\,\%$), confirming that the topology effect is
 \emph{structural} (driven by pipe losses) rather than
 \emph{economic} (driven by merit-order shifts). The L3--$\Lplus$
 gap stays below 0.3\,\% in all 11~scenarios, reinforcing the
 practical irrelevance of extended hydraulic physics.
 
 One notable exception: the warm-year scenario shows a sign
-reversal for L2--L3 ($-2.2\,\%$). At reduced thermal demand,
-pipe losses shrink as a fraction of load; simultaneously, the
-directional bias of L2's zonal averaging (which smooths local
-peaks) flips sign because the HP at j$_{12}$ now serves a larger
-share of reduced total demand, reducing average transport
-distance. This is the only scenario in which L2 \emph{over}-
-estimates cost relative to L3 suggesting that L2 may be
+reversal for L2--L3 ($-2.2\,\%$). At reduced thermal demand, pipe losses shrink as a fraction of load; simultaneously, L2's zone-averaged $UL$-product overestimates losses in the warm season, because the spatial demand distribution under partial load deviates most from the calibration baseline. The sign reversal is therefore a loss-aggregation artefact of L2's zone approximation, not a locational asset effect. This is the only scenario in which L2 overestimates cost relative to L3 suggesting that L2 may be
 sufficient for low-load or shoulder-season planning even in
 heterogeneous networks. 
 
@@ -1678,10 +1891,10 @@ The results establish the following magnitude ordering:
 %
 \begin{align*}
   \underbrace{\text{L1} \to \text{L2}}_{\substack{\text{dominant} \\
-    10.5\,\mathrm{pp}}}
+    10.4\%}}
   \;>\;
   \underbrace{\text{L2} \to \text{L3}}_{\substack{\text{resolution}
-    \\ 2.5\,\mathrm{pp}}}
+    \\ 2.6\%}}
   \;\gg\;
   \underbrace{\text{L3} \to \Lplus}_{\substack{\Delta p \\
     0.11\%}}
@@ -1738,17 +1951,17 @@ Four implications follow for practitioners:
 \subsection{Integration pathway for multi-energy system frameworks}
 \label{sec:disc_tools}
 
-Open-source frameworks for multi-energy system optimization
-including oemof~\citep{Hilpert2018_oemof},
-PyPSA~\citep{Brown2018_pypsa}, FINE~\citep{Welder2018_FINE},
-Calliope~\citep{Pfenninger2018_calliope}, and
-urbs~\citep{Dorfner2016_urbs} typically represent thermal
+Open-source frameworks for multi-energy system optimisation 
+including oemof~\cite{Hilpert2018_oemof},
+PyPSA~\cite{Brown2018_pypsa}, FINE~\cite{Welder2018_FINE},
+Calliope~\cite{Pfenninger2018_calliope}, and
+urbs~\cite{Dorfner2016_urbs}, typically represent thermal
 networks at the copperplate level (L1) in their default
 DH formulations as used in the MES literature cited above.
 Several frameworks offer extensions with per-link loss
-representations (e.g.\ oemof-thermal, PyPSA-Heat, Calliope with loss factors); however, in
+representations (e.g.,\ oemof-thermal, PyPSA-Heat, Calliope with loss factors); however, in
 cross-framework MES studies, the copperplate representation
-remains the de-facto default. Our results quantify the cost of
+remains the de facto default. Our results quantify the cost of
 this default: for networks with total pipe length exceeding
 \SI{1}{\kilo\metre} (i.e., virtually all operational DH systems),
 the L1 default introduces a systematic cost underestimation of
@@ -1760,22 +1973,21 @@ yet committed to a particular optimisation level:
 %
 \begin{enumerate}[nosep]
   \item \textbf{L2 as a low-cost minimum.} Adding per-segment
-        steady-state losses (\Cref{eq:loss_supply}--%
-        \ref{eq:loss_return}) requires only a linear loss term per
+        steady-state losses (\Cref{eq:loss_supply} and \Cref{eq:loss_return}) requires only a linear loss term per
         pipe and a nodal balance reformulation
-        (\Cref{eq:balance_nodal})---no solver change, no
+        (\Cref{eq:balance_nodal}). No solver change, no
         additional binaries, and minimal solve-time increase
         (${+}70\,\%$ in our implementation, \Cref{tab:computation}).
         This step alone closes most of the 3--45\,\% L1-bias gap.
-  \item \textbf{L3 as the planning Pareto front.} Resolving
+    \item \textbf{L3 covers the main impact: topology} Resolving
         individual junctions (L3) adds modest cost
-        (1.6$\times$ L2 solve time) and is warranted when demand
+        (1.44$\times$ L2 solve time) and is warranted when demand
         is spatially heterogeneous (Gini~${>}\,0.3$).
   \item \textbf{Diminishing returns beyond L3.} Pressure-drop
-        physics ($\Lplus$) add 420\,k binary variables and double
+        physics ($\Lplus$) use 420\,k binary variables in total and double
         solve time while contributing ${\leq}\,0.3\,\%$ cost
         accuracy across all tested scenarios (radial trees, fixed
-        heating curve; maximum $+0.27\,\%$,
+        heating curve; maximum $+0.2\,\%$,
         cf.\ \Cref{tab:gap_stability}). For planning studies, L3
         represents the complexity--accuracy Pareto front.
   \item \textbf{Validation discipline.} Framework users
@@ -1786,7 +1998,7 @@ yet committed to a particular optimisation level:
         itself.
 \end{enumerate}
 
-\Cref{fig:pareto} confirms this hierarchy: L3 achieves
+\Cref{fig:pareto} confirms this hierarchy. In the figure, the solving time is plotted against the accuracy. L3 achieves
 ${\leq}\,0.5\,\%$ cost deviation from the MIQCP reference at less
 than 11\,min solve time, while the full nonlinear reference
 ($\Lnl$) requires ${>}\,4$\,h for a marginal accuracy gain.
@@ -1794,10 +2006,7 @@ than 11\,min solve time, while the full nonlinear reference
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{paper1_dh_fidelity/F_pareto_accuracy_vs_solvetime.png}
-  \caption{Accuracy--solve-time Pareto front. L3 represents the
-  practical planning optimum: sub-percent cost deviation at
-  tractable solve time. The dashed vertical line marks a 1\,h
-  planning-tool time budget.}
+  \caption{Accuracy solve-time comparison. The dashed vertical line marks a 1\,h solver run time.}
   \label{fig:pareto}
 \end{figure}
 
@@ -1816,11 +2025,11 @@ topology because it is the sole mechanism exposing thermal losses
 to the optimiser.
 
 \begin{table*}[!ht]
-\centering
+\raggedright
 \caption{Recommended model selection criteria.}
 \label{tab:criteria}
 \footnotesize
-\begin{tabular}{@{} l p{5.5cm} p{3.2cm} l @{}}
+\begin{tabularx}{\textwidth}{@{} l X X l @{}}
 \toprule
 Level & Conditions & Rationale & Solve \\
 \midrule
@@ -1838,7 +2047,7 @@ L3
     (Gini ${>}0.3$ or top-3 ${>}50\,\%$) OR
     storage ${>}6$\,h
   & Spatial dispatch differences
-  & Min--hours \\[4pt]
+  & Min- to hours \\[4pt]
 $\Lplus$
   & Pipe ${>}\SI{5}{\kilo\metre}$ AND pumping ${>}1\,\%$
     of thermal losses
@@ -1849,11 +2058,10 @@ $\Lnl$
     OR validation of $\Lplus$;
     OR research
   & Only level with active transport delay
-  & Hours--days \\
+  & Hours to days \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table*}
-
 \subsection{\ce{CO2} policy implications}
 \label{sec:disc_co2}
 
@@ -1861,14 +2069,14 @@ Simplified models underestimate \ce{CO2} through compounding
 channels: missed loss-compensation generation, missed pumping
 electricity, and temporal correlation between additional demand
 and grid emission intensity. In the primary case, L1-based
-accounting underestimates emissions by ${\approx}9\,\%$ (772
+accounting underestimates emissions by $8.7\,\%$ (772
 vs.\ 846\,t\,\ce{CO2}/yr); the synthetic parametric study shows this scaling
 from ${<}5\,\%$ at 1\,km to ${>}30\,\%$ at 15\,km.
 
 These results suggest that \ce{CO2} reporting frameworks applied
 to district heating may need to specify a minimum
 network-resolution level. Based on the present evidence, L2
-resolution appears warranted whenever pipe length exceeds
+resolution appears warranted whenever the pipe length exceeds
 1--2\,km, though this recommendation rests on a single industrial
 case and a synthetic parametric study covering radial-tree topologies with
 fixed heating curves. Broader empirical validation across diverse
@@ -1880,38 +2088,55 @@ regulatory specifications.
 
 \paragraph{Validation and generalisation.}
 Direct validation covers the pre-upgrade network (Stage~1);
-post-upgrade HP/TES dispatch is verified through necessary
+post-upgrade HP/TES dispatch is verified through the necessary
 conditions only. The 13\,\% headline gap is from one industrial
 network; the synthetic parametric study provides qualitative external validity,
 but absolute figures should not be treated as universal constants.
+
+\paragraph{Deterministic price and demand assumptions.}
+Dispatch here is evaluated under deterministic price and demand
+scenarios. \citet{Koek2026} show, for stochastic multistage
+investment planning of DH generation capacity, that ignoring price
+and demand-trajectory uncertainty (the Value of the Stochastic
+Solution) biases technology selection by 27--39\,\%; while their
+setting is investment planning rather than dispatch, and network
+topology is not a variable in their framework, the result suggests
+that the topology bias quantified here and the uncertainty-driven
+bias they quantify are likely additive rather than substitutable,
+and jointly addressing both remains an open extension.
 
 \paragraph{Scope restrictions.}
 The framework is dispatch-only (fixed capacities); joint
 dispatch-and-sizing may interact with topology choice. Supply
 temperature follows a heating curve (not optimised) to preserve
 MILP linearity; variable-temperature operation could amplify the
-L3$\to\Lplus$ effect.
+L3$\to\Lplus$ effect. \citet{Wirtz2021_tempcontrol} show, for a
+5GDHC network, that co-optimizing network temperature within an
+MILP via temperature-level discretisation is tractable and
+cost-reducing relative to free-floating temperature control;
+applying this discretisation approach within the present
+topology-isolated framework is a natural extension.
 
 \paragraph{Demand concentration metric.}
 The normalised variance index HI (defined in
-\Cref{app:hi_definition}) is used as a parametric study variable but has
+\Cref{app:hi_definition}) is used as a parametric study variable but has a
 narrow dynamic range on realistic tree networks (HI\,=\,0.05 at
 Gini\,=\,0.41 for the primary case). The selection criteria
-(\Cref{tab:criteria}) therefore use Gini and top-$k$ share. An
+(\Cref{tab:criteria}), therefore, use Gini and top-$k$ share. An
 empirical mapping from these metrics to the L2$\to$L3 gap is a
 natural follow-up requiring multiple real networks.
 
 \paragraph{$\Lplus\!\to\!\Lnl$ interpretation.}
 The $+0.35$ to $+0.50\,\%$ gap across two independent winter
-windows combines linearisation error and transport-delay
+windows combines the linearisation error and transport-delay
 activation; the two contributions cannot be separated without an
-intermediate MIQCP run with delay disabled. The bound is
-therefore an upper limit on the combined effect, not a precise
+intermediate MIQCP run with delay disabled. The bound is,
+therefore, an upper limit on the combined effect, not a precise
 decomposition.
 
 \paragraph{$\Lnl$ tractability.}
-The MIQCP reference is solved on two winter windows (January and
-February 2025); a spring window (May) proved infeasible due to
+The MIQCP reference is solved on two winter windows (October to
+February); a spring window (May) proved infeasible due to
 near-zero-flow degeneracy in bilinear constraints. The bound is
 therefore validated for peak-flow winter conditions. Whether the
 linearisation error remains sub-percent under shoulder-season
@@ -1937,11 +2162,10 @@ shift the L3$\to\Lplus$ threshold; this remains an open question.
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper presents a controlled comparison that systematically
+This paper presents a comparison that systematically
 isolates topology abstraction, physics fidelity, and linearisation
 error as independent experimental variables in district heating
-dispatch optimization. This is the first study
-in which these three dimensions are varied one at a time within a
+dispatch optimisation. This study varied three dimensions, one at a time, within a
 single experimental framework.
 
 \paragraph{Principal findings}
@@ -1985,17 +2209,17 @@ single experimental framework.
   \item L3 for spatially heterogeneous networks (Gini ${>}0.3$).
   \item $\Lplus$ when pipe ${>}\SI{5}{\kilo\metre}$ or
         $\tau > \SI{1}{\hour}$.
-  \item $\Lnl$ as one-time validation benchmark.
+  \item $\Lnl$ as a one-time validation benchmark.
 \end{itemize}
 
 \paragraph{Future work}
-The research identified several continues research topics: storage-dispatch sensitivity on networks with longer transport delays; ring and meshed topologies; variable transport delay; supply-temperature optimization; joint dispatch-sizing comparison; full MINLP with native exponentials; stochastic variants; sub-hourly resolution; and 5th-generation bidirectional networks. Independent separation of the linearisation error from transport-delay activation via intermediate MIQCP runs is a
+The research identified several continues research topics: storage-dispatch sensitivity on networks with longer transport delays; ring and meshed topologies; variable transport delay; supply-temperature optimisation ; joint dispatch-sizing comparison; full MINLP with native exponentials; stochastic variants; sub-hourly resolution; and 5th-generation bidirectional networks. Independent separation of the linearisation error from transport-delay activation via intermediate MIQCP runs is a
 priority follow-up.
 
 \paragraph{Closing remark}
 A single-node model underestimates annual operating costs by
 13\,\% and \ce{CO2} emissions by 8.7\,\% on the primary
-case a gap that scales from 3\,\% to 45\,\% across the
+case, a gap that scales from 3\,\% to 45\,\% across the
 36~synthetic configurations, driven almost entirely by thermal losses made
 visible through spatial resolution. Within the tested scope
 (radial trees, fixed heating curve, dispatch-only), extended
@@ -2014,21 +2238,20 @@ studies identified above.
 \section*{Acknowledgments}
 This work was funded by the German Federal Ministry for Economic
 Affairs and Energy (BMWE, reference IIC2) under grant
-number~\textbf{03EN6057B} (Verbundvorhaben eProNet, Teilvorhaben:
-Intelligenter W\"armenetzbetrieb; project period 2026--2028).
+number~\textbf{03EN6057B} (Verbundvorhaben eProNe; project period 2026--2028).
 Project management was carried out by Forschungszentrum J\"ulich
-GmbH (PT-J.ESN6). The authors thank Stefan Roth and e-con AG,
-Memmingen, for providing operational data and domain expertise.
+GmbH (PT-J.ESN6). The authors thank the e-con AG in
+Memmingen for providing operational data and domain expertise.
 
 %% ============================================================
 %% DATA AVAILABILITY
 %% ============================================================
 \section*{Data availability}
 
-The optimization model source code (Python/Pyomo), all YAML
+The optimisation  model source code (Python/Pyomo), all YAML
 configuration files, and post-processing scripts are available on
-Zenodo at \cite{ruess_2026_calion} under MIT
-license. Input time series are subject to NDA; anonymised summary
+Zenodo at \citet{ruess_2026_calion} under
+"Creative Commons Attribution 4.0 International". Input time series are subject to NDA; anonymised summary
 statistics are included in the repository.
 
 %% ============================================================
@@ -2039,7 +2262,7 @@ statistics are included in the repository.
 During the preparation of this work, the author(s) used
 \textbf{Claude Opus 4.7} (Anthropic) for language improvement and
 manuscript structuring, and \textbf{Claude Sonnet 4.6} (Anthropic)
-for code generation and debugging. All content was reviewed and
+for code generation and debugging.  All content was reviewed and
 edited by the authors, who take full responsibility for the
 published article.
 
@@ -2049,10 +2272,19 @@ published article.
 
 \appendix
 \newpage
+
+\section{Nomenclature}
+\label{app:nomenclature}
+
 {\footnotesize
+
+%%--- Sets and indices ---
 \noindent\textbf{Sets and indices}\par\nopagebreak\smallskip
 \noindent
-\begin{tabular}{@{} >{\raggedright}p{1.5cm} p{5.0cm} @{}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} l @{}}
+\toprule
+Symbol & Description \\
+\midrule
 $t \in \mathcal{T}$                & Time steps ($|\mathcal{T}|=8760$) \\
 $n \in \mathcal{N}$                & Network nodes \\
 $p \in \mathcal{P}$                & Pipe segments \\
@@ -2062,15 +2294,22 @@ $s \in \mathcal{S}$                & Thermal storage units \\
 $r \in \mathcal{R}$                & Electrode boilers (power-to-heat) \\
 $k \in \{1,\ldots,K\}$            & PWL segment index \\
 $\mathcal{G}^{\mathrm{CHP}}$      & Subset of CHP generators \\
-$\mathcal{P}_n^{\mathrm{in/out}}$ & Pipes entering/leaving node~$n$ \\
+$\mathcal{P}_n^{\mathrm{in/out}}$  & Pipes entering/leaving node~$n$ \\
 $\mathcal{G}_n,\mathcal{S}_n$     & Generators/storage at node~$n$ \\
 $\mathcal{T}_{\mathrm{val}}$      & Validation time steps \\
-\end{tabular}
+\bottomrule
+\end{tabular*}
 
-\smallskip\noindent\textbf{Key parameters}\par\nopagebreak\smallskip
+\bigskip
+
+%%--- Key parameters ---
+\noindent\textbf{Key parameters}\par\nopagebreak\smallskip
 \noindent
-\begin{tabular}{@{} >{\raggedright}p{1.5cm} >{\raggedright}p{1.8cm} p{3.2cm} @{}}
-$U_p$                        & W\,m$^{-1}$\,K$^{-1}$ & Pipe heat transfer coeff. \\
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} >{\raggedright}p{2.0cm} l @{}}
+\toprule
+Symbol & Unit & Description \\
+\midrule
+$U_p$                        & W\,m$^{-1}$\,K$^{-1}$ & Pipe heat transfer coeff.\ \\
 $L_p$                        & m              & Pipe length \\
 $D_p$                        & m              & Pipe inner diameter \\
 $A_p$                        & m$^2$          & Pipe cross-sectional area \\
@@ -2082,22 +2321,22 @@ $\tau_p$                     & h              & Transport delay \\
 $k_p$                        & --             & Delay in time steps \\
 $\phi_{p,t}$                 & --             & Temp.\ decay factor \\
 $\phi_p^{\mathrm{nom}}$      & --             & Nominal decay factor \\
-$T_{\mathrm{sup}}^{\mathrm{nom}}(t)$ & $^\circ$C & Nominal supply temp. \\
-$T_{\mathrm{ret}}^{\mathrm{nom}}$    & $^\circ$C & Nominal return temp. \\
-$T^{\mathrm{nom}}(t)$        & $^\circ$C      & Nominal operating temp. \\
+$T_{\mathrm{sup}}^{\mathrm{nom}}(t)$ & $^\circ$C & Nominal supply temp.\ \\
+$T_{\mathrm{ret}}^{\mathrm{nom}}$    & $^\circ$C & Nominal return temp.\ \\
+$T^{\mathrm{nom}}(t)$        & $^\circ$C      & Nominal operating temp.\ \\
 $T_{\mathrm{ground}}(t)$     & $^\circ$C      & Ground temperature \\
 $\bar{Q}_g,\bar{Q}_h,\bar{Q}_r$ & MW         & Installed thermal capacities \\
 $\bar{Q}_p$                  & MW             & Rated pipe capacity \\
 $\phi_h^{\mathrm{min}}$      & --             & HP minimum load fraction \\
 $\eta_g$                     & --             & Generator thermal efficiency \\
-$\eta_s^{\mathrm{ch/dis}}$   & --             & Storage charge/discharge eff. \\
+$\eta_s^{\mathrm{ch/dis}}$   & --             & Storage charge/discharge eff.\ \\
 $\eta_{\mathrm{pump}}$       & --             & Pump efficiency \\
 $\eta_{\mathrm{Lorenz}}$     & --             & Lorenz cycle efficiency \\
 $\alpha_s$                   & h$^{-1}$       & Storage self-discharge rate \\
 $\mathrm{COP}_{h,t}^{\mathrm{wrg}}$ & --     & Waste-heat COP (time-varying) \\
 $\mathrm{COP}_h^{\mathrm{def}}$     & --     & Default-source COP (constant) \\
 $m_k^{(p)}$                  & --             & PWL segment slope \\
-$\Delta T_{\mathrm{pp}}$     & K              & Heat pump pinch-point temp. \\
+$\Delta T_{\mathrm{pp}}$     & K              & Heat pump pinch-point temp.\ \\
 $\lambda_t^{\mathrm{buy/sell}}$ & \euro\,MWh$^{-1}$ & Electricity buy/sell price \\
 $\lambda_g^{\mathrm{fuel}}$  & \euro\,MWh$^{-1}$ & Specific fuel cost \\
 $\lambda^{\mathrm{dump}}$    & \euro\,MWh$^{-1}$ & Heat curtailment penalty \\
@@ -2110,11 +2349,18 @@ $M^{\mathrm{grid}}$          & MW             & Grid capacity (Big-M) \\
 $\Delta t$                   & h              & Time step length ($= 1$\,h) \\
 HI                           & --             & Demand heterog.\ index \\
 $K$                          & --             & Number of PWL segments \\
-\end{tabular}
+\bottomrule
+\end{tabular*}
 
-\smallskip\noindent\textbf{Cost components}\par\nopagebreak\smallskip
+\bigskip
+
+%%--- Cost components ---
+\noindent\textbf{Cost components}\par\nopagebreak\smallskip
 \noindent
-\begin{tabular}{@{} >{\raggedright}p{1.5cm} p{5.0cm} @{}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} l @{}}
+\toprule
+Symbol & Description \\
+\midrule
 $C^{\mathrm{en}}$    & Electricity procurement net cost \\
 $C^{\mathrm{fuel}}$  & Fuel expenditure \\
 $C^{\mathrm{dump}}$  & Heat curtailment penalty \\
@@ -2122,11 +2368,18 @@ $C^{\ce{CO2}}$       & Carbon cost \\
 $C^{\mathrm{dem}}$   & Demand charge (peak import) \\
 $C^{\mathrm{pump}}$  & Network pumping cost \\
 $Z$                  & Total annual operational cost \\
-\end{tabular}
+\bottomrule
+\end{tabular*}
 
-\smallskip\noindent\textbf{Key decision variables}\par\nopagebreak\smallskip
+\bigskip
+
+%%--- Key decision variables ---
+\noindent\textbf{Key decision variables}\par\nopagebreak\smallskip
 \noindent
-\begin{tabular}{@{} >{\raggedright}p{1.8cm} >{\raggedright}p{1.2cm} p{3.5cm} @{}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} >{\raggedright}p{2.0cm} l @{}}
+\toprule
+Symbol & Unit & Description \\
+\midrule
 $Q_{g,t}^{\mathrm{th}}$       & MW       & Generator thermal output \\
 $Q_{h,t}$                     & MW       & Heat pump thermal output \\
 $Q_{h,t}^{\mathrm{wrg/def}}$  & MW       & HP waste-heat/default output \\
@@ -2145,7 +2398,7 @@ $P^{\mathrm{peak}}$           & MW       & Annual peak grid import \\
 $\Delta p_{p,t}$              & Pa       & Pipe pressure drop \\
 $\dot{m}_{p,t}$               & kg\,s$^{-1}$ & Pipe mass flow rate \\
 $T_{n,t}^{\mathrm{sup}}$      & $^\circ$C & Node supply temperature \\
-$T_{n_1,t}^{\mathrm{sup}}$    & $^\circ$C & Upstream node supply temp. \\
+$T_{n_1,t}^{\mathrm{sup}}$    & $^\circ$C & Upstream node supply temp.\ \\
 $T_{p,t}^{\mathrm{out}}$      & $^\circ$C & Pipe outlet temperature \\
 $E_{s,t}$                     & MWh      & Storage state of charge \\
 $F_{g,t}$                     & MW       & Fuel input (HHV basis) \\
@@ -2155,8 +2408,8 @@ $W_{p,t}$                     & MW$^2$   & Bilinear auxiliary ($= Q_{p,t}^2$) \\
 $u_{h,t}$                     & $\{0,1\}$ & Heat pump on/off \\
 $z_t$                         & $\{0,1\}$ & Grid import mode \\
 $w_{p,t,k}$                   & $[0,1]$  & SOS2 weights \\
-\end{tabular}
-
+\bottomrule
+\end{tabular*}
 
 }% end footnotesize
 
@@ -2167,24 +2420,24 @@ $w_{p,t,k}$                   & $[0,1]$  & SOS2 weights \\
 \subsection{COP pre-computation}
 \label{app:cop}
 
-The heat pump COP is pre-computed from an analytical Lorenz-cycle
-model:
-$\mathrm{COP}_{h,t}^{\mathrm{WHR}} = \eta_{\mathrm{Lorenz}}
-\cdot T_{\mathrm{sink,out}} / (T_{\mathrm{sink,out}} -
-T_{\mathrm{src},h}(t) + \Delta T_{\mathrm{pp}})$
+The heat pump COP is pre-computed from an analytical Lorenz-cycle model:
+\begin{equation}
+  \mathrm{COP}_{h,t}^{\mathrm{WHR}} = \eta_{\mathrm{Lorenz}}
+  \cdot \frac{T_{\mathrm{sink,out}}}{T_{\mathrm{sink,out}} -
+  T_{\mathrm{src},h}(t) + \Delta T_{\mathrm{pp}}}
+\end{equation}
 with $\eta_{\mathrm{Lorenz}} = 0.6$ and
-$\Delta T_{\mathrm{pp}} = \SI{5}{\kelvin}$. Combined error:
+$\Delta T_{\mathrm{pp}} = \SI{5}{\kelvin}$.  Combined error:
 $\varepsilon_{\mathrm{COP}} \approx 3.6\,\%$.
 
 \subsection{Linear component models}
 \label{app:component_models}
 
-\noindent
+{%
 \captionof{table}{Linear component models (all levels).}
 \label{tab:simple_components}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{2pt}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l l l @{}}
 \toprule
 Component & Equation & Bound \\
@@ -2192,78 +2445,99 @@ Component & Equation & Bound \\
 Gas boiler    & $Q_{g,t}^{\mathrm{th}} = \eta_g F_{g,t}$ & $\leq \bar{Q}_g$ \\
 Biomass       & $Q_{g,t}^{\mathrm{th}} = \eta_g F_{g,t}$ & $\leq \bar{Q}_g$ \\
 Electrode     & $Q_{r,t} = \eta_r P_{r,t}^{\mathrm{el}}$ & $\leq \bar{Q}_r$ \\
-CHP           & $Q^{\mathrm{th}} = \eta^{\mathrm{th}} F$ & $\sigma_g = \mathrm{const}$ \\
+CHP           & $Q^{\mathrm{th}} = \eta^{\mathrm{th}} F$  & $\sigma_g = \mathrm{const}$ \\
 \bottomrule
 \end{tabular*}
+}% end centering group
+
 \bigskip
 
 \subsection{Extended physics: $\Lplus$ vs.\ $\Lnl$}
 \label{app:extended_formulations}
 
-\noindent
+{%
 \captionof{table}{Mathematical treatment of extended physics.}
 \label{tab:lplus_vs_lnl}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{2pt}
 \begin{threeparttable}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l l l @{}}
 \toprule
 Phenomenon & $\Lplus$ & $\Lnl$ \\
 \midrule
-Pressure drop   & PWL ($K{=}3$)   & Quad.\ $RQ^2$ \\
-Pumping power   & PWL of cubic    & Bilin.\ $Q{\cdot}W$ \\
+Pressure drop   & PWL ($K{=}3$)     & Quad.\ $RQ^2$ \\
+Pumping power   & PWL of cubic      & Bilin.\ $Q{\cdot}W$ \\
 Temp.\ decay    & PWL exp.\tnote{*} & PWL exp.\tnote{*} \\
-Temp.\ mixing   & Taylor lin.     & Bilin.\ $T{\cdot}\phi$ \\
-Transport delay & Bypassed        & Active ($k_p$) \\
-Optimality      & Global (LP)     & Global (branch.) \\
+Temp.\ mixing   & Taylor lin.       & Bilin.\ $T{\cdot}\phi$ \\
+Transport delay & Bypassed          & Active ($k_p$) \\
+Optimality      & Global (LP)       & Global (branch.) \\
 \bottomrule
 \end{tabular*}
 \begin{tablenotes}\scriptsize
   \item[*] Shared; excluded from linearisation error.
 \end{tablenotes}
 \end{threeparttable}
+}% end centering group
+
 \bigskip
 
 \subsection{Linearisation error bounds}
 \label{app:pwl}
 
 For $\Delta p = R Q^2$ with $K$ equal PWL segments:
-$\varepsilon_{\Delta p}^{\max} = R \bar{Q}^2 / (4K^2)$.
-With $K{=}3$: 2.8\,\% of peak pressure drop.
+\begin{equation}
+  \varepsilon_{\Delta p}^{\max} = \frac{R \bar{Q}^2}{4K^2}
+\end{equation}
+With $K{=}3$: 2.8\,\% of peak pressure drop. The cost gap
+$\Delta Z$ is well below $\varepsilon^{\max}$ because the
+optimiser compensates by adjusting dispatch rather than by
+violating feasibility; the PWL error thus manifests as a minor
+scheduling shift, not as a proportional cost deviation.
 
-\medskip\noindent
-\captionof{table}{PWL error vs.\ $K$ (primary case).}
+\medskip
+{%
+\captionof{table}{PWL approximation error and problem size
+vs.\ number of segments $K$ (primary case).}
 \label{tab:pwl_sensitivity}
 \centering
 \footnotesize
+\begin{threeparttable}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} c c r l @{}}
 \toprule
-$K$ & $\varepsilon^{\max}$ & Vars & $\Delta Z$ \\
+$K$ & $\varepsilon^{\max}$ & Vars\tnote{a} & $\Delta Z$ \\
 \midrule
-3 & 2.8\% & 614k & $+0.35\%$ \\
-5 & 1.0\% & 858k & -- \\
-8 & 0.4\% & 1226k & -- \\
+3 & 2.8\,\% & 753k  & $+0.35\,\%$ \\
+5 & 1.0\,\% & 998k\tnote{b}  & -- \\
+8 & 0.4\,\% & 1366k\tnote{b} & -- \\
 \bottomrule
 \end{tabular*}
-\bigskip
+\begin{tablenotes}\scriptsize
+  \item[a] Total additional variables relative to L3
+    (binary + continuous).
+  \item[b] Extrapolated from the per-segment increment
+    (${\approx}\,122$k variables per additional segment);
+    not simulated.
+\end{tablenotes}
+\end{threeparttable}
+}% end centering group
+
 
 \subsection{Taylor linearisation}
 \label{app:taylor_derivation}
 
 The bilinear product $T_{n_1} \cdot \phi_p$ is expanded around
 $(T_{n_1}^0, \phi_p^0)$:
-$T_{n_1} \cdot \phi_p \approx T_{n_1}^0 \phi_p^0
-+ \phi_p^0 (T_{n_1} - T_{n_1}^0)
-+ T_{n_1}^0 (\phi_p - \phi_p^0)$.
+\begin{equation}
+  T_{n_1} \cdot \phi_p \approx T_{n_1}^0 \phi_p^0
+  + \phi_p^0 (T_{n_1} - T_{n_1}^0)
+  + T_{n_1}^0 (\phi_p - \phi_p^0)
+\end{equation}
 Neglected cross-term:
-$|\varepsilon| \leq |\Delta T_{\max}| \cdot |\Delta\phi_{\max}|
-< 2.5\,$K.
+$|\varepsilon| \leq |\Delta T_{\max}| \cdot |\Delta\phi_{\max}| < 2.5\,$K.
 
 \subsection{Electricity selling price}
 \label{app:selling_price}
 
-\vspace{-4pt}
 \begin{equation}
   \lambda_t^{\mathrm{sell}} = \max\!\Bigl(
     \max\bigl(\lambda_t^{\mathrm{spot}}
@@ -2278,31 +2552,31 @@ $|\varepsilon| \leq |\Delta T_{\max}| \cdot |\Delta\phi_{\max}|
 
 \Cref{tab:per_node_mae} reports supply-temperature MAE and bias
 for all 14~network nodes over the 744\,h winter validation window,
-sorted by path length from the source. Three node groups are
+sorted by path length from the source.  Three node groups are
 distinguished:
 %
 \begin{itemize}[nosep]
   \item \textbf{Validation nodes} (val., 6~nodes): consumer sensors
         with mixing-valve offset ${<}\SI{2}{\celsius}$,
-        independent of the calibration procedure. Mean MAE
+        independent of the calibration procedure.  Mean MAE
         \SI{1.32}{\celsius}; these are the nodes that enter the
         gate evaluation in \Cref{tab:validation_stage1}.
   \item \textbf{Calibration nodes} (cal., 4~nodes): used in the
         branch-sequential $U_p$-tuning of
         \citet{Maldonado2024}; their residuals are in-sample by
-        construction. Mean MAE \SI{2.32}{\celsius}. Node j$_7$ at
+        construction.  Mean MAE \SI{2.32}{\celsius}.  Node j$_7$ at
         \SI{3.07}{\celsius} would fail the worst-node gate of
-        \SI{2.5}{\celsius} if held out for validation. This
+        \SI{2.5}{\celsius} if held out for validation.  This
         in-sample deterioration is expected and motivates the
         strict calibration/validation split.
   \item \textbf{Excluded nodes} (excl., 4~nodes): excluded for
-        measurement reasons unrelated to model quality. Nodes
+        measurement reasons unrelated to model quality.  Nodes
         j$_3$ (\SI{0.58}{\celsius}) and j$_4$
         (\SI{0.37}{\celsius}) are the two best-performing nodes
         in the entire network; j$_4$ has four consumers with a
         \SI{20.9}{\celsius} intra-node spread, so no single
-        junction-reference sensor exists. j$_3$ is a
-        boundary-condition reference. j$_2$ and j$_5$ exhibit
+        junction-reference sensor exists.  j$_3$ is a
+        boundary-condition reference.  j$_2$ and j$_5$ exhibit
         mixing-valve absorption above the \SI{2}{\celsius}
         threshold and are therefore not interpretable as junction
         temperatures.
@@ -2315,41 +2589,37 @@ model performance is not artificially inflated by selective node
 choice: the validation nodes are not systematically the
 best-performing ones.
 
-\medskip\noindent
+\medskip
+{%
 \captionof{table}{Per-node supply-temperature MAE and bias
 (744\,h winter window, $\Lnl$).}
 \label{tab:per_node_mae}
 \centering
-\begin{threeparttable}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
+\begin{threeparttable}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c c c @{}}
 \toprule
 Node & Path [m] & Role & MAE [$^\circ$C] & Bias [$^\circ$C] & In gate? \\
 \midrule
-j$_2$    &  350 & excl. & 2.99 & $+2.98$ & No \\
-j$_3$    &  650 & excl. & 0.58 & $+0.07$ & No \\
-j$_4$    &  910 & excl. & 0.37 & $-0.18$ & No \\
+j$_2$    &  350 & excl. & 2.99 & $+2.98$ & No  \\
+j$_3$    &  650 & excl. & 0.58 & $+0.07$ & No  \\
+j$_4$    &  910 & excl. & 0.37 & $-0.18$ & No  \\
 j$_9$    & 1100 & val.  & 0.87 & $+0.41$ & Yes \\
-j$_5$    & 1150 & excl. & 2.35 & $+1.51$ & No \\
-j$_6$    & 1300 & cal.  & 1.62 & $-1.62$ & No \\
+j$_5$    & 1150 & excl. & 2.35 & $+1.51$ & No  \\
+j$_6$    & 1300 & cal.  & 1.62 & $-1.62$ & No  \\
 j$_{10}$ & 1300 & val.  & 2.27 & $+1.78$ & Yes \\
-j$_7$    & 1370 & cal.  & 3.07\tnote{a} & $+2.53$ & No \\
-j$_8$    & 1450 & cal.  & 2.29 & $+1.00$ & No \\
+j$_7$    & 1370 & cal.  & 3.07\tnote{a} & $+2.53$ & No  \\
+j$_8$    & 1450 & cal.  & 2.29 & $+1.00$ & No  \\
 j$_{11}$ & 1530 & val.  & 1.41 & $+0.71$ & Yes \\
 j$_{12}$ & 1780 & val.  & 0.69 & $-0.29$ & Yes \\
 j$_{13}$ & 2000 & val.  & 1.09 & $-1.02$ & Yes \\
 j$_{15}$ & 2125 & val.  & 1.58 & $-0.24$ & Yes \\
-j$_{14}$ & 2180 & cal.  & 2.31 & $+1.02$ & No \\
+j$_{14}$ & 2180 & cal.  & 2.31 & $+1.02$ & No  \\
 \midrule
-\multicolumn{3}{@{}l}{Group mean, val.\ (6~nodes)}
-  & 1.32 & & \\
-\multicolumn{3}{@{}l}{Group mean, cal.\ (4~nodes)}
-  & 2.32 & & \\
-\multicolumn{3}{@{}l}{Group mean, excl.\ (4~nodes)}
-  & 1.57 & & \\
-\multicolumn{3}{@{}l}{All 14~nodes}
-  & 1.68 & & \\
+\multicolumn{3}{@{}l}{Group mean, val.\ (6~nodes)}  & 1.32 & & \\
+\multicolumn{3}{@{}l}{Group mean, cal.\ (4~nodes)}  & 2.32 & & \\
+\multicolumn{3}{@{}l}{Group mean, excl.\ (4~nodes)} & 1.57 & & \\
+\multicolumn{3}{@{}l}{All 14~nodes}                  & 1.68 & & \\
 \bottomrule
 \end{tabular*}
 \begin{tablenotes}\scriptsize
@@ -2358,6 +2628,8 @@ j$_{14}$ & 2180 & cal.  & 2.31 & $+1.02$ & No \\
     if held out for validation.
 \end{tablenotes}
 \end{threeparttable}
+}% end centering group
+
 \bigskip
 
 \section{Demand heterogeneity index}
@@ -2374,7 +2646,7 @@ The normalised variance index HI is defined as:
 \end{equation}
 HI maps monotonically to Gini for tree topologies but compresses
 the realistic range (HI\,$= 0.05$ for the primary case despite
-Gini\,$= 0.41$). The synthetic-study values
+Gini\,$= 0.41$).  The synthetic-study values
 (HI\,$= 0.1, 0.4, 0.8$) correspond approximately to Gini ranges
 of 0.15--0.25, 0.40--0.55, and 0.70--0.85.
 
@@ -2382,18 +2654,148 @@ of 0.15--0.25, 0.40--0.55, and 0.70--0.85.
 \label{app:bcm_calibration}
 
 The BCM forward reconstruction distributes heat loss uniformly
-across the full 2125\,m trunk corridor via a global multiplier
-(${\times}1.330$ on nominal EN~253 $U$-values for all 8~trunk
-pipes). The multiplier was determined by golden-section search
-minimising MAE on the Oct--Feb winter subset. This approach
-differs from the branch-sequential optimization-model calibration
-(which concentrates losses in the terminal pipe at
+across the full \SI{2125}{\metre} trunk corridor via a global
+multiplier (${\times}1.330$ on nominal EN~253 $U$-values for all
+8~trunk pipes).  The multiplier was determined by golden-section
+search, minimising MAE on the Oct--Feb winter subset.  This
+approach differs from the branch-sequential optimisation -model
+calibration (which concentrates losses in the terminal pipe at
 $4.7{\times}$~nominal); both methods are valid for their
 respective purposes (BCM: forward physics; L3/$\Lnl$: dispatch
-optimization). RMSE: \SI{2.15}{\celsius}; bias:
+optimisation ).  RMSE: \SI{2.15}{\celsius}; bias:
 ${+}\SI{0.72}{\celsius}$; 60\,\% of hourly steps within
 ${\pm}\SI{1.5}{\celsius}$.
 
+%% ============================================================
+\section{Synthetic parametric study: detailed parameter effects}
+\label{app:synth_detail}
+
+The following tables provide the quantitative evidence underlying
+the parameter-ranking statements in
+\Cref{sec:results_generalizability}.
+
+\paragraph{Implementation note.}
+In the synthetic parametric study, the L3 configuration includes
+steady-state pressure-drop calculation (Darcy--Weisbach) as part
+of the pipe model, unlike the primary-case L3, which excludes
+pressure drop (\Cref{tab:model_scope}). This reassignment is
+required by the additive decomposition
+(\Cref{eq:cost_decomposition,tab:synth_level_mapping}).
+Consequently, the L3$\to\Lplus$ increment in the synthetic study
+isolates \emph{only} transport-delay activation, which produces
+zero cost difference at hourly resolution with
+$\tau_{\max} < 1$\,h. The primary-case L3$\to\Lplus$ gap
+($+0.11\,\%$, \Cref{tab:cost_extended}) remains the valid
+reference for the isolated pressure-drop effect.
+
+%%--- Tab A: HI effect within pipe-length bands ---
+\medskip
+{%
+\captionof{table}{L1$\to$L3 cost gap [\%] by pipe length and
+demand heterogeneity index (median over node count and storage
+capacity).}
+\label{tab:synth_hi_effect}
+\centering
+\begin{threeparttable}
+\footnotesize
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c c @{}}
+\toprule
+Pipe [km] & HI\,=\,0.1 & HI\,=\,0.4\tnote{a} & HI\,=\,0.8
+  & $\Delta$(High--Low) \\
+\midrule
+1   & $+3.23$ & -- & $+3.19$ & $-0.04$\,pp \\
+5   & $+15.88$ & -- & $+14.55$ & $-1.33$\,pp \\
+15  & $+38.46$ & -- & $+38.63$ & $+0.17$\,pp \\
+\bottomrule
+\end{tabular*}
+\begin{tablenotes}\scriptsize
+  \item[a] Median not reported where $n < 3$ feasible
+    configurations per cell.
+\end{tablenotes}
+\end{threeparttable}
+}% end group
+
+\bigskip
+
+%%--- Tab B: Decomposition extremes ---
+{%
+\captionof{table}{Additive gap decomposition for the three
+largest-gap and three smallest-gap configurations.  Heat losses
+account for 100--108\,\% of the net gap; routing is slightly
+negative in all cases.}
+\label{tab:synth_decomp_extremes}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
+  c c c c c c c c @{}}
+\toprule
+Rank & Pipe & HI & Nodes & Stor.
+  & Routing & Loss & $\Delta P$ \\
+  & [km] & & & [h] & [\%] & [\%] & [\%] \\
+\midrule
+\multicolumn{8}{@{}l}{\textit{Top-3 (largest total gap)}} \\
+1 & 15 & 0.1 & 30 & 12 & $-$3.5 & $+$47.2 & $+$1.1 \\
+2 & 15 & 0.8 & 30 & 12 & $-$4.1 & $+$46.8 & $+$0.9 \\
+3 & 15 & 0.1 & 15 & 12 & $-$2.8 & $+$44.1 & $+$1.5 \\
+\midrule
+\multicolumn{8}{@{}l}{\textit{Bottom-3 (smallest total gap)}} \\
+34 & 1 & 0.8 & 5  & 6  & $-$0.2 & $+$3.3 & $+$0.0 \\
+35 & 1 & 0.1 & 5  & 2  & $-$0.1 & $+$3.1 & $+$0.0 \\
+36 & 1 & 0.1 & 5  & 6  & $-$0.1 & $+$3.0 & $+$0.0 \\
+\bottomrule
+\end{tabular*}
+}% end group
+
+\bigskip
+
+
+\bigskip
+
+%%--- Tab D: Parameter ranking ---
+{%
+\captionof{table}{Marginal effect of each design parameter on
+the L1$\to$L3 cost gap (median gap at each parameter level,
+averaged over remaining parameters; sorted by effect size).}
+\label{tab:synth_marginal}
+\centering
+\begin{threeparttable}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
+  c
+  >{\raggedright\arraybackslash}p{0.20\columnwidth}
+  >{\centering\arraybackslash}p{0.11\columnwidth}
+  >{\centering\arraybackslash}p{0.11\columnwidth}
+  >{\centering\arraybackslash}p{0.11\columnwidth}
+  >{\centering\arraybackslash}p{0.14\columnwidth} @{}}
+\toprule
+Rank & Parameter & Low & Med & High
+  & $\Delta$\,(H--L) \\
+\midrule
+1 & Pipe length [km]
+  & $+3.2\,\%$ & $+15.8\,\%$ & $+39.0\,\%$
+  & $+35.8$\,pp \\
+2 & Storage cap.\ [h]\tnote{a}
+  & $+9.4\,\%$ & $+17.2\,\%$ & $+39.0\,\%$
+  & $+29.6$\,pp \\
+3 & Node count
+  & $+12.9\,\%$ & $+16.8\,\%$ & $+20.0\,\%$
+  & $+7.1$\,pp \\
+4 & Demand HI
+  & $+20.8\,\%$ & -- & $+16.0\,\%$
+  & $-4.8$\,pp \\
+\bottomrule
+\end{tabular*}
+\begin{tablenotes}\scriptsize
+  \item[a] Storage-capacity effect partially confounded with
+    pipe length: 2\,h configurations are unevenly distributed
+    across pipe-length bands (4/6 occur at $L \geq 5$\,km).
+    The isolated storage effect within fixed pipe-length bands
+    is smaller (${\approx}5$--$8$\,pp).
+\end{tablenotes}
+\end{threeparttable}
+}% end group
 %% ============================================================
 \section{Case study supplementary data}
 \label{app:case_data}
@@ -2401,7 +2803,7 @@ ${\pm}\SI{1.5}{\celsius}$.
 \subsection{Heating curve}
 \label{app:heating_curve}
 
-\noindent
+{%
 \captionof{table}{PWL temperature profile (heating curve).}
 \label{tab:pwl}
 \centering
@@ -2415,30 +2817,33 @@ $T_{\mathrm{ret}}$ [$^\circ$C] & 55 & 50 & 45 & 40 \\
 $\Delta T$ [$^\circ$C]         & 15 & 30 & 45 & 60 \\
 \bottomrule
 \end{tabular*}
+}% end centering group
+
 \bigskip
 
 \subsection{L2 zone mapping}
 \label{app:l2_zone_mapping}
 
-\noindent
+{%
 \captionof{table}{L2 zone mapping (15~junctions $\to$ 7~zones).}
 \label{tab:l2_zones}
 \centering
-\scriptsize
-\setlength{\tabcolsep}{2pt}
+\footnotesize
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l l l l l @{}}
 \toprule
 Zone & Nodes & Cons. & Assets & Pipe \\
 \midrule
-A & j$_1$           & V$_1$           & CHP,TES,Gas,Bio,HP,EB & -- \\
-B & j$_2$--j$_3$    & V$_2$--V$_3$    & -- & 650\,m \\
-C & j$_4$--j$_5$    & V$_4$--V$_9$    & -- & 500\,m \\
-D & j$_6$--j$_8$    & V$_{10}$--V$_{14}$ & -- & 450\,m \\
-E & j$_9$--j$_{11}$ & V$_{15}$--V$_{18}$ & -- & 880\,m \\
-F & j$_{12}$--j$_{13}$ & V$_{19}$--V$_{24}$ & -- & 470\,m \\
-G & j$_{14}$--j$_{15}$ & V$_{25}$--V$_{27}$ & -- & 305\,m \\
+A & j$_1$              & V$_1$              & CHP,TES,Gas,Bio,HP,EB & -- \\
+B & j$_2$--j$_3$       & V$_2$--V$_3$       & --                    & 650\,m \\
+C & j$_4$--j$_5$       & V$_4$--V$_9$       & --                    & 500\,m \\
+D & j$_6$--j$_8$       & V$_{10}$--V$_{14}$ & --                    & 450\,m \\
+E & j$_9$--j$_{11}$    & V$_{15}$--V$_{18}$ & --                    & 880\,m \\
+F & j$_{12}$--j$_{13}$ & V$_{19}$--V$_{24}$ & --                    & 470\,m \\
+G & j$_{14}$--j$_{15}$ & V$_{25}$--V$_{27}$ & --                    & 305\,m \\
 \bottomrule
 \end{tabular*}
+}% end centering group
+
 \bigskip
 
 \subsection{Post-processing validation}
@@ -2449,23 +2854,23 @@ $v_{p,t} \leq \SI{2.5}{\metre\per\second}$; no violations.
 \textit{Pumping (L1/L2/L3):}
 ${<}5\,$kW peak, ${<}1\,\%$ of thermal losses.
 \textit{$\Lnl$ convergence:}
-$\leq 0.5\,\%$ gap (1.99\,\% at 4\,h limit for 744\,h window).
+target ${\leq}\,0.5\,\%$ gap; achieved 1.99\,\% at 4\,h time
+limit for 744\,h window.
 
 \subsection{Gap stability across scenarios}
 \label{app:gap_stability}
 
-\noindent
+{%
 \captionof{table}{Gap stability across 11~scenarios (\%).}
 \label{tab:gap_stability}
 \centering
+\footnotesize
 \begin{threeparttable}
-\scriptsize
-\setlength{\tabcolsep}{2pt}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c @{}}
 \toprule
 Scenario & L1--L3 & L2--L3 & L3--$\Lplus$ \\
 \midrule
-Baseline     & +13.1 & +2.5 & +0.27 \\
+Baseline     & +13.0 & +2.6 & +0.11\tnote{b} \\
 Gas high     & +12.4 & +2.4 & +0.18 \\
 Gas low      & +13.5 & +2.8 & +0.05 \\
 Elec.\ high  & +12.5 & +2.2 & +0.00 \\
@@ -2480,13 +2885,21 @@ Biomass exp. & +13.0 & +2.5 & +0.20 \\
 \end{tabular*}
 \begin{tablenotes}\scriptsize
   \item[a] Uniform scaling; L1--L3 not comparable.
+  \item[b] Value from primary-case reference run
+    (\Cref{tab:cost_extended}); sensitivity scenarios use
+    independent solver instances.
 \end{tablenotes}
 \end{threeparttable}
+}% end centering group
 
 %% ============================================================
-\printcredits
+\section*{CRediT authorship contribution statement}
+\textbf{Lukas Ruess:} Conceptualisation, Methodology, Software,
+Validation, Formal analysis, Investigation, Data curation,
+Writing -- original draft, Visualisation, Funding acquisition.
+\textbf{Alexander Sauer:} Supervision, Writing -- review \& editing.
 
 %% ============================================================
-\bibliographystyle{cas-model2-names}
-\bibliography{paper1_v12}
+\bibliographystyle{elsarticle-num-names}
+\bibliography{paper1_dh_fidelity/Paper20_Literatur}
 \end{document}

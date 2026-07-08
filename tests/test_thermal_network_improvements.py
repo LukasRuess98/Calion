@@ -6,8 +6,7 @@ Test Script für Thermal Network Verbesserungen
 Testet die neuen MILP-kompatiblen Verbesserungen:
 1. Piecewise-Linear Druckverlust (3-Segment PWL)
 2. Zeitvariable Rücklauftemperatur
-3. PWL Speicherverluste
-4. Physikbasierte Temperaturabfälle
+3. Physikbasierte Temperaturabfälle
 
 Ausführung:
     python tests/test_thermal_network_improvements.py
@@ -240,58 +239,6 @@ def test_return_temp_options():
     return True
 
 
-def test_pwl_storage_losses():
-    """Test 5: PWL Speicherverluste"""
-    print("\n" + "="*70)
-    print("TEST 5: PWL Speicherverluste (stratified_storage.py)")
-    print("="*70)
-
-    from calion.models.blocks.stratified_storage import StratifiedStorageBlock
-
-    # Speicher erstellen (korrekte Parameter-Namen)
-    storage = StratifiedStorageBlock(
-        name="TES_test",
-        volume_total_m3=1000,  # 1000 m³
-        T_hot_C=90,
-        T_cold_C=40,
-        investable=True,
-        e_cap_min=10,
-        e_cap_max=50,  # MWh
-        p_cap_min=1,
-        p_cap_max=10,  # MW
-    )
-
-    # PWL-Daten generieren
-    pwl_data = storage.calculate_loss_piecewise_data()
-
-    print(f"\nSpeicher-Parameter:")
-    print(f"  Volumen: {storage.volume_total} m³")
-    print(f"  T_hot: {storage.T_hot}°C, T_cold: {storage.T_cold}°C")
-    print(f"  Geometrie: {storage.geometry_type}")
-
-    print(f"\nPWL Verlustdaten ({len(pwl_data['breakpoints'])} Breakpoints):")
-    print(f"  {'Füllstand':<15} {'V_loss [m³/h]':<18} {'E_loss [MWh/h]':<18}")
-    print(f"  {'-'*55}")
-
-    for i, ratio in enumerate(pwl_data['breakpoints']):
-        v_loss = pwl_data['volume_losses'][i]
-        e_loss = pwl_data['energy_losses'][i]
-        print(f"  {ratio*100:>6.0f}% hot     {v_loss:<18.4f} {e_loss:<18.6f}")
-
-    # Vergleich: Konstant (50%) vs. PWL
-    const_loss = pwl_data['energy_losses'][len(pwl_data['breakpoints'])//2]
-    min_loss = min(pwl_data['energy_losses'])
-    max_loss = max(pwl_data['energy_losses'])
-
-    print(f"\nVergleich:")
-    print(f"  Konstante Annahme (50%): {const_loss:.6f} MWh/h")
-    print(f"  PWL Bereich:             {min_loss:.6f} - {max_loss:.6f} MWh/h")
-    print(f"  Verbesserung:            ±{(max_loss-min_loss)/const_loss*50:.1f}% Genauigkeit")
-
-    print("\n✓ PWL Speicherverluste berechnet")
-    return True
-
-
 def test_config_options():
     """Test 6: Konfigurationsoptionen anzeigen"""
     print("\n" + "="*70)
@@ -360,7 +307,6 @@ def main():
         ("Physik Temperaturabfall", test_physics_temp_drop),
         ("Heizkurve & Profile", test_heating_curve),
         ("Rücklauftemperatur-Optionen", test_return_temp_options),
-        ("PWL Speicherverluste", test_pwl_storage_losses),
         ("Konfigurationsoptionen", test_config_options),
     ]
 

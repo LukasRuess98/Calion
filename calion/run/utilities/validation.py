@@ -36,16 +36,27 @@ def _estimate_max_thermal_capacity(cfg: dict) -> float:
         for asset_name in node.get("assets", []):
             asset_cfg = asset_cfgs.get(asset_name, {})
             asset_type = asset_cfg.get("type")
-            if asset_type in ("thermal_generator", "heat_pump", "heat_pumps"):
+            # 2026-07-08: investable assets (investment.enabled=True) carry a
+            # PLACEHOLDER capacity_mw (usually 0.0, sized by the optimizer at
+            # solve time) -- counting only that placeholder made this check
+            # blind to how much capacity could actually be built, which never
+            # mattered while fixed-asset capacities were overstated (Stadtbach)
+            # but became a real false-positive once those were corrected to
+            # match real data. Count the investment ceiling instead when present.
+            investment = asset_cfg.get("investment") or {}
+            if isinstance(investment, dict) and investment.get("enabled", False):
+                capacity = investment.get("capacity_max_mw", asset_cfg.get("capacity_mw", 0.0))
+                cap += float(capacity)
+            elif asset_type in ("thermal_generator", "heat_pump", "heat_pumps"):
                 capacity = asset_cfg.get("capacity_mw", 0.0)
                 cap += float(capacity)
             elif asset_type in ("boiler", "chp", "generators", "p2h"):
                 # p2h uses capacity_mw; boiler/chp use thermal_output_mw
                 capacity = asset_cfg.get("thermal_output_mw", asset_cfg.get("capacity_mw", 0.0))
                 cap += float(capacity)
-            elif asset_type in ("storage",):
+            elif asset_type in ("storage", "geometric_storage"):
                 # Count storage discharge power (peak-shaving capacity)
-                capacity = asset_cfg.get("power_mw", 0.0)
+                capacity = asset_cfg.get("power_mw", asset_cfg.get("power_mw_fixed", 0.0))
                 cap += float(capacity)
 
     # Backward compatibility: single-node legacy config under system key

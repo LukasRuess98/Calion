@@ -112,3 +112,25 @@ STORAGE_POWER_MIN_MW = 10.0
 
 # Default rolling-horizon window length (hours)
 DEFAULT_HORIZON_HOURS = 168.0
+
+
+# ==========================================
+# Hot-Water TES Physics (shared)
+# ==========================================
+# Single source of truth for the water properties used to convert between
+# TES volume, energy and hydrostatic pressure head. Consumed by
+# geometric_storage.py and network_manager.py's F4 pressure coupling.
+# District-heating TES water sits close to the supply temperature
+# (70-120°C), so the ~75°C reference point is used everywhere.
+
+# Water density at ~75°C (typical DH TES operating temperature) [kg/m³]
+RHO_WATER_HOT_KG_M3 = 971.8
+
+# Water specific heat capacity at ~75°C [kJ/(kg*K)]
+CP_WATER_HOT_KJ_PER_KGK = 4.189
+
+# Standard gravity [m/s²]
+G_ACCEL_M_S2 = 9.81
+
+# Standard atmospheric pressure [bar]
+P_ATM_BAR = 1.013

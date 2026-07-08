@@ -495,8 +495,9 @@ def _collect_timeseries_and_summary(
                     series[out_key] = combined
 
             _sum_sto("SOC", ["TES_E"], "TES_SOC_MWh")
-            _sum_sto("Q_charge", ["TES_Qc"], "TES_charge_MW")
-            _sum_sto("Q_discharge", ["TES_Qd"], "TES_discharge_MW")
+            # Actual Pyomo vars are named {asset}_Qc / {asset}_Qd (not _Q_charge / _Q_discharge)
+            _sum_sto("Qc", ["TES_Qc", "tes_main_Qc", "tes_sb_Qc", "tes_existing_Qc"], "TES_charge_MW")
+            _sum_sto("Qd", ["TES_Qd", "tes_main_Qd", "tes_sb_Qd", "tes_existing_Qd"], "TES_discharge_MW")
 
         for gen in meta["generators"]:
             comp = gen["name"]
@@ -514,6 +515,42 @@ def _collect_timeseries_and_summary(
                                getattr(model, "P2H_Pel", None))
             _extract(_p2h_qth, "P2H_Q_th_MW")
             _extract(_p2h_pel, "P2H_Pel_MW")
+
+        # ── Paper 2: geometric TES investment scalars + endogenous site choice ──
+        # Captured here (model in scope) because pf_result carries no model ref;
+        # extract_artefacts_p2.write_geometry_p2 reads these from the summary.
+        try:
+            _geo_sum = {}
+            for _a in dir(model):
+                if _a.endswith("_V_m3"):
+                    _comp = _a[: -len("_V_m3")]
+                    _V = pyo.value(getattr(model, _a), exception=False)
+                    _bld_v = getattr(model, f"{_comp}_build", None)
+                    _bld = pyo.value(_bld_v, exception=False) if _bld_v is not None else 0.0
+                    _emax_e = getattr(model, f"{_comp}_E_max_expr", None)
+                    _emax = pyo.value(_emax_e, exception=False) if _emax_e is not None else 0.0
+                    _capp_v = getattr(model, f"{_comp}_cap_power", None)
+                    _capp = pyo.value(_capp_v, exception=False) if _capp_v is not None else 0.0
+                    _geo_sum[_comp] = {
+                        "V_m3": float(_V or 0.0),
+                        "build": float(_bld or 0.0),
+                        "E_max_MWh": float(_emax or 0.0),
+                        "cap_power_MW": float(_capp or 0.0),
+                    }
+            if _geo_sum:
+                objective["tes_geometry"] = _geo_sum
+        except Exception as _exc:  # noqa: BLE001 - reporting only
+            logger.debug("tes_geometry capture failed: %s", _exc)
+
+        try:
+            for _grp in ("hp", "tes"):
+                _y = getattr(model, f"endog_{_grp}_site_y", None)
+                if _y is not None:
+                    _sel = [str(_c) for _c in _y
+                            if float(pyo.value(_y[_c], exception=False) or 0.0) > 0.5]
+                    objective[f"endog_{_grp}_site"] = _sel[0] if _sel else None
+        except Exception as _exc:  # noqa: BLE001 - reporting only
+            logger.debug("endogenous site capture failed: %s", _exc)
 
         if hasattr(model, "obj"):
             model_obj_value = float(pyo.value(model.obj))

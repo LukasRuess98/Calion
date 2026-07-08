@@ -14,6 +14,7 @@ except Exception:  # pragma: no cover
     pyo = None
 
 from calion.logging_config import get_logger
+from .utils.mccormick import add_mccormick_constraints as _mccormick
 
 logger = get_logger(__name__)
 
@@ -225,6 +226,27 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
         _CP = 4.186  # kJ/(kg·K), same constant as pipe_pair.py
 
         def _make_signed_q_fn(m_dot_v, T_sup_p, T_ret_p, cp=_CP):
+            # 2026-07-08: this freezes T_sup_p/T_ret_p to Python floats via
+            # pyo.value() at build time -- only valid if they're Params, not
+            # Vars. Today this holds by construction: this function is only
+            # ever called for bidirectional pipes off the primary producer,
+            # and L3+ node classification (network_manager.py
+            # _classify_node_temperature_mode) deliberately excludes every
+            # node adjacent to a bidirectional pipe from getting a Var
+            # T_supply/T_return, specifically so this stays valid. Assert
+            # rather than silently freezing a Var if that invariant ever
+            # breaks (same bug class as the pre-2026-07-07 mass-balance bugs).
+            assert isinstance(T_sup_p, pyo.Param), (
+                f"_make_signed_q_fn: T_sup_p is a {type(T_sup_p).__name__}, not a Param -- "
+                f"freezing it via pyo.value() would silently bake in a stale ΔT. "
+                f"This should only be reachable for bidirectional-pipe-adjacent nodes, "
+                f"which L3+ classification excludes from ever getting a Var T_supply."
+            )
+            assert isinstance(T_ret_p, pyo.Param), (
+                f"_make_signed_q_fn: T_ret_p is a {type(T_ret_p).__name__}, not a Param -- "
+                f"same concern as T_sup_p above."
+            )
+
             def _signed_q(t):
                 coeff = cp * (pyo.value(T_sup_p[t]) - pyo.value(T_ret_p[t])) / 1000
                 return m_dot_v[t] * coeff
@@ -257,7 +279,57 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                         _out_pipe_id,
                     )
                     continue
-                _bidi_signed_q_terms.append(lambda t, _qd=_q_del: _qd[t])
+                # In MILP mode, mass conservation forces Q_delivered = coeff × m_dot =
+                # total demand of the ENTIRE downstream sub-network fed through this pipe
+                # (not just the immediate destination — Q_delivered aggregates every node
+                # reachable further down the tree). Any local generator anywhere in that
+                # sub-network (secondary mixed nodes, e.g. j_pss with HWS_BOILER, or an
+                # F3 endogenous-siting candidate several hops downstream) cannot actually
+                # reduce this pipe's required flow — fixed-temperature MILP has no way to
+                # mix that heat in mid-network — so its output just dumps locally while
+                # the primary still over-counts it. Subtract EVERY local generator output
+                # found anywhere in the downstream subtree, not only the immediate
+                # neighbor's.
+                #
+                # BUGFIX (2026-07-07): previously only checked the immediate destination's
+                # STATIC node type ('mixed'/'producer'). Two failure modes: (1) it missed
+                # generation more than one hop away entirely (Memmingen's chain j_1→j_2→
+                # j_3→j_9→...→j_12→j_13 — j_2 is a plain consumer with no static type
+                # match, so nothing downstream of it was ever inspected); (2) it couldn't
+                # see F3 endogenous-siting flows injected into a node whose STATIC type is
+                # 'consumer' regardless of hop distance, since those flows only appear in
+                # ht_out at runtime, not in the config. Confirmed via IIS: MM-S4/MM-S5
+                # (Memmingen endogenous siting) were genuinely infeasible, not just slow,
+                # because of this gap. Fix: BFS the whole downstream subtree and check
+                # ht_out dynamically (mirrors what the per-node consumer balance already
+                # does at line ~467's `if ht_out and hasattr(...)`).
+                _local_gen_terms = []
+                _visited = {primary_producer_id}
+                _frontier = [_out_pipe_cfg.to_node]
+                while _frontier:
+                    _nid = _frontier.pop()
+                    if _nid in _visited:
+                        continue
+                    _visited.add(_nid)
+                    _nbuses = system_buses.nodes.get(_nid)
+                    if _nbuses is not None and _nbuses.ht_out:
+                        _local_gen_terms.extend(_nbuses.ht_out)
+                    for _pid, _pcfg in unified_config.pipes.items():
+                        if _pcfg.from_node == _nid and _pcfg.to_node not in _visited:
+                            _frontier.append(_pcfg.to_node)
+                if _local_gen_terms:
+                    logger.info(
+                        "[CONSTRAINT] Nodal balance: pipe %s Q_delivered minus %d local "
+                        "gen term(s) found in downstream subtree rooted at %s",
+                        _out_pipe_id, len(_local_gen_terms), _out_pipe_cfg.to_node,
+                    )
+                if _local_gen_terms:
+                    _bidi_signed_q_terms.append(
+                        lambda t, _qd=_q_del, _gens=_local_gen_terms:
+                            _qd[t] - sum(f[t] for f in _gens)
+                    )
+                else:
+                    _bidi_signed_q_terms.append(lambda t, _qd=_q_del: _qd[t])
                 logger.info("[CONSTRAINT] Nodal balance: pipe %s Q_delivered added", _out_pipe_id)
 
         if _bidi_signed_q_terms:
@@ -434,7 +506,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             # Consumer nodes: demand is satisfied by incoming pipe flow + local assets
             if ht_out and hasattr(model, f"heatd_{node_id}"):
                 # Consumer has local generation assets — create a combined balance:
-                #   local_gen + pipe_in == demand + dump + storage_charge
+                #   local_gen + pipe_in == demand + Σ(downstream pipes out) + dump + charge
                 demand_param = getattr(model, f"heatd_{node_id}")
                 demand_slack = getattr(
                     model, f"{node_id.upper().replace('-', '_')}_Q_demand_slack", None
@@ -452,27 +524,257 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                             )
                             break
 
+                # BUGFIX (2026-07-07): collect outgoing pipes' Q_delivered, mirroring the
+                # producer/mixed branch above (lines ~377-390). Before this fix, a
+                # 'consumer'-type node's balance only ever needed to satisfy its OWN local
+                # demand, because pre-F3 no consumer node ever had local generation
+                # (ht_out was always empty here, so this whole branch was skipped and
+                # NetworkManager handled pass-through separately). F3 endogenous siting
+                # breaks that assumption — it injects ht_out at consumer candidate nodes
+                # that are NOT terminal (e.g. Memmingen's j_5, which feeds j_6 onward).
+                # Without q_pipes_out, the balance silently dropped the requirement to
+                # keep feeding everything downstream, which is exactly what an IIS traced
+                # to infeasibility at j_5→j_6, j_7→j_8 for MM-S4/MM-S5.
+                q_pipes_out: list = []
+                if unified_config is not None:
+                    for pipe_id, pipe_cfg in unified_config.pipes.items():
+                        if pipe_cfg.from_node == node_id:
+                            pipe_pfx = pipe_id.upper().replace('-', '_')
+                            qd = getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            if qd is not None:
+                                q_pipes_out.append(qd)
+
                 def consumer_with_assets_balance(
                     m, t, _out=ht_out, _in=ht_in, _d=dump_var,
-                    _dem=demand_param, _dem_slack=demand_slack, _qp=q_pipe_in
+                    _dem=demand_param, _dem_slack=demand_slack, _qp=q_pipe_in,
+                    _qpo=q_pipes_out
                 ):
                     local_supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
                     pipe_in = _qp[t] if _qp is not None else 0
                     dem_t = _dem[t] - _dem_slack[t] if _dem_slack is not None else _dem[t]
-                    return local_supply + pipe_in == dem_t + _d[t] + charge
+                    return (local_supply + pipe_in
+                            == dem_t + sum(qo[t] for qo in _qpo) + _d[t] + charge)
 
                 setattr(model, f"ht_balance_{node_id}",
                         pyo.Constraint(model.t, rule=consumer_with_assets_balance))
                 logger.info(
-                    "[CONSTRAINT] Consumer %s: combined balance with %d local assets",
-                    node_id, len(ht_out),
+                    "[CONSTRAINT] Consumer %s: combined balance with %d local assets, "
+                    "%d downstream pipes",
+                    node_id, len(ht_out), len(q_pipes_out),
                 )
             # else: pure consumer without local assets — demand handled by NetworkManager
 
         elif node_cfg.type == "junction":
             # Junction: flow balance handled by NetworkManager
             pass
+
+    # ── Mass-balance correction for nodes with local heat generation ────────
+    # BUGFIX (2026-07-07): thermal_node.py's `{prefix}_mass_balance` constraint
+    # (Sigma m_dot_in == Sigma m_dot_out [+ m_dot_demand]) is built while nodes
+    # are attached, BEFORE any asset/F3 flow is wired up -- ht_out is always
+    # empty at that point, so it has no way to account for heat injected
+    # locally at that node (static secondary producers, or F3 endogenous-siting
+    # candidates). In MILP-linearized mode every pipe's own m_dot is a fixed
+    # linear function of its Q_delivered (Q = m_dot * cp * dT with dT a Param),
+    # so a local Q_gen with no matching m_dot term makes the (already-fixed)
+    # heat balance above and this untouched mass balance mutually exclusive
+    # whenever Q_gen != 0. This is exactly what made MM-S4/MM-S5
+    # infeasibleOrUnbounded (confirmed via IIS).
+    #
+    # BUGFIX (2026-07-08): T_supply is now a real per-node Var at L3+-classified
+    # nodes (spatial temperature propagation), including generation-bearing/F3
+    # candidate nodes -- so the original fix's `pyo.value(T_supply[t])` (frozen
+    # to a float at build time) would silently produce a WRONG constant instead
+    # of tracking the Var, and dividing by it isn't linear anyway. Fix: promote
+    # `m_dot_gen[t]` to a genuine decision Var with its own McCormick-relaxed
+    # enthalpy-flux block (_attach_local_generation_mdot below), built ONCE per
+    # node and consumed by BOTH the mass_balance and passthrough_flow rewrites
+    # -- deliberately shared so the two constraints can never independently
+    # diverge on "what m_dot_gen means here" the way the pre-2026-07-07 bug did.
+    _cp_water = 4.186  # kJ/(kg*K), same constant as thermal_node.py / pipe_pair.py
+
+    def _attach_local_generation_mdot(model, node_id, prefix, gens, T_supply_n, T_return_n):
+        """Create (or return the already-created) m_dot_gen[t] Var for a node's
+        local heat generation: Q_gen*1000 == m_dot_gen*cp*(T_supply - T_return).
+
+        T_supply and T_return are classified INDEPENDENTLY here (each can be a
+        Var or a Param for reasons unrelated to each other -- e.g. a junction
+        node excluded from L3+ propagation still has a free Var T_return
+        purely because it's non-consumer type, regardless of T_supply being a
+        Param). Each side of the product is built as a plain linear term when
+        its own T is a Param, or McCormick-relaxed against a shared m_dot_gen
+        Var when its own T is a Var -- single source of truth for both
+        mass-balance rewrite sites below.
+        """
+        existing = getattr(model, f'{prefix}_m_dot_gen', None)
+        if existing is not None:
+            return existing
+
+        _supply_is_var = isinstance(T_supply_n, pyo.Var)
+        _return_is_var = isinstance(T_return_n, pyo.Var)
+
+        if not _supply_is_var and not _return_is_var:
+            # Legacy path: both Params -- plain linear expression, identical
+            # in spirit to the pre-2026-07-08 fix (no new Var needed at all).
+            def _m_dot_gen_expr(m, t, _gens=gens, _Tsup=T_supply_n, _Tret=T_return_n):
+                dT_t = pyo.value(_Tsup[t]) - pyo.value(_Tret[t])
+                return sum(f[t] for f in _gens) * 1000 / (_cp_water * dT_t)
+            expr = pyo.Expression(model.t, rule=_m_dot_gen_expr)
+            setattr(model, f'{prefix}_m_dot_gen', expr)
+            return expr
+
+        # At least one side is a Var -> m_dot_gen must be a genuine decision
+        # Var so each bilinear side can be McCormick-relaxed against it.
+        #
+        # Bound: sum of a generous per-term fallback (40 MW -- above any single
+        # asset's real capacity in these networks, e.g. hp_main caps at 30MW,
+        # eboiler_main at 20MW) unless a tighter numeric .ub is already present
+        # on the term itself. Per McCormick, a LOOSER bound only widens the
+        # relaxation (never causes infeasibility); an OVER-TIGHT one can -- so
+        # err generous, matching thermal_node.py's own _mdot_ub philosophy.
+        _q_gen_cap = 0.0
+        for term in gens:
+            try:
+                _ub = next(iter(term.values())).ub
+            except Exception:
+                _ub = None
+            _q_gen_cap += float(_ub) if _ub is not None else 40.0
+
+        def _bounds_of(T_n):
+            if isinstance(T_n, pyo.Var):
+                sample = next(iter(T_n.values()))
+                lo, hi = sample.lb, sample.ub
+            else:
+                v = float(pyo.value(T_n[next(iter(T_n))]))
+                lo = hi = v
+            if lo is None or hi is None:
+                lo, hi = 40.0, 140.0  # safe generic fallback
+            return lo, hi
+
+        _T_sup_lo, _T_sup_hi = _bounds_of(T_supply_n)
+        _T_ret_lo, _T_ret_hi = _bounds_of(T_return_n)
+        _dT_min = max(_T_sup_lo - _T_ret_hi, 5.0)
+        _m_dot_gen_max = _q_gen_cap * 1000 / (_cp_water * _dT_min) * 1.5
+
+        m_dot_gen = pyo.Var(model.t, domain=pyo.NonNegativeReals, bounds=(0, _m_dot_gen_max))
+        setattr(model, f'{prefix}_m_dot_gen', m_dot_gen)
+
+        if _supply_is_var:
+            W_sup_gen = pyo.Var(model.t, domain=pyo.NonNegativeReals,
+                                 bounds=(0, _m_dot_gen_max * _cp_water * _T_sup_hi))
+            setattr(model, f'{prefix}_W_sup_gen', W_sup_gen)
+            _mccormick(model, f'{prefix}_W_sup_gen_mix', W_sup_gen, m_dot_gen, T_supply_n,
+                       0, _m_dot_gen_max, _T_sup_lo, _T_sup_hi, model.t, scale=_cp_water)
+            sup_term_at = lambda t: W_sup_gen[t]
+        else:
+            sup_term_at = lambda t: m_dot_gen[t] * _cp_water * T_supply_n[t]
+
+        if _return_is_var:
+            W_ret_gen = pyo.Var(model.t, domain=pyo.NonNegativeReals,
+                                 bounds=(0, _m_dot_gen_max * _cp_water * _T_ret_hi))
+            setattr(model, f'{prefix}_W_ret_gen', W_ret_gen)
+            _mccormick(model, f'{prefix}_W_ret_gen_mix', W_ret_gen, m_dot_gen, T_return_n,
+                       0, _m_dot_gen_max, _T_ret_lo, _T_ret_hi, model.t, scale=_cp_water)
+            ret_term_at = lambda t: W_ret_gen[t]
+        else:
+            ret_term_at = lambda t: m_dot_gen[t] * _cp_water * T_return_n[t]
+
+        def _close_rule(m, t, _gens=gens, _sup=sup_term_at, _ret=ret_term_at):
+            return _sup(t) - _ret(t) == sum(f[t] for f in _gens) * 1000
+
+        setattr(model, f'{prefix}_m_dot_gen_close', pyo.Constraint(model.t, rule=_close_rule))
+        logger.info(
+            "[CONSTRAINT] Node %s: m_dot_gen McCormick-relaxed (T_supply_is_var=%s, "
+            "T_return_is_var=%s, %d gen term(s), bound=%.1f kg/s)",
+            node_id, _supply_is_var, _return_is_var, len(gens), _m_dot_gen_max,
+        )
+        return m_dot_gen
+
+    for node_id, node_buses in system_buses.nodes.items():
+        if not node_buses.ht_out:
+            continue
+        prefix = node_id.upper().replace('-', '_')
+        old_mb = getattr(model, f'{prefix}_mass_balance', None)
+        if old_mb is None:
+            continue  # root/producer node with no incoming pipes -- unconstrained, fine
+
+        T_supply_n = getattr(model, f'{prefix}_T_supply', None)
+        T_return_n = getattr(model, f'{prefix}_T_return', None)
+        if T_supply_n is None or T_return_n is None:
+            # Should be structurally impossible once WP1-2 classification is
+            # consistent (every node with a mass_balance constraint has both
+            # attributes) -- hard-fail instead of silently reproducing the
+            # 2026-07-07 bug, per the 2026-07-08 design review.
+            raise ValueError(
+                f"Node {node_id} has local generation (ht_out non-empty) but is "
+                f"missing T_supply/T_return -- cannot build a correct mass balance. "
+                f"This should not be reachable; check node classification."
+            )
+
+        _incoming_m_dot = []
+        _outgoing_m_dot = []
+        for pipe_id, pipe_cfg in unified_config.pipes.items():
+            pfx = pipe_id.upper().replace('-', '_')
+            md = getattr(model, f'{pfx}_m_dot', None)
+            if md is None:
+                continue
+            if pipe_cfg.to_node == node_id:
+                _incoming_m_dot.append(md)
+            if pipe_cfg.from_node == node_id:
+                _outgoing_m_dot.append(md)
+
+        _m_dot_demand_n = getattr(model, f'{prefix}_m_dot_demand', None)
+        _gens = list(node_buses.ht_out)
+        _m_dot_gen = _attach_local_generation_mdot(model, node_id, prefix, _gens, T_supply_n, T_return_n)
+
+        model.del_component(old_mb)
+
+        def _corrected_mass_balance(
+            m, t, _in=_incoming_m_dot, _out=_outgoing_m_dot,
+            _dem=_m_dot_demand_n, _gen=_m_dot_gen,
+        ):
+            total_in = sum(md[t] for md in _in)
+            total_out = sum(md[t] for md in _out)
+            dem_t = _dem[t] if _dem is not None else 0
+            return total_in + _gen[t] == total_out + dem_t
+
+        setattr(model, f'{prefix}_mass_balance',
+                pyo.Constraint(model.t, rule=_corrected_mass_balance))
+        logger.info(
+            "[CONSTRAINT] Node %s: mass_balance corrected for %d local generation "
+            "term(s) (shared m_dot_gen Var)", node_id, len(_gens),
+        )
+
+        # network_manager.py's `_link_consumer_demands()` independently builds a
+        # SECOND, redundant Kirchhoff constraint on the exact same pipe m_dot
+        # variables (`link_demand_{node_id}_passthrough_flow` for a single
+        # incoming pipe, `link_demand_{node_id}_multi_passthrough_flow` for
+        # several) -- also built before assets/F3 flows exist, so it has the
+        # identical missing-generation-term gap as thermal_node.py's mass
+        # balance above. Deliberately reuses the SAME `_m_dot_gen` Var created
+        # above rather than an independent computation.
+        for _pf_name in (f'link_demand_{node_id}_passthrough_flow',
+                         f'link_demand_{node_id}_multi_passthrough_flow'):
+            old_pf = getattr(model, _pf_name, None)
+            if old_pf is None:
+                continue
+            model.del_component(old_pf)
+
+            def _corrected_passthrough(
+                m, t, _in=_incoming_m_dot, _out=_outgoing_m_dot,
+                _dem=_m_dot_demand_n, _gen=_m_dot_gen,
+            ):
+                total_in = sum(md[t] for md in _in)
+                total_out = sum(md[t] for md in _out)
+                dem_t = _dem[t] if _dem is not None else 0
+                return total_in + _gen[t] == total_out + dem_t
+
+            setattr(model, _pf_name, pyo.Constraint(model.t, rule=_corrected_passthrough))
+            logger.info(
+                "[CONSTRAINT] Node %s: %s corrected for %d local generation term(s)",
+                node_id, _pf_name, len(_gens),
+            )
 
     # Global heat balance for copperplate fallback or single-node special case
     # This ensures m.heatd is always satisfied at system level

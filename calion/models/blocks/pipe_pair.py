@@ -30,6 +30,7 @@ from ..state_constraints import (
     enforce_minimum_pressure,
     enforce_velocity_bounds,
 )
+from ..utils.mccormick import add_mccormick_constraints as _mccormick
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,12 @@ class PipePairBlock(BaseComponent):
         pressure_drop_enabled = config.get('pressure_drop_enabled', True)
         physics_cfg = config.get('physics', {}) if isinstance(config.get('physics', {}), dict) else {}
         bidirectional = bool(physics_cfg.get('bidirectional', config.get('bidirectional', False)))
+        # MILP mode: temperatures are fixed Params → Q expressions are linear with signed m_dot.
+        # No Big-M linearisation needed; signed Reals domain suffices for any pipe direction.
+        _milp_mode = bool(config.get('milp_linearize', False)) or bool(config.get('temperature_linearize', False))
+        # L3+ mode: spatial temperature propagation via enthalpy-flux (W) variables and McCormick.
+        _l3plus_mode = _milp_mode and bool(config.get('temperature_propagation', False))
+        _is_source_pipe = bool(config.get('is_source_pipe', False))
         max_velocity = config.get('max_velocity_m_s', 2.5)
         max_pressure_drop = config.get('max_pressure_drop_bar', 2.0)
         pipe_roughness = config.get('pipe_roughness_mm', 0.05)
@@ -201,6 +208,22 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         if bidirectional:
+            # Exact |m_dot| linearisation with a direction selector -- fully
+            # linear/MILP-safe either way, so build this whenever the pipe is
+            # bidirectional, MILP mode or not.
+            #
+            # BUGFIX (2026-07-08): this used to be gated `elif bidirectional`
+            # AFTER the `_milp_mode` branch above, which unconditionally took
+            # priority -- so a bidirectional pipe in MILP mode never got
+            # flow_dir/m_dot_abs at all, just a plain signed m_dot. That silently
+            # broke network_manager.py::_link_pressure_propagation's bidirectional
+            # detection (`flow_dir is not None`), which always evaluated False
+            # under MILP mode regardless of the pipe's own `bidirectional: true`
+            # flag -- meaning the direction-aware pressure formulation was dead
+            # code and the one-way equality got applied even to Stadtbach's
+            # hkw_to_ost, which the topology explicitly allows to reverse. This is
+            # why pressure_drop stayed off for Stadtbach until this fix.
+            _bidir_mode_note = 'MILP' if _milp_mode else 'NLP'
             m_dot = pyo.Var(
                 time_set,
                 domain=pyo.Reals,
@@ -216,7 +239,6 @@ class PipePairBlock(BaseComponent):
             setattr(model, f'{prefix}_m_dot_abs', m_dot_abs)
             setattr(model, f'{prefix}_flow_dir', flow_dir)
 
-            # Exact |m_dot| linearisation with a direction selector.
             m_big = max(float(effective_max_flow), 1e-3)
             setattr(
                 model,
@@ -261,6 +283,21 @@ class PipePairBlock(BaseComponent):
                 ),
             )
             flow_for_hydraulics = m_dot_abs
+            logger.info(
+                f"Pipe {pipe_id}: bidirectional flow_dir/m_dot_abs built ({_bidir_mode_note} mode)"
+            )
+        elif _milp_mode:
+            # Signed flow — temperatures are fixed Params so Q = m_dot × cp × ΔT is linear.
+            # No Big-M or binary direction variable needed (one-directional pipe).
+            m_dot = pyo.Var(
+                time_set,
+                domain=pyo.Reals,
+                bounds=(-effective_max_flow, effective_max_flow),
+            )
+            setattr(model, f'{prefix}_m_dot', m_dot)
+            m_dot_abs = None
+            flow_dir = None
+            flow_for_hydraulics = m_dot
         else:
             m_dot = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, effective_max_flow))
             m_dot_abs = None
@@ -319,9 +356,24 @@ class PipePairBlock(BaseComponent):
                 _return_init = return_temp_dict
             else:
                 _return_init = return_temp_nominal_c
-            T_supply_in = pyo.Param(time_set, initialize=_supply_init, mutable=True)
-            T_supply_out = pyo.Param(time_set, initialize=_supply_init, mutable=True)
-            T_return_in = pyo.Param(time_set, initialize=_return_init, mutable=True)
+            # L3+ mode: supply temperatures become Variables for spatial propagation.
+            # Return temperatures remain Params (heating-curve values) to avoid the
+            # consumer-branch mixing problem at intermediate nodes — a correct full
+            # return-side formulation would require explicit branch flows.
+            # Source pipe keeps T_supply_in as Param (anchored to heating curve).
+            # Non-source pipes: T_supply_in is a Var linked to upstream T_supply_out by NM.
+            if _l3plus_mode and not _is_source_pipe:
+                T_supply_in = pyo.Var(time_set, domain=pyo.Reals,
+                                      bounds=(supply_temp_min, supply_temp_max))
+            else:
+                T_supply_in = pyo.Param(time_set, initialize=_supply_init, mutable=True)
+            if _l3plus_mode:
+                T_supply_out = pyo.Var(time_set, domain=pyo.Reals,
+                                       bounds=(supply_temp_min, supply_temp_max))
+            else:
+                T_supply_out = pyo.Param(time_set, initialize=_supply_init, mutable=True)
+            # Return temperatures: always Params in MILP / L3+ modes.
+            T_return_in  = pyo.Param(time_set, initialize=_return_init, mutable=True)
             T_return_out = pyo.Param(time_set, initialize=_return_init, mutable=True)
         else:
             T_supply_in = pyo.Var(time_set, domain=pyo.NonNegativeReals,
@@ -430,11 +482,30 @@ class PipePairBlock(BaseComponent):
         max_heat_loss_mw = 5.0
         Q_loss_supply = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_loss_mw))
         Q_loss_return = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_loss_mw))
-        Q_delivered = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_heat_delivered_mw))
+        Q_delivered = pyo.Var(
+            time_set,
+            domain=pyo.Reals if _milp_mode else pyo.NonNegativeReals,
+            bounds=(-max_heat_delivered_mw if _milp_mode else 0, max_heat_delivered_mw),
+        )
 
         setattr(model, f'{prefix}_Q_loss_supply', Q_loss_supply)
         setattr(model, f'{prefix}_Q_loss_return', Q_loss_return)
         setattr(model, f'{prefix}_Q_delivered', Q_delivered)
+
+        # ── L3+ enthalpy-flux variables: W = m_dot × cp × T  [kW] ───────────
+        # Four W variables per pipe; McCormick constraints link W to (m_dot, T).
+        # W variables are None in standard MILP / NLP modes.
+        if _l3plus_mode:
+            # Supply-side enthalpy-flux vars only. Return side uses linear expressions
+            # (T_return is a Param, so W_ret = m_dot × cp × T_ret_Param is linear).
+            _W_sup_bound = effective_max_flow * cp_water * supply_temp_max
+            W_sup_in  = pyo.Var(time_set, domain=pyo.Reals, bounds=(-_W_sup_bound, _W_sup_bound))
+            W_sup_out = pyo.Var(time_set, domain=pyo.Reals, bounds=(-_W_sup_bound, _W_sup_bound))
+            setattr(model, f'{prefix}_W_sup_in',  W_sup_in)
+            setattr(model, f'{prefix}_W_sup_out', W_sup_out)
+        else:
+            W_sup_in = W_sup_out = None
+        W_ret_in = W_ret_out = None  # not used in L3+ (return T stays as Param)
 
         # ============================================================
         # INVESTMENT VARIABLES (optional)
@@ -467,36 +538,87 @@ class PipePairBlock(BaseComponent):
         # ============================================================
 
         if temperature_linearize:
-            # MILP mode: heat losses computed from Param temperatures.
-            # T_supply_in[t] holds the per-timestep heating-curve value (or fixed
-            # nominal when no heating curve is configured). Using T_supply_in[t]
-            # directly (it is a Param, so all expressions remain linear in m_dot).
-            def heat_loss_supply_rule_milp(m, t):
-                return Q_loss_supply[t] == (
-                    u_value_supply * length_m * (T_supply_in[t] - T_ground[t])
-                ) / 1e6
+            if _l3plus_mode:
+                # ── L3+ mode: T_supply_in (Var for non-source) and T_supply_out (Var). ──
+                # Return temperatures remain Params — see temperature variable block above.
+                # Q_loss_supply uses T_avg = (T_in + T_out)/2, linear in supply T Vars.
+                def heat_loss_supply_rule_milp(m, t):
+                    T_avg = (T_supply_in[t] + T_supply_out[t]) / 2
+                    return Q_loss_supply[t] == (
+                        u_value_supply * length_m * (T_avg - T_ground[t])
+                    ) / 1e6
 
-            setattr(model, f'{prefix}_heat_loss_supply',
-                    pyo.Constraint(time_set, rule=heat_loss_supply_rule_milp))
+                setattr(model, f'{prefix}_heat_loss_supply',
+                        pyo.Constraint(time_set, rule=heat_loss_supply_rule_milp))
 
-            def heat_loss_return_rule_milp(m, t):
-                return Q_loss_return[t] == (
-                    u_value_return * length_m * (T_return_in[t] - T_ground[t])
-                ) / 1e6
+                # Q_loss_return: T_return_in is Param → unchanged from standard MILP.
+                def heat_loss_return_rule_milp(m, t):
+                    return Q_loss_return[t] == (
+                        u_value_return * length_m * (T_return_in[t] - T_ground[t])
+                    ) / 1e6
 
-            setattr(model, f'{prefix}_heat_loss_return',
-                    pyo.Constraint(time_set, rule=heat_loss_return_rule_milp))
+                setattr(model, f'{prefix}_heat_loss_return',
+                        pyo.Constraint(time_set, rule=heat_loss_return_rule_milp))
 
-            # MILP mode: Q_delivered linked to m_dot via per-timestep Î”T (linear,
-            # since T_supply_in and T_return_in are Params, not Variables).
-            def heat_delivered_rule_milp(m, t):
-                dT = T_supply_in[t] - T_return_in[t]
-                return Q_delivered[t] * 1000 == flow_for_hydraulics[t] * cp_water * dT
+                # W = m_dot × cp × T_supply — McCormick for Var×Var products.
+                # Source pipe: T_supply_in is a Param → W_sup_in constraint is linear.
+                if _is_source_pipe:
+                    setattr(model, f'{prefix}_W_sup_in_lin',
+                            pyo.Constraint(time_set, rule=lambda m, t:
+                                W_sup_in[t] == m_dot[t] * cp_water * T_supply_in[t]))
+                else:
+                    _mccormick(model, f'{prefix}_W_sup_in', W_sup_in, m_dot, T_supply_in,
+                               -effective_max_flow, effective_max_flow,
+                               supply_temp_min, supply_temp_max, time_set, scale=cp_water)
 
-            setattr(model, f'{prefix}_heat_delivered',
-                    pyo.Constraint(time_set, rule=heat_delivered_rule_milp))
+                # T_supply_out is always a Var in L3+ → McCormick for W_sup_out.
+                _mccormick(model, f'{prefix}_W_sup_out', W_sup_out, m_dot, T_supply_out,
+                           -effective_max_flow, effective_max_flow,
+                           supply_temp_min, supply_temp_max, time_set, scale=cp_water)
 
-            # No temp_drop constraints needed â€” temperatures are fixed Params
+                # Supply enthalpy propagation: ΔW = heat loss [kW].
+                # Q_loss [MW] × 1000 = [kW] = W units. Holds for signed m_dot.
+                setattr(model, f'{prefix}_enthalpy_prop_sup',
+                        pyo.Constraint(time_set, rule=lambda m, t:
+                            W_sup_in[t] - W_sup_out[t] == Q_loss_supply[t] * 1000))
+
+                # Q_delivered: supply W_in minus return linear term (T_return_out is Param).
+                # W_ret_out = m_dot × cp × T_return_out is linear → Q_delivered linear in Vars.
+                setattr(model, f'{prefix}_heat_delivered',
+                        pyo.Constraint(time_set, rule=lambda m, t:
+                            Q_delivered[t] * 1000 == W_sup_in[t]
+                            - flow_for_hydraulics[t] * cp_water * T_return_out[t]))
+
+            else:
+                # Standard MILP mode: heat losses computed from Param temperatures.
+                # T_supply_in[t] holds the per-timestep heating-curve value (or fixed
+                # nominal when no heating curve is configured). All expressions linear in m_dot.
+                def heat_loss_supply_rule_milp(m, t):
+                    return Q_loss_supply[t] == (
+                        u_value_supply * length_m * (T_supply_in[t] - T_ground[t])
+                    ) / 1e6
+
+                setattr(model, f'{prefix}_heat_loss_supply',
+                        pyo.Constraint(time_set, rule=heat_loss_supply_rule_milp))
+
+                def heat_loss_return_rule_milp(m, t):
+                    return Q_loss_return[t] == (
+                        u_value_return * length_m * (T_return_in[t] - T_ground[t])
+                    ) / 1e6
+
+                setattr(model, f'{prefix}_heat_loss_return',
+                        pyo.Constraint(time_set, rule=heat_loss_return_rule_milp))
+
+                # MILP mode: Q_delivered linked to m_dot via per-timestep ΔT (linear,
+                # since T_supply_in and T_return_in are Params, not Variables).
+                def heat_delivered_rule_milp(m, t):
+                    dT = T_supply_in[t] - T_return_in[t]
+                    return Q_delivered[t] * 1000 == flow_for_hydraulics[t] * cp_water * dT
+
+                setattr(model, f'{prefix}_heat_delivered',
+                        pyo.Constraint(time_set, rule=heat_delivered_rule_milp))
+
+                # No temp_drop constraints needed — temperatures are fixed Params
 
         else:
             # Full nonlinear mode (requires QP/NLP solver)
@@ -938,7 +1060,11 @@ class PipePairBlock(BaseComponent):
         # PRESSURE DROP VARIABLES
         # ============================================================
 
-        velocity = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, max_velocity * 1.5))
+        velocity = pyo.Var(
+            time_set,
+            domain=pyo.Reals if _milp_mode else pyo.NonNegativeReals,
+            bounds=(-max_velocity * 1.5 if _milp_mode else 0, max_velocity * 1.5),
+        )
 
         f_friction = config.get('friction_factor', 0.02)
         k_pressure = f_friction * (length_m / d_inner_m) * (density_water / 2.0) / 100000.0
@@ -1008,9 +1134,17 @@ class PipePairBlock(BaseComponent):
         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
 
         if effective_max_flow > 0:
-            bp_fracs = [0.0, 0.3, 0.7, 1.0]
-            bp_flows = [f * effective_max_flow for f in bp_fracs]
-            bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
+            # PWL breakpoints are sized from a design velocity capped at 5 m/s so that
+            # the segment slopes remain physically realistic even when max_velocity_m_s is
+            # set to a large soft-cap value (e.g. 100) purely to relax the m_dot bound.
+            # The final breakpoint always equals effective_max_flow so the PWL covers the
+            # full variable range and flow_sum constraints remain feasible for any m_dot.
+            pwl_design_velocity = min(max_velocity, 5.0)
+            pwl_bp_max_flow = area_m2 * pwl_design_velocity * density_water if area_m2 > 0 else effective_max_flow
+            pwl_bp_max_flow = min(pwl_bp_max_flow, effective_max_flow)
+            bp_fracs_inner = [0.0, 0.3, 0.7]
+            bp_flows = [f * pwl_bp_max_flow for f in bp_fracs_inner] + [effective_max_flow]
+            bp_dp = [k_flow * bp**2 for bp in bp_flows]
 
             slopes = []
             intercepts = []
@@ -1139,8 +1273,11 @@ class PipePairBlock(BaseComponent):
         # â”€â”€ Transport Delay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         # Delayed delivery variable: Q_consumer[t] = heat arriving at consumer at time t
-        Q_consumer = pyo.Var(time_set, domain=pyo.NonNegativeReals,
-                             bounds=(0, max_heat_delivered_mw))
+        Q_consumer = pyo.Var(
+            time_set,
+            domain=pyo.Reals if _milp_mode else pyo.NonNegativeReals,
+            bounds=(-max_heat_delivered_mw if _milp_mode else 0, max_heat_delivered_mw),
+        )
         setattr(model, f'{prefix}_Q_consumer', Q_consumer)
 
         # â”€â”€ Transport Delay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1176,12 +1313,20 @@ class PipePairBlock(BaseComponent):
             delay_warmup_mode = 'cold_zero'
         cp_mw = cp_water / 1000
         # Useful heat at the receiving node (pipe outlet side).
-        # This formulation stays feasible at m_dot=0 (useful heat = 0), while
-        # preserving a physically meaningful consumer-side enthalpy expression.
-        useful_heat_expr = {
-            t: flow_for_hydraulics[t] * cp_mw * (T_supply_out[t] - T_return_in[t])
-            for t in time_set
-        }
+        # L3+ mode: use W variables (McCormick-linearized) so Q_consumer is linear.
+        # Standard mode: bilinear m_dot × ΔT expression (NLP) or constant ΔT (MILP).
+        if _l3plus_mode:
+            # Q_consumer = (W_sup_out - W_ret_in) / 1000 [MW].
+            # W_ret_in = m_dot × cp × T_return_in_PARAM is linear (T is Param).
+            useful_heat_expr = {
+                t: (W_sup_out[t] - flow_for_hydraulics[t] * cp_water * T_return_in[t]) / 1000
+                for t in time_set
+            }
+        else:
+            useful_heat_expr = {
+                t: flow_for_hydraulics[t] * cp_mw * (T_supply_out[t] - T_return_in[t])
+                for t in time_set
+            }
         q_idle_max = 0.0
         if active_flag is not None:
             # When a pipe is "inactive" in binary stagnation mode, allow only a
@@ -1569,6 +1714,11 @@ class PipePairBlock(BaseComponent):
             'Q_loss_return': Q_loss_return,
             'Q_delivered': Q_delivered,
             'Q_consumer': Q_consumer,
+            # L3+ supply enthalpy-flux variables (None in standard MILP / NLP modes)
+            'W_sup_in': W_sup_in,
+            'W_sup_out': W_sup_out,
+            'l3plus_mode': _l3plus_mode,
+            'is_source_pipe': _is_source_pipe,
             'capex': annual_capex,
             'existing': existing_pipe,
             'upgrade_enabled': upgrade_enabled,

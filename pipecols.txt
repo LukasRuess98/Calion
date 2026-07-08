@@ -1,0 +1,2 @@
+['pipe_id', 'from', 'to', 'length_m', 'diameter_mm', 'U_value_W_mK', 'R_resistance', 'm_dot_max_kg_s', 'v_max_m_s', 'dp_max_Pa', 'transport_delay_min', 'k_p_steps', 'annual_loss_MWh', 'annual_loss_share_pct', 'peak_velocity_m_s', 'peak_dp_bar', 'annual_pump_energy_MWh']
+(14, 17)

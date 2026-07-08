@@ -97,31 +97,31 @@ class ThermalGeneratorBlock(BaseComponent):
         # ── Ramp Rate Constraints ──────────────────────────────────────────────
         dt_h_model = float(getattr(m, 'dt_h', 1.0))
         time_list = sorted(list(Tset))
+        t_idx = {t: i for i, t in enumerate(time_list)}  # O(1) lookup — avoids O(N²) list.index()
 
         if self.max_ramp_up_mw_per_h is not None:
             ramp_up_mw = self.max_ramp_up_mw_per_h * dt_h_model
 
-            def ramp_up_rule(mm, t):
-                idx = time_list.index(t)
+            def ramp_up_rule(mm, t, _tl=time_list, _ti=t_idx):
+                idx = _ti[t]
                 if idx == 0:
                     return pyo.Constraint.Skip
-                return Qth[t] - Qth[time_list[idx - 1]] <= ramp_up_mw
+                return Qth[t] - Qth[_tl[idx - 1]] <= ramp_up_mw
 
             setattr(m, f"{comp}_ramp_up", pyo.Constraint(Tset, rule=ramp_up_rule))
 
         if self.max_ramp_down_mw_per_h is not None:
             ramp_down_mw = self.max_ramp_down_mw_per_h * dt_h_model
 
-            def ramp_down_rule(mm, t):
-                idx = time_list.index(t)
+            def ramp_down_rule(mm, t, _tl=time_list, _ti=t_idx):
+                idx = _ti[t]
                 if idx == 0:
                     return pyo.Constraint.Skip
-                return Qth[time_list[idx - 1]] - Qth[t] <= ramp_down_mw
+                return Qth[_tl[idx - 1]] - Qth[t] <= ramp_down_mw
 
             setattr(m, f"{comp}_ramp_down", pyo.Constraint(Tset, rule=ramp_down_rule))
 
         # ── Min Uptime / Downtime (unit commitment) ────────────────────────────
-        # Pattern copied from heat_pump.py:141–187.
         L = max(0, round(self.min_uptime_h / dt_h_model))
         D = max(0, round(self.min_downtime_h / dt_h_model))
 
@@ -133,11 +133,11 @@ class ThermalGeneratorBlock(BaseComponent):
             setattr(m, f"{comp}_u", u)
             setattr(m, f"{comp}_v", v)
 
-            def state_transition_rule(mm, t):
-                idx = time_list.index(t)
+            def state_transition_rule(mm, t, _tl=time_list, _ti=t_idx):
+                idx = _ti[t]
                 if idx == 0:
                     return pyo.Constraint.Skip
-                t_prev = time_list[idx - 1]
+                t_prev = _tl[idx - 1]
                 return on[t] - on[t_prev] == u[t] - v[t]
 
             setattr(m, f"{comp}_state_transition",
@@ -150,19 +150,19 @@ class ThermalGeneratorBlock(BaseComponent):
                     pyo.Constraint(Tset, rule=no_simultaneous_rule))
 
             if L > 0:
-                def min_uptime_rule(mm, t):
-                    idx = time_list.index(t)
+                def min_uptime_rule(mm, t, _tl=time_list, _ti=t_idx):
+                    idx = _ti[t]
                     start = max(0, idx - L + 1)
-                    return sum(u[time_list[k]] for k in range(start, idx + 1)) <= on[t]
+                    return sum(u[_tl[k]] for k in range(start, idx + 1)) <= on[t]
 
                 setattr(m, f"{comp}_min_uptime",
                         pyo.Constraint(Tset, rule=min_uptime_rule))
 
             if D > 0:
-                def min_downtime_rule(mm, t):
-                    idx = time_list.index(t)
+                def min_downtime_rule(mm, t, _tl=time_list, _ti=t_idx):
+                    idx = _ti[t]
                     start = max(0, idx - D + 1)
-                    return sum(v[time_list[k]] for k in range(start, idx + 1)) <= 1 - on[t]
+                    return sum(v[_tl[k]] for k in range(start, idx + 1)) <= 1 - on[t]
 
                 setattr(m, f"{comp}_min_downtime",
                         pyo.Constraint(Tset, rule=min_downtime_rule))

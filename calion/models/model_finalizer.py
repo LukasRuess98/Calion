@@ -418,13 +418,73 @@ class ModelFinalizer:
                 net_cfg.get('temperature_linearize',
                 self.cfg.get('scenario', {}).get('temperature_linearize', None)))
             ),
+            # L3+ spatial temperature propagation (2026-07-08) -- was never
+            # forwarded here at all, so 'network.temperature_propagation: true'
+            # in the YAML was silently dropped before NetworkManager ever saw
+            # it (NetworkManager._net_cfg resolves 'thermal_network' over
+            # 'network', and this function builds 'thermal_network' fresh).
+            "temperature_propagation": (
+                tn_cfg.get('temperature_propagation', False)
+                or net_cfg.get('temperature_propagation', False)
+            ),
             "linearization": lin_cfg,
             "temperature_frame": temperature_frame_cfg,
             "physics": physics_cfg,
             "state_validation": (
                 net_cfg.get('state_validation') or tn_cfg.get('state_validation') or {}
             ),
+            # primary_producer: designates which producer node gets a fixed P_supply setpoint.
+            # Other producers in multi-source networks (e.g. Stadtbach) get floating pressure.
+            "primary_producer": (
+                net_cfg.get('primary_producer') or tn_cfg.get('primary_producer') or None
+            ),
+            # Paper 2 F4: TES↔network pressure coupling (spec §4.1.3 edit).
+            # Only populated when physics.tes_pressure_coupling is enabled.
+            "tes_pressure_coupling": self._build_tes_pressure_coupling(ucfg, physics_cfg),
         }
+
+    def _build_tes_pressure_coupling(self, ucfg, physics_cfg: dict) -> list[dict]:
+        """Collect geometric-TES pressure-coupling specs (spec §4.1.3 edit).
+
+        For each geometric_storage asset at a node, precompute the h(V) PWL
+        breakpoints (h = (4·r²·V/π)^(1/3), concave) so NetworkManager can add:
+          P_supply[n,t] ≥ p_atm + ρg·h/1e5 + k·Qc(t) − k·Qd(t) − M(1−build)
+          P_supply[n,t] ≤ p_max_bar + M(1−build)
+        """
+        import math as _math
+
+        from ..constants import G_ACCEL_M_S2, P_ATM_BAR, RHO_WATER_HOT_KG_M3
+        if not physics_cfg.get('tes_pressure_coupling', False):
+            return []
+        specs = []
+        _RHO, _G, _P_ATM = RHO_WATER_HOT_KG_M3, G_ACCEL_M_S2, P_ATM_BAR
+        for node_id, node_cfg in ucfg.nodes.items():
+            for asset_id in node_cfg.assets:
+                asset = ucfg.assets.get(asset_id)
+                if asset is None or asset.type != 'geometric_storage':
+                    continue
+                p = dict(asset.params)
+                r_hd = float(p.get('r_hd', 3.0))
+                p_max_bar = float(p.get('p_max_bar', 10.0))
+                V_max = float(p.get('V_max_m3', 5000.0))
+                h_max_p = (p_max_bar - _P_ATM) * 1e5 / (_RHO * _G)
+                V_max_p = _math.pi * h_max_p ** 3 / (4.0 * r_hd ** 2)
+                V_eff = min(V_max, V_max_p)
+                fracs = [0.0, 0.05, 0.2, 0.5, 1.0]
+                V_breaks = [f * V_eff for f in fracs]
+                h_breaks = [
+                    (v * 4.0 * r_hd ** 2 / _math.pi) ** (1.0 / 3.0) if v > 0 else 0.0
+                    for v in V_breaks
+                ]
+                specs.append({
+                    'node_id': node_id,
+                    'asset_id': asset_id,
+                    'p_max_bar': p_max_bar,
+                    'conn_dp_bar_per_mw': float(p.get('conn_dp_bar_per_mw', 0.01)),
+                    'V_breaks': V_breaks,
+                    'h_breaks': h_breaks,
+                })
+        return specs
 
     def _integrate_network_legacy(self) -> None:
         """Network integration for legacy config (unchanged from original)."""

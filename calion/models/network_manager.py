@@ -19,6 +19,7 @@ except ImportError:
     HAVE_PYOMO = False
     pyo = None
 
+from ..constants import G_ACCEL_M_S2, P_ATM_BAR, RHO_WATER_HOT_KG_M3
 from ..utils.config_utils import resolve_heating_curve_profile
 from .blocks.pipe_pair import PipePairBlock
 from .blocks.thermal_node import ThermalNodeBlock
@@ -463,19 +464,21 @@ class NetworkManager:
         self._ensure_single_node_fallback()
 
         temp_setup = self._setup_temperatures(model, time_set)
-        pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup)
-        node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components)
+        l3plus = self._classify_node_temperature_mode()
+        pipe_components = self._attach_all_pipes(model, time_set, buses, temp_setup, l3plus)
+        node_components = self._attach_all_nodes(model, time_set, buses, temp_setup, pipe_components, l3plus)
 
         milp_linearize = self._milp_linearize
         pressure_drop_enabled = self._pressure_drop_enabled
 
         self._link_pipe_temperatures(
-            model, time_set, pipe_components, node_components, temp_setup=temp_setup
+            model, time_set, pipe_components, node_components, temp_setup=temp_setup, l3plus=l3plus
         )
         self._link_consumer_demands(model, time_set, pipe_components, node_components)
         if pressure_drop_enabled:
             self._link_pressure_propagation(model, time_set, pipe_components, node_components)
             pump_el_flows = self._link_pump_head(model, time_set, pipe_components, node_components)
+            self._link_tes_pressure_coupling(model, time_set, node_components)
         else:
             logger.info("Pressure drop disabled: skipping pressure propagation and pump head constraints")
             pump_el_flows = []
@@ -491,8 +494,6 @@ class NetworkManager:
 
         self._setup_network_losses(model, time_set, pipe_components)
         self._setup_pipe_thermal_buffer(model, time_set, pipe_components)
-        if pressure_drop_enabled:
-            self._attach_tall_tank_pressure(model, time_set, node_components)
         # Keep references for post-solve residual diagnostics.
         self._last_pipe_components = pipe_components
         self._last_node_components = node_components
@@ -819,8 +820,80 @@ class NetworkManager:
             'return_temp_band_dict': {t: 0.0 for t in time_set},
         }
 
-    def _attach_all_pipes(self, model, time_set, buses, temp_setup) -> dict:
+    def _classify_node_temperature_mode(self) -> dict[str, Any]:
+        """Decide which nodes get a real per-node T_supply Var (L3+ spatial
+        temperature propagation, McCormick-relaxed) vs the legacy
+        network-uniform Param, and which pipes participate.
+
+        Config-only (no Pyomo objects needed yet), computed once and threaded
+        into both _attach_all_pipes and _attach_all_nodes so the two phases
+        can never disagree about a given node -- two independent
+        computations of the same physical fact is exactly the bug pattern
+        that caused the 2026-07-07 endogenous-siting infeasibility chain
+        (see memory project_endogenous_siting_bugfix).
+
+        Scope: every node with >=1 incoming pipe gets a Var T_supply,
+        INCLUDING local-generation / F3-candidate nodes (full coverage per
+        2026-07-08 decision) -- EXCEPT nodes adjacent to a bidirectional
+        pipe, where combining McCormick-relaxed temperature-as-Var with
+        direction-dependent flow is an unsolved sub-problem (the existing
+        Big-M direction-selection logic for bidirectional pipes only exists
+        in non-MILP mode). Those nodes keep today's uniform Param.
+        """
+        propagation_on = bool(self._net_cfg.get('temperature_propagation', False)) and self._milp_linearize
+
+        bidir_adjacent: set[str] = set()
+        incoming_count: dict[str, int] = {node_id: 0 for node_id in self.nodes}
+        pipe_endpoints: dict[str, tuple[str, str]] = {}
+        for pipe_id, pipe_cfg in self.pipes.items():
+            pipe_dict = pipe_cfg if isinstance(pipe_cfg, dict) else pipe_cfg.__dict__
+            from_node = pipe_dict.get('from_node') or pipe_dict.get('from')
+            to_node = pipe_dict.get('to_node') or pipe_dict.get('to')
+            pipe_endpoints[pipe_id] = (from_node, to_node)
+            if to_node in incoming_count:
+                incoming_count[to_node] += 1
+            if bool(pipe_dict.get('bidirectional', False)):
+                bidir_adjacent.add(from_node)
+                bidir_adjacent.add(to_node)
+
+        node_is_var: dict[str, bool] = {}
+        for node_id in self.nodes:
+            node_is_var[node_id] = (
+                propagation_on
+                and incoming_count.get(node_id, 0) > 0
+                and node_id not in bidir_adjacent
+            )
+
+        pipe_l3plus: dict[str, bool] = {}
+        pipe_is_source: dict[str, bool] = {}
+        for pipe_id, (from_node, to_node) in pipe_endpoints.items():
+            active = (
+                propagation_on
+                and from_node not in bidir_adjacent
+                and to_node not in bidir_adjacent
+            )
+            pipe_l3plus[pipe_id] = active
+            pipe_is_source[pipe_id] = active and not node_is_var.get(from_node, False)
+
+        if propagation_on:
+            n_var = sum(node_is_var.values())
+            n_excluded_bidir = len(bidir_adjacent)
+            logger.info(
+                "[L3+] Spatial temperature propagation active: %d/%d nodes get "
+                "a real T_supply Var, %d node(s) excluded (bidirectional-adjacent)",
+                n_var, len(self.nodes), n_excluded_bidir,
+            )
+
+        return {
+            'node_is_var': node_is_var,
+            'pipe_l3plus': pipe_l3plus,
+            'pipe_is_source': pipe_is_source,
+            'propagation_on': propagation_on,
+        }
+
+    def _attach_all_pipes(self, model, time_set, buses, temp_setup, l3plus: dict[str, Any] | None = None) -> dict:
         """Phase 1: Validate and attach all pipe pair blocks."""
+        l3plus = l3plus or {'node_is_var': {}, 'pipe_l3plus': {}, 'pipe_is_source': {}, 'propagation_on': False}
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
         use_outdoor_temp = temp_setup['use_outdoor_temp']
@@ -893,6 +966,12 @@ class NetworkManager:
                 'physics': physics_cfg,
                 'delay_warmup_mode': delay_warmup_mode,
                 'state_validation': merged_state_validation_global,
+                # L3+ spatial temperature propagation (2026-07-08) -- was read by
+                # pipe_pair.py but never actually forwarded here, so the flag was
+                # always dead regardless of the YAML setting. See
+                # _classify_node_temperature_mode for how these are derived.
+                'temperature_propagation': l3plus['pipe_l3plus'].get(pipe_id, False),
+                'is_source_pipe': l3plus['pipe_is_source'].get(pipe_id, False),
             }
             PipePairBlock.validate_config(enriched_config)
             pipe_result = PipePairBlock.attach(model, time_set, enriched_config, buses)
@@ -905,8 +984,11 @@ class NetworkManager:
 
         return pipe_components
 
-    def _attach_all_nodes(self, model, time_set, buses, temp_setup, pipe_components) -> dict:
+    def _attach_all_nodes(
+        self, model, time_set, buses, temp_setup, pipe_components, l3plus: dict[str, Any] | None = None
+    ) -> dict:
         """Phase 2: Validate and attach all thermal node blocks."""
+        l3plus = l3plus or {'node_is_var': {}, 'pipe_l3plus': {}, 'pipe_is_source': {}, 'propagation_on': False}
         supply_temp = temp_setup['supply_temp']
         return_temp = temp_setup['return_temp']
 
@@ -1010,10 +1092,42 @@ class NetworkManager:
                     else:
                         merged_state_validation[_k] = _v
 
+            # BUGFIX (2026-07-07): nodes used to only get 'supply_temp_nominal_c'
+            # (a single scalar -- the yearly average), while the pipes attached
+            # to them got the real per-timestep heating-curve dict (see
+            # _attach_all_pipes above, 'supply_temp_dict': pipe_supply_dict).
+            # In MILP-linearized mode thermal_node.py turns T_supply into a Param
+            # initialized from whatever it's given -- so a node's own T_supply
+            # was frozen at the constant nominal value all year, while its
+            # incoming/outgoing pipes correctly tracked the hourly curve. This
+            # is invisible for terminal consumers (their demand is enforced
+            # directly against the pipe's Q_consumer, bypassing the node's own
+            # heat_demand constraint entirely), but for passthrough consumers
+            # (local demand + outgoing pipes, e.g. Memmingen's j_3/j_5/j_9/j_12/
+            # j_13) thermal_node.py's heat_demand constraint DOES fire and uses
+            # the node's own (wrong, constant) T_supply -- creating a per-hour
+            # Q<->m_dot conversion that silently disagrees with the pipe's
+            # (correct, hourly) conversion for the exact same physical flow.
+            # Normally enough slack (dump, generation) absorbs the mismatch;
+            # confirmed via IIS that F3 endogenous siting removes that slack at
+            # whichever candidate isn't currently selected, turning a latent
+            # accuracy gap into outright infeasibility. Fix: give nodes the same
+            # per-timestep dict pipes already get, with the node's own
+            # T_supply_offset_c applied the same way _attach_all_pipes applies
+            # it to its FROM-node's outgoing pipes.
+            _node_T_offset = float(node_dict.get('T_supply_offset_c', 0.0) or 0.0)
+            _base_node_supply = temp_setup.get('supply_temp_dict')
+            _node_supply_dict = (
+                {t: v + _node_T_offset for t, v in _base_node_supply.items()}
+                if _base_node_supply and _node_T_offset != 0.0
+                else _base_node_supply
+            )
+
             enriched_config = {
                 **node_dict,
                 'id': node_id,
-                'supply_temp_nominal_c': supply_temp,
+                'supply_temp_nominal_c': supply_temp + _node_T_offset,
+                'supply_temp_dict': _node_supply_dict,
                 'return_temp_c': return_temp,
                 'milp_linearize': milp_linearize,
                 'temperature_linearize': temperature_linearize,
@@ -1021,6 +1135,17 @@ class NetworkManager:
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'delta_p_min_consumer_bar': delta_p_min_consumer,
                 'state_validation': merged_state_validation,
+                # L3+ (2026-07-08): this node gets a real, spatially-propagating
+                # T_supply Var instead of the network-uniform Param, per
+                # _classify_node_temperature_mode's single source of truth.
+                # 'temperature_propagation_active' (global on/off) is separate from
+                # 'temperature_propagation_var' (per-node) so thermal_node.py can
+                # tell "L3+ off entirely" apart from "L3+ on but this node is a
+                # root/anchor or bidirectional-excluded" -- the latter still needs
+                # a Param, including for 'producer'-type nodes, unlike the legacy
+                # (L3+-off) behavior where producer nodes always got a Var.
+                'temperature_propagation_var': l3plus['node_is_var'].get(node_id, False),
+                'temperature_propagation_active': l3plus.get('propagation_on', False),
             }
             ThermalNodeBlock.validate_config(enriched_config)
             node_result = ThermalNodeBlock.attach(
@@ -1032,10 +1157,12 @@ class NetworkManager:
         return node_components
 
     def _link_pipe_temperatures(
-        self, model, time_set, pipe_components, node_components, temp_setup: dict | None = None
+        self, model, time_set, pipe_components, node_components, temp_setup: dict | None = None,
+        l3plus: dict[str, Any] | None = None,
     ) -> None:
         """Phase 3: manager-owned pipe<->node temperature coupling with interface checks."""
         milp_linearize = self._milp_linearize
+        l3plus = l3plus or {'node_is_var': {}, 'pipe_l3plus': {}, 'pipe_is_source': {}, 'propagation_on': False}
         logger.info("\nConnecting pipe temperatures to nodes...")
         supply_profile = None
         if isinstance(temp_setup, dict):
@@ -1127,6 +1254,24 @@ class NetworkManager:
                 setattr(model, constraint_name, pyo.Constraint(time_set, rule=supply_link_rule))
                 from_node_comp.setdefault('supply_outgoing_pipe_links', []).append(pipe_id)
                 logger.info(f"    {pipe_id}.T_supply_in â† {from_node}.T_supply")
+            # L3+ spatial temperature propagation (2026-07-08): closes the actual
+            # gap -- ties a non-source pipe's own T_supply_in (a McCormick-
+            # relaxed Var, see pipe_pair.py) to its upstream node's T_supply.
+            # This is pure linear glue: all the real m_dot*T nonlinearity is
+            # already resolved inside the pipe's own W_sup_in/W_sup_out McCormick
+            # blocks, so a plain Var==Var (or Var==Param, for a source pipe whose
+            # own T_supply_in is a Param) equality introduces no new relaxation.
+            if from_node in node_components and l3plus.get('pipe_l3plus', {}).get(pipe_id, False):
+                from_node_comp = node_components[from_node]
+                node_T_supply = from_node_comp.get('T_supply')
+                if isinstance(pipe_T_supply_in, pyo.Var) and node_T_supply is not None:
+                    def l3plus_supply_link_rule(m, t, _pipe=pipe_T_supply_in, _node=node_T_supply):
+                        if isinstance(_node, pyo.Param):
+                            return _pipe[t] == pyo.value(_node[t])
+                        return _pipe[t] == _node[t]
+                    setattr(model, f"link_pipe_{pipe_id}_supply_in_to_node_{from_node}_l3plus",
+                            pyo.Constraint(time_set, rule=l3plus_supply_link_rule))
+                    logger.info(f"    {pipe_id}.T_supply_in <- {from_node}.T_supply (L3+)")
 
             if to_node in node_components and not milp_linearize:
                 to_node_comp = node_components[to_node]
@@ -1473,6 +1618,109 @@ class NetworkManager:
         setattr(model, f"{pfx}_enthalpy", pyo.Constraint(time_set, rule=mixing_rule))
         logger.info("  âœ“ %s: enthalpy mixing (%d pipes, attr=%s)", node_id, len(pipe_ids), temperature_attr)
 
+    def _link_tes_pressure_coupling(self, model, time_set, node_components: dict) -> None:
+        """Paper 2 F4 — couple geometric-TES hydrostatic head into node pressure.
+
+        Spec §4.1.3 (edited): (1) the storage column height feeds pressure into
+        the network at its node; (2) charge/discharge flow adds a connection
+        pressure drop. Formulation (linear, exact h(V) via SOS2 PWL):
+
+          h = PWL(V) with breakpoints on the concave curve h=(4·r²·V/π)^(1/3)
+          P_supply[n,t] ≥ p_atm + ρ·g·h/1e5 + k·Qc(t) − k·Qd(t) − M·(1−build)
+          P_supply[n,t] ≤ p_max_bar + M·(1−build)          [vessel rating]
+
+        Specs are prepared python-side by ModelFinalizer._build_tes_pressure_coupling.
+        """
+        specs = self._net_cfg.get('tes_pressure_coupling') or []
+        if not specs:
+            return
+        _RHO, _G, _P_ATM = RHO_WATER_HOT_KG_M3, G_ACCEL_M_S2, P_ATM_BAR
+        _M_BAR = 20.0
+        primary_producer_id = self._net_cfg.get('primary_producer', None)
+        logger.info("\nSetting up TES pressure coupling (%d storages)...", len(specs))
+
+        for spec in specs:
+            node_id = spec['node_id']
+            asset_id = spec['asset_id']
+            node_comp = node_components.get(node_id)
+            if node_comp is None or 'pressure_supply' not in node_comp:
+                logger.warning("  ⚠ %s: node %s has no pressure vars — coupling skipped",
+                               asset_id, node_id)
+                continue
+            V = getattr(model, f"{asset_id}_V_m3", None)
+            build = getattr(model, f"{asset_id}_build", None)
+            Qc = getattr(model, f"{asset_id}_Qc", None)
+            Qd = getattr(model, f"{asset_id}_Qd", None)
+            if V is None or build is None:
+                logger.warning("  ⚠ %s: geometric storage vars not on model — coupling skipped",
+                               asset_id)
+                continue
+
+            P_sup = node_comp['pressure_supply']
+            V_breaks = spec['V_breaks']
+            h_breaks = spec['h_breaks']
+            n_bp = len(V_breaks)
+            k_dp = float(spec['conn_dp_bar_per_mw'])
+            p_max = float(spec['p_max_bar'])
+
+            # PWL h(V) via convex-combination lambdas + SOS2
+            lam = pyo.Var(range(n_bp), domain=pyo.NonNegativeReals, bounds=(0, 1))
+            h_var = pyo.Var(domain=pyo.NonNegativeReals,
+                            bounds=(0.0, max(h_breaks) if h_breaks else 0.0))
+            setattr(model, f"{asset_id}_pwl_lam", lam)
+            setattr(model, f"{asset_id}_h_m", h_var)
+            setattr(model, f"{asset_id}_pwl_sum",
+                    pyo.Constraint(expr=sum(lam[i] for i in range(n_bp)) == build))
+            setattr(model, f"{asset_id}_pwl_V",
+                    pyo.Constraint(expr=V == sum(lam[i] * V_breaks[i] for i in range(n_bp))))
+            setattr(model, f"{asset_id}_pwl_h",
+                    pyo.Constraint(expr=h_var == sum(lam[i] * h_breaks[i] for i in range(n_bp))))
+            setattr(model, f"{asset_id}_pwl_sos2",
+                    pyo.SOSConstraint(var=lam, sos=2))
+
+            # Hydrostatic support + charge/discharge Δp (lower bound on node pressure).
+            # BUGFIX (2026-07-04): skip this at the primary-producer node — its
+            # P_supply is FIXED (equality) to the pump setpoint by
+            # _link_pressure_propagation, independent of anything at that node.
+            # A tank built there with real height + active charging pushed the
+            # required RHS above the fixed setpoint -> proven infeasible (Gurobi:
+            # "infeasible or unbounded" on all 3 MM-S1-HK* runs, TES at j_1 =
+            # primary_producer). Physically correct too: hydrostatic "pressure
+            # support" only matters where pressure is set by propagation from
+            # the pump station, not at the pump station itself — matches spec
+            # §3.3's own framing (S3: support relevant at the hydraulically
+            # remote point, not the Zentrale).
+            if node_id == primary_producer_id:
+                logger.info(
+                    "  %s @ %s: hydrostatic push constraint SKIPPED (primary "
+                    "producer — P_supply fixed by pump setpoint, not tank height)",
+                    asset_id, node_id,
+                )
+            else:
+                def _p_head_rule(mm, t, _P=P_sup, _h=h_var, _b=build, _qc=Qc, _qd=Qd,
+                                 _k=k_dp):
+                    rhs = _P_ATM + (_RHO * _G / 1e5) * _h - _M_BAR * (1 - _b)
+                    if _qc is not None:
+                        rhs = rhs + _k * _qc[t]
+                    if _qd is not None:
+                        rhs = rhs - _k * _qd[t]
+                    return _P[t] >= rhs
+                setattr(model, f"{asset_id}_p_head",
+                        pyo.Constraint(time_set, rule=_p_head_rule))
+
+            # Vessel pressure rating
+            def _p_rating_rule(mm, t, _P=P_sup, _b=build, _pm=p_max):
+                return _P[t] <= _pm + _M_BAR * (1 - _b)
+            setattr(model, f"{asset_id}_p_rating",
+                    pyo.Constraint(time_set, rule=_p_rating_rule))
+
+            logger.info(
+                "  [OK] %s @ %s: h(V) PWL %d breakpoints (h_max=%.1f m), "
+                "p_max=%.1f bar, conn dp=%.3f bar/MW",
+                asset_id, node_id, n_bp, max(h_breaks) if h_breaks else 0.0,
+                p_max, k_dp,
+            )
+
     def _link_pressure_propagation(
         self, model, time_set, pipe_components: dict, node_components: dict
     ) -> None:
@@ -1487,9 +1735,31 @@ class NetworkManager:
         """
         logger.info("\nSetting up pressure propagation constraints...")
 
-        # Fix producer supply pressure setpoints
+        # When primary_producer is set in the network config, only that node gets a fixed
+        # P_supply setpoint. Secondary producers in multi-source networks (e.g. Stadtbach
+        # with 6 sources) have their supply pressure determined by network propagation.
+        # Without this, all producers at P=10 bar simultaneously constrain shared junctions
+        # (e.g. j_ost fed by j_gtost, j_bmhkw, j_ava, j_hkw) -> infeasible with corrected PWL.
+        primary_producer_id = self._net_cfg.get('primary_producer', None)
+        all_producer_node_ids = {
+            nid for nid, nc in node_components.items() if nc['type'] in ('producer', 'mixed')
+        }
+        if primary_producer_id is not None:
+            pressure_fixed_producers = {primary_producer_id} & all_producer_node_ids
+            secondary_producers = all_producer_node_ids - pressure_fixed_producers
+            if secondary_producers:
+                logger.info(
+                    '  primary_producer=%s: fixing P_supply only for primary.'
+                    ' Secondary producers with floating pressure: %s',
+                    primary_producer_id, sorted(secondary_producers)
+                )
+        else:
+            pressure_fixed_producers = all_producer_node_ids
+            secondary_producers = set()
+
+        # Fix P_supply setpoints for primary (or all) producers
         for node_id, node_comp in node_components.items():
-            if node_comp['type'] not in ('producer', 'mixed'):
+            if node_id not in pressure_fixed_producers:
                 continue
             node_cfg = self.nodes.get(node_id, {})
             setpoint = node_cfg.get('pressure', {}).get('setpoint_bar', 10.0)
@@ -1497,22 +1767,19 @@ class NetworkManager:
 
             setattr(
                 model,
-                f"producer_{node_id}_P_supply_setpoint",
+                f'producer_{node_id}_P_supply_setpoint',
                 pyo.Constraint(
                     time_set,
                     rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] == _sp,
                 ),
             )
             logger.info(
-                f"  âœ“ Producer {node_id}: P_supply fixed = {setpoint} bar, "
-                f"P_return determined by pump head"
+                '  Producer %s: P_supply fixed = %s bar, P_return determined by pump head',
+                node_id, setpoint
             )
 
-        # Collect producer/mixed node IDs
-        producer_nodes = {
-            nid for nid, nc in node_components.items() if nc['type'] in ('producer', 'mixed')
-        }
-
+        # producer_nodes: only pressure-fixed producers used for loop-closing check below
+        producer_nodes = pressure_fixed_producers
         # Propagate pressure through pipes
         for pipe_id, pipe_comp in pipe_components.items():
             from_node = pipe_comp['from_node']
@@ -1859,36 +2126,6 @@ class NetworkManager:
             "[NET_MANAGER] Pipe thermal buffer: E_max=%.3f MWh, Q_buf_max=%.2f MW, E0=%.3f MWh, dt_h=%.2f h",
             E_max_mwh, Q_buf_max, E0, dt_h,
         )
-
-    def _attach_tall_tank_pressure(self, model, time_set, node_components) -> None:
-        """Add pressure-head constraints from TallTankStorageBlock to their network nodes.
-
-        P_head[t] from the tall-tank block is added to the node's pressure_supply[t]
-        as a lower bound: pressure_supply[t] >= P_head[t].
-        The P_head variables are stored on the model by component_assembler as
-        model._tall_tank_pressure_refs = {node_id: P_head_var}.
-        """
-        refs = getattr(model, "_tall_tank_pressure_refs", {})
-        if not refs:
-            return
-
-        for node_id, P_head_var in refs.items():
-            node_comp = node_components.get(node_id)
-            if node_comp is None:
-                logger.warning("[NET_MANAGER] TallTank pressure coupling: node '%s' not found, skipping", node_id)
-                continue
-            node_P_supply = node_comp.get("pressure_supply")
-            if node_P_supply is None:
-                logger.warning("[NET_MANAGER] TallTank: node '%s' has no pressure_supply var, skipping", node_id)
-                continue
-
-            cname = f"tall_tank_pressure_{node_id}"
-
-            def _pressure_rule(mm, t, _ps=node_P_supply, _ph=P_head_var):
-                return _ps[t] >= _ph[t]
-
-            setattr(model, cname, pyo.Constraint(time_set, rule=_pressure_rule))
-            logger.info("[NET_MANAGER] TallTank pressure coupled: node '%s' → constraint '%s'", node_id, cname)
 
     @staticmethod
     def _safe_numeric_value(expr, default: float = 0.0) -> float:

@@ -11,11 +11,12 @@
 #   Star-of-stars: plant -> 14 junction-to-junction pipes
 #   Total nodes: 15 (1 plant-junction, 14 distribution junctions)
 #   Total pipes: 14 connections (junction-to-junction only)
-#   Total pipe length: ~3,255 m
+#   Total pipe length: ~4,418 m (2026-07-07: recalibrated from DXF for j1_to_j2...j9_to_j10,
+#     see Memmingen_L3_MILP.yaml header for detail; still backbone-only, not the full ~18km real net)
 #   Demand distribution: V_1-V_27 demand columns merged into junctions
 #
 # SYSTEM SUMMARY (Fixed Assets):
-#   Peak demand:     ~76 MW
+#   Peak demand:     ~76 MW (STALE -- real data peaks at 11.4 MW, see 2026-07-07 DXF cross-check)
 #   CHP:             0.2 MW_th / 0.1 MW_el
 #   Gas boiler:      80 MW_th, eta = 0.90 (Spitzenlast-Backup)
 #   Biomass boiler:  3.3 MW_th, eta = 0.85
@@ -25,7 +26,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epronet_cleaned.xlsx"  # 2026-07-07: quality-flag cleaned, see memory project_memmingen_dxf_crosscheck
   columns:
     datetime: "Datum"
     price: "strompreis_EUR_MWh"
@@ -165,59 +166,60 @@ network:
         - column: "V_27_demand_MWth"
 
   # --- PIPES: 14 Junction-to-Junction ---
+  # Längen/Durchmesser 2026-07-07 aus DXF-Bestandsplan rekalibriert (siehe L3_MILP.yaml Kommentar).
   pipes:
     j1_to_j2:
       from: j_1
       to: j_2
-      length_m: 350
-      diameter_mm: 450
+      length_m: 1180
+      diameter_mm: 250
 
     j2_to_j3:
       from: j_2
       to: j_3
-      length_m: 300
-      diameter_mm: 450
+      length_m: 513
+      diameter_mm: 200
 
     j3_to_j4:
       from: j_3
       to: j_4
-      length_m: 260
-      diameter_mm: 300
+      length_m: 116
+      diameter_mm: 250
 
     j3_to_j9:
       from: j_3
       to: j_9
-      length_m: 450
-      diameter_mm: 350
+      length_m: 83
+      diameter_mm: 250
 
     j4_to_j5:
       from: j_4
       to: j_5
-      length_m: 240
+      length_m: 728
       diameter_mm: 250
 
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 150
-      diameter_mm: 150
+      length_m: 159
+      diameter_mm: 200
 
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 220
-      diameter_mm: 125
+      length_m: 50
+      diameter_mm: 65
 
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 80
-      diameter_mm: 100
+      length_m: 120
+      diameter_mm: 65
 
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 200
+      length_m: 464
       diameter_mm: 300
 
     j10_to_j11:

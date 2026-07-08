@@ -40,21 +40,38 @@ SENSITIVITY_PARAMS = {
         ("c_co2_high", {"costs": {"co2_price_eur_per_t": 150.0}}), # +50%
     ],
     "alpha_wp": [
+        # ±25% of the network's own base value (MM hp_main 700k, SB hp_sb 400k);
+        # the unused asset key is an ignored orphan on the other network.
         ("alpha_wp_low", {
-            "assets": {"hp_main": {"investment": {"capex_eur_per_mw": 525000.0}}},  # -25%
+            "assets": {
+                "hp_main": {"investment": {"capex_eur_per_mw": 525000.0}},
+                "hp_sb": {"investment": {"capex_eur_per_mw": 300000.0}},
+            },
         }),
         ("alpha_wp_high", {
-            "assets": {"hp_main": {"investment": {"capex_eur_per_mw": 875000.0}}},  # +25%
+            "assets": {
+                "hp_main": {"investment": {"capex_eur_per_mw": 875000.0}},
+                "hp_sb": {"investment": {"capex_eur_per_mw": 500000.0}},
+            },
         }),
     ],
     "Q_AW_max": [
+        # Spec §7: −50%, −100%, +50%, +100%
         ("q_aw_minus50", {"site": {"wrg_scale_factor": 0.5}}),   # -50%
-        ("q_aw_zero", {"site": {"wrg_scale_factor": 0.0}}),       # -100%
+        ("q_aw_zero", {"site": {"wrg_scale_factor": 0.0}}),      # -100%
+        ("q_aw_plus50", {"site": {"wrg_scale_factor": 1.5}}),    # +50%
+        ("q_aw_plus100", {"site": {"wrg_scale_factor": 2.0}}),   # +100%
     ],
     # delta_max excluded: DSM not integrated in current CALION assembler
     "discount_rate": [
         ("i_low", {"investment": {"discount_rate": 0.03}}),   # -2pp
         ("i_high", {"investment": {"discount_rate": 0.07}}),  # +2pp
+    ],
+    "tariff_band": [
+        # Grid-fee structure: <2500 h/a utilization band (low Leistungspreis,
+        # high Arbeitspreis) — tests whether the tariff band flips EK/HP sizing.
+        ("tariff_low_util", {"grid": {"demand_charge_eur_per_mw_y": 30000.0,
+                                      "gridcost_eur_mwh": 70.0}}),
     ],
 }
 

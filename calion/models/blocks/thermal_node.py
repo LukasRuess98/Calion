@@ -33,6 +33,7 @@ from ..state_constraints import (
     enforce_supply_ge_return_temperature,
     enforce_minimum_pressure,
 )
+from ..utils.mccormick import add_mccormick_constraints as _mccormick
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ class ThermalNodeBlock(BaseComponent):
 
         cp_water = 4.186  # kJ/(kgÂ·K)
         supply_temp_nominal_c = config.get('supply_temp_nominal_c', 90.0)
+        supply_temp_dict = config.get('supply_temp_dict')
         return_temp_c = config.get('return_temp_c', 50.0)
         pressure_nominal_bar = config.get('pressure_nominal_supply_bar', 10.0)
 
@@ -146,11 +148,53 @@ class ThermalNodeBlock(BaseComponent):
         if milp_linearize_temp is None:
             milp_linearize_temp = config.get('milp_linearize', False)
 
-        if milp_linearize_temp and node_type in ('consumer', 'junction', 'mixed'):
-            # MILP mode: fix supply temperature to nominal value â†’ eliminates bilinear products
+        # L3+ spatial temperature propagation (2026-07-08): 'temperature_propagation_active'
+        # is the GLOBAL on/off flag, 'temperature_propagation_var' is this node's OWN
+        # classification from network_manager.py's _classify_node_temperature_mode
+        # (single source of truth, shared with pipe_pair.py's is_source_pipe/L3+
+        # gating so the two phases can never disagree about a given node).
+        _l3plus_active = bool(config.get('temperature_propagation_active', False))
+        _l3plus_node_var = bool(config.get('temperature_propagation_var', False))
+
+        if not milp_linearize_temp:
+            # NLP mode: unchanged, always a Var.
             setattr(model, f'{prefix}_T_supply',
-                    pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
+                    pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                           bounds=(supply_temp_min, supply_temp_max)))
+        elif _l3plus_active:
+            # L3+ on for this network: every node is explicitly classified.
+            # Var-classified nodes propagate spatially (mixing constraint added
+            # below); everything else (roots/anchors, bidirectional-adjacent
+            # nodes) gets a Param -- including 'producer' type, unlike the
+            # legacy branch below, where producer nodes always got a Var.
+            if _l3plus_node_var:
+                setattr(model, f'{prefix}_T_supply',
+                        pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                               bounds=(supply_temp_min, supply_temp_max)))
+            elif supply_temp_dict and isinstance(supply_temp_dict, dict):
+                setattr(model, f'{prefix}_T_supply',
+                        pyo.Param(time_set, initialize=supply_temp_dict, mutable=True))
+            else:
+                setattr(model, f'{prefix}_T_supply',
+                        pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
+        elif node_type in ('consumer', 'junction', 'mixed'):
+            # Legacy MILP mode (L3+ off entirely): fix supply temperature (still
+            # a Param -> no bilinear products either way) -- per-timestep
+            # heating-curve dict when available, exactly mirroring how
+            # pipe_pair.py initializes its own T_supply_in/T_supply_out (see
+            # BUGFIX note in network_manager.py's _attach_all_nodes). Falls back
+            # to the flat nominal value only if network_manager didn't provide a
+            # dict (e.g. copperplate/legacy path). Unchanged from pre-2026-07-08.
+            if supply_temp_dict and isinstance(supply_temp_dict, dict):
+                setattr(model, f'{prefix}_T_supply',
+                        pyo.Param(time_set, initialize=supply_temp_dict, mutable=True))
+            else:
+                setattr(model, f'{prefix}_T_supply',
+                        pyo.Param(time_set, initialize=supply_temp_nominal_c, mutable=True))
         else:
+            # Legacy gap (pre-2026-07-08, deliberately left as-is when L3+ is
+            # off): 'producer'-type nodes always got a free Var here, anchored
+            # externally (if at all) by network_manager's anchored_source_nodes.
             setattr(model, f'{prefix}_T_supply',
                     pyo.Var(time_set, domain=pyo.NonNegativeReals,
                            bounds=(supply_temp_min, supply_temp_max)))
@@ -420,7 +464,65 @@ class ThermalNodeBlock(BaseComponent):
         # This sets node supply temperature as the flow-weighted average of all
         # incoming pipe supply outlet temperatures.  For a single pipe the
         # constraint reduces to a simple equality (T_node = T_pipe_out).
-        if incoming_pipes and not milp_linearize_temp:
+        if incoming_pipes and _l3plus_node_var:
+            # L3+ spatial temperature propagation (2026-07-08): T_supply is a real
+            # Var here (see gate above), mixing incoming pipes' McCormick-relaxed
+            # W_sup_out enthalpy-flux Vars -- reuses the exact same relaxation
+            # utility pipe_pair.py already uses for its own W variables, no new
+            # relaxation scheme.
+            if len(incoming_pipes) == 1:
+                pipe_id = incoming_pipes[0]
+                pipe_prefix = pipe_id.upper().replace('-', '_')
+                pipe_T_out = getattr(model, f'{pipe_prefix}_T_supply_out')
+
+                def single_temp_rule_l3plus(m, t, _pt=pipe_T_out):
+                    return T_supply[t] == _pt[t]
+
+                setattr(model, f'{prefix}_temp_mixing_l3plus',
+                        pyo.Constraint(time_set, rule=single_temp_rule_l3plus))
+                logger.info(f"    Node {node_id}: L3+ single-pipe temperature link (exact, Var==Var)")
+            else:
+                # >=2 incoming pipes: proper flow-weighted enthalpy mixing via
+                # McCormick relaxation. Not exercised by either live topology
+                # today (both are trees with <=1 incoming pipe per node) --
+                # implemented for generality but untested against real meshed
+                # data; treat as forward-looking until a meshed scenario exists.
+                m_dot_total = pyo.Var(time_set, domain=pyo.Reals)
+                setattr(model, f'{prefix}_m_dot_supply_in_total', m_dot_total)
+
+                def m_dot_total_rule(m, t, _pipes=incoming_pipes):
+                    return m_dot_total[t] == sum(
+                        getattr(m, f'{p.upper().replace("-", "_")}_m_dot')[t] for p in _pipes
+                    )
+                setattr(model, f'{prefix}_m_dot_supply_in_total_eq',
+                        pyo.Constraint(time_set, rule=m_dot_total_rule))
+
+                W_node_sup = pyo.Var(time_set, domain=pyo.Reals)
+                setattr(model, f'{prefix}_W_node_sup', W_node_sup)
+
+                def W_node_sup_rule(m, t, _pipes=incoming_pipes):
+                    return W_node_sup[t] == sum(
+                        getattr(m, f'{p.upper().replace("-", "_")}_W_sup_out')[t] for p in _pipes
+                    )
+                setattr(model, f'{prefix}_W_node_sup_eq',
+                        pyo.Constraint(time_set, rule=W_node_sup_rule))
+
+                _pipe_max_flows = [
+                    getattr(model, f'{p.upper().replace("-", "_")}_m_dot').ub or 0.0
+                    for p in incoming_pipes
+                ]
+                _m_dot_total_ub = sum(abs(v) for v in _pipe_max_flows) or 1.0
+                _mccormick(
+                    model, f'{prefix}_W_node_sup_mix', W_node_sup, m_dot_total, T_supply,
+                    -_m_dot_total_ub, _m_dot_total_ub, supply_temp_min, supply_temp_max,
+                    time_set, scale=cp_water,
+                )
+                logger.info(
+                    f"    Node {node_id}: L3+ multi-pipe enthalpy mixing "
+                    f"({len(incoming_pipes)} pipes, McCormick-relaxed)"
+                )
+
+        elif incoming_pipes and not milp_linearize_temp:
             if len(incoming_pipes) == 1:
                 pipe_id = incoming_pipes[0]
                 pipe_prefix = pipe_id.upper().replace('-', '_')
@@ -524,19 +626,75 @@ class ThermalNodeBlock(BaseComponent):
                     f"heat_demand constraint skipped (enforced via Q_consumer)"
                 )
             elif milp_linearize:
-                # MILP passthrough consumer: still needs m_dot_demand for mass balance
-                dT_nominal = supply_temp_nominal_c - return_temp_c
-                if dT_nominal <= 0:
-                    dT_nominal = 35.0  # safe fallback
+                # MILP passthrough consumer: still needs m_dot_demand for mass balance.
+                # BUGFIX (2026-07-07): this used to convert via a single flat
+                # `dT_nominal = supply_temp_nominal_c - return_temp_c` computed
+                # from the yearly-AVERAGE nominal temp, even after fix 4 gave
+                # T_supply a real per-timestep heating-curve value -- so this
+                # constraint alone kept using the old constant ΔT regardless,
+                # while the incoming/outgoing pipes' own Q<->m_dot conversion
+                # correctly used the hourly ΔT. That mismatch is exactly what
+                # kept passthrough consumer nodes (e.g. Memmingen's j_3/j_5/j_9/
+                # j_12/j_13) infeasible even after fix 4: confirmed via IIS at
+                # J_5's January demand peak (hour 538) that m_dot_demand's
+                # implied ΔT was still 27.56°C (the old yearly average) while
+                # T_supply[t]-T_return[t] there is really 24.79°C. Fix: use the
+                # node's own per-timestep T_supply[t]/T_return[t] directly, the
+                # same Param-valued linear-coefficient pattern pipe_pair.py's
+                # heat_delivered_rule_milp already uses successfully.
+                _supply_is_var = isinstance(T_supply, pyo.Var)
+                _return_is_var = isinstance(T_return, pyo.Var)
 
-                def heat_demand_rule_milp(m, t):
-                    q_req = Q_demand[t]
-                    if Q_demand_slack is not None:
-                        q_req = q_req - Q_demand_slack[t]
-                    return m_dot_demand[t] == q_req * 1000 / (cp_water * dT_nominal)
+                if not _supply_is_var and not _return_is_var:
+                    # Legacy path: both Params -- unchanged from pre-2026-07-08.
+                    def heat_demand_rule_milp(m, t):
+                        q_req = Q_demand[t]
+                        if Q_demand_slack is not None:
+                            q_req = q_req - Q_demand_slack[t]
+                        dT_t = T_supply[t] - T_return[t]
+                        return m_dot_demand[t] * cp_water * dT_t == q_req * 1000
 
-                setattr(model, f'{prefix}_heat_demand',
-                        pyo.Constraint(time_set, rule=heat_demand_rule_milp))
+                    setattr(model, f'{prefix}_heat_demand',
+                            pyo.Constraint(time_set, rule=heat_demand_rule_milp))
+                else:
+                    # L3+ (2026-07-08) or a node whose T_return happens to be a
+                    # Var independently of L3+ (e.g. stateful_v2 return model --
+                    # NOT reachable for consumer/mixed nodes in either current
+                    # network config, since neither sets return_temp_load_factor,
+                    # but handled for robustness rather than left as a silent
+                    # bilinear-term gap). Each side of m_dot_demand[t]*cp*(T_supply
+                    # - T_return) is McCormick-relaxed independently of the
+                    # other, mirroring pipe_pair.py's own heat_delivered_rule_milp
+                    # L3+ pattern (W_demand <-> W_sup_in) and constraint_builder.py's
+                    # _attach_local_generation_mdot (same per-side pattern).
+                    if _supply_is_var:
+                        W_demand = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                            bounds=(0, _mdot_ub * cp_water * supply_temp_max))
+                        setattr(model, f'{prefix}_W_demand', W_demand)
+                        _mccormick(model, f'{prefix}_W_demand_mix', W_demand, m_dot_demand, T_supply,
+                                   0, _mdot_ub, supply_temp_min, supply_temp_max, time_set, scale=cp_water)
+                        sup_term_at = lambda t: W_demand[t]
+                    else:
+                        sup_term_at = lambda t: m_dot_demand[t] * cp_water * T_supply[t]
+
+                    if _return_is_var:
+                        W_ret_demand = pyo.Var(time_set, domain=pyo.NonNegativeReals,
+                                                bounds=(0, _mdot_ub * cp_water * return_temp_max))
+                        setattr(model, f'{prefix}_W_ret_demand', W_ret_demand)
+                        _mccormick(model, f'{prefix}_W_ret_demand_mix', W_ret_demand, m_dot_demand, T_return,
+                                   0, _mdot_ub, return_temp_min, return_temp_max, time_set, scale=cp_water)
+                        ret_term_at = lambda t: W_ret_demand[t]
+                    else:
+                        ret_term_at = lambda t: m_dot_demand[t] * cp_water * T_return[t]
+
+                    def heat_demand_rule_l3plus(m, t, _sup=sup_term_at, _ret=ret_term_at):
+                        q_req = Q_demand[t]
+                        if Q_demand_slack is not None:
+                            q_req = q_req - Q_demand_slack[t]
+                        return _sup(t) - _ret(t) == q_req * 1000
+
+                    setattr(model, f'{prefix}_heat_demand',
+                            pyo.Constraint(time_set, rule=heat_demand_rule_l3plus))
             else:
                 # Full nonlinear mode (bilinear â€” requires QP/NLP solver)
                 # Use cp/1000 to keep coefficients O(1) in MW units â€” avoids

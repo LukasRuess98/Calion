@@ -167,8 +167,42 @@ class StorageBlock(BaseComponent):
             cap_e.set_value(self.e_cap_init if self.e_cap_init > 0 else self.e_cap_min)
             cap_p.set_value(self.p_cap_init if self.p_cap_init > 0 else self.p_cap_min)
 
+        # ── Exact linearization of cap_{e,p} * binary[t] ────────────────────────
+        # PERF FIX (2026-07-04): E[t]<=cap_e*active[t], Qc[t]<=cap_p*charge_mode[t]
+        # and Qd[t]<=cap_p*discharge_mode[t] were written as direct products of a
+        # continuous capacity Var and a binary — genuine quadratic constraints
+        # (verified Gurobi IsQCP=1 for the sibling pattern in geometric_storage).
+        # This block previously backed tes_existing (now migrated to
+        # geometric_storage's fixed/non-investable mode, 2026-07-08) but the
+        # same quadratic pattern still applies to any StorageBlock consumer.
+        # Exact reformulation for
+        # y∈{0,1}, x∈[0,x_max]: z<=x_max*y ; z<=x ; z>=x-x_max*(1-y) ; z>=0.
+        e_cap_bound = float(cap_e.ub)
+        p_cap_bound = float(cap_p.ub)
+        setattr(m, f"{comp}_cap_e_x_active", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0.0, e_cap_bound)))
+        setattr(m, f"{comp}_cap_p_x_charge", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0.0, p_cap_bound)))
+        setattr(m, f"{comp}_cap_p_x_discharge", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0.0, p_cap_bound)))
+        cap_e_x_active = getattr(m, f"{comp}_cap_e_x_active")
+        cap_p_x_charge = getattr(m, f"{comp}_cap_p_x_charge")
+        cap_p_x_discharge = getattr(m, f"{comp}_cap_p_x_discharge")
+
+        def _mk_linfix(z, x, y, x_max, prefix):
+            def _hi(mm, t):
+                return z[t] <= x_max * y[t]
+            def _le_x(mm, t):
+                return z[t] <= x
+            def _lo(mm, t):
+                return z[t] >= x - x_max * (1 - y[t])
+            setattr(m, f"{prefix}_hi", pyo.Constraint(Tset, rule=_hi))
+            setattr(m, f"{prefix}_le_x", pyo.Constraint(Tset, rule=_le_x))
+            setattr(m, f"{prefix}_lo", pyo.Constraint(Tset, rule=_lo))
+
+        _mk_linfix(cap_e_x_active, cap_e, active, e_cap_bound, f"{comp}_linfix_e_active")
+        _mk_linfix(cap_p_x_charge, cap_p, charge_mode, p_cap_bound, f"{comp}_linfix_p_charge")
+        _mk_linfix(cap_p_x_discharge, cap_p, discharge_mode, p_cap_bound, f"{comp}_linfix_p_discharge")
+
         def ecap_hi(mm, t):
-            return E[t] <= cap_e * active[t]
+            return E[t] <= cap_e_x_active[t]
 
         def ecap_lo(mm, t):
             return E[t] >= mm.__getattribute__(f"{comp}_Emin") * active[t]
@@ -177,10 +211,10 @@ class StorageBlock(BaseComponent):
             return E[t] <= mm.__getattribute__(f"{comp}_Emax") * active[t]
 
         def pcap_c(mm, t):
-            return Qc[t] <= cap_p * charge_mode[t]
+            return Qc[t] <= cap_p_x_charge[t]
 
         def pcap_d(mm, t):
-            return Qd[t] <= cap_p * discharge_mode[t]
+            return Qd[t] <= cap_p_x_discharge[t]
 
         setattr(m, f"{comp}_ecap_hi", pyo.Constraint(Tset, rule=ecap_hi))
         setattr(m, f"{comp}_ecap_lo", pyo.Constraint(Tset, rule=ecap_lo))

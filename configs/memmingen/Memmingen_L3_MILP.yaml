@@ -17,12 +17,17 @@
 #   Star-of-stars: plant -> 14 junction-to-junction pipes
 #   Total nodes: 15 (1 plant-junction, 14 distribution junctions)
 #   Total pipes: 14 connections (junction-to-junction only)
-#   Total pipe length: ~3,255 m
+#   Total pipe length: ~4,418 m (2026-07-07: j1_to_j2...j9_to_j10 recalibrated from
+#     configs/memmingen/2026-07-06_MM-Nord_Bestand_FW.dxf; j10_to_j11 onward unchanged
+#     pending manual DXF check, see chat/memory project_memmingen_dxf_crosscheck).
+#     This is still backbone-only -- real Nord-network trench length is ~18 km.
 #   Demand distribution: V_1-V_27 demand columns merged into junctions
 #
 # SYSTEM SUMMARY (Fixed Assets):
-#   Peak demand:     ~76 MW (may shift due to independent profiles)
-#   Annual demand:   ~517 GWh (approx.)
+#   Peak demand:     ~76 MW (STALE -- real data peaks at 11.4 MW, see 2026-07-07 DXF
+#     cross-check; V_8/V_12/V_26 look like data-quality spikes. Not yet corrected here
+#     pending a decision on cleaning those columns.)
+#   Annual demand:   ~517 GWh (STALE -- real annual total is ~59.7 GWh, same caveat)
 #   CHP:             0.2 MW_th / 0.1 MW_el
 #   Gas boiler:      13 MW_th, eta = 0.90
 #   Biomass boiler:  3.3 MW_th, eta = 0.85
@@ -38,7 +43,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epronet_cleaned.xlsx"  # 2026-07-07: quality-flag cleaned, see memory project_memmingen_dxf_crosscheck
   columns:
     datetime: "Datum"
     price: "strompreis_EUR_MWh"
@@ -176,9 +181,8 @@ network:
       consumers:
         - column: "V_18_demand_MWth"
 
-    # Junction j_12: serves V_19-V_21, has HP + E-Boiler
+    # Junction j_12: serves V_19-V_21
     j_12:
-      #assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
@@ -203,88 +207,96 @@ network:
         - column: "V_27_demand_MWth"
 
   # --- PIPES: 14 Junction-to-Junction ---
+  # Längen/Durchmesser 2026-07-07 aus DXF-Bestandsplan (configs/memmingen/2026-07-06_MM-Nord_Bestand_FW.dxf)
+  # rekalibriert: reale Trasse (Schacht/Schieber-verankerte Graph-Rekonstruktion) auf die
+  # bestehende 27-Zonen-Struktur gemappt (proportional über nachgeschaltete Zonenzahl).
+  # Nur hoch/mittel-Konfidenz-Äste aktualisiert (j1_to_j2 ... j9_to_j10); j10_to_j11 abwärts
+  # unverändert gelassen (automatisches Matching dort nicht belastbar, siehe Analyse-Chat).
   pipes:
     # Hauptstrang (J1 -> J2 -> J3)
-    # 26 Verbraucher downstream, ~72 MW -> DN450
+    # 26 Verbraucher downstream. DXF: realer Weg bis zur ersten großen Verzweigung ist
+    # ~1693m (nicht 650m), max. reales DN im gesamten Bestandsplan ist DN250 (nicht DN450).
     j1_to_j2:
       from: j_1
       to: j_2
-      length_m: 350
-      diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-
-    # 25 Verbraucher downstream, ~70 MW -> DN450
-    j2_to_j3:
-      from: j_2
-      to: j_3
-      length_m: 300
-      diameter_mm: 450
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-
-    # J3 verzweigt: Sued -> J4, Ost -> J9
-    # Sued-Ast: 11 Verbraucher, ~31 MW -> DN300
-    j3_to_j4:
-      from: j_3
-      to: j_4
-      length_m: 260
-      diameter_mm: 300
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-
-    # Ost-Ast: 13 Verbraucher, ~37 MW -> DN350
-    j3_to_j9:
-      from: j_3
-      to: j_9
-      length_m: 450
-      diameter_mm: 350
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-
-    # Sued-Ast (J4 -> J5 -> J6/J7 -> J8)
-    # 7 Verbraucher downstream, ~20 MW -> DN250
-    j4_to_j5:
-      from: j_4
-      to: j_5
-      length_m: 240
+      length_m: 1180
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
 
-    # 3 Verbraucher downstream, ~8 MW -> DN150
+    # 25 Verbraucher downstream
+    j2_to_j3:
+      from: j_2
+      to: j_3
+      length_m: 513
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # J3 verzweigt: Sued -> J4, Ost -> J9
+    # Sued-Ast: 11 Verbraucher downstream
+    j3_to_j4:
+      from: j_3
+      to: j_4
+      length_m: 116
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # Ost-Ast: 13 Verbraucher downstream
+    j3_to_j9:
+      from: j_3
+      to: j_9
+      length_m: 83
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # Sued-Ast (J4 -> J5 -> J6/J7 -> J8)
+    # 7 Verbraucher downstream
+    j4_to_j5:
+      from: j_4
+      to: j_5
+      length_m: 728
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # 3 Verbraucher downstream
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 150
-      diameter_mm: 150
+      length_m: 159
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.3
 
-    # 2 Verbraucher downstream, ~6 MW -> DN125
+    # 2 Verbraucher downstream
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 220
-      diameter_mm: 125
+      length_m: 50
+      diameter_mm: 65
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.3
 
-    # 1 Verbraucher, ~3 MW -> DN100
+    # 1 Verbraucher
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 80
-      diameter_mm: 100
+      length_m: 120
+      diameter_mm: 65
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.3
 
     # Ost-Ast (J9 -> J10 -> J11 -> J12 -> J13 -> J14/J15)
-    # 11 Verbraucher downstream, ~31 MW -> DN300
+    # 11 Verbraucher downstream. Länge aus DXF übernommen; DN-Signal entlang des realen
+    # Pfads uneindeutig (dominant DN65 über weite Strecke, für diesen Lastanteil unplausibel)
+    # -> diameter_mm konservativ bei bisherigem Wert belassen.
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 200
+      length_m: 464
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34

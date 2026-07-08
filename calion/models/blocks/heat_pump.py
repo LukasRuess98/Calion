@@ -26,12 +26,29 @@ class HeatPumpBlock(BaseComponent):
         cop_default: float = COP_DEFAULT,
         min_uptime_h: float = 0.0,
         min_downtime_h: float = 0.0,
+        cop_charge_series: list[float] | None = None,
         label: str | None = None
     ):
         super().__init__(name, label)
         self.min_load = float(min_load)
         self.min_uptime_h = float(min_uptime_h)
         self.min_downtime_h = float(min_downtime_h)
+
+        # Hot-charging channel (Paper 2 F2): optional second COP series for heat
+        # delivered at T_charge > T_VL(t) (TES charging). When set, a Q_hot(t)
+        # output channel is created that shares the installed capacity but pays
+        # electricity at the (lower) charging COP.
+        self.cop_charge_series: list[float] | None = None
+        if cop_charge_series is not None:
+            charge_list = []
+            for c in cop_charge_series:
+                cv = float(c)
+                if cv < COP_MIN:
+                    raise ValueError(f"Hot-charging COP must be >= {COP_MIN}, got {cv}")
+                if cv > COP_MAX_HEATPUMP:
+                    raise ValueError(f"Hot-charging COP suspiciously high (> {COP_MAX_HEATPUMP}), got {cv}")
+                charge_list.append(cv)
+            self.cop_charge_series = charge_list
 
         # Validate and clamp COP values to safe ranges
         cop_list = []
@@ -107,13 +124,69 @@ class HeatPumpBlock(BaseComponent):
         setattr(m, f"{comp}_cap_min", pyo.Param(initialize=self.capacity_min_mw))
         setattr(m, f"{comp}_cap_max", pyo.Param(initialize=self.capacity_max_mw))
 
+        # ── Exact linearization of cap * onv[t] (binary × bounded continuous) ──
+        # PERF FIX (2026-07-04): this product was previously written directly as
+        # `cap * onv[t]` in cap_rule/min_rule, which Pyomo builds as a genuine
+        # quadratic expression. Verified via direct Gurobi inspection that this
+        # makes the model IsQCP=1 (72 quadratic constraints in a 1-day Stadtbach
+        # test) rather than a pure MILP — nonconvex spatial branching is far more
+        # expensive than LP-based branch-and-bound and is the likely root cause
+        # of multi-hour solves on HP-investment scenarios (e.g. MM-S2, ~24h).
+        # Standard exact (not relaxed) reformulation for y∈{0,1}, x∈[0,x_max]:
+        #   z <= x_max * y ;  z <= x ;  z >= x - x_max*(1-y) ;  z >= 0
+        cap_max_bound = max(self.capacity_max_mw, self.capacity_init_mw, 1e-9)
+        setattr(m, f"{comp}_cap_x_on", pyo.Var(
+            Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_max_bound)))
+        cap_x_on = getattr(m, f"{comp}_cap_x_on")
+
+        def _linfix_hi(mm, t):
+            return cap_x_on[t] <= cap_max_bound * onv[t]
+        setattr(m, f"{comp}_linfix_hi", pyo.Constraint(Tset, rule=_linfix_hi))
+
+        def _linfix_le_cap(mm, t):
+            return cap_x_on[t] <= cap
+        setattr(m, f"{comp}_linfix_le_cap", pyo.Constraint(Tset, rule=_linfix_le_cap))
+
+        def _linfix_lo(mm, t):
+            return cap_x_on[t] >= cap - cap_max_bound * (1 - onv[t])
+        setattr(m, f"{comp}_linfix_lo", pyo.Constraint(Tset, rule=_linfix_lo))
+
+        # ── Hot-charging channel (optional) ───────────────────────────────────
+        # Q_hot(t): heat delivered at T_charge (for TES charging), sharing the
+        # installed capacity with the network channel Q(t) but priced at the
+        # charging COP. Modeling note: the WRG quantity limit is applied to the
+        # network channel only; the charging COP series already reflects the
+        # hourly source (waste heat or ambient fallback) via its precompute.
+        Q_hot = None
+        COP_hot = None
+        if self.cop_charge_series is not None:
+            setattr(m, f"{comp}_Q_hot", pyo.Var(Tset, domain=pyo.NonNegativeReals))
+            Q_hot = getattr(m, f"{comp}_Q_hot")
+            times_hot = list(Tset)
+            if len(self.cop_charge_series) == 1:
+                cop_hot_map = {t: self.cop_charge_series[0] for t in times_hot}
+            elif len(self.cop_charge_series) != len(times_hot):
+                raise ValueError(
+                    f"Heat pump '{comp}' charge-COP series length "
+                    f"({len(self.cop_charge_series)}) does not match time index "
+                    f"length ({len(times_hot)})"
+                )
+            else:
+                cop_hot_map = {t: self.cop_charge_series[i] for i, t in enumerate(times_hot)}
+            COP_hot = pyo.Param(Tset, initialize=cop_hot_map, mutable=False)
+            setattr(m, f"{comp}_COP_hot", COP_hot)
+
         # Constraints
         def cap_rule(mm, t):
-            return Q[t] <= cap * onv[t]
+            if Q_hot is not None:
+                return Q[t] + Q_hot[t] <= cap_x_on[t]
+            return Q[t] <= cap_x_on[t]
         setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
 
         def min_rule(mm, t):
-            return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap * onv[t]
+            if Q_hot is not None:
+                return Q[t] + Q_hot[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
+            return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
         setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
 
         def split_balance(mm, t):
@@ -121,7 +194,10 @@ class HeatPumpBlock(BaseComponent):
         setattr(m, f"{comp}_split_balance", pyo.Constraint(Tset, rule=split_balance))
 
         def pel_expr_rule(mm, t):
-            return Q_wrg[t] / mm.__getattribute__(f"{comp}_COP")[t] + Q_def[t] / COP_def
+            base = Q_wrg[t] / mm.__getattribute__(f"{comp}_COP")[t] + Q_def[t] / COP_def
+            if Q_hot is not None:
+                return base + Q_hot[t] / COP_hot[t]
+            return base
 
         Pel_expr = pyo.Expression(Tset, rule=pel_expr_rule)
         setattr(m, f"{comp}_Pel", Pel_expr)
@@ -149,6 +225,7 @@ class HeatPumpBlock(BaseComponent):
 
         if L > 0 or D > 0:
             time_list = sorted(list(Tset))
+            t_idx = {t: i for i, t in enumerate(time_list)}  # O(1) lookup — avoids O(N²) list.index()
 
             # Startup (u) and shutdown (v) binary variables
             u = pyo.Var(Tset, domain=pyo.Binary)
@@ -157,11 +234,11 @@ class HeatPumpBlock(BaseComponent):
             setattr(m, f"{comp}_v", v)
 
             # (1) State transition: y[t] - y[t-1] = u[t] - v[t]
-            def state_transition_rule(mm, t):
-                idx = time_list.index(t)
+            def state_transition_rule(mm, t, _tl=time_list, _ti=t_idx):
+                idx = _ti[t]
                 if idx == 0:
                     return pyo.Constraint.Skip
-                t_prev = time_list[idx - 1]
+                t_prev = _tl[idx - 1]
                 return onv[t] - onv[t_prev] == u[t] - v[t]
             setattr(m, f"{comp}_state_transition",
                     pyo.Constraint(Tset, rule=state_transition_rule))
@@ -174,19 +251,19 @@ class HeatPumpBlock(BaseComponent):
 
             # (3) Min uptime: sum of startups in [t-L+1..t] <= y[t]
             if L > 0:
-                def min_uptime_rule(mm, t):
-                    idx = time_list.index(t)
+                def min_uptime_rule(mm, t, _tl=time_list, _ti=t_idx):
+                    idx = _ti[t]
                     start = max(0, idx - L + 1)
-                    return sum(u[time_list[k]] for k in range(start, idx + 1)) <= onv[t]
+                    return sum(u[_tl[k]] for k in range(start, idx + 1)) <= onv[t]
                 setattr(m, f"{comp}_min_uptime",
                         pyo.Constraint(Tset, rule=min_uptime_rule))
 
             # (4) Min downtime: sum of shutdowns in [t-D+1..t] <= 1 - y[t]
             if D > 0:
-                def min_downtime_rule(mm, t):
-                    idx = time_list.index(t)
+                def min_downtime_rule(mm, t, _tl=time_list, _ti=t_idx):
+                    idx = _ti[t]
                     start = max(0, idx - D + 1)
-                    return sum(v[time_list[k]] for k in range(start, idx + 1)) <= 1 - onv[t]
+                    return sum(v[_tl[k]] for k in range(start, idx + 1)) <= 1 - onv[t]
                 setattr(m, f"{comp}_min_downtime",
                         pyo.Constraint(Tset, rule=min_downtime_rule))
 
@@ -245,5 +322,6 @@ class HeatPumpBlock(BaseComponent):
             "capacity": cap,
             "Q_wrg": Q_wrg,
             "Q_def": Q_def,
+            "Q_hot": Q_hot,   # None unless cop_charge_series was provided
         }
 

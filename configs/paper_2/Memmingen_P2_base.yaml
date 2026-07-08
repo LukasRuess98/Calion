@@ -16,7 +16,7 @@
 # =============================================================================
 
 site:
-  input_xlsx: "data/Import_Data_Memmingen_epronet.xlsx"
+  input_xlsx: "data/Import_Data_Memmingen_epronet_cleaned.xlsx"  # 2026-07-07: quality-flag cleaned, see memory project_memmingen_dxf_crosscheck
   columns:
     datetime: "Datum"
     price: "strompreis_EUR_MWh"
@@ -36,20 +36,31 @@ scenario:
 # --------------------------------------------------------------------------
 network:
   milp_linearize: true
-  max_velocity_m_s: 100.0   # pipe capacity constraints disabled; allows HK differentiation
+  # j_12 hosts HP/EK (spec §3.3: WP/EK fest bei der Abwärme, Memmingen = j_12) and
+  # becomes a 'mixed' node — only j_1 keeps the fixed P_supply setpoint, j_12 floats.
+  primary_producer: "j_1"
+  temperature_propagation: true   # L3+: supply temperature propagation via McCormick W-vars
+  # 2026-07-08: reverted from 100.0 (capacity bypass) to a realistic value now
+  # that demand data is quality-cleaned and pipe diameters are DXF-real -- also
+  # makes transport_delay's flow-based bucket computation meaningful again
+  # (see memory project_memmingen_dxf_crosscheck / plan greedy-wandering-alpaca).
+  max_velocity_m_s: 2.5
   parameters:
-    max_velocity_m_s: 100.0  # passed to pipe_pair enriched_config via self.parameters
+    max_velocity_m_s: 2.5   # passed to pipe_pair enriched_config via self.parameters
   state_validation:
     flow_constraints:
-      max_velocity_m_s: 100.0  # passed to state_constraints velocity Pyomo constraint
+      max_velocity_m_s: 2.5   # passed to state_constraints velocity Pyomo constraint
   physics:
     heat_loss: true
-    pressure_drop: false
-    transport_delay: false
+    pressure_drop: true
+    transport_delay: true
+    tes_pressure_coupling: true   # F4: TES hydrostatic head + charge/discharge Δp → node pressure
 
   supply_temp_c: 86.0        # overridden per scenario via heating curve
   return_temp_c: 63.6
   ground_temp_c: 10
+  min_supply_delta_T_k: 10.0  # minimum T_supply − T_return for consumer substation operation (VDI 6002)
+  consumer_min_temp_c: 73.6   # = T_return + 10 K; scenario_runner warns if T_VL drops below this
 
   heating_curve:
     enabled: true
@@ -61,7 +72,7 @@ network:
 
   nodes:
     j_1:
-      assets: [chp_main, tes_main, biomass_main, gasboiler_main, hp_main, eboiler_main]
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
     j_2:
@@ -102,6 +113,8 @@ network:
       consumers:
         - column: "V_18_demand_MWth"
     j_12:
+      # WP + EK at the waste-heat node per spec §3.3 / Paper 1 (J12)
+      assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
@@ -120,66 +133,70 @@ network:
         - column: "V_27_demand_MWth"
 
   pipes:
+    # Längen/Durchmesser 2026-07-07 aus DXF-Bestandsplan (configs/memmingen/2026-07-06_MM-Nord_Bestand_FW.dxf)
+    # rekalibriert, gleiche Werte wie configs/memmingen/Memmingen_L3_MILP.yaml (siehe memory
+    # project_memmingen_dxf_crosscheck). Nur hoch/mittel-Konfidenz-Äste (j1_to_j2 ... j9_to_j10)
+    # aktualisiert; j10_to_j11 abwärts unverändert (Matching dort nicht belastbar).
     j1_to_j2:
       from: j_1
       to: j_2
-      length_m: 350
-      diameter_mm: 450
+      length_m: 1180
+      diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j2_to_j3:
       from: j_2
       to: j_3
-      length_m: 300
-      diameter_mm: 450
+      length_m: 513
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j3_to_j4:
       from: j_3
       to: j_4
-      length_m: 260
-      diameter_mm: 300
+      length_m: 116
+      diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j3_to_j9:
       from: j_3
       to: j_9
-      length_m: 450
-      diameter_mm: 350
+      length_m: 83
+      diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j4_to_j5:
       from: j_4
       to: j_5
-      length_m: 240
+      length_m: 728
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 150
-      diameter_mm: 150
+      length_m: 159
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 220
-      diameter_mm: 125
+      length_m: 50
+      diameter_mm: 65
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 80
-      diameter_mm: 100
+      length_m: 120
+      diameter_mm: 65
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 200
+      length_m: 464
       diameter_mm: 300
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
@@ -260,7 +277,7 @@ assets:
 
   hp_main:
     type: heat_pump
-    capacity_mw: 5.0            # INITIAL — overridden by investment optimizer
+    capacity_mw: 0.0            # INITIAL — overridden by investment optimizer
     min_load: 0.2
     wrg_source_column: "WRG_1 °C"
     wrg_capacity_column: "WRG1Q MW"
@@ -274,28 +291,31 @@ assets:
       capacity_max_mw: 30.0
 
   tes_main:
-    type: storage
-    energy_mwh: 500.0           # INITIAL value (starting point for optimizer)
-    power_mw: 30.0
+    type: geometric_storage
+    # Scenario ΔT = T_VL_min − T_return (worst-case corridor, not the mean);
+    # overridden per HK stage by scenario_runner.py.
+    delta_T_scenario_k: 10.4    # HK0 baseline: 74 − 63.6 = 10.4 K worst-case at runtime; static fallback only
+    r_hd: 3.0                   # h/d aspect ratio (tall tank, good stratification)
+    p_max_bar: 10.0             # max vessel operating pressure
+    V_min_m3: 5.0               # minimum tank volume if built [m³]
+    V_max_m3: 50000.0            # max tank volume [m³]
+    option_b: false             # Option A: V as single Var; h/d back-calculated post-solve
+    alpha_tes_eur_per_m3: 500.0 # variable CAPEX [€/m³]
+    beta_tes_eur: 50000.0       # fixed CAPEX (engineering, connections) [€]
+    lifetime_years: 30.0
     eff_charge: 0.98
     eff_discharge: 0.98
     loss_hour: 0.9999
-    soc0_mwh: 250.0
-    min_energy_mwh: 25.0
+    soc0_fraction: 0.5
+    power_to_energy_ratio: 0.25 # P_max = 25% × E_max (full discharge in ~4 h)
+    terminal_soc_fraction: 0.5
+    # Dead-volume floor: stratified hot-water tanks can't fully discharge —
+    # diffuser placement and pump NPSH require some minimum water level.
+    # 5% is a generic literature range (typically 5-10%), not a measured
+    # value for this specific tank; revisit if real commissioning data
+    # becomes available.
+    e_min_fraction: 0.05
     cycling_cost_eur_per_mwh: 2.0
-    investment:
-      enabled: true
-      energy_capex_eur_per_mwh: 16500.0   # 800 €/m³ at ΔT=22K
-      power_capex_eur_per_mw: 5000.0
-      activation_cost_eur: 30000.0
-      lifetime_years: 30.0
-      energy_capacity_min_mwh: 0.0
-      energy_capacity_max_mwh: 5000.0
-      power_capacity_min_mw: 0.0
-      power_capacity_max_mw: 200.0
-    terminal:
-      state: cyclic
-      policy: equal
 
 # --------------------------------------------------------------------------
 # Heat Pump COP Model (same as Paper 1 — extended by scenario_runner.py
@@ -327,7 +347,14 @@ investment:
 grid:
   max_import_mw: 5000.0
   max_export_mw: 5000.0
-  gridcost_eur_mwh: 10.0
+  # Volumetric grid cost = MS Arbeitspreis (>=2500 h/a band ~0.5-2.0 ct/kWh) + 2026 levies:
+  # KWKG 0.446 + Offshore 0.941 + BesAR/§19 0.05 (>1 GWh tranche) ct/kWh
+  # + Konzessionsabgabe Sondervertrag 0.11 + Stromsteuer 0.05 (Prod. Gewerbe) => ~2.5 ct/kWh
+  gridcost_eur_mwh: 25.0
+  # Jahresleistungspreis on peak grid import (P_buy_peak), MS level >=2500 h/a band.
+  # 2026 published sheets span 67-167 k€/MW·a; 127.24 k€/MW·a = real 2022/23 tariff
+  # from the SB notebook — mid-range of 2026 values, kept for continuity.
+  demand_charge_eur_per_mw_y: 127240.0
 
 fuels:
   gas:

@@ -30,11 +30,10 @@ except Exception:  # pragma: no cover - optional dependency
 from calion.constants import COP_DEFAULT, DEFAULT_STORAGE_ENERGY_MWH, DEFAULT_STORAGE_POWER_MW
 from calion.utils.config_utils import apply_heat_pump_defaults, normalize_storage_config
 
+from .blocks.geometric_storage import GeometricStorageBlock
 from .blocks.heat_pump import HeatPumpBlock
 from .blocks.p2h import P2HBlock
 from .blocks.storage import StorageBlock
-from .blocks.stratified_storage import StratifiedStorageBlock
-from .blocks.tall_tank_storage import TallTankStorageBlock
 from .blocks.thermal_gen import ThermalGeneratorBlock
 from .cop_calculator import calculate_cop_series
 from .emissions_calculator import EmissionsCalculator
@@ -195,6 +194,30 @@ class ComponentAssembler:
         self._pfuel = lambda key, default=0.0: float(fuels.get(key, {}).get("price_eur_mwh", default))
         self._efuel = lambda key, default=0.0: float(fuels.get(key, {}).get("ef_kg_per_mwh_fuel", default))
 
+        # ── Paper 2 feature wiring ────────────────────────────────────────────
+        # Attached-block result handles, keyed by asset id (for cross-asset
+        # couplings added after the main assembly loop).
+        self._component_fs: dict[str, dict] = {}
+
+        # Hot charging (F2): {"hp": asset_id, "tes": asset_id} — enforces
+        # Qc_tes(t) == Q_hot_hp(t) so the TES charges exclusively from the HP's
+        # hot channel; the pair bypasses the node heat bus (closed HP→TES pipe).
+        self._hot_coupling: dict | None = cfg.get("hot_charging_coupling")
+
+        # Endogenous siting (F3): one site binary set per group ("hp", "tes");
+        # heat flows of member assets are split across candidate nodes and
+        # gated by the group's site binaries (Σ_c y_c = 1).
+        _endog_cfg = cfg.get("endogenous_siting") or {}
+        self._endog_candidates: list[str] = list(_endog_cfg.get("candidates", []))
+        self._endog_group_of: dict[str, str] = {}
+        if self._endog_candidates:
+            for a in _endog_cfg.get("hp_group", []):
+                self._endog_group_of[a] = "hp"
+            tes_group_key = "hp" if _endog_cfg.get("colocate") else "tes"
+            for a in _endog_cfg.get("tes_group", []):
+                self._endog_group_of[a] = tes_group_key
+        self._endog_y_vars: dict[str, Any] = {}
+
     # ── public helpers ─────────────────────────────────────────────────────────
 
     def column_series(self, name: str) -> list[float] | None:
@@ -256,8 +279,8 @@ class ComponentAssembler:
                     self._attach_hp_from_unified(asset, node_buses, sys_buses)
                 elif asset.type == "storage":
                     self._attach_storage_from_unified(asset, node_buses, sys_buses)
-                elif asset.type == "tall_tank":
-                    self._attach_tall_tank_from_unified(asset, node_id, node_buses, sys_buses)
+                elif asset.type == "geometric_storage":
+                    self._attach_geometric_storage_from_unified(asset, node_buses, sys_buses)
                 elif asset.type == "thermal_generator":
                     self._attach_generator_from_unified(asset, node_buses, sys_buses, gen_defaults)
                 elif asset.type == "p2h":
@@ -265,7 +288,103 @@ class ComponentAssembler:
                 else:
                     logger.warning("Unknown asset type '%s' for '%s'", asset.type, asset_id)
 
+        self._finalize_couplings(sys_buses)
         return sys_buses
+
+    # ── Paper 2 cross-asset wiring (hot charging, endogenous siting) ──────────
+
+    def _get_site_y(self, group: str):
+        """Get or create the site-selection binary set for a group ('hp'/'tes').
+
+        Creates y_c ∈ {0,1} per candidate node with Σ_c y_c == 1 (a site is
+        always designated; it only matters once something is built there).
+        """
+        if group in self._endog_y_vars:
+            return self._endog_y_vars[group]
+        m = self.m
+        cand = self._endog_candidates
+        set_name = f"endog_{group}_sites"
+        setattr(m, set_name, pyo.Set(initialize=cand, ordered=True))
+        y = pyo.Var(getattr(m, set_name), domain=pyo.Binary)
+        setattr(m, f"endog_{group}_site_y", y)
+        setattr(m, f"endog_{group}_one_site",
+                pyo.Constraint(expr=sum(y[c] for c in cand) == 1))
+        self._endog_y_vars[group] = y
+        logger.info("[ENDOG] Site binaries for group '%s': %s", group, cand)
+        return y
+
+    def _distribute_flows(self, name: str, out_var, in_var, sys_buses,
+                          power_bound: float) -> None:
+        """Split an asset's heat flows across candidate nodes (F3 siting).
+
+        Creates per-candidate flow vars gated by the group's site binaries and
+        pushes them into the candidate nodes' heat buses:
+            Σ_c out_c(t) == out(t),  out_c(t) ≤ M·y_c   (same for in_var)
+        """
+        m = self.m
+        group = self._endog_group_of[name]
+        y = self._get_site_y(group)
+        M = float(power_bound)
+
+        for c in self._endog_candidates:
+            node_bus = sys_buses.get_or_create_node(c)
+            qo = pyo.Var(self.t, domain=pyo.NonNegativeReals)
+            setattr(m, f"{name}_out_at_{c}", qo)
+            setattr(m, f"{name}_out_gate_{c}", pyo.Constraint(
+                self.t, rule=lambda mm, t, _q=qo, _c=c: _q[t] <= M * y[_c]))
+            node_bus.ht_out.append(qo)
+            if in_var is not None:
+                qi = pyo.Var(self.t, domain=pyo.NonNegativeReals)
+                setattr(m, f"{name}_in_at_{c}", qi)
+                setattr(m, f"{name}_in_gate_{c}", pyo.Constraint(
+                    self.t, rule=lambda mm, t, _q=qi, _c=c: _q[t] <= M * y[_c]))
+                node_bus.ht_in.append(qi)
+
+        def out_sum(mm, t):
+            return sum(getattr(mm, f"{name}_out_at_{c}")[t]
+                       for c in self._endog_candidates) == out_var[t]
+        setattr(m, f"{name}_out_split", pyo.Constraint(self.t, rule=out_sum))
+
+        if in_var is not None:
+            def in_sum(mm, t):
+                return sum(getattr(mm, f"{name}_in_at_{c}")[t]
+                           for c in self._endog_candidates) == in_var[t]
+            setattr(m, f"{name}_in_split", pyo.Constraint(self.t, rule=in_sum))
+
+        logger.info("[ENDOG] %s: heat flows distributed over %d candidate nodes "
+                    "(group '%s', M=%.1f MW)", name, len(self._endog_candidates),
+                    group, M)
+
+    def _finalize_couplings(self, sys_buses) -> None:
+        """Add cross-asset constraints after all blocks are attached."""
+        # Hot charging: TES charges exactly from the HP hot channel.
+        if self._hot_coupling:
+            hp_id = self._hot_coupling.get("hp")
+            tes_id = self._hot_coupling.get("tes")
+            hp_fs = self._component_fs.get(hp_id, {})
+            tes_fs = self._component_fs.get(tes_id, {})
+            q_hot = hp_fs.get("Q_hot")
+            qc = tes_fs.get("Q_th_in")
+            if q_hot is None or qc is None:
+                logger.warning(
+                    "[HOT-CHARGE] Coupling %s→%s requested but Q_hot=%s / Qc=%s "
+                    "— constraint NOT added", hp_id, tes_id,
+                    q_hot is not None, qc is not None)
+                # Safety: the TES Qc was kept OFF the node bus in anticipation
+                # of this coupling — without it, charging would be free energy.
+                if qc is not None:
+                    setattr(self.m, f"{tes_id}_hot_charge_blocked",
+                            pyo.Constraint(self.t, rule=lambda mm, t: qc[t] == 0.0))
+            else:
+                def hot_eq(mm, t):
+                    return qc[t] == q_hot[t]
+                setattr(self.m, f"{tes_id}_hot_charge_eq",
+                        pyo.Constraint(self.t, rule=hot_eq))
+                logger.info("[HOT-CHARGE] %s_Qc(t) == %s_Q_hot(t) coupled "
+                            "(closed HP→TES charging pipe)", tes_id, hp_id)
+
+        # Endogenous co-location: with colocate=true the TES group shares the
+        # HP group's site binaries, so no extra constraint is needed here.
 
     def _attach_hp_from_unified(self, asset, node_buses, sys_buses):
         """Attach a heat pump from unified config to per-node buses."""
@@ -283,9 +402,23 @@ class ComponentAssembler:
         if wrg_col and wrg_col not in self.table.columns and f"{wrg_col}_K" in self.table.columns:
             wrg_col = f"{wrg_col}_K"
 
-        sink_temp_series_k = self._compute_heating_curve_sink_temps()
-        cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type,
-                                          sink_temp_series=sink_temp_series_k)
+        # Scenario-injected COP series takes priority (Paper 2 §4.3.1: waste-heat
+        # priority with ambient fallback, precomputed by scenario_runner).
+        # Previously this key was injected but never read — the model silently
+        # used the WRG-column temperature for all hours.
+        cop_override = p.get("cop_series_override")
+        if cop_override is not None:
+            cop_series = [float(c) for c in cop_override]
+            logger.info("[ASSEMBLE] %s: using scenario-injected COP series "
+                        "(len=%d, waste-heat priority)", name, len(cop_series))
+        else:
+            sink_temp_series_k = self._compute_heating_curve_sink_temps()
+            cop_series = calculate_cop_series(self.table, wrg_col, self.cfg, hp_type,
+                                              sink_temp_series=sink_temp_series_k)
+
+        cop_charge_override = p.get("cop_charge_series_override")
+        cop_charge_series = ([float(c) for c in cop_charge_override]
+                             if cop_charge_override is not None else None)
 
         wrg_cap_col = p.get("wrg_capacity_column")
         if wrg_cap_col is None and wrg_col:
@@ -317,11 +450,19 @@ class ComponentAssembler:
             investable=invest_enabled,
             wrg_cap_series=wrg_caps,
             cop_default=cop_default,
+            cop_charge_series=cop_charge_series,
         )
         fs = block.attach(self.m, self.t, self.cfg, {})
+        self._component_fs[name] = fs
 
-        # Per-node heat output
-        node_buses.ht_out.append(fs["Q_th_out"])
+        # Per-node heat output (or distributed over candidates in F3 siting).
+        # Note: Q_hot is never bus-connected — it feeds the TES exclusively via
+        # the Qc == Q_hot coupling in _finalize_couplings().
+        if name in self._endog_group_of:
+            self._distribute_flows(name, fs["Q_th_out"], None, sys_buses,
+                                   power_bound=max(cap_max, cap_init, 1.0))
+        else:
+            node_buses.ht_out.append(fs["Q_th_out"])
         # Global electricity input
         sys_buses.el_in.append(fs["P_el_in"])
 
@@ -408,65 +549,6 @@ class ComponentAssembler:
         self.buses.storage_install_terms.clear()
         self.buses.fuel_cost_terms.clear()
 
-    def _attach_tall_tank_from_unified(self, asset, node_id, node_buses, sys_buses):
-        """Attach a TallTankStorageBlock from unified config."""
-        p = dict(asset.params)
-        name = asset.id
-
-        milp_mode = bool(self.cfg.get("milp_linearize", False))
-        T_hot = float(p.get("T_hot_C", 90.0))
-        T_cold = float(p.get("T_cold_C", 50.0))
-        height_m = float(p.get("height_m", 20.0))
-        diameter_m = float(p.get("diameter_m", 10.0))
-        soc0_fraction = float(p.get("soc0_fraction", 0.5))
-        cap_vol_min = float(p.get("cap_volume_min_m3", 0.0))
-        cap_vol_max = p.get("cap_volume_max_m3")
-        if cap_vol_max is not None:
-            cap_vol_max = float(cap_vol_max)
-
-        block = TallTankStorageBlock(
-            name=name,
-            T_hot_C=T_hot,
-            T_cold_C=T_cold,
-            height_m=height_m,
-            diameter_m=diameter_m,
-            dt_h=self.dt_h,
-            soc0_fraction=soc0_fraction,
-            cap_volume_min_m3=cap_vol_min,
-            cap_volume_max_m3=cap_vol_max,
-            milp_linearize=milp_mode,
-        )
-        fs = block.attach(self.m, self.t, self.cfg, {})
-
-        node_buses.ht_out.append(fs["Q_th_out"])
-        node_buses.ht_in.append(fs["Q_th_in"])
-
-        # Store P_head variable reference on model for network_manager pressure coupling
-        if not hasattr(self.m, "_tall_tank_pressure_refs"):
-            self.m._tall_tank_pressure_refs = {}
-        self.m._tall_tank_pressure_refs[node_id] = fs["pressure_head"]
-
-        # Investment costs: treat cap_volume [m³] as energy var, use capex_eur_per_m3 rate
-        capex_per_m3 = float(p.get("capex_eur_per_m3", 0.0))
-        activation_cost = float(p.get("activation_cost_eur", 0.0))
-        lifetime = float(p.get("lifetime_years", 30.0))
-        build_var = fs["build"]
-        cap_vol_var = fs["cap_volume"]
-        if (capex_per_m3 > 0.0 or activation_cost > 0.0) and cap_vol_var is not None:
-            from .investment_calculator import StorageInvestmentConfig
-            inv_cfg = StorageInvestmentConfig(
-                energy_capex_eur_per_mwh=capex_per_m3,  # [EUR/m³] — var is m³, math is correct
-                power_capex_eur_per_mw=0.0,
-                activation_cost_eur=activation_cost,
-                tie_breaker_eur_per_mwh=0.0,
-                lifetime_years=lifetime,
-            )
-            inv_terms = self.inv_calc.calculate_storage_costs(cap_vol_var, None, build_var, inv_cfg)
-            sys_buses.capex_terms.extend(inv_terms.capex)
-            sys_buses.activation_terms.extend(inv_terms.activation)
-
-        logger.info("[ASSEMBLE] TallTankStorage '%s' at node '%s' attached", name, node_id)
-
     def _attach_generator_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
         """Attach a thermal generator from unified config to per-node buses."""
         p = dict(asset.params)
@@ -531,20 +613,54 @@ class ComponentAssembler:
         sys_buses.fuel_co2_terms.append(gen_co2.total_kg)
 
     def _attach_p2h_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
-        """Attach a P2H converter from unified config to per-node buses."""
+        """Attach a P2H converter from unified config to per-node buses.
+
+        Supports Paper 2 EK investment (spec §2.2 CAPEX_EK = α_EK·Q̇_EK + β_EK·y_EK).
+        Previously the investment section was silently ignored: the EK was a
+        fixed-capacity asset (capacity_mw) with zero CAPEX in the objective.
+        """
         p = dict(asset.params)
         eff = float(p.get("efficiency", 0.99))
         cap_th = float(p.get("capacity_mw", 10.0))
         min_load = float(p.get("min_load", 0.0))
 
-        p2h_name = asset.id.upper()
-        block = P2HBlock(p2h_name, eff=eff, cap_th_mw=cap_th, min_load=min_load)
-        fs = block.attach(self.m, self.t, self.cfg, {})
+        inv_cfg = p.get("investment", {}) or {}
+        invest_enabled = bool(inv_cfg.get("enabled", False))
+        cap_min = float(inv_cfg.get("capacity_min_mw", 0.0))
+        cap_max = float(inv_cfg.get("capacity_max_mw", cap_th))
 
-        # Per-node heat output
-        node_buses.ht_out.append(fs["Q_th_out"])
+        p2h_name = asset.id.upper()
+        block = P2HBlock(
+            p2h_name, eff=eff, cap_th_mw=cap_th, min_load=min_load,
+            investable=invest_enabled,
+            capacity_min_mw=cap_min,
+            capacity_max_mw=cap_max if invest_enabled else None,
+        )
+        fs = block.attach(self.m, self.t, self.cfg, {})
+        self._component_fs[asset.id] = fs
+
+        # Per-node heat output (or distributed over candidates in F3 siting)
+        if asset.id in self._endog_group_of:
+            self._distribute_flows(asset.id, fs["Q_th_out"], None, sys_buses,
+                                   power_bound=max(cap_max, cap_th, 1.0))
+        else:
+            node_buses.ht_out.append(fs["Q_th_out"])
         # Global electricity input
         sys_buses.el_in.append(fs["P_el_in"])
+
+        # Investment costs → system level (ANF via InvestmentCalculator)
+        cap_var = fs.get("capacity")
+        build_var = fs.get("build")
+        if invest_enabled and cap_var is not None and build_var is not None:
+            p2h_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, {})
+            p2h_inv_terms = self.inv_calc.calculate_component_costs(
+                cap_var, build_var, p2h_inv_config)
+            sys_buses.capex_terms.extend(p2h_inv_terms.capex)
+            sys_buses.activation_terms.extend(p2h_inv_terms.activation)
+            sys_buses.tie_breaker_terms.extend(p2h_inv_terms.tie_breaker)
+            logger.info("[ASSEMBLE] %s: investable EK cap∈[%.1f, %.1f] MW, "
+                        "capex=%.0f €/MW", p2h_name, cap_min, cap_max,
+                        float(inv_cfg.get("capex_eur_per_mw", 0.0)))
 
         p2h_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "p2h")
         self.m.co2_component_costs[p2h_name] = p2h_co2.to_dict()
@@ -730,41 +846,31 @@ class ComponentAssembler:
 
         power_energy_coupling = self._resolve_power_energy_coupling(sto_cfg, storage_defaults)
 
-        storage_type = str(sto_cfg.get("type", "simple")).lower()
-        if storage_type == "stratified":
-            logger.info("[ASSEMBLE] Using stratified storage (2-zone thermocline model)")
-            block = self._build_stratified_block(
-                sto_cfg, eff_charge, eff_discharge, soc_init,
-                invest_enabled, e_cap_min, e_cap_max, p_cap_min, p_cap_max,
-                e_cap_init, p_cap_init, terminal_target_val,
-                name=name,
-            )
-        else:
-            logger.info("[ASSEMBLE] Using simple storage (single-zone model)")
-            block = StorageBlock(
-                name,
-                e_min=sto_cfg.get("min_energy_mwh", 0.0),
-                e_max=sto_cfg.get("max_energy_mwh", 50000.0),
-                p_max=sto_cfg.get("max_power_mw", DEFAULT_STORAGE_POWER_MW),
-                eff_c=eff_charge,
-                eff_d=eff_discharge,
-                hourly_loss=loss,
-                dt_h=self.dt_h,
-                soc0=soc_init,
-                investable=invest_enabled,
-                e_cap_min=e_cap_min,
-                e_cap_max=e_cap_max,
-                p_cap_min=p_cap_min,
-                p_cap_max=p_cap_max,
-                e_cap_init=e_cap_init,
-                p_cap_init=p_cap_init,
-                terminal_target=terminal_target_val,
-                loss_series=loss_series,
-                eff_charge_series=eff_charge_series,
-                eff_discharge_series=eff_discharge_series,
-                capacity_active_series=capacity_active_series,
-                power_energy_coupling=power_energy_coupling,
-            )
+        logger.info("[ASSEMBLE] Using simple storage (single-zone model)")
+        block = StorageBlock(
+            name,
+            e_min=sto_cfg.get("min_energy_mwh", 0.0),
+            e_max=sto_cfg.get("max_energy_mwh", 50000.0),
+            p_max=sto_cfg.get("max_power_mw", DEFAULT_STORAGE_POWER_MW),
+            eff_c=eff_charge,
+            eff_d=eff_discharge,
+            hourly_loss=loss,
+            dt_h=self.dt_h,
+            soc0=soc_init,
+            investable=invest_enabled,
+            e_cap_min=e_cap_min,
+            e_cap_max=e_cap_max,
+            p_cap_min=p_cap_min,
+            p_cap_max=p_cap_max,
+            e_cap_init=e_cap_init,
+            p_cap_init=p_cap_init,
+            terminal_target=terminal_target_val,
+            loss_series=loss_series,
+            eff_charge_series=eff_charge_series,
+            eff_discharge_series=eff_discharge_series,
+            capacity_active_series=capacity_active_series,
+            power_energy_coupling=power_energy_coupling,
+        )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
         self.buses.ht_out.append(fs["Q_th_out"])
@@ -806,6 +912,126 @@ class ComponentAssembler:
                 "[STORAGE] Cycling cost %.2f €/MWh added to objective "
                 "(arbitrage requires spread > %.2f €/MWh_th round-trip).",
                 cycling_cost_eur, 2.0 * cycling_cost_eur,
+            )
+
+    def _attach_geometric_storage_from_unified(self, asset, node_buses, sys_buses) -> None:
+        """Attach GeometricStorageBlock from unified config to per-node buses.
+
+        CAPEX is α_tes × V_m3 + β_tes × build, annualized via ANF(i, n).
+        δT is a scenario parameter passed by scenario_runner; option_b adds
+        explicit h_TES and d_TES Vars for MIQCP geometry (Gurobi-compatible).
+        """
+        p = dict(asset.params)
+        name = asset.id
+
+        alpha_tes = float(p.get("alpha_tes_eur_per_m3", 500.0))
+        beta_tes = float(p.get("beta_tes_eur", 50000.0))
+        lifetime_years = float(p.get("lifetime_years", 30.0))
+        delta_T_k = float(p.get("delta_T_scenario_k", 20.0))
+        r_hd = float(p.get("r_hd", 3.0))
+        p_max_bar = float(p.get("p_max_bar", 10.0))
+        V_min_m3 = float(p.get("V_min_m3", 5.0))
+        V_max_m3 = float(p.get("V_max_m3", 5000.0))
+        option_b = bool(p.get("option_b", False))
+        eff_c = float(p.get("eff_charge", 0.98))
+        eff_d = float(p.get("eff_discharge", 0.98))
+        hourly_loss = float(p.get("loss_hour", 0.9999))
+        soc0_fraction = float(p.get("soc0_fraction", 0.5))
+        ptr = p.get("power_to_energy_ratio")
+        power_to_energy_ratio = float(ptr) if ptr is not None else None
+        tsf = p.get("terminal_soc_fraction")
+        terminal_soc_fraction = float(tsf) if tsf is not None else None
+        cycling_cost_eur = float(p.get("cycling_cost_eur_per_mwh", 0.0))
+
+        # Non-investable mode: a real, already-built tank sized by its known
+        # energy/power rating (e.g. tes_existing) rather than an optimizer
+        # decision. Volume/height are still derived geometrically so it can
+        # participate in F4 pressure coupling like an investable tank.
+        investable = bool(p.get("investable", True))
+        energy_mwh_fixed = p.get("energy_mwh_fixed")
+        power_mw_fixed = p.get("power_mw_fixed")
+        e_min_fraction = float(p.get("e_min_fraction", 0.0))
+
+        block = GeometricStorageBlock(
+            name=name,
+            alpha_tes_eur_per_m3=alpha_tes,
+            beta_tes_eur=beta_tes,
+            lifetime_years=lifetime_years,
+            delta_T_scenario_k=delta_T_k,
+            r_hd=r_hd,
+            p_max_bar=p_max_bar,
+            V_min_m3=V_min_m3,
+            V_max_m3=V_max_m3,
+            eff_c=eff_c,
+            eff_d=eff_d,
+            hourly_loss=hourly_loss,
+            dt_h=self.dt_h,
+            soc0_fraction=soc0_fraction,
+            power_to_energy_ratio=power_to_energy_ratio,
+            terminal_soc_fraction=terminal_soc_fraction,
+            option_b=option_b,
+            investable=investable,
+            energy_mwh_fixed=float(energy_mwh_fixed) if energy_mwh_fixed is not None else None,
+            power_mw_fixed=float(power_mw_fixed) if power_mw_fixed is not None else None,
+            e_min_fraction=e_min_fraction,
+        )
+
+        fs = block.attach(self.m, self.t, self.cfg, {})
+        self._component_fs[name] = fs
+
+        # BUGFIX (2026-07-03): flows and CAPEX previously went to self.buses
+        # (legacy accumulator), which the unified path NEVER merges — the
+        # geometric TES was disconnected from every heat balance and its CAPEX
+        # was missing from the objective (phantom storage: siting had no effect,
+        # investment was free). Route to node_buses / sys_buses like all other
+        # unified assets.
+        hot_tes = bool(self._hot_coupling and self._hot_coupling.get("tes") == name)
+        power_bound = block.V_max_effective * block.energy_coeff  # ≥ cap_power bound
+
+        if name in self._endog_group_of:
+            # F3 siting: discharge distributed over candidates; charge likewise
+            # unless hot-coupled (then Qc == Q_hot is a closed HP→TES pipe that
+            # bypasses the bus entirely).
+            self._distribute_flows(name, fs["Q_th_out"],
+                                   None if hot_tes else fs["Q_th_in"],
+                                   sys_buses, power_bound=power_bound)
+        else:
+            node_buses.ht_out.append(fs["Q_th_out"])
+            if not hot_tes:
+                node_buses.ht_in.append(fs["Q_th_in"])
+        if hot_tes:
+            logger.info("[HOT-CHARGE] %s: Qc bypasses node bus (charged only "
+                        "via HP hot channel)", name)
+
+        # CAPEX: ANF(i, n) × (α × V + β × build), scaled to optimization period.
+        # Skipped for non-investable (existing/fixed) tanks — already built, no new spend.
+        V = fs["V_m3"]
+        build = fs["build"]
+        annual_factor = self.inv_calc.annual_factor(lifetime_years)
+        if investable and annual_factor > 0:
+            sys_buses.capex_terms.append(annual_factor * (alpha_tes * V + beta_tes * build))
+
+        if cycling_cost_eur > 0:
+            Qc = fs["Q_th_in"]
+            Qd = fs["Q_th_out"]
+            cycling_expr = sum(
+                cycling_cost_eur * (Qc[t] + Qd[t]) * self.dt_h for t in self.t
+            )
+            sys_buses.fuel_cost_terms.append(cycling_expr)
+
+        if investable:
+            logger.info(
+                "[GEOMETRIC_STORAGE] %s: V=[%.0f, %.0f] m³, alpha=%.0f €/m³, "
+                "beta=%.0f €, dT=%.1fK, option_b=%s, annual_factor=%.4f",
+                name, V_min_m3, V_max_m3, alpha_tes, beta_tes, delta_T_k,
+                option_b, annual_factor,
+            )
+        else:
+            logger.info(
+                "[GEOMETRIC_STORAGE] %s: FIXED (non-investable) tank, "
+                "E=%.0f MWh, P=%.0f MW → V=%.0f m³ at dT=%.1fK, no CAPEX.",
+                name, block.energy_mwh_fixed, block.power_mw_fixed,
+                block.V_fixed_m3, delta_T_k,
             )
 
     # ── Thermal Generator / P2H Assembly ──────────────────────────────────────
@@ -1012,39 +1238,6 @@ class ComponentAssembler:
         if result <= 0:
             raise ValueError("storage.power_energy_coupling must be positive when provided")
         return result
-
-    def _build_stratified_block(
-        self, sto_cfg, eff_charge, eff_discharge, soc_init,
-        invest_enabled, e_cap_min, e_cap_max, p_cap_min, p_cap_max,
-        e_cap_init, p_cap_init, terminal_target_val,
-        name: str = "TES",
-    ) -> StratifiedStorageBlock:
-        """Create a StratifiedStorageBlock from config."""
-        return StratifiedStorageBlock(
-            name,
-            T_hot_C=float(sto_cfg.get("T_hot_C", 90.0)),
-            T_cold_C=float(sto_cfg.get("T_cold_C", 40.0)),
-            T_ambient_C=float(sto_cfg.get("T_ambient_C", 15.0)),
-            T_ground_C=float(sto_cfg.get("T_ground_C", 10.0)),
-            aspect_ratio=float(sto_cfg.get("aspect_ratio", 1.5)),
-            geometry_type=str(sto_cfg.get("geometry_type", "tank")),
-            U_top=float(sto_cfg.get("U_top", 0.3)),
-            U_side=float(sto_cfg.get("U_side", 0.2)),
-            U_bottom=float(sto_cfg.get("U_bottom", 0.15)),
-            eff_c=eff_charge,
-            eff_d=eff_discharge,
-            dt_h=self.dt_h,
-            soc0=soc_init,
-            V_hot_init_fraction=float(sto_cfg.get("V_hot_init_fraction", 0.5)),
-            investable=invest_enabled,
-            e_cap_min=e_cap_min,
-            e_cap_max=e_cap_max,
-            p_cap_min=p_cap_min,
-            p_cap_max=p_cap_max,
-            e_cap_init=e_cap_init,
-            p_cap_init=p_cap_init,
-            terminal_target=terminal_target_val,
-        )
 
     def _register_storage_references(self, fs: dict[str, Any], terminal_policy: str, name: str = "TES") -> None:
         """Register Pyomo References for storage variables on the model."""
