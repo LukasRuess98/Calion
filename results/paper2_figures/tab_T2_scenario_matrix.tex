@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Scenario matrix (16 families → 46 MILP runs). Heat-curve stages: TVLFIX (constant $T_{VL}$), HK0/HK1/HK2 (slope $k$ = 1.0 / 0.8 / 0.6).}
+  \label{tab:t2_scenarios}
+  \begin{tabular}{llllllll}
+  \toprule
+  Case study & Family & Description & TES node & WP/EK node & Heat-curve stages & Runs & Features \\
+  \midrule
+  Stadtbach & BC & Baseline (Bestand, no investment) & — (no TES) & j\_man & TVLFIX & 1 & — \\
+  Stadtbach & S0 & WP+EK investment, no TES & — (no TES) & j\_man & TVLFIX, HK0, HK1, HK2 & 4 & — \\
+  Stadtbach & S1 & TES at central node (HKW) & j\_hkw & j\_man & HK0, HK1, HK2 & 3 & — \\
+  Stadtbach & S2 & TES at WP node (MAN) & j\_man & j\_man & HK0, HK1, HK2 & 3 & — \\
+  Stadtbach & S3 & TES at WP node, hot charging & j\_man & j\_man & HK0, HK1, HK2 & 3 & hot charging \\
+  Stadtbach & S4 & TES at Pumpstation Süd & j\_pss & j\_man & HK0, HK1, HK2 & 3 & — \\
+  Stadtbach & S5 & TES at Pumpstation West & j\_psw & j\_man & HK0, HK1, HK2 & 3 & — \\
+  Stadtbach & S6 & Free WP+TES siting (endogenous) & solver-chosen (j\_hkw, j\_man, j\_ost, j\_pss, j\_psw) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
+  Stadtbach & S7 & Free siting, co-located, hot charging & solver-chosen (j\_hkw, j\_man, j\_ost, j\_pss, j\_psw) & solver-chosen (= TES) & HK0, HK1, HK2 & 3 & hot charging, endogenous siting, co-located WP+TES \\
+  Memmingen & BC & Baseline (Bestand, no investment) & — (no TES) & j\_12 & TVLFIX & 1 & — \\
+  Memmingen & S0 & WP+EK investment, no TES & — (no TES) & j\_12 & TVLFIX, HK0, HK1, HK2 & 4 & — \\
+  Memmingen & S1 & TES at central node (Zentrale) & j\_1 & j\_12 & HK0, HK1, HK2 & 3 & — \\
+  Memmingen & S2 & TES at WP node (j\_12) & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & — \\
+  Memmingen & S3 & TES at WP node, hot charging & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & hot charging \\
+  Memmingen & S4 & Free WP+TES siting (endogenous) & solver-chosen (j\_1, j\_3, j\_5, j\_9, j\_12, j\_13) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
+  Memmingen & S5 & Free siting, co-located, hot charging & solver-chosen (j\_1, j\_3, j\_5, j\_9, j\_12, j\_13) & solver-chosen (= TES) & HK0, HK1, HK2 & 3 & hot charging, endogenous siting, co-located WP+TES \\
+  \bottomrule
+  \end{tabular}
+\end{table}

@@ -1757,29 +1757,47 @@ class NetworkManager:
             pressure_fixed_producers = all_producer_node_ids
             secondary_producers = set()
 
-        # Fix P_supply setpoints for primary (or all) producers
+        # Primary producer: supply pressure FIXED at setpoint (the network reference).
+        # Secondary producers / pump stations (e.g. Stadtbach j_pss, j_psw): supply
+        # pressure is a FREE, pump-BOOSTED Var with a lower FLOOR at the setpoint --
+        # a real pump station lifts local pressure as needed for its downstream
+        # branch, so its supply pressure must NOT be pinned to the incoming pipe's
+        # propagated value (2026-07-09 IIS: pinning j_psw = P_hkw - Δp starved the
+        # j_josefinum consumer station of its 0.7 bar differential -> infeasible).
         for node_id, node_comp in node_components.items():
-            if node_id not in pressure_fixed_producers:
-                continue
             node_cfg = self.nodes.get(node_id, {})
             setpoint = node_cfg.get('pressure', {}).get('setpoint_bar', 10.0)
             node_P_supply = node_comp['pressure_supply']
+            if node_id in pressure_fixed_producers:
+                setattr(
+                    model,
+                    f'producer_{node_id}_P_supply_setpoint',
+                    pyo.Constraint(
+                        time_set,
+                        rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] == _sp,
+                    ),
+                )
+                logger.info(
+                    '  Producer %s: P_supply fixed = %s bar (reference)', node_id, setpoint
+                )
+            elif node_id in secondary_producers:
+                setattr(
+                    model,
+                    f'producer_{node_id}_P_supply_floor',
+                    pyo.Constraint(
+                        time_set,
+                        rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] >= _sp,
+                    ),
+                )
+                logger.info(
+                    '  Secondary producer %s: P_supply >= %s bar (pump-boosted, not pinned '
+                    'by incoming pipe)', node_id, setpoint
+                )
 
-            setattr(
-                model,
-                f'producer_{node_id}_P_supply_setpoint',
-                pyo.Constraint(
-                    time_set,
-                    rule=lambda m, t, _P=node_P_supply, _sp=setpoint: _P[t] == _sp,
-                ),
-            )
-            logger.info(
-                '  Producer %s: P_supply fixed = %s bar, P_return determined by pump head',
-                node_id, setpoint
-            )
-
-        # producer_nodes: only pressure-fixed producers used for loop-closing check below
-        producer_nodes = pressure_fixed_producers
+        # Skip supply/return propagation INTO any producer node -- a producer/pump
+        # station re-establishes (boosts) its own pressure, so an incoming pipe must
+        # not pin it. (Generalises the old primary-only "loop-closing" skip.)
+        producer_nodes = all_producer_node_ids
         # Propagate pressure through pipes
         for pipe_id, pipe_comp in pipe_components.items():
             from_node = pipe_comp['from_node']
@@ -1812,31 +1830,39 @@ class NetworkManager:
             bidirectional_pipe = bool(pipe_comp.get('bidirectional', False)) and flow_dir is not None
 
             if not bidirectional_pipe:
-                # Supply: pressure drops from from_node to to_node
+                # Supply: pressure drops along the pipe. INEQUALITY (<=) rather than
+                # equality so a convergence node fed by several pipes (e.g. Stadtbach
+                # j_ost: 4 incoming) is bounded by each feeder without being
+                # over-determined by conflicting equalities. The consumer-station
+                # differential-pressure valve absorbs any excess head, and pump-power
+                # minimisation in the objective pulls the profile down to the minimum
+                # feasible pressure -- so the node pressure is still well-determined
+                # (the tightest binding feeder), just not forced by every pipe.
                 setattr(
                     model,
                     f"pressure_supply_prop_{pipe_id}",
                     pyo.Constraint(
                         time_set,
                         rule=lambda m, t, _f=from_P_supply, _t=to_P_supply, _dp=delta_p_supply: (
-                            _t[t] == _f[t] - _dp[t]
+                            _t[t] <= _f[t] - _dp[t]
                         ),
                     ),
                 )
-                # Return: pressure drops from to_node back to from_node
+                # Return: pressure drops from to_node back toward from_node (plant-ward
+                # is lower). Same inequality rationale for return convergence.
                 setattr(
                     model,
                     f"pressure_return_prop_{pipe_id}",
                     pyo.Constraint(
                         time_set,
                         rule=lambda m, t, _f=from_P_return, _t=to_P_return, _dp=delta_p_return: (
-                            _f[t] == _t[t] - _dp[t]
+                            _f[t] <= _t[t] - _dp[t]
                         ),
                     ),
                 )
                 logger.info(
-                    f"  âœ“ {pipe_id}: P_supply[{to_node}] = P_supply[{from_node}] - Î”P_supply; "
-                    f"P_return[{from_node}] = P_return[{to_node}] - Î”P_return"
+                    f"  âœ“ {pipe_id}: P_supply[{to_node}] <= P_supply[{from_node}] - Î”P_supply; "
+                    f"P_return[{from_node}] <= P_return[{to_node}] - Î”P_return"
                 )
             else:
                 p_big_m = float(self._net_cfg.get('pressure_big_m_bar', 30.0))

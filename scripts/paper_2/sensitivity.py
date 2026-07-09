@@ -128,7 +128,10 @@ def run_sensitivity_scenario(
 
     if (outdir / "meta.json").exists():
         logger.info("[SKIP] %s already done", sens_id)
-        return {"id": sens_id, "status": "skipped"}
+        prev = _read_json(outdir / "meta.json")
+        return {"id": sens_id, "status": "skipped", "param": param_key,
+                "variant": variant_label, "TAC_eur_per_a": prev.get("obj_eur"),
+                "solve_s": prev.get("solve_s")}
 
     # Load and merge config
     cfg_path = _ROOT / base["config"]
@@ -170,22 +173,20 @@ def run_sensitivity_scenario(
         from calion.run.workflow import run_workflow
         wf = run_workflow([str(tmp_path)])
         elapsed = time.perf_counter() - t0
-        obj = None
-        try:
-            obj = float(wf.pf_result.obj_value)
-        except Exception:
-            pass
+        obj = _extract_objective(wf)
         outdir.mkdir(parents=True, exist_ok=True)
         with open(outdir / "meta.json", "w", encoding="utf-8") as f:
             json.dump({
                 "id": sens_id, "base": base_scen_id, "param": param_key,
                 "variant": variant_label, "obj_eur": obj, "solve_s": elapsed,
             }, f, indent=2)
-        return {"id": sens_id, "status": "ok", "TAC_eur_per_a": obj, "solve_s": elapsed}
+        return {"id": sens_id, "status": "ok", "param": param_key,
+                "variant": variant_label, "TAC_eur_per_a": obj, "solve_s": elapsed}
     except Exception as exc:
         elapsed = time.perf_counter() - t0
         logger.error("[%s] Failed: %s", sens_id, exc)
-        return {"id": sens_id, "status": "error", "error": str(exc)}
+        return {"id": sens_id, "status": "error", "param": param_key,
+                "variant": variant_label, "error": str(exc)}
     finally:
         try:
             tmp_path.unlink()
@@ -207,10 +208,11 @@ def run_sensitivity(out_base: Path) -> dict:
             logger.warning("No best scenario found for %s — run phase 1 first", network)
             continue
 
-        # Get baseline TAC for this network
-        bc_id = "BC-MM" if network == "memmingen" else "BC-SB"
-        bc_meta = _read_json(out_base / bc_id / "meta.json")
-        base_obj = bc_meta.get("obj_eur")
+        # Reference for the tornado is the best scenario's OWN nominal (unperturbed)
+        # TAC — the diagram shows relative TAC change vs that optimum, not vs the
+        # baseline. Prefer its meta.json objective, fall back to the KPI CSV.
+        best_meta = _read_json(out_base / best_id / "meta.json")
+        base_obj = best_meta.get("obj_eur") or _kpi_tac(best_id)
 
         logger.info("Sensitivity for %s (best: %s)", network, best_id)
 
@@ -264,6 +266,35 @@ def _read_json(path: Path) -> dict:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     return {}
+
+
+def _extract_objective(wf) -> float | None:
+    """Model objective [EUR] from the workflow result (mirrors scenario_runner)."""
+    try:
+        pf = wf.pf_result
+        summ = getattr(pf, "summary", {}) or {}
+        obj_section = summ.get("objective", {}) if hasattr(summ, "get") else {}
+        for k in ("OBJ_value_EUR", "Model_OBJ_value_EUR"):
+            if isinstance(obj_section, dict) and obj_section.get(k) is not None:
+                return float(obj_section[k])
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _kpi_tac(scen_id: str) -> float | None:
+    """TAC [EUR/a] for a scenario from scenarios_kpis.csv (fallback reference)."""
+    kpi_path = OUT_BASE / "scenarios_kpis.csv"
+    if not kpi_path.exists():
+        return None
+    with open(kpi_path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r.get("scenario_id") == scen_id:
+                try:
+                    return float(r.get("TAC_eur_per_a"))
+                except (TypeError, ValueError):
+                    return None
+    return None
 
 
 if __name__ == "__main__":

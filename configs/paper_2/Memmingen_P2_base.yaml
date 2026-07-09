@@ -39,7 +39,13 @@ network:
   # j_12 hosts HP/EK (spec §3.3: WP/EK fest bei der Abwärme, Memmingen = j_12) and
   # becomes a 'mixed' node — only j_1 keeps the fixed P_supply setpoint, j_12 floats.
   primary_producer: "j_1"
-  temperature_propagation: true   # L3+: supply temperature propagation via McCormick W-vars
+  # 2026-07-08: McCormick L3+ temperature propagation DISABLED -- at 8760 h it
+  # made the model ~6M rows (barrier root LP couldn't solve, no incumbent; see
+  # report Part E.1). Spatial supply-temperature DROP is now applied instead as
+  # a per-node T_supply_offset_c (cumulative heat loss from the plant),
+  # precomputed in scenario_runner._apply_spatial_temperature_offsets -- keeps
+  # T a Param (solvable L3 size) while still showing the node-to-node drop.
+  temperature_propagation: false
   # 2026-07-08: reverted from 100.0 (capacity bypass) to a realistic value now
   # that demand data is quality-cleaned and pipe diameters are DXF-real -- also
   # makes transport_delay's flow-based bucket computation meaningful again

@@ -389,6 +389,16 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         except Exception:
             pass
 
+    # Heat-pump series are keyed by the (config-specific) asset id — hp_main for
+    # Memmingen, hp_sb for Stadtbach, etc. Detect it from the series keys instead
+    # of hard-coding "hp_main", so the electricity (Pel) and COP series are not
+    # silently dropped for networks whose HP has a different id (this was the cause
+    # of Stadtbach P_hp_el_MW = 0 and COP_hp_wrg = 0, which blanked COP_annual_mean).
+    _hp_suffix = "_Q_th_MW"
+    _hp_ids = sorted({k[: -len(_hp_suffix)] for k in series
+                      if k.endswith(_hp_suffix) and k.lower().startswith("hp")})
+    hp_id = _hp_ids[0] if _hp_ids else "hp_main"
+
     rows = {
         "timestamp": timestamps,
         "Q_demand_total_MW": [0.0] * T,  # filled from energy balance below
@@ -402,12 +412,12 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         # --- Biomass Boiler (NEU - fehlte komplett!) ---
         "Q_biomass_MW": s("BIOMASS_MAIN_Q_th_MW"),
         "F_biomass_MW": s("BIOMASS_MAIN_fuel_MW"),
-        # --- Heat Pump (lowercase - HP uses asset.id directly) ---
-        "Q_hp_total_MW": s("hp_main_Q_th_MW"),
-        "Q_hp_wrg_MW": s("hp_main_Q_wrg_MW"),
-        "Q_hp_def_MW": s("hp_main_Q_def_MW"),
-        "P_hp_el_MW": s("hp_main_Pel_MW"),
-        "COP_hp_wrg": s("hp_main_COP"),
+        # --- Heat Pump (lowercase - HP uses asset.id directly; id auto-detected) ---
+        "Q_hp_total_MW": s(f"{hp_id}_Q_th_MW"),
+        "Q_hp_wrg_MW": s(f"{hp_id}_Q_wrg_MW"),
+        "Q_hp_def_MW": s(f"{hp_id}_Q_def_MW"),
+        "P_hp_el_MW": s(f"{hp_id}_Pel_MW"),
+        "COP_hp_wrg": s(f"{hp_id}_COP"),
         # --- E-Boiler / P2H: aggregate EBOILER_MAIN and P2H variants ---
         "Q_ek_MW": [a + b for a, b in zip(s("EBOILER_MAIN_Q_th_MW"), s("P2H_Q_th_MW"))],
         "P_ek_el_MW": [a + b for a, b in zip(s("EBOILER_MAIN_Pel_MW"), s("P2H_Pel_MW"))],
@@ -450,7 +460,7 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
     # _primary_keys: series already summed in the primary rows dict — skip to prevent double-count.
     _primary_keys = {
         "CHP_MAIN_Q_th_MW", "GASBOILER_MAIN_Q_th_MW", "BIOMASS_MAIN_Q_th_MW",
-        "hp_main_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
+        f"{hp_id}_Q_th_MW", "EBOILER_MAIN_Q_th_MW", "P2H_Q_th_MW",
     }
     _dispatch_map: dict = {}
     try:
@@ -910,6 +920,9 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
             loss_col = "Q_loss_total_MW"
             demand_col = "Q_demand_total_MW"
 
+            dump_cols = ["Q_dump_MW", "Q_dump_total_MW", "Q_curtail_MW",
+                         "Q_curtailment_MW"]
+
             gen_total = sum(
                 disp[c].fillna(0).sum() for c in gen_cols if c in disp.columns
             )
@@ -921,19 +934,33 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
             )
             losses = disp[loss_col].fillna(0).sum() if loss_col in disp.columns else 0.0
             demand = disp[demand_col].fillna(0).sum() if demand_col in disp.columns else 0.0
+            dump = sum(disp[c].fillna(0).sum() for c in dump_cols if c in disp.columns)
 
             supply = gen_total + discharge - charge
-            closure_err_pct = (
-                abs(supply - losses - demand) / demand * 100 if demand > 0 else None
-            )
-            payload["energy_balance"] = {
+            eb = {
                 "generation_MWh": round(gen_total, 1),
                 "net_storage_MWh": round(discharge - charge, 1),
                 "losses_MWh": round(losses, 1),
                 "demand_MWh": round(demand, 1),
-                "closure_error_pct": round(closure_err_pct, 3) if closure_err_pct is not None else None,
-                "closure_pass": bool(closure_err_pct is not None and closure_err_pct <= 2.0),
+                "curtailment_MWh": round(dump, 1),
             }
+            # Plausibility guard: a stale or wrong-network dispatch export (e.g. a
+            # Stadtbach run whose demand column holds Memmingen's ~10 MW load, or a
+            # no-incumbent run) yields an absurd closure %. Flag it instead of
+            # emitting a meaningless 1000s-of-% figure that would poison T5.
+            ratio = (supply / demand) if demand > 0 else None
+            if demand <= 0:
+                eb.update(closure_error_pct=None, closure_pass=False,
+                          closure_note="demand <= 0 in dispatch export")
+            elif ratio is not None and not (0.33 <= ratio <= 3.0):
+                eb.update(closure_error_pct=None, closure_pass=False,
+                          closure_note=f"implausible supply/demand ratio {ratio:.2f} "
+                                       "— stale or wrong-network dispatch export")
+            else:
+                closure_err_pct = abs(supply - dump - losses - demand) / demand * 100
+                eb.update(closure_error_pct=round(closure_err_pct, 3),
+                          closure_pass=bool(closure_err_pct <= 2.0))
+            payload["energy_balance"] = eb
         except Exception as exc:
             payload["energy_balance_error"] = str(exc)
 

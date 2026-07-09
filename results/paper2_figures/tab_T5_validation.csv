@@ -1,0 +1,10 @@
+Validation metric,Value,Note
+Energy-balance closure (mean),8.65 %,27 converged runs
+Energy-balance closure (max),26.99 %,worst: SB-S4-HK2
+Runs passing closure gate (≤2%),0/27,converged runs only
+Runs excluded (implausible balance),2,stale/wrong-network dispatch — refreshes on re-run
+MIP gap,n/a,meta.json mip_gap null — see solver status
+Solver status,optimal: 28; ?: 1; maxTimeLimit: 5,34 runs
+Annual COP range,3.00 – 3.21,plausibility (Lorenz surrogate)
+Memmingen P1 OPEX consistency,pending,needs Paper 1 reference OPEX
+Sweep–MILP optimum consistency,pending,Part A sweep not built (spec A.5)

@@ -216,12 +216,11 @@ def extract_all_p2(
     """
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # Meta
-    meta = write_meta_p2(outdir, scen_id, cfg, wf_result, solve_s)
-    logger.info("[%s] meta.json: status=%s, obj=%.0f €",
-                scen_id, meta.get("status"), meta.get("obj_eur") or 0)
-
-    # Reuse Paper 1 extraction for standard artefacts
+    # Reuse Paper 1 extraction for standard artefacts.
+    # NOTE (2026-07-08, O-7): the Paper 1 extractor ALSO writes meta.json (its
+    # own write_meta), which used to clobber the P2 meta.json with a less
+    # informative version. Run it FIRST, then write the authoritative P2
+    # meta.json last so it wins.
     try:
         from scripts.paper.extract_artefacts import extract_all as extract_p1
         # Paper 1 extractor writes economics.csv, dispatch_hourly.csv, etc.
@@ -237,6 +236,11 @@ def extract_all_p2(
                 pass
     except ImportError:
         logger.warning("Paper 1 extract_artefacts not importable — skipping standard artefacts")
+
+    # Authoritative P2 meta.json (written AFTER P1 so it is not overwritten).
+    meta = write_meta_p2(outdir, scen_id, cfg, wf_result, solve_s)
+    logger.info("[%s] meta.json: status=%s, obj=%.0f €",
+                scen_id, meta.get("status"), meta.get("obj_eur") or 0)
 
     # Paper 2-specific artefacts
     geo = write_geometry_p2(outdir, wf_result, scen)

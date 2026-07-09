@@ -34,15 +34,18 @@
 #   ek_sb:    electrode boiler at j_hkw (0–50 MW, capex 150 k€/MW)
 #   tes_sb:   TES at j_hkw (0–5000 MWh, capex 16.5 k€/MWh)
 #
-# DATA: data/Stadtbach/stadtbach_acron_combined.xlsx
+# DATA: data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx
 #   Build with: python scripts/preprocess/merge_acron_sb.py
+#   Then:       python scripts/preprocess/clean_stadtbach_west.py
+#   (West-zone 9 estimated consumers reconstructed via energy balance; raw
+#    merge corrupts them from PSW recirculation flow -- see clean script header)
 #
 # TEMPERATURES (from PPS/PSW measurements 2025):
 #   Supply: mean 99°C, max 122°C  |  Return: mean 60°C
 # =============================================================================
 
 site:
-  input_xlsx: "data/Stadtbach/stadtbach_acron_combined.xlsx"
+  input_xlsx: "data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx"
   columns:
     datetime: "Datum"
     price: "strompreis_EUR_MWh"
@@ -65,8 +68,18 @@ network:
   primary_producer: "j_hkw"   # explicit: j_bmhkw sorts before j_hkw alphabetically
   physics:
     heat_loss: true
-    pressure_drop: false   # pipe diameters in topo are placeholder values; pressure model disabled
-    transport_delay: false
+    # 2026-07-09: pressure_drop ENABLED after fixing the mesh/booster pressure
+    # formulation. IIS showed the real blocker was NOT mesh over-determination
+    # but that pump-station nodes (j_pss/j_psw) had their supply pressure PINNED
+    # by the incoming pipe (P = P_hkw - Δp), so their booster pump couldn't lift
+    # it -> the j_josefinum consumer station starved of its 0.7 bar differential.
+    # Fix (network_manager._link_pressure_propagation): secondary producers/pump
+    # stations get a pump-boosted supply pressure (floor at setpoint, not pinned),
+    # propagation into any producer is skipped, and node-to-node propagation is an
+    # inequality (valve absorbs excess; pump-power min sets the minimum-pressure
+    # profile) so multi-feed junctions like j_ost aren't over-determined.
+    pressure_drop: true
+    transport_delay: true
 
   supply_temp_c: 99.0
   return_temp_c: 60.0
@@ -108,12 +121,12 @@ network:
       T_supply_c: [70.0, 85.0, 100.0, 122.0]
       T_return_c: [55.0, 58.0,  62.0,  68.0]
 
-  max_velocity_m_s: 100.0
+  max_velocity_m_s: 2.5
   parameters:
-    max_velocity_m_s: 100.0  # passed to pipe_pair enriched_config via self.parameters
+    max_velocity_m_s: 2.5  # passed to pipe_pair enriched_config via self.parameters
   state_validation:
     flow_constraints:
-      max_velocity_m_s: 100.0  # passed to state_constraints velocity Pyomo constraint
+      max_velocity_m_s: 2.5  # passed to state_constraints velocity Pyomo constraint
   pump_efficiency: 0.75
   pipe_roughness_mm: 0.5
   max_pressure_drop_bar: 2.0
@@ -133,6 +146,14 @@ network:
       # spec) -- treated as fictional per the same standard applied to the
       # Memmingen header-comment/DN discrepancies found earlier this session.
       assets: [hkw, p2h_existing, ek_sb, hp_sb, tes_sb]
+      # 2026-07-09: supply-pressure setpoint raised 10 -> 16 bar. Stadtbach is a
+      # ~6 km network with long thin service lines (e.g. hkw_to_kreissparkasse
+      # DN125 x 1740 m); at 10 bar the cumulative Darcy-Weisbach drop left distant
+      # consumer stations below their 0.7 bar minimum differential (IIS-confirmed
+      # head-budget limit, not a formulation bug). 16 bar is a realistic operating
+      # pressure for a district-heating trunk of this length.
+      pressure:
+        setpoint_bar: 16.0
 
     # ── EAST TRUNK JUNCTION ──────────────────────────────────────────────────
     # j_ost acts as the east busbar: receives heat from j_hkw (bidirectional

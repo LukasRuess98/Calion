@@ -248,20 +248,27 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
             soc_vals = [float(r.get(soc_col) or 0) for r in dispatch_rows]
             kpis["TES_utilization_pct"] = round(float(np.mean(soc_vals)) / E_max * 100, 2)
 
-    # WP operating hours and annual COP
+    # WP operating hours and annual COP (heat-weighted; fall back to COP series)
     if dispatch_rows:
         pel_col = _find_col(dispatch_rows[0], "P_hp_el_MW", "P_el", "pel_wp")
         hp_col  = _find_col(dispatch_rows[0], "Q_hp_total_MW", "q_hp_total")
+        cop_col = _find_col(dispatch_rows[0], "COP_hp_wrg", "COP_hp", "cop_wp")
+        Q_WP_ts = [float(r.get(hp_col) or 0) for r in dispatch_rows] if hp_col else []
+        run_idx = [i for i, q in enumerate(Q_WP_ts) if q > 0.01]
+        if Q_WP_ts:
+            kpis["WP_hours_per_a"] = len(run_idx)
+        P_el_sum = 0.0
         if pel_col:
-            P_el_ts = [float(r.get(pel_col) or 0) for r in dispatch_rows]
-            P_el_sum = sum(P_el_ts)
-            kpis["WP_hours_per_a"] = sum(1 for p in P_el_ts if p > 0.01)
-            if P_el_sum > 0 and hp_col:
-                Q_WP_ts = [float(r.get(hp_col) or 0) for r in dispatch_rows]
-                kpis["COP_annual_mean"] = round(sum(Q_WP_ts) / P_el_sum, 2)
-        elif hp_col:
-            Q_WP_ts = [float(r.get(hp_col) or 0) for r in dispatch_rows]
-            kpis["WP_hours_per_a"] = sum(1 for q in Q_WP_ts if q > 0.01)
+            P_el_sum = sum(float(r.get(pel_col) or 0) for r in dispatch_rows)
+        if P_el_sum > 0 and Q_WP_ts:
+            # true annual COP = delivered heat / consumed electricity
+            kpis["COP_annual_mean"] = round(sum(Q_WP_ts) / P_el_sum, 2)
+        elif cop_col and run_idx:
+            # fallback: mean of the per-hour COP series over operating hours
+            cop_run = [c for c in (float(dispatch_rows[i].get(cop_col) or 0)
+                                   for i in run_idx) if c > 0]
+            if cop_run:
+                kpis["COP_annual_mean"] = round(sum(cop_run) / len(cop_run), 2)
 
     # DSM activation
     if dsm_rows:

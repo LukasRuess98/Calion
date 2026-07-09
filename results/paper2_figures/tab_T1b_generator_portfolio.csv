@@ -1,0 +1,17 @@
+Network,Asset,Role,Technology,Capacity,Efficiency,CAPEX
+Stadtbach,ava_feed,Fixed,Waste-heat feed-in,45 MW,η_th 1,
+Stadtbach,bmhkw,Fixed,Biomass CHP,14.5 MW,"η_th 0.485, η_el 0.177",
+Stadtbach,gtost,Fixed,Gas CHP,35 MW,"η_th 0.466, η_el 0.36",
+Stadtbach,hkw,Fixed,Gas CHP,127 MW,"η_th 0.743, η_el 0.177",
+Stadtbach,hws_boiler,Fixed,Gas boiler,32 MW,η_th 0.936,
+Stadtbach,hww_boiler,Fixed,Gas boiler,104 MW,η_th 0.924,
+Stadtbach,p2h_existing,Fixed,Electrode boiler,9.9 MW,η 0.99,
+Stadtbach,ek_sb,Investable,Electrode boiler,0–50 MW (inv.),η 0.98,150000 €/MW + 20000 €
+Stadtbach,hp_sb,Investable,Heat pump (WP),0–50 MW (inv.),"COP ~3 (Lorenz, time-var.)",400000 €/MW + 50000 €
+Stadtbach,tes_sb,Investable,Thermal storage (TES),10–50000 m³ (inv.),η_rt 0.96,400 €/m³ + 100000 €
+Memmingen,biomass_main,Fixed,Biomass boiler,3.3 MW,η_th 0.85,
+Memmingen,chp_main,Fixed,Gas CHP,0.2 MW,"η_th 0.8, η_el 0.4",
+Memmingen,gasboiler_main,Fixed,Gas boiler,13 MW,η_th 0.9,
+Memmingen,eboiler_main,Investable,Electrode boiler,0–20 MW (inv.),η 0.95,150000 €/MW + 20000 €
+Memmingen,hp_main,Investable,Heat pump (WP),0–30 MW (inv.),"COP ~3 (Lorenz, time-var.)",700000 €/MW + 50000 €
+Memmingen,tes_main,Investable,Thermal storage (TES),5–50000 m³ (inv.),η_rt 0.96,500 €/m³ + 50000 €

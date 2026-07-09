@@ -32,14 +32,34 @@ areas named in §1.2 of the specification are implemented:
 7. Baseline case (no WP / no TES / fixed real heat curve) — ✅ (BC-MM, BC-SB)
 8. Two case studies — Stadtbach and Memmingen — ✅
 
-The single most significant methodological addition made beyond the literal Paper 1
-carry-over is the **L3+ spatially-resolved thermo-hydraulic model** completed in this
-session: node-to-node supply-temperature drop, transport delay, and spatial pressure
-propagation are all now active in **MILP-compatible** form (no bilinear/quadratic terms;
-McCormick relaxation used where a product of two decision variables would otherwise
-arise). This directly realises the spec's requests in §4.1.3 (feed TES height into the
-network pressure; simulate the charge/discharge pressure drop) and the "aus Paper 1
-übernommen" hydraulic items in §4.
+The single most significant methodological addition beyond the literal Paper 1
+carry-over is **spatially-resolved thermo-hydraulics in MILP-compatible form**: node-to-node
+supply-temperature drop, transport delay, and (Memmingen) spatial pressure propagation.
+
+**Method note — spatial temperature (delivered approach).** A full co-optimised temperature
+propagation (temperature as a decision variable, the bilinear `ṁ·T` enthalpy flux relaxed
+by McCormick envelopes — "L3+") was implemented and works, but at 8760 h it inflates the
+model to ~6 M rows whose root LP relaxation does not solve in reasonable time (see
+Part E.1). The **delivered** method is therefore the *lightweight spatial-temperature
+offset*: supply temperature stays a per-timestep **parameter** (the heating curve) but each
+node's value is reduced by the **cumulative heat-loss temperature drop from the plant along
+the trunk**, precomputed as `ΔT_pipe = U·L·(T_avg − T_ground)/(ṁ_design·c_p)` summed over the
+plant→node path. This keeps the model a compact, fully-linear MILP (solvable at full year on
+both networks) while still producing a physically-correct, monotonic node-to-node
+temperature drop (≈0.7 K across Memmingen, ≈1.8 K across Stadtbach's longer trunks). It
+trades exact flow↔temperature co-optimisation (the drop is computed from a nominal design
+flow, not the solved flow) for tractability — a standard and defensible simplification given
+the drop's small magnitude.
+
+Transport delay is active on both networks. Spatial pressure (Darcy-Weisbach PWL + node
+propagation, realising spec §4.1.3 incl. TES height→pressure and charge/discharge Δp) is
+active on **both networks**. Stadtbach's multi-source mesh is handled by classifying every
+producer/pump-station node as a pressure source (primary fixed, secondary pump-boosted floor)
+and propagating pressure as an inequality across pipes, so multi-feed junctions (e.g. `j_ost`,
+four incoming pipes) are not over-determined (§A.4.5). Enabling it also required a physical
+velocity cap (`max_velocity_m_s: 2.5`, previously a `100` workaround) and the energy-balance
+demand reconstruction (§B.2.1) so every consumer's flow fits its connection pipe — the earlier
+"mesh over-determination" reading of the infeasibility was disproved by IIS (O-8 resolved).
 
 The scenario matrix has grown from the 20 runs sketched in spec §5.1 to **46 runs**,
 because (a) every S-row is expanded into the three heat-curve stages HK0/HK1/HK2 plus a
@@ -56,7 +76,7 @@ scenario. See §5.
 | Aspect | Specification (§1.1, §1.2) | Implementation | Status |
 |---|---|---|---|
 | Modelling language / solver | Pyomo + Gurobi 13.0 | Pyomo + Gurobi (`solver_io="python"`) | ✅ |
-| Physics level | L3 nodal thermo-hydraulic | L3 **plus** optional L3+ spatial temperature propagation | ✅ / ➕ |
+| Physics level | L3 nodal thermo-hydraulic | L3 + lightweight spatial-temperature offset (delivered); McCormick L3+ available but off for tractability | ✅ / ➕ |
 | Horizon | T = 8760 h | 8760 hourly steps, `dt_h = 1.0` | ✅ |
 | Topology | Brownfield fixed; only WP/EK/TES sized | Node/pipe topology fixed per YAML; investment only on WP/EK/TES | ✅ |
 
@@ -65,18 +85,18 @@ The network is modelled as a directed graph of **nodes** (`ThermalNodeBlock`) an
 unified config: a node with `assets:` + `consumers:` is `mixed`, assets-only is
 `producer`, consumers-only is `consumer`, neither is `junction`.
 
-Two temperature regimes are supported and selected by `network.milp_linearize` and
-`network.temperature_propagation`:
+Supply temperature is a per-timestep **parameter** in the delivered model — but a
+*spatially-varying* one: it equals the heating-curve value minus each node's cumulative
+heat-loss drop from the plant (§A.4.3). Every heat↔mass-flow conversion `Q = ṁ · c_p · ΔT`
+is thus **linear** in `ṁ` (no bilinear `ṁ·T` term, no McCormick, no `W` variables), keeping
+the whole model a compact linear MILP.
 
-- **L3 (MILP, temperature as parameter):** supply/return temperatures are fixed
-  per-timestep `Param`s taken from the heating curve. Every heat–massflow conversion
-  `Q = ṁ · c_p · ΔT` is then **linear** in `ṁ`. This is the classic Paper 1 mode.
-- **L3+ (MILP with McCormick, temperature as variable):** each node's own supply
-  temperature `T_VL,i(t)` becomes a genuine decision variable that *propagates spatially*
-  and *drops from node to node* due to pipe heat loss. Bilinearity `ṁ·T` is removed
-  exactly by introducing an enthalpy-flux variable `W = ṁ · c_p · T` and bounding it with
-  the four **McCormick envelope** inequalities. No quadratic term ever enters Gurobi, so
-  the problem remains a true MILP. Both case-study configs run L3+.
+An alternative **McCormick L3+ mode** (`network.temperature_propagation: true`) makes
+temperature a genuine decision variable co-optimised with flow via enthalpy-flux `W = ṁ·c_p·T`
+relaxed by the four McCormick envelope inequalities. It is exact-in-spirit and stays a true
+MILP, but at 8760 h it is intractable (Part E.1) and is therefore **disabled** in the
+delivered configs. It remains in the codebase for coarse-time-resolution or single-window
+studies.
 
 Physical constants (both networks): `ρ_water = 971.8 kg/m³` (at ≈75 °C),
 `c_p = 4.186 kJ/(kg·K)`, `g = 9.81 m/s²`, `p_atm = 1.013 bar`.
@@ -209,46 +229,46 @@ Independently of the heat balance, physical water mass is conserved at each node
 Σ_(j→i) ṁ_(j,i)(t)  +  ṁ_gen,i(t)  =  Σ_(i→k) ṁ_(i,k)(t)  +  ṁ_demand,i(t)
 ```
 
-In L3 mode each pipe `ṁ` is a fixed linear image of its `Q_delivered`
-(`Q = ṁ·c_p·ΔT`, ΔT a Param). In L3+ mode the local-generation term
-`ṁ_gen = Q_gen · 1000 / (c_p · (T_VL − T_RL))` becomes a product of decision variables and
-is therefore linearised via a dedicated McCormick block on `W_gen` (`constraint_builder.py::
-_attach_local_generation_mdot`). Supply- and return-side temperatures are treated
-independently (each may be Var or Param), which is required for meshed nodes such as
-Stadtbach's `j_ost` where `T_return` is free while `T_supply` is anchored. **Status: ✅.**
+Each pipe `ṁ` is a fixed linear image of its `Q_delivered` (`Q = ṁ·c_p·ΔT`, ΔT a Param).
+The local-generation term `ṁ_gen = Q_gen · 1000 / (c_p · (T_VL − T_RL))` stays linear because
+both temperatures are Params in the delivered model. (Where a node's `T_return` is
+independently a free Var — Stadtbach junctions such as `j_ost` — the generation term is
+McCormick-relaxed per side via `constraint_builder.py::_attach_local_generation_mdot`, which
+handles supply/return as independently Var-or-Param; a small, isolated use of McCormick that
+does not affect tractability.) **Status: ✅.**
 
-### A.4.3 Spatial supply-temperature propagation (L3+, ➕ this session)
+### A.4.3 Spatial supply-temperature drop — delivered method (➕ this session)
 
-Each pipe carries a supply-side enthalpy flux with heat loss:
-
-```
-W_sup,in(i,j)(t)  =  ṁ(i,j)(t) · c_p · T_VL,in(i,j)(t)       (McCormick-relaxed)
-W_sup,out(i,j)(t) =  ṁ(i,j)(t) · c_p · T_VL,out(i,j)(t)      (McCormick-relaxed)
-W_sup,in − W_sup,out = Q_loss,sup(i,j)(t) · 1000              (enthalpy loss = heat loss)
-Q_loss,sup(i,j)(t) = U · L · (T_avg − T_ground)/1e6           (linear in supply-T Vars)
-```
-
-Node mixing ties a node's supply temperature to its incoming pipe(s):
+Supply temperature is a per-node, per-timestep **parameter** equal to the heating-curve
+value minus the cumulative heat-loss temperature drop from the plant to that node. For each
+pipe on the plant→node path:
 
 ```
-single incoming pipe:  T_VL,i(t) = T_VL,out(j,i)(t)                       (exact equality)
-multiple incoming:     W_node = Σ_(j→i) W_sup,out(j,i);  T_VL,i via McCormick(W_node, ṁ_in_total)
+ΔT_pipe(i,j) = U · L · (T_avg − T_ground) / (ṁ_design · c_p)          [K]
+ṁ_design     = ρ · (π/4 · d²) · v_design      (v_design ≈ 1.0 m/s, from pipe diameter d)
+T_VL,i       = T_curve − Σ_{pipes on plant→i path} ΔT_pipe            (node supply temp, Param)
 ```
 
-The four-inequality McCormick envelope (`utils/mccormick.py`) for `W ≈ s·x·y` with
-`x∈[x_L,x_H]`, `y∈[y_L,y_H]` is
+Implemented in `scenario_runner._apply_spatial_temperature_offsets`, which BFS-walks the
+plant→node paths (least-loss path at mesh convergence) and injects each node's cumulative
+drop as its `T_supply_offset_c`. Because `T_VL,i` is a Param, the model gains no variables
+and no bilinear terms — it stays a compact linear MILP that solves full-year on both
+networks. The drop is monotonic downstream and physically sized (≈0.7 K deepest-leaf on
+Memmingen, ≈1.8 K on Stadtbach). **Trade-off:** the drop uses a nominal design flow rather
+than the solved flow, so temperature and flow are not co-optimised — acceptable given the
+≈1 K magnitude. **Status: ✅ (both networks).**
 
-```
-W ≥ s·(x_L·y + x·y_L − x_L·y_L)
-W ≥ s·(x_H·y + x·y_H − x_H·y_H)
-W ≤ s·(x_H·y + x·y_L − x_H·y_L)
-W ≤ s·(x_L·y + x·y_H − x_L·y_H)
-```
+**Alternative (implemented, disabled): McCormick L3+ co-optimised propagation.** Temperature
+becomes a Var; per-pipe enthalpy flux `W = ṁ·c_p·T` is relaxed by the four-inequality
+McCormick envelope (`utils/mccormick.py`), node mixing ties `T_VL,i` to incoming pipes'
+`W_sup,out`, and the source pipe anchors to the curve `Param`. Exact-in-spirit and
+MILP-safe, but ~6 M rows at 8760 h → intractable (Part E.1); off in the delivered configs.
 
-The primary producer's outgoing pipe(s) are anchored to the heating-curve `Param`
-(`is_source_pipe`), giving the propagation a fixed starting point. Nodes adjacent to a
-bidirectional pipe are deliberately kept on the uniform-`Param` scheme (direction-dependent
-propagation with McCormick is out of scope). **Status: ✅ (both networks).**
+### A.4.3b Node-pressure treatment note
+
+Because supply temperature is a Param, the node-pressure propagation and TES pressure
+coupling (below) operate on a linear model. Spatial pressure is delivered on Memmingen
+(tree); Stadtbach's mesh is excluded (§A.4.5).
 
 ### A.4.4 Transport delay (spec §1.1 "aus Paper 1 übernommen")
 
@@ -284,9 +304,33 @@ Pump electric power feeds the electricity bus:
 P_pump(t) = Σ_(i,j) Δp(i,j)(t) · ṁ(i,j)(t) / (ρ · η_pump)     (η_pump = 0.75)
 ```
 
-Bidirectional pipes (Stadtbach `hkw_to_ost`) now build `flow_dir`/`m_dot_abs` even in MILP
-mode (bug fixed this session), so pressure is direction-consistent and `pressure_drop: true`
-is safe for Stadtbach. **Status: ✅.**
+**Delivered on both networks.** Memmingen is a radial tree, so each node has one upstream
+path and `p_supply,j = p_supply,i − Δp` is well-defined. Stadtbach is a multi-source mesh
+(e.g. `j_ost` has four incoming pipes from `j_gtost`/`j_bmhkw`/`j_ava` + the bidirectional
+`hkw_to_ost`). An earlier build reported `infeasibleOrUnbounded` and this was *attributed* to
+the mesh over-determining node pressure; an IIS-based diagnosis (2026-07-09) proved that
+attribution wrong. The mesh is handled correctly by three changes:
+
+1. **Pressure-source classification + inequality propagation.** Every producer/pump-station
+   node is a pressure source (primary producer fixed at its setpoint via equality; secondary
+   producers and pump stations get a free, pump-boosted *floor* `p ≥ setpoint`). Supply/return
+   propagation across non-source pipes is an **inequality** (`p_to ≤ p_from − Δp`), so a
+   multi-feed junction takes the tightest consistent pressure instead of writing several
+   conflicting equalities. This removes the over-determination without a loop/Kirchhoff
+   formulation.
+2. **Real velocity cap.** `max_velocity_m_s` was `100` (a workaround) which both inflated the
+   PWL pressure-drop slopes and let unphysical flows hide a demand/pipe mismatch; set to the
+   physical `2.5` m/s (matching Memmingen).
+3. **Pipe-feasible demand.** The IIS ultimately pinned the conflict to specific consumers
+   (e.g. Josefinum: 32 MW peak demand on a DN125 / 4.9 MW pipe). Those were the estimated
+   consumers whose `merge_acron_sb.py` demand overshot their real connection pipes; the
+   energy-balance reconstruction (§B.2.1) brings every estimated consumer to ≤73 % of its
+   pipe capacity, so all flows are physically deliverable.
+
+With these, Stadtbach solves with `pressure_drop: true` (72 h feasibility confirmed
+2026-07-09: 10 incumbents; full-year via the campaign). The bidirectional-pipe
+`flow_dir`/`m_dot_abs` MILP fix keeps `hkw_to_ost` direction-consistent under pressure.
+**Status: ✅ (both networks; O-8 resolved — was a demand/parameter issue, not a mesh limit).**
 
 ### A.4.6 Geometric TES (spec §4.1)
 
@@ -414,8 +458,9 @@ tracks the annual import peak and is priced by the Jahresleistungspreis
 - **Waste-heat node `j_12`:** hosts the investable WP (`hp_main`) and EK (`eboiler_main`) —
   the spec's "WP/EK fest bei der Abwärme, Memmingen = j_12" (§3.3).
 - **Consumers:** 27 demand zones mapped to nodes `j_1…j_15`.
-- **Physics flags:** `milp_linearize: true`, `temperature_propagation: true`,
-  `pressure_drop: true`, `transport_delay: true`, `tes_pressure_coupling: true`.
+- **Physics flags:** `milp_linearize: true`, `temperature_propagation: false` (spatial
+  temperature via the per-node offset instead — §A.4.3), `pressure_drop: true`,
+  `transport_delay: true`, `tes_pressure_coupling: true`, `max_velocity_m_s: 2.5`.
 
 ### B.1.3 Investable-asset parameters
 
@@ -440,9 +485,17 @@ Heat-curve stages HK0 `(k=1.0, T_VL,min=74)`, HK1 `(0.8, 70)`, HK2 `(0.6, 66)`,
 
 - **Config:** `configs/stadtbach/Stadtbach_topo.yaml` (33 nodes, 32 pipes — meshed, with one
   **bidirectional** trunk `hkw_to_ost`).
-- **Data file:** `data/Stadtbach/stadtbach_acron_combined.xlsx` (electricity price, grid CO₂,
-  three waste-heat streams WRG1–3, outdoor temperature, per-zone demands). System peak
-  ≈ 228 MW, mean ≈ 78 MW.
+- **Data file:** `data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx` (electricity price,
+  grid CO₂, three waste-heat streams WRG1–3, outdoor temperature, per-zone demands). Built by
+  `merge_acron_sb.py` then `clean_stadtbach_estimated_demand.py` (§B.2.1). System peak
+  ≈ 201 MW, mean ≈ 73 MW, 640 GWh/a.
+- **Physics flags:** `milp_linearize: true`, `temperature_propagation: false` (spatial
+  temperature via the per-node offset — §A.4.3), `transport_delay: true`,
+  **`pressure_drop: true`** (mesh handled by inequality propagation + pressure-source
+  classification — §A.4.5), `max_velocity_m_s: 2.5` (physical; was a `100` workaround).
+  Pipe diameters are real (graded DN600 trunk → DN125 leaves, swa WV640/650/660); enabling
+  pressure required reconstructing the estimated-consumer demand (§B.2.1) so every consumer's
+  flow fits its connection pipe.
 - **Asset data provenance:** fixed-generator data was corrected in two steps this session.
   (1) Thermal efficiencies and CHP electrical efficiencies were taken from the source
   notebook `configs/paper_2/20250922_Stadtbach.ipynb` (user-confirmed authoritative for the
@@ -457,6 +510,29 @@ Heat-curve stages HK0 `(k=1.0, T_VL,min=74)`, HK1 `(0.8, 70)`, HK2 `(0.6, 66)`,
   conditions, these are the representative caps. A fictional 500 MWh `tes_existing` tank with
   no documented source was **removed**. In CALION `capacity_mw` is the thermal-output cap, so
   fuel = `capacity_mw / th_eff` and CHP electricity = fuel × `el_eff`.
+
+- **Estimated-consumer demand reconstruction** (`clean_stadtbach_estimated_demand.py`,
+  2026-07-09). Of the 24 consumers, **7 have direct `Waermeleistung` meters** and are used
+  verbatim. The other **17 were "estimated"** by `merge_acron_sb.py`, which distributes a
+  zone-total demand (computed from pump-station flow) across stations weighted by each
+  station's supply-return ΔT. That method produced two physically impossible artefacts that
+  block the hydraulic model: **(i)** the Netz-West zone total `Q_west = c_p·PSW_flow·ΔT` is
+  driven by a pump whose flow is ~10.7× higher in August than January (summer recirculation,
+  not delivered heat), so West demand *rose* in summer (`corr(demand, T_outdoor)` flipped
+  positive); **(ii)** dividing a zone residual by a small per-station ΔT explodes individual
+  hours, giving the estimated consumers peak/mean ratios of 6–8 (vs 2.7–3.9 for the metered
+  ones) and peaks exceeding their real DN125–DN150 connection pipes for hundreds-to-thousands
+  of hours (e.g. Josefinum 32 MW on a 4.9 MW pipe). The 17 estimated consumers are therefore
+  reconstructed by **energy balance**: the delivered residual
+  `Q_est(t) = (1−loss)·Σ producers(t) − Σ metered(t)` (loss = 10 %; the six producers are
+  measured at −0.83 correlation with outdoor temperature and all feed only this modeled
+  network) is **distributed across the 17 by connection-pipe hydraulic capacity** and inherits
+  `Q_est`'s temperature-correct hourly shape. Result: every reconstructed consumer has
+  `corr(T) = −0.84`, peak/mean ≈ 2.7, a uniform ≤73 % peak pipe utilisation (0 hours over
+  capacity), and distinct de-duplicated series. Total modeled demand 640 GWh/a (10 % loss vs
+  712 GWh production). *Assumption:* pipe capacity is used as the size proxy for an unmetered
+  consumer (pipes are sized to peak demand); the metered 7 are untouched. This is the data
+  step that makes `pressure_drop: true` feasible on Stadtbach (§A.4.5).
 
 ### B.2.2 Fixed generators (thermal outputs at Üzeiten 99/60 °C, user-provided)
 
@@ -500,14 +576,18 @@ The WP/EK are placed at the central production hub (spec §3.3 "an einem zentral
 | §3.3 | TES-location scenarios S1/S2/S3 | ✅ | + endogenous S4–S7 (➕) |
 | §3.4 | hourly operating vars | ✅ | full set |
 | §4.1.1–2 | TES geometry + linear E(V) | ✅ | Option A, ΔT scenario param |
-| §4.1.3 | TES pressure into net + charge/disch Δp | ✅ | F4 coupling, both requests met |
+| §4.1.3 | TES pressure into net + charge/disch Δp | ✅ | pressure on both networks; explicit F4 head-coupling flag on Memmingen (its TES sits mid-tree). Stadtbach's `tes_sb` is at `j_hkw`, the fixed-setpoint reference node, where hydrostatic-head coupling is redundant |
 | §4.1.4 | link to SOC dynamics | ✅ | E_max expression, C-rate power bound |
 | §4.2 | heating-curve model + constraints | ◑ | scenario ✅, exact formula differs (O-2) |
 | §4.3 | waste-heat + COP LUT | ✅ | analytical Lorenz surrogate (O-3) |
 | §4.4 | DSM | ✅ | built, zero-valued per spec |
 | §4.5 | Baseline | ✅ | BC-MM, BC-SB |
+| §4 (P1) | spatial temperature drop | ✅ | delivered via per-node heat-loss offset (§A.4.3), both networks; McCormick L3+ off for tractability |
+| §4 (P1) | transport delay | ✅ | linear lookback, both networks |
+| §4 (P1) | spatial pressure | ✅ | both networks; Stadtbach mesh via inequality propagation + pressure-source classification (§A.4.5) |
 | §5.1 | scenario matrix | ✅/➕ | 46 runs (20 base + HK expansion + endogenous) |
-| §6.1–6.3 | KPIs (econ/eco/hydraulic) | ⏳ | `kpi_calculator.py` present; run post-campaign |
+| §6.1–6.2 | KPIs (econ/eco) | ⏳ | `kpi_calculator.py` present; run post-campaign |
+| §6.3 | hydraulic KPIs | ⏳ | temperature/flow/pressure/pump-energy on both networks; compute post-campaign |
 | §7 | sensitivity (tornado) | ⏳ | `sensitivity.py` present; run post-campaign |
 | §10 | validation (energy balance, feasibility, P1 consistency…) | ◑ | feasibility of hard cases verified; full suite post-campaign |
 
@@ -547,15 +627,79 @@ The WP/EK are placed at the central production hub (spec §3.3 "an einem zentral
 
 # PART E — Verification performed (this session)
 
-- **Regression feasibility:** MM-S4-HK0, MM-S5-HK0 (previously `infeasibleOrUnbounded`)
-  now solve full-year; SB-S6-HK0, SB-S7-HK0 solve full-year with the corrected assets and
-  the capacity-validator fix. The Stadtbach bidirectional-pressure fix was exercised by
-  SB-S7 (F3 + bidirectional + McCormick generation nodes) building and solving cleanly.
-- **MILP integrity:** every regression solve converged as a standard MILP (no non-convex
-  QP handling required), confirming no bilinear term survives the McCormick linearisation.
-- **Physical exports (Stadtbach):** `nodes_state_hourly.parquet` (289 080 rows),
-  `pipe_state_hourly.parquet` (≈1.96 M rows) with real per-node `T_supply_c`, `P_bar`,
-  per-pipe `m_dot_kg_s`, `dp_Pa` — the intended source for the spec §6.3 hydraulic KPIs and
-  for visual monotonicity checks of temperature/pressure along trunks.
+- **Both networks solve full-year under the delivered (offset) physics.** Memmingen
+  MM-S4-HK0 (endogenous siting) finds a real incumbent (obj ≈ 2.26 M €) with the
+  spatial-temperature offset + pressure + delay; its spatial exports populate
+  (`node_temperatures.csv` 8760×16, `nodes_state_hourly.parquet` 131 400 rows,
+  `pipe_state_hourly.parquet` 858 480 rows) with a monotonic node-to-node temperature drop
+  (j_1 81.05 °C → j_15 80.35 °C). Stadtbach SB-S6/SB-S7 solve with the corrected assets,
+  spatial-temperature offset + delay (pressure off — §A.4.5); exports populated
+  (`nodes_state_hourly.parquet` 289 080 rows, `pipe_state_hourly.parquet` ≈1.96 M rows).
+- **MILP integrity.** The delivered model is fully linear (temperature is a Param): no
+  bilinear terms, no McCormick in Memmingen, and only an isolated per-node McCormick block
+  in Stadtbach where a junction `T_return` is a free Var. Every solve converged as a
+  standard MILP.
 
-*End of statement — generated 2026-07-08 for the CALION Paper 2 manuscript foundation.*
+## PART E.1 — CORRECTION & open tractability finding (2026-07-08)
+
+**Correction to an earlier interim claim.** An earlier note that "MM-S4-HK0 / MM-S5-HK0
+solve full-year" was **incorrect** — it was produced by the O-7 status-reporting bug, which
+labelled a *no-incumbent* run as `status=ok, obj=0 €`. With O-7 fixed, a controlled
+MM-S4-HK0 run (solo, 1200 s solve budget) returns the honest result: **no incumbent found.**
+
+**Root cause (diagnosed, not yet resolved).** With the full L3+ physics stack active
+(McCormick spatial temperature propagation on every pipe·timestep, F4 TES pressure coupling
+via SOS2 PWL, transport delay, spatial pressure), the Memmingen 8760-h model expands to
+**≈5.9 M rows × 4.0 M columns (16.6 M nonzeros)**. Gurobi's barrier spent ≈992 s on the
+**root LP relaxation alone and did not converge** within 1200 s; branching therefore never
+started (0 nodes explored) and no incumbent was produced. The negative "bound" (−1.55·10¹⁰)
+is an artefact of the unfinished root LP, not a meaningful value.
+
+**Why Stadtbach solves but Memmingen does not.** The decisive difference is
+`tes_pressure_coupling: true` (F4, SOS2 PWL per timestep), enabled for Memmingen only. Its
+per-timestep combinatorial + continuous load, stacked on the per-timestep McCormick and
+delay constraints, is what pushes the Memmingen LP past the barrier's tractable size at
+full hourly resolution. Because the dominant row count is per-timestep, this affects **all**
+Memmingen L3+ scenarios (not only the endogenous S4/S5), so it is a genuine tractability
+limit of the full-detail model at 8760 h, not a per-scenario feasibility bug.
+
+**RESOLVED (2026-07-08) — lightweight spatial-temperature offset.** Root cause first
+clarified: the apparent "Memmingen harder than the larger Stadtbach" paradox was because
+Memmingen ran the full McCormick L3+ (1.48 M McCormick rows) while the Stadtbach paper-2
+scenarios (which use `Stadtbach_topo.yaml`) had the L3+ flags off entirely — the flags had
+been set on the unused `Stadtbach_L3_MILP.yaml`. Under equal physics Stadtbach's 32 pipes
+would generate *more* McCormick than Memmingen's 14, i.e. Stadtbach is the structurally
+harder network, as expected.
+
+The chosen fix keeps supply temperature a **Param** (no McCormick, model stays at the
+solvable ~4 M-row L3 size) but makes it **drop spatially**: each node receives a
+`T_supply_offset_c` equal to the cumulative heat-loss temperature drop from the plant along
+the trunk, precomputed as `ΔT_pipe = U·L·(T_avg − T_ground)/(ṁ_design·c_p)` summed over the
+plant→node path (`scenario_runner._apply_spatial_temperature_offsets`, meshed-safe via the
+least-loss path). Verified end-to-end on MM-S4-HK0 via the real run path:
+
+- **Solves** to a real incumbent (was: no incumbent); `status=ok`, obj ≈ 2.26 M €.
+- **Spatial drop present in the exported results:** at a mid-year hour, `T_supply` falls
+  monotonically j_1 = 81.05 °C → j_15 = 80.35 °C (≈ 0.7 K cumulative), matching the computed
+  offsets exactly.
+- **Node/pipe spatial exports populate** (`node_temperatures.csv` 8760×16,
+  `nodes_state_hourly.parquet` 131 400 rows, `pipe_state_hourly.parquet` 858 480 rows),
+  resolving O-6.
+
+`temperature_propagation` (McCormick L3+) is now **off** in `Memmingen_P2_base.yaml`;
+transport delay and pressure drop remain on for Memmingen (DXF-real diameters). The offset
+applies identically to both networks. Spatial pressure is now active on **both** networks.
+
+- **O-8 — Stadtbach spatial pressure — RESOLVED (2026-07-09).** Stadtbach now runs with
+  `pressure_drop: true`. The earlier `infeasibleOrUnbounded` was *not* a mesh over-determination
+  limitation (that reading was disproved by IIS). The real causes were three, now fixed:
+  (1) the pump-station pressure-source formulation (secondary producers/pump nodes now get a
+  free pump-boosted pressure *floor* and propagation is an inequality, so multi-feed junctions
+  are not over-determined); (2) `max_velocity_m_s` was `100` (a workaround that inflated PWL
+  slopes and masked a demand/pipe mismatch) → set to physical `2.5`; (3) the estimated-consumer
+  demand exceeded connection-pipe capacities (e.g. Josefinum 32 MW on a DN125), fixed by the
+  energy-balance reconstruction (§B.2.1). Feasibility confirmed on a 72 h window (10 incumbents,
+  2026-07-09); full-year via the campaign. Pipe diameters are real (graded DN600→DN125), not
+  placeholder — the earlier placeholder note was incorrect. See §A.4.5.
+
+*End of statement — updated 2026-07-09 for the CALION Paper 2 manuscript foundation.*

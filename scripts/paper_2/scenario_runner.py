@@ -425,6 +425,17 @@ def run_single_scenario(
             else:
                 logger.warning("[%s] hot_charging set but no heat_pump asset found", scen_id)
 
+    # 7b. Lightweight spatial supply-temperature drop (2026-07-08).
+    # Instead of the McCormick L3+ temperature propagation (which makes the
+    # 8760-h model ~6M rows and intractable -- see plan greedy-wandering-alpaca /
+    # report Part E.1), give each node a per-node supply-temperature OFFSET equal
+    # to the cumulative heat-loss temperature drop from the plant to that node.
+    # T stays a Param (no bilinear, no McCormick), but supply temperature now
+    # DROPS spatially node-to-node. Physically motivated, keeps the model at the
+    # solvable L3 size, and applies identically to both networks.
+    if T_VL_ts is not None:
+        _apply_spatial_temperature_offsets(cfg, T_VL_ts, scen_id)
+
     # 8. Write final config to temp file and solve
     # Inject per-scenario Gurobi log path and any parallel-runner solver overrides
     if extra_solver_options:
@@ -610,6 +621,102 @@ def _apply_hp_location(cfg: dict, scen: dict, scen_cfg: dict) -> None:
                 logger.info("[%s] Removed %s from node %s", scen["id"], akey, nid)
         nodes[node_id].setdefault("assets", []).append(akey)
     logger.info("[%s] Placed %s at node %s (%s)", scen["id"], asset_keys, node_id, key)
+
+
+def _apply_spatial_temperature_offsets(cfg: dict, T_VL_ts, scen_id: str) -> None:
+    """Compute each node's cumulative supply-temperature drop from the plant
+    (heat loss along the trunk) and inject it as `T_supply_offset_c` per node.
+
+    This is the lightweight alternative to McCormick L3+ temperature
+    propagation: it keeps supply temperature a Param (no bilinear terms, no
+    ~6M-row explosion), while making the supply temperature DROP spatially,
+    node by node, by the physically-correct heat-loss amount.
+
+    Per pipe (i->j):
+        dT_pipe = U * L * (T_avg - T_ground) / (m_dot_design * cp)   [K]
+    with T_avg the mean supply temperature over the horizon, m_dot_design a
+    representative design flow from the pipe diameter at ~1 m/s, cp in J/(kg K).
+    The offset at node j is the sum of dT_pipe over the plant->j path (negative,
+    i.e. cooler downstream). Skips if temperature_propagation (McCormick L3+) is
+    still active, since that models the drop endogenously.
+    """
+    import numpy as _np
+    net = cfg.get("network", {})
+    if net.get("temperature_propagation"):
+        return  # McCormick L3+ handles the drop endogenously; don't double-count
+    pipes = net.get("nodes") is not None and net.get("pipes") or {}
+    nodes = net.get("nodes", {})
+    if not pipes or not nodes:
+        return
+
+    _CP = 4186.0        # J/(kg K)
+    _RHO = 971.8        # kg/m3 (~75 C)
+    _V_DESIGN = 1.0     # m/s representative design velocity for the flow estimate
+    T_ground = float(net.get("ground_temp_c", 10.0))
+    try:
+        T_avg = float(_np.mean(T_VL_ts))
+    except Exception:
+        T_avg = float(net.get("supply_temp_c", 90.0))
+
+    # adjacency from -> [(to, pipe_cfg)]; identify the root (plant)
+    adj: dict[str, list] = {}
+    indeg: dict[str, int] = {n: 0 for n in nodes}
+    for pid, p in pipes.items():
+        fr = p.get("from") or p.get("from_node")
+        to = p.get("to") or p.get("to_node")
+        if fr is None or to is None:
+            continue
+        adj.setdefault(fr, []).append((to, p))
+        indeg[to] = indeg.get(to, 0) + 1
+    primary = net.get("primary_producer")
+    roots = [primary] if primary and primary in nodes else [n for n in nodes if indeg.get(n, 0) == 0]
+    if not roots:
+        return
+
+    def _pipe_drop(p: dict) -> float:
+        L = float(p.get("length_m", 0.0) or 0.0)
+        d_mm = float(p.get("diameter_mm", 0.0) or 0.0)
+        U = float(p.get("u_value_supply_w_per_m_k", 0.32) or 0.32)
+        if L <= 0 or d_mm <= 0:
+            return 0.0
+        A = _np.pi / 4.0 * (d_mm / 1000.0) ** 2         # m2
+        m_dot = max(_RHO * A * _V_DESIGN, 0.5)           # kg/s (floor)
+        q_loss_w = U * L * max(T_avg - T_ground, 0.0)    # W
+        return q_loss_w / (m_dot * _CP)                  # K
+
+    # BFS from each root accumulating drop; guard against cycles (meshed nets)
+    cum: dict[str, float] = {r: 0.0 for r in roots}
+    from collections import deque
+    dq = deque(roots)
+    visited = set(roots)
+    while dq:
+        u = dq.popleft()
+        for (v, p) in adj.get(u, []):
+            cand = cum[u] + _pipe_drop(p)
+            # for meshed nodes keep the SMALLEST drop (shortest/least-loss path)
+            if v not in cum or cand < cum[v]:
+                cum[v] = cand
+            if v not in visited:
+                visited.add(v)
+                dq.append(v)
+
+    applied = 0
+    max_drop = 0.0
+    for nid, ncfg in nodes.items():
+        drop = cum.get(nid, 0.0)
+        if drop > 0.01 and isinstance(ncfg, dict):
+            # existing manually-set offset takes precedence (e.g. secondary
+            # producers with a measured trunk-loss offset)
+            if "T_supply_offset_c" not in ncfg:
+                ncfg["T_supply_offset_c"] = -round(drop, 3)
+                applied += 1
+                max_drop = max(max_drop, drop)
+    if applied:
+        logger.info(
+            "[%s] Spatial temperature drop applied to %d node(s); max cumulative "
+            "drop from plant = %.2f K (T_supply Param, no McCormick)",
+            scen_id, applied, max_drop,
+        )
 
 
 def _apply_dsm(cfg: dict, scen: dict, scen_cfg: dict) -> None:

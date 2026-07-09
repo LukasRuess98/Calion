@@ -115,40 +115,77 @@ def phase3_kpis(dry_run: bool) -> dict:
         return {"status": "error", "error": str(exc)}
 
 
+_FIGDIR = _ROOT / "scripts" / "paper_2" / "figures"
+
+
+def _run_generators(scripts: list[Path]) -> dict:
+    """Run each canonical generator script in a subprocess; return {name: status}.
+
+    Subprocess isolation keeps one generator's failure from aborting the phase and
+    avoids import-path coupling (each script has its own __main__ that produces its
+    full output set into results/paper2_figures/).
+    """
+    import subprocess
+    out: dict[str, str] = {}
+    for script in scripts:
+        if not script.exists():
+            out[script.name] = "missing"
+            continue
+        try:
+            r = subprocess.run([sys.executable, str(script)], cwd=str(_ROOT),
+                               capture_output=True, text=True, timeout=3600)
+            out[script.name] = "ok" if r.returncode == 0 else f"rc={r.returncode}"
+            if r.returncode != 0:
+                logger.error("  [%s] stderr: %s", script.name, r.stderr[-400:])
+        except Exception as exc:  # noqa: BLE001
+            out[script.name] = f"error: {exc}"
+        logger.info("  [%s] %s", script.name, out[script.name])
+    return out
+
+
 def phase4_figures(dry_run: bool) -> dict:
-    """Generate Paper 2 figures."""
+    """Generate the canonical Paper 2 figure set (F1–F9) → results/paper2_figures/.
+
+    Legacy figgen_p2 output is produced too (best-effort) for continuity.
+    """
     logger.info("-- Phase 4: Figure Generation --------------------------------------")
     if dry_run:
-        logger.info("[DRY-RUN] Would generate figures")
+        logger.info("[DRY-RUN] Would generate figures F1-F9")
         return {"status": "dry_run"}
+    results = _run_generators([
+        _FIGDIR / "fig_f1_architecture.py",
+        _FIGDIR / "fig_f2_network_maps.py",
+        _FIGDIR / "fig_p2_campaign.py",
+    ])
     try:
         from tools.figgen_p2 import generate_all_figures
-        fig_dir = OUT_BASE / "figures"
-        fig_dir.mkdir(parents=True, exist_ok=True)
-        generate_all_figures(OUT_BASE, fig_dir)
-        logger.info("Figures written to %s", fig_dir)
-        return {"status": "ok", "fig_dir": str(fig_dir)}
-    except Exception as exc:
-        logger.error("Figure generation failed: %s", exc)
-        return {"status": "error", "error": str(exc)}
+        legacy = OUT_BASE / "figures"
+        legacy.mkdir(parents=True, exist_ok=True)
+        generate_all_figures(OUT_BASE, legacy)
+        results["legacy_figgen_p2"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        results["legacy_figgen_p2"] = f"skipped: {exc}"
+    return {"status": "ok", "generators": results,
+            "out": str(_ROOT / "results" / "paper2_figures")}
 
 
 def phase5_tables(dry_run: bool) -> dict:
-    """Generate Paper 2 LaTeX tables."""
-    logger.info("-- Phase 5: LaTeX Table Generation ---------------------------------")
+    """Generate the canonical Paper 2 tables (T1–T5, CSV + LaTeX)."""
+    logger.info("-- Phase 5: Table Generation ---------------------------------------")
     if dry_run:
-        logger.info("[DRY-RUN] Would generate LaTeX tables")
+        logger.info("[DRY-RUN] Would generate tables T1-T5")
         return {"status": "dry_run"}
+    results = _run_generators([_FIGDIR / "gen_tables.py"])
     try:
         from tools.tablegen_p2 import generate_all_tables
-        table_dir = OUT_BASE / "tables"
-        table_dir.mkdir(parents=True, exist_ok=True)
-        generate_all_tables(OUT_BASE, table_dir)
-        logger.info("Tables written to %s", table_dir)
-        return {"status": "ok", "table_dir": str(table_dir)}
-    except Exception as exc:
-        logger.error("Table generation failed: %s", exc)
-        return {"status": "error", "error": str(exc)}
+        legacy = OUT_BASE / "tables"
+        legacy.mkdir(parents=True, exist_ok=True)
+        generate_all_tables(OUT_BASE, legacy)
+        results["legacy_tablegen_p2"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        results["legacy_tablegen_p2"] = f"skipped: {exc}"
+    return {"status": "ok", "generators": results,
+            "out": str(_ROOT / "results" / "paper2_figures")}
 
 
 # ── Log helpers ────────────────────────────────────────────────────────────
