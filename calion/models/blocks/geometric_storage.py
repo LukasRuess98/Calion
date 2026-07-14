@@ -109,6 +109,9 @@ class GeometricStorageBlock(BaseComponent):
         energy_mwh_fixed: float | None = None,
         power_mw_fixed: float | None = None,
         e_min_fraction: float = 0.0,
+        n_discrete_sizes: int = 4,
+        discrete_energies_mwh: list | None = None,
+        unit_tank_m3: float | None = None,
         label: str | None = None,
     ):
         super().__init__(name, label)
@@ -129,6 +132,18 @@ class GeometricStorageBlock(BaseComponent):
         self.terminal_soc_fraction = terminal_soc_fraction
         self.option_b = bool(option_b)
         self.e_min_fraction = float(e_min_fraction)
+        # Number of discrete tank sizes {0, ..., V_max} for the investment choice.
+        # >=2 replaces the continuous V + big-M build coupling (a weak LP relaxation
+        # that made TES-at-consumer-node scenarios intractable) with a tight exact
+        # selection. 0/1 keeps the legacy continuous formulation.
+        self.n_discrete_sizes = int(n_discrete_sizes)
+        # Explicit discrete storage sizes as ENERGY [MWh] (incl. 0 = no storage),
+        # anchored to hours of mean heat demand. When given, overrides the even
+        # V-spacing above. Each size's volume V_k = E_k/energy_coeff; sizes larger
+        # than one realistic tank (unit_tank_m3) are realised as N_k = ceil(V_k/unit)
+        # identical tanks at the same site, so beta_tes (fixed cost) applies PER TANK.
+        self.discrete_energies_mwh = list(discrete_energies_mwh) if discrete_energies_mwh else None
+        self.unit_tank_m3 = float(unit_tank_m3) if unit_tank_m3 else None
 
         # Pre-compute energy coefficient [MWh/m³] for this scenario's ΔT
         self.energy_coeff = _energy_coeff_mwh_per_m3(self.delta_T_k)
@@ -176,19 +191,58 @@ class GeometricStorageBlock(BaseComponent):
         times = list(Tset)
 
         # ── Investment variables ──────────────────────────────────────────────
+        # Resolve the discrete size ladder (volumes + tank counts) first, so V_m3's
+        # upper bound covers multi-tank totals.
+        v_list = n_tanks_list = None
+        use_discrete = self.investable and (bool(self.discrete_energies_mwh)
+                                            or self.n_discrete_sizes >= 2)
+        if self.investable and self.discrete_energies_mwh:
+            # Explicit ENERGY ladder [MWh] -> volumes at this scenario's ΔT. Sizes
+            # larger than one realistic tank are realised as N = ceil(V/unit) tanks.
+            e_list = sorted(set([0.0] + [float(e) for e in self.discrete_energies_mwh]))
+            v_list = [e / self.energy_coeff for e in e_list]
+            unit = self.unit_tank_m3 or self.V_max_effective
+            n_tanks_list = [0 if e <= 0 else max(1, math.ceil(v / unit))
+                            for e, v in zip(e_list, v_list)]
+            v_ub = max(v_list)
+        elif use_discrete:
+            K = self.n_discrete_sizes
+            v_list = [self.V_max_effective * k / (K - 1) for k in range(K)]
+            n_tanks_list = [0 if k == 0 else 1 for k in range(K)]
+            v_ub = self.V_max_effective
+        else:
+            v_ub = self.V_max_effective
+
         setattr(m, f"{comp}_build", pyo.Var(domain=pyo.Binary))
-        setattr(
-            m,
-            f"{comp}_V_m3",
-            pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, self.V_max_effective)),
-        )
+        setattr(m, f"{comp}_V_m3", pyo.Var(domain=pyo.NonNegativeReals, bounds=(0.0, v_ub)))
         build = getattr(m, f"{comp}_build")
         V = getattr(m, f"{comp}_V_m3")
+        n_tanks_expr = build  # default: one tank when built (continuous / even-spacing)
 
         if not self.investable:
             # Fixed/existing tank: geometry is known, not optimized.
             build.fix(1)
             V.fix(self.V_fixed_m3)
+        elif use_discrete:
+            # ── Discrete tank-size selection (exact, no big-M) ─────────────────
+            # V and build become linear functions of the size binaries -> tight LP
+            # relaxation (the continuous V + big-M coupling stalled TES-at-consumer
+            # -node scenarios at 43-88 % gap). Large sizes = N identical tanks at the
+            # site, so beta_tes (fixed cost) applies per tank (n_tanks below).
+            K = len(v_list)
+            setattr(m, f"{comp}_size_sel", pyo.Var(range(K), domain=pyo.Binary))
+            ysel = getattr(m, f"{comp}_size_sel")
+            _vl, _nl = list(v_list), list(n_tanks_list)  # freeze for the closures
+            setattr(m, f"{comp}_size_one",
+                    pyo.Constraint(rule=lambda mm: sum(ysel[k] for k in range(K)) == 1))
+            setattr(m, f"{comp}_size_V",
+                    pyo.Constraint(rule=lambda mm: V == sum(_vl[k] * ysel[k] for k in range(K))))
+            setattr(m, f"{comp}_size_build",
+                    pyo.Constraint(rule=lambda mm: build == sum(ysel[k] for k in range(K) if _vl[k] > 0)))
+            setattr(m, f"{comp}_n_tanks",
+                    pyo.Expression(rule=lambda mm: sum(_nl[k] * ysel[k] for k in range(K))))
+            n_tanks_expr = getattr(m, f"{comp}_n_tanks")
+        self._n_tanks_expr = n_tanks_expr
 
         # Energy capacity derived from volume (linear thanks to scenario ΔT param)
         # E_max [MWh] = energy_coeff [MWh/m³] * V [m³]
@@ -224,15 +278,15 @@ class GeometricStorageBlock(BaseComponent):
                 return cap_p <= default_ratio * E_max_expr
             setattr(m, f"{comp}_p_coupling", pyo.Constraint(rule=p_energy_coupling))
 
-        # V bounds linked to build decision (Big-M). Trivially satisfied when
-        # fixed (build==1, V==V_fixed_m3 <= V_max_effective==V_fixed_m3), kept
-        # so downstream code (e.g. F4 pressure coupling) sees a uniform shape.
-        def V_lo(mm):
-            return V >= self.V_min_m3 * build
-        def V_hi(mm):
-            return V <= self.V_max_effective * build
-        setattr(m, f"{comp}_V_lo", pyo.Constraint(rule=V_lo))
-        setattr(m, f"{comp}_V_hi", pyo.Constraint(rule=V_hi))
+        # V bounds linked to build decision (Big-M). Skipped in discrete mode,
+        # where the size selection already ties V and build exactly (no big-M).
+        if not use_discrete:
+            def V_lo(mm):
+                return V >= self.V_min_m3 * build
+            def V_hi(mm):
+                return V <= self.V_max_effective * build
+            setattr(m, f"{comp}_V_lo", pyo.Constraint(rule=V_lo))
+            setattr(m, f"{comp}_V_hi", pyo.Constraint(rule=V_hi))
 
         # ── Option B: explicit h_TES and d_TES variables (MIQCP) ─────────────
         # V = π/4 × d² × h is a bilinear/quadratic constraint; makes model MIQCP.
@@ -270,19 +324,20 @@ class GeometricStorageBlock(BaseComponent):
             setattr(m, f"{comp}_d_build", pyo.Constraint(rule=d_build))
 
         # ── State-of-charge variables ─────────────────────────────────────────
+        # Charge/discharge MODE BINARIES ELIMINATED (2026-07-13, "Edit A"): they only
+        # forbade simultaneous charge+discharge, which strictly positive round-trip
+        # losses (eff_c, eff_d < 1) already make sub-optimal — so they are provably
+        # redundant (a standard exact simplification). Dropping them removes ~3
+        # binaries/timestep (~26k full-year) and the big-M power linearisation, so
+        # storage becomes a pure LP inside the dispatch and the LP relaxation is
+        # tighter; the investment size-selection carries the remaining integrality.
         setattr(m, f"{comp}_E", pyo.Var(Tset, domain=pyo.NonNegativeReals))
         setattr(m, f"{comp}_Qc", pyo.Var(Tset, domain=pyo.NonNegativeReals))
         setattr(m, f"{comp}_Qd", pyo.Var(Tset, domain=pyo.NonNegativeReals))
-        setattr(m, f"{comp}_charge_mode", pyo.Var(Tset, domain=pyo.Binary))
-        setattr(m, f"{comp}_discharge_mode", pyo.Var(Tset, domain=pyo.Binary))
-        setattr(m, f"{comp}_active", pyo.Var(Tset, domain=pyo.Binary))
-
         E = getattr(m, f"{comp}_E")
         Qc = getattr(m, f"{comp}_Qc")
         Qd = getattr(m, f"{comp}_Qd")
-        cm = getattr(m, f"{comp}_charge_mode")
-        dm = getattr(m, f"{comp}_discharge_mode")
-        active = getattr(m, f"{comp}_active")
+        cm = dm = active = None  # eliminated (complementarity implied by losses)
 
         loss_factor = float(self.hourly_loss) ** self.dt_h
         eff_c = max(self.eff_c, 1e-4)
@@ -316,56 +371,32 @@ class GeometricStorageBlock(BaseComponent):
                 return E[t] >= self.e_min_fraction * E_max_expr
             setattr(m, f"{comp}_soc_lo", pyo.Constraint(Tset, rule=soc_lo))
 
-        # ── Exact linearization of cap_p * mode[t] (binary × bounded continuous) ─
-        # PERF FIX (2026-07-04): writing cap_p*cm[t]/cap_p*dm[t] directly makes
-        # Gurobi solve a nonconvex MIQCP (this block is active in nearly every
-        # Paper 2 scenario with a TES — verified as the dominant remaining
-        # quadratic-constraint source after the heat_pump/p2h fix: NumQConstrs
-        # dropped 72->36 with only those two fixed, on a model with one TES).
-        # Exact reformulation for y∈{0,1}, x∈[0,x_max]:
-        #   z<=x_max*y ; z<=x ; z>=x-x_max*(1-y) ; z>=0
-        cap_p_max = float(cap_p.ub)
-        setattr(m, f"{comp}_cap_p_x_cm", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_p_max)))
-        setattr(m, f"{comp}_cap_p_x_dm", pyo.Var(Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_p_max)))
-        cap_p_x_cm = getattr(m, f"{comp}_cap_p_x_cm")
-        cap_p_x_dm = getattr(m, f"{comp}_cap_p_x_dm")
+        # ── Power limits (Edit A: charge/discharge ≤ built power, no mode binary) ─
+        # cap_p is already gated to 0 when the tank is not built (cap_p ≤ ratio·E_max,
+        # E_max = energy_coeff·V, and V = 0 when build = 0), so these two linear limits
+        # also enforce "no operation unless built" — with NO binaries and NO big-M.
+        setattr(m, f"{comp}_qc_lim", pyo.Constraint(Tset, rule=lambda mm, t: Qc[t] <= cap_p))
+        setattr(m, f"{comp}_qd_lim", pyo.Constraint(Tset, rule=lambda mm, t: Qd[t] <= cap_p))
 
-        def _cm_hi(mm, t):
-            return cap_p_x_cm[t] <= cap_p_max * cm[t]
-        def _cm_le_cap(mm, t):
-            return cap_p_x_cm[t] <= cap_p
-        def _cm_lo(mm, t):
-            return cap_p_x_cm[t] >= cap_p - cap_p_max * (1 - cm[t])
-        setattr(m, f"{comp}_cap_p_cm_hi", pyo.Constraint(Tset, rule=_cm_hi))
-        setattr(m, f"{comp}_cap_p_cm_le_cap", pyo.Constraint(Tset, rule=_cm_le_cap))
-        setattr(m, f"{comp}_cap_p_cm_lo", pyo.Constraint(Tset, rule=_cm_lo))
-
-        def _dm_hi(mm, t):
-            return cap_p_x_dm[t] <= cap_p_max * dm[t]
-        def _dm_le_cap(mm, t):
-            return cap_p_x_dm[t] <= cap_p
-        def _dm_lo(mm, t):
-            return cap_p_x_dm[t] >= cap_p - cap_p_max * (1 - dm[t])
-        setattr(m, f"{comp}_cap_p_dm_hi", pyo.Constraint(Tset, rule=_dm_hi))
-        setattr(m, f"{comp}_cap_p_dm_le_cap", pyo.Constraint(Tset, rule=_dm_le_cap))
-        setattr(m, f"{comp}_cap_p_dm_lo", pyo.Constraint(Tset, rule=_dm_lo))
-
-        # Power limits
-        def qc_limit(mm, t):
-            return Qc[t] <= cap_p_x_cm[t]
-        def qd_limit(mm, t):
-            return Qd[t] <= cap_p_x_dm[t]
-        setattr(m, f"{comp}_qc_lim", pyo.Constraint(Tset, rule=qc_limit))
-        setattr(m, f"{comp}_qd_lim", pyo.Constraint(Tset, rule=qd_limit))
-
-        # Mode exclusivity
-        def mode_excl(mm, t):
-            return cm[t] + dm[t] <= active[t]
-        setattr(m, f"{comp}_mode_excl", pyo.Constraint(Tset, rule=mode_excl))
-
-        def active_build(mm, t):
-            return active[t] <= build
-        setattr(m, f"{comp}_active_build", pyo.Constraint(Tset, rule=active_build))
+        # Shared-port valid inequality (2026-07-13). A single-loop stratified tank
+        # shares ONE heat-exchanger/pump train between charge and discharge, so
+        # COMBINED throughput — not each direction independently — is capacity-
+        # limited. DIAGNOSTIC FINDING (root-LP relaxation of SB-S2-HK0, TES at a
+        # consumer node): without this, the two independent qc_lim/qd_lim constraints
+        # let the LP relaxation charge AND discharge simultaneously at (near) full
+        # cap_p in 97% of hours — a "wash" cycle that nets out almost exactly on the
+        # local heat bus (Qc, Qd enter it unscaled by efficiency; only the SOC
+        # recursion pays the round-trip loss + cycling_cost_eur_per_mwh), which the LP
+        # exploits because marginal heat is cheap/free at many hours once generator
+        # commitment is relaxed. This was the dominant driver of that scenario's 74%
+        # MIP gap — NOT demand-charge peak-shaving, the original hypothesis (that term
+        # was only 1.5% of the incumbent objective). The comment previously here
+        # ("simultaneous charge+discharge is never optimal, so it needs no explicit
+        # constraint") is true for a well-posed problem's TRUE optimum, given strictly
+        # positive round-trip losses — but the diagnostic shows the LP relaxation used
+        # for the B&B bound does not reach that optimum without this cut.
+        setattr(m, f"{comp}_shared_port",
+                pyo.Constraint(Tset, rule=lambda mm, t: Qc[t] + Qd[t] <= cap_p))
 
         # Terminal SOC constraint (cyclic: first ≈ last).
         # Target is also a linear expression of V so it scales with the invested capacity.
@@ -407,6 +438,7 @@ class GeometricStorageBlock(BaseComponent):
             "Q_th_in": Qc,
             "SOC": E,
             "build": build,
+            "n_tanks": self._n_tanks_expr,
             "V_m3": V,
             "cap_power": cap_p,
             "h_m": h_m3,   # None unless option_b=True

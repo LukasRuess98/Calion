@@ -1619,15 +1619,28 @@ class NetworkManager:
         logger.info("  âœ“ %s: enthalpy mixing (%d pipes, attr=%s)", node_id, len(pipe_ids), temperature_attr)
 
     def _link_tes_pressure_coupling(self, model, time_set, node_components: dict) -> None:
-        """Paper 2 F4 — couple geometric-TES hydrostatic head into node pressure.
+        """Paper 2 F4 — couple geometric-TES pressure behavior into node pressure.
 
-        Spec §4.1.3 (edited): (1) the storage column height feeds pressure into
-        the network at its node; (2) charge/discharge flow adds a connection
-        pressure drop. Formulation (linear, exact h(V) via SOS2 PWL):
+        Two modes (spec['mode'], set once network-wide via physics.tes_pressure_mode):
 
-          h = PWL(V) with breakpoints on the concave curve h=(4·r²·V/π)^(1/3)
-          P_supply[n,t] ≥ p_atm + ρ·g·h/1e5 + k·Qc(t) − k·Qd(t) − M·(1−build)
-          P_supply[n,t] ≤ p_max_bar + M·(1−build)          [vessel rating]
+        - "hydrostatic_support" (legacy elevated-tower model): the storage column
+          height feeds pressure into the network at its node, and charge/discharge
+          flow adds a connection pressure drop (linear, exact h(V) via SOS2 PWL):
+            h = PWL(V) with breakpoints on the concave curve h=(4·r²·V/π)^(1/3)
+            P_supply[n,t] ≥ p_atm + ρ·g·h/1e5 + k·Qc(t) − k·Qd(t) − M·(1−build)
+            P_supply[n,t] ≤ p_max_bar + M·(1−build)          [vessel rating]
+
+        - "same_circuit_buffer" (2026-07-13 default): TES shares the network's
+          pressure directly (in-line buffer, no HX, no elevated column) -> it
+          neither needs nor gets its own pressure floor; only the vessel rating
+          cap applies:
+            P_supply[n,t] ≤ p_max_bar + M·(1−build)
+          This removes the PWL h(V)/SOS2 machinery entirely for this asset (it
+          modeled a hydrostatic effect that doesn't apply to an in-line buffer),
+          and removes the fictitious pressure-floor credit a fractionally-built
+          tank received under LP relaxation, which is not exploitable given the
+          Jensen concavity bound but still rests on a physically debatable
+          elevated-tower premise for this system class.
 
         Specs are prepared python-side by ModelFinalizer._build_tes_pressure_coupling.
         """
@@ -1662,64 +1675,81 @@ class NetworkManager:
             n_bp = len(V_breaks)
             k_dp = float(spec['conn_dp_bar_per_mw'])
             p_max = float(spec['p_max_bar'])
+            mode = spec.get('mode', 'hydrostatic_support')
 
-            # PWL h(V) via convex-combination lambdas + SOS2
-            lam = pyo.Var(range(n_bp), domain=pyo.NonNegativeReals, bounds=(0, 1))
-            h_var = pyo.Var(domain=pyo.NonNegativeReals,
-                            bounds=(0.0, max(h_breaks) if h_breaks else 0.0))
-            setattr(model, f"{asset_id}_pwl_lam", lam)
-            setattr(model, f"{asset_id}_h_m", h_var)
-            setattr(model, f"{asset_id}_pwl_sum",
-                    pyo.Constraint(expr=sum(lam[i] for i in range(n_bp)) == build))
-            setattr(model, f"{asset_id}_pwl_V",
-                    pyo.Constraint(expr=V == sum(lam[i] * V_breaks[i] for i in range(n_bp))))
-            setattr(model, f"{asset_id}_pwl_h",
-                    pyo.Constraint(expr=h_var == sum(lam[i] * h_breaks[i] for i in range(n_bp))))
-            setattr(model, f"{asset_id}_pwl_sos2",
-                    pyo.SOSConstraint(var=lam, sos=2))
-
-            # Hydrostatic support + charge/discharge Δp (lower bound on node pressure).
-            # BUGFIX (2026-07-04): skip this at the primary-producer node — its
-            # P_supply is FIXED (equality) to the pump setpoint by
-            # _link_pressure_propagation, independent of anything at that node.
-            # A tank built there with real height + active charging pushed the
-            # required RHS above the fixed setpoint -> proven infeasible (Gurobi:
-            # "infeasible or unbounded" on all 3 MM-S1-HK* runs, TES at j_1 =
-            # primary_producer). Physically correct too: hydrostatic "pressure
-            # support" only matters where pressure is set by propagation from
-            # the pump station, not at the pump station itself — matches spec
-            # §3.3's own framing (S3: support relevant at the hydraulically
-            # remote point, not the Zentrale).
-            if node_id == primary_producer_id:
+            if mode == 'same_circuit_buffer':
+                # In-line buffer sharing the network's own pressure: no elevated
+                # column, no HX -> no h(V) PWL/SOS2, no pressure-floor credit.
+                # Only the vessel rating cap (below) applies.
                 logger.info(
-                    "  %s @ %s: hydrostatic push constraint SKIPPED (primary "
-                    "producer — P_supply fixed by pump setpoint, not tank height)",
+                    "  %s @ %s: same_circuit_buffer mode — no hydrostatic push, "
+                    "no PWL/SOS2 (rating cap only)",
                     asset_id, node_id,
                 )
             else:
-                def _p_head_rule(mm, t, _P=P_sup, _h=h_var, _b=build, _qc=Qc, _qd=Qd,
-                                 _k=k_dp):
-                    rhs = _P_ATM + (_RHO * _G / 1e5) * _h - _M_BAR * (1 - _b)
-                    if _qc is not None:
-                        rhs = rhs + _k * _qc[t]
-                    if _qd is not None:
-                        rhs = rhs - _k * _qd[t]
-                    return _P[t] >= rhs
-                setattr(model, f"{asset_id}_p_head",
-                        pyo.Constraint(time_set, rule=_p_head_rule))
+                # PWL h(V) via convex-combination lambdas + SOS2
+                lam = pyo.Var(range(n_bp), domain=pyo.NonNegativeReals, bounds=(0, 1))
+                h_var = pyo.Var(domain=pyo.NonNegativeReals,
+                                bounds=(0.0, max(h_breaks) if h_breaks else 0.0))
+                setattr(model, f"{asset_id}_pwl_lam", lam)
+                setattr(model, f"{asset_id}_h_m", h_var)
+                setattr(model, f"{asset_id}_pwl_sum",
+                        pyo.Constraint(expr=sum(lam[i] for i in range(n_bp)) == build))
+                setattr(model, f"{asset_id}_pwl_V",
+                        pyo.Constraint(expr=V == sum(lam[i] * V_breaks[i] for i in range(n_bp))))
+                setattr(model, f"{asset_id}_pwl_h",
+                        pyo.Constraint(expr=h_var == sum(lam[i] * h_breaks[i] for i in range(n_bp))))
+                setattr(model, f"{asset_id}_pwl_sos2",
+                        pyo.SOSConstraint(var=lam, sos=2))
 
-            # Vessel pressure rating
+                # Hydrostatic support + charge/discharge Δp (lower bound on node pressure).
+                # BUGFIX (2026-07-04): skip this at the primary-producer node — its
+                # P_supply is FIXED (equality) to the pump setpoint by
+                # _link_pressure_propagation, independent of anything at that node.
+                # A tank built there with real height + active charging pushed the
+                # required RHS above the fixed setpoint -> proven infeasible (Gurobi:
+                # "infeasible or unbounded" on all 3 MM-S1-HK* runs, TES at j_1 =
+                # primary_producer). Physically correct too: hydrostatic "pressure
+                # support" only matters where pressure is set by propagation from
+                # the pump station, not at the pump station itself — matches spec
+                # §3.3's own framing (S3: support relevant at the hydraulically
+                # remote point, not the Zentrale).
+                if node_id == primary_producer_id:
+                    logger.info(
+                        "  %s @ %s: hydrostatic push constraint SKIPPED (primary "
+                        "producer — P_supply fixed by pump setpoint, not tank height)",
+                        asset_id, node_id,
+                    )
+                else:
+                    def _p_head_rule(mm, t, _P=P_sup, _h=h_var, _b=build, _qc=Qc, _qd=Qd,
+                                     _k=k_dp):
+                        rhs = _P_ATM + (_RHO * _G / 1e5) * _h - _M_BAR * (1 - _b)
+                        if _qc is not None:
+                            rhs = rhs + _k * _qc[t]
+                        if _qd is not None:
+                            rhs = rhs - _k * _qd[t]
+                        return _P[t] >= rhs
+                    setattr(model, f"{asset_id}_p_head",
+                            pyo.Constraint(time_set, rule=_p_head_rule))
+
+            # Vessel pressure rating (applies in BOTH modes — a real safety cap)
             def _p_rating_rule(mm, t, _P=P_sup, _b=build, _pm=p_max):
                 return _P[t] <= _pm + _M_BAR * (1 - _b)
             setattr(model, f"{asset_id}_p_rating",
                     pyo.Constraint(time_set, rule=_p_rating_rule))
 
-            logger.info(
-                "  [OK] %s @ %s: h(V) PWL %d breakpoints (h_max=%.1f m), "
-                "p_max=%.1f bar, conn dp=%.3f bar/MW",
-                asset_id, node_id, n_bp, max(h_breaks) if h_breaks else 0.0,
-                p_max, k_dp,
-            )
+            if mode == 'same_circuit_buffer':
+                logger.info(
+                    "  [OK] %s @ %s: same_circuit_buffer, p_max=%.1f bar (rating only)",
+                    asset_id, node_id, p_max,
+                )
+            else:
+                logger.info(
+                    "  [OK] %s @ %s: h(V) PWL %d breakpoints (h_max=%.1f m), "
+                    "p_max=%.1f bar, conn dp=%.3f bar/MW",
+                    asset_id, node_id, n_bp, max(h_breaks) if h_breaks else 0.0,
+                    p_max, k_dp,
+                )
 
     def _link_pressure_propagation(
         self, model, time_set, pipe_components: dict, node_components: dict

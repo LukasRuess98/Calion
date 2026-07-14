@@ -128,6 +128,31 @@ def _tes_geometry(E_MWh: float, delta_T_K: float) -> tuple[float, float]:
     return round(V, 1), round(h, 2)
 
 
+def compute_opex_split(scen_dir: Path) -> dict:
+    """Electricity vs. fuel OPEX split (Part A sweep spec, output columns
+    ``OPEX_el``/``OPEX_gas``). Reuses the same annual cost components as the
+    combined ``OPEX_annual_eur_per_a`` above (``economics.csv``), just reported
+    separately instead of summed.
+
+    OPEX_el  = net electricity purchase + pump electricity + demand charge
+               + curtailment/dump cost (all electricity-side operational costs)
+    OPEX_gas = ``cost_fuel_eur`` (gas + biomass + waste-heat take-over where
+               present — the spec's column set has no separate biomass bucket,
+               so non-electric fuel cost is reported here as a whole).
+    """
+    economics = _read_csv_first_row(scen_dir / "economics.csv")
+    e_buy = economics.get("cost_energy_buy_eur") or 0.0
+    e_sell = economics.get("revenue_sell_eur") or 0.0
+    c_fuel = economics.get("cost_fuel_eur") or 0.0
+    c_pump = economics.get("cost_pump_eur") or 0.0
+    c_dem = economics.get("cost_demand_charge_eur") or 0.0
+    c_dump = economics.get("cost_dump_eur") or 0.0
+    return {
+        "OPEX_el_eur_per_a": round(e_buy - e_sell + c_pump + c_dem + c_dump, 0),
+        "OPEX_gas_eur_per_a": round(c_fuel, 0),
+    }
+
+
 def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> dict:
     """Compute all 24 KPIs for one scenario directory."""
     scen_meta = _read_json(scen_dir / "scenario_meta.json")

@@ -193,8 +193,12 @@ def check_paper1_consistency(out_base: Path) -> dict:
         return {"check": "paper1_consistency", "ok": None, "detail": "Paper 1 L3 economics.csv not found"}
 
     try:
-        opex_p2 = float(econ_p2[0].get("opex_eur") or econ_p2[0].get("total_cost_eur", 0))
-        opex_p1 = float(econ_p1[0].get("opex_eur") or econ_p1[0].get("total_cost_eur", 0))
+        # Neither the Paper-1 L3 dispatch model nor BC-MM (no investment) carries
+        # CAPEX, so cost_total_eur IS the OPEX for both — the columns this used
+        # to look for (opex_eur / total_cost_eur) don't exist in either file's
+        # actual schema (run_id, cost_total_eur, cost_energy_buy_eur, ...).
+        opex_p2 = float(econ_p2[0].get("cost_total_eur") or 0)
+        opex_p1 = float(econ_p1[0].get("cost_total_eur") or 0)
         if opex_p1 == 0:
             return {"check": "paper1_consistency", "ok": None, "detail": "P1 OPEX = 0"}
         error_pct = abs(opex_p2 - opex_p1) / opex_p1 * 100
@@ -207,6 +211,71 @@ def check_paper1_consistency(out_base: Path) -> dict:
         }
     except Exception as exc:
         return {"check": "paper1_consistency", "ok": None, "detail": str(exc)}
+
+
+def check_sweep_consistency(sweep_csv: Path, optimum_json: Path) -> dict:
+    """Part A §A.5 cross-validation: is the sweep TAC-minimum near the MILP optimum?
+
+    Passes only when BOTH criteria hold simultaneously:
+      1. TAC deviation of the sweep minimum vs. the MILP optimum <= +/-10%
+      2. grid distance <= +/-1 grid step in BOTH Q_WP and V_TES
+
+    Meeting only one of the two is reported as "grenzwertig" (borderline), not
+    "passed" — per the finalised spec, this must not be silently accepted.
+    """
+    if not sweep_csv.exists() or not optimum_json.exists():
+        return {"check": "sweep_consistency", "ok": None,
+                "verdict": "not_run", "detail": "sweep CSV/optimum JSON not found"}
+
+    with open(optimum_json, encoding="utf-8") as f:
+        opt = json.load(f)
+    q_opt, v_opt = opt.get("Q_WP_opt_MW"), opt.get("V_TES_opt_m3")
+    tac_opt = opt.get("TAC_opt_eur_per_a")
+
+    rows = _read_csv(sweep_csv)
+    feas = [r for r in rows if str(r.get("feasible")).lower() == "true"
+            and r.get("TAC_eur_per_a")]
+    if not feas or q_opt is None or v_opt is None or not tac_opt:
+        return {"check": "sweep_consistency", "ok": None, "verdict": "not_run",
+                "detail": "no feasible sweep points or missing MILP optimum"}
+
+    q_vals = sorted({float(r["Q_WP_MW"]) for r in rows})
+    v_vals = sorted({float(r["V_TES_m3"]) for r in rows})
+    q_step = (max(q_vals) - min(q_vals)) / (len(q_vals) - 1) if len(q_vals) > 1 else float("inf")
+    v_step = (max(v_vals) - min(v_vals)) / (len(v_vals) - 1) if len(v_vals) > 1 else float("inf")
+
+    best = min(feas, key=lambda r: float(r["TAC_eur_per_a"]))
+    tac_best = float(best["TAC_eur_per_a"])
+    tac_dev_pct = (tac_best - float(tac_opt)) / float(tac_opt) * 100
+
+    def _nearest_idx(val: float, grid: list[float]) -> int:
+        return min(range(len(grid)), key=lambda i: abs(grid[i] - val))
+
+    q_idx_best = _nearest_idx(float(best["Q_WP_MW"]), q_vals)
+    v_idx_best = _nearest_idx(float(best["V_TES_m3"]), v_vals)
+    q_idx_opt = _nearest_idx(float(q_opt), q_vals)
+    v_idx_opt = _nearest_idx(float(v_opt), v_vals)
+    grid_steps_q = abs(q_idx_best - q_idx_opt)
+    grid_steps_v = abs(v_idx_best - v_idx_opt)
+
+    tac_pass = abs(tac_dev_pct) <= 10.0
+    grid_pass = grid_steps_q <= 1 and grid_steps_v <= 1
+    if tac_pass and grid_pass:
+        verdict = "passed"
+    elif tac_pass or grid_pass:
+        verdict = "grenzwertig"
+    else:
+        verdict = "failed"
+
+    return {
+        "check": "sweep_consistency", "ok": verdict == "passed", "verdict": verdict,
+        "tac_dev_pct": round(tac_dev_pct, 2),
+        "grid_steps_q": grid_steps_q, "grid_steps_v": grid_steps_v,
+        "grid_step_q_mw": round(q_step, 3), "grid_step_v_m3": round(v_step, 1),
+        "sweep_best_scenario": best.get("status"),
+        "Q_WP_opt_MW": q_opt, "V_TES_opt_m3": v_opt,
+        "Q_WP_sweep_best_MW": float(best["Q_WP_MW"]), "V_TES_sweep_best_m3": float(best["V_TES_m3"]),
+    }
 
 
 def run_validation(out_base: Path = OUT_BASE) -> dict:

@@ -57,9 +57,14 @@ COMBINED_OUT = ROOT / "data" / "Stadtbach" / "stadtbach_acron_combined_cleaned.x
 CP_J = 4186.0       # J/(kg K)
 CP_FLOW = 1.163e-3  # MWh/(m3 K) for flow in m3/h
 RHO = 971.8         # kg/m3 at ~80 C
-V_DESIGN = 2.5      # m/s design velocity (matches max_velocity_m_s)
+V_DESIGN = 3.0      # m/s design velocity (matches max_velocity_m_s)
 DT_DESIGN = 39.0    # K design supply-return (99/60)
 LOSS_FRAC = 0.10    # generation->delivery network heat loss
+MU = 3.5e-4         # dynamic viscosity of water ~80 C [Pa s]
+# Round-trip pressure-head budget available to a leaf pipe (bar): producer setpoint
+# (16) minus a return-pressure + trunk-share + safety allowance. The reconstruction
+# weights are RELATIVE, so the exact value mainly sets the feasibility headroom.
+PRESSURE_BUDGET_BAR = 11.0
 
 TS = pd.date_range("2025-01-01", periods=8760, freq="h")
 
@@ -117,15 +122,71 @@ def total_production() -> pd.Series:
     return sum(prod.values())
 
 
+def _dp_1way_bar(diam_m: float, length_m: float, mdot: float, eps_m: float) -> float:
+    """Darcy-Weisbach one-way pressure drop [bar] for a mass flow through a pipe."""
+    area = np.pi * (diam_m / 2) ** 2
+    v = mdot / (RHO * area)
+    if v <= 0:
+        return 0.0
+    re = RHO * v * diam_m / MU
+    f = 0.25 / (np.log10(eps_m / (3.7 * diam_m) + 5.74 / re ** 0.9)) ** 2
+    return f * length_m / diam_m * RHO * v ** 2 / 2 / 1e5
+
+
 def pipe_capacities() -> dict[str, float]:
-    """MW hydraulic capacity of each estimated consumer's incoming pipe."""
+    """Pressure-DELIVERABLE heat capacity [MW] of each estimated consumer.
+
+    The earlier version weighted demand by pipe cross-section (velocity capacity ∝ D²),
+    which ignores pipe LENGTH. Many Stadtbach leaves are long AND thin (e.g. Don_Bosco
+    DN125/3490 m, Josefinum DN125/2070 m): their velocity capacity is fine but their
+    *pressure*-deliverable capacity is a fraction of a short DN125, because Darcy Δp ∝ L.
+    Distributing demand by cross-section therefore over-allocated heat to these consumers
+    far beyond what the 16-bar producer setpoint can push through — the real source of the
+    pressure infeasibility. Here the weight is the heat each consumer can actually receive
+    within the round-trip head budget: bisect the mass flow so the summed Δp along the
+    plant→consumer path (×2 for supply+return) equals PRESSURE_BUDGET_BAR, then convert to
+    heat at the design ΔT. Also capped by the velocity limit (fat/short pipes).
+    """
+    from collections import deque
     net = yaml.safe_load(open(TOPO, encoding="utf-8"))["network"]
-    dia = {p["to"]: p["diameter_mm"] / 1000.0 for p in net["pipes"].values()}
+    pipes = net["pipes"]
+    eps_m = net["pipe_roughness_mm"] / 1000.0
+    primary = net.get("primary_producer", "j_hkw")
+    # undirected adjacency: node -> [(neighbour, pipe_id)]
+    adj: dict[str, list[tuple[str, str]]] = {}
+    for pid, p in pipes.items():
+        adj.setdefault(p["from"], []).append((p["to"], pid))
+        adj.setdefault(p["to"], []).append((p["from"], pid))
+
+    def path_to(dst: str) -> list[str]:
+        q = deque([(primary, [])]); seen = {primary}
+        while q:
+            n, pp = q.popleft()
+            if n == dst:
+                return pp
+            for nb, pid in adj.get(n, []):
+                if nb not in seen:
+                    seen.add(nb); q.append((nb, pp + [pid]))
+        return []
+
     caps = {}
     for col, node in ESTIMATED.items():
-        d = dia[node]
-        mdot = RHO * V_DESIGN * np.pi * (d / 2) ** 2
-        caps[col] = mdot * CP_J * DT_DESIGN / 1e6
+        path = path_to(node)
+        geom = [(pipes[pid]["diameter_mm"] / 1000.0, pipes[pid]["length_m"]) for pid in path]
+        # bisect mdot so round-trip path Δp == budget
+        lo, hi = 0.0, 500.0
+        for _ in range(50):
+            mid = (lo + hi) / 2
+            dp = sum(2 * _dp_1way_bar(d, L, mid, eps_m) for d, L in geom)
+            if dp > PRESSURE_BUDGET_BAR:
+                hi = mid
+            else:
+                lo = mid
+        mdot_press = lo
+        # velocity cap on the consumer's own connection pipe (last on path)
+        d_leaf = geom[-1][0] if geom else 0.1
+        mdot_vel = RHO * V_DESIGN * np.pi * (d_leaf / 2) ** 2
+        caps[col] = min(mdot_press, mdot_vel) * CP_J * DT_DESIGN / 1e6
     return caps
 
 

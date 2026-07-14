@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-09T00:57:24.081537</dc:date>
+    <dc:date>2026-07-14T11:56:58.760184</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -43,7 +43,7 @@ L 107.546796 219.744
 L 107.546796 219.495657 
 L 43.852106 219.495657 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 146.585477 219.744 
@@ -51,7 +51,7 @@ L 210.280166 219.744
 L 210.280166 211.260992 
 L 146.585477 211.260992 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 43.852106 219.495657 
@@ -59,7 +59,7 @@ L 107.546796 219.495657
 L 107.546796 77.487608 
 L 43.852106 77.487608 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
     <path d="M 146.585477 211.260992 
@@ -67,7 +67,7 @@ L 210.280166 211.260992
 L 210.280166 141.027702 
 L 146.585477 141.027702 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
     <path d="M 43.852106 77.487608 
@@ -75,7 +75,7 @@ L 107.546796 77.487608
 L 107.546796 46.944 
 L 43.852106 46.944 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #a6093d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #f58220; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_8">
     <path d="M 146.585477 141.027702 
@@ -83,32 +83,32 @@ L 210.280166 141.027702
 L 210.280166 119.495628 
 L 146.585477 119.495628 
 z
-" clip-path="url(#p95afd8510a)" style="fill: #a6093d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p93711f9edf)" style="fill: #f58220; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="matplotlib.axis_1">
     <g id="xtick_1">
      <g id="line2d_1">
       <defs>
-       <path id="m83144ac00e" d="M 0 0 
+       <path id="mcaf3cac085" d="M 0 0 
 L 0 3.5 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m83144ac00e" x="75.699451" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#mcaf3cac085" x="75.699451" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="75.699451" y="232.112359" transform="rotate(-0 75.699451 232.112359)">Baseline</text>
+      <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="75.699451" y="232.112359" transform="rotate(-0 75.699451 232.112359)">Baseline</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#m83144ac00e" x="178.432821" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#mcaf3cac085" x="178.432821" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="178.432821" y="232.112359" transform="rotate(-0 178.432821 232.112359)">Best: SB-S2-HK0</text>
+      <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="178.432821" y="232.112359" transform="rotate(-0 178.432821 232.112359)">Best: SB-S2-HK0</text>
      </g>
     </g>
    </g>
@@ -117,129 +117,129 @@ L 0 3.5
      <g id="line2d_3">
       <path d="M 35.530703 219.744 
 L 218.601569 219.744 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_4">
       <defs>
-       <path id="mbc1b58bcac" d="M 0 0 
+       <path id="m972d9829bf" d="M 0 0 
 L -3.5 0 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="222.78607" transform="rotate(-0 28.530703 222.78607)">0</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="222.78607" transform="rotate(-0 28.530703 222.78607)">0</text>
      </g>
     </g>
     <g id="ytick_2">
      <g id="line2d_5">
       <path d="M 35.530703 195.243885 
 L 218.601569 195.243885 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_6">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="195.243885" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="195.243885" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_4">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="198.285955" transform="rotate(-0 28.530703 198.285955)">5</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="198.285955" transform="rotate(-0 28.530703 198.285955)">5</text>
      </g>
     </g>
     <g id="ytick_3">
      <g id="line2d_7">
       <path d="M 35.530703 170.743769 
 L 218.601569 170.743769 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_8">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="170.743769" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="170.743769" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_5">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="173.785839" transform="rotate(-0 28.530703 173.785839)">10</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="173.785839" transform="rotate(-0 28.530703 173.785839)">10</text>
      </g>
     </g>
     <g id="ytick_4">
      <g id="line2d_9">
       <path d="M 35.530703 146.243654 
 L 218.601569 146.243654 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_10">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="146.243654" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="146.243654" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="149.285724" transform="rotate(-0 28.530703 149.285724)">15</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="149.285724" transform="rotate(-0 28.530703 149.285724)">15</text>
      </g>
     </g>
     <g id="ytick_5">
      <g id="line2d_11">
       <path d="M 35.530703 121.743538 
 L 218.601569 121.743538 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_12">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="121.743538" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="121.743538" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_7">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="124.785609" transform="rotate(-0 28.530703 124.785609)">20</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="124.785609" transform="rotate(-0 28.530703 124.785609)">20</text>
      </g>
     </g>
     <g id="ytick_6">
      <g id="line2d_13">
       <path d="M 35.530703 97.243423 
 L 218.601569 97.243423 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_14">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="97.243423" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="97.243423" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_8">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="100.285493" transform="rotate(-0 28.530703 100.285493)">25</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="100.285493" transform="rotate(-0 28.530703 100.285493)">25</text>
      </g>
     </g>
     <g id="ytick_7">
      <g id="line2d_15">
       <path d="M 35.530703 72.743308 
 L 218.601569 72.743308 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_16">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="72.743308" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="72.743308" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_9">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="75.785378" transform="rotate(-0 28.530703 75.785378)">30</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="75.785378" transform="rotate(-0 28.530703 75.785378)">30</text>
      </g>
     </g>
     <g id="ytick_8">
      <g id="line2d_17">
       <path d="M 35.530703 48.243192 
 L 218.601569 48.243192 
-" clip-path="url(#p95afd8510a)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p93711f9edf)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_18">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="35.530703" y="48.243192" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="35.530703" y="48.243192" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_10">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="51.285262" transform="rotate(-0 28.530703 51.285262)">35</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="28.530703" y="51.285262" transform="rotate(-0 28.530703 51.285262)">35</text>
      </g>
     </g>
     <g id="text_11">
-     <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="13.387734" y="129.024" transform="rotate(-90 13.387734 129.024)">Total annual cost [M€/a]</text>
+     <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="13.387734" y="129.024" transform="rotate(-90 13.387734 129.024)">Total annual cost [M€/a]</text>
     </g>
    </g>
    <g id="patch_9">
@@ -253,13 +253,13 @@ L 218.601569 219.744
 " style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_12">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="75.699451" y="45.453375" transform="rotate(-0 75.699451 45.453375)">35.27</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="75.699451" y="45.453375" transform="rotate(-0 75.699451 45.453375)">35.27</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="178.432821" y="118.005003" transform="rotate(-0 178.432821 118.005003)">20.46</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="178.432821" y="118.005003" transform="rotate(-0 178.432821 118.005003)">20.46</text>
    </g>
    <g id="text_14">
-    <text style="font-size: 9px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="127.066136" y="32.304" transform="rotate(-0 127.066136 32.304)">Stadtbach</text>
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="127.066136" y="32.304" transform="rotate(-0 127.066136 32.304)">Stadtbach</text>
    </g>
   </g>
   <g id="axes_2">
@@ -277,7 +277,7 @@ L 341.877504 219.744
 L 341.877504 216.415079 
 L 278.182815 216.415079 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_13">
     <path d="M 380.916185 219.744 
@@ -285,7 +285,7 @@ L 444.610875 219.744
 L 444.610875 203.616027 
 L 380.916185 203.616027 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_14">
     <path d="M 278.182815 216.415079 
@@ -293,7 +293,7 @@ L 341.877504 216.415079
 L 341.877504 64.782019 
 L 278.182815 64.782019 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_15">
     <path d="M 380.916185 203.616027 
@@ -301,7 +301,7 @@ L 444.610875 203.616027
 L 444.610875 83.575109 
 L 380.916185 83.575109 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_16">
     <path d="M 278.182815 64.782019 
@@ -309,7 +309,7 @@ L 341.877504 64.782019
 L 341.877504 46.944 
 L 278.182815 46.944 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #a6093d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #f58220; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="patch_17">
     <path d="M 380.916185 83.575109 
@@ -317,27 +317,27 @@ L 444.610875 83.575109
 L 444.610875 59.76832 
 L 380.916185 59.76832 
 z
-" clip-path="url(#p3679eaf19c)" style="fill: #a6093d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: #f58220; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="matplotlib.axis_3">
     <g id="xtick_3">
      <g id="line2d_19">
       <g>
-       <use xlink:href="#m83144ac00e" x="310.03016" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#mcaf3cac085" x="310.03016" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_15">
-      <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="310.03016" y="232.112359" transform="rotate(-0 310.03016 232.112359)">Baseline</text>
+      <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="310.03016" y="232.112359" transform="rotate(-0 310.03016 232.112359)">Baseline</text>
      </g>
     </g>
     <g id="xtick_4">
      <g id="line2d_20">
       <g>
-       <use xlink:href="#m83144ac00e" x="412.76353" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#mcaf3cac085" x="412.76353" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_16">
-      <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="412.76353" y="232.112359" transform="rotate(-0 412.76353 232.112359)">Best: MM-S2-HK0</text>
+      <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="412.76353" y="232.112359" transform="rotate(-0 412.76353 232.112359)">Best: MM-S2-HK0</text>
      </g>
     </g>
    </g>
@@ -346,94 +346,94 @@ z
      <g id="line2d_21">
       <path d="M 269.861412 219.744 
 L 452.932278 219.744 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_22">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="219.744" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_17">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="222.78607" transform="rotate(-0 262.861412 222.78607)">0.0</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="222.78607" transform="rotate(-0 262.861412 222.78607)">0.0</text>
      </g>
     </g>
     <g id="ytick_10">
      <g id="line2d_23">
       <path d="M 269.861412 185.597716 
 L 452.932278 185.597716 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_24">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="185.597716" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="185.597716" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_18">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="188.639787" transform="rotate(-0 262.861412 188.639787)">0.1</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="188.639787" transform="rotate(-0 262.861412 188.639787)">0.1</text>
      </g>
     </g>
     <g id="ytick_11">
      <g id="line2d_25">
       <path d="M 269.861412 151.451433 
 L 452.932278 151.451433 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_26">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="151.451433" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="151.451433" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_19">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="154.493503" transform="rotate(-0 262.861412 154.493503)">0.2</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="154.493503" transform="rotate(-0 262.861412 154.493503)">0.2</text>
      </g>
     </g>
     <g id="ytick_12">
      <g id="line2d_27">
       <path d="M 269.861412 117.305149 
 L 452.932278 117.305149 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_28">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="117.305149" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="117.305149" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_20">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="120.347219" transform="rotate(-0 262.861412 120.347219)">0.3</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="120.347219" transform="rotate(-0 262.861412 120.347219)">0.3</text>
      </g>
     </g>
     <g id="ytick_13">
      <g id="line2d_29">
       <path d="M 269.861412 83.158865 
 L 452.932278 83.158865 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_30">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="83.158865" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="83.158865" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_21">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="86.200936" transform="rotate(-0 262.861412 86.200936)">0.4</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="86.200936" transform="rotate(-0 262.861412 86.200936)">0.4</text>
      </g>
     </g>
     <g id="ytick_14">
      <g id="line2d_31">
       <path d="M 269.861412 49.012582 
 L 452.932278 49.012582 
-" clip-path="url(#p3679eaf19c)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p9dde6f5d55)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_32">
       <g>
-       <use xlink:href="#mbc1b58bcac" x="269.861412" y="49.012582" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m972d9829bf" x="269.861412" y="49.012582" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_22">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="52.054652" transform="rotate(-0 262.861412 52.054652)">0.5</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="262.861412" y="52.054652" transform="rotate(-0 262.861412 52.054652)">0.5</text>
      </g>
     </g>
     <g id="text_23">
-     <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="245.357037" y="129.024" transform="rotate(-90 245.357037 129.024)">Total annual cost [M€/a]</text>
+     <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="245.357037" y="129.024" transform="rotate(-90 245.357037 129.024)">Total annual cost [M€/a]</text>
     </g>
    </g>
    <g id="patch_18">
@@ -447,17 +447,17 @@ L 452.932278 219.744
 " style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_24">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="310.03016" y="45.453375" transform="rotate(-0 310.03016 45.453375)">0.51</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="310.03016" y="45.453375" transform="rotate(-0 310.03016 45.453375)">0.51</text>
    </g>
    <g id="text_25">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="412.76353" y="58.277695" transform="rotate(-0 412.76353 58.277695)">0.47</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="412.76353" y="58.277695" transform="rotate(-0 412.76353 58.277695)">0.47</text>
    </g>
    <g id="text_26">
-    <text style="font-size: 9px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="361.396845" y="32.304" transform="rotate(-0 361.396845 32.304)">Memmingen</text>
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="361.396845" y="32.304" transform="rotate(-0 361.396845 32.304)">Memmingen</text>
    </g>
   </g>
   <g id="text_27">
-   <text style="font-size: 10.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="237.499207" y="14.715703" transform="rotate(-0 237.499207 14.715703)">Annual-cost structure: best investment scenario vs. baseline</text>
+   <text style="font-size: 10.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="237.499207" y="14.715703" transform="rotate(-0 237.499207 14.715703)">Annual-cost structure: best investment scenario vs. baseline</text>
   </g>
   <g id="legend_1">
    <g id="patch_20">
@@ -469,7 +469,7 @@ z
 " style="fill: #005b7f; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="text_28">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="138.888855" y="263.255484" transform="rotate(-0 138.888855 263.255484)">CAPEX (annualised)</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="138.888855" y="263.255484" transform="rotate(-0 138.888855 263.255484)">CAPEX (annualised)</text>
    </g>
    <g id="patch_21">
     <path d="M 222.672059 263.255484 
@@ -480,7 +480,7 @@ z
 " style="fill: #179c7d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="text_29">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="243.672059" y="263.255484" transform="rotate(-0 243.672059 263.255484)">Energy OPEX</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="243.672059" y="263.255484" transform="rotate(-0 243.672059 263.255484)">Energy OPEX</text>
    </g>
    <g id="patch_22">
     <path d="M 305.359559 263.255484 
@@ -488,7 +488,7 @@ L 320.359559 263.255484
 L 320.359559 258.005484 
 L 305.359559 258.005484 
 z
-" style="fill: #a6093d; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
+" style="fill: #f58220; stroke: #ffffff; stroke-width: 1.2; stroke-linejoin: miter"/>
    </g>
    <g id="text_30">
     <!-- CO$_2$ cost -->
@@ -508,10 +508,10 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p95afd8510a">
+  <clipPath id="p93711f9edf">
    <rect x="35.530703" y="38.304" width="183.070866" height="181.44"/>
   </clipPath>
-  <clipPath id="p3679eaf19c">
+  <clipPath id="p9dde6f5d55">
    <rect x="269.861412" y="38.304" width="183.070866" height="181.44"/>
   </clipPath>
  </defs>

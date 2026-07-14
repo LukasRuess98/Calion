@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-09T00:57:22.865430</dc:date>
+    <dc:date>2026-07-14T11:56:56.849645</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -41,36 +41,36 @@ z
     <g id="xtick_1">
      <g id="line2d_1">
       <defs>
-       <path id="mf102f3fec6" d="M 0 0 
+       <path id="m72285a543e" d="M 0 0 
 L 0 3.5 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#mf102f3fec6" x="51.63685" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="51.63685" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="51.63685" y="221.884141" transform="rotate(-0 51.63685 221.884141)">HK0</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="51.63685" y="221.884141" transform="rotate(-0 51.63685 221.884141)">HK0</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#mf102f3fec6" x="142.85223" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="142.85223" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="142.85223" y="221.884141" transform="rotate(-0 142.85223 221.884141)">HK1</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="142.85223" y="221.884141" transform="rotate(-0 142.85223 221.884141)">HK1</text>
      </g>
     </g>
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#mf102f3fec6" x="234.067609" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="234.067609" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="234.067609" y="221.884141" transform="rotate(-0 234.067609 221.884141)">HK2</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="234.067609" y="221.884141" transform="rotate(-0 234.067609 221.884141)">HK2</text>
      </g>
     </g>
     <g id="text_4">
@@ -114,93 +114,93 @@ L 0 3.5
      <g id="line2d_4">
       <path d="M 42.515313 201.010909 
 L 243.189147 201.010909 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_5">
       <defs>
-       <path id="m315bbfe617" d="M 0 0 
+       <path id="m3d967ba29f" d="M 0 0 
 L -3.5 0 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m315bbfe617" x="42.515313" y="201.010909" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="42.515313" y="201.010909" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_5">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="204.052979" transform="rotate(-0 35.515313 204.052979)">1.00</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="204.052979" transform="rotate(-0 35.515313 204.052979)">1.00</text>
      </g>
     </g>
     <g id="ytick_2">
      <g id="line2d_6">
       <path d="M 42.515313 166.455475 
 L 243.189147 166.455475 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_7">
       <g>
-       <use xlink:href="#m315bbfe617" x="42.515313" y="166.455475" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="42.515313" y="166.455475" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="169.497546" transform="rotate(-0 35.515313 169.497546)">1.05</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="169.497546" transform="rotate(-0 35.515313 169.497546)">1.05</text>
      </g>
     </g>
     <g id="ytick_3">
      <g id="line2d_8">
       <path d="M 42.515313 131.900041 
 L 243.189147 131.900041 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_9">
       <g>
-       <use xlink:href="#m315bbfe617" x="42.515313" y="131.900041" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="42.515313" y="131.900041" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_7">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="134.942112" transform="rotate(-0 35.515313 134.942112)">1.10</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="134.942112" transform="rotate(-0 35.515313 134.942112)">1.10</text>
      </g>
     </g>
     <g id="ytick_4">
      <g id="line2d_10">
       <path d="M 42.515313 97.344607 
 L 243.189147 97.344607 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_11">
       <g>
-       <use xlink:href="#m315bbfe617" x="42.515313" y="97.344607" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="42.515313" y="97.344607" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_8">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="100.386678" transform="rotate(-0 35.515313 100.386678)">1.15</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="100.386678" transform="rotate(-0 35.515313 100.386678)">1.15</text>
      </g>
     </g>
     <g id="ytick_5">
      <g id="line2d_12">
       <path d="M 42.515313 62.789174 
 L 243.189147 62.789174 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_13">
       <g>
-       <use xlink:href="#m315bbfe617" x="42.515313" y="62.789174" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="42.515313" y="62.789174" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_9">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="65.831244" transform="rotate(-0 35.515313 65.831244)">1.20</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="35.515313" y="65.831244" transform="rotate(-0 35.515313 65.831244)">1.20</text>
      </g>
     </g>
     <g id="text_10">
-     <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="13.284141" y="123.12" transform="rotate(-90 13.284141 123.12)">Value relative to HK0</text>
+     <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="13.284141" y="123.12" transform="rotate(-90 13.284141 123.12)">Value relative to HK0</text>
     </g>
    </g>
    <g id="line2d_14">
     <path d="M 51.63685 201.010909 
 L 142.85223 201.010909 
 L 234.067609 201.010909 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #005b7f; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #005b7f; stroke-width: 2; stroke-linecap: square"/>
     <defs>
-     <path id="m5a8aaaeae5" d="M 0 3 
+     <path id="m944228826c" d="M 0 3 
 C 0.795609 3 1.55874 2.683901 2.12132 2.12132 
 C 2.683901 1.55874 3 0.795609 3 0 
 C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132 
@@ -212,19 +212,19 @@ C -1.55874 2.683901 -0.795609 3 0 3
 z
 " style="stroke: #005b7f"/>
     </defs>
-    <g clip-path="url(#p7798935d56)">
-     <use xlink:href="#m5a8aaaeae5" x="51.63685" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
-     <use xlink:href="#m5a8aaaeae5" x="142.85223" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
-     <use xlink:href="#m5a8aaaeae5" x="234.067609" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
+    <g clip-path="url(#p37979f38a0)">
+     <use xlink:href="#m944228826c" x="51.63685" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
+     <use xlink:href="#m944228826c" x="142.85223" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
+     <use xlink:href="#m944228826c" x="234.067609" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
     </g>
    </g>
    <g id="line2d_15">
     <path d="M 51.63685 201.010909 
 L 142.85223 201.010909 
 L 234.067609 201.010909 
-" clip-path="url(#p7798935d56)" style="fill: none; stroke: #f58220; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p37979f38a0)" style="fill: none; stroke: #f58220; stroke-width: 2; stroke-linecap: square"/>
     <defs>
-     <path id="m55e1bcb0e8" d="M 0 3 
+     <path id="m6642c338bf" d="M 0 3 
 C 0.795609 3 1.55874 2.683901 2.12132 2.12132 
 C 2.683901 1.55874 3 0.795609 3 0 
 C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132 
@@ -236,10 +236,10 @@ C -1.55874 2.683901 -0.795609 3 0 3
 z
 " style="stroke: #f58220"/>
     </defs>
-    <g clip-path="url(#p7798935d56)">
-     <use xlink:href="#m55e1bcb0e8" x="51.63685" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
-     <use xlink:href="#m55e1bcb0e8" x="142.85223" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
-     <use xlink:href="#m55e1bcb0e8" x="234.067609" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
+    <g clip-path="url(#p37979f38a0)">
+     <use xlink:href="#m6642c338bf" x="51.63685" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m6642c338bf" x="142.85223" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m6642c338bf" x="234.067609" y="201.010909" style="fill: #f58220; stroke: #f58220"/>
     </g>
    </g>
    <g id="patch_3">
@@ -253,7 +253,7 @@ L 243.189147 208.8
 " style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_11">
-    <text style="font-size: 9px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="142.85223" y="31.44" transform="rotate(-0 142.85223 31.44)">Stadtbach — family S1</text>
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="142.85223" y="31.44" transform="rotate(-0 142.85223 31.44)">Stadtbach — family S1</text>
    </g>
   </g>
   <g id="axes_2">
@@ -269,31 +269,31 @@ z
     <g id="xtick_4">
      <g id="line2d_16">
       <g>
-       <use xlink:href="#mf102f3fec6" x="268.364591" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="268.364591" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_12">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="268.364591" y="221.884141" transform="rotate(-0 268.364591 221.884141)">HK0</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="268.364591" y="221.884141" transform="rotate(-0 268.364591 221.884141)">HK0</text>
      </g>
     </g>
     <g id="xtick_5">
      <g id="line2d_17">
       <g>
-       <use xlink:href="#mf102f3fec6" x="359.57997" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="359.57997" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_13">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="359.57997" y="221.884141" transform="rotate(-0 359.57997 221.884141)">HK1</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="359.57997" y="221.884141" transform="rotate(-0 359.57997 221.884141)">HK1</text>
      </g>
     </g>
     <g id="xtick_6">
      <g id="line2d_18">
       <g>
-       <use xlink:href="#mf102f3fec6" x="450.795349" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m72285a543e" x="450.795349" y="208.8" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_14">
-      <text style="font-size: 8.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="450.795349" y="221.884141" transform="rotate(-0 450.795349 221.884141)">HK2</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #52514e" x="450.795349" y="221.884141" transform="rotate(-0 450.795349 221.884141)">HK2</text>
      </g>
     </g>
     <g id="text_15">
@@ -337,11 +337,11 @@ z
      <g id="line2d_19">
       <path d="M 259.243053 201.010909 
 L 459.916887 201.010909 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_20">
       <g>
-       <use xlink:href="#m315bbfe617" x="259.243053" y="201.010909" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="259.243053" y="201.010909" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
@@ -349,11 +349,11 @@ L 459.916887 201.010909
      <g id="line2d_21">
       <path d="M 259.243053 166.455475 
 L 459.916887 166.455475 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_22">
       <g>
-       <use xlink:href="#m315bbfe617" x="259.243053" y="166.455475" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="259.243053" y="166.455475" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
@@ -361,11 +361,11 @@ L 459.916887 166.455475
      <g id="line2d_23">
       <path d="M 259.243053 131.900041 
 L 459.916887 131.900041 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_24">
       <g>
-       <use xlink:href="#m315bbfe617" x="259.243053" y="131.900041" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="259.243053" y="131.900041" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
@@ -373,11 +373,11 @@ L 459.916887 131.900041
      <g id="line2d_25">
       <path d="M 259.243053 97.344607 
 L 459.916887 97.344607 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_26">
       <g>
-       <use xlink:href="#m315bbfe617" x="259.243053" y="97.344607" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="259.243053" y="97.344607" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
@@ -385,11 +385,11 @@ L 459.916887 97.344607
      <g id="line2d_27">
       <path d="M 259.243053 62.789174 
 L 459.916887 62.789174 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
      </g>
      <g id="line2d_28">
       <g>
-       <use xlink:href="#m315bbfe617" x="259.243053" y="62.789174" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m3d967ba29f" x="259.243053" y="62.789174" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
     </g>
@@ -398,11 +398,11 @@ L 459.916887 62.789174
     <path d="M 268.364591 201.010909 
 L 359.57997 131.007011 
 L 450.795349 45.229091 
-" clip-path="url(#pbc2ef59e59)" style="fill: none; stroke: #005b7f; stroke-width: 2; stroke-linecap: square"/>
-    <g clip-path="url(#pbc2ef59e59)">
-     <use xlink:href="#m5a8aaaeae5" x="268.364591" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
-     <use xlink:href="#m5a8aaaeae5" x="359.57997" y="131.007011" style="fill: #005b7f; stroke: #005b7f"/>
-     <use xlink:href="#m5a8aaaeae5" x="450.795349" y="45.229091" style="fill: #005b7f; stroke: #005b7f"/>
+" clip-path="url(#pe8f486ee82)" style="fill: none; stroke: #005b7f; stroke-width: 2; stroke-linecap: square"/>
+    <g clip-path="url(#pe8f486ee82)">
+     <use xlink:href="#m944228826c" x="268.364591" y="201.010909" style="fill: #005b7f; stroke: #005b7f"/>
+     <use xlink:href="#m944228826c" x="359.57997" y="131.007011" style="fill: #005b7f; stroke: #005b7f"/>
+     <use xlink:href="#m944228826c" x="450.795349" y="45.229091" style="fill: #005b7f; stroke: #005b7f"/>
     </g>
    </g>
    <g id="patch_6">
@@ -416,11 +416,11 @@ L 459.916887 208.8
 " style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_16">
-    <text style="font-size: 9px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="359.57997" y="31.44" transform="rotate(-0 359.57997 31.44)">Memmingen — family S1</text>
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="359.57997" y="31.44" transform="rotate(-0 359.57997 31.44)">Memmingen — family S1</text>
    </g>
   </g>
   <g id="text_17">
-   <text style="font-size: 10.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="244.483816" y="14.850234" transform="rotate(-0 244.483816 14.850234)">Heat-curve coupling of COP, TES and WP capacity</text>
+   <text style="font-size: 10.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="244.483816" y="14.850234" transform="rotate(-0 244.483816 14.850234)">Heat-curve coupling of COP, TES and WP capacity</text>
   </g>
   <g id="legend_1">
    <g id="line2d_30">
@@ -429,11 +429,11 @@ L 163.123465 255.806484
 L 170.623465 255.806484 
 " style="fill: none; stroke: #005b7f; stroke-width: 2; stroke-linecap: square"/>
     <g>
-     <use xlink:href="#m5a8aaaeae5" x="163.123465" y="255.806484" style="fill: #005b7f; stroke: #005b7f"/>
+     <use xlink:href="#m944228826c" x="163.123465" y="255.806484" style="fill: #005b7f; stroke: #005b7f"/>
     </g>
    </g>
    <g id="text_18">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="176.623465" y="258.431484" transform="rotate(-0 176.623465 258.431484)">TES capacity (rel.)</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="176.623465" y="258.431484" transform="rotate(-0 176.623465 258.431484)">TES capacity (rel.)</text>
    </g>
    <g id="line2d_31">
     <path d="M 253.30159 255.806484 
@@ -441,19 +441,19 @@ L 260.80159 255.806484
 L 268.30159 255.806484 
 " style="fill: none; stroke: #f58220; stroke-width: 2; stroke-linecap: square"/>
     <g>
-     <use xlink:href="#m55e1bcb0e8" x="260.80159" y="255.806484" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m6642c338bf" x="260.80159" y="255.806484" style="fill: #f58220; stroke: #f58220"/>
     </g>
    </g>
    <g id="text_19">
-    <text style="font-size: 7.5px; font-family: 'Frutiger', 'Frutiger LT Std', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="274.30159" y="258.431484" transform="rotate(-0 274.30159 258.431484)">WP capacity (rel.)</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="274.30159" y="258.431484" transform="rotate(-0 274.30159 258.431484)">WP capacity (rel.)</text>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p7798935d56">
+  <clipPath id="p37979f38a0">
    <rect x="42.515313" y="37.44" width="200.673834" height="171.36"/>
   </clipPath>
-  <clipPath id="pbc2ef59e59">
+  <clipPath id="pe8f486ee82">
    <rect x="259.243053" y="37.44" width="200.673834" height="171.36"/>
   </clipPath>
  </defs>

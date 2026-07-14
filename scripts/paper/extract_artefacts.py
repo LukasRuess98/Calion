@@ -944,10 +944,18 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
                 "demand_MWh": round(demand, 1),
                 "curtailment_MWh": round(dump, 1),
             }
-            # Plausibility guard: a stale or wrong-network dispatch export (e.g. a
-            # Stadtbach run whose demand column holds Memmingen's ~10 MW load, or a
-            # no-incumbent run) yields an absurd closure %. Flag it instead of
-            # emitting a meaningless 1000s-of-% figure that would poison T5.
+            # Closure = the MW conservation the model ACTUALLY solves:
+            #   generation + net_discharge = demand + curtailment.
+            # The L3 dispatch balance is MW-lossless — the spatial supply-temperature
+            # drop is tracked via the enthalpy-flux (W) vars but does NOT remove MW
+            # from this balance (generation ≈ consumer demand, verified). The pipe
+            # thermal losses are a separate temperature-field DIAGNOSTIC, reported as
+            # network_loss_pct — NOT subtracted here. (The old formula subtracted
+            # `losses` from a lossless balance, so every clean run showed a spurious
+            # imbalance ≈ the loss fraction and tripped HIGH_IMBALANCE.)
+            eb["network_loss_pct"] = round(losses / demand * 100, 3) if demand > 0 else None
+            # Plausibility guard: a stale / wrong-network / no-incumbent dispatch
+            # export yields an absurd ratio; flag instead of a meaningless number.
             ratio = (supply / demand) if demand > 0 else None
             if demand <= 0:
                 eb.update(closure_error_pct=None, closure_pass=False,
@@ -957,7 +965,7 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
                           closure_note=f"implausible supply/demand ratio {ratio:.2f} "
                                        "— stale or wrong-network dispatch export")
             else:
-                closure_err_pct = abs(supply - dump - losses - demand) / demand * 100
+                closure_err_pct = abs(supply - dump - demand) / demand * 100
                 eb.update(closure_error_pct=round(closure_err_pct, 3),
                           closure_pass=bool(closure_err_pct <= 2.0))
             payload["energy_balance"] = eb

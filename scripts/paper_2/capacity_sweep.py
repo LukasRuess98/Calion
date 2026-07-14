@@ -39,8 +39,9 @@ import sys
 sys.path.insert(0, str(_ROOT))
 
 from scripts.paper_2 import scenario_runner as sr  # noqa: E402
-from scripts.paper_2.kpi_calculator import compute_scenario_kpis  # noqa: E402
+from scripts.paper_2.kpi_calculator import compute_opex_split, compute_scenario_kpis  # noqa: E402
 from scripts.paper_2.main_result_loader import load_main_result  # noqa: E402
+from scripts.paper_2.validation_p2 import check_sweep_consistency  # noqa: E402
 
 logger = logging.getLogger("capacity_sweep")
 
@@ -80,8 +81,9 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
 
     q_grid = _grid(q_opt, lo, hi, n, res["q_min_mw"], res["q_max_mw"])
     v_grid = _grid(v_opt, lo, hi, n, res["v_min_m3"], res["v_max_m3"])
-    logger.info("Sweep %s (%s): Q_WP*=%.2f MW, V_TES*=%.0f m³", scenario_id, network,
-                q_opt, v_opt)
+    logger.info("Sweep %s (%s): Q_WP*=%.2f MW, V_TES*=%.0f m³ — fixed at HK1 "
+                "(spec A.3, regardless of the seed scenario's own HK stage)",
+                scenario_id, network, q_opt, v_opt)
     logger.info("  Q_WP grid [MW]: %s", ", ".join(f"{x:.2f}" for x in q_grid))
     logger.info("  V_TES grid [m³]: %s", ", ".join(f"{x:.0f}" for x in v_grid))
     logger.info("  %d × %d = %d dispatch solves", len(q_grid), len(v_grid),
@@ -103,12 +105,17 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
                 scen = copy.deepcopy(base_scen)
                 scen["id"] = f"SWEEP_{scenario_id}_q{q:.3f}_v{v:.0f}"
                 scen["baseline"] = False
+                # Spec A.3 (finalised): the sweep always runs at HK1, regardless of
+                # which HK stage the seed scenario_id (used for Q*/V*/node) carries.
+                scen["heat_curve_stage"] = "HK1"
+                scen["tvl_fix"] = False
                 scen["overrides"] = sr._deep_merge(scen.get("overrides") or {},
                                                    _pin_override(network, q, v))
                 r = sr.run_single_scenario(scen, scen_cfg, dry_run=False, force_rerun=True)
                 row = {"Q_WP_MW": q, "V_TES_m3": v, "status": r.get("status")}
                 if r.get("status") == "ok" and r.get("outdir"):
                     k = compute_scenario_kpis(Path(r["outdir"]))
+                    opex_split = compute_opex_split(Path(r["outdir"]))
                     opex = float(k.get("OPEX_annual_eur_per_a") or 0)
                     co2 = float(k.get("co2_t_per_a") or 0) * CO2_PRICE
                     row.update(
@@ -116,6 +123,8 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
                         LCOH_eur_per_MWh=k.get("LCOH_eur_per_MWh"),
                         CAPEX_annual_eur_per_a=k.get("CAPEX_annual_eur_per_a"),
                         OPEX_annual_eur_per_a=opex,
+                        OPEX_el_eur_per_a=opex_split["OPEX_el_eur_per_a"],
+                        OPEX_gas_eur_per_a=opex_split["OPEX_gas_eur_per_a"],
                         OPEX_CO2_eur_per_a=round(co2, 1),
                         OPEX_energy_eur_per_a=round(max(opex - co2, 0.0), 1),
                         co2_t_per_a=k.get("co2_t_per_a"),
@@ -134,22 +143,34 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"sweep_{network}_{scenario_id}.csv"
     pd.DataFrame(rows).to_csv(out, index=False)
-    (RESULTS / f"sweep_{network}_{scenario_id}_optimum.json").write_text(json.dumps({
+    optimum_path = RESULTS / f"sweep_{network}_{scenario_id}_optimum.json"
+    optimum_path.write_text(json.dumps({
         "scenario_id": scenario_id, "network": network,
         "Q_WP_opt_MW": q_opt, "V_TES_opt_m3": v_opt,
         "TAC_opt_eur_per_a": res.get("TAC_opt_eur_per_a"),
         "LCOH_opt_eur_per_MWh": res.get("LCOH_opt_eur_per_MWh"),
     }, indent=2), encoding="utf-8")
 
-    # §A.5 consistency: is the sweep-minimum near the MILP optimum?
-    feas = [r for r in rows if r.get("feasible")]
-    if feas:
-        best = min(feas, key=lambda r: r["TAC_eur_per_a"])
-        dtac = ((best["TAC_eur_per_a"] - res["TAC_opt_eur_per_a"]) / res["TAC_opt_eur_per_a"] * 100
-                if res.get("TAC_opt_eur_per_a") else float("nan"))
-        logger.info("Sweep TAC-min at Q=%.2f MW, V=%.0f m³ (TAC=%,.0f) — %+.1f%% vs MILP optimum",
-                    best["Q_WP_MW"], best["V_TES_m3"], best["TAC_eur_per_a"], dtac)
-    logger.info("Sweep written → %s", out)
+    # §A.5 consistency: dual-criterion check (TAC +/-10% AND grid distance +/-1 step)
+    consistency = check_sweep_consistency(out, optimum_path)
+    if consistency.get("verdict") not in (None, "not_run"):
+        optimum_path.write_text(json.dumps({
+            "scenario_id": scenario_id, "network": network,
+            "Q_WP_opt_MW": q_opt, "V_TES_opt_m3": v_opt,
+            "TAC_opt_eur_per_a": res.get("TAC_opt_eur_per_a"),
+            "LCOH_opt_eur_per_MWh": res.get("LCOH_opt_eur_per_MWh"),
+            "sweep_consistency": consistency,
+        }, indent=2), encoding="utf-8")
+        logger.info("Sweep<->MILP consistency: %s (TAC dev %+.1f%%, grid dist Q=%d V=%d steps)",
+                    consistency["verdict"], consistency["tac_dev_pct"],
+                    consistency["grid_steps_q"], consistency["grid_steps_v"])
+        if consistency["verdict"] != "passed":
+            logger.warning("Sweep<->MILP consistency is '%s' — report explicitly in T5, "
+                            "do not treat silently as passed (spec A.5).",
+                            consistency["verdict"])
+    else:
+        logger.info("Sweep<->MILP consistency: not_run (%s)", consistency.get("detail"))
+    logger.info("Sweep written -> %s", out)
     return out
 
 

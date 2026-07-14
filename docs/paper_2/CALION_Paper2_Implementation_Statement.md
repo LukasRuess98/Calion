@@ -285,52 +285,64 @@ Note: Memmingen's `max_velocity_m_s` was reverted from 100 (capacity bypass) to 
 
 ### A.4.5 Pressure drop and spatial pressure (spec §4.1.3, §6.3)
 
-Darcy–Weisbach pressure drop is piecewise-linearised (PWL, 3 segments) in `ṁ`:
+Darcy–Weisbach pressure drop `Δp = k_flow·ṁ²` and pump power `P_pump = C·ṁ³` are both
+**convex** in `ṁ`. They are modelled as **binary-free convex lower envelopes** — a set of
+tangent-line inequalities the solver settles onto because Δp is driven down by both pump cost
+and pressure propagation (`pipe_pair.py`):
 
 ```
-Δp(i,j)(t) = PWL_DW( ṁ(i,j)(t) )   [Pa → bar via /1e5]
+Δp_supply(t) ≥ 2·k_flow·ṁ_i · ṁ(t) − k_flow·ṁ_i²      for tangent points ṁ_i        [bar]
+Δp_return(t) = Δp_supply(t)                             (same pipe geometry & flow)
+P_pump(t)    ≥ 3·C·ṁ_i² · ṁ(t) − 2·C·ṁ_i³               (C = 2·k_flow·1e5/(ρ·η_pump·1e6))
 ```
 
-and propagated spatially node-to-node from the primary-producer setpoint:
+**Tangent count (tractability, 2026-07-13).** The envelope uses **3 tangent points**
+(`ṁ_i = 0.33, 0.67, 1.0 × ṁ_max`), reduced from 5. This halves the pressure-envelope row count
+(~1 M fewer LP rows network-wide), materially speeding the barrier root LP that dominates the
+full-year solve, at a small accuracy cost: the worst-case Δp *under*-estimate between tangent
+points rises to ≈7 % (≈0.03–0.14 bar on sub-2-bar drops) — negligible against the 0.7 bar
+consumer differential, especially as the reconstructed demand already sits at ~70 % pipe
+utilisation. A 5-tangent (≈2–3 % error) variant is available if a finer pressure trace is wanted.
+
+Node pressures propagate from the primary-producer setpoint; producer/pump-station nodes are
+pressure sources (primary **fixed** at setpoint, secondary a free pump-boosted **floor**), and
+supply/return propagation across non-source pipes is an **inequality** (`p_to ≤ p_from − Δp`)
+so a multi-feed mesh junction (e.g. `j_ost`, four incoming pipes) is not over-determined:
 
 ```
-p_supply,j(t) = p_supply,i(t) − Δp_supply,(i,j)(t)      (supply falls downstream)
-p_return,i(t) = p_return,j(t) − Δp_return,(i,j)(t)      (return falls upstream)
+p_supply,j(t) ≤ p_supply,i(t) − Δp_supply,(i,j)(t)      p_return,i(t) ≤ p_return,j(t) − Δp_return,(i,j)(t)
+P_pump feeds the electricity bus (η_pump = 0.75); consumer stations require p_supply − p_return ≥ 0.7 bar
 ```
 
-Pump electric power feeds the electricity bus:
+**Why convex envelopes replaced the earlier binary PWL — a corrected error.** Earlier builds
+used a 3-segment PWL with a **binary** segment selector and a big-M (`pwl_flow ≤ bp·seg +
+M(1−seg)`). That formulation was both (a) needlessly integer (~840 k binaries network-wide) →
+weak LP bound → **77–94 % MIP gaps after 46 h** on some Stadtbach scenarios, and (b) **leaky**:
+the big-M let inactive segments carry flow, so the solver could route flow through low-slope
+segments and **under-count Δp below its true value**. Prior "feasible" pressure results were
+therefore *not physically valid* (one scenario "solved" at 117 M€ of hidden slack). The convex
+tangent envelope is tight (Δp can never fall below the true quadratic) and carries **no**
+pressure binaries — the same scenario now solves the pressure relaxation to a small gap in
+seconds.
 
-```
-P_pump(t) = Σ_(i,j) Δp(i,j)(t) · ṁ(i,j)(t) / (ρ · η_pump)     (η_pump = 0.75)
-```
+**Delivered on both networks** (Memmingen radial tree; Stadtbach multi-source mesh via the
+inequality propagation above). Reaching feasibility required, in sequence (each uncovered by
+IIS as the previous was fixed):
+1. the convex-envelope formulation (correct, tight Δp);
+2. `max_velocity_m_s` 100 → **3.0 m/s** (100 was a workaround that inflated slopes and hid a
+   demand/pipe mismatch);
+3. `min_supply_delta_T_k` 10 → **15 K** and per-curve retrofit return temps (§B.2.2): a fixed
+   60 °C return at mild hours collapsed ΔT to the 10 K floor, so moderate demand needed flows
+   that overshot the thin pipes;
+4. **pressure-deliverable demand distribution** (§B.2.1): the reconstruction originally weighted
+   demand by pipe cross-section (∝ D²), which ignores pipe length — many Stadtbach leaves are
+   long *and* thin (Don_Bosco DN125/3490 m, Josefinum DN125/2070 m), so their pressure-limited
+   capacity is a fraction of a short DN125. Re-weighting by path-aware Darcy pressure-deliverable
+   capacity keeps every consumer's demand within the 16-bar head budget.
 
-**Delivered on both networks.** Memmingen is a radial tree, so each node has one upstream
-path and `p_supply,j = p_supply,i − Δp` is well-defined. Stadtbach is a multi-source mesh
-(e.g. `j_ost` has four incoming pipes from `j_gtost`/`j_bmhkw`/`j_ava` + the bidirectional
-`hkw_to_ost`). An earlier build reported `infeasibleOrUnbounded` and this was *attributed* to
-the mesh over-determining node pressure; an IIS-based diagnosis (2026-07-09) proved that
-attribution wrong. The mesh is handled correctly by three changes:
-
-1. **Pressure-source classification + inequality propagation.** Every producer/pump-station
-   node is a pressure source (primary producer fixed at its setpoint via equality; secondary
-   producers and pump stations get a free, pump-boosted *floor* `p ≥ setpoint`). Supply/return
-   propagation across non-source pipes is an **inequality** (`p_to ≤ p_from − Δp`), so a
-   multi-feed junction takes the tightest consistent pressure instead of writing several
-   conflicting equalities. This removes the over-determination without a loop/Kirchhoff
-   formulation.
-2. **Real velocity cap.** `max_velocity_m_s` was `100` (a workaround) which both inflated the
-   PWL pressure-drop slopes and let unphysical flows hide a demand/pipe mismatch; set to the
-   physical `2.5` m/s (matching Memmingen).
-3. **Pipe-feasible demand.** The IIS ultimately pinned the conflict to specific consumers
-   (e.g. Josefinum: 32 MW peak demand on a DN125 / 4.9 MW pipe). Those were the estimated
-   consumers whose `merge_acron_sb.py` demand overshot their real connection pipes; the
-   energy-balance reconstruction (§B.2.1) brings every estimated consumer to ≤73 % of its
-   pipe capacity, so all flows are physically deliverable.
-
-With these, Stadtbach solves with `pressure_drop: true` (72 h feasibility confirmed
-2026-07-09: 10 incumbents; full-year via the campaign). The bidirectional-pipe
-`flow_dir`/`m_dot_abs` MILP fix keeps `hkw_to_ost` direction-consistent under pressure.
-**Status: ✅ (both networks; O-8 resolved — was a demand/parameter issue, not a mesh limit).**
+The bidirectional-pipe `flow_dir`/`m_dot_abs` MILP fix keeps `hkw_to_ost` direction-consistent.
+**Status: ✅ (both networks; O-8 resolved — the infeasibility was a formulation + demand/parameter
+issue, never a mesh limit).**
 
 ### A.4.6 Geometric TES (spec §4.1)
 
@@ -353,16 +365,47 @@ rating (`V_max_effective`) guards against sizing a tank taller than `p_max` allo
 
 The spec explicitly requested (a) the storage column height feeding pressure into the
 network and (b) simulating the charge/discharge pressure drop. Both are implemented
-(`network_manager.py::_link_tes_pressure_coupling`, feature "F4"):
+(`network_manager.py::_link_tes_pressure_coupling`, feature "F4"), now with a config
+switch `physics.tes_pressure_mode` (2026-07-13) selecting between two physical models
+of the TES's hydraulic role:
+
+**`hydrostatic_support`** (legacy — an elevated-tower TES, physically separate from the
+network's pressurised loop, whose own water column pushes pressure into the network):
 
 ```
 p_supply,i(t) ≥ p_atm + ρ·g·h(V)/1e5 + k_dp·q_TES,c(t) − k_dp·q_TES,d(t) − M·(1−y_TES)
 p_supply,i(t) ≤ p_max + M·(1−y_TES)                             (vessel rating)
 ```
 
-`h(V)` is itself PWL (concave `h = (4·r²·V/π)^{1/3}`, SOS2). The hydrostatic push is
-skipped at the primary producer (its `p_supply` is fixed by the pump setpoint). Active in
-Memmingen (`tes_pressure_coupling: true`). **Status: ✅.**
+`h(V)` is itself PWL (concave `h = (4·r²·V/π)^{1/3}`, SOS2, 5 breakpoints × 8760 h per
+TES node). The hydrostatic push is skipped at the primary producer (its `p_supply` is
+fixed by the pump setpoint).
+
+**`same_circuit_buffer`** (2026-07-13 default — TES as an in-line buffer sharing the
+network's own pressurised loop; no HX, no elevated column; it decouples local
+charge/discharge *volume flows*, not pressures):
+
+```
+p_supply,i(t) ≤ p_max + M·(1−y_TES)                             (vessel rating only)
+```
+
+No `h(V)` PWL/SOS2 at all — the node's pressure is set purely by pump-station
+propagation through the pipe network (§A.4.5), as for any other node. Physical
+justification: `p_TES(t) = p_network,i(t)` holds exactly while the tank sits in the same
+closed loop and stays below saturation pressure at its temperature (already enforced
+network-wide by the generic anti-cavitation floor, `state_constraints.py::
+enforce_minimum_pressure`, independent of TES). **Rationale for the mode change:** the
+legacy formulation let a *fractionally-built* tank (LP relaxation of `y_TES`) receive a
+`ρ·g·h(V)`-scaled pressure-floor credit tied to a literal elevated-tower premise that is
+not obviously the right physical picture for an in-line buffer vessel; even though the
+PWL's Jensen-concavity bound makes this credit conservative rather than exploitable, the
+assumption itself needed to be justified for publication (Kategorie B fix — orthogonal to
+the storage-siting weak bound in Part G, which is a Stadtbach-only issue where
+`tes_pressure_coupling` was never enabled). Verified on MM-S2-HK0 (TES at `j_12`, 720 h
+smoke test): SOS2/PWL-λ components drop from 1 to 0, objective changes by 0.04%
+(49,594 → 49,613 €), both solves reach <0.5% gap. The legacy mode is kept selectable
+(not deleted) for A/B comparability. Active in Memmingen only
+(`tes_pressure_coupling: true`); Stadtbach never enables this feature. **Status: ✅.**
 
 ### A.4.8 Heating-curve model (spec §4.2)
 
@@ -460,7 +503,8 @@ tracks the annual import peak and is priced by the Jahresleistungspreis
 - **Consumers:** 27 demand zones mapped to nodes `j_1…j_15`.
 - **Physics flags:** `milp_linearize: true`, `temperature_propagation: false` (spatial
   temperature via the per-node offset instead — §A.4.3), `pressure_drop: true`,
-  `transport_delay: true`, `tes_pressure_coupling: true`, `max_velocity_m_s: 2.5`.
+  `transport_delay: true`, `tes_pressure_coupling: true`, `max_velocity_m_s: 3.0`,
+  `min_supply_delta_T_k: 15` (retrofit curves lower return too — §B.1.4/§A.4.5).
 
 ### B.1.3 Investable-asset parameters
 
@@ -492,10 +536,11 @@ Heat-curve stages HK0 `(k=1.0, T_VL,min=74)`, HK1 `(0.8, 70)`, HK2 `(0.6, 66)`,
 - **Physics flags:** `milp_linearize: true`, `temperature_propagation: false` (spatial
   temperature via the per-node offset — §A.4.3), `transport_delay: true`,
   **`pressure_drop: true`** (mesh handled by inequality propagation + pressure-source
-  classification — §A.4.5), `max_velocity_m_s: 2.5` (physical; was a `100` workaround).
-  Pipe diameters are real (graded DN600 trunk → DN125 leaves, swa WV640/650/660); enabling
-  pressure required reconstructing the estimated-consumer demand (§B.2.1) so every consumer's
-  flow fits its connection pipe.
+  classification — §A.4.5), `max_velocity_m_s: 3.0` (was a `100` workaround), and
+  `min_supply_delta_T_k: 15` (raised from 10; a fixed 60 °C return collapsed ΔT to the floor at
+  mild hours). Pipe diameters are real (graded DN600 trunk → DN125 leaves, swa WV640/650/660);
+  enabling pressure required reconstructing the estimated-consumer demand by pressure-deliverable
+  capacity (§B.2.1) so every consumer's flow fits both its velocity and pressure limits.
 - **Asset data provenance:** fixed-generator data was corrected in two steps this session.
   (1) Thermal efficiencies and CHP electrical efficiencies were taken from the source
   notebook `configs/paper_2/20250922_Stadtbach.ipynb` (user-confirmed authoritative for the
@@ -526,13 +571,24 @@ Heat-curve stages HK0 `(k=1.0, T_VL,min=74)`, HK1 `(0.8, 70)`, HK2 `(0.6, 66)`,
   reconstructed by **energy balance**: the delivered residual
   `Q_est(t) = (1−loss)·Σ producers(t) − Σ metered(t)` (loss = 10 %; the six producers are
   measured at −0.83 correlation with outdoor temperature and all feed only this modeled
-  network) is **distributed across the 17 by connection-pipe hydraulic capacity** and inherits
+  network) is **distributed across the 17 by pressure-DELIVERABLE capacity** and inherits
   `Q_est`'s temperature-correct hourly shape. Result: every reconstructed consumer has
   `corr(T) = −0.84`, peak/mean ≈ 2.7, a uniform ≤73 % peak pipe utilisation (0 hours over
   capacity), and distinct de-duplicated series. Total modeled demand 640 GWh/a (10 % loss vs
-  712 GWh production). *Assumption:* pipe capacity is used as the size proxy for an unmetered
-  consumer (pipes are sized to peak demand); the metered 7 are untouched. This is the data
-  step that makes `pressure_drop: true` feasible on Stadtbach (§A.4.5).
+  712 GWh production); the metered 7 are untouched.
+
+  *Correction (2026-07-12).* An intermediate version used pipe **cross-section** (velocity
+  capacity, proportional to D squared) as the weight, which ignores pipe LENGTH. Many Stadtbach
+  leaves are long AND thin (Don_Bosco DN125/3490 m, Josefinum DN125/2070 m, Kreissparkasse
+  DN125/1740 m): their velocity capacity is fine but their pressure-deliverable capacity — set
+  by Darcy pressure drop, which grows with length, along the plant-to-consumer path against the
+  16-bar setpoint — is a fraction of a short DN125's. Cross-section weighting therefore
+  over-allocated heat to these consumers beyond what the head budget can push through, which the
+  (now correct, tight) pressure formulation exposed as infeasible. The weight is now each
+  consumer's path-aware **pressure-deliverable mass flow** (bisect the flow so the round-trip
+  path pressure drop equals an ~11-bar head budget), additionally capped by the velocity limit —
+  so every consumer's demand fits within both the velocity and pressure limits by construction.
+  This is the data step that makes `pressure_drop: true` feasible on Stadtbach (§A.4.5).
 
 ### B.2.2 Fixed generators (thermal outputs at Üzeiten 99/60 °C, user-provided)
 
@@ -546,7 +602,7 @@ Heat-curve stages HK0 `(k=1.0, T_VL,min=74)`, HK1 `(0.8, 70)`, HK2 `(0.6, 66)`,
 | `hww_boiler` (HW West) | j_hww | gas | 104.0 | 0.924 | — |
 | `p2h_existing` | j_hkw | electricity | 9.9 | 0.99 | — |
 
-Fixed thermal capacity total ≈ 357.5 MW against a ≈228 MW peak demand.
+Fixed thermal capacity total ≈ 357.5 MW against a ≈201 MW peak demand.
 
 ### B.2.3 Investable assets
 
@@ -702,4 +758,294 @@ applies identically to both networks. Spatial pressure is now active on **both**
   2026-07-09); full-year via the campaign. Pipe diameters are real (graded DN600→DN125), not
   placeholder — the earlier placeholder note was incorrect. See §A.4.5.
 
-*End of statement — updated 2026-07-09 for the CALION Paper 2 manuscript foundation.*
+- **O-9 — Stadtbach spatial pressure: formulation + demand fixes (2026-07-12).** Enabling
+  correct spatial pressure on Stadtbach turned out to be a chain of four issues, each exposed
+  by IIS as the previous was fixed (full detail in §A.4.5 and the §B.2.1 correction):
+  1. **Leaky binary PWL → wrong physics + intractable.** The Darcy Δp / pump-power PWL used a
+     big-M binary segment selector (~840 k binaries) that was both weak (77–94 % MIP gaps at
+     46 h) and *leaky* (inactive segments carried flow, letting the solver under-count Δp).
+     Prior "feasible" pressure results were therefore not physically valid. **Fix:** binary-free
+     **convex tangent envelopes** for Δp and P_pump (both convex) — correct, tight, no binaries.
+  2. **Velocity workaround.** `max_velocity_m_s: 100` inflated slopes and hid a demand/pipe
+     mismatch → set to a physical **3.0 m/s**.
+  3. **ΔT collapse at mild hours.** With supply floored at 70 °C and return fixed at 60 °C,
+     ΔT hit the 10 K floor at mild hours → high flows. **Fix:** `min_supply_delta_T_k` 10 → **15**
+     and per-curve retrofit return temps (HK1/HK2 lower return, modelling the substation
+     retrofit's colder return).
+  4. **Demand distributed by cross-section, not length.** The reconstruction weighted demand
+     ∝ D² (velocity capacity), over-allocating to long-thin leaves (Don_Bosco DN125/3490 m,
+     Kreissparkasse DN125/1740 m) beyond their pressure-deliverable capacity. **Fix:** re-weight
+     by **path-aware pressure-deliverable capacity** (bisect flow so round-trip path Δp = ~11 bar
+     budget), velocity-capped.
+  After all four, SB-S0-HK0/HK2 full-year are **feasible** with correct physics (obj ≈ 11.4 M €,
+  *not* the 117 M € slack of the leaky formulation).
+- **O-10 — MIP gap is a weak LP bound, not binaries (open, tractability).** With the pressure
+  PWL binaries gone, ~114 k legitimate unit-commitment binaries remain (8 generator on/off from
+  `min_load = 0.1`, 3 TES mode, grid mode, bidirectional flow direction). SB-S0-HK0 sits at
+  ≈ 12 % gap at 26 min with a **stuck LP bound ≈ 10.04 M €** vs incumbent ≈ 11.4 M €. Tested:
+  **relaxing generator min-load (LP dispatch)** removes ~61 k binaries but leaves the bound at
+  10.04 M € and the gap at 12.7 % — so the gap is a **weak LP relaxation**, not the integer
+  count; min-load was therefore **kept** (realistic). The gap is time-driven (B&B must raise the
+  bound; the earlier same-scenario run reached 0.87 % only after 46 h). The campaign therefore
+  runs each scenario with **aggressive cuts (`Cuts=2`, `MIPFocus=2`) to tighten the bound, a 24 h
+  limit and a 1 % gap target**; O-7 reporting flags the achieved gap honestly per scenario. A
+  deeper future improvement would be a tighter pressure/unit-commitment formulation (e.g.
+  perspective cuts).
+
+---
+
+# PART F — Solver tractability: diagnosing and resolving a weak-bound MILP
+
+*This section documents a methodological finding worth stating explicitly in the manuscript: the
+tractability of the full-year thermo-hydraulic MILP was gated not by the obvious integer count
+but by the tightness of the LP relaxation, and the resolution was a tighter convex formulation
+plus aggressive cutting planes — with a controlled experiment isolating the cause.*
+
+## F.1 The symptom
+
+At full hourly resolution (8760 h) the thermo-hydraulic MILP with spatial pressure is large
+(Stadtbach ≈ 5.0 M variables). In the first full campaign three Stadtbach scenarios
+(SB-S0-HK1/HK2, SB-S1-HK0) sat at **77–94 % optimality gap after 46 h** while returning only a
+poor incumbent — one "solution" cost **117 M€, ≈ 10× a normal ~11 M€ result**, i.e. the solver
+was buying feasibility with expensive slack. Those runs would never have produced usable results
+and they monopolised the 10 concurrent worker slots.
+
+## F.2 Root cause 1 — a needlessly integer, and *leaky*, pressure formulation
+
+Darcy–Weisbach pressure drop `Δp = k·ṁ²` and pump power `P_pump = C·ṁ³` are both **convex** in
+the mass flow. The original code nonetheless modelled each as a 3-segment PWL with a **binary
+segment selector** and a big-M coupling — **≈ 840 000 binaries** across the Stadtbach network
+(32 pipes × 8760 h × 3). This was doubly harmful:
+
+- **Weak bound.** Big-M segment selection has a loose LP relaxation → the 77–94 % gaps.
+- **Leaky → physically wrong.** The segment upper bound `pwl_flow ≤ bp·seg + M·(1−seg)` lets an
+  *inactive* segment (`seg = 0`) carry flow up to `M`. The solver could therefore route flow
+  through a low-slope segment and **report a Δp below its physically correct value**. The
+  earlier "feasible" pressure results were, as a consequence, not physically valid.
+
+**Fix.** Because the functions are convex they need **no binaries at all** — each is the upper
+envelope of a family of tangent lines the objective naturally settles onto (Δp is driven down by
+both pump cost and the pressure-propagation inequalities `p_to ≤ p_from − Δp`):
+
+```
+Δp_supply(t) ≥ 2·k·ṁ_i · ṁ(t) − k·ṁ_i²        (one inequality per tangent point ṁ_i)
+P_pump(t)    ≥ 3·C·ṁ_i² · ṁ(t) − 2·C·ṁ_i³
+```
+
+This is **tight** (Δp can never fall below the true quadratic) and carries **zero** pressure
+binaries. Isolated on a 168 h window of the worst scenario (SB-S0-HK1), the optimality gap went
+from **90 % after 46 h → 0.38 % in 15 s**.
+
+## F.3 Root cause 2 — the residual gap is a weak LP bound, *not* the integer count
+
+With the pressure binaries gone, the full-year model still carried **113 893 binaries** — but all
+of them are *legitimate unit commitment*: 8 generator on/off (each present only because
+`min_load = 0.1`), 3 TES mode (charge / discharge / active), 1 grid import–export mode, and 1
+bidirectional-pipe flow direction, i.e. **13 per timestep**. On SB-S0-HK0 the model still showed
+≈ 12 % gap at 26 min, with the LP **bound stuck at 10.04 M€** against an incumbent of ≈ 11.4 M€.
+
+The tempting hypothesis — "too many binaries" — was **tested and rejected**. Relaxing generator
+min-load to zero (LP dispatch) removed 61 320 of the 113 893 binaries, yet the bound and gap
+barely moved:
+
+| configuration | binaries | LP bound | incumbent | gap @ 26 min |
+|---|---|---|---|---|
+| full unit commitment | 113 893 | 10.045 M€ | 11.38 M€ | 11.76 % |
+| min-load relaxed (LP dispatch) | 52 573 | 10.044 M€ | 11.50 M€ | 12.67 % |
+
+Removing **54 % of the binaries left the bound essentially unchanged** (10.04 M€). The gap is
+therefore a property of **LP-relaxation tightness**, not the size of the branch-and-bound tree —
+so min-load was *kept* (it is physically real and, as shown, costs nothing in tractability).
+Consistent with this, the same scenario under the earlier formulation reached 0.87 % only after
+46 h: the bound does close, but slowly, purely through branch-and-bound raising it.
+
+## F.4 Resolution — cutting planes, not more branching
+
+Because the bottleneck is a loose bound rather than combinatorial breadth, the effective lever is
+**cutting planes that tighten the LP relaxation**, together with focusing solver effort on the
+bound (the incumbents were already good). Each campaign scenario runs with:
+
+```
+Cuts = 2          # aggressive cutting-plane generation — tightens the LP bound (the gap driver)
+MIPFocus = 2      # prioritise proving the bound over finding new incumbents
+Heuristics = 0.1
+TimeLimit = 24 h,  MIPGap = 1 %
+```
+
+Effect on the live campaign (2026-07-12): scenarios that had been stuck now **converge to
+optimal in minutes-to-an-hour**. SB-S0-HK0 — stuck at 12 % after 26 min *without* cuts — was at
+**1.07 % at 80 min**, i.e. essentially at the 1 % target (vs a bound frozen at 12 % before);
+BC-SB terminated *optimal* in 31 min; SB-S0-HK1/HK2 *optimal* in ≈ 58–60 min; the full running
+set sits at 1–3.5 %. The unit-commitment binaries never had to be sacrificed for tractability,
+and every scenario completed so far (7/46 at the time of writing) returns
+`termination = optimal`.
+
+## F.5 Takeaway (for the methods / numerical section)
+
+Two transferable lessons for hourly thermo-hydraulic district-heating planning MILPs:
+
+1. **Model convex hydraulics (Δp ∝ ṁ², P_pump ∝ ṁ³) as binary-free convex envelopes, never as a
+   big-M PWL.** The big-M version is both intractable (weak bound) *and* unsafe (leaky — it can
+   under-count pressure drop), so the "feasible" results it produces may be physically invalid.
+2. **When a large MILP stalls, distinguish a weak LP bound from a large integer tree *before*
+   acting.** Here a single controlled experiment (relaxing min-load) proved the bound — not the
+   binary count — was binding, which pointed to aggressive cutting planes rather than the
+   tempting-but-ineffective route of stripping binaries. Reformulate/tighten first; branch last.
+
+---
+
+---
+
+# PART G — TES-siting tractability: a storage-coupling weak bound
+
+*A second, distinct tractability finding (2026-07-13): the TES-siting scenarios are hard for a
+different reason than the pressure MILP of Part F.*
+
+## G.1 The symptom
+
+The baselines and the no-TES / hub-TES scenarios (S0, S1, S3) solve to proven optimal, but the
+**TES-at-consumer-node** scenarios (fixed-node `SB-S2` = TES at `j_man`, and the endogenous
+`S4–S7`) stall at **43–88 % gap**. The tell is that `SB-S1` (TES at the production hub `j_hkw`)
+solves in 1.4 %, while `SB-S2` (same TES, at a consumer node) stalls at 43 %.
+
+## G.2 The cause — a weak LP relaxation of storage dispatch (ruled in by elimination)
+
+Controlled experiments ruled out every "obvious" culprit — the bound barely moved in each case:
+
+| hypothesis tested | result |
+|---|---|
+| pressure OFF | **worse** (88 % gap) → not pressure |
+| generator min-load relaxed (LP dispatch) | bound unchanged (10.04 M€) → not unit commitment |
+| discrete vs continuous investment | 720 h still 70 % → not the investment big-M |
+
+The looseness is intrinsic to the **storage's time-coupling** (`SOC(t) = SOC(t−1)·loss + …`
+links all 8760 hours) **at a consumer node**: the LP relaxation can operate the tank fractionally
+and smooth cost in ways no integer schedule matches, and at a consumer node the TES is the *only*
+local flexibility, so that fictitious value is large (at the hub, co-located flexible generation
+makes storage marginal, so `SB-S1` is tight). This is a classic signature of storage-siting /
+investment-plus-operation MILPs, a known-hard class.
+
+## G.3 Mitigations applied (both exact — identical results, tighter model)
+
+1. **Discrete tank sizing** (`geometric_storage.py` + configs). The tank volume is chosen from a
+   discrete ladder of energies (hours of mean heat demand) via an exact size-selection
+   (`Σ y_k = 1`, `V = Σ V_k·y_k`) — no continuous `V` + big-M build coupling. Large sizes are
+   realised as `N = ⌈V/25,000 m³⌉` identical unit tanks with `β_tes` charged per tank. The
+   Stadtbach ladder is capped at ~845 MWh (`V ≤ 50,000 m³`): larger multi-tank volumes made the
+   barrier root LP numerically intractable, and > 12 h of storage for a 200 MW network is neither
+   usable nor affordable. (More realistic than a continuous tank volume, and a tighter relaxation
+   of the investment part.)
+2. **Storage mode-binary elimination ("Edit A")**. The per-timestep charge/discharge/active
+   binaries (~26 k full-year) only forbade *simultaneous* charge+discharge, which strictly
+   positive round-trip losses (`η_c, η_d < 1`) already make sub-optimal — so they are provably
+   redundant and were removed, together with their big-M power linearisation. Storage is now a
+   pure LP inside the dispatch; power is bounded directly by the built capacity
+   (`Q_c, Q_d ≤ cap_p`, with `cap_p = 0` when not built). A standard, citable exact simplification.
+3. **Solver**: aggressive cutting planes (`Cuts = 2`, `MIPFocus = 2`) + 24 h limit + reported gap.
+
+## G.4 Status — diagnosis, fix, and verified resolution (2026-07-13/14)
+
+Mitigations 1–2 are *exact* (same optimum, same siting/TAC/dispatch) and remove real integrality,
+shrinking the branch-and-bound tree; the deliverable — whether TES is built, where, and the TAC —
+is reliable, with the residual MIP gap reported honestly (standard for storage-siting studies).
+
+**Gate result (2026-07-13):** the validation run for `SB-S2-HK0` (mitigations 1–2 + `Cuts=2`,
+full 8760 h, 2986 s, `TimeLimit`-terminated) reached **`OBJ=10,305,451  BOUND=2,698,406  GAP=
+73.8 %`** — the ≤5 % gate is **not met**.
+
+**Step 2 — root-LP-relaxation diagnostic.** Relaxed every remaining Binary/Integer var (87,615:
+generator on/off UC + `tes_sb` size-selection) to continuous and solved the root LP once, with
+each objective term instrumented as a named Pyomo `Expression` (`constraint_builder.py::
+create_objective`, now exposing `energy_cost_expr`, `fuel_cost_expr`, `co2_cost_expr`,
+`demand_cost_expr`, etc. individually — a permanent, harmless audit addition). **Finding: the
+leading hypothesis was wrong.** `demand_cost_expr` (`demand_charge_y·P_buy_peak`) was only
+€154,905 of the €10.3M incumbent (1.5 %) — far too small to be the driver. The actual mechanism:
+`tes_sb_build` was fractional (0.547, split between "no tank" and the *largest* size rung — 211 MW,
+845 MWh), and `Qc[t]` and `Qd[t]` were **both nonzero in 8,530/8,760 hours (97 %)**, often near the
+same full `cap_p`. Because `Qc[t]≤cap_p` and `Qd[t]≤cap_p` (`geometric_storage.py`) were
+independent, nothing stopped simultaneous full-power charge *and* discharge — a "wash" cycle that
+is nearly self-cancelling on the local heat bus (efficiency losses only bite in the SOC recursion,
+not the bus balance) and is exploited wherever the marginal heat is cheap.
+
+**Step 3 — shared-port valid inequality.** Replaced the two independent power caps with
+`Qc[t] + Qd[t] ≤ cap_p[t]` (`geometric_storage.py::{comp}_shared_port`) — physically, a single-loop
+stratified tank shares one heat-exchanger/pump train between charge and discharge, so *combined*
+throughput, not each direction independently, is capacity-limited. Still pure LP, no binaries, full
+8760 h preserved.
+
+**Verified result:** re-solving the full MIP (real generators + real storage integrality,
+shared-port cut active) reached **`OBJ=3,763,186  BOUND=3,749,290  GAP=0.37 %`** in 2370 s — the
+gate is now met by a wide margin. **Important nuance, reported honestly rather than declared a full
+fix:** the shared-port cut did *not* eliminate the simultaneous charge/discharge — the true integer
+optimum still runs `tes_sb` fully built at the largest rung with `Qc,Qd>0` together in 8,457/8,760 h
+(96.5 %). What the cut did was regularize the feasible region (removing the degenerate symmetric
+alternate-optima that come from two independent, interchangeable power caps) enough for Gurobi's
+branching to actually converge — a real tractability fix, but the underlying "wash cycling" pattern
+is the model's true optimum given current costs, not resolved. **Regression check (`SB-S1-HK0`,
+hub-sited TES, same node as `hp_sb` in both scenarios):** solved to a *proven* optimum (`term=
+optimal`) in 982 s, `OBJ=10,003,395  GAP=0.44 %`, moderate tank size (rung 3, 54.75 MW), **zero**
+hours of simultaneous `Qc,Qd>0` — the cut is non-binding and costless where the model was already
+sane, confirming the fix does not distort well-behaved scenarios. Since the HP co-location is
+identical between `SB-S1` and `SB-S2`, the wash-cycling is specific to siting the TES itself away
+from the central-generation hub — consistent with the tank substituting for pipe-delivery capacity
+from the plant at the remote node, though the precise causal chain is not yet nailed down.
+
+**Open item (flag before headline paper numbers):** the `SB-S2`-style consumer-node TES dispatch
+(near-constant full-power bidirectional cycling) is an extreme, physically unusual utilization
+pattern for a real operator. It is the *true* MILP optimum of the stated cost/constraint set and
+the campaign gate is met, but a plausibility check (e.g., correlating `Qc(tes_sb)` against `hp_sb`
+dispatch, or checking whether it degrades once a stricter `cycling_cost_eur_per_mwh` is
+counter-tested) is recommended before quoting `SB-S2`/consumer-node-TES results as a paper finding
+rather than a modelled artifact.
+
+## G.5 Related, orthogonal fix — TES↔network pressure coupling ("F4", Memmingen only)
+
+Independent of G.1–G.4 (which is a **Stadtbach**-only issue — `tes_pressure_coupling` was never
+enabled there), a second TES-pressure question was raised for **Memmingen**: F4's legacy
+formulation (§A.4.7) modelled the TES as an elevated tower whose own hydrostatic column pushes
+pressure into the network, granting a fractionally-built tank (LP relaxation) a `ρ·g·h(V)`-scaled
+pressure credit under a physical premise (free-standing tower, not an in-line buffer) that needed
+justification for this system class. Reformulated as a config-switchable
+`physics.tes_pressure_mode`: the new default `same_circuit_buffer` treats the TES as an in-line
+buffer sharing the network's own pressure (no HX, no elevated column, `p_TES = p_network`),
+dropping the `h(V)` PWL/SOS2 entirely and keeping only the vessel-rating safety cap; the legacy
+`hydrostatic_support` mode is kept selectable for A/B comparability. Verified exact/sane on
+MM-S2-HK0 (TES at `j_12`, 720 h smoke test): SOS2/PWL-λ components 1→0, objective 49,594→49,613 €
+(0.04 %), both <0.5 % gap. This does **not** address the Part G weak bound above (Stadtbach never
+had F4 on) — it is a Kategorie-B model-realism and tractability improvement for the Memmingen F4
+scenarios specifically (`model_finalizer.py::_build_tes_pressure_coupling`,
+`network_manager.py::_link_tes_pressure_coupling`).
+
+## G.6 A third, distinct issue — endogenous-siting combinatorics (`SB-S6`) and a units-bug fix
+
+During the post-fix campaign re-run (36 scenarios, S1–S7 both networks, launched 2026-07-14),
+**`SB-S6` (fully-free endogenous siting — TES and HP/EK sited *independently* among the 5
+candidate nodes, no `colocate`) stalled at 63–69 % gap after 3.4+ h**, while every other scenario
+in the batch — including its sibling `SB-S7` (same 5 candidates, but `colocate: true`, forcing
+TES+HP to one shared site decision) — converged cleanly to a proven-optimal or ≤1 % gap. This is a
+**different problem from G.1–G.5**: `component_assembler.py`'s F3 siting mechanism
+(`_get_site_y`/`_distribute_flows`) gives each independent group ("hp", "tes") its own one-hot
+site-binary set with per-candidate big-M flow gates `qo_c[t] ≤ M·y_c`. With `colocate: true` (S7)
+there is **one** shared 5-way choice; without it (S6) there are **5×5=25** combinations, and the LP
+relaxation can fractionally "smear" the TES's flow across multiple candidate nodes at once — real
+facility-location-style combinatorial hardness, not a modelling leak.
+
+While tracing the exact gate, a genuine, low-risk **units bug** was found and fixed
+(`component_assembler.py:996–1010`): the siting gate's big-`M` (`power_bound`) used the raw
+**max discrete ENERGY** figure [MWh] directly as a **power** bound [MW] — for `tes_sb`, `845`
+instead of the true `power_to_energy_ratio × 845 = 211.25 MW`, a 4× looser-than-necessary `M`
+(present in both S6 and S7, though S7's much smaller combinatorial space masked its effect there).
+Fixed by multiplying by the same ratio `GeometricStorageBlock` itself uses — exact, cannot change
+the true optimum (the real cap was always ≤211.25 MW), only removes LP-relaxation slack.
+
+**Verified improvement (fair, matched-elapsed-time comparison, `SB-S6-HK0`):** at ~34–43 min
+into the solve, before the fix `OBJ=48.6M  GAP=96.3 %` (2040 s); after, `OBJ=14.2M  GAP=88.95 %`
+(2604 s) — ≈3.4× cheaper incumbent, ≈7 pt tighter gap. **This does not fully resolve `SB-S6`** —
+the dominant difficulty remains the 25-vs-5 site-combinatorics, not the `M` looseness, so a full
+fix needs its own dedicated treatment (leading candidates: topology-aware tighter per-candidate
+`M`, or symmetry-breaking cuts on the two site-binary sets) rather than being rushed alongside
+today's other changes. `SB-S6-HK0/1/2` were relaunched with both fixes at the full 24 h budget;
+outcome pending. **Status: units bug ✅ fixed and verified; siting-combinatorics tractability ⏳
+open, flagged for a dedicated follow-up session.**
+
+*End of statement — updated 2026-07-13 for the CALION Paper 2 manuscript foundation.*

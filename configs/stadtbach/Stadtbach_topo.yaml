@@ -84,7 +84,7 @@ network:
   supply_temp_c: 99.0
   return_temp_c: 60.0
   ground_temp_c: 10.0
-  min_supply_delta_T_k: 10.0  # minimum T_supply − T_return for consumer substation operation (VDI 6002)
+  min_supply_delta_T_k: 15.0  # minimum T_supply − T_return for consumer substation operation (VDI 6002)
   consumer_min_temp_c: 70.0   # = T_return + 10 K; includes industrial consumers (Klinikum, KUKA, MAN)
 
   temperature_frame:
@@ -121,12 +121,12 @@ network:
       T_supply_c: [70.0, 85.0, 100.0, 122.0]
       T_return_c: [55.0, 58.0,  62.0,  68.0]
 
-  max_velocity_m_s: 2.5
+  max_velocity_m_s: 3.0
   parameters:
-    max_velocity_m_s: 2.5  # passed to pipe_pair enriched_config via self.parameters
+    max_velocity_m_s: 3.0  # passed to pipe_pair enriched_config via self.parameters
   state_validation:
     flow_constraints:
-      max_velocity_m_s: 2.5  # passed to state_constraints velocity Pyomo constraint
+      max_velocity_m_s: 3.0  # passed to state_constraints velocity Pyomo constraint
   pump_efficiency: 0.75
   pipe_roughness_mm: 0.5
   max_pressure_drop_bar: 2.0
@@ -634,8 +634,18 @@ assets:
     V_min_m3: 10.0              # minimum tank volume if built [m³]
     V_max_m3: 50000.0           # max tank volume [m³]
     option_b: false             # Option A: V as single Var; h/d back-calculated post-solve
+    # Discrete storage sizes as ENERGY [MWh] = hours of MEAN heat demand (Stadtbach
+    # mean ≈ 73 MW): 0/1/2/4/6/8/12/16/24/36/48/96/168 h. Sizes above one realistic
+    # tank (unit_tank_m3) are realised as N=ceil(V/unit) identical tanks at the site
+    # (beta_tes charged per tank). Exact selection -> tight LP relaxation (the old
+    # continuous V + big-M stalled TES-at-consumer-node scenarios at 43-88 % gap).
+    # Capped at ~845 MWh (V ≤ 50,000 m³ ≈ 2 unit tanks): larger volumes made the
+    # barrier root LP numerically intractable, and >~12 h of storage for a 200 MW
+    # network is neither usable nor affordable. Hours of MEAN demand (≈73 MW): up to ~12 h.
+    discrete_energies_mwh: [0, 73, 146, 219, 292, 365, 438, 511, 584, 657, 730, 845]
+    unit_tank_m3: 25000.0       # one realistic single tank (~423 MWh at ΔT=15)
     alpha_tes_eur_per_m3: 400.0 # variable CAPEX [€/m³] (larger tank → lower unit cost)
-    beta_tes_eur: 100000.0      # fixed CAPEX (engineering, permits, connections) [€]
+    beta_tes_eur: 100000.0      # fixed CAPEX per tank (engineering, permits, connections) [€]
     lifetime_years: 30.0
     eff_charge: 0.98
     eff_discharge: 0.98

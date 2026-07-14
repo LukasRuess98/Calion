@@ -262,6 +262,17 @@ def run_single_scenario(
             hk_stage = hk_stages[network][scen["heat_curve_stage"]]
         else:
             hk_stage = hk_stages[scen["heat_curve_stage"]]
+    # Retrofit heat curves (HK1/HK2) model a substation retrofit that lowers the
+    # RETURN temperature along with supply (better heat exchangers extract more →
+    # colder return, which is the retrofit's actual benefit). Without this, supply
+    # drops but return stays put, collapsing ΔT to the min-ΔT floor at mild hours
+    # and overshooting pipe velocity/pressure limits network-wide (~50 h/yr). A
+    # per-stage T_RL_c overrides the network return so ΔT stays healthy (~15 K).
+    _stage_return = hk_stage.get("T_RL_c")
+    if _stage_return is not None:
+        cfg.setdefault("network", {})["return_temp_c"] = float(_stage_return)
+        logger.info("[%s] Retrofit return temp: T_return=%.1f°C (per heat-curve stage)",
+                    scen_id, float(_stage_return))
     T_aus = _load_outdoor_temps(table, cfg)
     if T_aus is None and tvl_fix:
         # Outdoor temps are irrelevant for the k=0 constant curve

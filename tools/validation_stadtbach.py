@@ -333,8 +333,15 @@ def _energy_balance(dispatch: pd.DataFrame) -> dict:
     losses     = dispatch["Q_loss_total_MW"].fillna(0).sum() \
                  if "Q_loss_total_MW" in dispatch.columns else 0.0
 
+    # Closure = the MW conservation the model solves: generation + net_discharge
+    # = demand. The L3 dispatch balance is MW-lossless (the spatial supply-T drop
+    # is tracked via enthalpy-flux vars, not removed from the MW balance); pipe
+    # thermal losses are a separate temperature-field DIAGNOSTIC, reported as
+    # network_loss_pct — NOT subtracted here. (Subtracting them from a lossless
+    # balance was the spurious ~loss-fraction "HIGH_IMBALANCE".)
     supply  = gen_total + discharge - charge
-    closure = abs(supply - losses - demand) / demand * 100 if demand > 0 else None
+    closure = abs(supply - demand) / demand * 100 if demand > 0 else None
+    loss_pct = losses / demand * 100 if demand > 0 else None
     flag    = "ok" if (closure is not None and closure <= 2.0) else (
               "ZERO_GENERATION" if gen_total == 0 else "HIGH_IMBALANCE")
 
@@ -344,12 +351,15 @@ def _energy_balance(dispatch: pd.DataFrame) -> dict:
         "charge_MWh":        round(charge,    1),
         "demand_MWh":        round(demand,    1),
         "losses_MWh":        round(losses,    1),
+        "network_loss_pct":  round(loss_pct, 3) if loss_pct is not None else None,
         "closure_error_pct": round(closure, 3) if closure is not None else None,
         "flag":  flag,
         "note": (
             "Generation = 0 in dispatch_hourly.csv — multi-node dispatch not exported. "
             "Re-run BC-SB with corrected 32-node topology + updated extract_artefacts.py."
-            if gen_total == 0 else ""
+            if gen_total == 0 else
+            "Closure = MW conservation (gen+storage vs demand); network_loss_pct is a "
+            "separate thermal-loss diagnostic (dispatch balance is MW-lossless)."
         ),
     }
 
@@ -406,8 +416,9 @@ def _write_md(report: dict, path: Path) -> None:
         "\n## Tier 3 — Annual Energy Balance\n\n",
         f"- Generation: {eb.get('generation_MWh','?')} MWh\n",
         f"- Demand:     {eb.get('demand_MWh','?')} MWh\n",
-        f"- Losses:     {eb.get('losses_MWh','?')} MWh\n",
-        f"- Closure error: {eb.get('closure_error_pct','?')} %\n",
+        f"- MW closure error (gen+storage vs demand): {eb.get('closure_error_pct','?')} %\n",
+        f"- Network losses (thermal diagnostic): {eb.get('losses_MWh','?')} MWh "
+        f"({eb.get('network_loss_pct','?')} % of demand)\n",
         f"- Flag: **{eb.get('flag','?')}**\n",
     ]
     if eb.get("note"):

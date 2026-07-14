@@ -931,7 +931,7 @@ class ComponentAssembler:
         r_hd = float(p.get("r_hd", 3.0))
         p_max_bar = float(p.get("p_max_bar", 10.0))
         V_min_m3 = float(p.get("V_min_m3", 5.0))
-        V_max_m3 = float(p.get("V_max_m3", 5000.0))
+        V_max_m3 = float(p.get("V_max_m3", 60000.0))
         option_b = bool(p.get("option_b", False))
         eff_c = float(p.get("eff_charge", 0.98))
         eff_d = float(p.get("eff_discharge", 0.98))
@@ -951,6 +951,11 @@ class ComponentAssembler:
         energy_mwh_fixed = p.get("energy_mwh_fixed")
         power_mw_fixed = p.get("power_mw_fixed")
         e_min_fraction = float(p.get("e_min_fraction", 0.0))
+        # Discrete storage sizing (multi-tank): explicit energy ladder [MWh] and the
+        # realistic single-tank unit volume; large sizes -> N=ceil(V/unit) tanks,
+        # beta_tes charged per tank. Tight LP relaxation vs the continuous V + big-M.
+        discrete_energies_mwh = p.get("discrete_energies_mwh")
+        unit_tank_m3 = p.get("unit_tank_m3")
 
         block = GeometricStorageBlock(
             name=name,
@@ -974,6 +979,8 @@ class ComponentAssembler:
             energy_mwh_fixed=float(energy_mwh_fixed) if energy_mwh_fixed is not None else None,
             power_mw_fixed=float(power_mw_fixed) if power_mw_fixed is not None else None,
             e_min_fraction=e_min_fraction,
+            discrete_energies_mwh=discrete_energies_mwh,
+            unit_tank_m3=float(unit_tank_m3) if unit_tank_m3 else None,
         )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
@@ -986,7 +993,21 @@ class ComponentAssembler:
         # investment was free). Route to node_buses / sys_buses like all other
         # unified assets.
         hot_tes = bool(self._hot_coupling and self._hot_coupling.get("tes") == name)
-        power_bound = block.V_max_effective * block.energy_coeff  # ≥ cap_power bound
+        # ≥ cap_power bound [MW], used as the big-M in F3 endogenous-siting flow
+        # gates (_distribute_flows). BUGFIX (2026-07-14): both branches previously
+        # used the max ENERGY figure [MWh] directly as a POWER bound [MW] (units
+        # mismatch) -- for tes_sb that's 845 vs the true max cap_power of
+        # 0.25*845=211.25 MW, a 4x looser-than-necessary M. Multiplying by the same
+        # power/energy ratio GeometricStorageBlock itself uses (power_to_energy_ratio,
+        # default 0.25 -- see geometric_storage.py's default_ratio) gives the tight,
+        # still-exact bound: the true cap_power can never exceed it, so y_c=1 never
+        # binds against it, but the LP relaxation can no longer "smear" flow using
+        # 4x more headroom than physically buildable.
+        _p2e_ratio = power_to_energy_ratio if power_to_energy_ratio is not None else 0.25
+        if discrete_energies_mwh:
+            power_bound = _p2e_ratio * max(float(e) for e in discrete_energies_mwh)
+        else:
+            power_bound = _p2e_ratio * block.V_max_effective * block.energy_coeff
 
         if name in self._endog_group_of:
             # F3 siting: discharge distributed over candidates; charge likewise
@@ -1007,9 +1028,12 @@ class ComponentAssembler:
         # Skipped for non-investable (existing/fixed) tanks — already built, no new spend.
         V = fs["V_m3"]
         build = fs["build"]
+        # beta_tes is charged PER TANK: n_tanks = ceil(V_size / unit_tank) for multi-
+        # tank sizes (falls back to the binary build for continuous / even-spacing).
+        n_tanks_cost = fs.get("n_tanks", build)
         annual_factor = self.inv_calc.annual_factor(lifetime_years)
         if investable and annual_factor > 0:
-            sys_buses.capex_terms.append(annual_factor * (alpha_tes * V + beta_tes * build))
+            sys_buses.capex_terms.append(annual_factor * (alpha_tes * V + beta_tes * n_tanks_cost))
 
         if cycling_cost_eur > 0:
             Qc = fs["Q_th_in"]

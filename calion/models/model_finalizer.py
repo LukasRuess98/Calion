@@ -446,16 +446,30 @@ class ModelFinalizer:
     def _build_tes_pressure_coupling(self, ucfg, physics_cfg: dict) -> list[dict]:
         """Collect geometric-TES pressure-coupling specs (spec §4.1.3 edit).
 
-        For each geometric_storage asset at a node, precompute the h(V) PWL
-        breakpoints (h = (4·r²·V/π)^(1/3), concave) so NetworkManager can add:
-          P_supply[n,t] ≥ p_atm + ρg·h/1e5 + k·Qc(t) − k·Qd(t) − M(1−build)
-          P_supply[n,t] ≤ p_max_bar + M(1−build)
+        Two modes (physics.tes_pressure_mode), selected once for the whole network:
+
+        - "hydrostatic_support" (legacy elevated-tower model): precompute the h(V)
+          PWL breakpoints (h = (4·r²·V/π)^(1/3), concave) so NetworkManager adds
+            P_supply[n,t] ≥ p_atm + ρg·h/1e5 + k·Qc(t) − k·Qd(t) − M(1−build)
+            P_supply[n,t] ≤ p_max_bar + M(1−build)
+        - "same_circuit_buffer" (2026-07-13 default): TES is an in-line buffer on
+          the SAME pressurized loop as the network (no HX, no elevated column) ->
+          no hydrostatic push term; NetworkManager adds only the vessel rating cap
+            P_supply[n,t] ≤ p_max_bar + M(1−build)
+          Breakpoints are still returned (cheap) but NetworkManager ignores them
+          in this mode.
         """
         import math as _math
 
         from ..constants import G_ACCEL_M_S2, P_ATM_BAR, RHO_WATER_HOT_KG_M3
         if not physics_cfg.get('tes_pressure_coupling', False):
             return []
+        mode = physics_cfg.get('tes_pressure_mode', 'hydrostatic_support')
+        if mode not in ('hydrostatic_support', 'same_circuit_buffer'):
+            raise ValueError(
+                f"physics.tes_pressure_mode must be 'hydrostatic_support' or "
+                f"'same_circuit_buffer', got {mode!r}"
+            )
         specs = []
         _RHO, _G, _P_ATM = RHO_WATER_HOT_KG_M3, G_ACCEL_M_S2, P_ATM_BAR
         for node_id, node_cfg in ucfg.nodes.items():
@@ -479,6 +493,7 @@ class ModelFinalizer:
                 specs.append({
                     'node_id': node_id,
                     'asset_id': asset_id,
+                    'mode': mode,
                     'p_max_bar': p_max_bar,
                     'conn_dp_bar_per_mw': float(p.get('conn_dp_bar_per_mw', 0.01)),
                     'V_breaks': V_breaks,

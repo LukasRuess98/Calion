@@ -39,13 +39,15 @@ heat_curve_stages:
       description: "Memmingen: current real heat curve, no substation changes"
     HK1:
       k: 0.8
-      T_VL_min_c: 70.0   # partial retrofit (50% of substations); ΔT=6.4K vs T_return
+      T_VL_min_c: 70.0   # partial retrofit (50% of substations)
       T_VL_max_c: 100.0
+      T_RL_c: 55.0       # retrofit lowers return too (better HX); ΔT_min=15K keeps flows in-pipe
       description: "Memmingen: reduced slope k=0.8, partial substation retrofit"
     HK2:
       k: 0.6
-      T_VL_min_c: 66.0   # full retrofit (all substations); ΔT=2.4K — aggressive low-temp
+      T_VL_min_c: 66.0   # full retrofit (all substations)
       T_VL_max_c: 100.0
+      T_RL_c: 51.0       # full retrofit lowers return further; ΔT_min=15K keeps flows in-pipe
       description: "Memmingen: reduced slope k=0.6, full substation retrofit"
   stadtbach:
     # T_return = 60°C. Same transformation scenario framing as Memmingen.
@@ -56,13 +58,15 @@ heat_curve_stages:
       description: "Stadtbach: current real heat curve (PPS-calibrated), no retrofit"
     HK1:
       k: 0.8
-      T_VL_min_c: 65.0   # partial retrofit; ΔT=5K vs T_return
+      T_VL_min_c: 65.0   # partial retrofit
       T_VL_max_c: 122.0
+      T_RL_c: 50.0       # retrofit lowers return too (better HX); ΔT_min=15K keeps flows in-pipe
       description: "Stadtbach: reduced slope k=0.8, partial substation retrofit"
     HK2:
       k: 0.6
-      T_VL_min_c: 60.0   # full retrofit; ΔT=0K — only viable with high-performance substations
+      T_VL_min_c: 60.0   # full retrofit
       T_VL_max_c: 122.0
+      T_RL_c: 45.0       # full retrofit lowers return further; ΔT_min=15K keeps flows in-pipe
       description: "Stadtbach: reduced slope k=0.6, full substation retrofit"
 
 # TES candidate nodes (spec row → real node)

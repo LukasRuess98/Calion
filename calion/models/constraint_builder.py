@@ -868,6 +868,17 @@ def create_objective(
     model.activation_cost_expr = pyo.Expression(expr=activation_cost)
     model.tie_break_cost_expr = pyo.Expression(expr=tie_break_cost)
     model.storage_install_cost_expr = pyo.Expression(expr=storage_install_cost)
+    # Remaining objective terms as named Expressions too (diagnostic/audit only —
+    # does not change model.obj, just makes each cost bucket individually
+    # queryable post-solve via pyo.value(model.<name>_expr)).
+    model.energy_cost_expr = pyo.Expression(expr=energy_cost)
+    model.dump_cost_expr = pyo.Expression(expr=dump_cost)
+    model.fuel_cost_expr = pyo.Expression(expr=fuel_costs)
+    model.co2_cost_expr = pyo.Expression(expr=co2_cost)
+    model.demand_cost_expr = pyo.Expression(expr=demand_cost)
+    model.terminal_value_expr = pyo.Expression(expr=terminal_value)
+    model.demand_slack_cost_expr = pyo.Expression(expr=demand_slack_cost)
+    model.return_anchor_cost_expr = pyo.Expression(expr=return_anchor_cost)
 
     model.obj = pyo.Objective(
         expr=(

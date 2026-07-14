@@ -6,22 +6,34 @@ raster export to ``results/paper2_figures/``. All new T1–T5 / F1–F9 generato
 import from here; the older ``fig_p2_paperset.py`` (F-P2-11…14) is to be folded
 into this system.
 
-Palette provenance / open item
--------------------------------
-Primary two colours are confirmed from the spec:
-    Fraunhofer green  #179C7D   (primary)
-    Fraunhofer blue   #005B7F   (secondary)
-The additional categorical hues below are a *proposed* extension derived to sit
-in the Fraunhofer CI family AND to pass the dataviz CVD/contrast validator
-(``dataviz/scripts/validate_palette.js``). They are flagged for user approval
-before final use (spec B.1: "Zusatzfarben … mir zur Freigabe vorlegen").
+Palette provenance
+------------------
+All six colours below are read directly from a real Fraunhofer PPTX template's
+OOXML theme (``ppt/theme/theme1.xml``/``theme4.xml``, ``<a:srgbClr val="...">``),
+not invented: green/blue/orange/lime were already right by earlier guess, teal
+and cyan replace two earlier guessed hues that were NOT in the actual theme.
+No red/bordeaux/purple/yellow exists in that theme, so those three earlier
+placeholders are removed rather than kept as unverified extras — see the
+diverging-pole note below for how the "negative" pole is now sourced.
+
+Perceptual spacing (plain CIE76 ΔE76 in Lab space, computed from the hex values
+above — NOT a CVD simulation): the four CATEGORICAL_CORE colours are mutually
+≥51 ΔE apart (green-blue is the closest pair). Teal and cyan sit close to both
+blue and each other (ΔE 22-23 blue-teal, teal-cyan) and moderately close to
+green (ΔE 29-32) — they are real brand colours but hue-adjacent to blue/green,
+so they are ADJACENT-safe only (bar/line/stacked with direct labels), never for
+scatter/maps/anything requiring all-pairs discrimination. This has not been run
+through a dedicated CVD simulator (Machado/Viénot); if that matters for the
+final manuscript figures, re-validate before print, especially for the
+teal/cyan/blue cluster (deuteranopia confuses blue-green family hues).
 
 Font
 ----
-The Fraunhofer corporate face is Frutiger (licensed, not bundled). We request it
-first and fall back to Arial → DejaVu Sans, so the figures render everywhere and
-upgrade automatically on a machine that has Frutiger installed. Swap FONT_STACK
-once the exact face is extracted from the PowerPoint template.
+The real corporate faces (found in the same theme file) are
+"Frutiger LT Com 45 Light" (body) and "Frutiger LT Com 65 Bold" (headings) —
+not the earlier guessed "Frutiger LT Std". Licensed, not bundled: FONT_STACK
+requests the real name first and falls back to Arial → DejaVu Sans so figures
+still render on a machine without the font installed.
 """
 from __future__ import annotations
 
@@ -36,41 +48,32 @@ import matplotlib.pyplot as plt
 _ROOT = Path(__file__).resolve().parents[3]
 FIG_DIR = _ROOT / "results" / "paper2_figures"
 
-# ── Fraunhofer IPA palette ───────────────────────────────────────────────────
-# Confirmed brand anchors
+# ── Fraunhofer IPA palette (verified from the real PPTX theme, see docstring) ──
 FHG_GREEN = "#179C7D"   # Fraunhofer primary green
 FHG_BLUE = "#005B7F"    # Fraunhofer dark blue
-
-# Proposed CI-family accents (pending approval) — used only when >2 categories.
-FHG_BORDEAUX = "#A6093D"
-FHG_ORANGE = "#F58220"
-FHG_PURPLE = "#6C4A9C"
-FHG_CYAN = "#37A9DE"
-FHG_LIME = "#B2D235"
-FHG_YELLOW = "#FDB913"
+FHG_ORANGE = "#F58220"  # theme accent — only warm hue in the real palette
+FHG_TEAL = "#008598"    # theme accent — hue-adjacent to blue, use with care
+FHG_CYAN = "#39C1CD"    # theme accent — hue-adjacent to teal/blue, use with care
+FHG_LIME = "#B2D235"    # theme accent
 
 # Fixed categorical order — assigned by slot, never cycled (dataviz rule).
 #
-# CATEGORICAL_CORE (slots 1–4) is validated CVD-safe for the strict ALL-PAIRS
-# case (maps, scatter, bubble): worst Machado-2009 ΔE = 24.7 (target ≥12), all
-# inside the light-mode L band. Caveats, both documented brand/relief conditions:
-#   · #005B7F chroma 0.093 is a hair below the 0.10 "reads-gray" floor — it is a
-#     brand anchor, kept deliberately; it still separates cleanly under CVD.
-#   · #F58220 contrast 2.53:1 vs white is in the relief band — always ships with
-#     a direct label (which every Paper 2 figure uses), never colour-alone.
-# A 5th all-pairs-distinct hue inside the Fraunhofer family is not achievable
-# (pink collides with green ΔE 5.4, violet with navy 10.9), so slots 5–8 are
-# ADJACENT-safe only (worst adjacent ΔE 24.2): legal for bar/line/stacked series
-# with direct labels, NOT for scatter/maps. Beyond 8, fold into "Other".
-CATEGORICAL_CORE = [FHG_GREEN, FHG_BLUE, FHG_BORDEAUX, FHG_ORANGE]
-CATEGORICAL = CATEGORICAL_CORE + [FHG_PURPLE, FHG_CYAN, FHG_LIME, FHG_YELLOW]
+# CATEGORICAL_CORE (slots 1-4): the four mutually-most-distinct real theme
+# colours, min pairwise CIE76 ΔE76 = 51.0 (green-blue) — all-pairs safe for
+# maps/scatter/bubble. Slots 5-6 (teal, cyan) are ADJACENT-safe only (bar/line/
+# stacked with direct labels): they sit only 22-23 ΔE from blue and each other.
+# No 5th/6th all-pairs-distinct hue exists in the real theme (orange and lime
+# are the only other candidates and both already used in CORE).
+CATEGORICAL_CORE = [FHG_GREEN, FHG_BLUE, FHG_ORANGE, FHG_LIME]
+CATEGORICAL = CATEGORICAL_CORE + [FHG_TEAL, FHG_CYAN]
 
 # Sequential ramp (magnitude) — single Fraunhofer-green hue, light → dark.
 SEQ_GREEN = ["#e8f4f0", "#a8dccd", "#5cbfa3", "#179C7D", "#0e6853", "#083a2e"]
 
-# Diverging pair (polarity, e.g. cost reduction vs. baseline): warm ↔ neutral ↔ cool.
-# Cool/good pole = Fraunhofer green, warm/bad pole = bordeaux, neutral mid = warm grey.
-DIV_NEG = FHG_BORDEAUX    # worse than baseline
+# Diverging pair (polarity, e.g. cost reduction vs. baseline): warm <-> neutral <-> cool.
+# The real theme has no red/bordeaux; orange is its only warm hue, so it takes
+# the "worse than baseline" pole (ΔE 99.6 from green — very safe separation).
+DIV_NEG = FHG_ORANGE      # worse than baseline
 DIV_MID = "#f2f1ee"       # neutral
 DIV_POS = FHG_GREEN       # better than baseline
 
@@ -81,7 +84,8 @@ INK_MUTED = "#86847f"
 GRID = "#d8d7d2"
 SURFACE = "#ffffff"
 
-FONT_STACK = ["Frutiger", "Frutiger LT Std", "Arial", "Helvetica", "DejaVu Sans"]
+FONT_STACK = ["Frutiger LT Com 45 Light", "Frutiger LT Com", "Frutiger",
+             "Arial", "Helvetica", "DejaVu Sans"]
 
 
 def apply_rcparams() -> None:

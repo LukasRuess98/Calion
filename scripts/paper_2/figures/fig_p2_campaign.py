@@ -171,7 +171,7 @@ def build_f5() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(_style.COL_DOUBLE_IN, 3.6))
     cats = [("CAPEX (annualised)", _style.FHG_BLUE),
             ("Energy OPEX", _style.FHG_GREEN),
-            ("CO$_2$ cost", _style.FHG_BORDEAUX)]
+            ("CO$_2$ cost", _style.FHG_ORANGE)]
     drew_any = False
     for ax, net in zip(axes, ["SB", "MM"]):
         base = df[(df.net == net) & (df["baseline"].astype(bool))]
@@ -248,7 +248,7 @@ def build_f6() -> None:
     fig, ax = plt.subplots(figsize=(_style.COL_SINGLE_IN * 1.4, 3.2))
     labels = [r[0] for r in rows]
     deltas = [r[1] for r in rows]
-    colors = [_style.FHG_GREEN if d <= 0 else _style.FHG_BORDEAUX for d in deltas]
+    colors = [_style.FHG_GREEN if d <= 0 else _style.FHG_ORANGE for d in deltas]
     ax.barh(labels, deltas, color=colors, height=0.5, edgecolor="white")
     for i, (lab, d, sid, node) in enumerate(rows):
         ax.text(d, i, f"  {d:+.1f}%  (node {node})", va="center",
@@ -302,9 +302,16 @@ def build_f7() -> None:
 # F8 — spatial T/p profile along a trunk (result + L3+ monotonicity check)
 # ═════════════════════════════════════════════════════════════════════════════
 _TRUNK = {
-    # proposed representative trunks (open item — confirm node lists)
-    "SB": ("SB-S1-HK0", ["j_hkw", "j_psw", "j_hww", "j_klinikum"]),
-    "MM": ("MM-S1-HK0", ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13"]),
+    # Confirmed via scripts/paper_2/figures/trunk_path.py (algorithmic longest
+    # plant->consumer path, spec F8). SB: unique candidate, 8570 m, dT_pipe
+    # 1.78 K. MM: j_14 picked over the near-tied j_15 branch (3120 m vs 3065 m,
+    # <2% apart) — j_14 serves 2 metered zones vs j_15's 1, and j_15's larger
+    # dT_pipe (0.75 vs 0.44 K) is driven by an outlier u_value_supply_w_per_m_k
+    # on pipe j13_to_j15 (1.31 W/m/K vs 0.28-0.32 on every other Memmingen
+    # pipe) rather than genuine trunk length — worth a DXF/as-built sanity
+    # check separately, not treated as the representative case here.
+    "SB": ("SB-S1-HK0", ["j_hkw", "j_pss", "j_hws", "j_don_bosco"]),
+    "MM": ("MM-S1-HK0", ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13", "j_14"]),
 }
 
 
@@ -348,7 +355,7 @@ def build_f8() -> None:
     for j, (label, trunk, tprof, pprof) in enumerate(series):
         x = np.arange(len(trunk))
         ax_t, ax_p = axes[0][j], axes[1][j]
-        ax_t.plot(x, tprof.values, marker="o", ms=6, lw=2, color=_style.FHG_BORDEAUX)
+        ax_t.plot(x, tprof.values, marker="o", ms=6, lw=2, color=_style.FHG_ORANGE)
         ax_t.set_title(label, fontsize=9)
         ax_t.grid(axis="y")
         if j == 0:

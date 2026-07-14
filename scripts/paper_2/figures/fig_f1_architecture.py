@@ -62,9 +62,9 @@ def _panel_a(ax) -> None:
             fontsize=7.2, color=_style.INK_SOFT)
 
     # storage (down)
-    _arrow(ax, (5.0, 5.7), (5.0, 4.6), _style.FHG_BORDEAUX)
+    _arrow(ax, (5.0, 5.7), (5.0, 4.6), _style.FHG_ORANGE)
     ax.text(5.15, 4.9, "TES  $q_{\\mathrm{ch}}-q_{\\mathrm{dis}}$",
-            fontsize=7.2, color=_style.FHG_BORDEAUX)
+            fontsize=7.2, color=_style.FHG_ORANGE)
 
     # temperature-propagation strip on the upstream pipe
     ax.text(1.7, 7.5, "$T_{VL,\\mathrm{in}} \\rightarrow T_{VL,\\mathrm{out}}$  "
@@ -81,7 +81,7 @@ def _panel_a(ax) -> None:
          "Mass balance [kg/s]:   "
          "$\\sum_j \\dot m_{ji} + \\dot m_{\\mathrm{gen},i} "
          "= \\sum_k \\dot m_{ik} + \\dot m_{\\mathrm{dem},i}$",
-         fc="#f5eef1", ec=_style.FHG_BORDEAUX, fs=8)
+         fc="#f5eef1", ec=_style.FHG_ORANGE, fs=8)
 
 
 # ── Panel B — McCormick envelope ─────────────────────────────────────────────
@@ -96,7 +96,7 @@ def _panel_b(ax) -> None:
                            ec=_style.FHG_GREEN, lw=1.4, zorder=2, alpha=0.7))
     # envelope facets (diagonals) — under/over-estimators meet at the corners
     ax.plot([x0, x1], [y0, y1], color=_style.FHG_BLUE, lw=1.4, zorder=3)
-    ax.plot([x0, x1], [y1, y0], color=_style.FHG_BORDEAUX, lw=1.4, zorder=3)
+    ax.plot([x0, x1], [y1, y0], color=_style.FHG_ORANGE, lw=1.4, zorder=3)
     for cx, cy in [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]:
         ax.scatter(cx, cy, s=42, color=_style.INK, zorder=4)
     ax.text((x0 + x1) / 2, y1 + 0.35, "corners: $W=\\dot m\\,c_p\\,T$ exact",

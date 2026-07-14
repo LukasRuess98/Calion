@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _style import FIG_DIR  # noqa: E402
 
 _ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(_ROOT))
+from scripts.paper_2 import validation_p2  # noqa: E402
 
 NETWORKS = {
     "Stadtbach": {
@@ -409,7 +411,7 @@ def build_t5() -> None:
     import numpy as np
     from collections import Counter
     gaps, statuses = [], []
-    good_closures, suspect_runs = [], []      # converged+plausible / flagged
+    good_closures, good_losses, suspect_runs = [], [], []   # converged / loss-frac / flagged
     for d in sorted(p for p in OUT_RUNS.iterdir() if p.is_dir()):
         vj, mj = d / "validation.json", d / "meta.json"
         status = None
@@ -433,6 +435,8 @@ def build_t5() -> None:
                     suspect_runs.append(d.name)
                 elif optimal:                        # trust only converged runs
                     good_closures.append((d.name, float(ce), bool(eb.get("closure_pass"))))
+                    if eb.get("network_loss_pct") is not None:
+                        good_losses.append(float(eb["network_loss_pct"]))
             except Exception:  # noqa: BLE001
                 pass
     rows: list[dict] = []
@@ -442,11 +446,14 @@ def build_t5() -> None:
     if good_closures:
         errs = [c[1] for c in good_closures]
         worst = max(good_closures, key=lambda c: c[1])
-        add("Energy-balance closure (mean)", f"{np.mean(errs):.2f} %",
-            f"{len(good_closures)} converged runs")
-        add("Energy-balance closure (max)", f"{worst[1]:.2f} %", f"worst: {worst[0]}")
+        add("MW closure error (mean)", f"{np.mean(errs):.2f} %",
+            f"{len(good_closures)} converged runs; gen+storage vs demand")
+        add("MW closure error (max)", f"{worst[1]:.2f} %", f"worst: {worst[0]}")
         add("Runs passing closure gate (≤2%)", f"{sum(c[2] for c in good_closures)}/{len(good_closures)}",
             "converged runs only")
+        if good_losses:
+            add("Network loss fraction (mean)", f"{np.mean(good_losses):.2f} %",
+                "thermal diagnostic — not an imbalance (dispatch balance is MW-lossless)")
     else:
         add("Energy-balance closure", "n/a", "no converged run with a plausible balance yet")
     if suspect_runs:
@@ -466,8 +473,27 @@ def build_t5() -> None:
         if len(cop):
             add("Annual COP range", f"{cop.min():.2f} – {cop.max():.2f}",
                 "plausibility (Lorenz surrogate)")
-    add("Memmingen P1 OPEX consistency", "pending", "needs Paper 1 reference OPEX")
-    add("Sweep–MILP optimum consistency", "pending", "Part A sweep not built (spec A.5)")
+    p1c = validation_p2.check_paper1_consistency(OUT_RUNS)
+    if p1c.get("ok") is not None:
+        add("Memmingen P1 OPEX consistency", f"{p1c['error_pct']:.2f} %",
+            f"P2={p1c['opex_p2']:,.0f} EUR vs P1={p1c['opex_p1']:,.0f} EUR "
+            f"({'pass' if p1c['ok'] else 'FAIL'}, gate <=2%)")
+    else:
+        add("Memmingen P1 OPEX consistency", "pending", p1c.get("detail", "inputs missing"))
+
+    sweep_files = sorted((_ROOT / "results").glob("sweep_*_optimum.json")) \
+        if (_ROOT / "results").exists() else []
+    if sweep_files:
+        for sf in sweep_files:
+            sc = json.loads(sf.read_text()).get("sweep_consistency")
+            if not sc:
+                continue
+            add(f"Sweep-MILP optimum consistency ({sf.stem.replace('_optimum', '')})",
+                sc["verdict"],
+                f"TAC dev {sc['tac_dev_pct']:+.1f}% (gate <=10%), grid dist "
+                f"Q={sc['grid_steps_q']} V={sc['grid_steps_v']} steps (gate <=1 each)")
+    else:
+        add("Sweep–MILP optimum consistency", "pending", "Part A sweep not run yet (spec A.5)")
     _write(pd.DataFrame(rows), "tab_T5_validation",
            "Model validation summary across the campaign.", "tab:t5_validation",
            align="llp{5cm}"[:0] + "lll")
