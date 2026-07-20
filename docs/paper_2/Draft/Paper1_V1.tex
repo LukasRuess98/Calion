@@ -1,0 +1,95 @@
+\documentclass[preprint,12pt]{elsarticle}
+% Alternative Optionen:
+% \documentclass[final,3p,times]{elsarticle}         % 3-spaltig final
+% \documentclass[final,5p,times,twocolumn]{elsarticle} % 2-spaltig final
+
+% --- Pakete ---
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{lineno}          % Zeilennummerierung (oft gefordert)
+\usepackage{booktabs}        % schöne Tabellen
+\usepackage{siunitx}         % SI-Einheiten
+\usepackage[hidelinks]{hyperref}
+
+% Zitierstil (Elsevier: numerisch)
+\biboptions{sort&compress}
+
+\journal{Energy Conversion and Management}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Titel der Publikation}
+
+%% Autoren
+\author[inst1]{Vorname Nachname\corref{cor1}}
+\ead{email@institut.de}
+\author[inst2]{Zweiter Autor}
+
+\cortext[cor1]{Corresponding author}
+
+\affiliation[inst1]{organization={Institut / Abteilung},
+            addressline={Straße},
+            city={Stadt},
+            postcode={PLZ},
+            country={Land}}
+\affiliation[inst2]{organization={Zweite Einrichtung},
+            city={Stadt},
+            country={Land}}
+
+%% Abstract
+\begin{abstract}
+Hier steht die Kurzfassung (ca. 150--250 Wörter).
+\end{abstract}
+
+%% Highlights (separat als Bullet-Points, 3--5 Stück, je <85 Zeichen)
+\begin{highlights}
+\item Erster Hauptbeitrag.
+\item Zweiter Hauptbeitrag.
+\item Dritter Hauptbeitrag.
+\end{highlights}
+
+%% Keywords
+\begin{keyword}
+Keyword1 \sep Keyword2 \sep Keyword3
+\end{keyword}
+
+\end{frontmatter}
+
+\linenumbers   % Zeilennummerierung aktivieren
+
+%% ============ HAUPTTEXT ============
+\section{Introduction}
+\label{sec:intro}
+Einleitung...
+
+\section{Methodology}
+\label{sec:method}
+Methoden...
+
+\section{Results and Discussion}
+\label{sec:results}
+Ergebnisse...
+
+\section{Conclusions}
+Schlussfolgerungen...
+
+%% Nomenklatur (in ECM häufig verwendet)
+% \section*{Nomenclature}
+
+%% Danksagung
+\section*{Acknowledgements}
+Dank / Fördermittel.
+
+%% ============ REFERENZEN ============
+% Variante A: BibTeX mit Elsevier-Stil
+\bibliographystyle{elsarticle-num}   % oder elsarticle-harv
+\bibliography{references}
+
+% Variante B: manuell
+% \begin{thebibliography}{00}
+% \bibitem{ref1} Autor. Titel. Journal Jahr;Vol:Seiten.
+% \end{thebibliography}
+
+\end{document}
