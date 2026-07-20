@@ -1,0 +1,612 @@
+# =============================================================================
+# PAPER STUDY - Level 3: Independent Zone Demands (Dispatch-Only)
+# STADTBACH NETWORK — corrected to real swa Augsburg structure
+# =============================================================================
+# CORRECTIONS vs. previous version (cross-checked against swa plans
+# WV640 Bl.3, WV650 Netz-Mitte, WV660 Netz-West):
+#
+#  (1) EAST ARM introduced. GT-Ost, Biomass-CHP and the AVA waste-heat
+#      take-over are physically in the NE (Hammerschmiede) and feed the
+#      network via the eastern trunk (SL5/SL6) — NOT at the HKW busbar and
+#      NOT via Pumpstation Süd as before.
+#  (2) AVA modelled as a 45 MW DIRECT waste-heat feed-in (thermal_generator),
+#      not as a 12 MW heat pump. Real take-over per WV640: 40-45 MW.
+#  (3) CONSUMER ZONES corrected to real geography (13 of 24 were misassigned):
+#      Lise-Meitner/Klinikum/Josefinum -> WEST; Kurt-Schumacher/Lechhauser/
+#      KUKA/Hans-Böckler -> EAST; Beethovenpark/Don Bosco -> SOUTH; etc.
+#  (4) PIPE DN and LENGTHS aligned to swa valve tables + real trace distances
+#      (air-line x1.3). Trunks DN350-400, main feeders DN250-300.
+#
+# NODES: 32 (1 HKW + 2 east junctions + 2 pump stations + 3 producer stations
+#            + 24 consumers). PIPES: 31. Connected tree.
+#
+# TEMPERATURES (from PPS/PSW measurements 2025):
+#   Supply: mean 99°C, max 122°C  |  Return: mean 60°C
+# =============================================================================
+
+site:
+  input_xlsx: "data/Stadtbach/stadtbach_acron_combined.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  name: "Stadtbach L3 - swa-corrected Topology (Dispatch-Only)"
+  description: "32-node real Stadtbach network, fixed assets, dispatch validation"
+  run_mode: PF_ONLY
+  milp_linearize: true
+  horizon:
+    start: "2025-01-01 00:00"
+    end: "2025-12-31 23:00"
+
+# =============================================================================
+# NETWORK
+# =============================================================================
+network:
+  milp_linearize: true
+  # 2026-07-08: L3+ spatial temperature propagation -- see memory
+  # project_endogenous_siting_bugfix / plan greedy-wandering-alpaca.
+  temperature_propagation: true
+  physics:
+    heat_loss: true
+    pressure_drop: true   # 2026-07-08: enabled once the bidirectional-pipe MILP fix (WP4) landed
+    transport_delay: true
+
+  supply_temp_c: 99.0
+  return_temp_c: 60.0
+  ground_temp_c: 10.0
+
+  temperature_frame:
+    default_return_band_c: 5.0
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 115.0
+        return_c: 62.0
+      spring:
+        months: [3, 4, 5]
+        supply_c: 99.0
+        return_c: 61.0
+      summer:
+        months: [6, 7, 8]
+        supply_c: 84.0
+        return_c: 62.0
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 96.0
+        return_c: 60.0
+
+  heating_curve:
+    enabled: true
+    T_supply_max_c: 122.0
+    T_supply_min_c: 70.0
+    T_outdoor_low_c: -15.0
+    T_outdoor_high_c: 30.0
+
+  linearization:
+    method: "pwl"
+    temperature_profile:
+      load_fractions: [0.0, 0.3, 0.6, 1.0]
+      T_supply_c: [70.0, 85.0, 100.0, 122.0]
+      T_return_c: [55.0, 58.0,  62.0,  68.0]
+
+  max_velocity_m_s: 2.5
+  pump_efficiency: 0.75
+  pipe_roughness_mm: 0.5
+  max_pressure_drop_bar: 2.0
+  delta_p_min_consumer_bar: 0.7
+
+  nodes:
+    # ---- Production hub (HKW busbar: gas CHP, P2H, TES) ----
+    j_hkw:
+      assets: [hkw, p2h_existing, tes_existing]
+
+    # ---- East trunk junction (j_ne merged into j_ost) ----
+    j_ost: {}          # East busbar: receives from j_hkw + all east producers
+
+    # ---- Producer stations ----
+    j_gtost:
+      assets: [gtost]
+    j_bmhkw:
+      assets: [bmhkw]
+    j_ava:
+      assets: [ava_feed, hp_sb]   # AVA direct feed-in + small HP for low-temp lift
+    j_hws: {}   # pure junction — receives heat from j_pss via pss_to_hws
+    j_hww: {}   # pure junction — receives heat from j_psw via psw_to_hww
+
+    # ---- Pump stations (secondary producers) ----
+    # T_supply_offset_c breaks the equal-coefficient degeneracy in L3-MILP mode.
+    j_pss:
+      assets: [hws_boiler]
+      T_supply_offset_c: 0.0   # DIAGNOSTIC: no offset, test if network is feasible
+    j_psw:
+      assets: [hww_boiler]
+      T_supply_offset_c: 0.0   # DIAGNOSTIC: no offset, test if network is feasible
+
+    # ===== NETZ-MITTE consumers (HKW direct) =====
+    j_man:
+      consumers:
+        - column: "MAN_MW"
+    j_hoher_weg:
+      consumers:
+        - column: "Hoher_Weg_MW"
+    j_hunoldsgraben:
+      consumers:
+        - column: "Hunoldsgraben_MW"
+    j_kreissparkasse:
+      consumers:
+        - column: "Kreissparkasse_MW"
+
+    # ===== NETZ-OST consumers =====
+    j_lechhauser_str:
+      consumers:
+        - column: "Lechhauser_Str_MW"
+    j_kuka:
+      consumers:
+        - column: "KUKA_MW"
+    j_kurt_schumacher_str:
+      consumers:
+        - column: "Kurt-Schumacher-Str_MW"
+    j_hans_boeckler_str:
+      consumers:
+        - column: "Hans-Boeckler-Str_MW"
+    j_am_mittleren_moos:
+      consumers:
+        - column: "Am_Mittleren_Moos_MW"
+
+    # ===== NETZ-SÜD consumers =====
+    j_theodor_heuss_platz:
+      consumers:
+        - column: "Theodor-Heuss-Platz_MW"
+    j_fuggerstr:
+      consumers:
+        - column: "Fuggerstr_MW"
+    j_sigma_technopark:
+      consumers:
+        - column: "SIGMA_Technopark_MW"
+    j_uni:
+      consumers:
+        - column: "UNI_MW"
+    j_fraunhofer:
+      consumers:
+        - column: "Fraunhofer_MW"
+    j_beethovenpark:
+      consumers:
+        - column: "Beethovenpark_MW"
+    j_don_bosco:
+      consumers:
+        - column: "Don_Bosco_MW"
+
+    # ===== NETZ-WEST consumers =====
+    j_schlettererstr:
+      consumers:
+        - column: "Schlettererstr_MW"
+    j_josefinum:
+      consumers:
+        - column: "Josefinum_MW"
+    j_klinikum:
+      consumers:
+        - column: "Klinikum_MW"
+    j_lise_meitner_str:
+      consumers:
+        - column: "Lise-Meitner-Str_MW"
+    j_august_wessels_str:
+      consumers:
+        - column: "August-Wessels-Str_MW"
+    j_hooverstr:
+      consumers:
+        - column: "Hooverstr_MW"
+    j_grasiger_weg:
+      consumers:
+        - column: "Grasiger_Weg_MW"
+    j_siegfried_aufhaeuser_str:
+      consumers:
+        - column: "Siegfried-Aufhaeuser-Str_MW"
+
+  pipes:
+    # ===== TRUNKS =====
+    # East trunk: HKW <-> j_ost (bidirectional). Combined length: 1470+4460=5930m.
+    # Bidirectional required: east-arm producers (GT-Ost+BMHKW+AVA=94.5 MW) can
+    # exceed east-zone consumer demand, causing reverse flow toward j_hkw.
+    hkw_to_ost:
+      from: j_hkw
+      to: j_ost
+      length_m: 5930
+      diameter_mm: 600
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+      bidirectional: true
+    # South trunk: HKW -> Pumpstation Süd
+    hkw_to_pss:
+      from: j_hkw
+      to: j_pss
+      length_m: 4470
+      diameter_mm: 400        # south trunk; carries HWS feed-in toward central network
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    # West trunk: HKW -> Pumpstation West
+    hkw_to_psw:
+      from: j_hkw
+      to: j_psw
+      length_m: 2630
+      diameter_mm: 500        # west trunk; carries HWW feed-in toward central network
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # ===== PRODUCER CONNECTIONS (FROM producer TO east busbar) =====
+    gtost_to_ost:
+      from: j_gtost
+      to: j_ost
+      length_m: 60
+      diameter_mm: 350
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    bmhkw_to_ost:
+      from: j_bmhkw
+      to: j_ost
+      length_m: 60
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ava_to_ost:
+      from: j_ava
+      to: j_ost
+      length_m: 870
+      diameter_mm: 450        # AVA direct feed-in (45 MW) + co-located HP (12 MW) = 57 MW
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    pss_to_hws:
+      from: j_pss
+      to: j_hws
+      length_m: 610
+      diameter_mm: 400        # HWS feed-in up to 40 MW
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    psw_to_hww:
+      from: j_psw
+      to: j_hww
+      length_m: 960
+      diameter_mm: 500        # HWW feed-in up to 64 MW (real: 3x480 m³/h, multi-string)
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # ===== NETZ-MITTE feeders (HKW direct) =====
+    hkw_to_man:
+      from: j_hkw
+      to: j_man
+      length_m: 850
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hkw_to_hoher_weg:
+      from: j_hkw
+      to: j_hoher_weg
+      length_m: 650
+      diameter_mm: 350
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hkw_to_hunoldsgraben:
+      from: j_hkw
+      to: j_hunoldsgraben
+      length_m: 1170
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    hkw_to_kreissparkasse:
+      from: j_hkw
+      to: j_kreissparkasse
+      length_m: 1740
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # ===== NETZ-OST feeders =====
+    ost_to_lechhauser:
+      from: j_ost
+      to: j_lechhauser_str
+      length_m: 680
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_kuka:
+      from: j_ost
+      to: j_kuka
+      length_m: 1740
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_kurt_schumacher:
+      from: j_ost
+      to: j_kurt_schumacher_str
+      length_m: 1370
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_hans_boeckler:
+      from: j_ost
+      to: j_hans_boeckler_str
+      length_m: 1940
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    ost_to_am_mittleren_moos:
+      from: j_ost
+      to: j_am_mittleren_moos
+      length_m: 870
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    # ===== NETZ-SÜD feeders =====
+    pss_to_theodor_heuss:
+      from: j_pss
+      to: j_theodor_heuss_platz
+      length_m: 2350
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    pss_to_fuggerstr:
+      from: j_pss
+      to: j_fuggerstr
+      length_m: 1200
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_sigma:
+      from: j_hws
+      to: j_sigma_technopark
+      length_m: 450
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_uni:
+      from: j_hws
+      to: j_uni
+      length_m: 910
+      diameter_mm: 300
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hws_to_fraunhofer:
+      from: j_hws
+      to: j_fraunhofer
+      length_m: 2050
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_beethovenpark:
+      from: j_hws
+      to: j_beethovenpark
+      length_m: 2880
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_don_bosco:
+      from: j_hws
+      to: j_don_bosco
+      length_m: 3490
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # ===== NETZ-WEST feeders =====
+    psw_to_schlettererstr:
+      from: j_psw
+      to: j_schlettererstr
+      length_m: 620
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    psw_to_josefinum:
+      from: j_psw
+      to: j_josefinum
+      length_m: 2070
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    hww_to_klinikum:
+      from: j_hww
+      to: j_klinikum
+      length_m: 3160
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    hww_to_lise_meitner:
+      from: j_hww
+      to: j_lise_meitner_str
+      length_m: 2270
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    hww_to_august_wessels:
+      from: j_hww
+      to: j_august_wessels_str
+      length_m: 2150
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    hww_to_hooverstr:
+      from: j_hww
+      to: j_hooverstr
+      length_m: 1000
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    hww_to_grasiger_weg:
+      from: j_hww
+      to: j_grasiger_weg
+      length_m: 1550
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    hww_to_siegfried_aufhaeuser:
+      from: j_hww
+      to: j_siegfried_aufhaeuser_str
+      length_m: 1470
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+
+# =============================================================================
+# ASSETS — Fixed capacities for dispatch-only validation
+# Capacities aligned to swa plan WV640 Bl.3 where available.
+# =============================================================================
+assets:
+  # 2026-07-08: capacity_mw = real THERMAL OUTPUT at Übergangszeiten (99/60 °C),
+  # user-provided/vouched-for; same correction as Stadtbach_topo.yaml -- see that
+  # file's asset-block comment for the Üzeiten-vs-design-point rationale.
+  # thermal_efficiency/el_eff remain the notebook-guaranteed conversion ratios.
+  hkw:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 127.0          # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.743
+    el_eff: 0.177
+    min_load: 0.1
+
+  gtost:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 35.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.466
+    el_eff: 0.36
+    min_load: 0.1
+
+  bmhkw:
+    type: thermal_generator
+    fuel: biomass
+    capacity_mw: 14.5           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.485
+    el_eff: 0.177
+    min_load: 0.1
+
+  # AVA waste-heat take-over: direct feed-in, th_eff=1.0.
+  ava_feed:
+    type: thermal_generator
+    fuel: waste_heat            # zero-emission, near-zero marginal cost source
+    capacity_mw: 45.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 1.0
+    min_load: 0.0
+
+  hws_boiler:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 32.0           # Heizwerk Süd, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.936
+    min_load: 0.1
+
+  hww_boiler:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 104.0          # Heizwerk West, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.924
+    min_load: 0.1
+
+  p2h_existing:
+    type: p2h
+    capacity_mw: 9.9            # = 10 MW electric (notebook P2H_Power bound) * P2H_eff 0.99
+    efficiency: 0.99
+    min_load: 0.1
+
+  # Small heat pump retained for AVA low-temperature lift (optional, keeps WRG columns).
+  hp_sb:
+    type: heat_pump
+    capacity_mw: 12.0
+    min_load: 0.2
+    wrg_source_column: "WRG_1_Celsius"
+    wrg_capacity_column: "WRG1Q_MW"
+    cop_default: 3.0
+
+  tes_existing:
+    type: storage
+    energy_mwh: 0.0             # no existing TES in Stadtbach
+    power_mw: 0.0
+    eff_charge: 0.98
+    eff_discharge: 0.98
+    loss_hour: 0.9999
+    soc0_mwh: 0.0
+    min_energy_mwh: 0.0
+    cycling_cost_eur_per_mwh: 1.5
+    terminal:
+      state: cyclic
+      policy: equal
+
+
+# =============================================================================
+# HEAT PUMP COP MODEL
+# =============================================================================
+heat_pumps:
+  cop:
+    sink_defaults:
+      Tsink_out_K: 372.15     # 99°C (Stadtbach mean supply)
+      Tsink_in_K: 333.15      # 60°C (Stadtbach mean return)
+    deltaT_K: 20.0
+    deltaTpp_K: 5.0
+    cop_fallback: 3.0
+  types:
+    standard:
+      # 2026-07-08: eta corrected 0.6 -> 0.75 to match notebook exactly (see
+      # Stadtbach_topo.yaml's corresponding comment).
+      eta: 0.75
+      FQ: 0.10
+
+
+# =============================================================================
+# WASTE HEAT
+# =============================================================================
+waste_heat:
+  Q_AW_max_column: "WRG1Q_MW"
+  T_AW_column: "WRG_1_Celsius"
+  T_amb_column: "outdoor_temp_C"
+
+
+# =============================================================================
+# GRID, FUELS, COSTS
+# =============================================================================
+grid:
+  max_import_mw: 5000.0
+  max_export_mw: 5000.0
+  gridcost_eur_mwh: 10.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+  biomass:
+    price_eur_mwh: 40.0
+    ef_kg_per_mwh_fuel: 20.0
+  waste_heat:
+    price_eur_mwh: 5.0          # AVA take-over: low marginal cost, ~CO2-free
+    ef_kg_per_mwh_fuel: 0.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 1000.0
+
+
+# =============================================================================
+# RUN SETTINGS
+# =============================================================================
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    MIPGap: 0.005
+    TimeLimit: 86400
+    MIPFocus: 1
+    Heuristics: 0.8
+    NumericFocus: 2
+    OutputFlag: 1
+    LogToConsole: 1
+    LogFile: "gurobi_SB_L3_MILP.log"
+
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+output:
+  log_dir: "output/logs"
+  export_dir: "output/results"
+  export_thermal_network: true
+  export_solver_solution: true

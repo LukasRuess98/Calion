@@ -1,0 +1,776 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="465.821965pt" height="335.073429pt" viewBox="0 0 465.821965 335.073429" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-07-19T16:20:28.418303</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.7, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 335.073429 
+L 465.821965 335.073429 
+L 465.821965 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 41.220391 150.360828 
+L 229.239118 150.360828 
+L 229.239118 45.216 
+L 41.220391 45.216 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1">
+      <defs>
+       <path id="mb76e580f3a" d="M 0 0 
+L 0 3.5 
+" style="stroke: #52514e; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#mb76e580f3a" x="49.766696" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="106.742068" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="163.71744" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="220.692812" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_5">
+      <path d="M 41.220391 129.172637 
+L 229.239118 129.172637 
+" clip-path="url(#p32c6aac9f2)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_6">
+      <defs>
+       <path id="mebb074a091" d="M 0 0 
+L -3.5 0 
+" style="stroke: #52514e; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="129.172637" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_1">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="132.214708" transform="rotate(-0 34.220391 132.214708)">80</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_7">
+      <path d="M 41.220391 97.501706 
+L 229.239118 97.501706 
+" clip-path="url(#p32c6aac9f2)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="97.501706" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="100.543777" transform="rotate(-0 34.220391 100.543777)">100</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_9">
+      <path d="M 41.220391 65.830776 
+L 229.239118 65.830776 
+" clip-path="url(#p32c6aac9f2)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_10">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="65.830776" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="68.872846" transform="rotate(-0 34.220391 68.872846)">120</text>
+     </g>
+    </g>
+    <g id="text_4">
+     <!-- T$_{supply}$ [°C] -->
+     <g style="fill: #1a1a19" transform="translate(13.405 118.655914) rotate(-90)">
+      <text>
+       <tspan x="0" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">T</tspan>
+       <tspan x="25.12334" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19"> </tspan>
+       <tspan x="27.484912" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">[</tspan>
+       <tspan x="29.846484" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">°</tspan>
+       <tspan x="33.245654" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">C</tspan>
+       <tspan x="39.384082" y="-0.453125" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">]</tspan>
+       <tspan x="5.278271" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">s</tspan>
+       <tspan x="8.378198" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">u</tspan>
+       <tspan x="12.149243" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">p</tspan>
+       <tspan x="15.926099" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">p</tspan>
+       <tspan x="19.702954" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">l</tspan>
+       <tspan x="21.356055" y="1.023438" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">y</tspan>
+      </text>
+     </g>
+    </g>
+   </g>
+   <g id="line2d_11">
+    <path d="M 49.766696 49.99531 
+L 106.742068 145.581517 
+L 163.71744 100.389401 
+L 220.692812 102.397338 
+" clip-path="url(#p32c6aac9f2)" style="fill: none; stroke: #f58220; stroke-width: 2; stroke-linecap: square"/>
+    <defs>
+     <path id="m02aea1b8ee" d="M 0 3 
+C 0.795609 3 1.55874 2.683901 2.12132 2.12132 
+C 2.683901 1.55874 3 0.795609 3 0 
+C 3 -0.795609 2.683901 -1.55874 2.12132 -2.12132 
+C 1.55874 -2.683901 0.795609 -3 0 -3 
+C -0.795609 -3 -1.55874 -2.683901 -2.12132 -2.12132 
+C -2.683901 -1.55874 -3 -0.795609 -3 0 
+C -3 0.795609 -2.683901 1.55874 -2.12132 2.12132 
+C -1.55874 2.683901 -0.795609 3 0 3 
+z
+" style="stroke: #f58220"/>
+    </defs>
+    <g clip-path="url(#p32c6aac9f2)">
+     <use xlink:href="#m02aea1b8ee" x="49.766696" y="49.99531" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="106.742068" y="145.581517" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="163.71744" y="100.389401" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="220.692812" y="102.397338" style="fill: #f58220; stroke: #f58220"/>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 41.220391 150.360828 
+L 41.220391 45.216 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 41.220391 150.360828 
+L 229.239118 150.360828 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="135.229754" y="39.216" transform="rotate(-0 135.229754 39.216)">Stadtbach</text>
+   </g>
+  </g>
+  <g id="axes_2">
+   <g id="patch_5">
+    <path d="M 270.603238 150.360828 
+L 458.621965 150.360828 
+L 458.621965 45.216 
+L 270.603238 45.216 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="matplotlib.axis_3">
+    <g id="xtick_5">
+     <g id="line2d_12">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="279.149544" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_6">
+     <g id="line2d_13">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="300.515308" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_7">
+     <g id="line2d_14">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="321.881073" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_8">
+     <g id="line2d_15">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="343.246837" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_9">
+     <g id="line2d_16">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="364.612602" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_10">
+     <g id="line2d_17">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="385.978366" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_11">
+     <g id="line2d_18">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="407.344131" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_12">
+     <g id="line2d_19">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="428.709895" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+    <g id="xtick_13">
+     <g id="line2d_20">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="450.07566" y="150.360828" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_4">
+    <g id="ytick_4">
+     <g id="line2d_21">
+      <path d="M 270.603238 139.973183 
+L 458.621965 139.973183 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_22">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="139.973183" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_6">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="143.015253" transform="rotate(-0 263.603238 143.015253)">88.4</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_23">
+      <path d="M 270.603238 116.940362 
+L 458.621965 116.940362 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_24">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="116.940362" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_7">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="119.982432" transform="rotate(-0 263.603238 119.982432)">88.5</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_25">
+      <path d="M 270.603238 93.907541 
+L 458.621965 93.907541 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_26">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="93.907541" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="96.949612" transform="rotate(-0 263.603238 96.949612)">88.6</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_27">
+      <path d="M 270.603238 70.87472 
+L 458.621965 70.87472 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_28">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="70.87472" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_9">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="73.916791" transform="rotate(-0 263.603238 73.916791)">88.7</text>
+     </g>
+    </g>
+    <g id="ytick_8">
+     <g id="line2d_29">
+      <path d="M 270.603238 47.841899 
+L 458.621965 47.841899 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_30">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="47.841899" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_10">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="50.88397" transform="rotate(-0 263.603238 50.88397)">88.8</text>
+     </g>
+    </g>
+   </g>
+   <g id="line2d_31">
+    <path d="M 279.149544 49.99531 
+L 300.515308 81.550275 
+L 321.881073 102.970799 
+L 343.246837 105.274081 
+L 364.612602 114.026553 
+L 385.978366 118.17246 
+L 407.344131 122.779025 
+L 428.709895 128.767558 
+L 450.07566 145.581517 
+" clip-path="url(#pd9638d4de0)" style="fill: none; stroke: #f58220; stroke-width: 2; stroke-linecap: square"/>
+    <g clip-path="url(#pd9638d4de0)">
+     <use xlink:href="#m02aea1b8ee" x="279.149544" y="49.99531" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="300.515308" y="81.550275" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="321.881073" y="102.970799" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="343.246837" y="105.274081" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="364.612602" y="114.026553" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="385.978366" y="118.17246" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="407.344131" y="122.779025" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="428.709895" y="128.767558" style="fill: #f58220; stroke: #f58220"/>
+     <use xlink:href="#m02aea1b8ee" x="450.07566" y="145.581517" style="fill: #f58220; stroke: #f58220"/>
+    </g>
+   </g>
+   <g id="patch_6">
+    <path d="M 270.603238 150.360828 
+L 270.603238 45.216 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 270.603238 150.360828 
+L 458.621965 150.360828 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="364.612602" y="39.216" transform="rotate(-0 364.612602 39.216)">Memmingen</text>
+   </g>
+  </g>
+  <g id="axes_3">
+   <g id="patch_8">
+    <path d="M 41.220391 289.152 
+L 229.239118 289.152 
+L 229.239118 184.007172 
+L 41.220391 184.007172 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="matplotlib.axis_5">
+    <g id="xtick_14">
+     <g id="line2d_32">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="49.766696" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_12">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(36.461908 311.886496) rotate(-45)">j_hkw</text>
+     </g>
+    </g>
+    <g id="xtick_15">
+     <g id="line2d_33">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="106.742068" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_13">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(94.50563 310.818146) rotate(-45)">j_pss</text>
+     </g>
+    </g>
+    <g id="xtick_16">
+     <g id="line2d_34">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="163.71744" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_14">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(150.412652 311.886496) rotate(-45)">j_hws</text>
+     </g>
+    </g>
+    <g id="xtick_17">
+     <g id="line2d_35">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="220.692812" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_15">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(192.413093 326.861427) rotate(-45)">j_don_bosco</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_6">
+    <g id="ytick_9">
+     <g id="line2d_36">
+      <path d="M 41.220391 289.152 
+L 229.239118 289.152 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_37">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_16">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="292.19407" transform="rotate(-0 34.220391 292.19407)">0.0</text>
+     </g>
+    </g>
+    <g id="ytick_10">
+     <g id="line2d_38">
+      <path d="M 41.220391 268.123034 
+L 229.239118 268.123034 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_39">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="268.123034" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_17">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="271.165105" transform="rotate(-0 34.220391 271.165105)">0.2</text>
+     </g>
+    </g>
+    <g id="ytick_11">
+     <g id="line2d_40">
+      <path d="M 41.220391 247.094069 
+L 229.239118 247.094069 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_41">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="247.094069" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_18">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="250.136139" transform="rotate(-0 34.220391 250.136139)">0.4</text>
+     </g>
+    </g>
+    <g id="ytick_12">
+     <g id="line2d_42">
+      <path d="M 41.220391 226.065103 
+L 229.239118 226.065103 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_43">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="226.065103" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_19">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="229.107174" transform="rotate(-0 34.220391 229.107174)">0.6</text>
+     </g>
+    </g>
+    <g id="ytick_13">
+     <g id="line2d_44">
+      <path d="M 41.220391 205.036138 
+L 229.239118 205.036138 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_45">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="205.036138" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_20">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="208.078208" transform="rotate(-0 34.220391 208.078208)">0.8</text>
+     </g>
+    </g>
+    <g id="ytick_14">
+     <g id="line2d_46">
+      <path d="M 41.220391 184.007172 
+L 229.239118 184.007172 
+" clip-path="url(#pf3bce37584)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_47">
+      <g>
+       <use xlink:href="#mebb074a091" x="41.220391" y="184.007172" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_21">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="34.220391" y="187.049243" transform="rotate(-0 34.220391 187.049243)">1.0</text>
+     </g>
+    </g>
+    <g id="text_22">
+     <!-- p$_{supply}$ [bar] -->
+     <g style="fill: #1a1a19" transform="translate(15.770391 258.594586) rotate(-90)">
+      <text>
+       <tspan x="0" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">p</tspan>
+       <tspan x="24.658496" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19"> </tspan>
+       <tspan x="27.020068" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">[</tspan>
+       <tspan x="29.381641" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">b</tspan>
+       <tspan x="34.108936" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">a</tspan>
+       <tspan x="38.83623" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">r</tspan>
+       <tspan x="41.666797" y="-0.5625" style="font-size: 8.5px; font-family: 'Arial'; fill: #1a1a19">]</tspan>
+       <tspan x="4.813428" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">s</tspan>
+       <tspan x="7.913354" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">u</tspan>
+       <tspan x="11.684399" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">p</tspan>
+       <tspan x="15.461255" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">p</tspan>
+       <tspan x="19.23811" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">l</tspan>
+       <tspan x="20.891211" y="0.914062" style="font-style: oblique; font-size: 5.95px; font-family: 'DejaVu Sans'; fill: #1a1a19">y</tspan>
+      </text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_9">
+    <path d="M 41.220391 289.152 
+L 41.220391 184.007172 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 41.220391 289.152 
+L 229.239118 289.152 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #86847f" x="135.229754" y="236.579586" transform="rotate(-0 135.229754 236.579586)">no pressure data</text>
+   </g>
+  </g>
+  <g id="axes_4">
+   <g id="patch_11">
+    <path d="M 270.603238 289.152 
+L 458.621965 289.152 
+L 458.621965 184.007172 
+L 270.603238 184.007172 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="matplotlib.axis_7">
+    <g id="xtick_18">
+     <g id="line2d_48">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="279.149544" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_24">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(271.721431 306.024095) rotate(-45)">j_1</text>
+     </g>
+    </g>
+    <g id="xtick_19">
+     <g id="line2d_49">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="300.515308" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_25">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(293.087196 306.024095) rotate(-45)">j_2</text>
+     </g>
+    </g>
+    <g id="xtick_20">
+     <g id="line2d_50">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="321.881073" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_26">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(314.45296 306.024095) rotate(-45)">j_3</text>
+     </g>
+    </g>
+    <g id="xtick_21">
+     <g id="line2d_51">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="343.246837" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_27">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(335.818725 306.024095) rotate(-45)">j_9</text>
+     </g>
+    </g>
+    <g id="xtick_22">
+     <g id="line2d_52">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="364.612602" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_28">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(354.510609 308.697975) rotate(-45)">j_10</text>
+     </g>
+    </g>
+    <g id="xtick_23">
+     <g id="line2d_53">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="385.978366" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_29">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(376.230988 308.343361) rotate(-45)">j_11</text>
+     </g>
+    </g>
+    <g id="xtick_24">
+     <g id="line2d_54">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="407.344131" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_30">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(397.242138 308.697975) rotate(-45)">j_12</text>
+     </g>
+    </g>
+    <g id="xtick_25">
+     <g id="line2d_55">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="428.709895" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_31">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(418.607903 308.697975) rotate(-45)">j_13</text>
+     </g>
+    </g>
+    <g id="xtick_26">
+     <g id="line2d_56">
+      <g>
+       <use xlink:href="#mb76e580f3a" x="450.07566" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_32">
+      <text style="font-size: 6.8px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; fill: #52514e" transform="translate(439.973667 308.697975) rotate(-45)">j_14</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_8">
+    <g id="ytick_15">
+     <g id="line2d_57">
+      <path d="M 270.603238 289.152 
+L 458.621965 289.152 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_58">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="289.152" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_33">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="292.19407" transform="rotate(-0 263.603238 292.19407)">0.0</text>
+     </g>
+    </g>
+    <g id="ytick_16">
+     <g id="line2d_59">
+      <path d="M 270.603238 268.123034 
+L 458.621965 268.123034 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_60">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="268.123034" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_34">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="271.165105" transform="rotate(-0 263.603238 271.165105)">0.2</text>
+     </g>
+    </g>
+    <g id="ytick_17">
+     <g id="line2d_61">
+      <path d="M 270.603238 247.094069 
+L 458.621965 247.094069 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_62">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="247.094069" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_35">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="250.136139" transform="rotate(-0 263.603238 250.136139)">0.4</text>
+     </g>
+    </g>
+    <g id="ytick_18">
+     <g id="line2d_63">
+      <path d="M 270.603238 226.065103 
+L 458.621965 226.065103 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_64">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="226.065103" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_36">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="229.107174" transform="rotate(-0 263.603238 229.107174)">0.6</text>
+     </g>
+    </g>
+    <g id="ytick_19">
+     <g id="line2d_65">
+      <path d="M 270.603238 205.036138 
+L 458.621965 205.036138 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_66">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="205.036138" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_37">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="208.078208" transform="rotate(-0 263.603238 208.078208)">0.8</text>
+     </g>
+    </g>
+    <g id="ytick_20">
+     <g id="line2d_67">
+      <path d="M 270.603238 184.007172 
+L 458.621965 184.007172 
+" clip-path="url(#p304231e539)" style="fill: none; stroke: #d8d7d2; stroke-width: 0.5; stroke-linecap: square"/>
+     </g>
+     <g id="line2d_68">
+      <g>
+       <use xlink:href="#mebb074a091" x="270.603238" y="184.007172" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_38">
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="263.603238" y="187.049243" transform="rotate(-0 263.603238 187.049243)">1.0</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_12">
+    <path d="M 270.603238 289.152 
+L 270.603238 184.007172 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 270.603238 289.152 
+L 458.621965 289.152 
+" style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #86847f" x="364.612602" y="236.579586" transform="rotate(-0 364.612602 236.579586)">no pressure data</text>
+   </g>
+  </g>
+  <g id="text_40">
+   <text style="font-size: 10px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="243.188895" y="14.479687" transform="rotate(-0 243.188895 14.479687)">Supply temperature and pressure along the main trunk (monotone fall = L3+ propagation check)</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p32c6aac9f2">
+   <rect x="41.220391" y="45.216" width="188.018727" height="105.144828"/>
+  </clipPath>
+  <clipPath id="pd9638d4de0">
+   <rect x="270.603238" y="45.216" width="188.018727" height="105.144828"/>
+  </clipPath>
+  <clipPath id="pf3bce37584">
+   <rect x="41.220391" y="184.007172" width="188.018727" height="105.144828"/>
+  </clipPath>
+  <clipPath id="p304231e539">
+   <rect x="270.603238" y="184.007172" width="188.018727" height="105.144828"/>
+  </clipPath>
+ </defs>
+</svg>

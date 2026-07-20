@@ -250,8 +250,15 @@ def _export_node_results(
                 except Exception as e:
                     logger.debug(f"Could not export Q_demand for {node_id}: {e}")
 
-        # Extract pressure if available
-        P_var = getattr(model, f'{node_prefix}_P', None)
+        # Extract pressure if available.
+        # BUGFIX (2026-07-19): this looked for "{node_prefix}_P", but the
+        # actual Pyomo attribute (calion/models/blocks/thermal_node.py:279)
+        # is named "{prefix}_pressure_supply" -- the lookup never matched
+        # anything, on either network, for the whole campaign, so P_avg_bar
+        # and every "{node}_P" timeseries column were always empty despite
+        # pressure being modeled and solved. Also export pressure_return for
+        # completeness (previously not attempted at all).
+        P_var = getattr(model, f'{node_prefix}_pressure_supply', None)
         if P_var is not None:
             try:
                 P_vals = [pyo.value(P_var[t]) for t in time_set]
@@ -259,6 +266,15 @@ def _export_node_results(
                 node_timeseries[f'{node_id}_P'] = P_vals
             except Exception as e:
                 logger.debug(f"Could not export pressure for {node_id}: {e}")
+
+        P_ret_var = getattr(model, f'{node_prefix}_pressure_return', None)
+        if P_ret_var is not None:
+            try:
+                P_ret_vals = [pyo.value(P_ret_var[t]) for t in time_set]
+                node_summary['P_return_avg_bar'] = sum(P_ret_vals) / len(P_ret_vals)
+                node_timeseries[f'{node_id}_P_return'] = P_ret_vals
+            except Exception as e:
+                logger.debug(f"Could not export return pressure for {node_id}: {e}")
 
         all_nodes_data.append(node_summary)
         logger.info(f"  ✓ {node_id} ({node_type})")

@@ -1,0 +1,598 @@
+# =============================================================================
+# PAPER 2 — Scenario Matrix (Rev B, 2026-07-03)
+# =============================================================================
+# Implements the edited spec table (§5.1): 18 scenario rows ≈ 46 MILP runs.
+#   2 BC + 2 S0-TVLFIX + 6 S0-HK + 21 SB (S1..S7 ×3) + 15 MM (S1..S5 ×3)
+#
+# Scenario naming: {network}-{row}-{heat curve}
+#   BC        = baseline (no investment, TVL fix)
+#   S0        = HP/EK investment WITHOUT TES (isolates TES value)
+#   TVLFIX    = constant supply temperature year-round (Paper-1 setpoint)
+#   HK0/1/2   = heat curve stages (real / k=0.8 / k=0.6)
+#
+# Feature gates (runner skips until the model feature is implemented):
+#   hot_charging      — HP charges TES at T_VL,max (SB 122°C / MM 100°C);
+#                       TES ΔT = T_VL,max − T_return; 2nd COP series (F2)
+#   endogenous_siting — MILP chooses TES (and HP) node freely, Σ build ≤ 1 (F3)
+#
+# NODE MAPPING — Stadtbach (32-node swa topo), PROPOSED, pending confirmation:
+#   J1 = j_hkw  (Zentrale — HKW busbar)                     [S1]
+#   J4 = j_man  (MAN industrial waste heat; HP/EK site)     [S2, S3, HP all rows]
+#   J6 = j_pss  (Pumpstation Süd)                           [S4]
+#   J8 = j_psw  (Pumpstation West)                          [S5]
+# Memmingen: J1 = j_1, J12 = j_12 (HP/EK already at j_12 in base config).
+# =============================================================================
+
+# Heat curve stages — network-keyed (Stadtbach runs at higher temperatures than Memmingen)
+# Memmingen: T_VL 55-100°C  |  Stadtbach: T_VL 70-122°C (from PPS measurements)
+heat_curve_stages:
+  memmingen:
+    # T_return = 63.6°C. HK stages are NETWORK TRANSFORMATION SCENARIOS:
+    # HK0 = current real network, no substation changes.
+    # HK1/HK2 = assume progressive consumer substation retrofit enabling lower T_VL_min.
+    # The runner enforces T_VL_min ≥ T_return + 10 K as a safety floor and logs
+    # violations (hours where non-retrofitted substations would be undersupplied).
+    HK0:
+      k: 1.0
+      T_VL_min_c: 74.0   # current real floor (T_return + 10.4 K); no retrofit needed
+      T_VL_max_c: 100.0
+      description: "Memmingen: current real heat curve, no substation changes"
+    HK1:
+      k: 0.8
+      T_VL_min_c: 70.0   # partial retrofit (50% of substations)
+      T_VL_max_c: 100.0
+      T_RL_c: 55.0       # retrofit lowers return too (better HX); ΔT_min=15K keeps flows in-pipe
+      description: "Memmingen: reduced slope k=0.8, partial substation retrofit"
+    HK2:
+      k: 0.6
+      T_VL_min_c: 66.0   # full retrofit (all substations)
+      T_VL_max_c: 100.0
+      T_RL_c: 51.0       # full retrofit lowers return further; ΔT_min=15K keeps flows in-pipe
+      description: "Memmingen: reduced slope k=0.6, full substation retrofit"
+  stadtbach:
+    # T_return = 60°C. Same transformation scenario framing as Memmingen.
+    HK0:
+      k: 1.0
+      T_VL_min_c: 70.0   # current real floor (T_return + 10 K); PPS-calibrated
+      T_VL_max_c: 122.0
+      description: "Stadtbach: current real heat curve (PPS-calibrated), no retrofit"
+    HK1:
+      k: 0.8
+      T_VL_min_c: 65.0   # partial retrofit
+      T_VL_max_c: 122.0
+      T_RL_c: 50.0       # retrofit lowers return too (better HX); ΔT_min=15K keeps flows in-pipe
+      description: "Stadtbach: reduced slope k=0.8, partial substation retrofit"
+    HK2:
+      k: 0.6
+      T_VL_min_c: 60.0   # full retrofit
+      T_VL_max_c: 122.0
+      T_RL_c: 45.0       # full retrofit lowers return further; ΔT_min=15K keeps flows in-pipe
+      description: "Stadtbach: reduced slope k=0.6, full substation retrofit"
+
+# TES candidate nodes (spec row → real node)
+tes_nodes:
+  memmingen:
+    S1: "j_1"     # spec J1  — Zentrale (existing TES location)
+    S2: "j_12"    # spec J12 — waste-heat node (HP/EK site)
+    S3: "j_12"    # spec J12 — same node, hot charging (feature-gated)
+  stadtbach:
+    S1: "j_hkw"   # spec J1 — Zentrale (all central generators + existing TES)
+    S2: "j_man"   # spec J4 — MAN waste-heat node (PROPOSED mapping)
+    S3: "j_man"   # spec J4 — same node, hot charging (feature-gated)
+    S4: "j_pss"   # spec J6 — Pumpstation Süd (PROPOSED mapping)
+    S5: "j_psw"   # spec J8 — Pumpstation West (PROPOSED mapping)
+
+# HP/EK location (spec §3.3: fixed at the waste-heat node for ALL investment runs)
+hp_nodes:
+  stadtbach:
+    J4: "j_man"   # PROPOSED — confirm; every SB investment scenario uses this
+  memmingen:
+    J12: "j_12"   # already the base-config location
+hp_assets:
+  stadtbach: [hp_sb, ek_sb]
+  memmingen: [hp_main, eboiler_main]
+
+# Candidate nodes for endogenous siting (S6/S7 SB, S4/S5 MM).
+# Spec says "alle können genommen werden"; this shortlist keeps the MILP
+# tractable (producers + junctions + waste-heat nodes) — extend if needed.
+endogenous_candidates:
+  stadtbach: [j_hkw, j_man, j_ost, j_pss, j_psw]
+  memmingen: [j_1, j_3, j_5, j_9, j_12, j_13]
+
+# DSM consumers (spec §4.4.1: implement but keep at 0 until user provides data)
+dsm_consumers:
+  memmingen: []
+  stadtbach: []
+
+# Reusable override anchors
+_tes_off_sb: &tes_off_sb
+  assets:
+    tes_sb:
+      V_min_m3: 0.0    # no investable TES (geometric_storage: build=0, V=0)
+      V_max_m3: 0.0
+_tes_off_mm: &tes_off_mm
+  assets:
+    tes_main:
+      V_min_m3: 0.0
+      V_max_m3: 0.0
+
+scenarios:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Baselines — no investment, constant T_VL (Ist-Zustand reference)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "BC-SB"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: null
+    baseline: true
+    description: "Stadtbach baseline — Bestand only (incl. 500 MWh TES + 10 MW P2H), constant T_VL"
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  - id: "BC-MM"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: null
+    baseline: true
+    description: "Memmingen baseline — Bestand only, no HP/EK/TES, constant T_VL"
+    overrides:
+      assets:
+        hp_main:
+          capacity_mw: 0.0        # baseline: no HP exists (spec §4.5)
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0        # baseline: no EK exists — base config's 5 MW must not dispatch
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # S0 — HP/EK investment WITHOUT TES (isolates the TES contribution)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "SB-S0-TVLFIX"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: HP/EK investment at J4, no TES, constant T_VL"
+    overrides: *tes_off_sb
+
+  - id: "MM-S0-TVLFIX"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: null
+    hp_node: "J12"
+    baseline: false
+    description: "Memmingen: HP/EK investment at j_12, no TES, constant T_VL"
+    overrides: *tes_off_mm
+
+  - id: "SB-S0-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: HP/EK at J4, no TES, real heat curve"
+    overrides: *tes_off_sb
+
+  - id: "SB-S0-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: HP/EK at J4, no TES, heat curve stage 1"
+    overrides: *tes_off_sb
+
+  - id: "SB-S0-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: HP/EK at J4, no TES, heat curve stage 2"
+    overrides: *tes_off_sb
+
+  - id: "MM-S0-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J12"
+    baseline: false
+    description: "Memmingen: HP/EK at j_12, no TES, real heat curve"
+    overrides: *tes_off_mm
+
+  - id: "MM-S0-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    hp_node: "J12"
+    baseline: false
+    description: "Memmingen: HP/EK at j_12, no TES, heat curve stage 1"
+    overrides: *tes_off_mm
+
+  - id: "MM-S0-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    hp_node: "J12"
+    baseline: false
+    description: "Memmingen: HP/EK at j_12, no TES, heat curve stage 2"
+    overrides: *tes_off_mm
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Stadtbach S1–S5 — TES location scenarios (HP/EK fixed at J4)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "SB-S1-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J1 (j_hkw Zentrale), HP/EK at J4, real heat curve"
+
+  - id: "SB-S1-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J1, HP/EK at J4, heat curve stage 1"
+
+  - id: "SB-S1-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J1, HP/EK at J4, heat curve stage 2"
+
+  - id: "SB-S2-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S2"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J4 (j_man, with HP), real heat curve"
+
+  - id: "SB-S2-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S2"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J4 (with HP), heat curve stage 1"
+
+  - id: "SB-S2-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S2"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J4 (with HP), heat curve stage 2"
+
+  - id: "SB-S3-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S3"
+    hp_node: "J4"
+    baseline: false
+    hot_charging: true
+    description: "Stadtbach: TES at J4, HP charges TES at T_VL,max=122°C, real heat curve"
+
+  - id: "SB-S3-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S3"
+    hp_node: "J4"
+    baseline: false
+    hot_charging: true
+    description: "Stadtbach: TES at J4, hot charging at 122°C, heat curve stage 1"
+
+  - id: "SB-S3-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S3"
+    hp_node: "J4"
+    baseline: false
+    hot_charging: true
+    description: "Stadtbach: TES at J4, hot charging at 122°C, heat curve stage 2"
+
+  - id: "SB-S4-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S4"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J6 (j_pss Pumpstation Süd), HP/EK at J4, real heat curve"
+
+  - id: "SB-S4-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S4"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J6, HP/EK at J4, heat curve stage 1"
+
+  - id: "SB-S4-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S4"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J6, HP/EK at J4, heat curve stage 2"
+
+  - id: "SB-S5-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S5"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J8 (j_psw Pumpstation West), HP/EK at J4, real heat curve"
+
+  - id: "SB-S5-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S5"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J8, HP/EK at J4, heat curve stage 1"
+
+  - id: "SB-S5-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S5"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at J8, HP/EK at J4, heat curve stage 2"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Stadtbach S6/S7 — endogenous siting (MILP chooses the node)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "SB-S6-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Stadtbach: TES and HP nodes chosen freely by MILP, real heat curve"
+
+  - id: "SB-S6-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Stadtbach: free TES/HP siting, heat curve stage 1"
+
+  - id: "SB-S6-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Stadtbach: free TES/HP siting, heat curve stage 2"
+
+  - id: "SB-S7-HK0"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Stadtbach: TES co-located with HP (free site), hot charging at 122°C, real heat curve"
+
+  - id: "SB-S7-HK1"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Stadtbach: co-located TES+HP (free site), hot charging, heat curve stage 1"
+
+  - id: "SB-S7-HK2"
+    network: "stadtbach"
+    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Stadtbach: co-located TES+HP (free site), hot charging, heat curve stage 2"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Memmingen S1–S2 — TES location scenarios (HP/EK fixed at j_12)
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "MM-S1-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1 (Zentrale), HP/EK at j_12, real heat curve"
+
+  - id: "MM-S1-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1, HP/EK at j_12, heat curve stage 1"
+
+  - id: "MM-S1-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES at j_1, HP/EK at j_12, heat curve stage 2"
+
+  - id: "MM-S2-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (with HP), real heat curve"
+
+  - id: "MM-S2-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (with HP), heat curve stage 1"
+
+  - id: "MM-S2-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (with HP), heat curve stage 2"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Memmingen S3 — hot charging | S4/S5 — endogenous siting
+  # ═══════════════════════════════════════════════════════════════════════════
+  - id: "MM-S3-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S3"
+    baseline: false
+    hot_charging: true
+    description: "Memmingen: TES at j_12, HP charges TES at T_VL,max=100°C, real heat curve"
+
+  - id: "MM-S3-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S3"
+    baseline: false
+    hot_charging: true
+    description: "Memmingen: TES at j_12, hot charging at 100°C, heat curve stage 1"
+
+  - id: "MM-S3-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S3"
+    baseline: false
+    hot_charging: true
+    description: "Memmingen: TES at j_12, hot charging at 100°C, heat curve stage 2"
+
+  - id: "MM-S4-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Memmingen: TES and HP nodes chosen freely by MILP, real heat curve"
+
+  - id: "MM-S4-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Memmingen: free TES/HP siting, heat curve stage 1"
+
+  - id: "MM-S4-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    description: "Memmingen: free TES/HP siting, heat curve stage 2"
+
+  - id: "MM-S5-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Memmingen: TES co-located with HP (free site), hot charging at 100°C, real heat curve"
+
+  - id: "MM-S5-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Memmingen: co-located TES+HP (free site), hot charging, heat curve stage 1"
+
+  - id: "MM-S5-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    hot_charging: true
+    colocate: true
+    description: "Memmingen: co-located TES+HP (free site), hot charging, heat curve stage 2"

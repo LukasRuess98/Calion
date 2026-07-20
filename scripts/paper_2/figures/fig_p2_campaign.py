@@ -257,6 +257,14 @@ def build_f6() -> None:
     ax.set_xlabel("Endogenous TAC vs. best fixed siting [%]")
     ax.set_title("Value of free TES/WP siting", fontsize=9.5, pad=6)
     ax.grid(axis="x")
+    # Labels sit just past each bar's tip (outside, away from zero) -- give the
+    # axes enough left/right margin so a long label on the most extreme bar
+    # (e.g. a large negative delta) doesn't run past the axes edge and
+    # overlap the y-axis category ticks (observed for the Memmingen row when
+    # margins were left at the matplotlib default).
+    lo, hi = min(deltas + [0.0]), max(deltas + [0.0])
+    span = max(hi - lo, 1.0)
+    ax.set_xlim(lo - 0.55 * span, hi + 0.55 * span)
     _style.save(fig, "fig_F6_siting")
 
 
@@ -313,6 +321,16 @@ _TRUNK = {
     "SB": ("SB-S1-HK0", ["j_hkw", "j_pss", "j_hws", "j_don_bosco"]),
     "MM": ("MM-S1-HK0", ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13", "j_14"]),
 }
+# Secondary pump/generator stations along each trunk (network_manager.py's
+# _link_pressure_propagation: these nodes carry a local asset, e.g. Stadtbach's
+# HWS_BOILER at j_pss or Memmingen's hp_main/eboiler_main at j_12, and are
+# deliberately modeled with a FREE, pump-boosted supply pressure/temperature
+# rather than one propagated from the upstream pipe -- confirmed 2026-07-19 by
+# checking configs/*/*.yaml asset attachments directly, not a plotting bug.
+# A "monotone fall" is only a valid expectation WITHIN each station-to-station
+# segment, not across one -- see the 2026-07-19 investigation in the
+# Implementation Statement (F8 entry) for the full trace.
+_TRUNK_STATIONS = {"SB": {"j_pss"}, "MM": {"j_12"}}
 
 
 def _pick_col(df, *names):
@@ -345,22 +363,27 @@ def build_f8() -> None:
         if g.isna().all():
             print(f"  [SKIP] F8 {net}: trunk nodes absent / no incumbent (O-6)")
             continue
-        series.append((NET_LABEL[net], trunk, g, p))
+        series.append((net, NET_LABEL[net], trunk, g, p))
     if not series:
         return
     _style.apply_rcparams()
     # two measures of different units → stacked rows sharing x, never a dual axis
     fig, axes = plt.subplots(2, len(series), figsize=(_style.COL_DOUBLE_IN, 4.4),
                              squeeze=False, sharex="col")
-    for j, (label, trunk, tprof, pprof) in enumerate(series):
+    for j, (net, label, trunk, tprof, pprof) in enumerate(series):
         x = np.arange(len(trunk))
+        station_x = [k for k, nid in enumerate(trunk) if nid in _TRUNK_STATIONS.get(net, set())]
         ax_t, ax_p = axes[0][j], axes[1][j]
+        for sx in station_x:
+            ax_t.axvspan(sx - 0.4, sx + 0.4, color=_style.FHG_BLUE, alpha=0.10, lw=0)
         ax_t.plot(x, tprof.values, marker="o", ms=6, lw=2, color=_style.FHG_ORANGE)
         ax_t.set_title(label, fontsize=9)
         ax_t.grid(axis="y")
         if j == 0:
             ax_t.set_ylabel("T$_{supply}$ [°C]")
         if pprof is not None and not pprof.isna().all():
+            for sx in station_x:
+                ax_p.axvspan(sx - 0.4, sx + 0.4, color=_style.FHG_BLUE, alpha=0.10, lw=0)
             ax_p.plot(x, pprof.values, marker="s", ms=5, lw=2, color=_style.FHG_BLUE)
         else:
             ax_p.text(0.5, 0.5, "no pressure data", transform=ax_p.transAxes,
@@ -369,8 +392,10 @@ def build_f8() -> None:
         ax_p.grid(axis="y")
         if j == 0:
             ax_p.set_ylabel("p$_{supply}$ [bar]")
-    fig.suptitle("Supply temperature and pressure along the main trunk "
-                 "(monotone fall = L3+ propagation check)", fontsize=10, y=1.0)
+    fig.suptitle("Supply temperature and pressure along the main trunk\n"
+                 "(shaded = secondary pump/generator station, free setpoint — "
+                 "monotone fall expected only within each segment)",
+                 fontsize=9.5, y=1.03)
     fig.subplots_adjust(wspace=0.22, hspace=0.32)
     _style.save(fig, "fig_F8_spatial_profile")
 

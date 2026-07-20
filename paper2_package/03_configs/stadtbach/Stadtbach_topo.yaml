@@ -1,0 +1,780 @@
+# =============================================================================
+# STADTBACH DISTRICT HEATING NETWORK — swa-corrected Topology (Paper 2)
+# =============================================================================
+# 32 nodes, 31 pipes (tree topology)
+# Corrections vs. previous ACRON-based topology (cross-checked against swa plans
+# WV640 Bl.3, WV650 Netz-Mitte, WV660 Netz-West):
+#
+#  (1) EAST ARM introduced. GT-Ost, Biomass-CHP and the AVA waste-heat
+#      take-over are physically in the NE (Hammerschmiede) and feed the
+#      network via the eastern trunk (SL5/SL6) — NOT at the HKW busbar.
+#  (2) AVA modelled as a 45 MW DIRECT waste-heat feed-in (ava_feed), with
+#      an investable HP (hp_sb) co-located at j_ava for low-temperature lift.
+#  (3) CONSUMER ZONES corrected to real geography (13 of 24 were misassigned):
+#      Lise-Meitner/Klinikum/Josefinum -> WEST; Kurt-Schumacher/Lechhauser/
+#      KUKA/Hans-Böckler -> EAST; Beethovenpark/Don Bosco -> SOUTH; etc.
+#  (4) PIPE DN and LENGTHS aligned to swa valve tables + real trace distances.
+#
+# PRODUCERS (6 nodes): j_hkw, j_gtost, j_bmhkw, j_ava, j_hws, j_hww
+# JUNCTIONS (4): j_ost, j_ne, j_pss, j_psw
+# CONSUMERS (24): one per ACRON station (7 measured + 17 zone-estimated)
+#
+# FIXED ASSETS (existing infrastructure):
+#   HKW:      75 MW gas CHP
+#   GT-Ost:   35 MW gas — on EAST arm at j_gtost
+#   BMHKW:    14.5 MW biomass — on EAST arm at j_bmhkw
+#   AVA:      45 MW waste-heat feed-in (ava_feed) — on EAST arm at j_ava
+#   HWS:      40 MW gas boiler — south zone at j_hws
+#   HWW:      64 MW gas boiler — west zone at j_hww
+#   P2H:      10 MW existing electrode boiler
+#   TES:     500 MWh existing storage
+#
+# INVESTABLE ASSETS (optimizer sizes these):
+#   hp_sb:    HP at j_hkw, lifting MAN/UPM industrial waste heat (WRG source: Netz-Mitte)
+#   ek_sb:    electrode boiler at j_hkw (0–50 MW, capex 150 k€/MW)
+#   tes_sb:   TES at j_hkw (0–5000 MWh, capex 16.5 k€/MWh)
+#
+# DATA: data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx
+#   Build with: python scripts/preprocess/merge_acron_sb.py
+#   Then:       python scripts/preprocess/clean_stadtbach_west.py
+#   (West-zone 9 estimated consumers reconstructed via energy balance; raw
+#    merge corrupts them from PSW recirculation flow -- see clean script header)
+#
+# TEMPERATURES (from PPS/PSW measurements 2025):
+#   Supply: mean 99°C, max 122°C  |  Return: mean 60°C
+# =============================================================================
+
+site:
+  input_xlsx: "data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  name: "Stadtbach swa-corrected Topology (Paper 2)"
+  description: "Real 32-node Stadtbach network, swa-corrected, with investable assets"
+  run_mode: PF_ONLY
+  milp_linearize: true
+  horizon:
+    start: "2025-01-01 00:00"
+    end: "2025-12-31 23:00"
+
+# =============================================================================
+# NETWORK
+# =============================================================================
+network:
+  milp_linearize: true
+  primary_producer: "j_hkw"   # explicit: j_bmhkw sorts before j_hkw alphabetically
+  physics:
+    heat_loss: true
+    # 2026-07-09: pressure_drop ENABLED after fixing the mesh/booster pressure
+    # formulation. IIS showed the real blocker was NOT mesh over-determination
+    # but that pump-station nodes (j_pss/j_psw) had their supply pressure PINNED
+    # by the incoming pipe (P = P_hkw - Δp), so their booster pump couldn't lift
+    # it -> the j_josefinum consumer station starved of its 0.7 bar differential.
+    # Fix (network_manager._link_pressure_propagation): secondary producers/pump
+    # stations get a pump-boosted supply pressure (floor at setpoint, not pinned),
+    # propagation into any producer is skipped, and node-to-node propagation is an
+    # inequality (valve absorbs excess; pump-power min sets the minimum-pressure
+    # profile) so multi-feed junctions like j_ost aren't over-determined.
+    pressure_drop: true
+    transport_delay: true
+
+  supply_temp_c: 99.0
+  return_temp_c: 60.0
+  ground_temp_c: 10.0
+  min_supply_delta_T_k: 15.0  # minimum T_supply − T_return for consumer substation operation (VDI 6002)
+  consumer_min_temp_c: 70.0   # = T_return + 10 K; includes industrial consumers (Klinikum, KUKA, MAN)
+
+  temperature_frame:
+    default_return_band_c: 5.0
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 115.0
+        return_c: 62.0
+      spring:
+        months: [3, 4, 5]
+        supply_c: 99.0
+        return_c: 61.0
+      summer:
+        months: [6, 7, 8]
+        supply_c: 84.0
+        return_c: 62.0
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 96.0
+        return_c: 60.0
+
+  heating_curve:
+    enabled: true
+    T_supply_max_c: 122.0
+    T_supply_min_c: 70.0
+    T_outdoor_low_c: -15.0
+    T_outdoor_high_c: 30.0
+
+  linearization:
+    method: "pwl"
+    temperature_profile:
+      load_fractions: [0.0, 0.3, 0.6, 1.0]
+      T_supply_c: [70.0, 85.0, 100.0, 122.0]
+      T_return_c: [55.0, 58.0,  62.0,  68.0]
+
+  max_velocity_m_s: 3.0
+  parameters:
+    max_velocity_m_s: 3.0  # passed to pipe_pair enriched_config via self.parameters
+  state_validation:
+    flow_constraints:
+      max_velocity_m_s: 3.0  # passed to state_constraints velocity Pyomo constraint
+  pump_efficiency: 0.75
+  pipe_roughness_mm: 0.5
+  max_pressure_drop_bar: 2.0
+  delta_p_min_consumer_bar: 0.7
+
+  # ---------------------------------------------------------------------------
+  # NODES
+  # ---------------------------------------------------------------------------
+  nodes:
+
+    # ── PRODUCTION HUB (HKW busbar: gas CHP, P2H, TES, investable EK+TES) ───
+    j_hkw:
+      # tes_existing removed 2026-07-08: unlike every other WV640-cited asset in
+      # this file, its 500 MWh figure had no documented source (config's own
+      # comment admitted the derived volume was "a modeling estimate, not a
+      # surveyed dimension", borrowed from tes_sb's ΔT rather than any real
+      # spec) -- treated as fictional per the same standard applied to the
+      # Memmingen header-comment/DN discrepancies found earlier this session.
+      assets: [hkw, p2h_existing, ek_sb, hp_sb, tes_sb]
+      # 2026-07-09: supply-pressure setpoint raised 10 -> 16 bar. Stadtbach is a
+      # ~6 km network with long thin service lines (e.g. hkw_to_kreissparkasse
+      # DN125 x 1740 m); at 10 bar the cumulative Darcy-Weisbach drop left distant
+      # consumer stations below their 0.7 bar minimum differential (IIS-confirmed
+      # head-budget limit, not a formulation bug). 16 bar is a realistic operating
+      # pressure for a district-heating trunk of this length.
+      pressure:
+        setpoint_bar: 16.0
+
+    # ── EAST TRUNK JUNCTION ──────────────────────────────────────────────────
+    # j_ost acts as the east busbar: receives heat from j_hkw (bidirectional
+    # trunk pipe) AND from all east-arm producers (reversed pipes), then
+    # distributes to east consumers. j_ne is merged into j_ost to avoid the
+    # need for a second bidirectional trunk segment.
+    j_ost: {}   # Lechhausen / Hammerschmiede east busbar
+
+    # ── PRODUCER STATIONS ────────────────────────────────────────────────────
+    j_gtost:
+      assets: [gtost]
+
+    j_bmhkw:
+      assets: [bmhkw]
+
+    j_ava:
+      # AVA direct high-temperature waste-heat feed-in only (no HP needed)
+      assets: [ava_feed]
+
+    j_hws: {}   # pure junction — receives heat from j_pss via pss_to_hws pipe
+    j_hww: {}   # pure junction — receives heat from j_psw via psw_to_hww pipe
+
+    # ── PUMP STATIONS (secondary producers) ──────────────────────────────────
+    j_pss:
+      assets: [hws_boiler]
+    j_psw:
+      assets: [hww_boiler]
+
+    # ── NETZ-MITTE CONSUMERS (connected directly to j_hkw) ──────────────────
+    j_man:
+      consumers:
+        - column: "MAN_MW"
+    j_hoher_weg:
+      consumers:
+        - column: "Hoher_Weg_MW"
+    j_hunoldsgraben:
+      consumers:
+        - column: "Hunoldsgraben_MW"
+    j_kreissparkasse:
+      consumers:
+        - column: "Kreissparkasse_MW"
+
+    # ── NETZ-OST CONSUMERS (from j_ost / j_ne) ──────────────────────────────
+    j_lechhauser_str:
+      consumers:
+        - column: "Lechhauser_Str_MW"
+    j_kuka:
+      consumers:
+        - column: "KUKA_MW"
+    j_kurt_schumacher_str:
+      consumers:
+        - column: "Kurt-Schumacher-Str_MW"
+    j_hans_boeckler_str:
+      consumers:
+        - column: "Hans-Boeckler-Str_MW"
+    j_am_mittleren_moos:
+      consumers:
+        - column: "Am_Mittleren_Moos_MW"
+
+    # ── NETZ-SÜD CONSUMERS (from j_pss / j_hws) ─────────────────────────────
+    j_theodor_heuss_platz:
+      consumers:
+        - column: "Theodor-Heuss-Platz_MW"
+    j_fuggerstr:
+      consumers:
+        - column: "Fuggerstr_MW"
+    j_sigma_technopark:
+      consumers:
+        - column: "SIGMA_Technopark_MW"
+    j_uni:
+      consumers:
+        - column: "UNI_MW"
+    j_fraunhofer:
+      consumers:
+        - column: "Fraunhofer_MW"
+    j_beethovenpark:
+      consumers:
+        - column: "Beethovenpark_MW"
+    j_don_bosco:
+      consumers:
+        - column: "Don_Bosco_MW"
+
+    # ── NETZ-WEST CONSUMERS (from j_psw / j_hww) ─────────────────────────────
+    j_schlettererstr:
+      consumers:
+        - column: "Schlettererstr_MW"
+    j_josefinum:
+      consumers:
+        - column: "Josefinum_MW"
+    j_klinikum:
+      consumers:
+        - column: "Klinikum_MW"
+    j_lise_meitner_str:
+      consumers:
+        - column: "Lise-Meitner-Str_MW"
+    j_august_wessels_str:
+      consumers:
+        - column: "August-Wessels-Str_MW"
+    j_hooverstr:
+      consumers:
+        - column: "Hooverstr_MW"
+    j_grasiger_weg:
+      consumers:
+        - column: "Grasiger_Weg_MW"
+    j_siegfried_aufhaeuser_str:
+      consumers:
+        - column: "Siegfried-Aufhaeuser-Str_MW"
+
+  # ---------------------------------------------------------------------------
+  # PIPES (tree topology, 31 edges)
+  # Lengths and diameters from swa plans WV640/WV650/WV660 + air-line x1.3
+  # ---------------------------------------------------------------------------
+  pipes:
+
+    # ── TRUNKS ───────────────────────────────────────────────────────────────
+    # East trunk: HKW ↔ j_ost (bidirectional — east-arm producers can feed
+    # back toward j_hkw when east production > east consumer demand).
+    # Physical length: 1470m (HKW→Lechhausen) + 4460m (SL5/SL6 to NE) = 5930m.
+    hkw_to_ost:
+      from: j_hkw
+      to: j_ost
+      length_m: 5930
+      diameter_mm: 600
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+      bidirectional: true
+    # South trunk: HKW → Pumpstation Süd
+    hkw_to_pss:
+      from: j_hkw
+      to: j_pss
+      length_m: 4470
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    # West trunk: HKW → Pumpstation West
+    hkw_to_psw:
+      from: j_hkw
+      to: j_psw
+      length_m: 2630
+      diameter_mm: 500
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # ── PRODUCER CONNECTIONS (heat flows FROM producer TO east busbar j_ost) ──
+    # Pipes are defined FROM producer TO j_ost so that hot supply water flows
+    # in the physically correct direction: producer → network.
+    gtost_to_ost:
+      from: j_gtost
+      to: j_ost
+      length_m: 60
+      diameter_mm: 350
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    bmhkw_to_ost:
+      from: j_bmhkw
+      to: j_ost
+      length_m: 60
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ava_to_ost:
+      from: j_ava
+      to: j_ost
+      length_m: 870
+      diameter_mm: 450        # AVA direct (45 MW) + investable HP = up to ~95 MW
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    # PSS pump rated 858 m3/h toward HWS → DN400 at v=1.9 m/s (WV640 Bl.3)
+    pss_to_hws:
+      from: j_pss
+      to: j_hws
+      length_m: 610
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    # PSW pump rated 700 m3/h toward HWW → DN500 at v=1.0 m/s (WV640 Bl.3)
+    psw_to_hww:
+      from: j_psw
+      to: j_hww
+      length_m: 960
+      diameter_mm: 500
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # ── NETZ-MITTE feeders (HKW direct) ──────────────────────────────────────
+    hkw_to_man:
+      from: j_hkw
+      to: j_man
+      length_m: 850
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hkw_to_hoher_weg:
+      from: j_hkw
+      to: j_hoher_weg
+      length_m: 650
+      diameter_mm: 350
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hkw_to_hunoldsgraben:
+      from: j_hkw
+      to: j_hunoldsgraben
+      length_m: 1170
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    hkw_to_kreissparkasse:
+      from: j_hkw
+      to: j_kreissparkasse
+      length_m: 1740
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # ── NETZ-OST feeders ─────────────────────────────────────────────────────
+    ost_to_lechhauser:
+      from: j_ost
+      to: j_lechhauser_str
+      length_m: 680
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_kuka:
+      from: j_ost
+      to: j_kuka
+      length_m: 1740
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_kurt_schumacher:
+      from: j_ost
+      to: j_kurt_schumacher_str
+      length_m: 1370
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    ost_to_hans_boeckler:
+      from: j_ost
+      to: j_hans_boeckler_str
+      length_m: 1940
+      diameter_mm: 400
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    ost_to_am_mittleren_moos:
+      from: j_ost
+      to: j_am_mittleren_moos
+      length_m: 870
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    # ── NETZ-SÜD feeders ─────────────────────────────────────────────────────
+    pss_to_theodor_heuss:
+      from: j_pss
+      to: j_theodor_heuss_platz
+      length_m: 2350
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    pss_to_fuggerstr:
+      from: j_pss
+      to: j_fuggerstr
+      length_m: 1200
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_sigma:
+      from: j_hws
+      to: j_sigma_technopark
+      length_m: 450
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_uni:
+      from: j_hws
+      to: j_uni
+      length_m: 910
+      diameter_mm: 300
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    hws_to_fraunhofer:
+      from: j_hws
+      to: j_fraunhofer
+      length_m: 2050
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_beethovenpark:
+      from: j_hws
+      to: j_beethovenpark
+      length_m: 2880
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    hws_to_don_bosco:
+      from: j_hws
+      to: j_don_bosco
+      length_m: 3490
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # ── NETZ-WEST feeders ─────────────────────────────────────────────────────
+    psw_to_schlettererstr:
+      from: j_psw
+      to: j_schlettererstr
+      length_m: 620
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+    psw_to_josefinum:
+      from: j_psw
+      to: j_josefinum
+      length_m: 2070
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    # UKA (Universitätsklinikum) — large hospital, DN250 confirmed (WV660)
+    hww_to_klinikum:
+      from: j_hww
+      to: j_klinikum
+      length_m: 3160
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    hww_to_lise_meitner:
+      from: j_hww
+      to: j_lise_meitner_str
+      length_m: 2270
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    # August-Wessels-Str — DN125 confirmed (WV660 armature 850.3)
+    hww_to_august_wessels:
+      from: j_hww
+      to: j_august_wessels_str
+      length_m: 2150
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+    # Hooverstraße — DN250 confirmed (WV660 armature 620.1)
+    hww_to_hooverstr:
+      from: j_hww
+      to: j_hooverstr
+      length_m: 1000
+      diameter_mm: 250
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+    # Grasiger Weg — DN200 confirmed (WV660 armature 797.1)
+    hww_to_grasiger_weg:
+      from: j_hww
+      to: j_grasiger_weg
+      length_m: 1550
+      diameter_mm: 200
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+    # Siegfried-Aufhäuser-Str — DN200 confirmed (WV660 armature 850.1)
+    hww_to_siegfried_aufhaeuser:
+      from: j_hww
+      to: j_siegfried_aufhaeuser_str
+      length_m: 1470
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+
+# =============================================================================
+# ASSETS
+# =============================================================================
+assets:
+
+  # ── Fixed production assets (existing infrastructure) ─────────────────────
+  # 2026-07-08: capacity_mw = real THERMAL OUTPUT at Übergangszeiten (99/60 °C
+  # supply/return), user-provided and vouched-for. These are the OPERATING
+  # capacities: the takeover/heat-exchanger stations deliver MORE power at the
+  # milder Üzeiten condition (larger primary/secondary ΔT) than at the -14 °C
+  # design point (125/60 °C), where deliverable power is LOWER (HX ΔT-limited).
+  # Since the model runs a heating curve that mostly operates around Üzeiten
+  # conditions, these are the representative caps.
+  # thermal_efficiency / el_eff remain the notebook-guaranteed conversion ratios
+  # (configs/paper_2/20250922_Stadtbach.ipynb); capacity_mw is thermal output, so
+  # fuel = capacity_mw / th_eff and P_el = fuel * el_eff (CHP electricity).
+  hkw:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 127.0          # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.743   # notebook: model.HKW_th_eff
+    el_eff: 0.177               # notebook: model.HKW_el_eff (CHP electricity)
+    min_load: 0.1
+
+  gtost:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 35.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.466   # notebook: model.GTOST_th_eff
+    el_eff: 0.36                # notebook: model.GTOST_el_eff (CHP electricity)
+    min_load: 0.1
+
+  bmhkw:
+    type: thermal_generator
+    fuel: biomass
+    capacity_mw: 14.5           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.485   # notebook: model.BMHKW_th_eff
+    el_eff: 0.177               # notebook: model.BMHKW_el_eff (CHP electricity)
+    min_load: 0.1
+
+  # AVA waste-heat take-over: direct feed-in, th_eff=1.0.
+  ava_feed:
+    type: thermal_generator
+    fuel: waste_heat            # zero-emission, near-zero marginal cost source
+    capacity_mw: 45.0           # real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 1.0
+    min_load: 0.0
+
+  hws_boiler:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 32.0           # Heizwerk Süd, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.936   # notebook: model.HWS_th_eff
+    min_load: 0.1
+
+  hww_boiler:
+    type: thermal_generator
+    fuel: gas
+    capacity_mw: 104.0          # Heizwerk West, real thermal output at Üzeiten 99/60 °C (user-provided)
+    thermal_efficiency: 0.924   # notebook: model.HWW_th_eff
+    min_load: 0.1
+
+  p2h_existing:
+    type: p2h
+    # 2026-07-08: aligned to notebook (P2H_Power bound=10 MW electric * P2H_eff 0.99)
+    capacity_mw: 9.9
+    efficiency: 0.99
+    min_load: 0.1
+
+  # tes_existing removed 2026-07-08 (see j_hkw assets comment above): no
+  # documented WV640 basis, unlike every other asset in this file.
+
+  # ── Investable assets (optimizer sizes these) ──────────────────────────────
+  # HP at j_hkw (central hub) lifting MAN/UPM low-temp industrial waste heat (WRG from Netz-Mitte).
+  # Physical WRG source is at j_man; the HP is co-located at the production hub as a modeling
+  # simplification (DH transport of low-grade heat to HP is not modeled explicitly).
+  hp_sb:
+    type: heat_pump
+    capacity_mw: 0.0
+    min_load: 0.2
+    wrg_source_column: "WRG_1_Celsius"
+    wrg_capacity_column: "WRG1Q_MW"
+    cop_default: 3.0
+    investment:
+      enabled: true
+      capex_eur_per_mw: 400000.0
+      activation_cost_eur: 50000.0
+      lifetime_years: 20.0
+      capacity_min_mw: 0.0
+      capacity_max_mw: 50.0
+
+  ek_sb:
+    type: p2h
+    capacity_mw: 0.0
+    efficiency: 0.98
+    min_load: 0.1
+    investment:
+      enabled: true
+      capex_eur_per_mw: 150000.0
+      activation_cost_eur: 20000.0
+      lifetime_years: 25.0
+      capacity_min_mw: 0.0
+      capacity_max_mw: 50.0
+
+  tes_sb:
+    type: geometric_storage
+    # Scenario ΔT = T_VL_min − T_return (worst-case corridor, not the mean);
+    # overridden per HK stage by scenario_runner.py.
+    delta_T_scenario_k: 36.0    # HK0 baseline: 70 − 60 = 10.0 K worst-case at runtime; static fallback only
+    r_hd: 3.0                   # h/d aspect ratio
+    p_max_bar: 10.0             # max vessel operating pressure
+    V_min_m3: 10.0              # minimum tank volume if built [m³]
+    V_max_m3: 50000.0           # max tank volume [m³]
+    option_b: false             # Option A: V as single Var; h/d back-calculated post-solve
+    # Discrete storage sizes as ENERGY [MWh] = hours of MEAN heat demand (Stadtbach
+    # mean ≈ 73 MW): 0/1/2/4/6/8/12/16/24/36/48/96/168 h. Sizes above one realistic
+    # tank (unit_tank_m3) are realised as N=ceil(V/unit) identical tanks at the site
+    # (beta_tes charged per tank). Exact selection -> tight LP relaxation (the old
+    # continuous V + big-M stalled TES-at-consumer-node scenarios at 43-88 % gap).
+    # Capped at ~845 MWh (V ≤ 50,000 m³ ≈ 2 unit tanks): larger volumes made the
+    # barrier root LP numerically intractable, and >~12 h of storage for a 200 MW
+    # network is neither usable nor affordable. Hours of MEAN demand (≈73 MW): up to ~12 h.
+    discrete_energies_mwh: [0, 73, 146, 219, 292, 365, 438, 511, 584, 657, 730, 845]
+    unit_tank_m3: 25000.0       # one realistic single tank (~423 MWh at ΔT=15)
+    alpha_tes_eur_per_m3: 400.0 # variable CAPEX [€/m³] (larger tank → lower unit cost)
+    beta_tes_eur: 100000.0      # fixed CAPEX per tank (engineering, permits, connections) [€]
+    lifetime_years: 30.0
+    eff_charge: 0.98
+    eff_discharge: 0.98
+    loss_hour: 0.9999
+    soc0_fraction: 0.5
+    power_to_energy_ratio: 0.25
+    terminal_soc_fraction: 0.5
+    # Dead-volume floor: stratified hot-water tanks can't fully discharge —
+    # diffuser placement and pump NPSH require some minimum water level.
+    # 5% is a generic literature range (typically 5-10%), not a measured
+    # value for this specific tank; revisit if real commissioning data
+    # becomes available.
+    e_min_fraction: 0.05
+    cycling_cost_eur_per_mwh: 2.0
+
+
+# =============================================================================
+# WASTE HEAT CONFIGURATION
+# =============================================================================
+waste_heat:
+  Q_AW_max_column: "WRG1Q_MW"
+  T_AW_column: "WRG_1_Celsius"
+  T_amb_column: "outdoor_temp_C"
+
+
+# =============================================================================
+# HEAT PUMP COP MODEL
+# =============================================================================
+heat_pumps:
+  cop:
+    sink_defaults:
+      Tsink_out_K: 372.15      # 99°C (Stadtbach mean supply)
+      Tsink_in_K: 333.15       # 60°C (Stadtbach mean return)
+    deltaT_K: 20.0
+    deltaTpp_K: 5.0
+    cop_fallback: 3.0
+  types:
+    standard:
+      # 2026-07-08: eta corrected 0.6 -> 0.75 to match the notebook's Lorenz-COP
+      # calibration exactly (model.eta in 20250922_Stadtbach.ipynb) -- this
+      # formula was ported from that same notebook, whose own default/code
+      # default is also 0.75; 0.6 had no documented justification.
+      eta: 0.75
+      FQ: 0.10
+
+
+# =============================================================================
+# INVESTMENT ECONOMICS
+# =============================================================================
+investment:
+  discount_rate: 0.05          # i = 5% (VDI 2067 / WACC)
+
+
+# =============================================================================
+# GRID, FUELS, COSTS
+# =============================================================================
+grid:
+  max_import_mw: 5000.0
+  max_export_mw: 5000.0
+  # Volumetric grid cost = MS Arbeitspreis (>=2500 h/a band ~0.5-2.0 ct/kWh) + 2026 levies:
+  # KWKG 0.446 + Offshore 0.941 + BesAR/§19 0.05 (>1 GWh tranche) ct/kWh
+  # + Konzessionsabgabe Sondervertrag 0.11 + Stromsteuer 0.05 (Prod. Gewerbe) => ~2.5 ct/kWh
+  gridcost_eur_mwh: 25.0
+  # Jahresleistungspreis on peak grid import (P_buy_peak), MS level >=2500 h/a band.
+  # 2026 published sheets span 67-167 k€/MW·a (NEW Netz 118.3 / Schleswig 165.2 /
+  # Fairnetz 167.0 / EWE 67.2). 127.24 k€/MW·a = real 2022/23 tariff from the SB
+  # notebook — sits mid-range of 2026 values, kept for continuity.
+  demand_charge_eur_per_mw_y: 127240.0
+
+fuels:
+  gas:
+    price_eur_mwh: 45.0
+    ef_kg_per_mwh_fuel: 200.0
+  biomass:
+    price_eur_mwh: 40.0
+    ef_kg_per_mwh_fuel: 20.0
+  waste_heat:
+    price_eur_mwh: 5.0          # AVA take-over: low marginal cost, ~CO2-free
+    ef_kg_per_mwh_fuel: 0.0
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 1000.0
+
+emissions:
+  ef_el_kg_per_mwh: 400.0
+  ef_gas_kg_per_mwh: 200.0
+  ef_biomass_kg_per_mwh: 20.0
+
+
+# =============================================================================
+# RUN SETTINGS
+# =============================================================================
+run:
+  dt_h: 1.0
+  solver: gurobi
+  solver_options:
+    MIPGap: 0.005
+    TimeLimit: 86400
+    MIPFocus: 1
+    Heuristics: 0.5
+    NumericFocus: 2
+    OutputFlag: 1
+    LogToConsole: 1
+
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+output:
+  log_dir: "output/logs"
+  export_dir: "output/paper2_runs"
+  export_thermal_network: true
+  export_solver_solution: true
+
+
+# =============================================================================
+# DISPATCH SERIES MAP
+# Explicit routing of result_collector series keys to dispatch_hourly.csv columns.
+# Overrides the heuristic fallback in extract_artefacts.write_dispatch_hourly().
+# Keys: series key as stored by result_collector ({ASSET_ID}_Q_th_MW or hp_{id}_Q_th_MW).
+# Values: target column in dispatch_hourly.csv.
+# Note: P2H_Q_th_MW is captured by the primary Q_ek sum and must NOT be listed here.
+# =============================================================================
+dispatch_series_map:
+  HKW_Q_th_MW:       Q_chp_MW        # gas CHP (75 MW, j_hkw)
+  GTOST_Q_th_MW:     Q_chp_MW        # gas turbine east (35 MW, j_gtost)
+  BMHKW_Q_th_MW:     Q_biomass_MW    # biomass CHP (14.5 MW, j_bmhkw)
+  AVA_FEED_Q_th_MW:  Q_biomass_MW    # AVA waste-heat feed-in (45 MW, j_ava) — zero CO2
+  HWS_BOILER_Q_th_MW: Q_gasboiler_MW # Heizwerk Süd gas boiler (40 MW, j_pss)
+  HWW_BOILER_Q_th_MW: Q_gasboiler_MW # Heizwerk West gas boiler (64 MW, j_psw)
+  hp_sb_Q_th_MW:     Q_hp_total_MW   # investable heat pump at j_hkw (MAN/UPM waste heat)
