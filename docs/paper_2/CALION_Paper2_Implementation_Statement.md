@@ -1478,13 +1478,20 @@ rows, plus Memmingen P1↔P2 OPEX consistency failing at 124.49 % (gate ≤2 %).
   fixed — noted here so it isn't mistaken for a new bug.
 
 **Two genuinely new, real findings surfaced once the fog cleared (neither is a reporting
-artifact — both need their own diagnosis, not covered by this session's fix):**
+artifact — both needed their own diagnosis at the time this section was written; both are now
+resolved below, see the inline pointers — this section is kept verbatim as the historical record
+of how the question was first raised, not as a currently-open question):**
 1. **MW closure error, computed correctly for the first time**: mean 25.83 %, max 63.73 % (worst:
    `SB-S2-HK2`), only **7/36** converged runs pass the ≤2 % gate. This is the opposite of
    reassuring — the previous "0/3" was hiding behind the status-key bug rather than reflecting a
    real (much larger, much better-sampled) picture. Needs a dedicated diagnostic session: is the
    closure check itself mis-specified (e.g. double-counting network losses it explicitly says are
    "not an imbalance"), or is this a real dispatch-balance defect.
+   **→ RESOLVED in G.12 (below).** A decisive per-node audit reading live Gurobi state directly
+   (`Σht_out` vs `Σdemand`) matched to 0.04 % — the model's true heat balance is correct. The
+   large percentages are a **closure-check formula/methodology gap**: `gen + discharge − charge`
+   nets a wash-cycling TES's real throughput to ~zero. Not an energy-conservation defect. Treat
+   this bullet as the historical statement of the question, not as still-open.
 2. **Memmingen P1↔P2 OPEX consistency, confirmed real** (both inputs are fresh/correct — `BC-MM`
    solved 2026-07-12, `status=optimal`, gap 0.53 %; the Paper-1 `L3` reference is a static,
    independently-validated file from 2026-05-26, not stale): `124.49 %` deviation,
@@ -1494,6 +1501,10 @@ artifact — both need their own diagnosis, not covered by this session's fix):*
    `Q_WP=5 MW, Q_EK=5 MW` assumption the check's docstring says it should. Needs its own targeted
    comparison of `BC-MM`'s asset config against the Paper 1 `L3` setup before deciding whether this
    is a config drift or a real formulation divergence.
+   **→ RESOLVED in G.11 (below).** `BC-MM` (0 MW HP, Paper 2's zero-investment baseline) and
+   Paper 1's `L3` (5 MW HP, pre-existing) are two deliberately different scenarios by design —
+   the deviation is the expected consequence of that difference, not a bug or config drift. See
+   G.14 for the follow-up: a new explicitly-labeled 5 MW-fixed comparison scenario.
 3. **`SB-S6-HK0`'s canonical T3 row is still the known-bad monolithic result** (`TAC=58.588M€,
    Δcost=-431%`) — expected per G.6–G.8, not a new bug, but flagged so it is not mistaken for a
    real KPI: the enumeration-decomposition winner (`hp_j_man/tes_j_man`, `4.49M€`, 1.18 % gap, see

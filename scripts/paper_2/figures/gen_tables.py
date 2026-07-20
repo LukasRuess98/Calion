@@ -415,9 +415,24 @@ def build_t5() -> None:
     print("T5 — validation table:")
     import numpy as np
     from collections import Counter
+    canonical_ids = {s["id"] for s in _load_yaml(SCENARIOS_YAML).get("scenarios", [])}
+    # SB-S6/MM-S4 (endogenous siting): the canonical run dir, where it exists, is the known-bad
+    # pre-decomposition monolithic attempt (G.6-G.8) — the real winner per stage comes from the
+    # enumeration decomposition and lives in tab_T3b_T4b_f3_endogenous_siting_FINAL.csv instead.
+    # Their monolithic solver stats (e.g. MM-S4-HK0's sign-flipped-bound 47349% gap, G.10) are not
+    # meaningful campaign statistics and are excluded here rather than "fixed" per G.10's guidance.
+    endogenous_superseded = {s for s in canonical_ids if s.startswith(("SB-S6-", "MM-S4-"))}
     gaps, statuses = [], []
     good_closures, good_losses, suspect_runs = [], [], []   # converged / loss-frac / flagged
+    excluded_dirs = []   # non-canonical run dirs (F3 enumeration sub-pairs, diagnostics, TEST/DIAG) — reported separately, not mixed into T5
+    superseded_dirs = []  # canonical SB-S6/MM-S4 dirs holding the superseded monolithic attempt
     for d in sorted(p for p in OUT_RUNS.iterdir() if p.is_dir()):
+        if d.name in endogenous_superseded:
+            superseded_dirs.append(d.name)
+            continue
+        if d.name not in canonical_ids:
+            excluded_dirs.append(d.name)
+            continue
         vj, mj = d / "validation.json", d / "meta.json"
         status = None
         if mj.exists():
@@ -447,6 +462,13 @@ def build_t5() -> None:
     rows: list[dict] = []
     def add(metric, value, note=""):
         rows.append({"Validation metric": metric, "Value": value, "Note": note})
+
+    add("Campaign population", f"{len(canonical_ids)} canonical scenarios",
+        f"{len(statuses)} reported here directly; {len(endogenous_superseded)} SB-S6/MM-S4 ids "
+        "resolved via enumeration decomposition instead of a monolithic solve (per G.8) — see "
+        "tab_T3b_T4b_f3_endogenous_siting_FINAL.csv for their KPIs; "
+        f"{len(excluded_dirs)} further diagnostic/enumeration run dirs (F3 sub-pairs, TEST/DIAG, "
+        "superseded re-solves) excluded from this table — see tab_T5_supplement_excluded_runs")
 
     if good_closures:
         errs = [c[1] for c in good_closures]
@@ -502,8 +524,36 @@ def build_t5() -> None:
     _write(pd.DataFrame(rows), "tab_T5_validation",
            "Model validation summary across the campaign.", "tab:t5_validation",
            align="llp{5cm}"[:0] + "lll")
-    print(f"    metrics={len(rows)}  converged_closures={len(good_closures)}  "
-          f"excluded={len(suspect_runs)}  gaps={len(gaps)}")
+
+    # Supplement: the non-canonical run population T5 now excludes (F3 endogenous-siting
+    # enumeration sub-pairs, TEST/DIAG runs, superseded re-solves) — kept visible, not silently
+    # dropped, per the reviewer request to report diagnostics separately from the 46-run headline.
+    excl_rows = []
+    for name in sorted(excluded_dirs) + sorted(superseded_dirs):
+        mj = OUT_RUNS / name / "meta.json"
+        st, gap = "?", None
+        if mj.exists():
+            try:
+                m = json.loads(mj.read_text())
+                st = str(m.get("status", "?"))
+                gap = m.get("mip_gap")
+            except Exception:  # noqa: BLE001
+                pass
+        kind = ("SB-S6/MM-S4 superseded monolithic (G.8)" if name in superseded_dirs
+                else "F3 enumeration sub-pair" if "__hp_" in name and "__tes_" in name
+                else "TEST/DIAG" if ("TEST" in name or "DIAG" in name or "ZZ" in name)
+                else "other diagnostic/superseded")
+        excl_rows.append({"Run dir": name, "Kind": kind, "Status": st,
+                           "MIP gap": f"{gap * 100:.2f} %" if gap is not None else "—"})
+    _write(pd.DataFrame(excl_rows), "tab_T5_supplement_excluded_runs",
+           "Non-canonical run directories excluded from tab\\_T5\\_validation (F3 "
+           "endogenous-siting enumeration sub-pairs, diagnostic/test runs, superseded "
+           "re-solves) — reported here for transparency, not part of the 46-scenario campaign.",
+           "tab:t5_supplement_excluded", align="lllr")
+    print(f"    metrics={len(rows)}  canonical_found={len(statuses)}/{len(canonical_ids)}  "
+          f"superseded_monolithic={len(superseded_dirs)}  "
+          f"converged_closures={len(good_closures)}  excluded_non_canonical={len(excluded_dirs)}  "
+          f"gaps={len(gaps)}")
 
 
 _ALL = {"T1": build_t1, "T2": build_t2, "T3": build_t3, "T4": build_t4, "T5": build_t5}
