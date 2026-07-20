@@ -65,3 +65,5 @@ grbnodes3/
 
 # Claude Code files
 .claude/
+
+debug_model.lp
