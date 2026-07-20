@@ -36,7 +36,11 @@ outputs/dashboard/
 # Results
 output/
 outputs/
-
+zenodo_package
+results
+logs
+output/
+exports/
 # IDE settings (personal configurations)
 .vscode/
 .venv
