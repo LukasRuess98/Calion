@@ -1,8 +1,35 @@
-\begin{thebibliography}{}
+\begin{thebibliography}{1}
 \expandafter\ifx\csname url\endcsname\relax
   \def\url#1{\texttt{#1}}\fi
 \expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
 \expandafter\ifx\csname href\endcsname\relax
   \def\href#1#2{#2} \def\path#1{#1}\fi
+
+\bibitem{Krug.2025}
+R.~Krug, F.~B{\"o}ttcher, et~al., Optimization of heating curves for heat pumps
+  in operation: Outdoor temperature ranges for energy-efficient heating curve
+  shifts, Applied Energy 388 (2025) 123619.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2025.123619}
+  {\path{doi:10.1016/j.apenergy.2025.123619}}.
+
+\bibitem{Pieper.2020}
+H.~Pieper, T.~Ommen, J.~K. Jensen, B.~Elmegaard, W.~B. Markussen, Comparison of
+  cop estimation methods for large-scale heat pumps used in energy planning,
+  Energy 205 (2020) 117994.
+\newblock \href {https://doi.org/10.1016/j.energy.2020.117994}
+  {\path{doi:10.1016/j.energy.2020.117994}}.
+
+\bibitem{Dahash.2021}
+A.~Dahash, F.~Ochs, A.~Tosatto, Techno-economic and exergy analysis of tank and
+  pit thermal energy storage for renewables district heating systems, Renewable
+  Energy 180 (2021) 1358--1379.
+\newblock \href {https://doi.org/10.1016/j.renene.2021.08.106}
+  {\path{doi:10.1016/j.renene.2021.08.106}}.
+
+\bibitem{Castro.2015}
+P.~M. Castro, Tightening piecewise mccormick relaxations for bilinear problems,
+  Computers {\&} Chemical Engineering 72 (2015) 300--311.
+\newblock \href {https://doi.org/10.1016/j.compchemeng.2014.03.025}
+  {\path{doi:10.1016/j.compchemeng.2014.03.025}}.
 
 \end{thebibliography}

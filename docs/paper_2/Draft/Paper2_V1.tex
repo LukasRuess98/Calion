@@ -1,18 +1,60 @@
-\documentclass[preprint,12pt]{elsarticle}
-% Alternative Optionen:
-% \documentclass[final,3p,times]{elsarticle}         % 3-spaltig final
-% \documentclass[final,5p,times,twocolumn]{elsarticle} % 2-spaltig final
+%% ============================================================
+%% PAPER 2: TOPOLOGY-, GEOMETRY- AND HEAT-CURVE-AWARE SIZING OF
+%%          THERMAL STORAGE AND HEAT PUMPS IN DISTRICT HEATING
+%% Target Journal: Energy Conversion and Management
+%% Version: 0.1 — SCAFFOLD (placeholders only)
+%% Framework: CALION
+%% ------------------------------------------------------------
+%% ECM constraints (Guide for Authors, retrieved 2026-07-20):
+%%   - Full length article: max 9,000 words  -> target ~7,800
+%%   - Max 15 figures + tables COMBINED in the main text
+%%   - Highlights: 3-5 bullets, max 85 characters each (incl. spaces)
+%%   - Graphical abstract: 531 x 1328 px (h x w), readable at 5 x 13 cm
+%%   - Numbered sections (1, 1.1, 1.1.1); cross-refer by number
+%%   - Numeric citations in square brackets
+%%   - Data statement: Option C -> data MUST be deposited in a
+%%     repository and cited (plan a Zenodo DOI for CALION)
+%%   - Separate "Declaration of generative AI ..." section directly
+%%     before the reference list
+%%   - CRediT authorship contribution statement required
+%% ============================================================
+\documentclass[review,3p]{elsarticle}
 
-% --- Pakete ---
-\usepackage{amsmath,amssymb}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
-\usepackage{lineno}          % Zeilennummerierung (oft gefordert)
-\usepackage{booktabs}        % schöne Tabellen
-\usepackage{siunitx}         % SI-Einheiten
-\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{lineno}
+\usepackage{float}
+\usepackage{subfig}
+\usepackage{enumitem}
 
-% Zitierstil (Elsevier: numerisch)
+\modulolinenumbers[5]
+\sisetup{per-mode=symbol}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
 \biboptions{sort&compress}
+
+%% --- Editorial helpers (remove before submission) ---
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\placeholder}[1]{\textcolor{red}{[#1]}}
+\newcommand{\wordbudget}[1]{\marginpar{\tiny\textcolor{gray}{#1 w}}}
+
+%% --- Notation shared with Paper 1 (keep consistent!) ---
+\newcommand{\Lthree}{\mathrm{L3}}
+\newcommand{\Lplus}{\mathrm{L3}^{+}}
+\newcommand{\kHC}{k}                      % heat curve slope parameter
+\newcommand{\COP}{\mathrm{COP}}
+\newcommand{\VTES}{V_{\mathrm{TES}}}
+\newcommand{\QWP}{\dot{Q}_{\mathrm{HP}}}
+\newcommand{\TAC}{\mathrm{TAC}}
+\newcommand{\LCOH}{\mathrm{LCOH}}
 
 \journal{Energy Conversion and Management}
 
@@ -20,76 +62,672 @@
 
 \begin{frontmatter}
 
-\title{Titel der Publikation}
+%% ------------------------------------------------------------
+%% TITLE / AUTHORS — handled by the author, left as placeholder
+%% ------------------------------------------------------------
+\title{\placeholder{Title -- to be set by author}}
 
-%% Autoren
-\author[inst1]{Vorname Nachname\corref{cor1}}
-\ead{email@institut.de}
-\author[inst2]{Zweiter Autor}
+\author[inst1]{\placeholder{Author list -- to be set by author}}
 
-\cortext[cor1]{Corresponding author}
+\affiliation[inst1]{organization={\placeholder{Affiliation}},
+            country={Germany}}
 
-\affiliation[inst1]{organization={Institut / Abteilung},
-            addressline={Straße},
-            city={Stadt},
-            postcode={PLZ},
-            country={Land}}
-\affiliation[inst2]{organization={Zweite Einrichtung},
-            city={Stadt},
-            country={Land}}
-
-%% Abstract
+%% ------------------------------------------------------------
+%% ABSTRACT — write LAST (150-250 words)
+%% ------------------------------------------------------------
 \begin{abstract}
-Hier steht die Kurzfassung (ca. 150--250 Wörter).
+\todo{Write last, after Results and Discussion are final.
+Structure: (i) problem -- heat-curve parameter, HP COP and TES capacity
+are treated as separate fixed inputs in existing DH planning literature;
+(ii) approach -- MILP with L3+ spatial hydraulics and McCormick
+linearisation that optimises all three simultaneously, plus endogenous
+siting; (iii) cases -- two real networks, deliberately contrasting;
+(iv) headline numbers; (v) the topology-dependent siting asymmetry as
+the transferable insight.}
 \end{abstract}
 
-%% Highlights (separat als Bullet-Points, 3--5 Stück, je <85 Zeichen)
+%% ------------------------------------------------------------
+%% HIGHLIGHTS — 3-5 bullets, MAX 85 CHARACTERS EACH. Write last.
+%% ------------------------------------------------------------
 \begin{highlights}
-\item Erster Hauptbeitrag.
-\item Zweiter Hauptbeitrag.
-\item Dritter Hauptbeitrag.
+\item \todo{Bullet 1 -- simultaneous k/COP/V\_TES optimisation (<=85 chars)}
+\item \todo{Bullet 2 -- Stadtbach headline result (<=85 chars)}
+\item \todo{Bullet 3 -- Memmingen headline result (<=85 chars)}
+\item \todo{Bullet 4 -- topology-dependent siting asymmetry (<=85 chars)}
 \end{highlights}
 
-%% Keywords
+%% ------------------------------------------------------------
 \begin{keyword}
-Keyword1 \sep Keyword2 \sep Keyword3
+district heating \sep thermal energy storage \sep heat pump \sep
+MILP \sep heat curve \sep endogenous siting
 \end{keyword}
 
 \end{frontmatter}
 
-\linenumbers   % Zeilennummerierung aktivieren
+\linenumbers
 
-%% ============ HAUPTTEXT ============
+%% ============================================================
 \section{Introduction}
 \label{sec:intro}
-Einleitung...
+%% BUDGET: ~1,300 words | ELEMENTS: none
+%% STATUS: writable now (no campaign data required)
+%% SOURCES: Paper2_V1.bib; Paper 1 (MainEingereicht06072026.tex)
+%% ------------------------------------------------------------
+%% Intended arc:
+%%   1.1 Motivation: electrification of industrial/municipal DH
+%%   1.2 Related work: (a) TES sizing, (b) HP integration & siting,
+%%       (c) supply-temperature / heat-curve optimisation,
+%%       (d) network-resolved design MILPs -- and the gap: all three
+%%       decision variables are coupled but never co-optimised
+%%   1.3 Contribution & delimitation from Paper 1
+%%   1.4 Paper outline
+%% ------------------------------------------------------------
+\todo{Section 1 -- to be drafted. See intended arc in source comments.}
 
-\section{Methodology}
-\label{sec:method}
-Methoden...
+\subsection{Motivation}
+\label{sec:intro:motivation}
+\todo{Content}
 
-\section{Results and Discussion}
+\subsection{Related work}
+\label{sec:intro:relatedwork}
+\todo{Content}
+
+\subsection{Contribution and scope}
+\label{sec:intro:contribution}
+\todo{Boundary statement: Paper 1 establishes the model-fidelity level
+(L1--L3\textsuperscript{NL}) and validates the dispatch physics; Paper 2
+takes L3+ as given and adds the investment and siting layer.
+Paper 1 is under review -- cite as "submitted"; insert DOI once
+available (author will supply).
+CONTRIBUTION CLAIM -- use this wording, not "simultaneous optimisation":
+a nested enumeration--optimization scheme in which the network
+transformation stage is enumerated exhaustively while heat pump,
+electrode boiler and storage capacity and siting are optimised
+endogenously under a consistently propagated, temperature-dependent COP.
+Because the stage dimension is enumerated exhaustively and everything
+else is solved to optimality within each stage, the reported result is a
+global co-optimum over the product space -- say so, and say why that is
+stronger than a single-shot MILP over an ill-defined continuous k.}
+
+%% ============================================================
+\section{Model formulation}
+\label{sec:model}
+%% BUDGET: ~2,200 words | ELEMENTS: F1
+%% STATUS: WRITABLE NOW -- fully number-independent
+%% SOURCE: CALION_Paper2_Implementation_Statement.md (Parts A-C)
+%% ------------------------------------------------------------
+This section specifies the optimisation model. Section~\ref{sec:model:framework}
+delimits what is inherited from the dispatch formulation of Paper~1
+\cite{Ruess.2026} and what is added here; Sections~\ref{sec:model:balances}
+to~\ref{sec:model:tes} present the physical and technological
+constraints; Section~\ref{sec:model:objective} states the investment
+layer, the objective function and the two linearisation techniques
+employed; and Section~\ref{sec:model:validation} sets out the validation
+strategy. \Cref{fig:F1} summarises the model architecture.
+
+\subsection{Modelling framework and fidelity level}
+\label{sec:model:framework}
+
+The model is implemented in the CALION framework and operates at the
+fidelity level denoted $\Lplus$ in Paper~1 \cite{Ruess.2026}: a
+node-and-pipe representation of the physical network in which supply
+temperatures propagate spatially, thermal losses depend on the local
+temperature level, pressure drop is represented by a linearised
+Darcy--Weisbach relation, and transport delay is resolved at hourly
+granularity. Paper~1 established this level by systematically comparing
+five variants, from a copperplate abstraction without network physics to
+a mixed-integer quadratically constrained formulation without
+linearisation, and quantified both the topology-abstraction error and
+the linearisation error incurred at $\Lplus$. That comparison is not
+repeated here.
+
+The present work takes $\Lplus$ as given and adds an investment and
+siting layer on top of it. Concretely, the following elements are
+inherited unchanged and are therefore stated only to the extent needed
+for the model to be readable in isolation: the hydraulic representation,
+the temperature-dependent loss propagation along pipes, the transport
+delay formulation, and the calibration of the two networks against
+metered operational data. The following elements are new: the discrete
+capacity selection for thermal storage, the siting variables and their
+colocation variants, the electrode boiler and heat pump investment
+decisions, the network-transformation stages described in
+Section~\ref{sec:model:heatcurve}, and the nested
+enumeration--optimization scheme that links them.
+
+A note on terminology is warranted. In what follows, an
+\emph{investment variable} is a quantity the solver chooses within a
+single optimisation run, whereas a \emph{stage} is a member of an
+enumerated set over which independent runs are performed. Heat pump,
+electrode boiler and storage capacity as well as siting are investment
+variables. The network transformation stage is not.
+
+\subsection{Nodal energy and mass balances}
+\label{sec:model:balances}
+
+For every node $i$ and hour $t$, thermal power is conserved:
+\begin{equation}
+\label{eq:heatbalance}
+\sum_{a \in \mathcal{A}_i} q_{a,i}(t) + \sum_{j \in \mathcal{N}_i^{-}} \dot{Q}_{ji}(t)
+= D_i(t) + \sum_{k \in \mathcal{N}_i^{+}} \dot{Q}_{ik}(t)
++ q_i^{\mathrm{ch}}(t) - q_i^{\mathrm{dis}}(t) + Q_i^{\mathrm{dump}}(t),
+\end{equation}
+where $\mathcal{A}_i$ is the set of generation assets at node $i$,
+$\mathcal{N}_i^{-}$ and $\mathcal{N}_i^{+}$ are the sets of nodes
+feeding into and fed from node~$i$, $D_i$ is heat demand,
+$q_i^{\mathrm{ch}}$ and $q_i^{\mathrm{dis}}$ are storage charging and
+discharging power, and $Q_i^{\mathrm{dump}}$ is a curtailment slack that
+absorbs surplus waste heat. Network losses are embedded in the delivered
+power $\dot{Q}_{jk}$ of each pipe rather than appearing as a separate
+term.
+
+Independently of \cref{eq:heatbalance}, water mass is conserved:
+\begin{equation}
+\label{eq:massbalance}
+\sum_{j \in \mathcal{N}_i^{-}} \dot{m}_{ji}(t) + \dot{m}_i^{\mathrm{gen}}(t)
+= \sum_{k \in \mathcal{N}_i^{+}} \dot{m}_{ik}(t) + \dot{m}_i^{\mathrm{dem}}(t),
+\qquad
+\dot{m}_i^{\mathrm{gen}}(t) = \frac{10^{3}\, q_i(t)}{c_p \left(T_{\mathrm{s},i} - T_{\mathrm{r},i}\right)} .
+\end{equation}
+Maintaining \cref{eq:massbalance} as a constraint in its own right,
+rather than treating mass flow as a post-processed image of delivered
+heat, matters at nodes that simultaneously host local generation and
+pass flow downstream. At such nodes both the generation term and the
+downstream delivery terms enter \cref{eq:heatbalance}, and their
+interaction with \cref{eq:massbalance} is the point at which a
+formulation that conserves energy globally can nevertheless violate mass
+continuity locally. Both networks studied here contain such nodes.
+
+\subsection{Network transformation stages and the heat curve}
+\label{sec:model:heatcurve}
+
+Supply temperature is governed by an ambient-compensated heat curve of
+the standard parameterised form
+\begin{equation}
+\label{eq:heatcurve}
+T_{\mathrm{s}}(t) = \min\!\left\{ T_{\mathrm{s}}^{\max},\,
+\max\!\left\{ T_{\mathrm{s}}^{\min},\;
+T_{\mathrm{s}}^{\min} + \kHC \left(T_{\mathrm{s}}^{\max} - T_{\mathrm{s}}^{\min}\right)
+\frac{T_{\mathrm{h}} - T_{\mathrm{a}}(t)}{T_{\mathrm{h}} - T_{\mathrm{a}}^{\mathrm{des}}}
+\right\} \right\},
+\end{equation}
+with heating limit temperature $T_{\mathrm{h}} = \SI{15}{\celsius}$,
+design ambient temperature $T_{\mathrm{a}}^{\mathrm{des}} =
+\SI{-12}{\celsius}$ -- both following DIN~EN~12831 and identical for the
+two networks -- and slope parameter $\kHC$. Heat curve control of this type is standard practice and its
+optimisation has been studied for individual heat pump installations
+\cite{Krug.2025}; what is specific here is that the curve is applied at
+network level and interacts with siting and capacity decisions.
+
+Three stages, denoted HK0, HK1 and HK2, are considered. It is important
+to be precise about what distinguishes them, because they are not three
+values of a single parameter. Each stage bundles a slope $\kHC$, a
+minimum supply temperature $T_{\mathrm{s}}^{\min}$ and, for the retrofit
+stages, a reduced return temperature $T_{\mathrm{r}}$
+(\cref{tab:T2}). HK0 ($\kHC = 1.0$; $T_{\mathrm{s}}^{\min} =
+\SI{70}{\celsius}$ and \SI{74}{\celsius} for the two networks)
+represents the existing building stock. HK1 ($\kHC = 0.8$;
+\SI{65}{\celsius} and \SI{70}{\celsius}) represents retrofitting half of
+the substations, which lowers the achievable return temperature. HK2
+($\kHC = 0.6$; \SI{60}{\celsius} and \SI{66}{\celsius}) represents
+complete substation retrofit. A fourth setting, denoted TVLFIX, holds
+the supply temperature at its historical constant value and serves as
+the reference against which heat curve control is assessed.
+
+The stages are therefore alternative network-transformation narratives
+rather than samples of a continuously adjustable design lever. This
+distinction is not cosmetic: a continuous $\kHC$ would leave
+$T_{\mathrm{s}}^{\min}$ and $T_{\mathrm{r}}$ undefined, since neither
+follows from the slope, and both are consequences of a discrete
+investment programme in the building stock. Treating the transformation
+stage as an enumerated dimension is thus the modelling choice that
+matches the underlying decision structure. It has the secondary benefit
+of keeping $T_{\mathrm{s}}(t)$ exogenous within each run, which
+preserves linearity in the constraints of
+Sections~\ref{sec:model:hp} and~\ref{sec:model:tes}.
+
+\subsection{Heat pump and electrode boiler models}
+\label{sec:model:hp}
+
+Heat pump electricity consumption is
+\begin{equation}
+\label{eq:pel}
+P^{\mathrm{el}}(t) = \frac{\dot{Q}^{\mathrm{HR}}(t)}{\COP(t)}
+ + \frac{\dot{Q}^{\mathrm{def}}(t)}{\COP^{\mathrm{def}}},
+\end{equation}
+where $\dot{Q}^{\mathrm{HR}}$ is heat recovered from the industrial
+waste heat source and $\dot{Q}^{\mathrm{def}}$ is the share supplied at
+a default performance figure when the source is unavailable. The
+coefficient of performance follows a Lorenz-type correlation evaluated
+on logarithmic mean temperatures on both the sink and the source side,
+\begin{equation}
+\label{eq:cop}
+\COP(t) = A(t)\, B(t)\, \eta \left(1 - q_{\mathrm{ww}}(t)\right)
++ 1 - \eta - F_Q ,
+\end{equation}
+where $A(t)$ is the reciprocal Lorenz efficiency formed from the two
+logarithmic mean temperatures, $B(t)$ corrects for pinch and internal
+temperature losses, and $q_{\mathrm{ww}}$ and $F_Q$ are empirical loss
+terms. The correlation assumes a source-side spread of \SI{20}{\kelvin}
+and a pinch of \SI{5}{\kelvin} on both heat exchangers, and the result is
+clipped to $[1.01, 12]$. It is an internally calibrated correlation
+rather than one adopted from the literature; it is therefore stated in
+full in \ref{app:cop} so that the results remain reproducible. Simpler
+Lorenz surrogates, and their accuracy relative to detailed cycle models,
+have been compared systematically for energy-planning applications
+\cite{Pieper.2020}.
+\placeholder{Resolve the exergetic efficiency before submission: the
+configurations currently use eta = 0.75 for one network and eta = 0.6 for
+the other, while Paper~1 documents 0.6 with a simpler equation. If the
+values are not harmonised, the difference must be justified here and
+carried into the limitations.}
+
+Two properties of \cref{eq:cop} govern how it enters the optimisation.
+First, the exergetic efficiency $\eta$ is a scalar; the temperature
+dependence of $\COP(t)$ arises entirely from the source and sink
+temperature series. Second, and more consequentially, $\COP(t)$ is
+evaluated \emph{outside} the optimisation, once per transformation
+stage, from the exogenous supply temperature series produced by
+\cref{eq:heatcurve}, and is passed to the solver as a fixed parameter.
+The performance figure is thus consistently propagated into every stage
+but is not itself a decision variable, and \cref{eq:pel} remains linear.
+We state this explicitly because the coupling between supply
+temperature and heat pump performance is central to the results in
+Section~\ref{sec:results:coupling}, and that coupling is a modelled
+physical consequence of the enumerated stage, not an outcome the solver
+negotiates.
+
+Heat pump operation is subject to a commitment binary $u(t)$ and a
+minimum part load, giving the standard product of a binary with a
+bounded continuous capacity that is treated in
+Section~\ref{sec:model:objective}. The electrode boiler is modelled as a
+continuous investment capacity
+$\dot{Q}_{\mathrm{EB}} \in [0, \overline{Q}_{\mathrm{EB}}]$ with
+conversion efficiency $\eta_{\mathrm{EB}}$ (\num{0.98} and \num{0.95}
+for the two networks) and is available in every non-baseline scenario.
+It is always sited at the same node as the heat pump; its capacity is
+consequently a result rather than a scenario dimension, which is why it
+does not appear as a column in the scenario matrix. One network
+additionally contains an existing \SI{9.9}{\mega\watt} power-to-heat
+boiler at the same node. It carries no investment decision:
+there is no build binary and no annualised capital cost attached to it,
+only variable operating cost. It is therefore complementary to, and
+independent of, the investable electrode boiler.
+
+\subsection{Thermal energy storage model}
+\label{sec:model:tes}
+
+Storage capacity is selected from a discrete ladder rather than sized
+continuously. The ladder is anchored to hours of mean network load,
+$\{0, 1, 2, 4, 6, 8, 12, 16, 24, 36, 48, 96, 168\}$ hours. For the larger
+network, whose mean load is about \SI{73}{\mega\watt}, this yields steps
+of $0, 73, 146, \ldots, \SI{845}{\mega\watt\hour}$, truncated at
+approximately twelve hours of mean load for numerical tractability; for
+the smaller network, with a mean load of about \SI{1.4}{\mega\watt}, the
+full ladder is retained and reaches \SI{235}{\mega\watt\hour}. Anchoring
+the ladder to load rather than to catalogue vessel sizes makes the two
+cases directly comparable despite a difference in scale of more than a
+factor of fifty.
+
+Selection is exact:
+\begin{equation}
+\label{eq:tesladder}
+E^{\max} = \sum_{s \in \mathcal{S}} E_s\, z_s,
+\qquad \sum_{s \in \mathcal{S}} z_s = 1,
+\qquad z_s \in \{0,1\},
+\end{equation}
+so that capacity is linear in the selection binaries and no big-M
+coupling is required. This formulation replaced an earlier one in which
+volume was continuous and linked to an activation binary through a big-M
+constraint. The replacement is reported here because it is a
+transferable modelling result rather than an implementation detail: the
+weak linear relaxation of the big-M variant left precisely those
+scenarios that place storage at a consumer node stalled at MIP gaps
+between \SI{43}{\percent} and \SI{88}{\percent}, and these are the
+scenarios that turn out to carry the strongest economic effect
+(Section~\ref{sec:results:siting}). A formulation choice that appears
+innocuous can therefore suppress the very result the study is designed
+to find.
+
+Energy capacity is converted to volume through a stage-specific
+coefficient $\xi(\mathrm{HK})$ that depends on the temperature spread
+available at that transformation stage, $V = E^{\max} / \xi(\mathrm{HK})$.
+An immediate consequence, and one that is easily overlooked, is that the
+same rung of the energy ladder corresponds to a different physical
+vessel volume at each stage: lowering the supply temperature reduces the
+usable spread and therefore inflates the volume, and hence the capital
+cost, required to store a given quantity of heat. This is a direct
+coupling between the transformation stage and the storage investment,
+and it operates in the opposite direction to the efficiency gain that
+the same stage confers on the heat pump. The two effects are what the
+co-design question in this paper is ultimately about.
+
+Volumes exceeding a standard unit vessel of \SI{25000}{\cubic\metre} are
+realised as $N = \lceil V / V_{\mathrm{unit}} \rceil$ identical tanks,
+with the fixed cost incurred per tank rather than per capacity step;
+this preserves the economies of scale of tank storage while respecting
+constructional limits \cite{Dahash.2021}. The multi-tank case arises only
+in the larger network; every rung of the smaller network's ladder fits
+within a single vessel. The state of charge evolves as
+\begin{equation}
+\label{eq:soc}
+E(t) = \lambda^{\Delta t} E(t-1)
+ + \eta^{\mathrm{ch}} q^{\mathrm{ch}}(t)\,\Delta t
+ - \frac{q^{\mathrm{dis}}(t)\,\Delta t}{\eta^{\mathrm{dis}}},
+\qquad 0 \le E(t) \le E^{\max},
+\end{equation}
+with hourly retention factor $\lambda = \num{0.9999}$, corresponding to a
+self-discharge of \SI{0.01}{\percent} per hour, and charging and
+discharging efficiencies of \num{0.98} in both networks. The initial
+state of charge is fixed at half the installed capacity, and a terminal
+state of charge of at least half the installed capacity is enforced as an
+inequality. This prevents end-of-horizon depletion without imposing
+strict cyclicity: the storage is permitted to finish the year fuller than
+it began, but not emptier.
+
+Siting is treated in three variants. In the fixed variants the storage
+node is prescribed from a set of candidate nodes; in the endogenous
+variant a binary siting vector is optimised over the same candidate set;
+and in the colocation variant storage is constrained to share the node
+of the heat pump. Comparing the three is the subject of
+Section~\ref{sec:results:siting}.
+
+\subsection{Investment layer, objective function and linearisation}
+\label{sec:model:objective}
+
+Capital expenditure is annualised following VDI~2067,
+\begin{equation}
+\label{eq:annuity}
+\mathrm{ANF}(i,n) = \frac{i\,(1+i)^{n}}{(1+i)^{n} - 1},
+\end{equation}
+with discount rate $i = \num{0.05}$ and component lifetimes of
+\num{20}, \num{25} and \num{30} years for the heat pump, the electrode
+boiler and the storage respectively. Investment cost is linear with a
+fixed activation component,
+\begin{equation}
+\label{eq:capex}
+\mathrm{CAPEX} = \alpha_{\mathrm{HP}} \QWP + \beta_{\mathrm{HP}} y_{\mathrm{HP}}
++ \alpha_{\mathrm{EB}} \dot{Q}_{\mathrm{EB}} + \beta_{\mathrm{EB}} y_{\mathrm{EB}}
++ \alpha_{\mathrm{TES}} V + \beta_{\mathrm{TES}} N,
+\end{equation}
+and the objective is total annualised cost,
+\begin{equation}
+\label{eq:tac}
+\TAC = \sum_{c} \mathrm{ANF}(i, n_c)\, \mathrm{CAPEX}_c + \mathrm{OPEX},
+\end{equation}
+where OPEX comprises electricity procurement including the demand
+charge, fuel, carbon cost, and a curtailment penalty on
+$Q^{\mathrm{dump}}$.
+
+Two distinct linearisation techniques appear in the formulation, and
+conflating them would misstate the model's error properties.
+
+The first is a McCormick relaxation \cite{Castro.2015} of the bilinear
+products of a mass flow with a temperature, $W = \dot{m}\, c_p\, T$,
+both factors being continuous variables. For bounds
+$\dot{m} \in [\underline{m}, \overline{m}]$ and
+$T \in [\underline{T}, \overline{T}]$ the convex hull is
+\begin{equation}
+\label{eq:mccormick}
+\begin{aligned}
+W &\ge c_p\left(\underline{m} T + \dot{m}\underline{T} - \underline{m}\,\underline{T}\right), &
+W &\ge c_p\left(\overline{m} T + \dot{m}\overline{T} - \overline{m}\,\overline{T}\right), \\
+W &\le c_p\left(\overline{m} T + \dot{m}\underline{T} - \overline{m}\,\underline{T}\right), &
+W &\le c_p\left(\underline{m} T + \dot{m}\overline{T} - \underline{m}\,\overline{T}\right).
+\end{aligned}
+\end{equation}
+Seven such products occur: pipe inlet and outlet enthalpy, mixing at
+nodes with more than one incoming pipe, consumer withdrawal on the
+supply and on the return side, and local generation feed-in on the
+supply and on the return side. \Cref{eq:mccormick} is an outer
+approximation and therefore introduces a relaxation gap, quantified in
+Paper~1 \cite{Ruess.2026}. Two of the seven are inactive in the present
+study: both networks are tree topologies, so no node receives more than
+one incoming pipe and the mixing constraint is never binding, and return
+temperature is a stage-fixed parameter rather than a variable in both
+configurations. We report them nonetheless, since the constraints are
+part of the formulation and would activate on a meshed topology.
+
+The second technique concerns the product of a commitment binary with a
+bounded continuous capacity, $\QWP u(t)$. This is reformulated exactly,
+\begin{equation}
+\label{eq:bigm}
+q(t) \le \overline{Q}\, u(t), \quad
+q(t) \le \QWP, \quad
+q(t) \ge \QWP - \overline{Q}\left(1 - u(t)\right), \quad
+q(t) \ge 0,
+\end{equation}
+which is tight at every integer-feasible point and contributes no
+relaxation error. Two further products are not bilinear at all and
+require no treatment: $\dot{Q}/\COP$ in \cref{eq:pel}, because $\COP$ is
+a parameter, and the energy-to-volume conversion in
+Section~\ref{sec:model:tes}, because the temperature spread is fixed
+within a stage.
+
+One departure from the $\Lplus$ formulation of Paper~1 was necessary for
+tractability. Applying full McCormick temperature propagation across all
+\num{8760} hours proved computationally intractable for the smaller
+network at the scenario counts required here; a linear supply
+temperature offset per pipe is used in its place. The consequences for
+the spatial temperature profile are examined in
+Section~\ref{sec:discussion:limitations}.
+
+\subsection{Validation strategy}
+\label{sec:model:validation}
+
+Five checks are applied and reported in \cref{tab:T5}.
+
+Energy conservation is verified by a per-node audit that reads the
+solved state directly and compares total heat entering each node against
+demand plus onward delivery. Agreement is within
+\SI{0.04}{\percent}. We report this rather than an aggregate
+generation-plus-net-storage-against-demand statistic, because the latter
+is not a valid conservation test in the presence of storage that cycles
+within the hour: netting charge against discharge collapses the
+throughput of a storage unit that has moved substantial energy in both
+directions to approximately zero, and the resulting apparent residual
+reflects the arithmetic of the test, not a violation of
+\cref{eq:heatbalance}. The distinction matters here because the
+best-performing configuration is precisely one in which the storage
+cycles in the great majority of hours.
+
+Solver convergence is reported as gap statistics over the
+\num{46} canonical scenario runs. Auxiliary runs used to enumerate
+siting pairs are excluded from this population and reported separately,
+since they are deliberately solved to a fixed time budget rather than to
+proven optimality.
+
+Consistency with Paper~1 is established through a dedicated validation
+run in which heat pump and electrode boiler capacities are held at the
+values used there, reproducing the operating cost of the reference case.
+This run is a validation instrument only and is not part of the
+\num{46}-scenario matrix.
+
+Two plausibility checks complete the set: annual mean coefficients of
+performance are required to fall within a physically defensible band for
+the temperature lifts involved, and the discrete optimum is required to
+coincide, within one grid step and \SI{10}{\percent} in total annualised
+cost, with the minimum of the continuous capacity surface obtained from
+the parametric sweep of Section~\ref{sec:results:sweep}.
+
+%% ============================================================
+\section{Case studies and scenario design}
+\label{sec:cases}
+%% BUDGET: ~900 words | ELEMENTS: T1, F2, T2
+%% STATUS: WRITABLE NOW -- config-derived, campaign-independent
+%% ------------------------------------------------------------
+\subsection{Network characteristics}
+\label{sec:cases:networks}
+\todo{Stadtbach (33 nodes, volatile industrial waste heat dominated)
+vs. Memmingen (15 nodes, price/DSM signal dominant). Argue the pair as
+a deliberate contrast, not a convenience sample.}
+
+\subsection{Scenario matrix}
+\label{sec:cases:scenarios}
+\todo{46 runs: baseline, S0 (no TES), S1--S5 fixed siting,
+S6/S7 (SB) and S4/S5 (MM) endogenous/colocated; x HK0/HK1/HK2.}
+
+\subsection{Economic and technical parameters}
+\label{sec:cases:parameters}
+\todo{Discount rate, lifetimes, CAPEX coefficients, price/CO2 series.}
+
+%% ============================================================
+\section{Results}
 \label{sec:results}
-Ergebnisse...
+%% BUDGET: ~2,300 words | ELEMENTS: F3, F4, F5, F6, T3, T4
+%% STATUS: BLOCKED -- awaiting F3 sweep, F7 tornado, F8 re-solve,
+%%         SB-S2 plausibility check, T5 filter, 5 MW MM scenario
+%% ------------------------------------------------------------
+\subsection{Capacity--cost surface}
+\label{sec:results:sweep}
+\todo{F3 -- 7x7 dispatch-only LP sweep per network, LCOH colour scale,
+MILP optimum marked. Also serves as cross-validation.}
 
+\subsection{Coupling of heat curve, COP and storage capacity}
+\label{sec:results:coupling}
+\todo{F4 -- THE central figure of the paper. Ceteris-paribus subset:
+same siting, HK stage varied only.}
+
+\subsection{Cost and emission reduction versus baseline}
+\label{sec:results:costs}
+\todo{F5 + T3/T4. Stadtbach best fixed siting SB-S2-HK2; Memmingen best
+overall MM-S5-HK2. Consider moving the full 46-row matrices to the
+supplement -- see element budget note at the end of this file.}
+
+\subsection{Fixed versus endogenous siting}
+\label{sec:results:siting}
+\todo{F6 -- the asymmetry: free siting does not beat a well-chosen fixed
+node in Stadtbach, while colocation beats free siting in Memmingen.}
+
+%% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+%% BUDGET: ~900 words | ELEMENTS: F7, T5
+%% ------------------------------------------------------------
+\subsection{Sensitivity of the design to economic assumptions}
+\label{sec:discussion:sensitivity}
+\todo{F7 tornado}
+
+\subsection{Why network topology decides the siting strategy}
+\label{sec:discussion:topology}
+\todo{The transferable insight. Requires the SB-S2 economic mechanism
+from the G.4 plausibility check -- do not write before it lands.}
+
+\subsection{Model validation and limitations}
+\label{sec:discussion:limitations}
+\todo{T5. Limitations: staged rather than continuous heat curve;
+linear temperature offset instead of full McCormick propagation;
+cycling not penalised in the objective (state explicitly, and report
+the counter-test if one is run); single weather/price year.}
+
+%% ============================================================
 \section{Conclusions}
-Schlussfolgerungen...
+\label{sec:conclusions}
+%% BUDGET: ~400 words | ELEMENTS: none
+%% ------------------------------------------------------------
+\todo{Write after Sec. 4-5. No new results, no hedging.}
 
-%% Nomenklatur (in ECM häufig verwendet)
-% \section*{Nomenclature}
+%% ============================================================
+\section*{Nomenclature}
+\todo{Symbols, subscripts, abbreviations -- keep consistent with Paper 1.}
 
-%% Danksagung
+%% ============================================================
+\section*{CRediT authorship contribution statement}
+\todo{Mirror the Paper 1 statement, adjusted for Paper 2 contributions.}
+
+%% ============================================================
+\section*{Declaration of competing interest}
+\todo{Standard statement.}
+
+%% ============================================================
+\section*{Data availability}
+%% ECM applies research-data Option C: deposit + cite, or justify.
+\todo{Deposit CALION configs, scenario definitions and KPI outputs in a
+repository and cite the DOI here. Plan this BEFORE submission -- it is
+a hard requirement for this journal, not a courtesy.}
+
+%% ============================================================
 \section*{Acknowledgements}
-Dank / Fördermittel.
+\todo{Funding sources in the Elsevier standard phrasing.}
 
-%% ============ REFERENZEN ============
-% Variante A: BibTeX mit Elsevier-Stil
-\bibliographystyle{elsarticle-num}   % oder elsarticle-harv
-\bibliography{references}
+%% ============================================================
+%% MUST appear directly before the reference list (ECM requirement)
+\section*{Declaration of generative AI and AI-assisted technologies in
+the manuscript preparation process}
+\todo{Declare tool use, incl. the coding agent where it contributed to
+figure generation or analysis code. Note: AI-generated data
+visualisations are permitted when derived from underlying data by
+reproducible methods, but must be disclosed in the figure captions as
+well as here.}
 
-% Variante B: manuell
-% \begin{thebibliography}{00}
-% \bibitem{ref1} Autor. Titel. Journal Jahr;Vol:Seiten.
-% \end{thebibliography}
+%% ============================================================
+\appendix
+
+\section{Coefficient of performance correlation}
+\label{app:cop}
+
+The coefficient of performance in \cref{eq:cop} is evaluated from the
+supply temperature series of the respective transformation stage. With
+the logarithmic mean temperature
+\begin{equation}
+L(T_{\mathrm{h}}, T_{\mathrm{c}})
+= \frac{T_{\mathrm{h}} - T_{\mathrm{c}}}{\ln (T_{\mathrm{h}}/T_{\mathrm{c}})},
+\end{equation}
+the source outlet temperature
+$T_{\mathrm{src,out}}(t) = \max\{T_{\mathrm{src}}(t) - \Delta T,\, 1\}$
+and the sink outlet temperature
+$T_{\mathrm{sink,out}}(t) = T_{\mathrm{s}}(t)$ from
+\cref{eq:heatcurve}, define
+\begin{align}
+L_{\mathrm{sink}}(t) &= L\!\left(T_{\mathrm{sink,out}}(t),\, T_{\mathrm{sink,in}}\right), &
+L_{\mathrm{src}}(t) &= L\!\left(T_{\mathrm{src}}(t),\, T_{\mathrm{src,out}}(t)\right).
+\end{align}
+Two empirical loss terms account for internal temperature differences and
+auxiliary consumption,
+\begin{align}
+m_{\mathrm{dts}}(t) &= 0.2\left(T_{\mathrm{sink,out}}(t) - T_{\mathrm{src,out}}(t) + 2\Delta T_{\mathrm{pp}}\right)
+ + 0.2\left(T_{\mathrm{sink,out}}(t) - T_{\mathrm{sink,in}}\right) + 0.016, \\
+q_{\mathrm{ww}}(t) &= 0.0014\left(T_{\mathrm{sink,out}}(t) - T_{\mathrm{src,out}}(t) + 2\Delta T_{\mathrm{pp}}\right)
+ - 0.0015\left(T_{\mathrm{sink,out}}(t) - T_{\mathrm{sink,in}}\right) + 0.039,
+\end{align}
+from which the two factors of \cref{eq:cop} follow as
+\begin{equation}
+A(t) = \frac{L_{\mathrm{sink}}(t)}{L_{\mathrm{sink}}(t) - L_{\mathrm{src}}(t)},
+\qquad
+B(t) = \frac{1 + \dfrac{m_{\mathrm{dts}}(t) + \Delta T_{\mathrm{pp}}}{L_{\mathrm{sink}}(t)}}
+{1 + \dfrac{m_{\mathrm{dts}}(t) + 0.5\left(T_{\mathrm{src}}(t) - T_{\mathrm{src,out}}(t)\right) + 2\Delta T_{\mathrm{pp}}}
+{L_{\mathrm{sink}}(t) - L_{\mathrm{src}}(t)}} .
+\end{equation}
+The result is clipped to the interval $[1.01, 12]$. Parameter values are
+$F_Q = \num{0.10}$, $\Delta T = \SI{20}{\kelvin}$ and
+$\Delta T_{\mathrm{pp}} = \SI{5}{\kelvin}$ for both networks;
+$T_{\mathrm{sink,in}}$ and $\eta$ are network specific and are listed in
+\cref{tab:T1}.
+\placeholder{Confirm that the logarithmic means are evaluated on absolute
+temperatures, and state the calibration basis for the empirical
+coefficients -- reviewers will ask where 0.2, 0.016, 0.0014 and 0.039
+come from.}
+
+%% ============================================================
+\bibliographystyle{elsarticle-num}
+\bibliography{Paper2_V1}
 
 \end{document}
+
+%% ============================================================
+%% ELEMENT BUDGET TRACKER — ECM allows 15 figures+tables COMBINED
+%% ------------------------------------------------------------
+%%  Main text (current plan):
+%%    F1 model architecture          F2 network maps
+%%    F3 capacity heatmap            F4 k/COP/V_TES coupling
+%%    F5 cost reduction              F6 siting comparison
+%%    F7 sensitivity tornado         T1 network characteristics
+%%    T2 scenario matrix             T3 Stadtbach KPIs (reduced)
+%%    T4 Memmingen KPIs (reduced)    T5 validation
+%%    = 12 elements  -> 3 slots of headroom
+%%  Supplement:
+%%    F8 spatial T/p profiles, F9 TES SOC time series,
+%%    full 46-row KPI matrices, T3b/T4b endogenous siting detail,
+%%    T1b generator portfolio
+%%  NOTE: the original figure spec (F1-F9 + T1a/T1b/T2-T5) totals 15
+%%  BEFORE T3b/T4b, i.e. over budget. The split above resolves it.
+%% ============================================================
