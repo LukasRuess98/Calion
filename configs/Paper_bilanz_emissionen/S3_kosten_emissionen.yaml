@@ -1,0 +1,106 @@
+# =============================================================================
+# BILANZRAUM-EMISSIONEN — Szenario 3: HP optimiert auf Kosten + CO2-Emissionen
+# =============================================================================
+# HP + Speicher, Zielfunktion: Kosten + CO2-Strafterm.
+# CO2-Preis signalisiert stündliche Netzintensität → HP läuft bevorzugt
+# bei grünem Strommix (niedrige grid_co2_kg_MWh-Werte).
+#
+# Systemgrenzen:
+#   - Copperplate (Einknoten-Modell)
+#   - 27 Abnehmer aggregiert, Memmingen
+#   - HP 12 MW + Speicher 50 MWh / 10 MW
+#   - co2_price_eur_per_t = 200 EUR/t → signifikanter Emissionseinfluss
+#
+# Emissionsanalyse (Post-Processing in run_bilanz_emissionen.py):
+#   1. Jahresdurchschnitt   (1 Faktor)
+#   2. Monatsdurchschnitt   (12 Faktoren)
+#   3. Wochendurchschnitt   (52 Faktoren)
+#   4. Stündliche Auflösung (8760 Faktoren)
+# =============================================================================
+
+site:
+  input_xlsx: "data/memmingen_bilanz_emissionen_2025_1h.csv"
+  columns:
+    datetime:         "Datum"
+    price:            "strompreis_EUR_MWh"
+    co2_grid:         "grid_co2_kg_MWh"
+    heat_candidates:  "total_demand_MWth"
+
+scenario:
+  name: "S3_Kosten_Emissionen"
+  description: "HP kosten- und emissionsoptimiert — Speicher, CO2-Preis 200 EUR/t"
+  run_mode: PF_ONLY
+  horizon:
+    start: "2025-01-01"
+    end:   "2025-12-31 23:00"
+
+# ── Netzwerk (Einknoten, Copperplate) ────────────────────────────────────────
+network:
+  physics:
+    heat_loss:        false
+    pressure_drop:    false
+    transport_delay:  false
+
+  supply_temp_c: 80.0
+  return_temp_c: 60.0
+  ground_temp_c: 10.0
+
+  nodes:
+    E_1:
+      assets: [hp_main, tes_main]
+      consumers:
+        - column: "total_demand_MWth"
+
+# ── Assets ───────────────────────────────────────────────────────────────────
+assets:
+  hp_main:
+    type: heat_pump
+    capacity_mw: 12.0
+    min_load: 0.0
+    cop_default: 3.5
+
+  tes_main:
+    type: storage
+    max_energy_mwh: 50.0
+    max_power_mw:   10.0
+    charge_efficiency:   0.95
+    discharge_efficiency: 0.95
+    soc0_mwh: 25.0
+    terminal:
+      state:  cyclic
+      policy: equal
+
+# ── Wärmepumpen-COP Konfiguration (identisch S1/S2) ──────────────────────────
+heat_pumps:
+  cop:
+    deltaT_K:    5.0
+    deltaTpp_K:  3.0
+    cop_fallback: 3.5
+    sink_defaults:
+      Tsink_out_K: 353.15
+      Tsink_in_K:  333.15
+  types:
+    default:
+      eta: 0.55
+      FQ:  0.10
+
+# ── Grid ─────────────────────────────────────────────────────────────────────
+grid:
+  max_import_mw: 20.0
+  max_export_mw: 0.0
+
+# ── Kosten ───────────────────────────────────────────────────────────────────
+costs:
+  co2_price_eur_per_t:    200.0   # Emissionskosten in Zielfunktion (stündlicher Faktor)
+  dump_cost_eur_per_mwh_th: 1000.0
+
+# ── Solver ───────────────────────────────────────────────────────────────────
+run:
+  dt_h:          1.0
+  solver:        highs
+  mip_gap:       0.001
+  time_limit_s:  3600
+  log_to_file:   true
+
+output:
+  export_dir: "outputs/bilanz_emissionen/S3_kosten_emissionen"

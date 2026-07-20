@@ -1,48 +1,70 @@
+# Python cache / compiled files
 __pycache__/
 *.py[cod]
-*.pyo
 *.pyd
 *.so
+
+# Packaging / build artifacts
 *.egg-info/
 .eggs/
 .build/
+
+# Test / notebook cache
 .pytest_cache/
 .ipynb_checkpoints/
-.DS_Store
-
-# Virtual environments
-HeatGrid/
 
 # Coverage artifacts
 .coverage
 coverage.xml
 htmlcov/
 
+# OS files
+.DS_Store
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Import data
+Data/
+
 # Test artifacts
 test_exports/
 
-# Experiment outputs (should not be tracked in version control)
+# Generated outputs
 notebooks/exports/
 notebooks/saved_workflows/
-outputs/runs/
-outputs/workflows/
-outputs/dashboard/
+output/
+outputs/
+exports/
+results/
+logs/
+artifacts/
+archive/
+zenodo_package/
+
+# Solver / generated files
+*.log
+*.lp
+grbnodes0/
+grbnodes1/
+grbnodes2/
+grbnodes3/
+
+# Generated documents
 *.xlsx
 *.png
 *.pdf
 
-# IDE settings (personal configurations)
+# IDE / editor settings
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Generated artifacts
-artifacts/
-exports/
-*.log
-*.lp
-
 # Claude Code files
 .claude/
+
+debug_model.lp

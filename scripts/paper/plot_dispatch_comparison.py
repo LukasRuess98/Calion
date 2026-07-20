@@ -40,9 +40,10 @@ TES_CHG_COLOR = "#b0bec5"
 DUMP_COLOR   = "#ef5350"
 
 LEVEL_TITLES = {
-    "L1": "(a) Level 1 — 1-node (copperplate)",
-    "L2": "(b) Level 2 — 5-node",
-    "L3": "(c) Level 3 — 30-node",
+    "L1": "(a) L1 — copperplate",
+    "L2": "(b) L2 — 5-node",
+    "L3": "(c) L3 — 24-node",
+    "L3_NLP": "(d) L3 — 24-node (QCQP)",
 }
 
 

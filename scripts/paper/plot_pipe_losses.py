@@ -93,7 +93,7 @@ def main():
     ax2.set_yticks(y3)
     ax2.set_yticklabels(df_l3["pipe"], fontsize=7)
     ax2.set_xlabel("Heat loss [MWh]", fontsize=10)
-    ax2.set_title(f"L3 (30-node) — total {total_l3_gwh*1e3:.0f} MWh", fontsize=11)
+    ax2.set_title(f"L3 (24-node) — total {total_l3_gwh*1e3:.0f} MWh", fontsize=11)
     ax2.grid(True, axis="x", alpha=0.3)
 
     fig.tight_layout()

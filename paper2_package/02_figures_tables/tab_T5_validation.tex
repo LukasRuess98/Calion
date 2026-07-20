@@ -1,0 +1,22 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Model validation summary across the campaign.}
+  \label{tab:t5_validation}
+  \begin{tabular}{lll}
+  \toprule
+  Validation metric & Value & Note \\
+  \midrule
+  MW closure error (mean) & 22.98 \% & 41 converged runs; gen+storage vs demand \\
+  MW closure error (max) & 66.39 \% & worst: SB-S2-HK2 \\
+  Runs passing closure gate (≤2\%) & 12/41 & converged runs only \\
+  Network loss fraction (mean) & 4.80 \% & thermal diagnostic — not an imbalance (dispatch balance is MW-lossless) \\
+  Runs excluded (implausible balance) & 1 & stale/wrong-network dispatch — refreshes on re-run \\
+  MIP gap (median) & 1.841 \% & 98 runs report a gap \\
+  MIP gap (max) & 47349.644 \% &  \\
+  Solver status & optimal: 41; maxTimeLimit: 188 & 229 runs \\
+  Annual COP range & 2.43 -- 3.67 & plausibility (Lorenz surrogate) \\
+  Memmingen P1 OPEX consistency & 124.49 \% & P2=506,701 EUR vs P1=225,717 EUR (FAIL, gate <=2\%) \\
+  Sweep--MILP optimum consistency & pending & Part A sweep not run yet (spec A.5) \\
+  \bottomrule
+  \end{tabular}
+\end{table}

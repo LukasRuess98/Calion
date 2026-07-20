@@ -25,8 +25,9 @@ CHG_COL   = "TES_charge_MW"
 DIS_COL   = "TES_discharge_MW"
 DT_H      = 1.0
 
-COLORS = {"L1": "#4c96d7", "L2": "#e07b39", "L3": "#6abf69"}
-LABELS = {"L1": "L1 — 1-node", "L2": "L2 — 5-node", "L3": "L3 — 30-node"}
+COLORS = {"L1": "#2166ac", "L2": "#f4a582", "L3": "#4dac26", "L3_NLP": "#d01c8b"}
+LABELS = {"L1": "L1 — 1-node", "L2": "L2 — 5-node", "L3": "L3 — 24-node (MILP)",
+          "L3_NLP": "L3 — 24-node (QCQP)"}
 
 
 def _load(path: str, tag: str) -> pd.DataFrame:

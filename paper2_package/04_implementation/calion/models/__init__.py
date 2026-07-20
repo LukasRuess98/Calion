@@ -1,0 +1,102 @@
+"""
+CALION Models Package - Component-based energy system modeling.
+
+This package provides the core abstractions for building modular, extensible
+energy system optimization models using Pyomo.
+
+New Architecture (v2.0):
+- Component Protocol and BaseComponent for type-safe component development
+- Bus abstraction for explicit flow management
+- ComponentRegistry for plugin architecture
+- Standardized Flow objects for explicit flow declarations
+
+The package maintains backward compatibility with the v1.0 system_builder
+while providing a cleaner, more extensible architecture for future development.
+"""
+
+# Core abstractions
+# Import all block classes to trigger @register_component decorators
+# This ensures all components are registered when the package is imported
+from .blocks.heat_pump import HeatPumpBlock
+from .blocks.p2h import P2HBlock
+from .blocks.storage import StorageBlock
+from .blocks.thermal_gen import ThermalGeneratorBlock
+from .bus import Bus, create_buses_from_config, create_default_buses
+from .component import BaseComponent, BusType, Component, Flow, InvestmentResult
+from .registry import (
+    ComponentRegistry,
+    create_component,
+    get_component,
+    list_components,
+    register_component,
+)
+
+# Legacy builder (v1.0) - still supported
+from .system_builder import build_model
+
+__all__ = [
+    'BaseComponent',
+    'Bus',
+    'BusType',
+    # Core abstractions
+    'Component',
+    # Registry
+    'ComponentRegistry',
+    'Flow',
+    # Component blocks
+    'HeatPumpBlock',
+    'InvestmentResult',
+    'P2HBlock',
+    'StorageBlock',
+    'ThermalGeneratorBlock',
+    # Builder
+    'build_model',
+    'create_buses_from_config',
+    'create_component',
+    'create_default_buses',
+    'get_component',
+    'list_components',
+    'register_component',
+]
+
+
+def list_registered_components():
+    """
+    List all registered component types with metadata.
+
+    Returns:
+        dict: Component types mapped to their metadata
+
+    Example:
+        >>> from calion.models import list_registered_components
+        >>> components = list_registered_components()
+        >>> for comp_type, meta in components.items():
+        ...     print(f"{comp_type}: {meta['description']}")
+    """
+    return ComponentRegistry.get_all_metadata()
+
+
+def get_component_info(component_type: str) -> dict:
+    """
+    Get detailed information about a component type.
+
+    Args:
+        component_type: Type identifier (e.g., "heat_pump", "storage")
+
+    Returns:
+        dict: Component metadata including description, category, etc.
+
+    Example:
+        >>> from calion.models import get_component_info
+        >>> info = get_component_info("heat_pump")
+        >>> print(info['description'])
+    """
+    return ComponentRegistry.get_metadata(component_type)
+
+
+# Forward-compatible alias: ``from calion.models import components``
+# maps to ``calion.models.blocks`` so new code can use the cleaner name
+# while the physical directory keeps working.
+import calion.models.blocks as components  # noqa: F401
+
+__version__ = "2.0.0-alpha"

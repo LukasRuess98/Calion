@@ -31,7 +31,6 @@ from calion.models.interfaces import (
 from calion.models.component import BaseComponent
 from calion.models.blocks.heat_pump import HeatPumpBlock
 from calion.models.blocks.storage import StorageBlock
-from calion.models.blocks.stratified_storage import StratifiedStorageBlock
 from calion.models.blocks.thermal_gen import ThermalGeneratorBlock
 from calion.models.blocks.p2h import P2HBlock
 
@@ -93,16 +92,6 @@ class TestComponentProtocolCompliance:
 
         assert isinstance(storage, ComponentBlock)
         assert is_valid_component_block(storage)
-
-    def test_stratified_storage_implements_protocol(self):
-        """Verify StratifiedStorageBlock implements ComponentBlock protocol."""
-        # StratifiedStorageBlock has different signature - just verify class structure
-        assert hasattr(StratifiedStorageBlock, 'attach')
-        assert hasattr(StratifiedStorageBlock, 'get_results')
-        assert hasattr(StratifiedStorageBlock, 'validate_config')
-
-        # Verify it inherits from BaseComponent (which implements the protocol)
-        assert issubclass(StratifiedStorageBlock, BaseComponent)
 
     def test_thermal_generator_implements_protocol(self):
         """Verify ThermalGeneratorBlock implements ComponentBlock protocol."""
