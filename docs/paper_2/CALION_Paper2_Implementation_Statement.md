@@ -1676,4 +1676,160 @@ despite `geometry.csv` showing `build=1` is the tell) before suspecting the mode
 per-node `ht_out`/`ht_in` audit reading live model state directly is a far more reliable ground
 truth than any derived CSV export, and should be the first diagnostic reached for, not the last.
 
-*End of statement — updated 2026-07-16 for the CALION Paper 2 manuscript foundation.*
+## G.13 F8/F3/F7 "make it ready" pass (2026-07-19/20) — one real export bug fixed, one
+non-bug explained and annotated, one broken metric fixed, two never-run analyses launched
+
+Following G.10-G.12's reporting-pipeline audit, F8 (spatial T/p profile), F3 (capacity-sweep
+heatmap) and F7 (sensitivity tornado) were the three figures/tables still flagged "not ready" in
+the design-package README. Each is addressed below; F8's fix is verified, F3/F7 were launched
+and were still running campaigns at the time of this update (see "Campaign status at time of
+writing").
+
+### G.13.1 F8, problem 1 — node-pressure export bug (real bug, fixed and verified)
+
+**Root cause.** `calion/io/thermal_network_exporter.py`'s per-node pressure extraction looked up
+`getattr(model, f'{node_prefix}_P', None)` — but the actual Pyomo Var, defined in
+`calion/models/blocks/thermal_node.py:279`, is named `{prefix}_pressure_supply` (and
+`{prefix}_pressure_return`). The lookup never matched anything, on either network, for the whole
+campaign, so `P_avg_bar` and every `{node}_P` timeseries column were always empty — despite
+pressure being fully modeled and solved (confirmed via A.4.5/A.4.3b; this was purely an export
+gap, one level up from the `nodes_timeseries.csv` symptom G.10-era notes originally pointed at).
+
+**Fix.** Corrected the attribute name and added a symmetric `pressure_return` export (previously
+not attempted at all):
+
+```python
+P_var = getattr(model, f'{node_prefix}_pressure_supply', None)
+if P_var is not None:
+    P_vals = [pyo.value(P_var[t]) for t in time_set]
+    node_summary['P_avg_bar'] = sum(P_vals) / len(P_vals)
+    node_timeseries[f'{node_id}_P'] = P_vals
+
+P_ret_var = getattr(model, f'{node_prefix}_pressure_return', None)
+if P_ret_var is not None:
+    P_ret_vals = [pyo.value(P_ret_var[t]) for t in time_set]
+    node_summary['P_return_avg_bar'] = sum(P_ret_vals) / len(P_ret_vals)
+    node_timeseries[f'{node_id}_P_return'] = P_ret_vals
+```
+
+**Verified** on an isolated 2-week re-solve of both networks' F8 reference scenarios
+(`SB-S1-HK0`, `MM-S1-HK0`) before committing to a full-year re-solve: `P_avg_bar` populated for
+100 % of nodes on both networks, with a physically plausible decay from producer (~10-20 bar) to
+consumer nodes.
+
+### G.13.2 F8, problem 2 — Stadtbach's "non-monotone" temperature panel (not a bug; annotated)
+
+The earlier README/statement flagged `j_pss`'s temperature dip-then-rise as an unexplained
+anomaly, possibly a plotting bug or an L3+ artifact. Traced this pass: `j_pss` (Stadtbach) and
+`j_12` (Memmingen) are **secondary pump/generator stations** — `j_pss` hosts `hws_boiler`, `j_12`
+hosts `hp_main`/`eboiler_main` (confirmed via direct YAML asset-attachment checks). Per
+`network_manager.py::_link_pressure_propagation`'s own code comment, this is a **deliberate**
+2026-07-09 design decision (see A.4.3b): the primary producer's pressure/temperature is fixed at
+a setpoint and propagated; a secondary station instead gets a **free, locally-boosted**
+pressure/temperature Var with only a floor constraint, modeling a real secondary pump/generator
+station that boosts its own local setpoint rather than passively inheriting the upstream value.
+A temperature "jump" at exactly these nodes is therefore expected model behavior, not a defect —
+the earlier title's "monotone fall" framing was the actual error.
+
+**Fix applied to the figure, not the model**: `scripts/paper_2/figures/fig_p2_campaign.py::build_f8`
+now shades each network's station node(s) (`_TRUNK_STATIONS = {"SB": {"j_pss"}, "MM": {"j_12"}}`)
+via `ax.axvspan(...)` on both the temperature and pressure subplots, and the title was corrected
+from the misleading "(monotone fall = L3+ propagation check)" to "(shaded = secondary
+pump/generator station, free setpoint — monotone fall expected only within each segment)".
+
+### G.13.3 F7 — `sensitivity.py`'s objective extraction was broken for every prior run (real
+bug, fixed and verified)
+
+**Symptom.** Every existing `meta.json` under `output/paper2_runs/sensitivity/` showed
+`obj_eur: null` despite real, nonzero `solve_s` values — the runs solved successfully but the
+tornado's one required number was never captured.
+
+**Root cause.** The original `run_sensitivity_scenario()` called `calion.run.workflow.run_workflow()`
+directly and used a hand-rolled `_extract_objective(wf)` helper that never correctly pulled the
+objective out of the workflow result — an independent, simplified re-implementation of extraction
+logic that diverged from the main campaign's own, proven path.
+
+**Fix.** Rewrote `run_sensitivity_scenario()` to build a full scenario dict and route through
+`scripts/paper_2/scenario_runner.py::run_single_scenario()` — the same pipeline
+`campaign_scheduler`/the main 46-scenario campaign already uses — redirecting `sr.OUT_BASE` to
+`OUT_BASE / "sensitivity"` for the duration. Also added a tighter, dedicated solver budget
+(`_SENS_SOLVER_OPTIONS`: `TimeLimit=6h`, `MIPGap=1%`, initially `Threads=4` then raised to `6`
+mid-campaign, see G.13.5) — sensitivity variants are one-parameter perturbations of an
+already-known-good design, not a search from scratch, so they don't need the main campaign's
+24h/1% budget.
+
+**Verified** on one variant (`memmingen`/`c_el`/`c_el_low`, base scenario `MM-S1-HK0`) before
+launching the full 26-variant campaign: real `obj_eur = 348,786.64`, `solve_s = 22,527`
+(≈ 6.26 h, hit the `TimeLimit` cap with a valid `maxTimeLimit` incumbent — an acceptable outcome
+for a sensitivity variant, same standard as the main campaign accepts for its own runs).
+
+### G.13.4 F3 — capacity sweep (`capacity_sweep.py`, Part A of the prompt spec) — never run
+before this pass, not a bug fix
+
+The prompt spec's capacity sweep module existed but had never actually been executed (the spec's
+own "A.6 decision" — pick a representative scenario per network — explicitly couldn't be made
+before the main campaign finished; the campaign finished in G.12 but the sweep itself was never
+subsequently launched). Two things were needed before a 7×7=49-point-per-network sweep was
+tractable:
+
+1. **Representative scenarios chosen**: `SB-S1-HK0` (Q_WP* = 24.20 MW, V_TES* = 4304 m³) and
+   `MM-S1-HK0` (Q_WP* = 0.60 MW, V_TES* = 165 m³) — both have WP and TES built, satisfying
+   `run_sweep()`'s existing requirement.
+2. **A dedicated, tighter solver budget** (`_SWEEP_SOLVER_OPTIONS`: `TimeLimit=1800s`,
+   `MIPGap=2%` — dispatch-only points with pinned capacities and presolved-away build binaries
+   converge to a good gap within minutes to tens of minutes in practice) was added and wired
+   through `run_sweep()`'s existing but previously-unused `extra_solver_options` parameter of
+   `run_single_scenario()`. Without this, the main campaign's 24h/1% investment-MILP budget would
+   have made a 98-point sweep impractical.
+
+Both networks' 49-point sweeps were launched to run concurrently; see "Campaign status" below.
+
+### G.13.5 Campaign status at time of writing (2026-07-20, mid-run — update this section again
+once all three finish)
+
+All three of the above were launched as multi-hour/multi-day background campaigns rather than
+completed synchronously:
+
+- **F8 real re-solve**: the real (non-diagnostic) `SB-S1-HK0` and `MM-S1-HK0` scenarios were
+  re-solved sequentially with the pressure-export fix (24h TimeLimit, 1% MIPGap, matching the
+  main campaign's own budget — this is a real reference scenario, not a quick diagnostic).
+  `SB-S1-HK0` completed: `obj_eur = 9,978,017.60`, **identical** to the pre-fix campaign value —
+  confirms the pressure-export fix is purely additive and changes nothing about the economics.
+  `MM-S1-HK0` was still solving at time of writing.
+- **F3 capacity sweep**: both networks' 49-point sweeps were mid-run, each point independently
+  respecting the 1800s/2% budget above; `run_sweep()`'s own aggregation
+  (`results/sweep_{network}_{scenario_id}.csv` + `_optimum.json`, with the spec's §A.5
+  sweep↔MILP consistency check) fires automatically once each network's 49 points are done.
+- **F7 sensitivity**: the 26-variant campaign (13 parameters × 2 networks) was launched with a
+  RAM-gated scheduler (initially 3-concurrent; raised to a disjoint-job-set 5-concurrent second
+  scheduler partway through once headroom was confirmed — see below) against the fixed
+  extraction path from G.13.3.
+- **Mid-campaign concurrency increase (F7 only)**: with F8 (1 process) and F3 (2 processes) also
+  running concurrently, the machine's RAM/CPU headroom (a 66-logical-core host, ~100GB/206GB RAM
+  in use at the time) was confirmed to comfortably support more F7 concurrency. The original
+  3-concurrent driver's parent process was terminated (its 3 in-flight children were left running
+  as orphans, uninterrupted — Windows does not kill children when only the parent PID is
+  targeted) and a second scheduler was launched targeting the remaining, explicitly-disjoint job
+  set (excluding the 3 still-orphan-running jobs, to avoid a `force_rerun=True` collision on
+  their in-progress output directories) at 5-concurrent, giving 8 total concurrent F7 solves.
+  `_SENS_SOLVER_OPTIONS["Threads"]` was raised from 4 to 6 for jobs launched by the new scheduler
+  (the 3 orphans keep their original `Threads=4`, already baked into their running process).
+  This is an operational/scheduling change only — no formulation, budget-cap, or extraction logic
+  changed, and every already-completed variant's `meta.json` skip-check (G.13.3) protected against
+  any duplicate re-solve when the new scheduler's job list was built.
+
+**Files touched this pass**: `calion/io/thermal_network_exporter.py` (G.13.1),
+`scripts/paper_2/figures/fig_p2_campaign.py::build_f8` (G.13.2, plus a `build_f6` data-label
+axis-margin fix for an unrelated text-overlap rendering bug found in the same visual re-check),
+`scripts/paper_2/sensitivity.py` (G.13.3, Threads 4→6 in G.13.5), `scripts/paper_2/capacity_sweep.py`
+(G.13.4, `_SWEEP_SOLVER_OPTIONS` new).
+
+**How to apply once campaigns finish**: regenerate F8 via
+`python -c "from scripts.paper_2.figures.fig_p2_campaign import build_f8; build_f8()"` once both
+`SB-S1-HK0`/`MM-S1-HK0` re-solves are done; build/verify F3's heatmap (`build_f3()` in the same
+module — its plotting logic had not been exercised against real sweep data as of this pass, since
+the sweep had never completed before); build/verify F7's tornado (`build_f7()`, same caveat).
+Update this section, the executive summary, and the design-package README's readiness verdict
+once all three are confirmed.
+
+*End of statement — updated 2026-07-20 for the CALION Paper 2 manuscript foundation.*

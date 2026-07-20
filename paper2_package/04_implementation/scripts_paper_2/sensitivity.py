@@ -93,6 +93,21 @@ def _find_best_scenario(network: str) -> str | None:
     return best["scenario_id"]
 
 
+# Dispatch/investment re-solve budget for a sensitivity variant. Same class of
+# problem as the main campaign scenarios (full investment MILP, not a pinned
+# dispatch-only point like capacity_sweep.py), so it keeps a generous budget,
+# but capped well under the main campaign's 24h since these are one-parameter
+# perturbations of an already-known-good design, not a search from scratch.
+_SENS_SOLVER_OPTIONS = {
+    "TimeLimit": 6 * 3600,
+    "MIPGap": 0.01,
+    "Threads": 6,
+    "Cuts": 2,
+    "MIPFocus": 2,
+    "Heuristics": 0.1,
+}
+
+
 def run_sensitivity_scenario(
     base_scen_id: str,
     param_key: str,
@@ -110,9 +125,8 @@ def run_sensitivity_scenario(
     Returns:
         Result dict with TAC and metadata.
     """
-    from scripts.paper_2.scenario_runner import (
-        load_scenarios_config, _load_yaml, _deep_merge, _dump_yaml_tmp
-    )
+    import scripts.paper_2.scenario_runner as sr
+    from scripts.paper_2.scenario_runner import load_scenarios_config, _deep_merge
 
     scen_cfg = load_scenarios_config()
     all_scenarios = scen_cfg["scenarios"]
@@ -127,60 +141,42 @@ def run_sensitivity_scenario(
     outdir = OUT_BASE / "sensitivity" / sens_id
 
     if (outdir / "meta.json").exists():
-        logger.info("[SKIP] %s already done", sens_id)
         prev = _read_json(outdir / "meta.json")
-        return {"id": sens_id, "status": "skipped", "param": param_key,
-                "variant": variant_label, "TAC_eur_per_a": prev.get("obj_eur"),
-                "solve_s": prev.get("solve_s")}
+        if prev.get("obj_eur") is not None:
+            logger.info("[SKIP] %s already done", sens_id)
+            return {"id": sens_id, "status": "skipped", "param": param_key,
+                    "variant": variant_label, "TAC_eur_per_a": prev.get("obj_eur"),
+                    "solve_s": prev.get("solve_s")}
+        # BUGFIX (2026-07-19): earlier runs of this function called
+        # calion.run.workflow.run_workflow() directly and hand-extracted the
+        # objective -- that path never worked (obj_eur was null for every
+        # variant, on both networks, despite the solves completing normally).
+        # Re-running through run_single_scenario below (the same, PROVEN
+        # extraction pipeline the main 46-scenario campaign uses) instead of
+        # trusting this stale null result.
+        logger.info("[RE-RUN] %s previously completed with obj_eur=null "
+                    "(broken extraction) -- redoing via run_single_scenario", sens_id)
 
-    # Load and merge config
-    cfg_path = _ROOT / base["config"]
-    if not cfg_path.exists():
-        return {"id": sens_id, "status": "skipped_no_config"}
+    # Build a full scenario dict, reusing run_single_scenario's own override
+    # merge + heating-curve injection + artifact extraction (the same proven
+    # path the main campaign uses) instead of a hand-rolled partial copy.
+    scen = dict(base)
+    scen["id"] = sens_id
+    scen["baseline"] = False
+    scen["overrides"] = _deep_merge(dict(base.get("overrides") or {}), override)
+    if base.get("network") == "stadtbach":
+        scen["overrides"] = _adapt_override_for_stadtbach(scen["overrides"])
 
-    cfg = _load_yaml(cfg_path)
-    if base.get("overrides"):
-        cfg = _deep_merge(cfg, base["overrides"])
-    cfg = _deep_merge(cfg, override)
-
-    # Inject heating curve parameters from the base scenario's HK stage.
-    # scenario_runner.py does this dynamically via compute_heizkurve(); here we use
-    # the static min/max bounds so CALION's internal heating curve stays feasible
-    # (T_supply_min >= T_return + 2°C is enforced at scenario level, not YAML level).
-    hk_stages = scen_cfg.get("heat_curve_stages", {})
-    hk_stage_key = base.get("heat_curve_stage", "HK0")
-    network_key = base.get("network", "memmingen")
-    first_val = next(iter(hk_stages.values()), None) if hk_stages else None
-    if isinstance(first_val, dict) and network_key in hk_stages:
-        hk_stage = hk_stages[network_key][hk_stage_key]
-    else:
-        hk_stage = hk_stages.get(hk_stage_key, {})
-    if hk_stage:
-        return_temp_c = float(cfg.get("network", {}).get("return_temp_c", 60.0))
-        t_vl_min_c = float(hk_stage.get("T_VL_min_c", 74.0))
-        t_vl_max_c = float(hk_stage.get("T_VL_max_c", 100.0))
-        t_vl_min_effective = max(t_vl_min_c, return_temp_c + 2.0)
-        cfg.setdefault("network", {}).setdefault("heating_curve", {})
-        cfg["network"]["heating_curve"]["T_supply_min_c"] = t_vl_min_effective
-        cfg["network"]["heating_curve"]["T_supply_max_c"] = t_vl_max_c
-        cfg.setdefault("heat_pumps", {}).setdefault("cop", {})
-        cfg["heat_pumps"]["cop"]["supply_temp_min_c"] = t_vl_min_effective
-        cfg["heat_pumps"]["cop"]["supply_temp_max_c"] = t_vl_max_c
-
-    tmp_path = _dump_yaml_tmp(cfg)
+    orig_out = sr.OUT_BASE
+    sr.OUT_BASE = OUT_BASE / "sensitivity"
     t0 = time.perf_counter()
     try:
-        from calion.run.workflow import run_workflow
-        wf = run_workflow([str(tmp_path)])
+        r = sr.run_single_scenario(scen, scen_cfg, force_rerun=True,
+                                    extra_solver_options=_SENS_SOLVER_OPTIONS)
         elapsed = time.perf_counter() - t0
-        obj = _extract_objective(wf)
-        outdir.mkdir(parents=True, exist_ok=True)
-        with open(outdir / "meta.json", "w", encoding="utf-8") as f:
-            json.dump({
-                "id": sens_id, "base": base_scen_id, "param": param_key,
-                "variant": variant_label, "obj_eur": obj, "solve_s": elapsed,
-            }, f, indent=2)
-        return {"id": sens_id, "status": "ok", "param": param_key,
+        obj = r.get("obj_eur")
+        status = "ok" if r.get("status") == "ok" and obj is not None else "error"
+        return {"id": sens_id, "status": status, "param": param_key,
                 "variant": variant_label, "TAC_eur_per_a": obj, "solve_s": elapsed}
     except Exception as exc:
         elapsed = time.perf_counter() - t0
@@ -188,10 +184,7 @@ def run_sensitivity_scenario(
         return {"id": sens_id, "status": "error", "param": param_key,
                 "variant": variant_label, "error": str(exc)}
     finally:
-        try:
-            tmp_path.unlink()
-        except OSError:
-            pass
+        sr.OUT_BASE = orig_out
 
 
 def run_sensitivity(out_base: Path) -> dict:

@@ -69,6 +69,21 @@ def _grid(opt: float, lo: float, hi: float, n: int, vmin: float, vmax: float) ->
     return sorted({round(float(x), 6) for x in g if x > 0})
 
 
+_SWEEP_SOLVER_OPTIONS = {
+    # Dispatch-only points (capacities pinned, build binaries presolved away)
+    # converge to a good gap within minutes in practice (observed ~4.7% at
+    # ~9 min on a Stadtbach-scale point) -- they don't need the investment
+    # MILP's 24h/1% budget. A tighter budget here is what makes a 7x7=49-point
+    # sweep per network tractable (2026-07-19).
+    "TimeLimit": 1800,
+    "MIPGap": 0.02,
+    "Threads": 4,
+    "Cuts": 2,
+    "MIPFocus": 2,
+    "Heuristics": 0.1,
+}
+
+
 def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
               dry_run: bool = False) -> Path | None:
     res = load_main_result(scenario_id)
@@ -111,7 +126,8 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
                 scen["tvl_fix"] = False
                 scen["overrides"] = sr._deep_merge(scen.get("overrides") or {},
                                                    _pin_override(network, q, v))
-                r = sr.run_single_scenario(scen, scen_cfg, dry_run=False, force_rerun=True)
+                r = sr.run_single_scenario(scen, scen_cfg, dry_run=False, force_rerun=True,
+                                            extra_solver_options=_SWEEP_SOLVER_OPTIONS)
                 row = {"Q_WP_MW": q, "V_TES_m3": v, "status": r.get("status")}
                 if r.get("status") == "ok" and r.get("outdir"):
                     k = compute_scenario_kpis(Path(r["outdir"]))

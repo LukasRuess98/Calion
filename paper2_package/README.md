@@ -1,49 +1,94 @@
-# Paper 2 Design Package — status snapshot 2026-07-19 (campaign COMPLETE, NOT fully paper-ready)
+# Paper 2 Design Package — status snapshot 2026-07-20 (campaign COMPLETE; 3 remaining figures IN PROGRESS, not yet in this package)
 
 This folder is the handoff package for designing the CALION Paper 2 manuscript
 (target: Energy Conversion and Management). **The full 46-scenario campaign is
-done** (both networks, including the F3 endogenous-siting scenarios via an
-enumeration decomposition) and the economics (T3/T4/T5, the headline numbers)
-are final and trustworthy. **However, a full visual re-check of every figure
-(done in this pass) found one rendering bug (fixed) and one still-open,
-unresolved physical/data issue in F8** — see "What changed this pass" and
-"Still open" below. **Verdict: the numeric/economic backbone is ready to
-write from now; F8 is not, and F3/F7 don't exist yet.** Read this whole file
-before writing anything.
+done** and **the economics (T3/T4/T5, the headline numbers) are final,
+trustworthy, and unchanged since the last snapshot** — nothing below affects
+any TAC/LCOH/CAPEX/OPEX/CO₂ number. **What changed since 2026-07-19: two real
+bugs were found and fixed (F8's pressure export, F7's objective extraction),
+one apparent bug was investigated and found to be correct model behavior
+(F8's Stadtbach "non-monotone" panel, now annotated instead of flagged), and
+the two previously-nonexistent analyses (F3 capacity sweep, F7 sensitivity
+tornado) were launched for the first time.** All three fixes are verified;
+the **campaigns applying them are still running** as background jobs at the
+time of this snapshot — see "What's still running" for exactly what that
+means for you. **Verdict: start writing now — the numeric backbone and 6 of
+9 figures are final. F8/F3/F7 will drop in without any other change to this
+package once their campaigns finish; do not fabricate placeholders for them.**
 
 ## TL;DR for the writing agent
 
 - **Economics (TAC, LCOH, CAPEX/OPEX, CO₂) are final and trustworthy** for all
-  46 scenarios. Use `02_figures_tables/tab_T3_stadtbach_kpis.csv` (26 rows) and
-  `tab_T4_memmingen_kpis.csv` (20 rows).
-- **Figures ready to use as-is**: F1 (model architecture), F2 (network maps),
-  F4 (k↔COP↔V_TES coupling), F5 (cost split), F6 (endogenous vs. fixed
-  siting — a text-overlap rendering bug was found and fixed this pass, see
-  below), F9 (TES SOC time series).
-- **F8 (spatial T/p profile) is NOT ready — do not use as-is.** A visual
-  check this pass found two real problems, neither fixed: (1) the pressure
-  sub-panels are completely empty for both networks ("no pressure data") —
-  a pre-existing export gap, not something wired up this session; (2) the
-  Stadtbach temperature panel is **not monotone** (dips at `j_pss` then rises
-  again at `j_hws`) despite the figure's own title claiming a "monotone fall"
-  check — traced to `j_pss` having a local generator (`HWS_BOILER`) injected
-  into what the figure treats as a simple linear trunk, which may be a real
-  L3+ per-node temperature-parameter artifact rather than a plotting bug.
-  Needs its own investigation before this figure (or any "monotone
-  propagation" claim about Stadtbach) can be used. See "Still open" below.
-- **Figures NOT ready — do not fabricate placeholders**: F3 (capacity-sweep
-  heatmap) and F7 (sensitivity tornado) each need a separate analysis module
-  that hasn't been run (see "Still open" below). If the manuscript structure
-  needs a placeholder for these, say so explicitly rather than estimating.
-- **One correction made in this pass, worth knowing about**: the F3
-  endogenous-siting scenarios' auxiliary `_summary.json` files (produced by a
-  parallel work session, not part of this package) reported the wrong
-  "best" site pair for the three Stadtbach `SB-S6` stages — they pointed at
-  an early screening-stage leader that a later, more-converged run
-  (`(j_man, j_man)`) beat by ~49 %. This package's tables use the **verified
-  true winner** (see `tab_T3b_T4b_f3_endogenous_siting_FINAL.csv` and the
-  Implementation Statement Part G.8 for the full trace). If you see the older
-  number (`j_hkw`/`j_pss`, ≈8.80 M€) anywhere else in the repo, it is stale.
+  46 scenarios, unchanged since 2026-07-19. Use
+  `02_figures_tables/tab_T3_stadtbach_kpis.csv` (26 rows) and
+  `tab_T4_memmingen_kpis.csv` (20 rows). This was independently re-confirmed
+  this pass: the F8 re-solve of `SB-S1-HK0` under the corrected pressure
+  export produced the exact same objective (`9,978,017.60 €`) as the original
+  campaign value — proof the pressure-export bug never touched the economics.
+- **Figures ready to use as-is, no change this pass**: F1 (model
+  architecture), F2 (network maps), F4 (k↔COP↔V_TES coupling), F5 (cost
+  split), F9 (TES SOC time series).
+- **F6 (endogenous vs. fixed siting)**: ready — a text-overlap rendering bug
+  (long negative-bar label running off the axes) was found and fixed in the
+  2026-07-19 pass, unchanged since.
+- **F8 (spatial T/p profile) — NOT in this package yet, but both of its
+  blocking problems are now resolved:**
+  1. The pressure sub-panels being empty was a real, one-line export bug
+     (wrong Pyomo attribute name) — **fixed and verified** (100 % of nodes
+     now populated on both networks, physically plausible producer→consumer
+     decay).
+  2. Stadtbach's "non-monotone" temperature dip at `j_pss` is **not a bug** —
+     `j_pss` (Stadtbach) / `j_12` (Memmingen) are secondary pump/generator
+     stations with a deliberately free, locally-boosted setpoint (real
+     equipment behavior, documented design decision from 2026-07-09). The
+     figure now shades these nodes and its title no longer claims a
+     network-wide "monotone fall".
+  A full-year re-solve of the real `SB-S1-HK0`/`MM-S1-HK0` reference
+  scenarios with the pressure fix is running now so the final figure uses
+  clean, non-diagnostic data — see "What's still running". Once it finishes,
+  the figure regenerates and drops into `02_figures_tables/` with no further
+  investigation needed.
+- **F3 (capacity-sweep heatmap) and F7 (sensitivity tornado) — NOT in this
+  package yet, campaigns running for the first time.** Neither had ever been
+  executed before this pass (F3's own prerequisite — "pick a representative
+  scenario" — could only be decided after the main campaign finished; F7's
+  prior runs all had a broken objective-extraction bug, now fixed). Both are
+  mid-run — see "What's still running".
+- **What you can write now**: introduction, model/methods (Part A/B of the
+  Implementation Statement), Stadtbach and Memmingen case-study description,
+  all economics-driven results text (siting comparison, cost breakdown, TES
+  behavior), validation section (with the T5 caveat below), and the F1/F2/F4/
+  F5/F6/F9 figure discussions. Leave placeholders only for the specific
+  paragraphs that need F8's spatial profile, F3's heatmap, or F7's tornado —
+  everything else is final.
+
+## What's still running (check before you need F8/F3/F7 specifically)
+
+Three background campaigns were launched this pass and were not finished as
+of this snapshot. None of them affect anything else in this package — they
+only produce the F8/F3/F7 artefacts. Ask for a fresh status check (or re-run
+the commands below) before drafting the sections that depend on them.
+
+- **F8 real re-solve**: `SB-S1-HK0` (done — see confirmation above) then
+  `MM-S1-HK0` (both full-year, 24h/1% budget — this is the real reference
+  scenario, not a quick diagnostic). Once both are done: regenerate via
+  `python -c "from scripts.paper_2.figures.fig_p2_campaign import build_f8; build_f8()"`.
+- **F3 capacity sweep**: 7×7=49 dispatch-only points per network (98 total)
+  for `SB-S1-HK0`/`MM-S1-HK0`, ~20-40 min/point. Auto-aggregates to
+  `results/sweep_{network}_{scenario_id}.csv` + `_optimum.json` (with the
+  spec's §A.5 sweep↔MILP consistency check) once each network's 49 points
+  finish; `build_f3()`'s heatmap logic has not yet been exercised against
+  real data (this is the first real run) and should be spot-checked once it
+  is.
+- **F7 sensitivity tornado**: 26 variants (13 parameters × 2 networks), each
+  up to a 6h solve. Running at higher-than-original concurrency (boosted
+  partway through once spare RAM/CPU on the host was confirmed — an
+  operational change only, see Implementation Statement Part G.13.5).
+  `build_f7()`'s plotting logic is similarly unexercised against real data
+  until the campaign completes.
+
+Full technical detail on all three (root causes, fixes, verification) is in
+`01_specification/CALION_Paper2_Implementation_Statement.md`, **Part G.13**.
 
 ## Headline results (for quick reference — verify against the CSVs before quoting)
 
@@ -80,14 +125,14 @@ citing it as a problem in the manuscript; do not present it as unexplained.
 
 - `01_specification/` — the governing documents:
   - `CALION_Paper2_Implementation_Statement.md` — full model/spec
-    traceability, current as of 2026-07-19. Parts G.10–G.12 (new this pass)
-    document the reporting-pipeline audit, the TES dispatch-export bug and
-    fix, and the resolution of the Memmingen P1↔P2 consistency check. **This
-    is the primary methods-section source and the place to check before
-    trusting any specific number's provenance.**
+    traceability, current as of 2026-07-20. **Part G.13** (new this pass)
+    documents the F8 pressure-export fix, the F8 Stadtbach-monotonicity
+    resolution, the F7 objective-extraction fix, the F3 capacity-sweep
+    launch, and the in-progress campaign status. **This is the primary
+    methods-section source and the place to check before trusting any
+    specific number's provenance.**
   - `CALION_Paper2_Sweep_und_Grafiken_Prompt_v2_final.md` — the figure/table
-    spec (F1–F9, T1–T5) and capacity-sweep module spec. Still the
-    authoritative to-do list for the two open figures.
+    spec (F1–F9, T1–T5) and capacity-sweep module spec.
   - `CALION_Paper2_Sweep_und_Grafiken_Prompt.md` — v1, history only.
   - `CALION_Paper2_Spezifikation.docx` — the original Version 1.0 spec.
 - `02_figures_tables/` — current state of `results/paper2_figures/`:
@@ -96,77 +141,65 @@ citing it as a problem in the manuscript; do not present it as unexplained.
   - `tab_T2` — scenario matrix (46 rows, static).
   - `tab_T3_stadtbach_kpis` (26 rows), `tab_T4_memmingen_kpis` (20 rows) —
     **final economics**, see headline numbers above.
-  - `tab_T3b_T4b_f3_endogenous_siting_FINAL` — the corrected F3
-    (`SB-S6`/`MM-S4`) results, with HP/TES site, MIP gap, and full KPI set;
-    supersedes what you'd otherwise read out of T3/T4's own `SB-S6-HK0` /
-    `MM-S4-HK0` rows if this package's fix had not been applied.
+  - `tab_T3b_T4b_f3_endogenous_siting_FINAL` — the corrected `SB-S6`/`MM-S4`
+    results, with HP/TES site, MIP gap, and full KPI set.
   - `tab_T5_validation` — solver-status census, MW-closure stat (see caveat
     above), COP plausibility range, P1↔P2 consistency (see caveat below).
-  - `fig_F1/F2/F4/F5/F6/F8/F9` (svg+pdf+png) — ready to use.
+  - `fig_F1/F2/F4/F5/F6/F9` (svg+pdf+png) — ready to use.
   - `fig_F8_trunk_candidates_DRAFT`, `fig_palette_preview_DRAFT` — approval
     artefacts (trunk-path decision, color palette), not manuscript figures.
-  - **Missing on purpose**: F3, F7 (see "Still open").
+  - **Missing on purpose, campaigns in progress**: F8 (new pressure-fixed
+    version), F3, F7 — see "What's still running".
 - `03_configs/` — full config trees (`paper_2/`, `stadtbach/`) — unchanged
   this pass, still current.
 - `04_implementation/` — source code snapshot (`calion/`, `scripts_paper_2/`),
   refreshed this pass to include every file touched by the fixes described
-  below (`calion/run/result_collector.py`, `calion/run/solver.py`,
-  `scripts/paper_2/figures/gen_tables.py`,
-  `scripts/paper_2/extract_artefacts_p2.py`).
+  above: `calion/io/thermal_network_exporter.py` (F8 pressure fix),
+  `scripts_paper_2/figures/fig_p2_campaign.py` (F8/F6 figure fixes),
+  `scripts_paper_2/sensitivity.py` (F7 extraction fix), `scripts_paper_2/
+  capacity_sweep.py` (F3, new tractable solver budget).
 - `05_paper1_reference/` — Paper 1 materials for consistency (submitted
   manuscript, Elsevier template, equations/methodology docs, published
   figures). Unchanged this pass.
 
-## What changed this pass (2026-07-16 to -19) — read this before trusting old caveats
+## What changed this pass (2026-07-19 evening to 2026-07-20) — read this before trusting old caveats
 
-A reviewer-style critique of the earlier campaign surfaced four apparent
-blockers. All four are now resolved; three were reporting-pipeline bugs, one
-was a real (now-fixed) data-export bug that never touched the economics:
+1. **F8, problem 1 (pressure data always empty) — real bug, fixed.** Wrong
+   Pyomo attribute name in the node-pressure export
+   (`calion/io/thermal_network_exporter.py`); pressure was fully modeled and
+   solved the whole time, just never read out. Fixed, verified 100 %
+   populated with physically plausible producer→consumer decay on both
+   networks. Full-year re-solve of the real reference scenarios in progress
+   to get clean data for the final figure (see "What's still running").
+2. **F8, problem 2 (Stadtbach "non-monotone" panel) — investigated, not a
+   bug.** `j_pss`/`j_12` are secondary pump/generator stations with a
+   deliberately free, locally-boosted setpoint — real equipment behavior,
+   not an L3+ artifact or plotting bug. Figure now shades these nodes and
+   its title states this explicitly instead of claiming an incorrect
+   network-wide monotonicity guarantee.
+3. **F7's objective extraction — real bug, fixed.** Every prior sensitivity
+   run recorded `obj_eur: null` despite solving successfully; the tornado
+   diagram's one required number was silently missing for all 26 variants,
+   every prior attempt. Root cause: an independent, broken hand-rolled
+   extraction helper instead of the main campaign's proven extraction path.
+   Fixed by routing through the same `run_single_scenario()` pipeline the
+   46-scenario campaign itself uses. Verified on one variant before
+   launching the full campaign.
+4. **F3's capacity sweep — never run before, now launched.** Not a bug: the
+   module existed but had never actually been executed. Added a dedicated,
+   tractable dispatch-only solver budget (the main campaign's 24h/1%
+   investment-MILP budget would have made a 98-point sweep impractical) and
+   launched both networks' 49-point grids.
+5. **Operational: F7 campaign concurrency raised mid-run.** Confirmed spare
+   RAM/CPU headroom on the host and safely increased F7's parallelism
+   (3→8 concurrent solves) without touching or restarting F8/F3's live
+   processes. No formulation or budget-cap change — see Implementation
+   Statement Part G.13.5 for exactly how the handover between the old and
+   new scheduler was made collision-safe.
 
-1. **Stale aggregation file + a dict-key typo** made T3/T4/T5 look like most
-   runs hadn't converged and showed impossible values (e.g. constant
-   `E_TES=500 MWh` even for no-TES baselines). Both fixed; every number in
-   T3/T4/T5 is now read from live, current per-scenario data.
-2. **A real bug found and fixed**: TES charge/discharge/SOC data was silently
-   dropped from the dispatch export for every TES-active scenario, on both
-   networks (a type-matching gate never recognized the investable TES's
-   `geometric_storage` asset type, and a variable-name mismatch broke the
-   SOC read even when the gate was fixed). This made the MW-closure
-   validation check look far worse than reality. **Verified: `economics.csv`
-   — and therefore every TAC/LCOH/CO₂ number in T3/T4 — was never on this
-   broken code path.** All 27 TES-active scenarios were re-solved after the
-   fix to get correct TES-utilization data (`TES_cycles_per_a`,
-   `TES_utilization_pct`) and clean validation numbers; the economic
-   conclusions did not change (verified byte-for-byte identical TAC values
-   before/after re-solve).
-3. **The Memmingen P1↔P2 OPEX consistency check** (T5, still shows "FAIL,
-   124 %") is not a bug: it compares Paper 2's `BC-MM` (a genuine
-   zero-investment "Bestand" baseline) against Paper 1's `L3` reference
-   (which assumed a small pre-existing 5 MW HP+EK). These are two
-   deliberately different scenarios; a large deviation is the *expected*
-   outcome, not evidence of a defect. Recommend retiring this specific check
-   or repointing it at a new explicitly-5 MW-fixed scenario if a
-   like-for-like cross-check is still wanted for the manuscript — not done
-   in this pass, awaiting a decision on whether it's still needed.
-4. **This session's own correction**: the F3 (`SB-S6`/`MM-S4`) enumeration
-   campaign's `_summary.json` files (built by a separate, parallel session)
-   were stale for the three Stadtbach stages, still pointing at a
-   screening-stage leader that a later Stage-2 re-verification had already
-   beaten by ~49 %. Traced by directly comparing every individual
-   `pair_*.json` result file rather than trusting the summary — see
-   `tab_T3b_T4b_f3_endogenous_siting_FINAL.csv` for the corrected numbers,
-   folded into T3/T4 and figures F5/F6.
-5. **F6 rendering bug found and fixed in a full visual re-check of every
-   figure**: the "Value of free TES/WP siting" bar chart placed each data
-   label past the bar's tip (away from zero); for a long negative bar
-   (Memmingen, −10.7 %) this pushed the label text off the left edge of the
-   axes, where it overlapped the "Memmingen" category tick label —
-   unreadable. Fixed by widening the axes' x-margins to fit the longest
-   label (`scripts/paper_2/figures/fig_p2_campaign.py::build_f6`).
-   Regenerated and visually re-verified clean.
-6. **F8 checked, NOT fixed — two real problems found**, see the TL;DR above
-   and "Still open" below. This figure should not be used until both are
-   resolved.
+See the 2026-07-19 pass's changes (stale-aggregation fix, TES dispatch-export
+bug, F6 rendering fix, F3 `_summary.json` staleness correction) in the
+Implementation Statement Parts G.10–G.12 — all still valid and unchanged.
 
 ## Known caveats to state explicitly in the manuscript
 
@@ -193,55 +226,28 @@ From Implementation Statement Part D (O-1…O-10) and Part G:
   **not** describe it as an energy-conservation check — or note the
   known formula limitation explicitly. Do not present 22.98 %/12/41 as if it
   suggests the model doesn't conserve energy; it doesn't mean that.
+- **F8's station-node temperature/pressure jumps** (`j_pss` Stadtbach,
+  `j_12` Memmingen): if F8 is discussed, note explicitly that these are
+  secondary pump/generator stations with an independently-boosted setpoint,
+  not evidence against monotone propagation elsewhere on the trunk (Part
+  G.13.2).
 - G.8: the `(hp_site, tes_site)` pairs quoted anywhere for `SB-S6`/`MM-S4`
   must be the ones in `tab_T3b_T4b_f3_endogenous_siting_FINAL.csv`
   (`j_man`/`j_man` for all three Stadtbach stages, `j_3`/`j_1` for all three
   Memmingen stages) — not any earlier screening-stage number that might
   still be floating around other output files in the repo.
 
-## Still open — genuinely not done, needs its own session
+## Still open — genuinely not done, needs the campaigns above to finish first
 
-- **F8, problem 1 — pressure data never populated.** Traced to
-  `scripts/paper/extract_artefacts.py`'s `nodes_state_hourly.parquet` writer:
-  it reads per-node pressure from a wide-format `{node}_P` column in
-  `output/paper2_runs/thermal_network/nodes/nodes_timeseries.csv`, but that
-  file (confirmed for both networks) has zero `_P`-suffixed columns at
-  all — only `_T_supply`/`_T_return`/`_Q_demand`. Pipe-level pressure drop
-  and pump power ARE modeled and solved (confirmed elsewhere in the
-  Implementation Statement), so this is a real, separate export gap: no
-  per-*node* pressure was ever wired into this specific timeseries export,
-  on either network, for the whole campaign. Also note: this file lives at
-  a **shared, non-scenario-specific path** (same class of issue as the
-  `unified_timeseries.csv` finding in Part G.10) — worth checking whether it
-  reflects the right scenario at all once pressure export is fixed.
-- **F8, problem 2 — Stadtbach's temperature panel is not monotone.** The
-  trunk `j_hkw → j_pss → j_hws → j_don_bosco` is a genuine simple linear
-  pipe chain (confirmed against `Stadtbach_topo.yaml`, no mesh mixing at
-  either node), yet `T_supply` drops sharply at `j_pss` (~70 °C) then rises
-  again at `j_hws` (~98 °C) before easing off toward `j_don_bosco`. `j_pss`
-  is the site of a local generator (`HWS_BOILER`), which is the likely
-  cause, but a local generator alone shouldn't make a *downstream* node's
-  temperature exceed its *upstream* neighbor's in a simple chain — suspect
-  the L3+ per-node temperature-classification mechanism (some nodes carry a
-  solved, propagated `T_supply` Var; others may carry a Param driven
-  independently by the heating-curve setpoint, per
-  `network_manager.py::_classify_node_temperature_mode` referenced elsewhere
-  in this package's code) rather than a real physical reheat. Not resolved
-  this pass — needs someone to trace which of the two mechanisms each of
-  these four nodes actually uses before this figure (or any claim of
-  "monotone propagation" for Stadtbach) can be presented as validated.
-  Memmingen's own panel (radial tree, single mechanism throughout) IS
-  monotone and did not show this problem — the issue looks specific to
-  nodes whose local generation type triggers the alternate temperature mode.
-- **F3 (capacity-sweep heatmap, LCOH over Q_WP × V_TES)**: needs
-  `capacity_sweep.py` (Part A of the prompt spec) run for a representative
-  scenario per network, producing `results/sweep_{network}_{scenario_id}.csv`.
-  Not started. The prompt spec explicitly says the representative-scenario
-  choice ("A.6 decision") can't be made before the campaign finishes — the
-  campaign is now finished, so this can proceed; it just hasn't yet.
-- **F7 (sensitivity tornado)**: `sensitivity.py`'s existing run only recorded
-  solve time/status, not the TAC deltas the figure needs. Needs a re-run with
-  TAC capture wired in.
+- **F8**: pressure-export fix and monotonicity annotation are done; waiting
+  only on `MM-S1-HK0`'s full-year re-solve to finish before regenerating the
+  final figure. No further investigation needed — this is a "wait for the
+  solve" item, not an open question.
+- **F3 (capacity-sweep heatmap)**: campaign running for the first time;
+  `build_f3()`'s plotting logic itself has not yet been exercised against
+  real sweep data and should be spot-checked once the sweep finishes.
+- **F7 (sensitivity tornado)**: campaign running (extraction bug fixed);
+  `build_f7()`'s plotting logic similarly unexercised against real data yet.
 - **Citation library**: only Paper 1's `cas-refs.bib` is present. If a
   Paper-2-specific reference library exists (HP+TES co-sizing studies, F3
   heatmap comparators), it should be added before the related-work section is
