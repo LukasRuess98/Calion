@@ -5,8 +5,8 @@ Pipes (supply+return pairs),32,14
 Total route length [km],54.2,4.4
 Topology,meshed (1 bidirectional trunk),radial tree
 Demand zones,24,27
-Peak heat load [MW],200.7,5.3
-Annual heat supplied [GWh],640.4,57.3
+Peak heat load [MW],200.7,4.9
+Annual heat supplied [GWh],640.4,9.5
 Design supply temp. [°C],99.0,86.0
 Return temp. [°C],60.0,63.6
 Fixed generators,7,3

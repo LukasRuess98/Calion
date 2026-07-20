@@ -605,7 +605,19 @@ assets:
     cop_default: 3.0
     investment:
       enabled: true
-      capex_eur_per_mw: 400000.0
+      # 2026-07-20: harmonized 400k -> 700k to match Memmingen's hp_main rate
+      # (configs/paper_2/Memmingen_P2_base.yaml), removing an undocumented
+      # 75% CAPEX asymmetry between networks for the same HP technology class
+      # (flagged unresolved since 2026-07-03, same confound class as the eta
+      # fix). 700k EUR/MW sits inside the literature range for large-scale
+      # industrial/DH heat pumps: Pieper, Ommen, Buehler, Lava Paaske,
+      # Elmegaard & Markussen, "Allocation of investment costs for
+      # large-scale heat pumps supplying district heating," Energy Procedia
+      # 147 (2018) 358-367 (26 real Danish DH-HP installations) report total
+      # investment cost of 0.8-1.1 M EUR/MW (2017 data); IRENA/JRC put
+      # large-scale HP investment at ~600-900 EUR/kW depending on heat
+      # source. 400k sat below this band with no documented justification.
+      capex_eur_per_mw: 700000.0
       activation_cost_eur: 50000.0
       lifetime_years: 20.0
       capacity_min_mw: 0.0

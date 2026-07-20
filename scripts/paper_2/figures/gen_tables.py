@@ -86,7 +86,29 @@ def _demand_columns(cfg: dict) -> list[str]:
 
 
 def _peak_and_energy(cfg: dict, data_path: Path) -> dict:
-    """Peak [MW] and annual energy [GWh] from the summed declared demand columns."""
+    """Peak [MW] and annual energy [GWh] from the summed declared demand columns.
+
+    FIX (2026-07-20, found via a reviewer-style check on T1: Memmingen's implied
+    mean load, annual_gwh*1000/8760, exceeded its own peak_mw — physically
+    impossible for a system-wide metric). Two compounding bugs, both silent
+    because they only matter for a raw input file that (a) is not exactly one
+    calendar year and/or (b) is not hourly-sampled:
+    1. This previously summed EVERY row in the raw xlsx as if it were exactly
+       one calendar year. Stadtbach's file genuinely is 8760 hourly rows (one
+       year), so it was never wrong there. Memmingen's raw file spans ~1.24
+       years (2025-01-01 through part of 2026-03) — summing all of it and
+       calling the result "annual" overstated Memmingen's annual energy.
+    2. It also assumed dt=1h between rows. Memmingen's raw file is sampled
+       every 15 minutes (dt=0.25h), so summing MW values directly (instead of
+       MW * dt) overstated the energy integral 4x on top of bug 1.
+    Fix: infer the true dt from the datetime column (median row-to-row gap,
+    robust to either network's native resolution) and restrict to the same
+    `scenario.horizon.start/end` calendar window the actual MILP solves use
+    (`cfg["site"]["columns"]["datetime"]` names the column, default "Datum")
+    — so this table describes exactly the same year the model optimizes
+    over, not an arbitrary raw-file span. A no-op for Stadtbach (whole file
+    already is exactly one year at dt=1h, no horizon override present).
+    """
     cols = _demand_columns(cfg)
     out = {"peak_mw": None, "annual_gwh": None, "n_zones": len(cols),
            "n_hours": None, "n_gap_hours": None, "missing_cols": []}
@@ -99,13 +121,27 @@ def _peak_and_energy(cfg: dict, data_path: Path) -> dict:
     if not present:
         out["error"] = "no declared demand columns found in data file"
         return out
-    demand = df[present].apply(pd.to_numeric, errors="coerce")
-    total = demand.sum(axis=1, skipna=True)          # network load per hour [MW]
-    any_valid = demand.notna().any(axis=1)           # hours with >=1 real reading
+
+    datetime_col = cfg.get("site", {}).get("columns", {}).get("datetime", "Datum")
+    dt_hours = 1.0
+    mask = pd.Series(True, index=df.index)
+    if datetime_col in df.columns:
+        ts = pd.to_datetime(df[datetime_col], errors="coerce")
+        diffs = ts.diff().dropna()
+        if len(diffs):
+            dt_hours = diffs.median().total_seconds() / 3600.0
+        horizon = cfg.get("scenario", {}).get("horizon", {}) or {}
+        if horizon.get("start") and horizon.get("end"):
+            start, end = pd.to_datetime(horizon["start"]), pd.to_datetime(horizon["end"])
+            mask = (ts >= start) & (ts <= end)
+
+    demand = df.loc[mask, present].apply(pd.to_numeric, errors="coerce")
+    total = demand.sum(axis=1, skipna=True)          # network load per row [MW]
+    any_valid = demand.notna().any(axis=1)           # rows with >=1 real reading
     out["peak_mw"] = float(total[any_valid].max())
-    out["annual_gwh"] = float(total.sum()) / 1000.0  # dt = 1 h → MWh → GWh
-    out["n_hours"] = int(len(df))
-    out["n_gap_hours"] = int((~any_valid).sum())
+    out["annual_gwh"] = float(total.sum()) * dt_hours / 1000.0  # MW * dt_hours = MWh → GWh
+    out["n_hours"] = round(int(mask.sum()) * dt_hours, 1)
+    out["n_gap_hours"] = round(int((~any_valid).sum()) * dt_hours, 1)
     return out
 
 

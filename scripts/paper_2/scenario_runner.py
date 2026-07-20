@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,15 @@ import yaml
 
 # Project root
 _ROOT = Path(__file__).resolve().parents[2]
+# Unlike its siblings (run_paper2_full.py, enumerate_endog_siting.py), this
+# module used to skip this insert, which only worked when Python's own
+# script-mode sys.path[0] (this file's directory) happened to make `calion`
+# importable some other way (e.g. an editable install). On a clean clone,
+# `python scripts/paper_2/scenario_runner.py` fails with
+# `ModuleNotFoundError: No module named 'calion'`; `python -m
+# scripts.paper_2.scenario_runner` masked it by adding the repo root via cwd.
+# This makes direct script invocation work too, matching the siblings.
+sys.path.insert(0, str(_ROOT))
 
 logger = logging.getLogger(__name__)
 

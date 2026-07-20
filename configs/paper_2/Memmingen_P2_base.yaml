@@ -349,7 +349,11 @@ heat_pumps:
     cop_fallback: 3.0
   types:
     standard:
-      eta: 0.6
+      # 2026-07-20: harmonized 0.6 -> 0.75 to match Stadtbach_topo.yaml's eta
+      # (same fix applied there on 2026-07-08, see comment there). Both
+      # networks must use the same Lorenz-Gütegrad so the SB-vs-MM siting
+      # comparison isn't confounded by a COP/economics difference.
+      eta: 0.75
       FQ: 0.10
 
 # --------------------------------------------------------------------------
