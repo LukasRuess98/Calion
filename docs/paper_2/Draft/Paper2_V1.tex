@@ -555,27 +555,132 @@ the parametric sweep of Section~\ref{sec:results:sweep}.
 %% BUDGET: ~900 words | ELEMENTS: T1, F2, T2
 %% STATUS: WRITABLE NOW -- config-derived, campaign-independent
 %% ------------------------------------------------------------
+The two networks are selected as a deliberate contrast pair rather than
+as a convenience sample. \Cref{tab:T1} summarises their key
+characteristics; \Cref{fig:F2} maps both topologies with the storage
+siting candidates used in Section~\ref{sec:cases:scenarios}.
+
 \subsection{Network characteristics}
 \label{sec:cases:networks}
-\todo{Stadtbach (33 nodes, volatile industrial waste heat dominated)
-vs. Memmingen (15 nodes, price/DSM signal dominant). Argue the pair as
-a deliberate contrast, not a convenience sample.}
+
+\placeholder{Insert Table~T1 here (network characteristics; source:
+tab\_T1a\_network\_characteristics).}
+
+The first network, referred to throughout as the industrial case, is a
+meshed \num{33}-node system with one bidirectional trunk connecting a
+\SI{357.5}{\mega\watt} fixed generation portfolio -- gas- and
+biomass-fired combined heat and power, gas boilers and an existing
+waste-heat feed -- to \num{24} consumer nodes at a peak load of
+\SI{200.7}{\mega\watt} and an annual supply of \SI{640.4}{\giga\watt
+\hour}. Its defining feature for this study is a large, temporally
+volatile industrial waste-heat stream, which is what the investable heat
+pump is sized to exploit, and a design supply temperature of
+\SI{99}{\celsius} that leaves substantial headroom for heat curve
+reduction.
+
+The second network, referred to as the price-driven case, is a radial
+\num{15}-node tree with three fixed generators and a peak load of
+\SI{4.9}{\mega\watt} against an annual supply of \SI{9.5}{\giga\watt
+\hour} -- roughly forty times smaller in peak load and sixty times
+smaller in annual demand than the industrial case -- and a lower design
+supply temperature of \SI{86}{\celsius}. Its \num{27} demand zones are
+aggregated onto fewer physical nodes than the industrial case, and no
+single dominant waste-heat source exists; consequently the economic
+signal that investment decisions respond to is dominated by the
+electricity price and grid carbon intensity series rather than by the
+availability of a volatile heat source.
+
+The pairing is deliberate: the two networks differ simultaneously in
+topology (meshed versus radial), scale (more than an order of magnitude
+in load), and the nature of the dominant economic signal (waste-heat
+availability versus price). Any finding that holds across both is
+therefore not an artefact of network size or of a single shared design
+assumption. Section~\ref{sec:results:siting} exploits precisely this
+contrast: the two cases turn out to favour opposite siting strategies,
+and the network characteristics summarised here are the basis on which
+that difference is interpreted.
 
 \subsection{Scenario matrix}
 \label{sec:cases:scenarios}
-\todo{46 runs: baseline, S0 (no TES), S1--S5 fixed siting,
-S6/S7 (SB) and S4/S5 (MM) endogenous/colocated; x HK0/HK1/HK2.}
+
+\placeholder{Insert Table~T2 here (scenario matrix; source:
+tab\_T2\_scenario\_matrix).}
+
+Each network is subjected to the same scenario design, adapted to its
+number of storage siting candidates. A baseline (BC) reproduces the
+existing system with no investment and a constant supply temperature. A
+no-storage investment case (S0) establishes what heat pump and electrode
+boiler investment alone achieve, evaluated at the fixed supply
+temperature and at all three transformation stages (Section
+\ref{sec:model:heatcurve}). A sequence of fixed-siting scenarios then
+places storage at each of several candidate nodes in turn -- the central
+generation hub, the waste-heat node that hosts the heat pump, and, for
+the industrial network, two further pumping-station nodes -- crossed
+with the three transformation stages. One fixed-siting variant per
+network additionally enables \emph{hot charging}: the heat pump is
+permitted to charge the storage above the network supply temperature,
+decoupling the usable energy density of the tank from the network's own
+temperature spread at the cost of an additional charging-side
+temperature lift. Finally, an endogenous-siting pair of scenarios lets
+the solver choose the storage node freely from the same candidate set --
+once with the heat pump held at its fixed waste-heat node, and once with
+the heat pump siting itself co-optimised and constrained to coincide
+with the storage node, again with hot charging enabled. This yields
+\num{26} scenario runs for the industrial network and \num{20} for the
+price-driven network, \num{46} in total, each solved as an independent
+MILP; the two endogenous-siting pairs additionally require the
+enumeration procedure described in Section~\ref{sec:model:validation}
+where the monolithic formulation does not converge.
+
+The design isolates three questions in a controlled way: what fixed-
+siting comparison identifies as the best available node
+(Section~\ref{sec:results:costs}), whether free siting improves on that
+best fixed choice (Section~\ref{sec:results:siting}), and how each of
+these interacts with the transformation stage
+(Section~\ref{sec:results:coupling}).
 
 \subsection{Economic and technical parameters}
 \label{sec:cases:parameters}
-\todo{Discount rate, lifetimes, CAPEX coefficients, price/CO2 series.}
+
+Capital cost is annualised at a discount rate of \SI{5}{\percent} with
+component lifetimes of \num{20}, \num{25} and \num{30} years for heat
+pump, electrode boiler and storage respectively (\cref{eq:annuity}).
+Unit investment costs $\alpha$ and activation costs $\beta$
+(\cref{eq:capex}) are literature- and VDI-2067-style assumptions rather
+than vendor quotations, and are stated in full in \cref{tab:T1}
+\placeholder{add a compact cost-parameter table or fold into T1}. The
+heat pump unit cost, $\alpha_{\mathrm{HP}} = \SI{700000}{\eur\per
+\mega\watt}$, is applied identically to both networks and is supported
+by a survey of 26 realised large-scale heat pump installations in Danish
+district heating, which reports specific investment costs of
+\SIrange{0.8}{1.1}{\mega\eur\per\mega\watt} \cite{Pieper.2018}, corroborated
+by IRENA and JRC figures of the same order. Their influence on the
+headline results is bounded by the sensitivity analysis in
+Section~\ref{sec:discussion:sensitivity}. Operating cost is driven by
+network-specific hourly time series for electricity price, grid carbon
+intensity, ambient temperature and, for the industrial network, waste-
+heat availability and temperature, all metered or measured data
+calibrated as described for the underlying dispatch model in Paper~1
+\cite{Ruess.2026}.
 
 %% ============================================================
 \section{Results}
 \label{sec:results}
 %% BUDGET: ~2,300 words | ELEMENTS: F3, F4, F5, F6, T3, T4
-%% STATUS: BLOCKED -- awaiting F3 sweep, F7 tornado, F8 re-solve,
-%%         SB-S2 plausibility check, T5 filter, 5 MW MM scenario
+%% STATUS: BLOCKED -- as of 2026-07-20, essentially the ENTIRE 46-scenario
+%%   matrix for BOTH networks is being re-solved following two harmonised
+%%   parameter fixes (HP efficiency eta=0.75, HP unit CAPEX 700k EUR/MW).
+%%   Do NOT draft against any KPI number seen in chat before this date --
+%%   including the SB-S2-HK2 headline figure quoted at the start of the
+%%   drafting session. Four campaigns running: Memmingen Wave 1+2 (unaffected
+%%   by the CAPEX fix, continuing), Stadtbach Wave A (23 scenarios) + Wave B
+%%   (SB-S6 75-solve enumeration). F3 sweep and F7 tornado were killed for
+%%   Stadtbach (stale CAPEX) and need fresh launches for BOTH networks once
+%%   the four waves land. T5 exclusion filter logic confirmed already correct
+%%   in code; still needs re-verification against fresh output from all four
+%%   waves before this section can be trusted. SB-S2 plausibility check
+%%   (Part G.4, TES-at-consumer-node economics) still outstanding and now
+%%   applies to whatever scenario turns out to be the new Stadtbach headline.
 %% ------------------------------------------------------------
 \subsection{Capacity--cost surface}
 \label{sec:results:sweep}
