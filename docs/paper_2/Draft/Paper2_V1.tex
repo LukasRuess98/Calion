@@ -135,9 +135,13 @@ District heating is one of the few heat supply technologies that can
 absorb electrification at the scale required by climate policy without
 requiring parallel retrofits of every connected building, because the
 transition happens once, centrally, at the generation side
-\cite{Lund.2014}. That transition increasingly means replacing fossil
-generation with large-scale heat pumps, a shift already under way in
-several European district heating markets \cite{Averfalk.2017}.
+\cite{Lund.2014,Werner.2017}. The transition is commonly framed as a
+shift toward fourth- and fifth-generation systems built around lower
+distribution temperatures, waste-heat recovery and demand-side
+integration \cite{Lund.2018,Lund.2021,Buffa.2019,Gjoka.2023}, and it
+increasingly means replacing fossil generation with large-scale heat
+pumps, a shift already under way in several European district heating
+markets \cite{Averfalk.2017}.
 \placeholder{Averfalk.2017 could not be confirmed as an existing entry
 in Paper2\_V1.bib -- add before compiling:
 \texttt{@article\{Averfalk.2017, author = \{Averfalk, Helge and
@@ -173,26 +177,45 @@ this and locates the gap that motivates the present work.
 \subsection{Related work}
 \label{sec:intro:relatedwork}
 
+The literature on district heating optimisation is extensive
+\cite{Li.2017,Sameti.2017}; the six strands below are the ones that
+bear directly on the coupling this paper addresses.
+
 \emph{Thermal storage sizing.} A substantial literature addresses how
 large a district heating storage should be and where its economic value
 comes from, typically for a single, given network configuration
-\cite{Dahash.2021,Sifnaios.2023,Renaldi.2017}. Storage sizing coupled to
-network design has also been studied with an explicit topology: Ceruti
-et al.\ \cite{Ceruti.2025} co-optimise network topology, generation
-sizing and thermal storage across synthetic and real networks under
-temporally resolved prices, finding that large heat pumps and storage
-reinforce each other economically -- the closest existing precedent to
-the present work. Their formulation, however, holds the network's supply
-temperature regime fixed and does not treat storage siting as a decision
-distinct from network topology.
+\cite{Dahash.2019,Dahash.2021,Sifnaios.2023,Renaldi.2017,Gabrielli.2018,
+Ryan.2022,Lesko.2018,Nuytten.2013}. Within this strand, storage sited to
+exploit demand-response and price flexibility has been studied
+explicitly \cite{Capone.2021}, and storage capacity has been examined
+specifically as a lever for absorbing industrial waste heat
+\cite{Yang.2020} -- a use case structurally close to the industrial case
+studied here. Storage sizing coupled to network design has also been
+studied with an explicit topology: Ceruti et al.\ \cite{Ceruti.2025}
+co-optimise network topology, generation sizing and thermal storage
+across synthetic and real networks under temporally resolved prices,
+finding that large heat pumps and storage reinforce each other
+economically -- the closest existing precedent to the present work.
+Their formulation, however, holds the network's supply temperature
+regime fixed and does not treat storage siting as a decision distinct
+from network topology.
 
 \emph{Heat pump integration and siting.} Where within a network a heat
 pump should be installed, and how many, has been addressed directly:
 network-resolved mixed-integer formulations optimise heat pump number,
 capacity and location jointly with network operation
-\cite{Hering.2021,Hering.2022}, and reviews catalogue the placement
-options and configurations available for coupling heat pumps to district
-heating and cooling networks \cite{BarcoBurgos.2022}.
+\cite{Hering.2021,Hering.2022,Capone.2023}, booster and central
+configurations are compared explicitly \cite{Ostergaard.2016}, and
+reviews catalogue the placement options and configurations available
+for coupling heat pumps to district heating and cooling networks
+\cite{BarcoBurgos.2022,Schlosser.2020,Jesper.2021}. A related strand
+examines heat pump operation jointly with combined heat and power
+\cite{Levihn.2017} and with flexible, price-responsive dispatch
+\cite{Rahlf.2026,Abokersh.2020}. Separately, the accuracy consequences
+of simplifying heat pump performance models -- the same methodological
+question this paper faces in choosing a COP surrogate
+(Section~\ref{sec:model:hp}) -- have been examined directly
+\cite{Zaubitzer.2026,Kuosa.2024}.
 \placeholder{Hering.2022 could not be confirmed as an existing entry in
 Paper2\_V1.bib (only Hering.2021 was found) -- add before compiling:
 \texttt{@article\{Hering.2022, author = \{Hering, Dominik and Faller,
@@ -200,12 +223,7 @@ Marius R. and Xhonneux, Andr{\'e} and M{\"u}ller, Dirk\}, year = \{2022\},
 title = \{Operational optimization of a 4th generation district heating
 network with mixed integer quadratically constrained programming\},
 journal = \{Energy\}, volume = \{250\}, pages = \{123766\}, doi =
-\{10.1016/j.energy.2022.123766\}\}}}
-\placeholder{Two further bib entries -- Capone.2023 and Lorenzi.2023 --
-share an identical title, volume, issue and page range in Energies but
-list different author lists; please confirm which is correct before
-either is cited, as currently either could misattribute the work. Not
-cited here for that reason.} These studies establish
+\{10.1016/j.energy.2022.123766\}\}}} These studies establish
 siting as a genuine network-resolved decision, as the present work also
 treats it, but do not couple it to a storage siting decision or to a
 variable supply-temperature regime.
@@ -217,23 +235,60 @@ heating curve within the outdoor-temperature range where it is
 uneconomical to do so yields measurable savings \cite{Krug.2025}, and at
 the level of a whole municipality's district heating share, where supply
 temperature enters as a design variable alongside the heat source mix
-\cite{Trentmann.2026}. Li et al.\ \cite{Li.2022} come closest to the
-coupling exploited in the present work, showing that the economically
-optimal distribution temperature for a system with short-term storage
-differs from the lowest technically feasible one -- but do not treat
-storage capacity or heat pump siting as spatial, network-resolved
-decisions.
+\cite{Trentmann.2026}. Reviews and simulation studies quantify the
+savings available from supply- and return-temperature reduction more
+broadly \cite{Guelpa.2023,Wang.2024,Buonomano.2024}, including cascade
+arrangements that connect a low-temperature branch to the return line of
+a higher-temperature network \cite{Volkova.2020}. Li et al.\
+\cite{Li.2022} come closest to the coupling exploited in the present
+work, showing that the economically optimal distribution temperature
+for a system with short-term storage differs from the lowest
+technically feasible one -- but do not treat storage capacity or heat
+pump siting as spatial, network-resolved decisions.
+
+\emph{Demand-side flexibility and price-responsive operation.} A
+separate literature studies how district heating can provide flexibility
+to the electricity system rather than the other way around, through
+demand response \cite{Guelpa.2021,Ju.2023}, thermal inertia
+\cite{Guelpa.2022}, network-side balancing services
+\cite{Boldrini.2022}, and integration with electricity markets more
+broadly \cite{Golmohamadi.2022,Javanshir.2023}, with clustering and
+operational strategies proposed to exploit this flexibility in practice
+\cite{Guelpa.2018,Guelpa.2020}. This strand motivates why a network's
+dominant economic signal -- price versus waste-heat availability -- is
+treated as a first-order distinguishing characteristic between the two
+case studies in Section~\ref{sec:cases}, but it does not address
+investment-stage siting or capacity decisions.
 
 \emph{Network-resolved design optimisation.} A separate strand of work
 formulates the district heating design problem -- pipe routing, node
-selection, generation placement -- as a mixed-integer program over the
-network graph \cite{Mertz.2016,Bordin.2016,Blommaert.2020,Resimont.2021}.
+selection, generation placement -- as a mixed-integer or mixed-integer
+nonlinear program over the network graph
+\cite{Mertz.2016,Bordin.2016,Blommaert.2020,Resimont.2021,Marty.2018,
+Marquant.2018,Weinand.2019,Wang.2023,Wack.2023,Wack.2023b,Wack.2024,
+Vieth.2025,Egberts.2020,Roland.2020,Guo.2024,Dorotic.2019,Sameti.2019}.
 These formulations resolve topology and asset placement jointly and in
-detail, but treat the operating temperature regime as an exogenous
-input rather than a design variable, and generally do not include
-thermal storage sizing as part of the same optimisation.
+detail -- several address multi-period or multi-objective variants of
+the same design problem -- but treat the operating temperature regime as
+an exogenous input rather than a design variable, and generally do not
+include thermal storage sizing as part of the same optimisation.
 
-\emph{The gap.} Across these four strands, no formulation we are aware
+\emph{Adjacent operational and simulation frameworks.} A further,
+largely separate literature develops detailed operational or simulation
+frameworks for 4th- and 5th-generation networks -- MILP-based supply
+temperature control \cite{Wirtz.2021}, decomposition approaches for
+network planning \cite{Wirtz.2023}, dynamic pipe models
+\cite{vanderHeijde.2017}, integrated design-and-control formulations
+\cite{vanderHeijde.2019}, and general simulation environments
+\cite{Schweiger.2017}. Closest in spirit to the present work's concern
+with model fidelity, Wirtz et al.\ \cite{Wirtz.2021b} ask directly which
+level of model complexity is sufficient for multi-energy system design
+-- the same question Paper~1 \cite{Ruess.2026} answers for dispatch and
+that Section~\ref{sec:model:framework} takes as its starting point. None
+of this strand addresses the investment-and-siting coupling studied
+here.
+
+\emph{The gap.} Across these six strands, no formulation we are aware
 of optimises heat pump siting and capacity, storage siting and capacity,
 and the network's supply-temperature regime jointly, in a
 network-resolved model, on real network topologies. Existing work
@@ -376,6 +431,15 @@ enumerated set over which independent runs are performed. Heat pump,
 electrode boiler and storage capacity as well as siting are investment
 variables. The network transformation stage is not.
 
+This positioning -- an enumerated dimension traded against solver
+tractability, rather than folding every design axis into a single
+monolithic program -- follows general guidance on managing complexity in
+energy system optimisation \cite{Kotzur.2021} and on choosing temporal
+and structural aggregation levels that preserve design accuracy
+\cite{Hoffmann.2022}; broader surveys of the energy-system modelling
+landscape provide context for where the present tool sits within it
+\cite{Hoffner.2024}.
+
 \subsection{Nodal energy and mass balances}
 \label{sec:model:balances}
 
@@ -489,7 +553,12 @@ rather than one adopted from the literature; it is therefore stated in
 full in \ref{app:cop} so that the results remain reproducible. Simpler
 Lorenz surrogates, and their accuracy relative to detailed cycle models,
 have been compared systematically for energy-planning applications
-\cite{Pieper.2020}. The exergetic efficiency is set to $\eta=0.75$ for
+\cite{Pieper.2020}, and the broader consequences of simplifying heat
+pump performance models for optimisation results have been examined
+directly \cite{Zaubitzer.2026,Kuosa.2024} -- the internally calibrated
+correlation used here is one point in that trade-off space, chosen for
+consistency with the notebook calibration rather than for minimal model
+complexity. The exergetic efficiency is set to $\eta=0.75$ for
 both networks, following the calibration notebook underlying this
 correlation; \Cref{tab:T1} lists it alongside the other network-specific
 parameters.
@@ -516,7 +585,10 @@ Section~\ref{sec:model:objective}. The electrode boiler is modelled as a
 continuous investment capacity
 $\dot{Q}_{\mathrm{EB}} \in [0, \overline{Q}_{\mathrm{EB}}]$ with
 conversion efficiency $\eta_{\mathrm{EB}}$ (\num{0.98} and \num{0.95}
-for the two networks) and is available in every non-baseline scenario.
+for the two networks), consistent with reported performance figures for
+electrode boilers in district heating power-to-heat applications
+\cite{DiBacciCapaci.2022,Bottger.2019}, and is available in every
+non-baseline scenario.
 It is always sited at the same node as the heat pump; its capacity is
 consequently a result rather than a scenario dimension, which is why it
 does not appear as a column in the scenario matrix. One network
@@ -651,7 +723,7 @@ $Q^{\mathrm{dump}}$.
 Two distinct linearisation techniques appear in the formulation, and
 conflating them would misstate the model's error properties.
 
-The first is a McCormick relaxation \cite{Castro.2015} of the bilinear
+The first is a McCormick relaxation \cite{McCormick.1976,Castro.2015} of the bilinear
 products of a mass flow with a temperature, $W = \dot{m}\, c_p\, T$,
 both factors being continuous variables. For bounds
 $\dot{m} \in [\underline{m}, \overline{m}]$ and
@@ -670,7 +742,10 @@ nodes with more than one incoming pipe, consumer withdrawal on the
 supply and on the return side, and local generation feed-in on the
 supply and on the return side. \Cref{eq:mccormick} is an outer
 approximation and therefore introduces a relaxation gap, quantified in
-Paper~1 \cite{Ruess.2026}. Two of the seven are inactive in the present
+Paper~1 \cite{Ruess.2026}; tighter, piecewise variants exist for the
+same class of heat-and-electricity bilinear products
+\cite{Deng.2021,Castro.2015} but are not required at the problem sizes
+solved here. Two of the seven are inactive in the present
 study: both networks are tree topologies, so no node receives more than
 one incoming pipe and the mixing constraint is never binding, and return
 temperature is a stage-fixed parameter rather than a variable in both

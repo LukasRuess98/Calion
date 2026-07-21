@@ -12,6 +12,48 @@ H.~Lund, S.~Werner, R.~Wiltshire, S.~Svendsen, J.~E. Thorsen, F.~Hvelplund,
 \newblock \href {https://doi.org/10.1016/j.energy.2014.02.089}
   {\path{doi:10.1016/j.energy.2014.02.089}}.
 
+\bibitem{Werner.2017}
+S.~Werner, International review of district heating and cooling, Energy 137
+  (2017) 617--631.
+\newblock \href {https://doi.org/10.1016/j.energy.2017.04.045}
+  {\path{doi:10.1016/j.energy.2017.04.045}}.
+
+\bibitem{Lund.2018}
+H.~Lund, P.~A. {\O}stergaard, M.~Chang, S.~Werner, S.~Svendsen, P.~Sorkn{\ae}s,
+  J.~E. Thorsen, F.~Hvelplund, B.~O.~G. Mortensen, B.~V. Mathiesen, C.~Bojesen,
+  N.~Duic, X.~Zhang, B.~M{\"o}ller, The status of 4th generation district
+  heating: Research and results, Energy 164 (2018) 147--159.
+\newblock \href {https://doi.org/10.1016/j.energy.2018.08.206}
+  {\path{doi:10.1016/j.energy.2018.08.206}}.
+
+\bibitem{Lund.2021}
+H.~Lund, P.~A. {\O}stergaard, T.~B. Nielsen, S.~Werner, J.~E. Thorsen,
+  O.~Gudmundsson, A.~Arabkoohsar, B.~V. Mathiesen, Perspectives on fourth and
+  fifth generation district heating, Energy 227 (2021) 120520.
+\newblock \href {https://doi.org/10.1016/j.energy.2021.120520}
+  {\path{doi:10.1016/j.energy.2021.120520}}.
+
+\bibitem{Buffa.2019}
+S.~Buffa, M.~Cozzini, M.~D'Antoni, M.~Baratieri, R.~Fedrizzi, 5th generation
+  district heating and cooling systems: A review of existing cases in europe,
+  Renewable and Sustainable Energy Reviews 104 (2019) 504--522.
+\newblock \href {https://doi.org/10.1016/j.rser.2018.12.059}
+  {\path{doi:10.1016/j.rser.2018.12.059}}.
+
+\bibitem{Gjoka.2023}
+K.~Gjoka, B.~Rismanchi, R.~H. Crawford, Fifth-generation district heating and
+  cooling systems: A review of recent advancements and implementation barriers,
+  Renewable and Sustainable Energy Reviews 171 (2023) 112997.
+\newblock \href {https://doi.org/10.1016/j.rser.2022.112997}
+  {\path{doi:10.1016/j.rser.2022.112997}}.
+
+\bibitem{Averfalk.2017}
+H.~Averfalk, P.~Ingvarsson, U.~Persson, M.~Gong, S.~Werner, Large heat pumps in
+  swedish district heating systems, Renewable and Sustainable Energy Reviews 79
+  (2017) 1275--1284.
+\newblock \href {https://doi.org/10.1016/j.rser.2017.05.135}
+  {\path{doi:10.1016/j.rser.2017.05.135}}.
+
 \bibitem{Christensen.2024}
 T.~B.~K. Christensen, H.~Lund, P.~Sorkn{\ae}s, The role of thermal energy
   storages in future smart energy systems, Energy 313 (2024) 133948.
@@ -24,6 +66,27 @@ T.~Terlouw, R.~McKenna, T.~Sch{\"u}tz, J.~Hahn, A critical reflection on
   energy system optimisations, Applied Energy 397 (2025) 126322.
 \newblock \href {https://doi.org/10.1016/j.apenergy.2025.126322}
   {\path{doi:10.1016/j.apenergy.2025.126322}}.
+
+\bibitem{Li.2017}
+Y.~Li, Y.~Rezgui, H.~Zhu, District heating and cooling optimization and
+  enhancement -- towards integration of renewables, storage and smart grid,
+  Renewable and Sustainable Energy Reviews 72 (2017) 281--294.
+\newblock \href {https://doi.org/10.1016/j.rser.2017.01.061}
+  {\path{doi:10.1016/j.rser.2017.01.061}}.
+
+\bibitem{Sameti.2017}
+M.~Sameti, F.~Haghighat, Optimization approaches in district heating and
+  cooling thermal network, Energy and Buildings 140 (2017) 121--130.
+\newblock \href {https://doi.org/10.1016/j.enbuild.2017.01.062}
+  {\path{doi:10.1016/j.enbuild.2017.01.062}}.
+
+\bibitem{Dahash.2019}
+A.~Dahash, F.~Ochs, M.~B. Janetti, W.~Streicher, Advances in seasonal thermal
+  energy storage for solar district heating applications: A critical review on
+  large-scale hot-water tank and pit thermal energy storage systems, Applied
+  Energy 239 (2019) 296--315.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2019.01.189}
+  {\path{doi:10.1016/j.apenergy.2019.01.189}}.
 
 \bibitem{Dahash.2021}
 A.~Dahash, F.~Ochs, A.~Tosatto, Techno-economic and exergy analysis of tank and
@@ -46,6 +109,47 @@ R.~Renaldi, A.~Kiprakis, D.~Friedrich, An optimisation framework for thermal
 \newblock \href {https://doi.org/10.1016/j.apenergy.2016.02.067}
   {\path{doi:10.1016/j.apenergy.2016.02.067}}.
 
+\bibitem{Gabrielli.2018}
+P.~Gabrielli, M.~Gazzani, E.~Martelli, M.~Mazzotti, Optimal design of
+  multi-energy systems with seasonal storage, Applied Energy 219 (2018)
+  408--424.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2017.07.142}
+  {\path{doi:10.1016/j.apenergy.2017.07.142}}.
+
+\bibitem{Ryan.2022}
+E.~Ryan, B.~McDaniel, D.~Kosanovic, Application of thermal energy storage with
+  electrified heating and cooling in a cold climate, Applied Energy 328 (2022)
+  120147.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2022.120147}
+  {\path{doi:10.1016/j.apenergy.2022.120147}}.
+
+\bibitem{Lesko.2018}
+M.~Le{\'s}ko, W.~Bujalski, K.~Futyma, Operational optimization in district
+  heating systems with the use of thermal energy storage, Energy 165~(Part A)
+  (2018) 902--915.
+\newblock \href {https://doi.org/10.1016/j.energy.2018.09.141}
+  {\path{doi:10.1016/j.energy.2018.09.141}}.
+
+\bibitem{Nuytten.2013}
+T.~Nuytten, B.~Claessens, K.~Paredis, J.~{van Bael}, D.~Six, Flexibility of a
+  combined heat and power system with thermal energy storage for district
+  heating, Applied Energy 104 (2013) 583--591.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2012.11.029}
+  {\path{doi:10.1016/j.apenergy.2012.11.029}}.
+
+\bibitem{Capone.2021}
+M.~Capone, E.~Guelpa, G.~Manc{\`o}, V.~Verda, Integration of storage and
+  thermal demand response to unlock flexibility in district multi-energy
+  systems, Energy 237 (2021) 121601.
+\newblock \href {https://doi.org/10.1016/j.energy.2021.121601}
+  {\path{doi:10.1016/j.energy.2021.121601}}.
+
+\bibitem{Yang.2020}
+X.~Yang, S.~Svendsen, Potential of thermal energy storage for a district
+  heating system utilizing industrial waste heat, Energies 13~(15) (2020) 3923.
+\newblock \href {https://doi.org/10.3390/en13153923}
+  {\path{doi:10.3390/en13153923}}.
+
 \bibitem{Ceruti.2025}
 A.~Ceruti, J.~Lambert, H.~Spliethoff,
   \href{https://www.sciencedirect.com/science/article/pii/S0196890425008477}{Integrating
@@ -62,6 +166,25 @@ D.~Hering, A.~Xhonneux, D.~M{\"u}ller, Design optimization of a heating network
 \newblock \href {https://doi.org/10.1016/j.energy.2021.120384}
   {\path{doi:10.1016/j.energy.2021.120384}}.
 
+\bibitem{Hering.2022}
+D.~Hering, M.~R. Faller, A.~Xhonneux, D.~M{\"u}ller, Operational optimization
+  of a 4th generation district heating network with mixed integer quadratically
+  constrained programming, Energy 250 (2022) 123766.
+\newblock \href {https://doi.org/10.1016/j.energy.2022.123766}
+  {\path{doi:10.1016/j.energy.2022.123766}}.
+
+\bibitem{Capone.2023}
+M.~Capone, E.~Guelpa, V.~Verda, Optimal installation of heat pumps in large
+  district heating networks, Energies 16~(3) (2023) 1448.
+\newblock \href {https://doi.org/10.3390/en16031448}
+  {\path{doi:10.3390/en16031448}}.
+
+\bibitem{Ostergaard.2016}
+P.~A. Ostergaard, A.~N. Andersen, Booster heat pumps and central heat pumps in
+  district heating, Applied Energy 184 (2016) 1374--1388.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2016.02.144}
+  {\path{doi:10.1016/j.apenergy.2016.02.144}}.
+
 \bibitem{BarcoBurgos.2022}
 J.~Barco-Burgos, J.~C. Bruno, U.~Eicker, A.~L. Salda{\~n}a-Robles,
   V.~Alc{\'a}ntar-Camarena,
@@ -71,6 +194,57 @@ J.~Barco-Burgos, J.~C. Bruno, U.~Eicker, A.~L. Salda{\~n}a-Robles,
 \newblock \href {https://doi.org/10.1016/j.energy.2021.122378}
   {\path{doi:10.1016/j.energy.2021.122378}}.
 \newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S036054422102627X}
+
+\bibitem{Schlosser.2020}
+F.~Schlosser, M.~Jesper, J.~Vogelsang, T.~G. Walmsley, C.~Arpagaus,
+  J.~Hesselbach, Large-scale heat pumps: Applications, performance, economic
+  feasibility and industrial integration, Renewable and Sustainable Energy
+  Reviews 133 (2020) 110219.
+\newblock \href {https://doi.org/10.1016/j.rser.2020.110219}
+  {\path{doi:10.1016/j.rser.2020.110219}}.
+
+\bibitem{Jesper.2021}
+M.~Jesper, F.~Schlosser, F.~Pag, T.~G. Walmsley, B.~Schmitt, K.~Vajen,
+  Large-scale heat pumps: Uptake and performance modelling of market-available
+  devices, Renewable and Sustainable Energy Reviews 137 (2021) 110646.
+\newblock \href {https://doi.org/10.1016/j.rser.2020.110646}
+  {\path{doi:10.1016/j.rser.2020.110646}}.
+
+\bibitem{Levihn.2017}
+F.~Levihn, Chp and heat pumps to balance renewable power production: Lessons
+  from the district heating network in stockholm, Energy 137 (2017) 670--678.
+\newblock \href {https://doi.org/10.1016/j.energy.2017.01.118}
+  {\path{doi:10.1016/j.energy.2017.01.118}}.
+
+\bibitem{Rahlf.2026}
+H.~Rahlf, D.~Divkovic, L.~Knorr, F.~Schlosser, H.~Meschede,
+  \href{https://www.sciencedirect.com/science/article/pii/S0196890426006837}{Flexible
+  operation strategies for heat pumps in district heating systems using dynamic
+  electricity prices}, Energy Conversion and Management 364 (2026) 121714.
+\newblock \href {https://doi.org/10.1016/j.enconman.2026.121714}
+  {\path{doi:10.1016/j.enconman.2026.121714}}.
+\newline\urlprefix\url{https://www.sciencedirect.com/science/article/pii/S0196890426006837}
+
+\bibitem{Abokersh.2020}
+M.~H. Abokersh, K.~Saikia, L.~F. Cabeza, D.~Boer, M.~Vall{\`e}s, Flexible heat
+  pump integration to improve sustainable transition toward 4th generation
+  district heating, Energy Conversion and Management 225 (2020) 113379.
+\newblock \href {https://doi.org/10.1016/j.enconman.2020.113379}
+  {\path{doi:10.1016/j.enconman.2020.113379}}.
+
+\bibitem{Zaubitzer.2026}
+L.~Zaubitzer, F.~Alsmeyer, Simplifications in the optimization of heat pumps
+  and their comparison for effects on the accuracy of the results, Energies
+  19~(3) (2026) 635.
+\newblock \href {https://doi.org/10.3390/en19030635}
+  {\path{doi:10.3390/en19030635}}.
+
+\bibitem{Kuosa.2024}
+M.~Kuosa, et~al., Impact of temperature dependent coefficient of performance of
+  heat pumps on heating systems in national and regional energy systems
+  modelling, Applied Energy 376 (2024) 124123.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2024.124123}
+  {\path{doi:10.1016/j.apenergy.2024.124123}}.
 
 \bibitem{Krug.2025}
 R.~Krug, F.~B{\"o}ttcher, et~al., Optimization of heating curves for heat pumps
@@ -89,12 +263,96 @@ L.~Trentmann, A.~Ceruti, B.~Schweiger, H.~Spliethoff,
   {\path{doi:10.1016/j.enconman.2026.121434}}.
 \newline\urlprefix\url{https://www.researchgate.net/publication/403872706_What_district_heating_share_is_optimal_for_a_municipality_A_holistic_approach_including_supply_temperatures}
 
+\bibitem{Guelpa.2023}
+E.~Guelpa, M.~Capone, A.~Sciacovelli, N.~Vasset, R.~Baviere, V.~Verda,
+  Reduction of supply temperature in existing district heating: A review of
+  strategies and implementations, Energy 262~(Part B) (2023) 125363.
+\newblock \href {https://doi.org/10.1016/j.energy.2022.125363}
+  {\path{doi:10.1016/j.energy.2022.125363}}.
+
+\bibitem{Wang.2024}
+N.~Wang, S.~You, Y.~Wang, H.~Zhang, Q.~Miao, Return-temperature reduction at
+  district heating systems: Focus on end-user sites, Energies 17~(19) (2024)
+  4901.
+\newblock \href {https://doi.org/10.3390/en17194901}
+  {\path{doi:10.3390/en17194901}}.
+
+\bibitem{Buonomano.2024}
+A.~Buonomano, C.~Forzano, L.~Mongibello, A.~Palombo, G.~Russo, Optimising
+  low-temperature district heating networks: A simulation-based approach with
+  experimental verification, Energy 304 (2024) 131954.
+\newblock \href {https://doi.org/10.1016/j.energy.2024.131954}
+  {\path{doi:10.1016/j.energy.2024.131954}}.
+
+\bibitem{Volkova.2020}
+A.~Volkova, I.~Krupenski, A.~Ledvanov, A.~Hlebnikov, K.~Lepiksaar,
+  E.~Lat{\~o}sov, V.~{Ma$\backslash$v satin}, Energy cascade connection of a
+  low-temperature district heating network to the return line of a
+  high-temperature district heating network, Energy 198 (2020) 117304.
+\newblock \href {https://doi.org/10.1016/j.energy.2020.117304}
+  {\path{doi:10.1016/j.energy.2020.117304}}.
+
 \bibitem{Li.2022}
 H.~Li, J.~Hou, T.~Hong, N.~Nord, Distinguish between the economic optimal and
   lowest distribution temperatures for heat-prosumer-based district heating
   systems with short-term thermal energy storage, Energy 248 (2022) 123601.
 \newblock \href {https://doi.org/10.1016/j.energy.2022.123601}
   {\path{doi:10.1016/j.energy.2022.123601}}.
+
+\bibitem{Guelpa.2021}
+E.~Guelpa, V.~Verda, Demand response and other demand side management
+  techniques for district heating: A review, Energy 219 (2021) 119440.
+\newblock \href {https://doi.org/10.1016/j.energy.2020.119440}
+  {\path{doi:10.1016/j.energy.2020.119440}}.
+
+\bibitem{Ju.2023}
+Y.~Ju, J.~Lindholm, M.~Verbeck, J.~Jokisalo, R.~Kosonen, P.~Jan{\ss}en, Y.~Li,
+  H.~Sch{\"a}fers, N.~Nord, Cost savings and co$_2$ emissions reduction
+  potential in the german district heating system with demand response, Energy
+  263~(Part E) (2023) 125770.
+\newblock \href {https://doi.org/10.1016/j.energy.2022.125770}
+  {\path{doi:10.1016/j.energy.2022.125770}}.
+
+\bibitem{Guelpa.2022}
+E.~Guelpa, Impact of thermal inertia and control on energy flexibility in
+  district heating networks, Applied Thermal Engineering 214 (2022) 118885.
+\newblock \href {https://doi.org/10.1016/j.applthermaleng.2022.118885}
+  {\path{doi:10.1016/j.applthermaleng.2022.118885}}.
+
+\bibitem{Boldrini.2022}
+A.~Boldrini, J.~P. {Jim{\'e}nez Navarro}, W.~H.~J. Crijns-Graus, M.~A. {van den
+  Broek}, The role of district heating systems to provide balancing services in
+  the european union, Renewable and Sustainable Energy Reviews 154 (2022)
+  111853.
+\newblock \href {https://doi.org/10.1016/j.rser.2021.111853}
+  {\path{doi:10.1016/j.rser.2021.111853}}.
+
+\bibitem{Golmohamadi.2022}
+H.~Golmohamadi, K.~G. Larsen, P.~G. Jensen, I.~R. Hasrat, Integration of
+  flexibility potentials of district heating systems into electricity markets:
+  A review, Renewable and Sustainable Energy Reviews 159 (2022) 112200.
+\newblock \href {https://doi.org/10.1016/j.rser.2022.112200}
+  {\path{doi:10.1016/j.rser.2022.112200}}.
+
+\bibitem{Javanshir.2023}
+N.~Javanshir, S.~Syri, A.~Ter{\"a}svirta, Techno-economic analysis of a highly
+  renewable and electrified district heating network operating in the balancing
+  markets, Energies 16~(24) (2023) 8117.
+\newblock \href {https://doi.org/10.3390/en16248117}
+  {\path{doi:10.3390/en16248117}}.
+
+\bibitem{Guelpa.2018}
+E.~Guelpa, S.~Deputato, V.~Verda, Thermal request optimization in district
+  heating networks using a clustering approach, Applied Energy 228 (2018)
+  608--617.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2018.06.041}
+  {\path{doi:10.1016/j.apenergy.2018.06.041}}.
+
+\bibitem{Guelpa.2020}
+E.~Guelpa, Impact of network modelling in the analysis of district heating
+  systems, Energy 213 (2020) 118393.
+\newblock \href {https://doi.org/10.1016/j.energy.2020.118393}
+  {\path{doi:10.1016/j.energy.2020.118393}}.
 
 \bibitem{Mertz.2016}
 T.~Mertz, S.~Serra, A.~Henon, J.-M. Reneaume, A minlp optimization of the
@@ -124,6 +382,166 @@ T.~R{\'e}simont, Q.~Louveaux, P.~Dewallef, Optimization tool for the strategic
 \newblock \href {https://doi.org/10.3390/en14175575}
   {\path{doi:10.3390/en14175575}}.
 
+\bibitem{Marty.2018}
+F.~Marty, S.~Serra, S.~Sochard, J.-M. Reneaume, Simultaneous optimization of
+  the district heating network topology and the organic rankine cycle sizing of
+  a geothermal plant, Energy 159 (2018) 1060--1074.
+\newblock \href {https://doi.org/10.1016/j.energy.2018.05.110}
+  {\path{doi:10.1016/j.energy.2018.05.110}}.
+
+\bibitem{Marquant.2018}
+J.~F. Marquant, L.~A. Bollinger, R.~Evins, J.~Carmeliet, A new combined
+  clustering method to analyse the potential of district heating networks at
+  large-scale, Energy 156 (2018) 73--83.
+\newblock \href {https://doi.org/10.1016/j.energy.2018.05.027}
+  {\path{doi:10.1016/j.energy.2018.05.027}}.
+
+\bibitem{Weinand.2019}
+J.~M. Weinand, M.~Kleinebrahm, R.~McKenna, K.~Mainzer, W.~Fichtner, Developing
+  a combinatorial optimisation approach to design district heating networks
+  based on deep geothermal energy, Applied Energy 251 (2019) 113367.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2019.113367}
+  {\path{doi:10.1016/j.apenergy.2019.113367}}.
+
+\bibitem{Wang.2023}
+H.~Wang, H.~Wang, T.~Zhu, W.~Deng, Topology optimization method of district
+  heating system considering load uncertainty, Energy Reports 10 (2023)
+  2757--2769.
+\newblock \href {https://doi.org/10.1016/j.egyr.2023.09.104}
+  {\path{doi:10.1016/j.egyr.2023.09.104}}.
+
+\bibitem{Wack.2023}
+Y.~Wack, S.~Serra, M.~Baelmans, J.-M. Reneaume, M.~Blommaert, Nonlinear
+  topology optimization of district heating networks: A benchmark of a
+  mixed-integer and a density-based approach, Energy 278 (2023) 127977.
+\newblock \href {https://doi.org/10.1016/j.energy.2023.127977}
+  {\path{doi:10.1016/j.energy.2023.127977}}.
+
+\bibitem{Wack.2023b}
+Y.~Wack, M.~Baelmans, R.~Salenbien, M.~Blommaert, Economic topology
+  optimization of district heating networks using a pipe penalization approach,
+  Energy 264 (2023) 126161.
+\newblock \href {https://doi.org/10.1016/j.energy.2022.126161}
+  {\path{doi:10.1016/j.energy.2022.126161}}.
+
+\bibitem{Wack.2024}
+Y.~Wack, M.~Sollich, R.~Salenbien, J.~Diriken, M.~Baelmans, M.~Blommaert, A
+  multi-period topology and design optimization approach for district heating
+  networks, Applied Energy 367 (2024) 123380.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2024.123380}
+  {\path{doi:10.1016/j.apenergy.2024.123380}}.
+
+\bibitem{Vieth.2025}
+J.~Vieth, J.~Westphal, A.~Speerforck, District heating network topology
+  optimization and optimal co-planning using dynamic simulations, Advances in
+  Applied Energy 19 (2025) 100233.
+\newblock \href {https://doi.org/10.1016/j.adapen.2025.100233}
+  {\path{doi:10.1016/j.adapen.2025.100233}}.
+
+\bibitem{Egberts.2020}
+P.~Egberts, C.~T{\"u}mer, K.~Loh, R.~Octaviano, Challenges in heat network
+  design optimization, Energy 203 (2020) 117688.
+\newblock \href {https://doi.org/10.1016/j.energy.2020.117688}
+  {\path{doi:10.1016/j.energy.2020.117688}}.
+
+\bibitem{Roland.2020}
+M.~Roland, M.~Schmidt, Mixed-integer nonlinear optimization for district
+  heating network expansion, at -- Automatisierungstechnik 68~(12) (2020)
+  985--1000.
+\newblock \href {https://doi.org/10.1515/auto-2020-0063}
+  {\path{doi:10.1515/auto-2020-0063}}.
+
+\bibitem{Guo.2024}
+T.~Guo, Y.~Chen, M.~Kriegel, Novel multi-level optimization of district heating
+  systems: Managing spatial scale and equipment portfolio design, Energy and
+  Buildings 317 (2024) 114395.
+\newblock \href {https://doi.org/10.1016/j.enbuild.2024.114395}
+  {\path{doi:10.1016/j.enbuild.2024.114395}}.
+
+\bibitem{Dorotic.2019}
+H.~Doroti{\'c}, T.~{Puk$\backslash$v sec}, N.~Dui{\'c}, Multi-objective
+  optimization of district heating and cooling systems for a one-year time
+  horizon, Energy 169 (2019) 319--328.
+\newblock \href {https://doi.org/10.1016/j.energy.2018.11.149}
+  {\path{doi:10.1016/j.energy.2018.11.149}}.
+
+\bibitem{Sameti.2019}
+M.~Sameti, F.~Haghighat, Optimization of 4th generation distributed district
+  heating system: Design and planning of combined heat and power, Renewable
+  Energy 130 (2019) 371--387.
+\newblock \href {https://doi.org/10.1016/j.renene.2018.06.068}
+  {\path{doi:10.1016/j.renene.2018.06.068}}.
+
+\bibitem{Wirtz.2021}
+M.~Wirtz, L.~Neumaier, P.~Remmen, D.~M{\"u}ller, Temperature control in 5th
+  generation district heating and cooling networks: An milp-based operation
+  optimization, Applied Energy 288 (2021) 116608.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2021.116608}
+  {\path{doi:10.1016/j.apenergy.2021.116608}}.
+
+\bibitem{Wirtz.2023}
+M.~Wirtz, M.~Heleno, A.~Moreira, T.~Schreiber, D.~M{\"u}ller, 5th generation
+  district heating and cooling network planning: A dantzig--wolfe decomposition
+  approach, Energy Conversion and Management 276 (2023) 116593.
+\newblock \href {https://doi.org/10.1016/j.enconman.2022.116593}
+  {\path{doi:10.1016/j.enconman.2022.116593}}.
+
+\bibitem{vanderHeijde.2017}
+B.~{van der Heijde}, M.~Fuchs, C.~{Ribas Tugores}, G.~Schweiger, K.~Sartor,
+  D.~Basciotti, D.~M{\"u}ller, C.~Nytsch-Geusen, M.~Wetter, L.~Helsen, Dynamic
+  equation-based thermo-hydraulic pipe model for district heating and cooling
+  systems, Energy Conversion and Management 151 (2017) 158--169.
+\newblock \href {https://doi.org/10.1016/j.enconman.2017.08.072}
+  {\path{doi:10.1016/j.enconman.2017.08.072}}.
+
+\bibitem{vanderHeijde.2019}
+B.~{van der Heijde}, A.~Vandermeulen, R.~Salenbien, L.~Helsen, Integrated
+  optimal design and control of fourth generation district heating networks
+  with thermal energy storage, Energies 12~(14) (2019) 2766.
+\newblock \href {https://doi.org/10.3390/en12142766}
+  {\path{doi:10.3390/en12142766}}.
+
+\bibitem{Schweiger.2017}
+G.~Schweiger, P.-O. Larsson, F.~Magnusson, P.~Lauenburg, S.~Velut, District
+  heating and cooling systems -- framework for modelica-based simulation and
+  dynamic optimization, Energy 137 (2017) 566--578.
+\newblock \href {https://doi.org/10.1016/j.energy.2017.05.115}
+  {\path{doi:10.1016/j.energy.2017.05.115}}.
+
+\bibitem{Wirtz.2021b}
+M.~Wirtz, M.~Hahn, T.~Schreiber, D.~M{\"u}ller, Design optimization of
+  multi-energy systems using mixed-integer linear programming: Which model
+  complexity and level of detail is sufficient?, Energy Conversion and
+  Management 240 (2021) 114249.
+\newblock \href {https://doi.org/10.1016/j.enconman.2021.114249}
+  {\path{doi:10.1016/j.enconman.2021.114249}}.
+
+\bibitem{Ruess.2026}
+L.~Ruess, A.~Sauer, Topology resolution dominates dispatch accuracy in district
+  heating networks with industrial demands: A five-level milp comparison,
+  submitted to Applied Energy (2026).
+
+\bibitem{Kotzur.2021}
+L.~Kotzur, L.~Nolting, M.~Hoffmann, T.~Gro{\ss}, A.~Smolenko, J.~Priesmann,
+  H.~B{\"u}sing, R.~Beer, F.~Kullmann, B.~Singh, A.~Praktiknjo, D.~Stolten,
+  M.~Robinius, A modeler's guide to handle complexity in energy systems
+  optimization, Advances in Applied Energy 4 (2021) 100063.
+\newblock \href {https://doi.org/10.1016/j.adapen.2021.100063}
+  {\path{doi:10.1016/j.adapen.2021.100063}}.
+
+\bibitem{Hoffmann.2022}
+M.~Hoffmann, L.~Kotzur, D.~Stolten, The pareto-optimal temporal aggregation of
+  energy system models, Applied Energy 315 (2022) 119029.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2022.119029}
+  {\path{doi:10.1016/j.apenergy.2022.119029}}.
+
+\bibitem{Hoffner.2024}
+D.~H{\"o}ffner, S.~Glombik, Energy system planning and analysis software---a
+  comprehensive meta-review with special attention to urban energy systems and
+  district heating, Energy 307 (2024) 132542.
+\newblock \href {https://doi.org/10.1016/j.energy.2024.132542}
+  {\path{doi:10.1016/j.energy.2024.132542}}.
+
 \bibitem{Pieper.2020}
 H.~Pieper, T.~Ommen, J.~K. Jensen, B.~Elmegaard, W.~B. Markussen, Comparison of
   cop estimation methods for large-scale heat pumps used in energy planning,
@@ -131,11 +549,39 @@ H.~Pieper, T.~Ommen, J.~K. Jensen, B.~Elmegaard, W.~B. Markussen, Comparison of
 \newblock \href {https://doi.org/10.1016/j.energy.2020.117994}
   {\path{doi:10.1016/j.energy.2020.117994}}.
 
+\bibitem{DiBacciCapaci.2022}
+R.~{Di Bacci Capaci}, C.~Scali, et~al., Performance assessment of an electrode
+  boiler for power-to-heat conversion in sustainable energy districts, Applied
+  Thermal Engineering 213 (2022) 118745.
+\newblock \href {https://doi.org/10.1016/j.applthermaleng.2022.118745}
+  {\path{doi:10.1016/j.applthermaleng.2022.118745}}.
+
+\bibitem{Bottger.2019}
+D.~B{\"o}ttger, S.~Prei{\ss}, T.~Bruckner, M.~Thema, M.~Sterner, Impacts of
+  heat sector transformation on germany's power system through increased use of
+  power-to-heat, Applied Energy 236 (2019) 289--305.
+\newblock \href {https://doi.org/10.1016/j.apenergy.2018.11.070}
+  {\path{doi:10.1016/j.apenergy.2018.11.070}}.
+
+\bibitem{McCormick.1976}
+G.~P. McCormick, Computability of global solutions to factorable nonconvex
+  programs: Part i -- convex underestimating problems, Mathematical Programming
+  10~(1) (1976) 147--175.
+\newblock \href {https://doi.org/10.1007/BF01580665}
+  {\path{doi:10.1007/BF01580665}}.
+
 \bibitem{Castro.2015}
 P.~M. Castro, Tightening piecewise mccormick relaxations for bilinear problems,
   Computers {\&} Chemical Engineering 72 (2015) 300--311.
 \newblock \href {https://doi.org/10.1016/j.compchemeng.2014.03.025}
   {\path{doi:10.1016/j.compchemeng.2014.03.025}}.
+
+\bibitem{Deng.2021}
+L.~Deng, H.~Sun, B.~Li, Y.~Sun, T.~Yang, X.~Zhang, Optimal operation of
+  integrated heat and electricity systems: A tightening mccormick approach,
+  Engineering 7~(8) (2021) 1076--1086.
+\newblock \href {https://doi.org/10.1016/j.eng.2021.06.006}
+  {\path{doi:10.1016/j.eng.2021.06.006}}.
 
 \bibitem{Pieper.2018}
 H.~Pieper, T.~Ommen, F.~B{\"u}hler, B.~L. Paaske, B.~Elmegaard, W.~B.

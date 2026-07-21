@@ -5,48 +5,44 @@ Reallocating 'name_of_file' (item size: 1) to 15 items.
 The style file: elsarticle-num.bst
 Reallocating 'name_of_file' (item size: 1) to 10 items.
 Database file #1: Paper2_V1.bib
-Warning--I didn't find a database entry for "Averfalk.2017"
-Warning--I didn't find a database entry for "Hering.2022"
-Warning--I didn't find a database entry for "Ruess.2026"
-You've used 19 entries,
+You've used 83 entries,
             2952 wiz_defined-function locations,
-            832 strings with 10209 characters,
-and the built_in function-call counts, 6354 in all, are:
-= -- 626
-> -- 235
+            1273 strings with 25685 characters,
+and the built_in function-call counts, 27691 in all, are:
+= -- 2711
+> -- 1103
 < -- 0
-+ -- 91
-- -- 72
-* -- 560
-:= -- 913
-add.period$ -- 37
-call.type$ -- 19
-change.case$ -- 19
++ -- 423
+- -- 340
+* -- 2441
+:= -- 3935
+add.period$ -- 164
+call.type$ -- 83
+change.case$ -- 84
 chr.to.int$ -- 0
-cite$ -- 19
-duplicate$ -- 157
-empty$ -- 646
-format.name$ -- 90
-if$ -- 1573
+cite$ -- 83
+duplicate$ -- 665
+empty$ -- 2781
+format.name$ -- 417
+if$ -- 6856
 int.to.chr$ -- 0
-int.to.str$ -- 19
-missing$ -- 19
-newline$ -- 86
-num.names$ -- 19
-pop$ -- 78
+int.to.str$ -- 83
+missing$ -- 82
+newline$ -- 342
+num.names$ -- 83
+pop$ -- 328
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
-skip$ -- 371
+skip$ -- 1645
 stack$ -- 0
-substring$ -- 382
-swap$ -- 58
+substring$ -- 1674
+swap$ -- 249
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 0
 warning$ -- 0
-while$ -- 45
-width$ -- 21
-write$ -- 198
-(There were 3 warnings)
+while$ -- 196
+width$ -- 85
+write$ -- 837
