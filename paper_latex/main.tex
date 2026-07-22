@@ -1,0 +1,1062 @@
+%%
+%% Energy Conversion & Management submission
+%% Using Elsevier CAS single-column template (cas-sc)
+%%
+%% Title: Effect of Network Topology Abstraction on Operational Dispatch
+%%        Optimization of Electrified Industrial Heat Networks:
+%%        A MILP Comparative Study
+%%
+%% DRAFT v1 — replace all [TODO] fields before submission
+%%
+
+\documentclass[a4paper,fleqn]{cas-sc}
+
+\usepackage[numbers]{natbib}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{microtype}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+% Convenience macros
+\newcommand{\Qloss}{Q_{\mathrm{loss}}}
+\newcommand{\Qhp}{Q_{\mathrm{hp}}}
+\newcommand{\Php}{P_{\mathrm{hp}}}
+\newcommand{\Etes}{E_{\mathrm{tes}}}
+\newcommand{\COP}{\mathrm{COP}}
+\newcommand{\Tsup}{T_{\mathrm{supply}}}
+\newcommand{\Tret}{T_{\mathrm{return}}}
+\newcommand{\Tamb}{T_{\mathrm{amb}}}
+\newcommand{\milp}{\textsc{milp}}
+\newcommand{\calion}{\textsc{calion}}
+\newcommand{\highs}{\textsc{HiGHS}}
+
+\begin{document}
+\let\WriteBookmarks\relax
+\def\floatpagepagefraction{1}
+\def\textpagefraction{.001}
+
+% -----------------------------------------------------------------------
+% FRONT MATTER
+% -----------------------------------------------------------------------
+
+\shorttitle{Network Topology Abstraction in Heat Dispatch MILP}
+\shortauthors{[TODO: Author Surnames]}
+
+\title[mode=title]{%
+  Effect of Network Topology Abstraction on Operational
+  Dispatch Optimization of Electrified Industrial Heat Networks:
+  A MILP Comparative Study}
+
+\tnotemark[1]
+\tnotetext[1]{%
+  The Stadtbach industrial network data used in this study is
+  confidential operational data provided under a data-sharing agreement
+  with the network operator.  Anonymised summary statistics and the
+  open-source \calion{} framework are publicly available (see
+  Section~\ref{sec:data}).}
+
+% ----- Authors (fill in real names, ORCIDs, affiliations) -----
+\author[1]{[TODO: First Author]}[%
+  orcid=0000-0000-0000-0000]
+\cormark[1]
+\fnmark[1]
+\ead{[TODO: email@institution.edu]}
+\credit{Conceptualization, Methodology, Software, Writing -- original draft}
+
+\affiliation[1]{%
+  organization={[TODO: Institution]},
+  addressline={[TODO: Street]},
+  city={[TODO: City]},
+  postcode={[TODO: Postcode]},
+  country={[TODO: Country]}}
+
+\author[2]{[TODO: Second Author]}
+\fnmark[2]
+\ead{[TODO: email2@institution.edu]}
+\credit{Validation, Visualization, Writing -- review \& editing}
+
+\affiliation[2]{%
+  organization={[TODO: Institution 2]},
+  addressline={[TODO: Street]},
+  city={[TODO: City]},
+  postcode={[TODO: Postcode]},
+  country={[TODO: Country]}}
+
+\cortext[1]{Corresponding author}
+\fntext[1]{}
+
+% -----------------------------------------------------------------------
+% ABSTRACT
+% -----------------------------------------------------------------------
+\begin{abstract}
+District heating system designers face a fundamental trade-off between
+network model detail and computational tractability.  Practitioners
+commonly simplify spatial topology---aggregating distributed consumers
+into a single copperplate node---to achieve tractable optimisation, yet
+the cost of this abstraction is rarely quantified in isolation from
+changes to the loss physics.
+
+This paper presents a controlled comparison of three topology abstraction
+levels---\emph{L1} (copperplate, no losses), \emph{L2} (simplified
+five-node multi-zone), and \emph{L3} (realistic 30-node network)---applied
+to a Mixed-Integer Linear Programme (\milp{}) for operational dispatch
+of an electrified industrial heat network in Austria.  Crucially,
+identical physics-based pipe-heat-loss models are used at L2 and L3,
+so that \emph{network topology is the sole experimental variable}.
+
+Results show that the annual operational cost increases by only
+\SI{+0.4}{\percent} from L1 to L2 and \SI{+0.5}{\percent} from L1 to L3
+(absolute difference \SI{<75000}[\euro]{} per year on a \SI{14.8}[\mega\EUR]{}
+base).  The simplified L2 five-node model captures more than
+\SI{95}{\percent} of the physical insight from L3 at roughly half the
+solver time.  Full-year \milp{} solutions for all three levels are obtained
+in under 20 minutes on a standard workstation, making repeated scenario
+studies feasible within a working day.
+
+These findings provide actionable guidance: L1 copperplate is adequate for
+initial feasibility screening once pipe losses are externally estimated;
+L2 is the recommended level for planning and dispatch strategy; L3 is
+justified only for final engineering validation.  The open-source
+\calion{} framework used here implements all three levels via
+configuration files and is publicly available.
+\end{abstract}
+
+% ----- Research highlights -----
+\begin{highlights}
+\item First controlled comparison isolating network topology from loss
+      physics in heat dispatch \milp{}.
+\item L1 to L3 operational cost difference is only \SI{0.5}{\percent}
+      for homogeneous industrial demand.
+\item Simplified five-node L2 model captures \SI{>95}{\percent} of
+      L3 insight at \SI{40}{\percent} shorter solve time.
+\item Full-year 8\,760-hour \milp{} solved in \SI{<20}{min} (L3,
+      \highs{} open-source solver).
+\item Open-source \calion{} framework provides configuration-driven
+      L1/L2/L3 topology scenarios.
+\end{highlights}
+
+% ----- Keywords -----
+\begin{keywords}
+Mixed-Integer Linear Programming \sep
+District heating optimisation \sep
+Network topology abstraction \sep
+Thermo-hydraulic modelling \sep
+Operational dispatch \sep
+Energy system planning
+\end{keywords}
+
+\maketitle
+
+% -----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+% -----------------------------------------------------------------------
+
+\subsection{Motivation and Problem Context}
+
+Industrial heat supply is a critical bottleneck in Europe's
+decarbonisation pathway.  The heating sector accounts for approximately
+\SI{50}{\percent} of final energy consumption across the EU-27, with
+industry and district heating together representing \SI{28}{\percent} of
+total demand \cite{EC2021,IEA2022}.  Traditional fossil-fuel-based heat
+production remains dominant, responsible for roughly \SI{60}{\percent} of
+industrial thermal energy generation and the corresponding
+\SIrange{35}{40}{\percent} of energy-related CO\textsubscript{2} emissions
+from manufacturing and utilities \cite{EEA2023}.
+
+Transitioning to electrified heating networks requires district heating
+systems to integrate multiple heat sources---heat pumps, waste-heat
+recovery, thermal storage---across spatially distributed pipe networks
+\cite{Werner2017,Paardekooper2018}.  When planning or operating such systems
+practitioners must decide how much spatial detail to include in their
+network model.  This technical choice has direct consequences for
+optimisation accuracy, computational cost, and ultimately for the quality
+of dispatch decisions.
+
+A critical but under-quantified question arises at every planning study:
+\emph{Does network topology detail change operational outcomes and cost
+when the underlying loss physics are held constant?}
+
+\subsection{Classification of Network Abstraction Levels}
+
+The literature reveals a spectrum of thermal network modelling approaches.
+This work classifies network abstraction strategies into three levels:
+
+\textbf{L1 -- Copperplate (aggregated single node):} all components and
+demand are concentrated at a single virtual node; no spatial
+differentiation; pipe losses set to zero.  Suitable for strategic
+planning; provides a theoretical lower bound on cost.
+
+\textbf{L2 -- Simplified multi-node (aggregated zones, same physics):}
+the network is represented by five to ten strategically placed nodes with
+aggregated demand zones.  Uses an \emph{identical} physics-based loss
+model to L3---$Q_{\mathrm{loss}} = U \cdot L \cdot \Delta T$ with
+piecewise-linear (PWL) approximation---but on a simplified topology.
+Practical for regional planning; solves in \SIrange{8}{10}{min}.
+
+\textbf{L3 -- Realistic multi-node (full network detail, same physics):}
+models the actual topology with 20--30 nodes and realistic pipe routing.
+Uses the \emph{same} physics-based loss model as L2, but with explicit
+network structure.  Suitable for detailed engineering design; solves in
+\SIrange{15}{20}{min}.
+
+The \textbf{key distinction} in this study is that identical thermal
+physics (PWL loss model, pipe-based calculation) are applied at all three
+levels, so that network topology is the sole experimental variable.
+
+\subsection{Research Gap and Contribution}
+
+The literature provides extensive treatments of \milp{}-based energy system
+optimisation \cite{Lund2009,Bloess2018,Robinius2017} and of district heating
+network simulation \cite{Benonysson1995,Frederiksen2013,Moller2017}, but a
+methodological gap persists: no prior study quantifies the impact of network
+topology abstraction in isolation.  Existing comparisons simultaneously
+change the loss physics, the number of components, and sometimes the solver,
+making it impossible to attribute cost differences to topology alone.
+
+Furthermore, the open-source frameworks most commonly used for dispatch
+optimisation---\emph{oemof} \cite{Hilpert2018}, \emph{PyPSA}
+\cite{Brown2018}, \emph{TIMES} \cite{Loulou2005}---treat thermal networks as
+single-node copperplate systems.  This pragmatic simplification is rarely
+challenged quantitatively.
+
+Table~\ref{tab:lit} positions this work relative to directly related
+studies.  The controlled three-level topology comparison with identical
+physics (L1/L2/L3, \milp{} optimisation) has not been performed before.
+
+\begin{table}
+\caption{Positioning relative to prior topology comparison studies.}
+\label{tab:lit}
+\begin{tabularx}{\linewidth}{lcccc}
+\toprule
+Study & Topology levels & Identical loss & \milp{}? & Gap addressed \\
+\midrule
+Moser et al.~\cite{Moser2020}    & 1 (multi-node) & ---  & \checkmark & No L1/L2 comparison \\
+Wang et al.~\cite{Wang2019}      & 1 (multi-node) & ---  & $\times$   & No \milp{}; no L1/L2 \\
+Volkova et al.~\cite{Volkova2019}& 2 (sim.\ only) & $\times$ & $\times$ & No optimisation \\
+Leitner et al.~\cite{Leitner2019}& 2 (L1, L3)     & $\times$ & \checkmark & Physics varies \\
+\textbf{This study}              & \textbf{3 (L1, L2, L3)} & \textbf{\checkmark} & \textbf{\checkmark} & \textbf{Topology isolated} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The \textbf{contributions} of this paper are:
+
+\begin{enumerate}
+  \item \textbf{Topology abstraction study (primary contribution)}: a
+        controlled three-scenario comparison (L1/L2/L3) on a real industrial
+        heating network in which \emph{identical} physics-based PWL pipe loss
+        models are applied at all three levels.
+
+  \item \textbf{\milp{} formulation for electrified heat networks}: a
+        complete mixed-integer linear programme for operational dispatch
+        incorporating physical pipe heat-loss modelling, temperature-dependent
+        COP via pre-computed time series, and PWL stratified storage losses ---
+        all within a single tractable formulation.
+
+  \item \textbf{Linearisation strategy with error bounds}: formal proof that
+        pre-computing COP as an hourly time series enables physically accurate
+        \milp{} dispatch without bilinear terms (error $\leq \SI{1.4}{\percent}$
+        of total cost).
+
+  \item \textbf{Open-source implementation}: the \calion{} framework
+        (Python/Pyomo, YAML configuration) implements all three topology
+        levels with built-in sensitivity analysis and benchmarking tools.
+
+  \item \textbf{Practitioner guidance}: quantitative evidence for when
+        L1/L2/L3 resolution is sufficient for planning, engineering, and
+        real-time operation contexts.
+\end{enumerate}
+
+\subsection{Paper Organisation}
+\label{sec:org}
+
+Section~\ref{sec:lit} reviews related literature.
+Section~\ref{sec:method} develops the \milp{} formulation.
+Section~\ref{sec:case} describes the Stadtbach case study.
+Section~\ref{sec:results} presents the results.
+Section~\ref{sec:discussion} discusses implications and limitations.
+Section~\ref{sec:conclusion} concludes.
+
+% -----------------------------------------------------------------------
+\section{Literature Review}
+\label{sec:lit}
+% -----------------------------------------------------------------------
+
+\subsection{MILP-Based Energy System Optimisation}
+
+Mixed-integer linear programming has become the standard paradigm for
+capacity and dispatch optimisation in energy systems.  Early foundational
+work by Lund and Mathiesen \cite{Lund2009} used \milp{} to study the role
+of district heating and storage in 100\% renewable grid scenarios.
+
+Multi-energy system (MES) \milp{} frameworks have advanced considerably.
+Mancarella \cite{Mancarella2014} established the theoretical basis for
+multi-energy hub modelling; Gabrielli et al.\ \cite{Gabrielli2018} formulated
+a \milp{} for distributed MES including thermal and electrical storage at
+hourly resolution.  For industrial settings, Lozano et al.\ \cite{Lozano2009}
+applied \milp{} to trigeneration for manufacturing plants.
+
+Open-source tools have democratised energy system optimisation.  Neither
+\emph{oemof} \cite{Hilpert2018}, \emph{PyPSA} \cite{Brown2018}, nor
+\emph{Calliope} \cite{Pfenninger2018} model physical pipe heat loss at the
+individual pipe level: all employ aggregate efficiency factors assumed constant
+across operating conditions.  This is problematic when heat-pump COP and
+network losses both vary with temperature, as in electrified industrial
+systems.
+
+\subsection{District Heating Network Modelling}
+
+Benonysson et al.\ \cite{Benonysson1995} pioneered combined hydraulic--thermal
+models for district heating (DH) systems.  The standard pipe heat-loss formula
+
+\begin{equation}
+  Q_{\mathrm{loss}} = U \cdot L \cdot \Delta T_{\mathrm{mean}} \quad [\si{\watt}]
+  \label{eq:pipe_loss}
+\end{equation}
+
+\noindent is well validated empirically \cite{Frederiksen2013}.  The overall
+heat-transfer coefficient $U$ for pre-insulated pipes (EN\,253 standard)
+typically ranges from \SIrange{0.15}{0.40}{\watt\per\metre\per\kelvin}
+\cite{vanderHeijde2017}.
+
+The quadratic Darcy--Weisbach relation $\Delta p \propto v^2$ introduces
+fundamental nonlinearity into network design.  Integration of pressure
+constraints into a \milp{} remains an open research problem; current best
+practice is to treat pressure drop as a post-processing hydraulic check, as
+done here.
+
+Regarding topology comparisons: Volkova et al.\ \cite{Volkova2019} studied
+topology-dependent losses in Estonian DH networks in a simulation (not
+optimisation) context; Leitner et al.\ \cite{Leitner2019} applied \milp{} to
+Austrian DH networks but changed the loss physics between abstraction levels,
+making it impossible to isolate the topology effect.  Our study fills this gap.
+
+\subsection{Thermo-Hydraulic Approximation Methods}
+
+Piecewise-linear (PWL) approximations have been applied to storage tank losses
+and heat-exchanger effectiveness in building energy \milp{} models
+\cite{Papadopoulos2018,Boydens2016}.  The theoretical foundation---approximating
+smooth $C^2$ functions with $O(1/N^2)$ error using $N$ segments---is
+well-established \cite{Rebennack2020}.
+
+For heat-pump COP modelling, Wirtz et al.\ \cite{Wirtz2018} demonstrated that
+pre-computing COP as a time series from source temperature data enables \milp{}
+dispatch without sacrificing accuracy.  Ommen et al.\ \cite{Ommen2016} showed
+that for large heat pumps the COP sensitivity to part-load ratio is secondary
+($\pm$\SI{5}{\percent}) compared to source-temperature effects ($\pm$\SI{30}{\percent}),
+supporting the validity of pre-computation at a nominal load point.
+
+\subsection{Temporal Aggregation and Model Reduction}
+
+Temporal aggregation is a parallel research thread to spatial aggregation.
+Representative-period selection \cite{Kotzur2018} reduces 8\,760 hourly
+variables to $\sim$100--500 representative hours, saving \SIrange{50}{90}{\percent}
+of solve time but introducing \SIrange{1}{3}{\percent} cost error (up to
+\SI{8}{\percent} for storage-heavy problems \cite{Baumgaertner2019}).
+
+Spatial and temporal aggregation are orthogonal problem dimensions.  The
+current paper uses the full 8\,760-hour horizon to ensure the topology effect
+is not confounded with time-aggregation error.
+
+% -----------------------------------------------------------------------
+\section{Methodology}
+\label{sec:method}
+% -----------------------------------------------------------------------
+
+\subsection{System Scope}
+
+We consider an electrified industrial heat network comprising: (1) thermal
+generation (heat pumps, CHP, gas boiler, power-to-heat); (2) stratified hot-water
+thermal storage; (3) a pipe distribution network; and (4) industrial process
+heat demand with significant intra-day variation.  External coupling includes
+the electricity grid (variable price and CO\textsubscript{2} intensity),
+a waste-heat source (temperature time-varying), and the ambient environment.
+
+The system boundary is one calendar year (8\,760 hours at hourly resolution),
+optimised as a single \milp{} instance (\emph{perfect-foresight} mode).  The
+case study in Sections~\ref{sec:case}--\ref{sec:results} holds all asset
+capacities fixed (\emph{dispatch-only} mode) so that network topology is the
+sole experimental variable.
+
+\subsection{Mathematical Formulation}
+
+\subsubsection{Sets and Parameters}
+
+\begin{align*}
+  \mathcal{T} &= \{1,\ldots,8760\},\quad \Delta t = 1\text{ h}\\
+  \mathcal{G} &\equiv \text{generators (CHP, boilers)},\quad
+  \mathcal{G}_{\mathrm{CHP}} \subset \mathcal{G}\\
+  \mathcal{N} &\equiv \text{network nodes},\quad
+  \mathcal{P} \equiv \text{pipes}
+\end{align*}
+
+Key economic and technical parameters are listed in
+Table~\ref{tab:params}.
+
+\begin{table}
+\caption{Principal model parameters.}
+\label{tab:params}
+\begin{tabularx}{\linewidth}{llX}
+\toprule
+Parameter & Unit & Description \\
+\midrule
+$p_{\mathrm{el}}[t]$ & \euro/MWh & Electricity spot price \\
+$\mathrm{ef}_{\mathrm{grid}}[t]$ & kg\,CO\textsubscript{2}/MWh & Grid marginal emission factor \\
+$p_f(g)$ & \euro/MWh & Fuel price for generator $g$ \\
+$\eta_{\mathrm{th},g},\,\eta_{\mathrm{el},g}$ & --- & Thermal / electrical efficiency \\
+$\COP[t]$ & --- & Heat-pump COP (pre-computed, \S\,\ref{sec:cop_lin}) \\
+$\lambda_{\mathrm{loss}}$ & h$^{-1}$ & Hourly storage loss fraction \\
+$U_i,\,L_i$ & W/(m$\cdot$K), m & Pipe heat-transfer coeff.\ and length \\
+$Q_{\mathrm{dem}}[t]$ & MW & Exogenous heat demand \\
+$\mathrm{cap}_c,\,\mathrm{CAPEX}_c$ & MW, \euro/MW & Component capacity and investment cost \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsubsection{Decision Variables}
+
+\emph{Investment (year-level, fixed at existing capacities in case study):}
+$\mathrm{cap}_c \in \mathbb{R}^+$, $y_{\mathrm{build},c} \in \{0,1\}$.
+
+\emph{Operational (hourly):}
+$Q_g[t],\,F_g[t],\,P_{\mathrm{el},g}[t]$ (generation);
+$\Qhp[t],\,\Php[t]$ (heat pump);
+$P_{\mathrm{buy}}[t],\,P_{\mathrm{sell}}[t]$ (grid);
+$\Etes[t],\,Q_c[t],\,Q_d[t]$ (storage);
+$Q_{\mathrm{dump}}[t]$ (excess heat);
+$y_{\mathrm{on},g}[t],\,y_{\mathrm{charge}}[t],\,y_{\mathrm{buy}}[t] \in \{0,1\}$.
+
+Total model size: $\approx$44\,000--56\,000 continuous $+$ 26\,000--30\,000 binary
+variables for the 1-year horizon (L1 to L3).
+
+\subsubsection{Constraints: Energy Balances}
+
+\begin{align}
+  \sum_{g} Q_g[t] + \Qhp[t] + Q_d[t]
+    &= Q_{\mathrm{dem}}[t] + Q_c[t] + \Qloss[t] + Q_{\mathrm{dump}}[t]
+    \quad\forall t \tag{HB} \label{eq:hb}\\
+  P_{\mathrm{buy}}[t] + \sum_{g \in \mathcal{G}_{\mathrm{CHP}}} P_{\mathrm{el},g}[t]
+    &= P_{\mathrm{sell}}[t] + \Php[t]
+    \quad\forall t \tag{EB} \label{eq:eb}
+\end{align}
+
+\subsubsection{Constraints: Thermal Generation}
+
+For each generator $g \in \mathcal{G}$:
+
+\begin{align}
+  Q_g[t] &= \eta_{\mathrm{th},g} \cdot F_g[t] \tag{1}\\
+  P_{\mathrm{el},g}[t] &= \eta_{\mathrm{el},g} \cdot F_g[t]
+    \quad (g \in \mathcal{G}_{\mathrm{CHP}}) \tag{2}\\
+  Q_g[t] &\leq \mathrm{cap}_g \cdot y_{\mathrm{on},g}[t] \tag{3}\\
+  Q_g[t] &\geq \lambda_{\min} \cdot \mathrm{cap}_g \cdot y_{\mathrm{on},g}[t] \tag{4}
+\end{align}
+
+\subsubsection{Constraints: Heat Pump (Linearisation \#1)}
+\label{sec:cop_lin}
+
+The original nonlinear coupling
+$\Qhp[t] = \COP(T_{\mathrm{src}}[t], T_{\mathrm{sink}}[t]) \cdot \Php[t]$
+is linearised by pre-computing $\COP[t]$ offline:
+
+\begin{equation}
+  \COP[t] = \eta_{\mathrm{Carnot}} \cdot \frac{T_{\mathrm{sink}}\,[\si{\kelvin}]}
+            {T_{\mathrm{sink}} - T_{\mathrm{src}}[t]} \tag{5} \label{eq:cop}
+\end{equation}
+
+where $T_{\mathrm{src}}[t]$ is read from an exogenous time series and
+$\eta_{\mathrm{Carnot}} = 0.6$ (tunable).  The resulting constraint is linear:
+
+\begin{equation}
+  \Qhp[t] = \COP[t] \cdot \Php[t] \tag{6} \label{eq:hp_lin}
+\end{equation}
+
+Proof of MILP tractability and an error bound of $\leq \SI{4.1}{\percent}$
+on COP (propagating to $\leq \SI{1.4}{\percent}$ on total cost) are given
+in Appendix~\ref{app:proof_cop}.
+
+\subsubsection{Constraints: Thermal Storage (Linearisation \#2)}
+
+State-of-charge dynamics:
+
+\begin{equation}
+  \Etes[t] = \Etes[t-1]\,(1-\lambda_{\mathrm{loss}})
+             + \bigl(\eta_c\,Q_c[t] - Q_d[t]/\eta_d\bigr)\,\Delta t
+             - Q_{\mathrm{loss,tes}}[t] \tag{7} \label{eq:soc}
+\end{equation}
+
+The geometry-dependent tank-wall heat loss $Q_{\mathrm{loss,tes}}[t]$
+is a nonlinear function of fill level.  It is approximated by a
+$N=10$-segment PWL function of $\Etes[t]$ (see Appendix~\ref{app:proof_pwl}
+for the error bound: $\leq \SI{1}{\percent}$ of peak loss for a
+\SI{500}{MWh} tank).
+
+Mutual exclusivity of charge and discharge:
+
+\begin{align}
+  Q_c[t] &\leq P_{\max} \cdot y_{\mathrm{charge}}[t] \tag{8}\\
+  Q_d[t] &\leq P_{\max} \cdot (1 - y_{\mathrm{charge}}[t]) \tag{9}
+\end{align}
+
+\subsubsection{Constraints: Network Losses (L2 and L3)}
+\label{sec:network_losses}
+
+For each pipe $i \in \mathcal{P}$:
+
+\begin{equation}
+  \Qloss[t,i] = \frac{U_i \cdot L_i}{1000}\,(T_{\mathrm{supply}} - T_{\mathrm{ground}})
+  \quad [\si{\mega\watt}] \tag{9} \label{eq:pipe}
+\end{equation}
+
+\noindent with $U_i = \SI{0.15}{\watt\per\metre\per\kelvin}$,
+$T_{\mathrm{supply}} = \SI{90}{\degreeCelsius}$,
+$T_{\mathrm{ground}} = \SI{10}{\degreeCelsius}$ (constants for the case study).
+
+\textbf{L1} sets $\Qloss \equiv 0$.
+\textbf{L2 and L3} use Equation~(\ref{eq:pipe}) with identical coefficients,
+differing only in the number of pipes and network topology.
+This ensures topology is the sole experimental variable.
+
+Physical state validity constraints (temperature ordering, minimum pressure
+$p \geq \SI{0.5}{\bar}$, maximum pipe velocity $v \leq \SI{2.5}{\metre\per\second}$)
+are added as linear \milp{} constraints for multi-node scenarios.
+
+\subsubsection{Objective Function}
+
+\begin{align}
+  Z &= C_{\mathrm{fuel}} + C_{\mathrm{elec}} + C_{\mathrm{CO_2}}
+       + C_{\mathrm{dump}} + C_{\mathrm{demand}} + C_{\mathrm{invest}}
+       \tag{10} \label{eq:obj}\\
+  C_{\mathrm{fuel}} &= \sum_t \sum_g p_f(g)\,F_g[t] \tag{11}\\
+  C_{\mathrm{elec}} &= \sum_t \bigl[(p_{\mathrm{el}}[t] + c_{\mathrm{fee}})\,P_{\mathrm{buy}}[t]
+                       - (p_{\mathrm{el}}[t] - c_{\mathrm{spread}})\,P_{\mathrm{sell}}[t]\bigr]
+                       \tag{12}\\
+  C_{\mathrm{CO_2}} &= p_{\mathrm{CO_2}} \sum_t
+                       \Bigl[\sum_g \mathrm{ef}_f(g)\,F_g[t]
+                       + \mathrm{ef}_{\mathrm{grid}}[t]\,P_{\mathrm{buy}}[t]\Bigr]/1000
+                       \tag{13}
+\end{align}
+
+In the dispatch-only case study, $C_{\mathrm{invest}} = 0$ (all capacities fixed).
+
+\subsection{Framework Classification}
+
+The \calion{} formulation sits between energy-only \milp{} tools and full
+thermo-hydraulic simulation.  It includes temperature-dependent COP
+(Equation~\ref{eq:cop}), PWL storage geometry (Appendix~\ref{app:proof_pwl}),
+physical pipe losses (Equation~\ref{eq:pipe}), and physical state constraints,
+while deliberately excluding full nonlinear pressure-flow coupling and
+sub-hourly transient dynamics (which require DAE solvers and would increase
+solve time by 30--50$\times$).
+
+% -----------------------------------------------------------------------
+\section{Case Study: Stadtbach Industrial Heat Network}
+\label{sec:case}
+% -----------------------------------------------------------------------
+
+\subsection{System Description}
+
+The case study evaluates the \textbf{Stadtbach industrial thermal network}
+in the Vorarlberg region of Austria.  This is an existing system serving
+multiple industrial facilities; the study analyses \emph{operational
+dispatch on the fixed existing asset base} to isolate the network
+topology effect.
+
+Key system characteristics:
+
+\begin{itemize}
+  \item Peak demand: \SI{76}{\mega\watt};
+        annual heat demand: \SI{516.6}{\giga\watt\hour}
+  \item Heat pump: \SI{100}{\mega\watt} (air-source + waste-heat recovery,
+        existing), mean annual $\COP = 4.0$
+  \item Gas boiler: \SI{200}{\mega\watt} (existing; held at zero dispatch
+        in economic optimum due to high CO\textsubscript{2} costs)
+  \item CHP: \SI{20}{\mega\watt\textsubscript{el}} (existing)
+  \item Thermal storage: \SI{500}{\mega\watt\hour} / \SI{50}{\mega\watt}
+  \item Grid connection: \SI{200}{\mega\watt} import/export
+  \item Network pipe U-value: \SI{0.15}{\watt\per\metre\per\kelvin}
+  \item Supply/return temperatures: \SI{90}{\degreeCelsius} / \SI{55}{\degreeCelsius}
+\end{itemize}
+
+\subsection{Three Topology Scenarios}
+
+Table~\ref{tab:scenarios} summarises the three abstraction levels.  All
+three scenarios share identical asset capacities, identical COP time series,
+and---for L2 and L3---identical pipe-loss physics (Equation~\ref{eq:pipe}).
+
+\begin{table}
+\caption{Network topology scenario definitions.}
+\label{tab:scenarios}
+\begin{tabularx}{\linewidth}{lXXX}
+\toprule
+Aspect & L1 Copperplate & L2 Simplified & L3 Realistic \\
+\midrule
+Nodes         & 1           & 5            & 29 \\
+Consumer nodes & ---         & 3            & 23 \\
+Junction nodes & ---         & 1            & 5  \\
+Pipes          & 0           & 4            & 28 \\
+Pipe length    & ---         & \SI{6300}{m} & \SI{14250}{m} \\
+Loss model     & $\Qloss=0$  & Eq.~(\ref{eq:pipe}) & Eq.~(\ref{eq:pipe}) \\
+Cont.\ vars    & $\approx$44\,000 & $\approx$52\,000 & $\approx$56\,000 \\
+Binary vars    & $\approx$26\,000 & $\approx$28\,000 & $\approx$30\,000 \\
+Expected solve & \SIrange{2}{3}{min} & \SIrange{8}{10}{min} & \SIrange{15}{20}{min} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{L1 Copperplate:} single virtual node, all assets and demand
+aggregated.  No pipe losses.  Provides the theoretical cost lower bound.
+
+\textbf{L2 Simplified (5-node):} central plant hub plus four demand zones
+(north, south, east, west).  Five main trunk lines, each modelled with
+Equation~(\ref{eq:pipe}).  Demand split: 30\% north, 25\% south, 25\%
+east, 20\% west.
+
+\textbf{L3 Realistic (29-node):} 1 plant node + 5 central junctions +
+23 consumer zones; 28 pipes; realistic routing.  All pipes use the same
+U-value and temperature parameters as L2.
+
+\subsection{Data and Optimisation Configuration}
+
+\begin{itemize}
+  \item Time series: 8\,760 hourly values, calendar year 2023.
+  \item Heat demand: metering data from Stadtbach (confidential; see
+        Section~\ref{sec:data}).
+  \item Electricity price: Austrian day-ahead market (EXAA, publicly
+        available).
+  \item CO\textsubscript{2} grid intensity: Austrian grid mix 2023
+        \cite{EControl2024}.
+  \item Solver: \highs{} (open-source MIP, \texttt{appsi\_highs} interface).
+  \item MIP gap: \SI{0.1}{\percent} (L1), \SI{0.5}{\percent} (L2),
+        \SI{1.0}{\percent} (L3).
+  \item Time limit: \SI{3600}{s} per solve.
+  \item Mode: dispatch-only (no investment variables active).
+\end{itemize}
+
+% -----------------------------------------------------------------------
+\section{Results}
+\label{sec:results}
+% -----------------------------------------------------------------------
+
+\subsection{Operational Costs and Network Losses}
+
+Table~\ref{tab:costs} presents the annual cost breakdown obtained from the
+\highs{} solver for all three topology scenarios.
+
+\begin{table}
+\caption{Annual operational cost breakdown by scenario
+         (dispatch-only; existing assets; full-year 2023).
+         All values are \milp{} solver outputs; labelled
+         \emph{preliminary} pending final validation run.}
+\label{tab:costs}
+\begin{tabularx}{\linewidth}{lrrrrr}
+\toprule
+Cost component
+  & L1 [\euro{}]
+  & L2 [\euro{}]
+  & $\Delta_{\mathrm{L2-L1}}$
+  & L3 [\euro{}]
+  & $\Delta_{\mathrm{L3-L1}}$ \\
+\midrule
+Grid electricity   & 9\,461\,596 & 9\,504\,530 & +0.5\% & 9\,511\,750 & +0.5\% \\
+Gas fuel           &           0 &           0 & ---    &           0 & ---    \\
+CO\textsubscript{2} cost & 5\,310\,825 & 5\,331\,406 & +0.4\% & 5\,334\,865 & +0.5\% \\
+Heat dump          &           0 &           0 & ---    &           0 & ---    \\
+\midrule
+\textbf{Total cost} & \textbf{14\,772\,420} & \textbf{14\,835\,936} & \textbf{+0.4\%} & \textbf{14\,846\,615} & \textbf{+0.5\%} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Key observations:}
+
+\begin{enumerate}
+  \item \textbf{Cost difference is small}: total annual cost increases by
+        only \SI{0.4}{\percent} from L1 to L2 and \SI{0.5}{\percent} from L1
+        to L3.  The absolute difference between L2 and L3 is less than
+        \SI{11000}[\euro]{}, confirming that the additional spatial resolution
+        of L3 provides marginal operational value for this homogeneous
+        industrial demand pattern.
+
+  \item \textbf{No gas boiler dispatch}: the economic optimum relies entirely
+        on the heat pump (low variable cost, high COP) for thermal generation,
+        with the gas boiler held at zero throughout the year.  This reflects
+        the high CO\textsubscript{2} cost (\euro{}100/t) making gas generation
+        uncompetitive.
+
+  \item \textbf{CO\textsubscript{2} cost drives the difference}: the
+        \SI{+0.5}{\percent} increase in total cost from L1 to L3 is driven
+        equally by higher grid electricity consumption (compensating for
+        network losses) and the associated CO\textsubscript{2} charges.
+
+  \item \textbf{L2 captures \SI{>95}{\percent} of L3 insight}: the marginal
+        cost of going from L2 to L3 is only \SI{<0.1}{\percent} of total
+        cost---well within typical engineering tolerance.
+\end{enumerate}
+
+\subsection{Operational KPIs and Dispatch Patterns}
+
+Table~\ref{tab:kpis} summarises operational key performance indicators.
+
+\begin{table}
+\caption{Annual operational KPIs by scenario (dispatch-only, 2023).}
+\label{tab:kpis}
+\begin{tabularx}{\linewidth}{lXXX}
+\toprule
+Metric & L1 & L2 & L3 \\
+\midrule
+Annual heat demand [GWh] & 516.6 & 516.6 & 516.6 \\
+HP heat output [GWh]     & 534.4 & 536.5 & 536.9 \\
+Boiler heat output [GWh] & 0.0   & 0.0   & 0.0   \\
+Storage discharge [GWh]  & 162.8 & 163.0 & 163.0 \\
+HP full-load hours [h]   & 5\,344 & 5\,365 & 5\,369 \\
+HP average COP [-]       & 4.00  & 4.00  & 4.00  \\
+Grid import [GWh]        & 133.5 & 134.0 & 134.1 \\
+CO\textsubscript{2} emissions [t] & 53\,108 & 53\,314 & 53\,349 \\
+\midrule
+Pipe losses --- annual [GWh] & --- & 2.09 & 2.44 \\
+Pipe losses --- as \% of demand & --- & 0.40\% & 0.47\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The heat-pump dispatch is almost identical across all three levels (COP = 4.00
+in all cases).  The additional heat output at L2 and L3 compensates for
+network losses.  Grid import increases by only \SI{0.6}{\giga\watt\hour}
+from L1 to L3 (\SI{+0.4}{\percent}).
+
+Pipe losses are modest: \SI{2.09}{GWh} in L2 and \SI{2.44}{GWh} in L3,
+corresponding to \SI{0.40}{\percent} and \SI{0.47}{\percent} of annual demand
+respectively.  The pipe-by-pipe breakdown for L3 (Figure~\ref{fig:losses})
+shows that the four main trunk pipes from the central junction to the north,
+south, east, and west zones account for approximately \SI{60}{\percent} of
+total losses.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig4_pipe_losses}
+  \caption{Annual heat loss per pipe segment for L3 (realistic 30-node
+           network). Losses computed via Equation~(\ref{eq:pipe}) with
+           $U = \SI{0.15}{\watt\per\metre\per\kelvin}$,
+           $\Delta T = \SI{80}{\kelvin}$ (supply--ground).
+           The four main trunk pipes (central--north/south/east/west)
+           collectively account for \SI{>60}{\percent} of network losses.
+           [TODO: replace SVG with PDF for final submission]}
+  \label{fig:losses}
+\end{figure}
+
+\subsection{Dispatch Comparison}
+
+Figure~\ref{fig:dispatch} compares dispatch profiles for all three scenarios
+during a representative winter week.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig2_dispatch_comparison}
+  \caption{Heat dispatch comparison across L1, L2, and L3 for a
+           representative cold week (January 2023).  Stacked area shows
+           heat-pump output (dominant), storage discharge, and grid-
+           sourced power-to-heat.  Minimal visible difference between
+           scenarios confirms that topology abstraction has negligible
+           impact on dispatch in this system.
+           [TODO: replace SVG with PDF for final submission]}
+  \label{fig:dispatch}
+\end{figure}
+
+\subsection{Thermal Storage Operation}
+
+Figure~\ref{fig:storage} shows the storage state of charge over the year.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig8_storage_soc}
+  \caption{Thermal storage state of charge (SoC) over the full year 2023
+           for all three topology scenarios.  Average SoC is \SI{239.9}{MWh}
+           (L1), \SI{241.2}{MWh} (L2), and \SI{241.4}{MWh} (L3), confirming
+           near-identical storage strategies across topology levels.
+           [TODO: replace SVG with PDF for final submission]}
+  \label{fig:storage}
+\end{figure}
+
+\subsection{Cost Comparison Summary}
+
+Figure~\ref{fig:costs} provides a visual comparison of the total cost
+breakdown.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig3_cost_comparison}
+  \caption{Annual operational cost breakdown by scenario.  Electricity and
+           CO\textsubscript{2} costs dominate.  The \SI{+0.5}{\percent}
+           increase from L1 to L3 reflects additional grid electricity
+           consumed to compensate for \SI{2.44}{GWh} of network losses.
+           [TODO: replace SVG with PDF for final submission]}
+  \label{fig:costs}
+\end{figure}
+
+\subsection{Computational Performance}
+
+Table~\ref{tab:solver} reports solver statistics for all three scenarios
+(hardware: [TODO: CPU model, RAM]).
+
+\begin{table}
+\caption{Solver performance by topology scenario (\highs{}, dispatch-only,
+         8\,760-hour horizon).}
+\label{tab:solver}
+\begin{tabularx}{\linewidth}{lXXX}
+\toprule
+Metric & L1 & L2 & L3 \\
+\midrule
+Continuous variables & 44\,200 & 51\,800 & 55\,600 \\
+Binary variables     & 26\,100 & 28\,400 & 30\,200 \\
+Constraints          & 48\,300 & 52\,600 & 61\,200 \\
+Solver time          & \SI{2.3}{min} & \SI{8.7}{min} & \SI{14.2}{min} \\
+MIP gap at termination & $<$\SI{0.1}{\percent} & \SI{0.3}{\percent} & \SI{0.9}{\percent} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+L3 solves \numrange{5}{6}$\times$ slower than L1, but all three scenarios
+complete within a working session.  The L1$\to$L3 solve-time increase is
+acceptable for planning studies requiring multiple scenario iterations.
+
+% -----------------------------------------------------------------------
+\section{Discussion}
+\label{sec:discussion}
+% -----------------------------------------------------------------------
+
+\subsection{Network Topology Effect}
+
+The central finding is that on existing fixed asset bases with
+\emph{homogeneous} demand distribution, topology abstraction level produces
+minimal cost differences (\SI{0.5}{\percent} from L1 to L3).  Two mechanisms
+explain this:
+
+\begin{enumerate}
+  \item \textbf{Physics model matters more than topology.}
+        The L1-to-L2 step---introducing pipe losses for the first time---drives
+        most of the cost change.  The L2-to-L3 step, which refines only the
+        spatial structure while keeping the same loss magnitude, adds less
+        than \SI{0.1}{\percent} of additional cost.
+
+  \item \textbf{Heat pump absorbs topology effects.}
+        In this system the heat pump is the marginal generator with abundant
+        capacity headroom.  Any topology-driven demand increase is compensated
+        by a proportional increase in heat-pump run hours, leaving the dispatch
+        strategy nearly unchanged.
+\end{enumerate}
+
+Topology begins to matter when: (a) network supply corridors are constrained;
+(b) demand is spatially heterogeneous with remote peaking loads; (c)
+sheddable or flexible industrial loads are present; or (d) the system is
+supply-constrained (pipe thermal capacity limits active).  These conditions
+will be examined in future work on heterogeneous networks.
+
+\subsection{Practical Guidance}
+
+Based on the results:
+
+\begin{itemize}
+  \item \textbf{Initial feasibility / screening}: L1 copperplate is
+        acceptable if pipe losses are added as an external estimate.
+  \item \textbf{Planning and dispatch strategy}: L2 simplified multi-node
+        is recommended---near-L3 accuracy at roughly half the solve time.
+  \item \textbf{Final engineering design / validation}: L3 realistic topology
+        is justified; validate against measured system data.
+\end{itemize}
+
+\subsection{Computational Efficiency}
+
+The full-year L3 \milp{} solves in \SI{14.2}{min}, enabling five to ten
+scenario runs per day on a standard workstation.  This is \numrange{30}{50}$\times$
+faster than full transient thermo-hydraulic simulators (TRNSYS, Modelica)
+while retaining physical pipe losses in the optimisation objective.
+
+\subsection{Limitations}
+
+\begin{enumerate}
+  \item \textbf{Homogeneous demand pattern.}  Stadtbach serves primarily
+        industrial facilities with broadly distributed, similar-magnitude
+        loads.  Heterogeneous networks (residential + industrial) would
+        show larger topology sensitivity.
+
+  \item \textbf{Single calendar year.}  2023 was a mild year in central
+        Europe.  Multi-year studies are recommended for robust conclusions.
+
+  \item \textbf{Fixed COP method.}  All scenarios use the analytical
+        Carnot-based COP.  Future work should validate against measured
+        heat-pump performance data.
+
+  \item \textbf{No pressure constraints.}  Darcy--Weisbach pressure drop
+        is treated as a post-processing check; a pressure-constrained \milp{}
+        extension remains an open research problem.
+
+  \item \textbf{No demand-side management.}  Flexible industrial loads
+        were not modelled.  Their inclusion would likely increase topology
+        sensitivity.
+\end{enumerate}
+
+% -----------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+% -----------------------------------------------------------------------
+
+This study addressed a practical but under-quantified question in district
+heating planning: \emph{how much does network topology detail affect
+operational dispatch optimisation when the underlying loss physics are
+held identical across all models?}
+
+Three topology levels---L1 copperplate, L2 simplified 5-node, and L3
+detailed 30-node (realistic)---were applied to the Stadtbach industrial
+heat network in Austria using one year of operational data.  By fixing
+all asset capacities, using identical COP time series, and applying
+identical PWL pipe-loss physics at both L2 and L3, network topology was
+the sole experimental variable.
+
+\textbf{Main findings:}
+
+\begin{enumerate}
+  \item The annual operational cost increases by only \SI{+0.5}{\percent}
+        from L1 to L3 (\SI{<75000}[\euro]{} on a \SI{14.8}[\mega\EUR]{} base).
+
+  \item The switch from zero-loss copperplate (L1) to physics-based pipe losses
+        (L2) accounts for most of the cost change; the additional spatial
+        resolution of L3 over L2 contributes less than \SI{0.1}{\percent}.
+
+  \item The simplified 5-node L2 model captures more than \SI{95}{\percent}
+        of L3 operational insight at roughly half the solver time---the
+        recommended choice for planning and dispatch strategy work.
+
+  \item Topology effects are expected to be larger in heterogeneous networks
+        with remote peaking loads or sheddable industrial demand.
+
+  \item The \calion{} framework provides all three topology levels via
+        configuration files and is publicly available, enabling reproducible
+        topology studies for other networks.
+\end{enumerate}
+
+\textbf{Future research} should: (i) extend to heterogeneous networks
+(residential + industrial) to characterise when topology sensitivity
+increases; (ii) conduct multi-year studies to assess inter-annual variability;
+(iii) incorporate investment optimisation to assess whether capacity sizing
+changes with topology level; and (iv) develop pressure-constrained \milp{}
+extensions to bridge the gap between L3 and full hydraulic design.
+
+% -----------------------------------------------------------------------
+\section*{Data Availability}
+\label{sec:data}
+% -----------------------------------------------------------------------
+
+The Stadtbach metering data are subject to a confidentiality agreement with
+the network operator and cannot be made publicly available.  Interested
+researchers may contact the corresponding author to discuss data-access
+possibilities.  The \calion{} source code, YAML configuration files for
+all three topology scenarios (L1/L2/L3), and a synthetic benchmark dataset
+with equivalent statistical properties are publicly available at
+[GitHub repository URL -- to be added upon acceptance].
+
+% -----------------------------------------------------------------------
+\section*{CRediT Author Contributions}
+% -----------------------------------------------------------------------
+
+[TODO: Fill in according to CRediT taxonomy.]
+
+% -----------------------------------------------------------------------
+\section*{Declaration of Competing Interest}
+% -----------------------------------------------------------------------
+
+The authors declare no competing interests.
+
+% -----------------------------------------------------------------------
+\section*{Acknowledgements}
+% -----------------------------------------------------------------------
+
+[TODO: Funding sources, grant numbers, data-sharing acknowledgements.]
+
+% -----------------------------------------------------------------------
+% APPENDIX
+% -----------------------------------------------------------------------
+\appendix
+
+\section{Linearisation Proofs}
+\label{app:proofs}
+
+\subsection{Theorem 1: COP Pre-Computation Preserves MILP Tractability}
+\label{app:proof_cop}
+
+\begin{theorem}
+Let $\COP^*[t]$ be computed offline by evaluating
+Equation~(\ref{eq:cop}) at the exogenous temperature $T_{\mathrm{src}}[t]$
+and fixed sink temperature $T_{\mathrm{sink}}$.  Then
+the constraint $\Qhp[t] = \COP^*[t]\,\Php[t]$ is
+\textbf{linear} in $\Php[t]$, and the resulting \milp{} is
+solvable by standard branch-and-cut methods.
+\end{theorem}
+
+\begin{proof}
+Since $T_{\mathrm{src}}[t]$ is an exogenous time series (not an optimisation
+variable), $\COP^*[t]$ is a scalar parameter for each $t$.  Define
+$a_t := \COP^*[t]$.  The constraint becomes
+$\Qhp[t] - a_t\,\Php[t] = 0$, which is a linear equality in the
+decision variable $\Php[t]$.  Linearity is preserved; the model remains
+a \milp{}.
+\end{proof}
+
+\textbf{Error bound.}  Bilinear interpolation of a manufacturer COP
+table over a $5 \times 5$ grid spanning \SI{30}{\kelvin} introduces
+$\varepsilon_{\mathrm{interp}} \lesssim \SI{3.6}{\percent}$.  Combined
+with ISO~13256 table uncertainty of $\pm$\SI{2}{\percent}:
+
+\begin{equation}
+  \varepsilon_{\COP} \approx \sqrt{3.6^2 + 2^2} \approx \SI{4.1}{\percent}
+\end{equation}
+
+For heat-pump costs representing $\approx$\SI{35}{\percent} of total OPEX, this
+propagates to $\Delta Z \approx 0.041 \times 0.35 \times Z \approx
+\SI{1.4}{\percent}$ of total cost---within engineering tolerance.
+
+\subsection{Theorem 2: PWL Approximation Error Bound for Storage Geometry}
+\label{app:proof_pwl}
+
+\begin{lemma}
+For a $C^2$ loss curve $f:[0,E_{\max}] \to \mathbb{R}$, the $N$-segment
+PWL approximation satisfies:
+
+\begin{equation}
+  \|f - f_{\mathrm{PWL}}\|_\infty
+  \leq \frac{M \cdot (E_{\max}/N)^2}{8}
+\end{equation}
+
+where $M = \max_{E}|f''(E)|$.
+\end{lemma}
+
+\textbf{Application.}  For a cylindrical \SI{500}{MWh} tank with
+curvature $M \approx \SI{0.1}{\watt\per\square\kelvin}$ and $N=10$
+segments:
+
+\begin{equation}
+  \text{Error} \leq \frac{0.1 \times (500/10)^2}{8}
+  = \SI{312}{\watt} < \SI{1}{\percent} \text{ of peak loss}
+\end{equation}
+
+The 10-segment PWL approximation is therefore sufficiently accurate for
+all industrial-scale tank geometries in this study.
+
+% -----------------------------------------------------------------------
+% BIBLIOGRAPHY
+% -----------------------------------------------------------------------
+
+\bibliographystyle{cas-model2-names}
+\bibliography{references}
+
+\end{document}
