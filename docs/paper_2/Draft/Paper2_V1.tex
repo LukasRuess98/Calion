@@ -141,15 +141,7 @@ distribution temperatures, waste-heat recovery and demand-side
 integration \cite{Lund.2018,Lund.2021,Buffa.2019,Gjoka.2023}, and it
 increasingly means replacing fossil generation with large-scale heat
 pumps, a shift already under way in several European district heating
-markets \cite{Averfalk.2017}.
-\placeholder{Averfalk.2017 could not be confirmed as an existing entry
-in Paper2\_V1.bib -- add before compiling:
-\texttt{@article\{Averfalk.2017, author = \{Averfalk, Helge and
-Ingvarsson, Patrick and Persson, Urban and Gong, Meng and Werner, Sven\},
-year = \{2017\}, title = \{Large heat pumps in Swedish district heating
-systems\}, journal = \{Renewable and Sustainable Energy Reviews\},
-volume = \{79\}, pages = \{1275--1284\}, doi =
-\{10.1016/j.rser.2017.05.135\}\}}} Two
+markets \cite{Averfalk.2017}. Two
 design questions come with it that fixed-fuel generation never had to
 answer. First, a heat pump's efficiency and, in networks with volatile
 sources such as industrial waste heat, its economic output depend on the
@@ -189,10 +181,11 @@ Ryan.2022,Lesko.2018,Nuytten.2013}. Within this strand, storage sited to
 exploit demand-response and price flexibility has been studied
 explicitly \cite{Capone.2021}, and storage capacity has been examined
 specifically as a lever for absorbing industrial waste heat
-\cite{Yang.2020} -- a use case structurally close to the industrial case
-studied here. Storage sizing coupled to network design has also been
-studied with an explicit topology: Ceruti et al.\ \cite{Ceruti.2025}
-co-optimise network topology, generation sizing and thermal storage
+\cite{Yang.2020} -- relevant background given Stadtbach's waste-heat
+feed (Section~\ref{sec:cases:networks}). Storage sizing coupled to
+network design has also been studied with an explicit topology: Ceruti
+et al.\ \cite{Ceruti.2025} co-optimise network topology, generation
+sizing and thermal storage
 across synthetic and real networks under temporally resolved prices,
 finding that large heat pumps and storage reinforce each other
 economically -- the closest existing precedent to the present work.
@@ -215,15 +208,7 @@ examines heat pump operation jointly with combined heat and power
 of simplifying heat pump performance models -- the same methodological
 question this paper faces in choosing a COP surrogate
 (Section~\ref{sec:model:hp}) -- have been examined directly
-\cite{Zaubitzer.2026,Kuosa.2024}.
-\placeholder{Hering.2022 could not be confirmed as an existing entry in
-Paper2\_V1.bib (only Hering.2021 was found) -- add before compiling:
-\texttt{@article\{Hering.2022, author = \{Hering, Dominik and Faller,
-Marius R. and Xhonneux, Andr{\'e} and M{\"u}ller, Dirk\}, year = \{2022\},
-title = \{Operational optimization of a 4th generation district heating
-network with mixed integer quadratically constrained programming\},
-journal = \{Energy\}, volume = \{250\}, pages = \{123766\}, doi =
-\{10.1016/j.energy.2022.123766\}\}}} These studies establish
+\cite{Zaubitzer.2026,Kuosa.2024}. These studies establish
 siting as a genuine network-resolved decision, as the present work also
 treats it, but do not couple it to a storage siting decision or to a
 variable supply-temperature regime.
@@ -254,11 +239,11 @@ demand response \cite{Guelpa.2021,Ju.2023}, thermal inertia
 \cite{Boldrini.2022}, and integration with electricity markets more
 broadly \cite{Golmohamadi.2022,Javanshir.2023}, with clustering and
 operational strategies proposed to exploit this flexibility in practice
-\cite{Guelpa.2018,Guelpa.2020}. This strand motivates why a network's
-dominant economic signal -- price versus waste-heat availability -- is
-treated as a first-order distinguishing characteristic between the two
-case studies in Section~\ref{sec:cases}, but it does not address
-investment-stage siting or capacity decisions.
+\cite{Guelpa.2018,Guelpa.2020}. Both networks studied here are exposed to
+this kind of price signal in their operating cost
+(Section~\ref{sec:cases:parameters}), but this strand addresses
+operational flexibility rather than the investment-stage siting and
+capacity decisions this paper is concerned with.
 
 \emph{Network-resolved design optimisation.} A separate strand of work
 formulates the district heating design problem -- pipe routing, node
@@ -297,26 +282,21 @@ storage \cite{Ceruti.2025}, siting with capacity
 \cite{Hering.2021,Hering.2022}, or temperature with storage
 \cite{Li.2022}. The present work closes this by treating all three
 jointly, and does so on two real networks chosen specifically to differ
-in topology and in which economic signal dominates their operation, so
-that any result common to both is attributable to the coupling itself
-rather than to a single network's idiosyncrasies.
+in geometry and scale, so that any result common to both is
+attributable to the coupling itself rather than to a single network's
+idiosyncrasies.
 
 \subsection{Contribution and scope}
 \label{sec:intro:contribution}
 
-This paper builds on the dispatch-fidelity analysis of Paper~1
-\cite{Ruess.2026}, which compares five levels of spatial and hydraulic
-model detail for district heating dispatch and establishes $\Lplus$ --
-node-and-pipe hydraulics with spatially propagated, temperature-dependent
-losses -- as the level at which topology-abstraction error becomes
-small relative to the linearisation error introduced by the MILP
-formulation itself. Paper~1's contribution is that fidelity-level
-comparison and the validation of the dispatch physics that follows from
-it; it does not address investment or siting. The present work takes
-$\Lplus$ as given and adds an investment and siting layer on top of it:
-heat pump, electrode boiler and thermal storage capacity and location
-become decision variables, alongside a network transformation stage that
-governs the supply-temperature regime.
+This paper builds directly on Paper~1 \cite{Ruess.2026}, which
+establishes the dispatch-fidelity level $\Lplus$ used throughout this
+work (Section~\ref{sec:model:framework}) but does not address investment
+or siting. The present work takes $\Lplus$ as given and adds an
+investment and siting layer on top of it: heat pump, electrode boiler
+and thermal storage capacity and location become decision variables,
+alongside a network transformation stage that governs the
+supply-temperature regime.
 \placeholder{Paper 1 is currently under review at Applied Energy; cite
 as ``submitted'' and insert volume/page/DOI once accepted.}
 
@@ -337,6 +317,24 @@ than a single-shot mixed-integer program over a continuous heat-curve
 parameter could offer, since, as Section~\ref{sec:model:heatcurve}
 argues, such a parameter is not well defined independently of the
 discrete retrofit programme each stage represents.
+
+This paper addresses three research questions:
+\begin{enumerate}[label=\textbf{RQ\arabic*.}, leftmargin=2.2em]
+\item How does the network transformation stage interact with the
+optimal siting and capacity of heat pump, electrode boiler and thermal
+storage in a network-resolved investment model
+(Sections~\ref{sec:results:sweep}--\ref{sec:results:coupling})?
+\item Does a network's geometry and scale determine whether free siting
+of heat pump and storage improves on the best available fixed-node
+placement, or does a well-chosen fixed site already capture most of the
+achievable benefit (Section~\ref{sec:results:siting})?
+\item Once the storage-capacity penalty of a lower distribution
+temperature -- reduced usable energy density, hence more volume per
+unit of stored heat -- is priced in alongside the heat pump efficiency
+gain it also confers, does reducing distribution temperature still
+reduce total system cost, and by how much
+(Sections~\ref{sec:results:coupling}--\ref{sec:discussion:topology})?
+\end{enumerate}
 
 \subsection{Outline}
 \label{sec:intro:outline}
@@ -403,8 +401,8 @@ for the model to be readable in isolation: the hydraulic representation,
 the temperature-dependent loss propagation along pipes, the transport
 delay formulation, and the general procedure by which a network is
 calibrated against metered operational data. Of the two case-study
-networks (Section~\ref{sec:cases}), the industrial network is new to the
-present work, while the price-driven network is the same network used
+networks (Section~\ref{sec:cases}), Stadtbach is new to the
+present work, while Memmingen is the same network used
 as Paper~1's primary case (Section~\ref{sec:cases:networks}); its
 calibration is nonetheless carried out here rather than simply
 inherited, since Paper~2 additionally re-derived its topology and
@@ -491,7 +489,8 @@ T_{\mathrm{s}}^{\min} + \kHC \left(T_{\mathrm{s}}^{\max} - T_{\mathrm{s}}^{\min}
 \end{equation}
 with heating limit temperature $T_{\mathrm{h}} = \SI{15}{\celsius}$,
 design ambient temperature $T_{\mathrm{a}}^{\mathrm{des}} =
-\SI{-12}{\celsius}$ -- both following DIN~EN~12831 and identical for the
+\SI{-12}{\celsius}$ -- both following DIN~EN~12831-1
+\cite{DINEN12831.2017} and identical for the
 two networks -- and slope parameter $\kHC$. Heat curve control of this type is standard practice and its
 optimisation has been studied for individual heat pump installations
 \cite{Krug.2025}; what is specific here is that the curve is applied at
@@ -608,20 +607,30 @@ truncated where it would exceed a maximum vessel volume of
 \SI{5000}{\cubic\metre}. This ceiling is derived from thin-wall pressure
 vessel sizing at the storage design pressure of \SI{10}{\bar}, with a
 shell thickness of approximately \SI{60}{\milli\metre} representing what
-is practically constructible; it is applied identically to both
-networks. \placeholder{Insert the two resulting ladders explicitly
-(values pending regeneration under the corrected vessel cap) --
-Stadtbach is a uniform rescaling of its previous ladder by the same
-factor as the volume cap; Memmingen's previous ladder was never
-volume-bound, so it is truncated by dropping its longest-duration steps
-rather than rescaled.} Anchoring the ladder to load rather than to
+is practically constructible under the design and conformity-assessment
+regime for EU pressure equipment \cite{PED.2014}; it is applied
+identically to both
+networks. For Stadtbach, this is an exact $\times\frac{1}{10}$ rescaling
+of the pre-existing ladder,
+$\{0, 7.3, 14.6, 21.9, 29.2, 36.5, 43.8, 51.1, 58.4, 65.7, 73.0,
+84.5\}\,\si{\mega\watt\hour}$; for Memmingen, whose previous ladder was
+never volume-bound, the same $\{0,1,2,4,6,8,12,16,24,36,48\}$-hour
+anchor set is retained and only its two longest-duration steps are
+dropped for exceeding the cap ($96\,\mathrm{h}/\SI{134.4}{\mega\watt
+\hour}$ and $168\,\mathrm{h}/\SI{235.2}{\mega\watt\hour}$), giving
+$\{0, 1.4, 2.8, 5.6, 8.4, 11.2, 16.8, 22.4, 33.6, 50.4,
+67.2\}\,\si{\mega\watt\hour}$. Anchoring the ladder to load rather than to
 catalogue vessel sizes keeps the two cases comparable despite a
 difference in scale of more than a factor of fifty. The chosen minimum
 supply--return temperature spread of \SI{15}{\kelvin}, which is enforced
 as a hard floor throughout, was confirmed to keep both networks' ladders
 within the volume cap even in the worst case
-\placeholder{state the two headroom margins here once confirmed against
-the regenerated ladders}, so the temperature floor and the volume cap do
+-- Memmingen's top rung reaches \SI{3962}{\cubic\metre}, a margin of
+\SI{1038}{\cubic\metre} (\SI{21}{\percent}); Stadtbach's top rung
+reaches \SI{4982}{\cubic\metre}, a margin of only \SI{18}{\cubic\metre}
+(\SI{0.4}{\percent}), tight by construction rather than coincidence
+since it is a rescaling of a ladder originally built to sit exactly at
+the previous, larger cap -- so the temperature floor and the volume cap do
 not conflict.
 
 Selection is exact:
@@ -647,8 +656,10 @@ to find.
 Energy capacity is converted to volume through a stage-specific
 coefficient $\xi(\mathrm{HK})$ that depends on the temperature spread
 available at that transformation stage, $V = E^{\max} / \xi(\mathrm{HK})$.
-An immediate consequence, and one that is easily overlooked, is that the
-same rung of the energy ladder corresponds to a different physical
+An immediate consequence, and one that is easily overlooked -- including
+in how results are reported, not only in the formulation itself
+(Sections~\ref{sec:results:sweep}--\ref{sec:results:costs}) -- is that
+the same rung of the energy ladder corresponds to a different physical
 vessel volume at each stage: lowering the supply temperature reduces the
 usable spread and therefore inflates the volume, and hence the capital
 cost, required to store a given quantity of heat. This is a direct
@@ -679,7 +690,9 @@ E(t) = \lambda^{\Delta t} E(t-1)
 \end{equation}
 with hourly retention factor $\lambda = \num{0.9999}$, corresponding to a
 self-discharge of \SI{0.01}{\percent} per hour, and charging and
-discharging efficiencies of \num{0.98} in both networks. The initial
+discharging efficiencies of \num{0.98} in both networks -- typical
+figures for large sensible hot-water storage
+\cite{Dahash.2021,DEA.2024b}. The initial
 state of charge is fixed at half the installed capacity, and a terminal
 state of charge of at least half the installed capacity is enforced as an
 inequality. This prevents end-of-horizon depletion without imposing
@@ -696,14 +709,15 @@ Section~\ref{sec:results:siting}.
 \subsection{Investment layer, objective function and linearisation}
 \label{sec:model:objective}
 
-Capital expenditure is annualised following VDI~2067,
+Capital expenditure is annualised following VDI~2067 \cite{VDI2067.2012},
 \begin{equation}
 \label{eq:annuity}
 \mathrm{ANF}(i,n) = \frac{i\,(1+i)^{n}}{(1+i)^{n} - 1},
 \end{equation}
 with discount rate $i = \num{0.05}$ and component lifetimes of
 \num{20}, \num{25} and \num{30} years for the heat pump, the electrode
-boiler and the storage respectively. Investment cost is linear with a
+boiler and the storage respectively \cite{DEA.2024a,DEA.2024b}.
+Investment cost is linear with a
 fixed activation component,
 \begin{equation}
 \label{eq:capex}
@@ -794,7 +808,7 @@ Five checks are applied and reported in \cref{tab:T5}.
   MIP gap (max, 46 canonical runs) & \placeholder{pending} & \\
   Solver status (46 canonical runs) & \placeholder{pending} & \\
   Annual COP range & \placeholder{pending} & plausibility band \\
-  Paper~1 consistency (price-driven case) & \placeholder{pending} & tolerance-band check, Section~\ref{sec:model:validation} \\
+  Paper~1 consistency (Memmingen) & \placeholder{pending} & tolerance-band check, Section~\ref{sec:model:validation} \\
   Sweep--MILP optimum consistency & \placeholder{pending} & Section~\ref{sec:results:sweep} \\
   \bottomrule
   \end{tabular}
@@ -824,26 +838,41 @@ Solver convergence is reported as gap statistics over the
 siting pairs are excluded from this population and reported separately,
 since they are deliberately solved to a fixed time budget rather than to
 proven optimality.
+\placeholder{Cross-network convergence asymmetry, disclose explicitly
+rather than let a reviewer find it: as of this pass, Stadtbach's
+scenarios converge to proven optimality (0\% gap) while Memmingen's do
+not close within a 24-hour budget (${\sim}$2.5\% gap). Gaps in this
+range are standard for MILP energy-system investment models of this
+size and are not, by themselves, a problem -- but because the paper's
+central claim is a head-to-head comparison between exactly these two
+networks, an unexplained asymmetry invites the question of whether part
+of the apparent siting difference is numerical slack rather than a real
+topology effect. Before writing Section~\ref{sec:results:siting}: (i)
+check whether any headline TAC comparison changes conclusion within a
+${\sim}$3\% margin -- if none do, state that explicitly; (ii)
+additionally check, for the endogenous-siting scenarios specifically
+(S6/S7 Stadtbach, S4/S5 Memmingen), whether the \emph{chosen node}
+would still be chosen if the remaining gap were resolved in the least
+favourable direction -- a stable TAC value does not by itself guarantee
+a stable siting decision; (iii) state the asymmetry and both checks
+together in this section, using the same disclosure discipline already
+applied to the $\eta$/CAPEX harmonisation
+(Section~\ref{sec:cases:parameters}).}
 
-Consistency with Paper~1 is established through a dedicated validation
-run in which heat pump and electrode boiler capacities are held at the
-values Paper~1 reports for this network's real, already-installed
-assets (\SI{5}{\mega\watt} heat pump, \SI{5}{\mega\watt} electrode
-boiler, \SI{500}{\mega\watt\hour} thermal storage under a cyclic
-boundary condition), reproducing the operating cost of that reference
-case. This run is a validation instrument only and is not part of the
-\num{46}-scenario matrix; note that its storage boundary condition
-(strict cyclicity) differs from the terminal-inequality condition used
-elsewhere in this paper (Section~\ref{sec:model:tes}), which is
-appropriate since here capacity is fixed and given rather than
-optimised.
-Since Paper~2's topology and demand data for this network were
-re-derived after Paper~1 was submitted (Section~\ref{sec:cases:networks}),
-an exact match to Paper~1's reported operating cost is not expected even
-with capacity held fixed, because pipe geometry -- and hence losses and
-pressure drop -- changed along with the demand data. The check is
-therefore reported as agreement within a stated tolerance rather than
-exact reproduction.
+Paper~1 validates the network physics -- hydraulics, losses, transport
+delay -- at the dispatch level; the present work validates the
+investment and siting layer built on top of it. Consistency between the
+two is checked through a dedicated run in which heat pump and electrode
+boiler capacity are held at Paper~1's values for this network's real,
+already-installed assets (\SI{5}{\mega\watt} heat pump,
+\SI{5}{\mega\watt} electrode boiler, \SI{500}{\mega\watt\hour} thermal
+storage under a cyclic boundary condition), reported as agreement within
+a stated tolerance rather than exact reproduction. This run is a
+validation instrument only and is not part of the \num{46}-scenario
+matrix; its cyclic storage boundary condition differs from the
+terminal-inequality condition used elsewhere in this paper
+(Section~\ref{sec:model:tes}), appropriate here since capacity is fixed
+and given rather than optimised.
 \placeholder{Insert the achieved tolerance once the validation run
 completes.}
 
@@ -897,7 +926,7 @@ figure-generation script before re-export, not just in this document.}
   \label{tab:T1}
   \begin{tabular}{lrr}
   \toprule
-  Characteristic & Industrial case & Price-driven case \\
+  Characteristic & Stadtbach & Memmingen \\
   \midrule
   Nodes (total) & 33 & 15 \\
   \quad producer / mixed / consumer / junction & 6 / 0 / 24 / 3 & 0 / 2 / 13 / 0 \\
@@ -915,48 +944,46 @@ figure-generation script before re-export, not just in this document.}
   \end{tabular}
 \end{table}
 
-The first network, referred to throughout as the industrial case, is a
-\num{33}-node tree of \num{32} pipes -- one of them, the trunk, not
-constrained to a fixed flow direction -- connecting a
+Stadtbach is a \num{33}-node tree of \num{32} pipes -- one of them,
+the trunk, not constrained to a fixed flow direction -- connecting a
 \SI{357.5}{\mega\watt} fixed generation portfolio -- gas- and
 biomass-fired combined heat and power, gas boilers and an existing
 waste-heat feed -- to \num{24} consumer nodes at a peak load of
 \SI{200.7}{\mega\watt} and an annual supply of \SI{640.4}{\giga\watt
 \hour}. \placeholder{Confirm pipe count (32) and single connected
-component.} Its defining feature for this study is a large, temporally
-volatile industrial waste-heat stream, which is what the investable heat
-pump is sized to exploit, and a design supply temperature of
-\SI{99}{\celsius} that leaves substantial headroom for heat curve
-reduction.
+component.} Its design supply temperature of \SI{99}{\celsius}
+leaves substantial headroom for heat curve reduction, and the
+non-fixed flow direction on its trunk pipe makes siting a genuinely
+open spatial question rather than one with an obvious answer along a
+single branch.
 
-The second network, referred to as the price-driven case, is the same
-network used as the primary case in Paper~1 \cite{Ruess.2026}: a
-strictly radial \num{15}-node tree of \num{14} pipes serving
-\num{27} consumers, with three fixed generators. Its topology and
-demand data have since been re-derived from as-built drawings and
-corrected for a sampling artefact in the metered demand series, so the
-figures reported here -- a peak load of \SI{4.9}{\mega\watt} against an
-annual supply of \SI{9.5}{\giga\watt\hour}, roughly forty times smaller
-in peak load and sixty times smaller in annual demand than the
-industrial case -- supersede those given for the same site in Paper~1.
-Its lower design supply temperature of \SI{86}{\celsius} and its
-\num{27} demand zones, aggregated onto fewer physical nodes than the
-industrial case, complete the picture; no single dominant waste-heat
-source exists here, so the economic signal that investment decisions
-respond to is dominated by the electricity price and grid carbon
-intensity series rather than by the availability of a volatile heat
-source.
+Memmingen is the same network used as the primary case in Paper~1
+\cite{Ruess.2026}: a strictly radial \num{15}-node tree of \num{14}
+pipes, every pipe fixed to a single flow direction, serving
+\num{27} consumers across \num{3} fixed generators, at a peak load of
+\SI{4.9}{\mega\watt} against an annual supply of \SI{9.5}{\giga\watt
+\hour} -- roughly forty times smaller in peak load and sixty times
+smaller in annual demand than Stadtbach; these figures supersede those
+given for the same site in Paper~1. Its lower design
+supply temperature of \SI{86}{\celsius} and its \num{27} demand zones,
+aggregated onto fewer physical nodes than Stadtbach, complete the
+picture.
 
-The pairing is deliberate: the two networks differ simultaneously in
-flow structure (a single bidirectional trunk versus strictly radial
-flow), scale (more than an order of magnitude
-in load), and the nature of the dominant economic signal (waste-heat
-availability versus price). Any finding that holds across both is
-therefore not an artefact of network size or of a single shared design
-assumption. Section~\ref{sec:results:siting} exploits precisely this
-contrast: the two cases turn out to favour opposite siting strategies,
-and the network characteristics summarised here are the basis on which
-that difference is interpreted.
+The pairing is deliberate on geometric grounds. Stadtbach's
+non-fixed-direction trunk and larger candidate-node set give the siting
+problem real spatial freedom to exploit; Memmingen's strictly radial,
+single-direction topology and an order of magnitude smaller scale
+represent the opposite end of that spectrum, where a network's shape
+leaves siting comparatively little room to matter. Both networks are
+optimised against the same cost-minimising objective
+(Section~\ref{sec:model:objective}) using real, metered operating data;
+no asymmetry in economic driver is assumed or intended between them.
+Any finding that holds across both networks despite this geometric
+contrast is therefore attributable to topology and scale rather than to
+a single network's idiosyncrasies. Section~\ref{sec:results:siting}
+exploits precisely this contrast: the two networks turn out to favour
+different siting strategies, and the geometric characteristics
+summarised here are the basis on which that difference is interpreted.
 
 \subsection{Scenario matrix}
 \label{sec:cases:scenarios}
@@ -972,22 +999,22 @@ that difference is interpreted.
   \toprule
   Case & Family & Description & TES node & HP/EB node & HK stages & Runs & Features \\
   \midrule
-  Industrial & BC & Baseline, no investment & --- (no TES) & j\_man & TVLFIX & 1 & --- \\
-  Industrial & S0 & HP+EB investment, no TES & --- (no TES) & j\_man & TVLFIX, HK0, HK1, HK2 & 4 & --- \\
-  Industrial & S1 & TES at central node & j\_hkw & j\_man & HK0, HK1, HK2 & 3 & --- \\
-  Industrial & S2 & TES at HP node & j\_man & j\_man & HK0, HK1, HK2 & 3 & --- \\
-  Industrial & S3 & TES at HP node, hot charging & j\_man & j\_man & HK0, HK1, HK2 & 3 & hot charging \\
-  Industrial & S4 & TES at pumping station A & j\_pss & j\_man & HK0, HK1, HK2 & 3 & --- \\
-  Industrial & S5 & TES at pumping station B & j\_psw & j\_man & HK0, HK1, HK2 & 3 & --- \\
-  Industrial & S6 & Free HP+TES siting & solver-chosen (5 candidates) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
-  Industrial & S7 & Free siting, co-located, hot charging & solver-chosen (5 candidates) & = TES & HK0, HK1, HK2 & 3 & hot charging, endogenous, co-located \\
-  Price-driven & BC & Baseline, no investment & --- (no TES) & j\_12 & TVLFIX & 1 & --- \\
-  Price-driven & S0 & HP+EB investment, no TES & --- (no TES) & j\_12 & TVLFIX, HK0, HK1, HK2 & 4 & --- \\
-  Price-driven & S1 & TES at central node & j\_1 & j\_12 & HK0, HK1, HK2 & 3 & --- \\
-  Price-driven & S2 & TES at HP node & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & --- \\
-  Price-driven & S3 & TES at HP node, hot charging & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & hot charging \\
-  Price-driven & S4 & Free HP+TES siting & solver-chosen (6 candidates) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
-  Price-driven & S5 & Free siting, co-located, hot charging & solver-chosen (6 candidates) & = TES & HK0, HK1, HK2 & 3 & hot charging, endogenous, co-located \\
+  Stadtbach & BC & Baseline, no investment & --- (no TES) & j\_man & TVLFIX & 1 & --- \\
+  Stadtbach & S0 & HP+EB investment, no TES & --- (no TES) & j\_man & TVLFIX, HK0, HK1, HK2 & 4 & --- \\
+  Stadtbach & S1 & TES at central node & j\_hkw & j\_man & HK0, HK1, HK2 & 3 & --- \\
+  Stadtbach & S2 & TES at HP node & j\_man & j\_man & HK0, HK1, HK2 & 3 & --- \\
+  Stadtbach & S3 & TES at HP node, hot charging & j\_man & j\_man & HK0, HK1, HK2 & 3 & hot charging \\
+  Stadtbach & S4 & TES at pumping station A & j\_pss & j\_man & HK0, HK1, HK2 & 3 & --- \\
+  Stadtbach & S5 & TES at pumping station B & j\_psw & j\_man & HK0, HK1, HK2 & 3 & --- \\
+  Stadtbach & S6 & Free HP+TES siting & solver-chosen (5 candidates) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
+  Stadtbach & S7 & Free siting, co-located, hot charging & solver-chosen (5 candidates) & = TES & HK0, HK1, HK2 & 3 & hot charging, endogenous, co-located \\
+  Memmingen & BC & Baseline, no investment & --- (no TES) & j\_12 & TVLFIX & 1 & --- \\
+  Memmingen & S0 & HP+EB investment, no TES & --- (no TES) & j\_12 & TVLFIX, HK0, HK1, HK2 & 4 & --- \\
+  Memmingen & S1 & TES at central node & j\_1 & j\_12 & HK0, HK1, HK2 & 3 & --- \\
+  Memmingen & S2 & TES at HP node & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & --- \\
+  Memmingen & S3 & TES at HP node, hot charging & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & hot charging \\
+  Memmingen & S4 & Free HP+TES siting & solver-chosen (6 candidates) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
+  Memmingen & S5 & Free siting, co-located, hot charging & solver-chosen (6 candidates) & = TES & HK0, HK1, HK2 & 3 & hot charging, endogenous, co-located \\
   \bottomrule
   \end{tabular}}
 \end{table}
@@ -1005,7 +1032,7 @@ number of storage siting candidates. A baseline (BC) fixes heat pump,
 electrode boiler and storage capacity at zero and a constant supply
 temperature, establishing a no-flexibility reference point rather than
 necessarily the literal present-day system.
-\placeholder{For the price-driven network this distinction matters: its
+\placeholder{For Memmingen this distinction matters: its
 real, currently installed system already includes a 5\,MW heat pump,
 5\,MW electrode boiler and 500\,MWh storage (Paper~1,
 Section~\ref{sec:model:validation}), so BC for that network is a
@@ -1020,8 +1047,8 @@ boiler investment alone achieve, evaluated at the fixed supply
 temperature and at all three transformation stages (Section
 \ref{sec:model:heatcurve}). A sequence of fixed-siting scenarios then
 places storage at each of several candidate nodes in turn -- the central
-generation hub, the waste-heat node that hosts the heat pump, and, for
-the industrial network, two further pumping-station nodes -- crossed
+generation hub, the node that hosts the heat pump, and, for
+Stadtbach, two further pumping-station nodes -- crossed
 with the three transformation stages. One fixed-siting variant per
 network additionally enables \emph{hot charging}: the heat pump is
 permitted to charge the storage above the network supply temperature,
@@ -1029,11 +1056,11 @@ decoupling the usable energy density of the tank from the network's own
 temperature spread at the cost of an additional charging-side
 temperature lift. Finally, an endogenous-siting pair of scenarios lets
 the solver choose the storage node freely from the same candidate set --
-once with the heat pump held at its fixed waste-heat node, and once with
+once with the heat pump held at its fixed node, and once with
 the heat pump siting itself co-optimised and constrained to coincide
 with the storage node, again with hot charging enabled. This yields
-\num{26} scenario runs for the industrial network and \num{20} for the
-price-driven network, \num{46} in total, each solved as an independent
+\num{26} scenario runs for Stadtbach and \num{20} for
+Memmingen, \num{46} in total, each solved as an independent
 MILP; the two endogenous-siting pairs additionally require the
 enumeration procedure described in Section~\ref{sec:model:validation}
 where the monolithic formulation does not converge.
@@ -1048,30 +1075,51 @@ these interacts with the transformation stage
 \subsection{Economic and technical parameters}
 \label{sec:cases:parameters}
 
-Capital cost is annualised at a discount rate of \SI{5}{\percent} with
+Capital cost is annualised at a discount rate of \SI{5}{\percent}
+\cite{DEA.2024a} with
 component lifetimes of \num{20}, \num{25} and \num{30} years for heat
-pump, electrode boiler and storage respectively (\cref{eq:annuity}).
+pump, electrode boiler and storage respectively \cite{DEA.2024a,DEA.2024b}
+(\cref{eq:annuity}).
 Unit investment costs $\alpha$ and activation costs $\beta$
 (\cref{eq:capex}) are literature- and VDI-2067-style assumptions rather
-than vendor quotations, and are stated in full in \cref{tab:T1}
-\placeholder{add a compact cost-parameter table or fold into T1}. The
+than vendor quotations, and are compiled in \cref{tab:T1}
+\placeholder{add a compact cost-parameter table or fold into T1 -- values
+below are ready to insert}. The
 heat pump unit cost, $\alpha_{\mathrm{HP}} = \SI{700000}{\eur\per
 \mega\watt}$, is applied identically to both networks and is supported
 by a survey of 26 realised large-scale heat pump installations in Danish
 district heating, which reports specific investment costs of
 \SIrange{0.8}{1.1}{\mega\eur\per\mega\watt} \cite{Pieper.2018}, corroborated
-by IRENA and JRC figures of the same order. Their influence on the
+by IRENA and JRC figures of the same order. The electrode boiler unit
+cost, $\alpha_{\mathrm{EB}} = \SI{150000}{\eur\per\mega\watt}$ with
+activation cost $\beta_{\mathrm{EB}} = \SI{20000}{\eur}$, and the storage
+unit cost, $\alpha_{\mathrm{TES}} = \SI{1200}{\eur\per\cubic\metre}$
+(harmonised, both networks, following the pressure-vessel-sizing
+revision in Section~\ref{sec:model:tes}), follow the same Danish Energy
+Agency technology data \cite{DEA.2024a,DEA.2024b}.
+\placeholder{Insert the current $\beta_{\mathrm{TES}}$ activation cost
+for each network here -- not confirmed whether this was harmonised
+alongside alpha\_TES or retained at its earlier per-network split.
+Confirm the exact current-edition figures for HP/EB
+lifetime and TES lifetime/cost against the live DEA datasheets before
+submission -- the citation type is correct and standard for this
+literature, but the precise numbers (20/25/30 years; the EB and TES
+alpha/beta values) were not independently verified against the current
+catalogue edition in this pass, only shown to be the right order of
+magnitude and the right kind of source.}
+Their influence on the
 headline results is bounded by the sensitivity analysis in
 Section~\ref{sec:discussion:sensitivity}. Operating cost is driven by
-network-specific hourly time series for electricity price, grid carbon
-intensity, ambient temperature and, for the industrial network, waste-
-heat availability and temperature, all metered or measured data
-calibrated following the procedure established in Paper~1
-\cite{Ruess.2026} (Section~\ref{sec:model:framework}); newly carried out
-for the industrial network, and re-verified and re-cleaned (spatial
-route lengths, sampling interval) for the price-driven network, whose
-underlying site is the same as Paper~1's own primary case
-(Section~\ref{sec:model:validation}).
+network-specific hourly time series for electricity price
+\cite{ENTSOE.2025}, grid carbon
+intensity \cite{ElectricityMaps.2025}, ambient temperature and, for Stadtbach, waste-
+heat availability and temperature, all calibrated following the
+procedure established in Paper~1 \cite{Ruess.2026}
+(Section~\ref{sec:model:framework}) and, for Memmingen, simplified in
+the same way as Stadtbach's (Section~\ref{sec:cases:networks}).
+\placeholder{Confirm country, year and interval for the
+ElectricityMaps.2025 entry below to match what was actually pulled --
+currently assumed Germany, hourly, and the model's reference year.}
 
 %% ============================================================
 \section{Results}
@@ -1099,22 +1147,54 @@ underlying site is the same as Paper~1's own primary case
 %%   (Part G.4, TES-at-consumer-node economics) still outstanding and now
 %%   applies to whatever scenario turns out to be the new Stadtbach
 %%   headline under the revised TES economics.
+%%   CONVERGENCE ASYMMETRY (as of this pass): Stadtbach proven-optimal
+%%   (0%), Memmingen ~2.5% after 24h, not closing further. Acceptable by
+%%   domain norms, but the two required checks in Section 2.7's
+%%   validation placeholder (headline-TAC margin, siting-decision
+%%   stability under worst-case gap resolution) MUST be done and their
+%%   result stated in this section before the siting comparison
+%%   (Section 4.4) is written -- do not silently drop this once campaigns
+%%   finish, it is not resolved just because the numbers arrive.
 %% ------------------------------------------------------------
 \subsection{Capacity--cost surface}
 \label{sec:results:sweep}
 \todo{F3 -- 7x7 dispatch-only LP sweep per network, LCOH colour scale,
-MILP optimum marked. Also serves as cross-validation.}
+MILP optimum marked. Also serves as cross-validation.
+REQUIREMENT: label the capacity axis in both MWh and the corresponding
+m$^3$ at that scenario's $\Delta T$ (Section~\ref{sec:model:tes}), or
+show volume as a secondary axis -- the sweep grid is built around a
+fixed MILP optimum whose volume differs by HK stage even at equal MWh,
+and an MWh-only axis would obscure that.}
 
 \subsection{Coupling of heat curve, COP and storage capacity}
 \label{sec:results:coupling}
 \todo{F4 -- THE central figure of the paper. Ceteris-paribus subset:
-same siting, HK stage varied only.}
+same siting, HK stage varied only.
+CRITICAL REQUIREMENT, do not skip: $V_\mathrm{TES}$ is selected from an
+energy ladder (MWh) that is identical across HK stages, but the same
+MWh rung maps to a different physical volume -- and hence a different
+installed cost -- at each stage, because the energy-to-volume
+coefficient $\xi(\mathrm{HK})$ scales with $\Delta T$
+(Section~\ref{sec:model:tes}). If this figure plots storage capacity in
+MWh alone, that cost penalty is real in the optimisation but invisible
+on the page, and the coupling this figure exists to show would silently
+disappear. Plot volume (m$^3$) as the storage-axis quantity, or MWh with
+an explicit secondary axis/annotation showing the implied volume or
+\si{\eur}/MWh at each stage -- confirmed with the author as a hard
+requirement, not a style preference.}
 
 \subsection{Cost and emission reduction versus baseline}
 \label{sec:results:costs}
 \todo{F5 + T3/T4. Stadtbach best fixed siting SB-S2-HK2; Memmingen best
 overall MM-S5-HK2. Consider moving the full 46-row matrices to the
-supplement -- see element budget note at the end of this file.}
+supplement -- see element budget note at the end of this file.
+REQUIREMENT: give T3/T4 a $V_\mathrm{TES}$ [m$^3$] column alongside the
+existing $E_\mathrm{TES}$ [MWh] column (or an equivalent
+\si{\eur}/MWh$_\mathrm{installed}$ figure) -- same reasoning as F4 above.
+Without it, a reader comparing the "TES capacity" number across HK0 and
+HK2 rows for the same scenario family sees identical MWh figures and
+has no way to see that HK2's rung costs more, even though the model
+priced that difference in correctly.}
 
 \subsection{Fixed versus endogenous siting}
 \label{sec:results:siting}

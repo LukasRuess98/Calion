@@ -542,6 +542,12 @@ D.~H{\"o}ffner, S.~Glombik, Energy system planning and analysis software---a
 \newblock \href {https://doi.org/10.1016/j.energy.2024.132542}
   {\path{doi:10.1016/j.energy.2024.132542}}.
 
+\bibitem{DINEN12831.2017}
+{CEN}, Din en 12831-1: Energy performance of buildings -- method for
+  calculation of the design heat load -- part 1: Space heating load, module
+  m3-3, Tech. rep., European Committee for Standardization (CEN) / DIN,
+  Brussels / Berlin (2017).
+
 \bibitem{Pieper.2020}
 H.~Pieper, T.~Ommen, J.~K. Jensen, B.~Elmegaard, W.~B. Markussen, Comparison of
   cop estimation methods for large-scale heat pumps used in energy planning,
@@ -562,6 +568,31 @@ D.~B{\"o}ttger, S.~Prei{\ss}, T.~Bruckner, M.~Thema, M.~Sterner, Impacts of
   power-to-heat, Applied Energy 236 (2019) 289--305.
 \newblock \href {https://doi.org/10.1016/j.apenergy.2018.11.070}
   {\path{doi:10.1016/j.apenergy.2018.11.070}}.
+
+\bibitem{PED.2014}
+{European Parliament and Council}, Directive 2014/68/eu on the harmonisation of
+  the laws of the member states relating to the making available on the market
+  of pressure equipment, Tech. Rep. L 189, Official Journal of the European
+  Union, 27 June 2014 (2014).
+
+\bibitem{DEA.2024b}
+{Danish Energy Agency and Energinet},
+  \href{https://ens.dk/en/analyses-and-statistics/technology-catalogues}{Technology
+  data for energy storage}, Tech. rep., Danish Energy Agency, Copenhagen
+  (2024).
+\newline\urlprefix\url{https://ens.dk/en/analyses-and-statistics/technology-catalogues}
+
+\bibitem{VDI2067.2012}
+{Verein Deutscher Ingenieure}, Vdi 2067 blatt 1: Wirtschaftlichkeit
+  geb{\"a}udetechnischer anlagen -- grundlagen und kostenberechnung, Tech.
+  rep., Beuth Verlag, Berlin (2012).
+
+\bibitem{DEA.2024a}
+{Danish Energy Agency and Energinet},
+  \href{https://ens.dk/en/analyses-and-statistics/technology-data-generation-electricity-and-district-heating}{Technology
+  data for generation of electricity and district heating}, Tech. rep., Danish
+  Energy Agency, Copenhagen (2024).
+\newline\urlprefix\url{https://ens.dk/en/analyses-and-statistics/technology-data-generation-electricity-and-district-heating}
 
 \bibitem{McCormick.1976}
 G.~P. McCormick, Computability of global solutions to factorable nonconvex
@@ -587,5 +618,15 @@ L.~Deng, H.~Sun, B.~Li, Y.~Sun, T.~Yang, X.~Zhang, Optimal operation of
 H.~Pieper, T.~Ommen, F.~B{\"u}hler, B.~L. Paaske, B.~Elmegaard, W.~B.
   Markussen, Allocation of investment costs for large-scale heat pumps
   supplying district heating, Energy Procedia 147 (2018) 358--367.
+
+\bibitem{ENTSOE.2025}
+{ENTSO-E}, \href{https://transparency.entsoe.eu}{Entso-e transparency platform
+  -- day-ahead prices} (2025).
+\newline\urlprefix\url{https://transparency.entsoe.eu}
+
+\bibitem{ElectricityMaps.2025}
+{Electricity Maps}, \href{https://www.electricitymaps.com}{Germany 2025 hourly
+  carbon intensity data (version january 27, 2025)}, Electricity Maps (2025).
+\newline\urlprefix\url{https://www.electricitymaps.com}
 
 \end{thebibliography}

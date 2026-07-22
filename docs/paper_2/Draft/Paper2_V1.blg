@@ -5,44 +5,44 @@ Reallocating 'name_of_file' (item size: 1) to 15 items.
 The style file: elsarticle-num.bst
 Reallocating 'name_of_file' (item size: 1) to 10 items.
 Database file #1: Paper2_V1.bib
-You've used 83 entries,
+You've used 90 entries,
             2952 wiz_defined-function locations,
-            1273 strings with 25685 characters,
-and the built_in function-call counts, 27691 in all, are:
-= -- 2711
-> -- 1103
-< -- 0
-+ -- 423
-- -- 340
-* -- 2441
-:= -- 3935
-add.period$ -- 164
-call.type$ -- 83
-change.case$ -- 84
+            1316 strings with 27065 characters,
+and the built_in function-call counts, 29245 in all, are:
+= -- 2882
+> -- 1131
+< -- 1
++ -- 437
+- -- 347
+* -- 2505
+:= -- 4163
+add.period$ -- 171
+call.type$ -- 90
+change.case$ -- 96
 chr.to.int$ -- 0
-cite$ -- 83
-duplicate$ -- 665
-empty$ -- 2781
-format.name$ -- 417
-if$ -- 6856
+cite$ -- 90
+duplicate$ -- 722
+empty$ -- 2980
+format.name$ -- 424
+if$ -- 7297
 int.to.chr$ -- 0
-int.to.str$ -- 83
+int.to.str$ -- 90
 missing$ -- 82
-newline$ -- 342
-num.names$ -- 83
-pop$ -- 328
+newline$ -- 367
+num.names$ -- 90
+pop$ -- 369
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
-skip$ -- 1645
+skip$ -- 1771
 stack$ -- 0
-substring$ -- 1674
-swap$ -- 249
-text.length$ -- 0
+substring$ -- 1676
+swap$ -- 261
+text.length$ -- 1
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 0
 warning$ -- 0
-while$ -- 196
-width$ -- 85
-write$ -- 837
+while$ -- 203
+width$ -- 92
+write$ -- 906
