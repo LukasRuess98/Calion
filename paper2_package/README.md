@@ -24,8 +24,41 @@ difference the paper's core claim rests on):
    Stadtbach F3 capacity-sweep at 31/49 points (63%, ~28h sunk) and the F7
    sensitivity-tornado campaign — user-confirmed, not an accident.
 
+**⚠️ Update, same day, ~21:40 — a FULL config-parity audit (prompted by "is
+everything comparable or do we have similar errors") found 3 MORE
+asymmetries beyond the two above, all fixed, all four campaigns restarted a
+third time** (minimal sunk cost — each was only ~1 scenario / a couple
+enumeration pairs into its second run):
+3. **`pump_efficiency`** was missing from Memmingen's config entirely,
+   silently defaulting to the code's `0.70` vs. Stadtbach's explicit `0.75`.
+   Added `0.75` to Memmingen (DH-pump literature: large-network efficiency
+   typically cited 0.60–0.75, both values plausible, matched to the
+   already-in-use one).
+4. **EK (electrode boiler) efficiency**: Stadtbach `0.98` vs. Memmingen
+   `0.95`, both undocumented. Harmonized **both** to `0.99` (Danish Energy
+   Agency Technology Catalogue, electric boiler chapter — a real correction
+   for both sides, not just picking one).
+5. **TES cost curve**: Stadtbach `alpha=400 EUR/m3, beta=100,000 EUR/tank`
+   vs. Memmingen `alpha=500, beta=50,000` — previously waved off as
+   "roughly equal" without actually checking the arithmetic. A real
+   at-equal-volume comparison shows Memmingen was up to ~24% pricier at a
+   full 25,000 m³ tank, cheaper at small builds — genuinely scale-dependent,
+   not equal. Neither number has an external citation (unlike #1/#2 above),
+   so harmonized Memmingen to Stadtbach's longer-established numbers as an
+   interim fix, not a literature-cited one.
+
+**Separate, NOT fixed, needs its own decision**: both networks' TES `alpha`
+(~400–500 EUR/m³) is an ATMOSPHERIC-tank price, but both configs run
+`p_max_bar: 10` (pressurized, needed for >100°C hot-charging) — flagged
+back on 2026-07-03 ("10-bar vessels ~3x cost, cap ~3,000–5,000 m³, not the
+50,000 configured") and still unresolved. Fixing it properly would roughly
+triple TES alpha and slash `V_max_m3` for BOTH networks — a much bigger,
+campaign-wide-sizing-shifting change than today's harmonization. Don't
+conflate the two.
+
 See `project_paper2_eta_harmonization` and `project_paper2_hp_capex_asymmetry`
-session memory for the full traces. Everything else in this snapshot (F1/F2/
+session memory for the full traces (the latter now covers all 5 findings).
+Everything else in this snapshot (F1/F2/
 F4/F5/F6/F9 figures, the model/methods description) predates both findings
 and is NOT invalidated by them — only the economics tables and anything
 downstream of them (F3, F6, F7, F8, T3/T4/T5) are affected.
@@ -334,6 +367,55 @@ See the 2026-07-19 pass's changes (stale-aggregation fix, TES dispatch-export
 bug, F6 rendering fix, F3 `_summary.json` staleness correction) in the
 Implementation Statement Parts G.10–G.12 — all still valid and unchanged.
 
+## External-review response (2026-07-20/22, separate pass — full detail in
+Implementation Statement **Part G.14**)
+
+An external ECM-style review of this package flagged four items before a draft could proceed.
+This pass ran **concurrently with, and independently of**, the eta/HP-CAPEX harmonization
+campaigns described above — it does not touch `scenarios.yaml`, and none of the fixes below
+change any of the 46 campaign scenarios' economics (each is individually proven a no-op for the
+campaign; see G.14 for the exact argument per fix). Summary, full detail in G.14:
+
+1. **T5 mixed 229 diagnostic/enumeration runs into the 46-scenario census** (real code bug:
+   `build_t5` had no scenario filter, unlike `build_t3`/`build_t4`). **Fixed** — T5 now reports
+   exactly the canonical population (40 direct + 6 resolved via enumeration decomposition per
+   G.8), with everything else in a new `tab_T5_supplement_excluded_runs`. `MIP gap (max)` drops
+   from a bogus `47349.6 %` (a superseded `MM-S4-HK0` pre-decomposition run's sign-flipped bound)
+   to `2.115 %`.
+2. **The MW-closure "contradiction"** the reviewer read (G.10 poses it as open, README calls it
+   resolved) was a stale cross-reference — G.12 answers G.10's question in the same document,
+   just never linked forward. **Fixed**: explicit `→ RESOLVED in G.12` pointers added in G.10.
+3. **`SB-S2`'s wash-cycling plausibility** (Part G.4's open item) was tested, not just asserted:
+   weak correlation with the co-located HP's own dispatch (0.23 — it's not "the HP charging the
+   tank"), and **robust to a 5× stricter cycling-cost penalty** (only ~5% volume drop from the
+   production default). **⚠️ Caveat**: these specific diagnostic re-solves predate the
+   HP-CAPEX-harmonization fix above (ran against Stadtbach's stale 400k €/MW rate) — the
+   qualitative conclusion (wash-cycling is cost-robust, decoupled from local HP dispatch) is
+   expected to hold under 700k €/MW too, since it concerns dispatch behavior of an already-built
+   tank rather than the investment-sizing decision, but has not been re-verified against the
+   corrected config. Spot-check once Stadtbach's re-run lands.
+4. **Memmingen P1↔P2 OPEX check (124.49% FAIL)**: found and fixed **two real, independent CAPEX
+   bugs** while building the apples-to-apples comparison scenario G.11 recommended (a
+   non-investable, fixed-capacity heat pump was being charged full new-build CAPEX in two
+   separate attach-code-paths — only one of which is live for Paper 2's config style, so the
+   first fix alone had zero effect until the second was found). Both provably don't touch any of
+   the 46 campaign scenarios. **The corrected comparison (`MM-P1REF`, `489,996 €`) is now
+   mathematically sound** (below `BC-MM`, as required) **but the gap to Paper 1 does not
+   close**: `+117.08 %` vs. Paper 1's `225,717 €` — essentially the same magnitude as the
+   original `BC-MM`-based `124.49 %`. There is a further, undiagnosed difference between the two
+   papers' Memmingen configs beyond HP/EK capacity (demand data, price series, or heating-curve
+   treatment — not chased further this pass). **Recommendation**: do not present this check as
+   "resolved" in the manuscript; either report the corrected-but-still-large gap explicitly, or
+   retire the check per G.11's original option (a) — see G.14.4 for the full reasoning.
+
+**Files touched this pass**: `calion/models/component_assembler.py` (2 CAPEX-gating fixes),
+`scripts/paper_2/figures/gen_tables.py` (T5 canonical filter + supplement table),
+`scripts/paper_2/validation_p2.py` (`check_paper1_consistency` now reads `MM-P1REF`),
+`scripts/paper_2/scenario_runner.py` (new `CALION_DEBUG_COSTS=1` diagnostic hook, off by
+default), `scripts/paper_2/run_mm_p1ref.py` + `run_sb_s2_cycling_counter_test.py` (new, standalone
+diagnostic scenarios, neither added to `scenarios.yaml`), `docs/paper_2/
+CALION_Paper2_Implementation_Statement.md` (G.10 cross-references, new Part G.14).
+
 ## Known caveats to state explicitly in the manuscript
 
 From Implementation Statement Part D (O-1…O-10) and Part G:
@@ -365,19 +447,38 @@ From Implementation Statement Part D (O-1…O-10) and Part G:
 - **`SB-S2` (and any TES sited directly at a consumer node) shows
   near-constant bidirectional charge/discharge cycling** — confirmed to be
   the genuine MILP optimum given current cost coefficients (not a bug — see
-  Part G.1–G.4), but an unusual operating pattern that deserves a
-  plausibility sentence if quoted (e.g., correlate against local HP dispatch)
-  rather than presenting it as obviously realistic.
-- **T5's MW-closure statistic** (22.98 % mean, 12/41 passing) is a real
-  number but measures the wrong thing for a multi-producer/TES-heavy network:
-  the check's formula (`generation + discharge − charge` vs. demand) nets a
-  wash-cycling TES's contribution to ~zero, while the model's *true*
-  constraint-level balance is verified correct to <0.1 % via a purpose-built
-  audit (Part G.12). If T5 is included in the manuscript's validation
-  section, caption it as "aggregate solver/dispatch-balance census" and do
-  **not** describe it as an energy-conservation check — or note the
-  known formula limitation explicitly. Do not present 22.98 %/12/41 as if it
-  suggests the model doesn't conserve energy; it doesn't mean that.
+  Part G.1–G.4), and now **plausibility-tested, not just asserted** (Part
+  G.14.3, 2026-07-20/21 pass): weak correlation with the co-located HP's own
+  dispatch (0.23) and robust to a 5× stricter cycling-cost penalty (~5%
+  volume drop only) — the campaign's TAC already includes the production
+  `cycling_cost_eur_per_mwh: 2.0` deterrent, this isn't an unpenalized
+  number. Still an unusual operating pattern for real hardware and deserves
+  a plausibility sentence if quoted, but the open question from G.4 is now
+  closed with evidence, not a caveat to hedge around. **Numbers above predate
+  the Stadtbach HP-CAPEX fix (400k→700k €/MW) — spot-check once that re-run
+  lands**, though the qualitative conclusion is expected to hold (see the
+  External-review-response section above).
+- **T5's MW-closure statistic** is a real number but measures the wrong
+  thing for a multi-producer/TES-heavy network: the check's formula
+  (`generation + discharge − charge` vs. demand) nets a wash-cycling TES's
+  contribution to ~zero, while the model's *true* constraint-level balance
+  is verified correct to <0.1 % via a purpose-built audit (Part G.12). If T5
+  is included in the manuscript's validation section, caption it as
+  "aggregate solver/dispatch-balance census" and do **not** describe it as
+  an energy-conservation check — or note the known formula limitation
+  explicitly. Do not present the closure mean/pass-rate as if it suggests
+  the model doesn't conserve energy; it doesn't mean that. **T5's population
+  was also fixed this pass (Part G.14.1)** — the table now reports exactly
+  the 46-scenario campaign (diagnostics/enumeration runs moved to a
+  supplement), so quote its current mean/max/pass-rate, not the pre-fix
+  22.98%/12-of-41 figures from the 2026-07-19 pass.
+- **Memmingen P1↔P2 OPEX consistency**: two real CAPEX bugs found+fixed
+  building a genuine comparison scenario (`MM-P1REF`), but the check still
+  FAILs (117.08% vs. the ≤2% gate) even once corrected — see the
+  External-review-response section above and Part G.14.4. Do not cite the
+  original 124.49% figure as current, and do not present `MM-P1REF` as
+  having resolved the check; it narrowed the diagnosis (not a scenario-
+  mismatch or CAPEX-bug artifact) without closing the numeric gap.
 - **F8's station-node temperature/pressure jumps** (`j_pss` Stadtbach,
   `j_12` Memmingen): if F8 is discussed, note explicitly that these are
   secondary pump/generator stations with an independently-boosted setpoint,

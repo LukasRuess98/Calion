@@ -177,10 +177,16 @@ def check_tac_improvement(out_base: Path) -> dict:
 def check_paper1_consistency(out_base: Path) -> dict:
     """Check 3: Memmingen with fixed Q_WP=5 MW, Q_EK=5 MW reproduces Paper 1 OPEX.
 
-    Looks for the BC-MM scenario (no investment) and compares its OPEX
-    to the Paper 1 L3 result, expecting < 2% deviation.
+    Compares against MM-P1REF (scripts/paper_2/run_mm_p1ref.py), a standalone
+    scenario with hp_main/eboiler_main fixed at 5 MW and investment disabled —
+    matching Paper 1 L3's pre-existing capacity exactly. Previously compared
+    against BC-MM (Paper 2's own zero-investment baseline, hp_main=0 MW), which
+    is a deliberately different scenario by design and always failed this gate
+    for that reason, not a bug — see Implementation Statement G.11/G.14.
+    MM-P1REF is not part of the 46-scenario campaign matrix (not in
+    scenarios.yaml), so this check does not affect T2/T3/T4/T5's population.
     """
-    bc_dir = out_base / "BC-MM"
+    bc_dir = out_base / "MM-P1REF"
     econ_p2 = _read_csv(bc_dir / "economics.csv")
 
     # Paper 1 reference OPEX (from output/paper_runs/L3/)
@@ -188,7 +194,7 @@ def check_paper1_consistency(out_base: Path) -> dict:
     econ_p1 = _read_csv(p1_dir / "economics.csv")
 
     if not econ_p2:
-        return {"check": "paper1_consistency", "ok": None, "detail": "BC-MM economics.csv not found"}
+        return {"check": "paper1_consistency", "ok": None, "detail": "MM-P1REF economics.csv not found"}
     if not econ_p1:
         return {"check": "paper1_consistency", "ok": None, "detail": "Paper 1 L3 economics.csv not found"}
 

@@ -1,0 +1,210 @@
+Run dir,Kind,Status,MIP gap
+BC-MM-DIAGJAN,TEST/DIAG,optimal,—
+MM-P1REF,other diagnostic/superseded,optimal,—
+MM-P1REF-DIAGJAN,TEST/DIAG,optimal,—
+MM-P1REF-DIAGJAN2,TEST/DIAG,optimal,—
+MM-P1REF-DIAGJAN3,TEST/DIAG,optimal,—
+MM-S4-HK0__hp_j_12__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_12__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_12__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_12__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_12__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_12__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_13__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_1__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_3__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_5__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK0__hp_j_9__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_12__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_13__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_1__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_3__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_5__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK1__hp_j_9__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_12__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_13__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_1__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_3__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,1.73 %
+MM-S4-HK2__hp_j_3__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_3__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_3__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_3__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,38.31 %
+MM-S4-HK2__hp_j_3__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_5__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_1,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_12,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_13,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_3,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_5,F3 enumeration sub-pair,maxTimeLimit,—
+MM-S4-HK2__hp_j_9__tes_j_9,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S2-HK0-DIAGJAN-BASE,TEST/DIAG,optimal,—
+SB-S2-HK0-DIAGJAN-CYC10X,TEST/DIAG,optimal,—
+SB-S2-HK0-DIAGJAN-CYCHI,TEST/DIAG,optimal,—
+SB-S2-HK0-DIAGJAN-CYCHI-ISO,TEST/DIAG,optimal,—
+SB-S2-HK0-DIAGJAN-CYCLO,TEST/DIAG,optimal,—
+SB-S6-HK0-COLOC-ATTRIB-TEST,TEST/DIAG,maxTimeLimit,96.95 %
+SB-S6-HK0__hp_j_hkw__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_hkw__tes_j_man,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_hkw__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_hkw__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_hkw__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_man__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_man__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_man__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_man__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_man__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_ost__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_ost__tes_j_man,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_ost__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_ost__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_ost__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_pss__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_pss__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_pss__tes_j_ost,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_pss__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_pss__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_psw__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_psw__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_psw__tes_j_ost,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK0__hp_j_psw__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK0__hp_j_psw__tes_j_psw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_hkw__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_hkw__tes_j_man,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_hkw__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_hkw__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_hkw__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_man__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_man__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_man__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_man__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_man__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_ost__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_ost__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_ost__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_ost__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK1__hp_j_ost__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_pss__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_pss__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_pss__tes_j_ost,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_pss__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_pss__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_psw__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_psw__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_psw__tes_j_ost,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_psw__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK1__hp_j_psw__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_hkw__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_hkw__tes_j_man,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_hkw__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_hkw__tes_j_pss,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_hkw__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_man__tes_j_hkw,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_man__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_man__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_man__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_man__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_ost__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_ost__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_ost__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_ost__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_ost__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_pss__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_pss__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_pss__tes_j_ost,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_pss__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_pss__tes_j_psw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_psw__tes_j_hkw,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_psw__tes_j_man,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_psw__tes_j_ost,F3 enumeration sub-pair,maxTimeLimit,—
+SB-S6-HK2__hp_j_psw__tes_j_pss,F3 enumeration sub-pair,optimal,—
+SB-S6-HK2__hp_j_psw__tes_j_psw,F3 enumeration sub-pair,optimal,—
+ZZDIAG-MMS1HK0-PFIX,TEST/DIAG,optimal,—
+ZZDIAG-SBS1HK0-PFIX,TEST/DIAG,optimal,—
+_DIAG-SB-S1-HK0-168h,TEST/DIAG,optimal,0.14 %
+_DIAG-SB-S2-HK0-168h,TEST/DIAG,optimal,1.00 %
+_DIAG-SB-S2-HK0-744h,TEST/DIAG,optimal,0.33 %
+_archive_pre_fix,other diagnostic/superseded,?,—
+_endog_enum,other diagnostic/superseded,?,—
+figures,other diagnostic/superseded,?,—
+logs,other diagnostic/superseded,?,—
+sensitivity,other diagnostic/superseded,?,—
+solver,other diagnostic/superseded,?,—
+tables,other diagnostic/superseded,?,—
+thermal_network,other diagnostic/superseded,?,—
+MM-S4-HK0,SB-S6/MM-S4 superseded monolithic (G.8),maxTimeLimit,47349.64 %
+SB-S6-HK0,SB-S6/MM-S4 superseded monolithic (G.8),maxTimeLimit,96.93 %

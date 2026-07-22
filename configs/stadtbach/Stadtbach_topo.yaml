@@ -626,7 +626,11 @@ assets:
   ek_sb:
     type: p2h
     capacity_mw: 0.0
-    efficiency: 0.98
+    # 2026-07-20: harmonized 0.98 -> 0.99 (was undocumented, differed from
+    # Memmingen's 0.95, itself also undocumented). Danish Energy Agency
+    # Technology Catalogue (electric boiler chapter) cites ~99% efficiency
+    # for this equipment class; both networks now match it.
+    efficiency: 0.99
     min_load: 0.1
     investment:
       enabled: true
@@ -644,19 +648,43 @@ assets:
     r_hd: 3.0                   # h/d aspect ratio
     p_max_bar: 10.0             # max vessel operating pressure
     V_min_m3: 10.0              # minimum tank volume if built [m³]
-    V_max_m3: 50000.0           # max tank volume [m³]
+    # 2026-07-20: PROPERLY FIXED (was flagged 2026-07-03, never acted on): this
+    # asset is configured p_max_bar=10 -- a genuine PED-class pressurized vessel
+    # (needed because the heating curve alone reaches T_supply=122C at the -15C
+    # design point, above water's atmospheric boiling point), but V_max_m3/alpha
+    # below previously used ATMOSPHERIC-tank assumptions (large, cheap). Fixed
+    # via first-principles ASME thin-wall pressure vessel sizing (t = P*D/(2*S*E),
+    # P=10 bar=1.0 MPa, S=130 MPa carbon steel allowable stress, E=0.85 radiographed
+    # weld efficiency): at a practical ~60mm shell thickness (typical upper bound
+    # for standard plate/rolling before exotic multi-layer construction), max
+    # diameter ~13.3m, and with r_hd=3 -> V ~5,500 m3. Rounded to 5,000 m3.
+    # Independently corroborates (not just repeats) the 2026-07-03 note's
+    # "~3,000-5,000 m3, ~3x cost" estimate and real commercial PED-rated buffer
+    # tank product lines found this pass (10-500 m3 off-the-shelf; the previously
+    # configured 25,000 m3 unit tank was ~50x that). NOT a vendor quote -- an
+    # engineering estimate, same caveat class as the VDI 2067 assumptions (O-1).
+    V_max_m3: 5000.0            # max tank volume [m³] -- was 50000 (atmospheric-tank scale)
     option_b: false             # Option A: V as single Var; h/d back-calculated post-solve
-    # Discrete storage sizes as ENERGY [MWh] = hours of MEAN heat demand (Stadtbach
-    # mean ≈ 73 MW): 0/1/2/4/6/8/12/16/24/36/48/96/168 h. Sizes above one realistic
-    # tank (unit_tank_m3) are realised as N=ceil(V/unit) identical tanks at the site
-    # (beta_tes charged per tank). Exact selection -> tight LP relaxation (the old
-    # continuous V + big-M stalled TES-at-consumer-node scenarios at 43-88 % gap).
-    # Capped at ~845 MWh (V ≤ 50,000 m³ ≈ 2 unit tanks): larger volumes made the
-    # barrier root LP numerically intractable, and >~12 h of storage for a 200 MW
-    # network is neither usable nor affordable. Hours of MEAN demand (≈73 MW): up to ~12 h.
-    discrete_energies_mwh: [0, 73, 146, 219, 292, 365, 438, 511, 584, 657, 730, 845]
-    unit_tank_m3: 25000.0       # one realistic single tank (~423 MWh at ΔT=15)
-    alpha_tes_eur_per_m3: 400.0 # variable CAPEX [€/m³] (larger tank → lower unit cost)
+    # Discrete storage sizes as ENERGY [MWh], scaled down 10x from the previous
+    # ladder to match the corrected V_max (linear in V at fixed dT, so this is an
+    # exact rescale, not an approximation) -- was hours of MEAN heat demand
+    # (Stadtbach mean ~73 MW) 0/1/2/4/6/8/12/16/24/36/48/96/168 h, now
+    # 0/0.1/0.2/0.4/0.6/0.8/1.2/1.6/2.4/3.6/4.8/9.6/16.8 h. Sizes above one
+    # realistic tank (unit_tank_m3) are realised as N=ceil(V/unit) identical
+    # tanks at the site (beta_tes charged per tank) -- at this scale N is
+    # effectively always 1. Exact selection -> tight LP relaxation (the old
+    # continuous V + big-M stalled TES-at-consumer-node scenarios at 43-88% gap).
+    discrete_energies_mwh: [0, 7.3, 14.6, 21.9, 29.2, 36.5, 43.8, 51.1, 58.4, 65.7, 73.0, 84.5]
+    unit_tank_m3: 5000.0        # one realistic single pressurized tank -- was 25000
+    # variable CAPEX [€/m³] -- was 400 (atmospheric-tank rate). ~3x for a
+    # pressure-vessel-class tank: wall thickness alone roughly quadruples
+    # (atmospheric large tanks ~15mm shell vs ~60mm derived above for this
+    # pressure/size class), partly offset by the smaller diameter; PED/ASME
+    # certification, NDT/radiography, and pressure-rated nozzles/relief valves
+    # add further premium on top of pure steel mass. 3x is the same order as
+    # the 2026-07-03 note's estimate -- an engineering estimate, not a vendor
+    # quote (same caveat as VDI 2067 assumptions elsewhere in this config).
+    alpha_tes_eur_per_m3: 1200.0
     beta_tes_eur: 100000.0      # fixed CAPEX per tank (engineering, permits, connections) [€]
     lifetime_years: 30.0
     eff_charge: 0.98
@@ -757,8 +785,17 @@ run:
   solver_options:
     MIPGap: 0.005
     TimeLimit: 86400
-    MIPFocus: 1
-    Heuristics: 0.5
+    # 2026-07-21: Cuts/MIPFocus/Heuristics were missing the documented weak-LP-
+    # bound fix (Implementation Statement Part F.4) -- without it, scenarios sat
+    # at a frozen gap for hours (this exact symptom recurred on the 2026-07-21
+    # re-run before this was caught). Cuts=2 (aggressive cutting planes) +
+    # MIPFocus=2 (prioritize tightening the bound over new incumbents) took a
+    # stuck-at-12%-gap Stadtbach scenario to 1.07% in 80 min in the original
+    # diagnosis. Heuristics lowered 0.5->0.1 to match (less time spent on
+    # incumbent-finding heuristics, more on the bound, per the same section).
+    Cuts: 2
+    MIPFocus: 2
+    Heuristics: 0.1
     NumericFocus: 2
     OutputFlag: 1
     LogToConsole: 1

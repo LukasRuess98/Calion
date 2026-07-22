@@ -46,7 +46,7 @@ sys.path.insert(0, str(_ROOT))
 
 
 def _run_single_pair(scenario_id: str, hp_site: str, tes_site: str,
-                      time_limit: int, outdir: Path) -> dict:
+                      time_limit: int, outdir: Path, gurobi_threads: int = 4) -> dict:
     """Solve ONE (hp_site, tes_site) subproblem in-process (used by --pair mode,
     invoked as a subprocess by the orchestrator for isolation/parallelism).
 
@@ -109,7 +109,11 @@ def _run_single_pair(scenario_id: str, hp_site: str, tes_site: str,
     result = run_single_scenario(
         pair_scen, scen_cfg,
         force_rerun=True,
-        extra_solver_options={"TimeLimit": time_limit},
+        # 2026-07-20: capped Threads (previously unset -> Gurobi default of using
+        # up to every logical processor per solve) -- with several enumeration
+        # pairs + main-campaign scenarios running concurrently across networks,
+        # uncapped threads oversubscribed the host's CPU well past target.
+        extra_solver_options={"TimeLimit": time_limit, "Threads": gurobi_threads},
     )
     elapsed = time.perf_counter() - t0
     result["hp_site"] = hp_site
@@ -136,7 +140,8 @@ def _load_candidates(scenario_id: str) -> tuple[list[str], list[str], bool]:
     return list(cands), list(cands), colocate
 
 
-def _orchestrate(scenario_id: str, time_limit: int, concurrency: int, outdir: Path) -> None:
+def _orchestrate(scenario_id: str, time_limit: int, concurrency: int, outdir: Path,
+                  skip_existing: bool = False, gurobi_threads: int = 4) -> None:
     hp_cands, tes_cands, colocate = _load_candidates(scenario_id)
     if colocate:
         print(f"[ENUM] {scenario_id} has colocate=true -- siting is already a single "
@@ -145,6 +150,13 @@ def _orchestrate(scenario_id: str, time_limit: int, concurrency: int, outdir: Pa
         return
 
     pairs = [(h, t) for h in hp_cands for t in tes_cands]
+    if skip_existing:
+        before = len(pairs)
+        pairs = [(h, t) for h, t in pairs
+                 if not (outdir / f"pair_{h}__{t}.json").exists()]
+        print(f"[ENUM] --skip-existing: {before - len(pairs)}/{before} pairs already have "
+              f"an output file, skipping them (use force_rerun-style cleanup if you actually "
+              f"want those re-solved).")
     print(f"[ENUM] {scenario_id}: {len(hp_cands)} hp candidates x {len(tes_cands)} tes "
           f"candidates = {len(pairs)} pairs, time_limit={time_limit}s each, "
           f"concurrency={concurrency}")
@@ -163,6 +175,7 @@ def _orchestrate(scenario_id: str, time_limit: int, concurrency: int, outdir: Pa
             "--hp-site", hp_site,
             "--tes-site", tes_site,
             "--time-limit", str(time_limit),
+            "--gurobi-threads", str(gurobi_threads),
             "--outdir", str(outdir),
         ]
         f = open(log_path, "w")
@@ -223,17 +236,24 @@ def main() -> None:
     ap.add_argument("--enumerate-all", action="store_true")
     ap.add_argument("--concurrency", type=int, default=2)
     ap.add_argument("--summarize-only", action="store_true")
+    ap.add_argument("--skip-existing", action="store_true",
+                     help="Skip pairs that already have a pair_*.json in --outdir "
+                          "(for resuming/bumping concurrency without re-solving finished pairs)")
+    ap.add_argument("--gurobi-threads", type=int, default=4,
+                     help="Gurobi Threads per solve (avoids CPU oversubscription when "
+                          "several pairs/scenarios run concurrently)")
     args = ap.parse_args()
 
     if args.summarize_only:
         _summarize(args.outdir)
     elif args.enumerate_all:
-        _orchestrate(args.scenario, args.time_limit, args.concurrency, args.outdir)
+        _orchestrate(args.scenario, args.time_limit, args.concurrency, args.outdir,
+                     skip_existing=args.skip_existing, gurobi_threads=args.gurobi_threads)
     else:
         if not args.hp_site or not args.tes_site:
             ap.error("--hp-site and --tes-site are required unless --enumerate-all")
         _run_single_pair(args.scenario, args.hp_site, args.tes_site,
-                          args.time_limit, args.outdir)
+                          args.time_limit, args.outdir, gurobi_threads=args.gurobi_threads)
 
 
 if __name__ == "__main__":

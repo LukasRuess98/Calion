@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,15 @@ import yaml
 
 # Project root
 _ROOT = Path(__file__).resolve().parents[2]
+# Unlike its siblings (run_paper2_full.py, enumerate_endog_siting.py), this
+# module used to skip this insert, which only worked when Python's own
+# script-mode sys.path[0] (this file's directory) happened to make `calion`
+# importable some other way (e.g. an editable install). On a clean clone,
+# `python scripts/paper_2/scenario_runner.py` fails with
+# `ModuleNotFoundError: No module named 'calion'`; `python -m
+# scripts.paper_2.scenario_runner` masked it by adding the repo root via cwd.
+# This makes direct script invocation work too, matching the siblings.
+sys.path.insert(0, str(_ROOT))
 
 logger = logging.getLogger(__name__)
 
@@ -461,6 +471,9 @@ def run_single_scenario(
     try:
         from calion.run.workflow import run_workflow
         wf = run_workflow([str(tmp_cfg_path)])
+        import os
+        if os.environ.get("CALION_DEBUG_COSTS"):
+            print("DEBUG_COSTS", scen_id, dict(wf.pf_result.costs) if wf.pf_result else None)
         elapsed = time.perf_counter() - t0
         logger.info("[%s] Solved in %.1f s", scen_id, elapsed)
     except Exception as exc:
@@ -756,6 +769,7 @@ def run_all_scenarios(
     *,
     dry_run: bool = False,
     force_rerun: bool = False,
+    gurobi_threads: int | None = None,
 ) -> list[dict]:
     """Run all (or a subset of) Paper 2 scenarios sequentially.
 
@@ -763,6 +777,12 @@ def run_all_scenarios(
         scenario_ids: If given, run only these scenario IDs. Else run all.
         dry_run: Preview without solving.
         force_rerun: Re-run even if output exists.
+        gurobi_threads: If set, caps each solve's Gurobi Threads parameter
+            (2026-07-20: this path previously left Threads unset, so Gurobi
+            defaulted to using every logical processor per solve -- fine
+            alone, but oversubscribes the host when multiple scenario_runner/
+            enumerate_endog_siting invocations run concurrently, as they do
+            during the Paper 2 campaign).
 
     Returns:
         List of result dicts from run_single_scenario().
@@ -778,10 +798,13 @@ def run_all_scenarios(
     else:
         scenarios = all_scenarios
 
+    extra_solver_options = {"Threads": gurobi_threads} if gurobi_threads else None
+
     OUT_BASE.mkdir(parents=True, exist_ok=True)
     results = []
     for scen in scenarios:
-        result = run_single_scenario(scen, scen_cfg, dry_run=dry_run, force_rerun=force_rerun)
+        result = run_single_scenario(scen, scen_cfg, dry_run=dry_run, force_rerun=force_rerun,
+                                      extra_solver_options=extra_solver_options)
         results.append(result)
         status = result.get("status", "?")
         logger.info("[%s] -> %s", scen["id"], status)
@@ -937,6 +960,7 @@ if __name__ == "__main__":
             scenario_ids=args.scenarios,
             dry_run=args.dry_run,
             force_rerun=args.force_rerun,
+            gurobi_threads=args.gurobi_threads,
         )
 
     # Summary table

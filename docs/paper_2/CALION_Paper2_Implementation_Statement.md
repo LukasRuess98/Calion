@@ -1843,4 +1843,208 @@ the sweep had never completed before); build/verify F7's tornado (`build_f7()`, 
 Update this section, the executive summary, and the design-package README's readiness verdict
 once all three are confirmed.
 
-*End of statement — updated 2026-07-20 for the CALION Paper 2 manuscript foundation.*
+## G.14 External-review response (2026-07-20/21): T5 population fixed, SB-S2 wash-cycling
+plausibility-tested (survives), and two real CAPEX bugs found+fixed while building a genuine
+Memmingen P1↔P2 comparison scenario — the P1↔P2 gap narrows but does **not** close
+
+An external ECM-style review flagged four items as blocking before a draft: (1) the MW-closure
+question's framing in G.10 reads as still-open even though G.12 resolved it; (2) `SB-S2-HK2`
+being simultaneously the headline economic result and the worst closure-check case is
+under-explained; (3) the Memmingen P1↔P2 OPEX check (124.49% FAIL) cannot go into the manuscript
+unresolved; (4) T5 mixes the 46-scenario campaign with diagnostic/enumeration runs (229 vs. 46,
+a 47,349% max-gap artifact). Each is addressed below.
+
+### G.14.1 T5 population — fixed (real code bug, not a documentation issue)
+
+`gen_tables.py::build_t5` iterated every directory under `output/paper2_runs/` (275 at the time
+of this pass) with **no scenario filter**, unlike `build_t3`/`build_t4`'s `_load_kpis()`, which
+already excludes F3 enumeration sub-pairs and TEST/DIAG runs via regex. T5 never had the
+equivalent filter. Fixed: `build_t5` now restricts to the 46 canonical `scenario_id`s from
+`scenarios.yaml`, with two further refinements once the canonical filter was in place:
+
+- **6 ids never solve as a single canonical run by design** (`SB-S6`/`MM-S4`, all three HK
+  stages) — their winners are decided via the enumeration decomposition (G.8) and live in
+  `tab_T3b_T4b_f3_endogenous_siting_FINAL.csv`, not `output/paper2_runs/<id>/`. Where a
+  monolithic pre-decomposition attempt *does* exist under the canonical id (`SB-S6-HK0`,
+  `MM-S4-HK0`), it is the known-bad superseded result (G.6–G.8) — including it in T5's solver
+  stats is exactly how the 47,349% max-gap artifact (`MM-S4-HK0`'s sign-flipped best bound,
+  G.10) got into the table. All 6 are now excluded from T5's live stats and reported separately
+  in a new `tab_T5_supplement_excluded_runs` (kind: "SB-S6/MM-S4 superseded monolithic").
+- **The remaining 197 non-canonical run directories** (F3 enumeration sub-pairs, TEST/DIAG runs)
+  go into the same supplement table instead of being silently dropped, per the reviewer's request
+  to keep diagnostics visible but separate from the headline census.
+
+**Result**: T5's `MIP gap (max)` drops from `47349.644 %` to `2.115 %`; solver-status census is
+now `optimal: 30, maxTimeLimit: 10` across 40 directly-reported canonical runs (population note
+in T5 itself documents the 6 enumeration-resolved + 197 excluded counts explicitly, so the
+46-scenario total is always reconcilable from the table alone). MW-closure stats
+(mean/max/pass-rate) are otherwise unchanged in kind, now computed over the clean population —
+see G.14.2.
+
+**Files touched**: `scripts/paper_2/figures/gen_tables.py` (`build_t5`: canonical-id filter,
+enumeration-family exclusion, new `tab_T5_supplement_excluded_runs` output).
+
+### G.14.2 MW-closure "contradiction" — a stale cross-reference, not a live disagreement
+
+The reviewer read G.10's framing ("is the closure check itself mis-specified... or is this a
+real dispatch-balance defect") as an open question standing in contradiction to the README's
+"known methodology limitation" claim. It isn't a contradiction — G.10 (2026-07-15) *asked* the
+question; G.12 (2026-07-19), in the same document, *answered* it with a decisive per-node audit
+(`Σht_out` vs. `Σdemand` read directly off live Gurobi state, matching to 0.04%) and identified
+the exact formula mechanism (netting a wash-cycling TES's `discharge − charge` to ~zero). G.10's
+text was simply never annotated to point forward once G.12 resolved it, so a linear read of the
+document hits the open question before the answer. Fixed: G.10's relevant bullets now carry an
+explicit `→ RESOLVED in G.12` / `→ RESOLVED in G.11` inline pointer with a one-line summary of
+the resolution, so no read-order produces a false impression of an unresolved disagreement.
+
+**Files touched**: `docs/paper_2/CALION_Paper2_Implementation_Statement.md` (G.10 cross-references
+added; this section).
+
+### G.14.3 SB-S2 wash-cycling plausibility — tested, survives (Part G.4's open item, now closed)
+
+Part G.4 flagged SB-S2's near-constant full-power bidirectional TES cycling as an extreme
+pattern and recommended, before quoting it as a paper finding, either (a) correlating TES
+charge/discharge against HP dispatch, or (b) re-solving under a `cycling_cost_eur_per_mwh`
+penalty. Both were run this pass.
+
+**(a) Correlation, using existing campaign data (no re-solve needed).** `SB-S2-HK2`:
+`corr(Q_storage_charge_MW, Q_hp_total_MW) = 0.23` — weak. Annual `Qc`+`Qd` throughput
+(≈829,000 MWh) is ~25× the co-located HP's own mean output, and Qc/Qd are both nonzero in
+99.2% of hours. **Conclusion: the wash-cycling is not "the HP charging the tank"** — it is
+the TES arbitraging bulk flow across the wider mesh network (consistent with, and now
+quantitatively supporting, G.4's untested hypothesis that the tank substitutes for
+plant→node pipe-delivery capacity at the remote site).
+
+**(b) Cycling-cost counter-test.** `Stadtbach_topo.yaml` already bakes in
+`cycling_cost_eur_per_mwh: 2.0` as the production default for `tes_sb` — i.e. the campaign's
+reported `SB-S2-HK2` TAC (4.42 M€) **already includes** this wear-cost deterrent, it is not an
+unpenalized number. Three January-2025-only (744h) diagnostic re-solves of `SB-S2-HK0`
+(`SB-S2-HK0-DIAGJAN-{BASE,CYCLO,CYC10X}`, distinct DIAG-suffixed ids, never the canonical
+scenario) tested sensitivity around that default:
+
+| variant | cycling_cost [€/MWh] | simultaneous-cycling hours | Qc+Qd volume [MWh] |
+|---|---|---|---|
+| production default | 2.0 | 741/744 (99.6%) | 112,529 |
+| 5× default | 10.0 | 723/744 (97.2%) | 106,565 |
+
+At **5× the production penalty**, cycling volume drops only ~5% and the pattern remains
+near-universal across hours. **The wash-cycling is a cost-robust MILP optimum, not a
+cost-marginal artifact** — it does not evaporate under a materially stricter wear-cost
+assumption. This closes G.4's open item: the pattern is real and defensible as the model's true
+optimum, though the underlying causal mechanism (why a remote-node TES is worth this much
+arbitrage) remains "substitutes for pipe capacity," a hypothesis, not a fully traced proof.
+**Manuscript guidance**: state explicitly that (i) the wear-cost penalty is already priced into
+the headline TAC, (ii) the pattern survives a 5× stricter penalty, and (iii) it is nonetheless an
+unusual utilization pattern for real hardware and should be flagged as such, not presented as
+obviously realistic — this is now an evidenced caveat, not an open risk.
+
+*(Note, debugging artefact of this sub-investigation, not a finding about the model:* an
+apparently-impossible result — a lower-cost solve under a smaller cycling-cost override
+("CYCLO", 0.5 €/MWh) than a higher one ("CYCHI", 2.0 €/MWh, byte-identical to the no-override
+case) — was traced to the test's own design error (CYCHI's override coincidentally matched the
+pre-existing 2.0 €/MWh config default, so it changed nothing; CYCLO genuinely lowered the
+penalty below that default). No model bug; superseded by the correctly-designed 2.0-vs-10.0
+comparison above.*
+
+**Files touched**: none in `calion/` (diagnostic-only); `scripts/paper_2/
+run_sb_s2_cycling_counter_test.py` (new, ad hoc diagnostic script, not part of the campaign).
+
+### G.14.4 Memmingen P1↔P2 OPEX consistency — two real CAPEX bugs found and fixed while building
+the comparison scenario G.11 recommended; the gap narrows substantially but does not close
+
+G.11 diagnosed the 124.49% FAIL as `BC-MM` (P2's 0 MW zero-investment baseline) being compared
+against Paper 1's `L3` reference (5 MW pre-existing HP+EK) — two scenarios that were never meant
+to match — and recommended either retiring the check or adding an explicit 5 MW-fixed comparison
+scenario. The latter was attempted this pass (`scripts/paper_2/run_mm_p1ref.py`, scenario id
+`MM-P1REF`: Memmingen base config, `hp_main`/`eboiler_main` fixed at 5 MW, `investment.enabled:
+false`, no TES — deliberately **not** added to `scenarios.yaml`, so it never inflates the
+46-scenario canonical population counted elsewhere).
+
+**First full-year attempt: `maxTimeLimit` (24h, unconverged) at `781,641 €`** — higher than
+`BC-MM`'s `506,701 €`, which is mathematically impossible for a correctly-specified model (a
+fixed-but-optional 5 MW HP+EK can always replicate `BC-MM`'s dispatch by simply not being used,
+so the true optimum can only be ≤ `BC-MM`'s). Root-caused via a full objective-term breakdown
+(`CALION_DEBUG_COSTS=1` env var, now a permanent, harmless debug hook on
+`scenario_runner.run_single_scenario` — prints every named Pyomo objective `Expression` post-solve):
+`objective.Capex_cost_EUR` was nonzero (**two separate bugs**, found in sequence):
+
+1. `component_assembler.py::_attach_single_heat_pump` charged CAPEX unconditionally, gated only
+   on `cap_var`/`build_var` existing, never on `invest_enabled`. Fixed first — **had zero effect
+   on Memmingen's actual objective**, because this function belongs to a separate, legacy
+   `system.heat_pumps:`-list attach path (`assemble_heat_pumps()`) that Paper 2's unified
+   `assets: {type: heat_pump}` config never exercises.
+2. **The actually-used path**, `component_assembler.py::_attach_hp_from_unified` (routed from
+   `assemble_all()` for every `type: heat_pump` asset on both networks), had the **identical**
+   unconditional-CAPEX bug at its own investment-cost block. This is the real fix. Confirmed via
+   the same debug dump: `Capex_cost_EUR` went from ≈24,194 € (January window) to exactly `0.0`
+   once gated on `invest_enabled`.
+
+Both fixes are additive one-line conditions (`if invest_enabled and cap_var is not None and
+build_var is not None:`) and **provably a no-op for all 46 campaign scenarios**: `BC-MM`/`BC-SB`
+are the only non-investable-HP scenarios in `scenarios.yaml`, and both fix `capacity_mw: 0.0` —
+the (now-gated) CAPEX term was `0 × capex_eur_per_mw × ANF = 0` before the fix too, identically.
+Every other scenario (`S0`–`S7` on both networks) uses the base config's `investment.enabled:
+true` default, so the new `if invest_enabled` condition is trivially satisfied and unchanged from
+before. No published TAC/LCOH/CAPEX/OPEX number is affected.
+
+**Corrected result, January-2025-only re-verification (744h, `MM-P1REF-DIAGJAN3`, `status=
+optimal`, proven, not time-limited)**: `64,769 €`, now correctly **below** the matching January-
+only `BC-MM` baseline (`BC-MM-DIAGJAN`, `71,737 €`) by ≈7,000 € (≈9.7%) — the direction and rough
+magnitude expected from a small but real fuel-switching benefit.
+
+**Corrected result, full year (`MM-P1REF`, `status=optimal`, proven, not time-limited, 2017 s
+solve)**: `cost_total_eur = 489,996.19 €` — **3.01% below** the current `BC-MM` baseline
+(`505,181.80 €`; note this is the file's current value, ≈0.3% different from the `506,701 €`
+figure quoted earlier in this document from an older solve within the same MIP-gap tolerance —
+immaterial to the conclusion below) — confirming the same small, real, fuel-switching benefit
+seen in the January window, now at full-year scale and to a proven optimum rather than a
+projection.
+
+**What this does and does not resolve.** `MM-P1REF` vs. Paper 1's `L3` reference (`225,717 €`):
+**+117.08 %** — still more than double, essentially unchanged in kind from the original
+`BC-MM`-vs-`L3` figure (124.49%) despite `MM-P1REF` now being genuinely apples-to-apples on the
+one dimension G.11 identified (HP/EK capacity) and both CAPEX bugs being fixed. This does **not**
+bring the check within its ≤2% gate, or anywhere close to it. G.11's implicit expectation — that
+matching the HP/EK capacity would let the check pass — does not hold even after removing the
+CAPEX-gating bugs. There is evidently a **further, still-undiagnosed difference** between Paper
+1's `L3` config (`configs/memmingen/Memmingen_L3_MILP.yaml`) and Paper 2's base config
+(`Memmingen_P2_base.yaml`) beyond HP/EK capacity — candidates not yet checked: demand data
+vintage/cleaning (P2's `Import_Data_Memmingen_epronet_cleaned.xlsx` vs. P1's original input),
+fuel/electricity price series, heating-curve treatment (P1's own continuous curve vs. P2's
+`TVLFIX`/discrete-stage system), or CO₂ pricing being in P2's objective but absent from P1's
+dispatch-only model. **Not chased further this pass** — the CAPEX bugs were the concrete, fixable
+finding; the residual gap needs its own targeted config diff, out of scope for
+this response.
+
+**Recommendation for the manuscript, given the above:** do not present `MM-P1REF` as having
+"resolved" the P1↔P2 check to a pass. Two defensible options, both better than the current FAIL
+against `BC-MM`:
+(a) report `MM-P1REF` vs. `L3` as the corrected comparison point, explicitly stating the
+    residual ≈100% gap is real and only partially diagnosed (config provenance, not a model bug,
+    per the CAPEX fixes above) — honest but leaves an open thread;
+(b) retire `check_paper1_consistency` from T5 as G.11 originally suggested, and describe in prose
+    (not a quantitative gate) that Paper 2's baseline concept has legitimately superseded Paper
+    1's, with the CAPEX-bug-fixed `MM-P1REF` cited only as evidence that the *direction* of the
+    gap is not a modeling artifact.
+This is a decision for the manuscript authors, not something further scenario engineering alone
+resolves within this pass.
+
+**Files touched**: `calion/models/component_assembler.py` (both CAPEX gates:
+`_attach_single_heat_pump` and `_attach_hp_from_unified`), `scripts/paper_2/run_mm_p1ref.py`
+(new, standalone `MM-P1REF` scenario runner, not part of `scenarios.yaml`),
+`scripts/paper_2/scenario_runner.py` (new `CALION_DEBUG_COSTS=1` env-gated objective-breakdown
+print in `run_single_scenario`, additive/harmless, off by default),
+`scripts/paper_2/validation_p2.py::check_paper1_consistency` (now reads `MM-P1REF` instead of
+`BC-MM`).
+
+**How to apply.** Before trusting any "fixed capacity, non-investable" scenario's economics for
+*either* HP or EK on *either* network, verify `Capex_cost_EUR`/`Activation_cost_EUR` actually
+read `0.0` for it (`CALION_DEBUG_COSTS=1`) rather than assuming a `capacity_mw`/`investment.
+enabled: false` override is sufficient — two independent attach-function code paths existed for
+heat pumps alone, and only one is live for any given config style; a fix verified against the
+wrong one is not a fix. The general lesson from G.10–G.14 collectively: whenever a validation
+check or a new scenario's number looks implausible, prefer a decisive, code-independent ground
+truth (a per-node audit, an env-gated objective-term dump, a controlled re-solve) over trusting
+either the check or the intuition about what "should" be zero.
+
+*End of statement — updated 2026-07-21 for the CALION Paper 2 manuscript foundation.*

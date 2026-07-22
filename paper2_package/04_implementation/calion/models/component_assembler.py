@@ -586,10 +586,24 @@ class ComponentAssembler:
         # Global electricity input
         sys_buses.el_in.append(fs["P_el_in"])
 
-        # Investment costs → system level
+        # Investment costs → system level.
+        # BUGFIX (2026-07-21): same class of bug as _attach_single_heat_pump's fix
+        # below -- CAPEX was charged unconditionally, even for a fixed
+        # (non-investable) pre-existing HP. THIS is the function actually used for
+        # Paper 2's unified `assets: {type: heat_pump}` config (routed from
+        # assemble_all() at line ~279); _attach_single_heat_pump is a separate,
+        # legacy `system.heat_pumps:`-list path not exercised by Paper 2 networks
+        # -- fixing it alone (first pass) had zero effect on the real objective.
+        # Found via MM-P1REF's Capex_cost_EUR staying nonzero (~24,194 EUR for a
+        # January window) after the first fix; confirmed by objective-term dump
+        # (`CALION_DEBUG_COSTS=1`) showing Capex_heat_pumps_EUR=0 (the now-fixed,
+        # inactive path) while the true Capex_cost_EUR objective term was untouched.
+        # Never exercised by any of the 46 campaign scenarios for the same reason
+        # as the other fix (BC-MM/BC-SB are the only non-investable HP cases, both
+        # capacity_mw=0, where the bug is invisible).
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
-        if cap_var is not None and build_var is not None:
+        if invest_enabled and cap_var is not None and build_var is not None:
             hp_inv_defaults = self.cfg.get("heat_pumps", {}).get("investment_defaults", {})
             hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
             hp_inv_terms = self.inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
@@ -913,9 +927,18 @@ class ComponentAssembler:
             )
             logger.info("  - WRG caps: %s", "None" if wrg_caps is None else f"provided ({len(wrg_caps)} values)")
 
+        # BUGFIX (2026-07-21): CAPEX was charged unconditionally, even for a fixed
+        # (non-investable) pre-existing HP -- unlike every other asset type in this
+        # module (thermal generators never charge CAPEX; _attach_p2h_from_unified's
+        # EK path already gates on invest_enabled, see its own docstring for the
+        # identical bug found and fixed there previously). Never exercised by any
+        # of the 46 campaign scenarios (BC-MM/BC-SB are the only non-investable HP
+        # cases, and both use capacity_mw=0, where the bug is invisible since the
+        # fixed capacity_var is 0 either way) -- surfaced building MM-P1REF, the
+        # first scenario with a nonzero fixed non-investable HP capacity.
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
-        if cap_var is not None and build_var is not None:
+        if invest_enabled and cap_var is not None and build_var is not None:
             hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
             hp_inv_terms = self.inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
             self.buses.capex_terms.extend(hp_inv_terms.capex)
