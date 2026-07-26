@@ -345,6 +345,7 @@ def _collect_timeseries_and_summary(
     series["P_buy_MW"] = [0.0] * n
     series["P_sell_MW"] = [0.0] * n
     series["Q_dump_MWth"] = [0.0] * n
+    series["P_pump_total_MW"] = [0.0] * n
 
     for hp in meta["heat_pumps"]:
         comp = hp["id"]
@@ -456,6 +457,27 @@ def _collect_timeseries_and_summary(
         _extract(getattr(model, "P_buy", None), "P_buy_MW")
         _extract(getattr(model, "P_sell", None), "P_sell_MW")
         _extract(getattr(model, "Q_dump", None), "Q_dump_MWth")
+
+        # Aggregate pump electrical power across every pump-station node
+        # (network_manager.py::_link_pump_head creates one producer_{node}_P_pump
+        # per producer/mixed node). Was never surfaced as a series before, so
+        # extract_artefacts.py's cost_pump_eur calculation always fell through to
+        # its zero fallback even though the pump load is already inside P_buy via
+        # model_finalizer.py's `self.buses.el_in.extend(pump_el_flows)`.
+        nm = getattr(model, "_network_manager", None)
+        if nm is not None:
+            pump_power_vars = [
+                getattr(model, f"producer_{node_id}_P_pump", None)
+                for node_id in getattr(nm, "nodes", {})
+            ]
+            pump_power_vars = [v for v in pump_power_vars if v is not None]
+            if pump_power_vars:
+                try:
+                    series["P_pump_total_MW"] = [
+                        sum(pyo.value(v[t]) for v in pump_power_vars) for t in times
+                    ]
+                except (ValueError, TypeError, KeyError, AttributeError) as exc:  # pragma: no cover - defensive
+                    logger.warning("Error processing series P_pump_total_MW: %s", exc)
 
         for hp in meta["heat_pumps"]:
             comp = hp["id"]

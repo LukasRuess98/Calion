@@ -1787,6 +1787,44 @@ class NetworkManager:
             pressure_fixed_producers = all_producer_node_ids
             secondary_producers = set()
 
+        # Opt-in pressure tie-breaking regularization (2026-07-24, default OFF --
+        # existing campaign configs/results are unaffected unless explicitly
+        # enabled). Without it, a propagated (non-producer) node's P_supply is
+        # a genuine LP degeneracy: nothing costs pressure itself, so it can
+        # settle anywhere below its upstream feeder's value -- empirically
+        # confirmed to land on physically meaningless values. A tiny tie-break
+        # pushes it UP toward the tightest value the upstream Δp allows (true
+        # cumulative loss, no slack) instead.
+        #
+        # NOTE: an earlier version of this fix ALSO pushed secondary producers
+        # (e.g. a pump station) DOWN toward their own floor. Verified via
+        # direct objective-coefficient inspection (generate_standard_repn) with
+        # Gurobi presolve fully disabled: that term was mathematically present
+        # and correct in isolation, but Gurobi correctly refused to act on it,
+        # because a producer's own P_supply directly caps every downstream
+        # node's achievable ceiling (P_to <= P_from - Δp) -- pushing the
+        # producer down by X forces every node in its subtree down by up to X
+        # too, and with >1 downstream node, their combined "push up" loss
+        # outweighs the producer's own "push down" gain. Not a solver quirk,
+        # not fixable by rebalancing epsilon (a producer with more downstream
+        # nodes would always resist proportionally more) -- the two directions
+        # are fundamentally in tension for any producer with consumers below
+        # it, so the producer-side term is intentionally NOT included. A
+        # secondary producer's own absolute pressure remains an unconstrained
+        # (but feasible, floor-respecting) operational choice, same as a real
+        # pump station has real freedom to run above its bare minimum -- only
+        # DELIVERED (propagated, downstream) pressure is tie-broken here.
+        # Return-side pressure is deliberately NOT regularized either -- an
+        # earlier attempt pushed it up with no anchor at the network's leaves,
+        # floating the whole return chain to an arbitrary ceiling; needs its
+        # own correctly-anchored formulation later.
+        pressure_reg_enabled = bool(self._physics_cfg.get('pressure_regularization', False))
+        pressure_reg_epsilon = float(self._physics_cfg.get('pressure_regularization_epsilon', 1e-4))
+        pressure_reg_terms: list[tuple] = []
+        if pressure_reg_enabled:
+            model.pressure_regularization_terms = pressure_reg_terms
+            logger.info('  Pressure regularization ENABLED (epsilon=%s)', pressure_reg_epsilon)
+
         # Primary producer: supply pressure FIXED at setpoint (the network reference).
         # Secondary producers / pump stations (e.g. Stadtbach j_pss, j_psw): supply
         # pressure is a FREE, pump-BOOSTED Var with a lower FLOOR at the setpoint --
@@ -1894,6 +1932,12 @@ class NetworkManager:
                     f"  âœ“ {pipe_id}: P_supply[{to_node}] <= P_supply[{from_node}] - Î”P_supply; "
                     f"P_return[{from_node}] <= P_return[{to_node}] - Î”P_return"
                 )
+                if pressure_reg_enabled:
+                    # Push to_P_supply UP toward the tight upper bound this pipe's
+                    # inequality allows (P_from - delta_p) instead of leaving it
+                    # free anywhere below that -- non-bidirectional pipes only,
+                    # see the enable-block comment above for the full rationale.
+                    pressure_reg_terms.append((to_P_supply, -pressure_reg_epsilon))
             else:
                 p_big_m = float(self._net_cfg.get('pressure_big_m_bar', 30.0))
                 # Supply side:
@@ -2008,10 +2052,14 @@ class NetworkManager:
     def _link_pump_head(
         self, model, time_set, pipe_components: dict, node_components: dict
     ) -> list:
-        """Link producer supply/return pressure by a nodal pump head.
+        """Cap producer supply/return pressure differential and aggregate pump power.
 
-        Models one pump head per producer node and aggregates the outgoing pipe
-        pump powers into one electricity load per producer.
+        Bounds each producer node's P_supply-P_return differential to
+        [0, head_max] directly (no intermediate pump_head Var -- see the
+        2026-07-24 comment below) and aggregates pump power over every pipe
+        the station is actually responsible for (its own outgoing pipe PLUS
+        everything reachable downstream, up to the next producer) into one
+        electricity load per producer.
 
         Returns a list of aggregated producer pump-power variables for the
         electricity bus.
@@ -2019,38 +2067,86 @@ class NetworkManager:
         logger.info("\nSetting up producer pump head constraints...")
         pump_el_flows = []
 
-        producer_pipes: dict[str, list[tuple[str, dict]]] = {}
+        # Multi-source BFS ownership assignment (2026-07-23 fix): the previous
+        # version only attributed a producer's OWN immediate outgoing pipe(s) to
+        # its pump, silently dropping every pipe further downstream (which still
+        # has a real, nonzero P_pump -- friction doesn't stop after one pipe) from
+        # ANY producer's electricity bill. Each producer now claims every pipe on
+        # its nearest (fewest-hop) path from itself, stopping expansion at any
+        # OTHER producer node (that station's own pump takes over from there).
+        # Same class of static, topology-only simplification already used by
+        # _apply_spatial_temperature_offsets's plant-BFS -- exact for a radial
+        # network (Memmingen), an approximation at shared junctions in a meshed
+        # one (Stadtbach) since real attribution would need live flow direction.
+        adjacency: dict[str, list[tuple[str, dict, str]]] = {}
         for pipe_id, pipe_comp in pipe_components.items():
-            if not pipe_comp.get('pump_enabled', False):
-                continue
-
             from_node = pipe_comp['from_node']
-            if from_node not in node_components:
+            to_node = pipe_comp['to_node']
+            if from_node not in node_components or to_node not in node_components:
                 continue
-            if node_components[from_node]['type'] not in ('producer', 'mixed'):
-                continue
+            adjacency.setdefault(from_node, []).append((pipe_id, pipe_comp, to_node))
 
-            producer_pipes.setdefault(from_node, []).append((pipe_id, pipe_comp))
+        producer_node_ids = {
+            nid for nid, nc in node_components.items() if nc['type'] in ('producer', 'mixed')
+        }
+
+        from collections import deque
+        pipe_owner: dict[str, str] = {}
+        hop_of: dict[str, int] = {}
+        queue: deque[tuple[str, str, int]] = deque()
+        for pid in sorted(producer_node_ids):
+            hop_of[pid] = 0
+            queue.append((pid, pid, 0))
+
+        while queue:
+            node_id, owner, hops = queue.popleft()
+            for pipe_id, pipe_comp, to_node in adjacency.get(node_id, []):
+                pipe_owner.setdefault(pipe_id, owner)
+                if to_node in producer_node_ids and to_node != owner:
+                    continue  # that station's own pump takes over beyond here
+                if to_node not in hop_of or hop_of[to_node] > hops + 1:
+                    hop_of[to_node] = hops + 1
+                    queue.append((to_node, owner, hops + 1))
+
+        producer_pipes: dict[str, list[tuple[str, dict]]] = {}
+        for pipe_id, owner in pipe_owner.items():
+            if not pipe_components[pipe_id].get('pump_enabled', False):
+                continue
+            producer_pipes.setdefault(owner, []).append((pipe_id, pipe_components[pipe_id]))
 
         for node_id, pipes in producer_pipes.items():
             node_P_supply = node_components[node_id]['pressure_supply']
             node_P_return = node_components[node_id]['pressure_return']
             head_max = self.nodes.get(node_id, {}).get('pressure', {}).get('setpoint_bar', 10.0) * 2.0
 
-            pump_head = pyo.Var(
-                time_set,
-                domain=pyo.NonNegativeReals,
-                bounds=(0.0, max(float(head_max), 1.0)),
-            )
-            setattr(model, f"producer_{node_id}_pump_head", pump_head)
-
+            # 2026-07-24: was a free `pump_head` Var (bounds 0..head_max) tied to
+            # P_supply-P_return by one equality, with no other role anywhere in
+            # the model -- exactly the shape of variable solver presolve can
+            # substitute/fix in a way a small tie-breaking objective coefficient
+            # can't reliably steer (see memory project_paper2_pump_export_bugfix
+            # for the diagnosis: this was pinning secondary pump stations at
+            # exactly head_max, a solver artifact, not a physical result).
+            # Same feasible region, no intermediate free variable: the old
+            # domain=NonNegativeReals already implied P_supply-P_return>=0, so
+            # both bounds must stay explicit here.
+            head_max_val = max(float(head_max), 1.0)
             setattr(
                 model,
-                f"producer_{node_id}_pump_head_balance",
+                f"producer_{node_id}_head_ub",
                 pyo.Constraint(
                     time_set,
-                    rule=lambda m, t, _ps=node_P_supply, _pr=node_P_return, _h=pump_head: (
-                        _h[t] == _ps[t] - _pr[t]
+                    rule=lambda m, t, _ps=node_P_supply, _pr=node_P_return, _hmax=head_max_val: (
+                        _ps[t] - _pr[t] <= _hmax
+                    ),
+                ),
+            )
+            setattr(
+                model,
+                f"producer_{node_id}_head_lb",
+                pyo.Constraint(
+                    time_set,
+                    rule=lambda m, t, _ps=node_P_supply, _pr=node_P_return: (
+                        _ps[t] - _pr[t] >= 0
                     ),
                 ),
             )

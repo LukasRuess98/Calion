@@ -379,6 +379,19 @@ def _export_pipe_results(
             except Exception as e:
                 logger.debug(f"Could not export delta_p_total for {pipe_id}: {e}")
 
+        # Pump power (was never exported here -- scripts/paper/extract_artefacts.py
+        # hardcoded P_pump_pipe_MW to 0.0 for every pipe/hour because this column
+        # never existed upstream; see memory project_paper2_pump_export_bugfix).
+        P_pump_var = getattr(model, f'{pipe_prefix}_P_pump', None)
+        if P_pump_var is not None:
+            try:
+                p_pump_vals = [pyo.value(P_pump_var[t]) for t in time_set]
+                pipe_summary['P_pump_avg_mw'] = sum(p_pump_vals) / len(p_pump_vals)
+                pipe_summary['P_pump_max_mw'] = max(p_pump_vals)
+                pipe_timeseries[f'{pipe_id}_P_pump'] = p_pump_vals
+            except Exception as e:
+                logger.debug(f"Could not export P_pump for {pipe_id}: {e}")
+
         # Temperature variables
         for temp_var in ['T_supply_in', 'T_supply_out', 'T_return_in', 'T_return_out']:
             var = getattr(model, f'{pipe_prefix}_{temp_var}', None)

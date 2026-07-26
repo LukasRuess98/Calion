@@ -175,6 +175,7 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
     cost_co2 = _safe(obj.get("CO2_cost_EUR"))
     cost_dump = _safe(obj.get("Dump_cost_EUR"))
     cost_demand = _safe(obj.get("Demand_charge_cost_EUR"))
+    energy_buy = _safe(grid.get("Energy_from_grid_MWh"))
 
     # Pump cost: use actual time-varying electricity price where available.
     # Falls back to the summary buy cost if the price series is missing.
@@ -189,7 +190,12 @@ def write_economics(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
     else:
         cost_pump = 0.0
 
-    energy_buy = _safe(grid.get("Energy_from_grid_MWh"))
+    # Pump electricity is already inside cost_energy_buy (model_finalizer.py routes
+    # every producer_{node}_P_pump into buses.el_in, i.e. it's part of what P_buy
+    # pays for) -- net it back out here so cost_pump_eur is a genuine breakdown
+    # slice of cost_total_eur, not an addition on top of it (would double-count in
+    # any stacked chart, e.g. fig_cost_waterfall.py's COMPONENTS list).
+    cost_energy_buy = max(0.0, cost_energy_buy - cost_pump)
     energy_sell = _safe(grid.get("Energy_to_grid_MWh"))
 
     # Gas consumption: from fuel summary (CHP + all boiler types)
@@ -605,7 +611,10 @@ def write_pipe_state(outdir: Path, run_id: str, workflow) -> pd.DataFrame:
                 "dp_Pa": _safe(row.get(f"{pid}_delta_p_supply")) * 1e5,
                 "T_in_C": _safe(row.get(f"{pid}_T_supply_in")),
                 "T_out_C": _safe(row.get(f"{pid}_T_supply_out")),
-                "P_pump_pipe_MW": 0.0,
+                # Was hardcoded 0.0 -- thermal_network_exporter.py::_export_pipe_results
+                # never wrote a {pid}_P_pump column upstream, so there was nothing real
+                # to read. Now exported there too; falls back to 0.0 for pump-disabled pipes.
+                "P_pump_pipe_MW": _safe(row.get(f"{pid}_P_pump")),
                 "Q_loss_pipe_MW": (
                     _safe(row.get(f"{pid}_Q_loss_supply"))
                     + _safe(row.get(f"{pid}_Q_loss_return"))

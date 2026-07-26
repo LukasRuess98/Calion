@@ -85,7 +85,8 @@ _SWEEP_SOLVER_OPTIONS = {
 
 
 def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
-              dry_run: bool = False) -> Path | None:
+              dry_run: bool = False, chunk_start: int = 0,
+              chunk_end: int | None = None) -> Path | None:
     res = load_main_result(scenario_id)
     network = res["network"]
     q_opt, v_opt = res["Q_WP_opt_MW"], res["V_TES_opt_m3"]
@@ -108,6 +109,17 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
         logger.info("[DRY-RUN] grid built; no solves performed")
         return None
 
+    # Flatten to a single index space so a chunk can be handed to a second,
+    # independently-launched process without touching whatever process is
+    # already iterating the full (unchunked) grid -- see 2026-07-22 note below.
+    points = [(iq, iv, q, v) for iq, q in enumerate(q_grid) for iv, v in enumerate(v_grid)]
+    total_points = len(points)
+    chunk_end = total_points if chunk_end is None else min(chunk_end, total_points)
+    chunked = not (chunk_start == 0 and chunk_end == total_points)
+    points = points[chunk_start:chunk_end]
+    if chunked:
+        logger.info("  Chunk: points [%d, %d) of %d total", chunk_start, chunk_end, total_points)
+
     base_scen = res["scenario"]
     scen_cfg = sr.load_scenarios_config()
     orig_out = sr.OUT_BASE
@@ -115,50 +127,58 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
     SWEEP_OUT.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     try:
-        for iq, q in enumerate(q_grid):
-            for iv, v in enumerate(v_grid):
-                scen = copy.deepcopy(base_scen)
-                scen["id"] = f"SWEEP_{scenario_id}_q{q:.3f}_v{v:.0f}"
-                scen["baseline"] = False
-                # Spec A.3 (finalised): the sweep always runs at HK1, regardless of
-                # which HK stage the seed scenario_id (used for Q*/V*/node) carries.
-                scen["heat_curve_stage"] = "HK1"
-                scen["tvl_fix"] = False
-                scen["overrides"] = sr._deep_merge(scen.get("overrides") or {},
-                                                   _pin_override(network, q, v))
-                r = sr.run_single_scenario(scen, scen_cfg, dry_run=False, force_rerun=True,
-                                            extra_solver_options=_SWEEP_SOLVER_OPTIONS)
-                row = {"Q_WP_MW": q, "V_TES_m3": v, "status": r.get("status")}
-                if r.get("status") == "ok" and r.get("outdir"):
-                    k = compute_scenario_kpis(Path(r["outdir"]))
-                    opex_split = compute_opex_split(Path(r["outdir"]))
-                    opex = float(k.get("OPEX_annual_eur_per_a") or 0)
-                    co2 = float(k.get("co2_t_per_a") or 0) * CO2_PRICE
-                    row.update(
-                        TAC_eur_per_a=k.get("TAC_eur_per_a"),
-                        LCOH_eur_per_MWh=k.get("LCOH_eur_per_MWh"),
-                        CAPEX_annual_eur_per_a=k.get("CAPEX_annual_eur_per_a"),
-                        OPEX_annual_eur_per_a=opex,
-                        OPEX_el_eur_per_a=opex_split["OPEX_el_eur_per_a"],
-                        OPEX_gas_eur_per_a=opex_split["OPEX_gas_eur_per_a"],
-                        OPEX_CO2_eur_per_a=round(co2, 1),
-                        OPEX_energy_eur_per_a=round(max(opex - co2, 0.0), 1),
-                        co2_t_per_a=k.get("co2_t_per_a"),
-                        feasible=True,
-                    )
-                else:
-                    row["feasible"] = False
-                rows.append(row)
-                logger.info("  [%2d/%2d] Q=%.2f V=%.0f -> %s  TAC=%s",
-                            iq * len(v_grid) + iv + 1, len(q_grid) * len(v_grid),
-                            q, v, row["status"],
-                            f"{row.get('TAC_eur_per_a'):,.0f}" if row.get("feasible") else "—")
+        for i, (iq, iv, q, v) in enumerate(points):
+            scen = copy.deepcopy(base_scen)
+            scen["id"] = f"SWEEP_{scenario_id}_q{q:.3f}_v{v:.0f}"
+            scen["baseline"] = False
+            # Spec A.3 (finalised): the sweep always runs at HK1, regardless of
+            # which HK stage the seed scenario_id (used for Q*/V*/node) carries.
+            scen["heat_curve_stage"] = "HK1"
+            scen["tvl_fix"] = False
+            scen["overrides"] = sr._deep_merge(scen.get("overrides") or {},
+                                               _pin_override(network, q, v))
+            r = sr.run_single_scenario(scen, scen_cfg, dry_run=False, force_rerun=True,
+                                        extra_solver_options=_SWEEP_SOLVER_OPTIONS)
+            row = {"Q_WP_MW": q, "V_TES_m3": v, "status": r.get("status")}
+            if r.get("status") == "ok" and r.get("outdir"):
+                k = compute_scenario_kpis(Path(r["outdir"]))
+                opex_split = compute_opex_split(Path(r["outdir"]))
+                opex = float(k.get("OPEX_annual_eur_per_a") or 0)
+                co2 = float(k.get("co2_t_per_a") or 0) * CO2_PRICE
+                row.update(
+                    TAC_eur_per_a=k.get("TAC_eur_per_a"),
+                    LCOH_eur_per_MWh=k.get("LCOH_eur_per_MWh"),
+                    CAPEX_annual_eur_per_a=k.get("CAPEX_annual_eur_per_a"),
+                    OPEX_annual_eur_per_a=opex,
+                    OPEX_el_eur_per_a=opex_split["OPEX_el_eur_per_a"],
+                    OPEX_gas_eur_per_a=opex_split["OPEX_gas_eur_per_a"],
+                    OPEX_CO2_eur_per_a=round(co2, 1),
+                    OPEX_energy_eur_per_a=round(max(opex - co2, 0.0), 1),
+                    co2_t_per_a=k.get("co2_t_per_a"),
+                    feasible=True,
+                )
+            else:
+                row["feasible"] = False
+            rows.append(row)
+            logger.info("  [%2d/%2d] Q=%.2f V=%.0f -> %s  TAC=%s",
+                        chunk_start + i + 1, total_points,
+                        q, v, row["status"],
+                        f"{row.get('TAC_eur_per_a'):,.0f}" if row.get("feasible") else "—")
     finally:
         sr.OUT_BASE = orig_out
 
     RESULTS.mkdir(parents=True, exist_ok=True)
-    out = RESULTS / f"sweep_{network}_{scenario_id}.csv"
+    suffix = f"_chunk{chunk_start}-{chunk_end}" if chunked else ""
+    out = RESULTS / f"sweep_{network}_{scenario_id}{suffix}.csv"
     pd.DataFrame(rows).to_csv(out, index=False)
+    logger.info("Sweep chunk written -> %s", out)
+
+    if chunked:
+        # optimum.json + the §A.5 consistency check both need the FULL combined
+        # grid, not a partial chunk -- skip here; run merge_sweep_chunks() (or
+        # the unchunked full invocation) once every chunk has landed.
+        return out
+
     optimum_path = RESULTS / f"sweep_{network}_{scenario_id}_optimum.json"
     optimum_path.write_text(json.dumps({
         "scenario_id": scenario_id, "network": network,
@@ -190,6 +210,40 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
     return out
 
 
+def merge_sweep_chunks(network: str, scenario_id: str) -> Path:
+    """Concatenate every `_chunk{a}-{b}.csv` for scenario_id into the final
+    combined CSV, then write optimum.json + run the §A.5 consistency check --
+    the step a chunked run intentionally skips (see run_sweep's `chunked` path).
+    """
+    chunk_files = sorted(RESULTS.glob(f"sweep_{network}_{scenario_id}_chunk*.csv"))
+    if not chunk_files:
+        raise FileNotFoundError(f"No chunk files found for {network}/{scenario_id}")
+    combined = pd.concat([pd.read_csv(f) for f in chunk_files], ignore_index=True)
+    out = RESULTS / f"sweep_{network}_{scenario_id}.csv"
+    combined.to_csv(out, index=False)
+    logger.info("Merged %d chunk file(s) (%d rows) -> %s", len(chunk_files), len(combined), out)
+
+    res = load_main_result(scenario_id)
+    optimum_path = RESULTS / f"sweep_{network}_{scenario_id}_optimum.json"
+    optimum_path.write_text(json.dumps({
+        "scenario_id": scenario_id, "network": network,
+        "Q_WP_opt_MW": res["Q_WP_opt_MW"], "V_TES_opt_m3": res["V_TES_opt_m3"],
+        "TAC_opt_eur_per_a": res.get("TAC_opt_eur_per_a"),
+        "LCOH_opt_eur_per_MWh": res.get("LCOH_opt_eur_per_MWh"),
+    }, indent=2), encoding="utf-8")
+    consistency = check_sweep_consistency(out, optimum_path)
+    if consistency.get("verdict") not in (None, "not_run"):
+        optimum_path.write_text(json.dumps({
+            "scenario_id": scenario_id, "network": network,
+            "Q_WP_opt_MW": res["Q_WP_opt_MW"], "V_TES_opt_m3": res["V_TES_opt_m3"],
+            "TAC_opt_eur_per_a": res.get("TAC_opt_eur_per_a"),
+            "LCOH_opt_eur_per_MWh": res.get("LCOH_opt_eur_per_MWh"),
+            "sweep_consistency": consistency,
+        }, indent=2), encoding="utf-8")
+        logger.info("Sweep<->MILP consistency: %s", consistency["verdict"])
+    return out
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     ap = argparse.ArgumentParser(description="Dispatch-only capacity sweep (Paper 2 Part A)")
@@ -198,8 +252,22 @@ def main() -> None:
     ap.add_argument("--lo", type=float, default=0.4, help="lower factor of optimum")
     ap.add_argument("--hi", type=float, default=1.6, help="upper factor of optimum")
     ap.add_argument("--dry-run", action="store_true", help="build+print grid only")
+    ap.add_argument("--chunk-start", type=int, default=0,
+                     help="start index (inclusive) into the flat n*n grid, for running "
+                          "a second process in parallel with another chunk/instance")
+    ap.add_argument("--chunk-end", type=int, default=None,
+                     help="end index (exclusive); omit for 'to the end of the grid'")
+    ap.add_argument("--merge", action="store_true",
+                     help="instead of solving, concatenate this scenario's "
+                          "_chunk*.csv files into the final combined CSV and run "
+                          "the optimum.json + §A.5 consistency check")
     args = ap.parse_args()
-    run_sweep(args.scenario_id, n=args.n, lo=args.lo, hi=args.hi, dry_run=args.dry_run)
+    if args.merge:
+        res = load_main_result(args.scenario_id)
+        merge_sweep_chunks(res["network"], args.scenario_id)
+        return
+    run_sweep(args.scenario_id, n=args.n, lo=args.lo, hi=args.hi, dry_run=args.dry_run,
+              chunk_start=args.chunk_start, chunk_end=args.chunk_end)
 
 
 if __name__ == "__main__":

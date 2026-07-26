@@ -2047,4 +2047,282 @@ check or a new scenario's number looks implausible, prefer a decisive, code-inde
 truth (a per-node audit, an env-gated objective-term dump, a controlled re-solve) over trusting
 either the check or the intuition about what "should" be zero.
 
-*End of statement — updated 2026-07-21 for the CALION Paper 2 manuscript foundation.*
+---
+
+# Part H — Pump & pressure subsystem: full reference (2026-07-23/24)
+
+Written for anyone editing the network topology by hand (adding pump stations, changing
+pipe geometry, tuning pressure requirements) without re-reading the code from scratch.
+Covers every parameter, variable, and constraint in the pressure/pump physics, plus the
+three reporting bugs and the pump-head degeneracy found and fixed this session.
+
+## H.1 File map
+
+| File | Role |
+|---|---|
+| `calion/models/blocks/pipe_pair.py` | Per-pipe physics: mass flow `m_dot`, velocity, Darcy Δp, pump power `P_pump`. |
+| `calion/models/network_manager.py::_link_pressure_propagation` | Node pressure setpoints/floors, inter-pipe propagation, consumer `min_required_bar`, the opt-in pressure regularization. |
+| `calion/models/network_manager.py::_link_pump_head` | Per-producer head cap (`P_supply − P_return ≤ head_max`) and pump-power aggregation (BFS ownership → `producer_{node}_P_pump`). |
+| `calion/models/network_manager.py::_link_tes_pressure_coupling` | TES↔network pressure coupling ("F4", §A.4.7 above) — unrelated to pumps, listed for completeness. |
+| `calion/models/constraint_builder.py::create_objective` | Assembles the real objective; carries the new `pressure_reg_cost` term. |
+| `calion/models/model_finalizer.py` | Collects `pump_el_flows` into the electricity bus and `pressure_regularization_terms` into `pressure_reg_cost`. |
+| `calion/io/thermal_network_exporter.py::_export_pipe_results` | Per-pipe CSV/JSON export, incl. `P_pump` (added 2026-07-23). |
+| `calion/run/result_collector.py::_collect_timeseries_and_summary` | Builds the `series["P_pump_total_MW"]` used by `cost_pump_eur`. |
+| `scripts/paper/extract_artefacts.py::write_pipe_state` + `cost_pump` block | Legacy CSV re-export + the `cost_pump_eur`/`cost_energy_buy_eur` split. |
+
+**Architecture in one paragraph**: every node gets a `pressure_supply`/`pressure_return` Var
+pair. A node with at least one asset in `assets:` becomes `producer`/`mixed` and is either the
+network's single fixed-setpoint reference (`primary_producer` in the YAML) or a free,
+pump-boosted secondary source; every other node is a plain `consumer` whose pressure is bounded
+by propagation from its upstream feeder. Pump *power* (an electricity cost) and pump *head* (a
+bar-valued pressure differential) are two separate, only loosely coupled mechanisms — see H.4.
+
+## H.2 Config parameters
+
+**Node-level** (`network.nodes.<id>`):
+
+| Key | Default | Effect |
+|---|---|---|
+| `assets: [...]` | — (absent) | Presence makes the node `producer`/`mixed`; absence makes it a plain `consumer`. This is the *only* switch — there is no separate "is this a pump station" flag (see H.7 limitation). |
+| `pressure.setpoint_bar` | `10.0` | Primary producer: `P_supply` **fixed** (equality) at this value. Secondary producer: `P_supply` **floor** (`≥`) at this value — a real pump lifts local pressure as needed above it. |
+| `pressure.min_required_bar` | *(unset → no constraint)* | Hard floor `P_supply ≥ min_required_bar`, but **only applied to nodes of type `consumer`** — producer/mixed nodes use the setpoint floor instead. Was unset for every Memmingen/Stadtbach node before this session (a silent no-op). |
+
+**Network-level** (`network.<key>`, read via `self._net_cfg`):
+
+| Key | Default | Effect |
+|---|---|---|
+| `primary_producer` | *(none → every producer node is fixed)* | Node id of the one pressure reference. |
+| `max_velocity_m_s` | `2.5` | Pipe design-velocity cap; drives `effective_max_flow = area·v·ρ`, which sets both the Darcy/pump tangent breakpoints (H.4) and the transport-delay bucket size (§A.4.4). |
+| `pump_efficiency` | `0.70` in code (both live configs set `0.75` explicitly) | `η_pump` in the pump-power constant `C`. |
+| `pressure_big_m_bar` | `30.0` | Big-M for the 4-inequality bidirectional-pipe propagation family (H.4). |
+
+**`network.physics.<key>`** (read via `self._physics_cfg` — a **different accessor** than
+`_net_cfg` above; mixing the two up silently no-ops, see H.6.2):
+
+| Key | Default | Effect |
+|---|---|---|
+| `pressure_drop` | `true` | Master switch for the entire Δp/pump-power/propagation subsystem. `false` fixes all `delta_p_*` to 0 with no binaries and skips propagation/pump-head entirely. |
+| `tes_pressure_coupling` | `false` | See §A.4.7. |
+| `tes_pressure_mode` | `same_circuit_buffer` | `same_circuit_buffer` \| `hydrostatic_support`, see §A.4.7. |
+| `pressure_regularization` | `false` **(new, off in both live configs)** | Opt-in tie-break, see H.7. |
+| `pressure_regularization_epsilon` | `1e-4` | Magnitude of the tie-break objective coefficient. |
+
+**Pipe-level** (`network.pipes.<id>`):
+
+| Key | Default | Effect |
+|---|---|---|
+| `length_m`, `diameter_mm` | — (required) | Geometry driving `k_flow` (H.5). `diameter_mm` is read into `current_diameter_supply_mm` internally (a discrete-pipe-sizing hook not used by Paper 2's fixed topology — falls straight back to `diameter_mm`). |
+| `friction_factor` | `0.02` | Darcy friction factor `f` — a **flat constant**, not a Colebrook/roughness computation. |
+| `pipe_roughness_mm` | `0.05` | Read and stored in the exported `pressure_params` metadata but **not used in the Δp formula at all** — purely informational today. |
+| `pump_enabled` | = `pressure_drop` | Per-pipe override to disable pump-power costing on just that pipe (its `P_pump` stays fixed at 0) while keeping Δp active. |
+| `bidirectional` | `false` | Switches propagation to the 4-inequality `flow_dir`/big-M family (H.4) instead of the simple 2-inequality one. **Also excludes the pipe from pressure regularization's downstream push** (H.7 scope limit — unvalidated for that structure). |
+| `max_pressure_drop_bar` | `2.0` | Only used as a *fallback* `Δp` upper bound when `effective_max_flow ≤ 0`; **not** used as a floor (would over-constrain large-diameter trunks). |
+| `max_flow_kg_s` | *(none → derived from diameter × `max_velocity_m_s`)* | Optional direct override of `effective_max_flow`. |
+
+## H.3 Variables (naming conventions — how to find things in a solved model)
+
+| Scope | Attribute name pattern | Kind | Notes |
+|---|---|---|---|
+| Node | `{NODE_ID.upper()}_pressure_supply` / `..._pressure_return` | Var, per `t` | e.g. `j_12` → `J_12_pressure_supply`. |
+| Pipe | `{PIPE_ID.upper()}_m_dot` (or `_m_dot_abs` + `_flow_dir` if bidirectional) | Var, per `t` | Signed for bidirectional pipes. |
+| Pipe | `{PIPE_ID.upper()}_velocity`, `..._delta_p_supply`, `..._delta_p_return`, `..._delta_p_total`, `..._P_pump` | Var, per `t` | Core per-pipe physics outputs. |
+| Producer node | `producer_{node_id}_P_supply_setpoint` (primary) / `..._P_supply_floor` (secondary) | Constraint | Note: **raw** `node_id`, not uppercased — different convention than the node Vars above. |
+| Producer node | `producer_{node_id}_head_ub` / `..._head_lb` | Constraint (new 2026-07-24, replaces the old free `pump_head` Var) | `P_supply − P_return ≤ head_max` / `≥ 0`. |
+| Producer node | `producer_{node_id}_P_pump` | Var, per `t` | Aggregated electrical pump power — sum of every pipe this station owns (H.6.1). Feeds `buses.el_in`. |
+| Consumer node | `consumer_{node_id}_P_min` | Constraint | Only created if `min_required_bar` is set. |
+| Pipe propagation | `pressure_supply_prop_{pipe_id}` / `pressure_return_prop_{pipe_id}` | Constraint (non-bidirectional) | `P_to ≤ P_from − Δp`. |
+| Pipe propagation | `pressure_supply_fwd_ub/lb_{pipe_id}`, `..._rev_ub/lb_{pipe_id}` (×2 for return) | Constraint (bidirectional) | 8 constraints total per bidirectional pipe. |
+| Model-level | `model.pressure_regularization_terms` | plain Python list, `(Var, coeff)` tuples | Only exists if the flag is on. |
+| Model-level | `model.pressure_reg_cost_expr` | `pyo.Expression` | Always exists (0 if flag off) — query with `pyo.value(...)` to sanity-check the term's real magnitude post-solve. |
+
+## H.4 Constraints — the physics, exactly as implemented
+
+**Per-pipe Darcy Δp and pump power** (convex, binary-free tangent lower envelope — unchanged
+from §A.4.5, repeated here for completeness):
+
+```
+Δp_supply(t) ≥ 2·k_flow·ṁ_i · ṁ(t) − k_flow·ṁ_i²         tangent points ṁ_i = 0.33, 0.67, 1.0 × ṁ_max
+Δp_return(t) = Δp_supply(t)
+P_pump(t)    ≥ 3·C·ṁ_i² · ṁ(t) − 2·C·ṁ_i³                  C = 2·k_flow·1e5 / (ρ·η_pump·1e6)
+k_flow = f·(L/d_inner)·(ρ/2)/1e5 / (ρ·A)²,   d_inner = diameter_mm/1000 · 0.94,   A = π·(d_inner/2)²
+```
+
+**Node pressure setpoint/floor** (`_link_pressure_propagation`):
+
+```
+P_supply,primary(t) = setpoint_bar                                    (equality)
+P_supply,secondary(t) ≥ setpoint_bar                                  (floor — pump-boosted, free above it)
+```
+
+**Pipe propagation**, non-bidirectional (the normal case — both live networks' trees/branches):
+
+```
+P_supply,to(t) ≤ P_supply,from(t) − Δp_supply(t)
+P_return,from(t) ≤ P_return,to(t) − Δp_return(t)
+```
+
+Skipped entirely for any pipe whose `to_node` is itself a producer ("loop-closing" pipe — that
+station re-establishes its own pressure, an incoming pipe must not pin it).
+
+**Bidirectional** (Stadtbach's east trunk only): the same two inequalities, but gated by a
+`flow_dir` binary and `pressure_big_m_bar`, so the direction-appropriate one applies —
+4 inequalities per side, 8 total. Not covered by the pressure-regularization tie-break (H.7).
+
+**Producer head cap** (`_link_pump_head`, reformulated 2026-07-24 — see H.6.3 for why):
+
+```
+P_supply(t) − P_return(t) ≤ head_max = 2 × setpoint_bar        (head_max is NOT a config key — hardcoded 2× multiplier)
+P_supply(t) − P_return(t) ≥ 0
+```
+
+**Pump-power aggregation** (`_link_pump_head`, BFS-attributed 2026-07-23 — see H.6.1):
+
+```
+P_pump,producer(t) = Σ_{pipes owned by this producer} P_pump,pipe(t)
+```
+
+where "owned" means: every pipe on the producer's nearest (fewest-hop) path from itself,
+stopping expansion at any *other* producer node (that station's own pump takes over beyond it).
+
+**Consumer minimum pressure** (only if `min_required_bar` set, type `consumer` only):
+
+```
+P_supply(t) ≥ min_required_bar
+```
+
+**Pressure regularization** (opt-in, 2026-07-24 — see H.7):
+
+```
+minimize  Σ  (−ε) · P_supply,i(t)      for every non-producer node i on a non-bidirectional pipe
+```
+
+added to the real objective. No producer-side term (removed — see H.7 for the proof of why it
+doesn't work).
+
+## H.5 Physics constants reference
+
+| Symbol | Value | Source |
+|---|---|---|
+| `ρ` (density_water) | `1000` kg/m³ | Hardcoded constant in `pipe_pair.py`. |
+| `f` (friction_factor) | `0.02` | Config default, flat (no roughness/Reynolds dependence). |
+| `d_inner` | `diameter_mm/1000 × 0.94` | 94% of nominal — a fixed wall-thickness allowance, not config-driven. |
+| Tangent points | `0.33, 0.67, 1.0 × ṁ_max` | 3 points (reduced from 5 for tractability, §A.4.5) — envelope is loose below ≈22% of `ṁ_max` (tangent crossing point = ⅔ of its anchor); real Memmingen January flow often sits at 5–12% of design capacity, so `Δp`/`P_pump` can be near-arbitrary at typical (non-peak) load unless additional low-flow tangent points are added (done notebook-locally in `Memmingen_pump_pressure_study.ipynb`, not campaign-wide). |
+| `head_max` multiplier | `2×` setpoint_bar | Hardcoded in `_link_pump_head`, not a config key — **the thing you'd change first if modelling a real pump's actual rated head**. |
+
+## H.6 2026-07-23 fixes — pump-power attribution and reporting (campaign-wide, verified)
+
+### H.6.1 Pump-power was only attributed to a producer's immediate pipe
+
+**Before**: `_link_pump_head` only summed `P_pump` for pipes whose immediate `from_node` was a
+producer — every pipe further downstream (which still has real, nonzero friction/pump power)
+was silently excluded from any producer's electricity bill.
+**Fix**: multi-source BFS from every producer simultaneously; each pipe is attributed to the
+nearest producer, stopping at the next producer node. Exact for a radial network (Memmingen);
+an approximation at shared junctions in a meshed one (Stadtbach), since true attribution would
+need live flow-direction awareness. **This changes the true objective value** (pump power feeds
+the real electricity bus) — not a cosmetic fix, campaign scenarios computed before this fix
+under-count pump electricity cost.
+
+### H.6.2 Three reporting-pipeline bugs (did not affect the true objective, only descriptive output)
+
+1. `scripts/paper/extract_artefacts.py::write_pipe_state` wrote a **hardcoded literal `0.0`**
+   for every pipe's `P_pump_pipe_MW`, every hour — never read the real value. Fixed by adding a
+   `P_pump` export block to `thermal_network_exporter.py::_export_pipe_results` (mirroring the
+   existing `delta_p_*` pattern) and reading that column.
+2. `cost_pump_eur` in `economics.csv` always computed `0.0` because
+   `result_collector.py::_collect_timeseries_and_summary` never populated a
+   `series["P_pump_total_MW"]` entry. Fixed by summing every `producer_{node}_P_pump` Var into
+   that series. Also netted the same amount back out of `cost_energy_buy_eur` (pump electricity
+   was already inside it via `buses.el_in`) so the cost breakdown stays a clean partition —
+   without this, any stacked chart double-counts pump cost.
+3. **Every existing `pipe_state_hourly.parquet`/`economics.csv` under `output/paper2_runs/`
+   predates all three fixes and has wrong pump numbers** (0 or too low). Fixes 1–2 only need
+   re-export from an already-solved model; fix H.6.1 changes the true objective and needs a
+   genuine re-solve if the pump total matters for a reported cost.
+
+## H.7 2026-07-24 fix — pump-head degeneracy (opt-in, off by default)
+
+**Symptom**: node pressure away from any binding constraint (e.g. a secondary pump station and
+everything downstream of it) sat at exactly `head_max` regardless of real demand/flow — a
+solver artifact, not physics.
+
+**Root cause, proven by elimination** (each hypothesis tested and ruled out with evidence, not
+assumed): not a hard constraint (exhaustive scan of every constraint touching the variable
+found none tight), not "epsilon too small" (100× larger epsilon had zero effect while visibly
+distorting real dispatch cost elsewhere), not Gurobi presolve (`Presolve=0` unchanged), not a
+missing objective coefficient (confirmed present via `generate_standard_repn`). The actual
+cause: **a producer's own `P_supply` directly caps every downstream node's achievable ceiling**
+(`P_to ≤ P_from − Δp`). Pushing the producer down by `X` forces every node in its subtree down
+by up to `X` too; since those downstream nodes carry the *opposite* incentive (pushed up, to
+resolve their own degeneracy), a producer with more than one downstream node always has its
+"push down" mathematically outvoted by their combined "push up" loss. **This is not fixable by
+rebalancing `epsilon`** — a producer with more downstream nodes would always need proportionally
+more, for no principled reason.
+
+**Delivered fix**: two parts.
+1. Eliminated the free `pump_head` Var (H.4's head-cap constraints replace it directly) — a
+   pure refactor, same feasible region, always on, no flag.
+2. Kept **only** the downstream half of the original two-sided design: every propagated
+   consumer node gets pushed toward the tightest value its upstream `Δp` allows. The
+   producer-side push was removed entirely (see root cause above).
+
+**Result**: pressure downstream of the *fixed* primary producer is now fully, correctly
+resolved (verified: 10 hops downstream on Memmingen settles to exactly the physically correct
+value, not an arbitrary one). Pressure at a *secondary* producer's own node remains an
+unconstrained (but floor-respecting) value by design — not a bug, a scope decision — everything
+below it stays internally consistent relative to whatever that producer settles on.
+
+**Cost-neutrality**: Memmingen at the campaign's real 0.5% MIP gap: **−0.17%** (well inside
+normal MIP-gap noise — confirmed by the same comparison shrinking from −1.2% at a loose 10% gap
+to −0.02% at 0.5%, i.e. gap-noise, not a real perturbation). Stadtbach's quick smoke test at a
+loose 10%/90s gap showed **−2.0%** — not yet confirmed clean at a tight gap; treat Stadtbach's
+flag as unvalidated for cost-neutrality until a longer, tighter-gap run is done.
+
+## H.8 How to add a pump station yourself (no code changes needed for the common case)
+
+To make an existing node a pump station: give it **any** asset in its `assets:` list (a heat
+pump, boiler, CHP — the specific technology doesn't matter for the pressure physics) and,
+optionally, its own `pressure.setpoint_bar`. That's it — the node automatically becomes
+`producer`/`mixed`, gets a pump-boosted pressure floor, a `head_ub`/`head_lb` cap, and its
+outgoing pipes' `P_pump` gets aggregated into `producer_{node}_P_pump` and billed to the
+electricity bus. No changes to `network_manager.py` are required for this case.
+
+**What is *not* supported without a code change**: a pure pressure-booster station with **no**
+heat-generation asset (e.g. an in-line electric pump with nothing else at that node). The
+producer/mixed classification is tied entirely to `assets:` presence — there is no separate
+"pump-only" node type. Adding one would mean extending the classification logic in
+`_link_pressure_propagation`/`_link_pump_head` (and wherever node `type` is first assigned,
+likely `network_manager.py`'s topology-loading step) to also recognize an explicit
+`is_pump_station: true` flag independent of `assets`.
+
+**Checklist for a realistic new pump**:
+- Set `pressure.setpoint_bar` to the pump's real design discharge pressure (not the code
+  default of 10.0 bar, which is Memmingen/Stadtbach's incumbent value, not a physical universal).
+- Consider whether `head_max = 2×setpoint_bar` (H.5) is a realistic cap for that specific pump's
+  rated head — it's a hardcoded multiplier, not derived from any pump curve.
+- If the new pump serves multiple downstream branches, remember H.7: its own absolute pressure
+  will NOT be tie-broken to a "minimum sufficient" value even with `pressure_regularization` on
+  — only what's strictly necessary (its floor) is guaranteed; anything above that is a free
+  solver choice unless you add a real constraint (e.g. a `min_required_bar` far downstream that
+  happens to bind back up the chain).
+- If you need the pump's real electricity draw to be trustworthy at realistic (non-peak) flow,
+  be aware of the tangent-envelope looseness noted in H.5 — check `pyo.value` on the pipe-level
+  `P_pump` Vars near the new pump against a hand Darcy calculation before trusting it.
+
+## H.9 Known limitations (as of 2026-07-24)
+
+- Return-side pressure (`P_return`) is never regularized — an attempted fix pushed it up with
+  no anchor at the network's leaves, floating the whole return chain to an arbitrary ceiling.
+  Needs its own correctly-anchored formulation.
+- Bidirectional pipes are excluded from pressure regularization (unvalidated for that
+  constraint family).
+- A secondary producer's own absolute pressure is an intentionally free (but feasible) choice —
+  see H.7.
+- `pipe_roughness_mm` is accepted in config and exported as metadata but has zero effect on the
+  actual Δp physics.
+- Stadtbach's cost-neutrality for `pressure_regularization` is not yet confirmed at a tight MIP
+  gap (H.7) — don't enable it there for a real campaign run without that check first.
+
+---
+
+*End of statement — updated 2026-07-24 (Part H added: pump & pressure subsystem reference).*

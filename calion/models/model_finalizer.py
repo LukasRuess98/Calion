@@ -708,6 +708,19 @@ class ModelFinalizer:
                     slack_var[t] * penalty for t in T_set
                 )
 
+        # Pressure tie-breaking regularization (created in network_manager's
+        # _link_pressure_propagation, opt-in via network.physics.
+        # pressure_regularization -- see that function's comment for the
+        # rationale). Off by default: empty list, term is 0.
+        pressure_reg_cost = 0
+        pressure_reg_terms = getattr(m, 'pressure_regularization_terms', [])
+        if pressure_reg_terms:
+            T_set = list(m.t)
+            for p_var, coeff in pressure_reg_terms:
+                pressure_reg_cost = pressure_reg_cost + sum(
+                    p_var[t] * coeff for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -722,4 +735,5 @@ class ModelFinalizer:
             terminal_value=terminal_value,
             demand_slack_cost=demand_slack_cost,
             return_anchor_cost=return_anchor_cost,
+            pressure_reg_cost=pressure_reg_cost,
         )
