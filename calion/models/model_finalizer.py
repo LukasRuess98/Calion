@@ -333,6 +333,25 @@ class ModelFinalizer:
                     "state_validation",
                     # Per-node supply temperature offset for L3-MILP degeneracy breaking
                     "T_supply_offset_c",
+                    # Per-node pressure setpoint (primary/secondary producer) and
+                    # minimum-required pressure (consumer) -- network_manager.py::
+                    # _link_pressure_propagation reads `pressure.setpoint_bar` /
+                    # `pressure.min_required_bar`. Was missing from this whitelist
+                    # entirely, so BOTH silently fell back to network_manager.py's
+                    # hardcoded defaults (10.0 bar / "no constraint") regardless of
+                    # what any YAML configured -- affects every network, not just
+                    # this one (e.g. Stadtbach_topo.yaml's explicit 16.0 bar j_hkw
+                    # setpoint never actually took effect either).
+                    "pressure",
+                    # Real DXF-derived count of physical Uebergabestationen this
+                    # node's lumped demand represents -- read by thermal_node.py's
+                    # opt-in lateral-pipe-loss term (`pressure.lateral_length_m`,
+                    # both added together 2026-07-29, see memory
+                    # project_memmingen_pump_pressure_study). Also missing from
+                    # this whitelist by default; add lateral_length_m INSIDE the
+                    # `pressure` dict above instead of a new top-level key, since
+                    # that key is already forwarded whole.
+                    "n_transfer_stations",
                 ):
                     if key in raw_node:
                         node_dict[key] = raw_node[key]
@@ -721,6 +740,20 @@ class ModelFinalizer:
                     p_var[t] * coeff for t in T_set
                 )
 
+        # Lateral-loss PWL tie-break (created in thermal_node.py, 2026-07-30
+        # bugfix -- see that module's comment for the "why": without this,
+        # a routine MIP gap can leave the weighted-breakpoint interpolation
+        # spread across non-adjacent points, reporting values up to ~20x too
+        # high despite the flow-link constraint being satisfied).
+        lateral_tiebreak_cost = 0
+        lateral_tiebreak_terms = getattr(m, 'lateral_tiebreak_terms', [])
+        if lateral_tiebreak_terms:
+            T_set = list(m.t)
+            for dp_var, coeff in lateral_tiebreak_terms:
+                lateral_tiebreak_cost = lateral_tiebreak_cost + sum(
+                    dp_var[t] * coeff for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -736,4 +769,5 @@ class ModelFinalizer:
             demand_slack_cost=demand_slack_cost,
             return_anchor_cost=return_anchor_cost,
             pressure_reg_cost=pressure_reg_cost,
+            lateral_tiebreak_cost=lateral_tiebreak_cost,
         )

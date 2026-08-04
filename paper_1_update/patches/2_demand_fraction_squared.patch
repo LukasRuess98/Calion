@@ -1,0 +1,26 @@
+diff --git a/calion/models/blocks/thermal_node.py b/calion/models/blocks/thermal_node.py
+index eed93a0..ef1b398 100644
+--- a/calion/models/blocks/thermal_node.py
++++ b/calion/models/blocks/thermal_node.py
+@@ -332,10 +332,18 @@ class ThermalNodeBlock(BaseComponent):
+                             pyo.Param(time_set, initialize=demand_init))
+                 elif hasattr(model, _node_heatd_attr):
+                     # Prefer node-specific demand param (avoids triple-counting when multiple
+-                    # consumer nodes reference the same demand column -- m.heatd is their sum)
++                    # consumer nodes reference the same demand column -- m.heatd is their sum).
++                    # 2026-07-27 demand_fraction^2 fix (faithful Paper-1 synth correction):
++                    # system_builder.py already builds heatd_{node} as (demand_column * frac),
++                    # so it IS the node's demand. Multiplying by _frac AGAIN here yielded
++                    # (column * frac * frac) = column * frac^2 -- for the synth configs
++                    # (single fractional consumer per node, frac ~0.19) this served only
++                    # SUM(frac^2) ~ 0.20x of the true demand, under-generating by ~5x. The
++                    # primary case was unaffected because its consumers have demand_fraction
++                    # removed (frac = 1.0 -> 1^2 = 1). Use the node param directly.
+                     _node_heatd = getattr(model, _node_heatd_attr)
+-                    def demand_init(m, t, _h=_node_heatd, _frac=_demand_fraction):
+-                        return _apply_demand_floor(pyo.value(_h[t]) * _frac)
++                    def demand_init(m, t, _h=_node_heatd):
++                        return _apply_demand_floor(pyo.value(_h[t]))
+                     setattr(model, f'{prefix}_Q_demand',
+                             pyo.Param(time_set, initialize=demand_init))
+                 elif hasattr(model, 'heatd'):

@@ -1,0 +1,35 @@
+diff --git a/calion/models/blocks/pipe_pair.py b/calion/models/blocks/pipe_pair.py
+index 0e831fb..dd658a5 100644
+--- a/calion/models/blocks/pipe_pair.py
++++ b/calion/models/blocks/pipe_pair.py
+@@ -923,7 +923,15 @@ class PipePairBlock(BaseComponent):
+         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
+ 
+         if effective_max_flow > 0:
+-            bp_fracs = [0.0, 0.3, 0.7, 1.0]
++            # 2026-07-27: breakpoints concentrated at LOW flow. The old
++            # [0, 0.3, 0.7, 1.0] left a wide first segment [0, 0.3*max] whose
++            # origin-chord over-estimated the convex P_pump ~ flow^3 up to ~30x,
++            # since these oversized pipes run at ~10-30% of design flow most of
++            # the year (objective friction pump 10.2 MWh vs 0.6 MWh physical).
++            # Placing two breakpoints inside the operating band cuts the secant
++            # over-estimation to ~2x while keeping 3 segments (no extra binaries)
++            # and the pinned PWL equality (no negative-price P_pump inflation).
++            bp_fracs = [0.0, 0.12, 0.35, 1.0]
+             bp_flows = [f * effective_max_flow for f in bp_fracs]
+             bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
+ 
+@@ -1015,7 +1023,12 @@ class PipePairBlock(BaseComponent):
+             for t in time_set:
+                 P_pump[t].fix(0.0)
+         else:
+-            # PWL approximation uses secants between breakpoint pump powers.
++            # PWL EQUALITY (secant) pump power -- P_pump is pinned to the PWL of
++            # the true cubic at the current flow (SOS-style segment selection via
++            # pwl_flow/pwl_seg). Equality is REQUIRED: a lower-bound-only
++            # formulation lets the optimiser inflate P_pump to consume
++            # negative-price electricity for profit. Over-estimation of the convex
++            # cubic is controlled by the low-flow-dense breakpoints (bp_fracs).
+             pump_slopes = []
+             pump_intercepts = []
+             for s in range(3):

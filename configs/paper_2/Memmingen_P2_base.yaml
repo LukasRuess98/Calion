@@ -413,7 +413,10 @@ grid:
   # Volumetric grid cost = MS Arbeitspreis (>=2500 h/a band ~0.5-2.0 ct/kWh) + 2026 levies:
   # KWKG 0.446 + Offshore 0.941 + BesAR/§19 0.05 (>1 GWh tranche) ct/kWh
   # + Konzessionsabgabe Sondervertrag 0.11 + Stromsteuer 0.05 (Prod. Gewerbe) => ~2.5 ct/kWh
-  gridcost_eur_mwh: 25.0
+  # 2026-07-29: harmonized to Stadtbach_topo.yaml's corrected 61.6 (was 25.0, an
+  # undocumented SB-vs-MM asymmetry) -- derivation basis for the updated figure
+  # not yet written back into this comment, see Stadtbach_topo.yaml's grid block.
+  gridcost_eur_mwh: 61.6
   # Jahresleistungspreis on peak grid import (P_buy_peak), MS level >=2500 h/a band.
   # 2026 published sheets span 67-167 k€/MW·a; 127.24 k€/MW·a = real 2022/23 tariff
   # from the SB notebook — mid-range of 2026 values, kept for continuity.
@@ -421,10 +424,14 @@ grid:
 
 fuels:
   gas:
-    price_eur_mwh: 45.0
+    # 2026-07-29: harmonized to Stadtbach_topo.yaml (was 45.0, an undocumented
+    # SB-vs-MM asymmetry) -- same commodity market, no reason to diverge.
+    price_eur_mwh: 58.6
     ef_kg_per_mwh_fuel: 200.0
   biomass:
-    price_eur_mwh: 40.0
+    # 2026-07-29: harmonized to Stadtbach_topo.yaml (was 40.0, an undocumented
+    # SB-vs-MM asymmetry) -- same commodity market, no reason to diverge.
+    price_eur_mwh: 20.0
     ef_kg_per_mwh_fuel: 20.0
 
 costs:

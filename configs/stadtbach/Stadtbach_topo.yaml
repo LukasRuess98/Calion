@@ -748,7 +748,7 @@ grid:
   # Volumetric grid cost = MS Arbeitspreis (>=2500 h/a band ~0.5-2.0 ct/kWh) + 2026 levies:
   # KWKG 0.446 + Offshore 0.941 + BesAR/§19 0.05 (>1 GWh tranche) ct/kWh
   # + Konzessionsabgabe Sondervertrag 0.11 + Stromsteuer 0.05 (Prod. Gewerbe) => ~2.5 ct/kWh
-  gridcost_eur_mwh: 25.0
+  gridcost_eur_mwh: 61.6
   # Jahresleistungspreis on peak grid import (P_buy_peak), MS level >=2500 h/a band.
   # 2026 published sheets span 67-167 k€/MW·a (NEW Netz 118.3 / Schleswig 165.2 /
   # Fairnetz 167.0 / EWE 67.2). 127.24 k€/MW·a = real 2022/23 tariff from the SB
@@ -757,13 +757,13 @@ grid:
 
 fuels:
   gas:
-    price_eur_mwh: 45.0
+    price_eur_mwh: 58.6
     ef_kg_per_mwh_fuel: 200.0
   biomass:
-    price_eur_mwh: 40.0
+    price_eur_mwh: 20.0
     ef_kg_per_mwh_fuel: 20.0
   waste_heat:
-    price_eur_mwh: 5.0          # AVA take-over: low marginal cost, ~CO2-free
+    price_eur_mwh: 10.0          # AVA take-over: low marginal cost, ~CO2-free
     ef_kg_per_mwh_fuel: 0.0
 
 costs:

@@ -1210,21 +1210,64 @@ class PipePairBlock(BaseComponent):
         P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, P_pump_max))
         setattr(model, f'{prefix}_P_pump', P_pump)
 
+        c_pump = 2.0 * k_flow * 1e5 / (density_water * eta_pump * 1e6)
         if not pump_enabled or not pressure_drop_enabled or effective_max_flow <= 0:
             for t in time_set:
                 P_pump[t].fix(0.0)
-        else:
-            # P_pump = C·ṁ³ is CONVEX → binary-free convex LOWER ENVELOPE of tangent lines
-            # (P_pump ≥ tangent_k), reusing tangent_flows. P_pump is an electricity load
-            # (cost), so the solver drives it down onto the envelope ≈ the true cubic.
-            # C = 2·k_flow·1e5/(ρ·η·1e6) (total supply+return drop). tangent at ṁ_i:
-            # 3·C·ṁ_i²·ṁ − 2·C·ṁ_i³.
-            c_pump = 2.0 * k_flow * 1e5 / (density_water * eta_pump * 1e6)
+        elif not config.get('pump_pin_pwl', True):
+            # (OPT-OUT, config pump_pin_pwl=false) binary-free tangent LOWER envelope —
+            # fast but a lower bound ONLY. Two failure modes at the part-load flows DH
+            # actually runs at (often 5–15 % of design): (1) all tangents anchored at
+            # 33/67/100 % go non-positive, so the P_pump floor collapses to 0 →
+            # UNDER-counts pumping at positive prices; (2) with negative electricity
+            # prices the solver drives P_pump UP to P_pump_max → OVER-counts (free-money
+            # artifact; L3⁺ can come out cheaper than L3). Kept only as an escape hatch.
             pump_tangents = [(3.0 * c_pump * mi ** 2, -2.0 * c_pump * mi ** 3) for mi in tangent_flows]
             setattr(model, f'{prefix}_pump_power',
                     pyo.Constraint(time_set, range(len(pump_tangents)),
                                    rule=lambda m, t, s: P_pump[t]
                                    >= pump_tangents[s][0] * flow_for_hydraulics[t] + pump_tangents[s][1]))
+        else:
+            # 2026-07-27 PINNED PWL equality (DEFAULT). Fixes both failure modes of the
+            # tangent lower-bound: P_pump is pinned to the PWL of the true cubic at the
+            # current flow (segment-select), so it can neither drop to 0 at part-load
+            # nor inflate under negative prices. Binaries are LOCAL to the pipe (a leaf
+            # electricity load, NOT coupled to the network pressure propagation that the
+            # binary-free delta_p tangents keep tractable), so the tractability impact is
+            # limited. Low-flow-dense breakpoints keep the secant over-estimation ~2x at
+            # part-load. p_i = C·ṁ_i³.
+            pump_bp_fracs = [0.0, 0.06, 0.15, 0.35, 1.0]
+            pump_bp_flows = [fr * effective_max_flow for fr in pump_bp_fracs]
+            pump_bp_P = [c_pump * (bf ** 3) for bf in pump_bp_flows]
+            Kp = len(pump_bp_fracs) - 1
+            pp_seg = pyo.Var(time_set, range(Kp), domain=pyo.Binary)
+            pp_flow = pyo.Var(time_set, range(Kp), domain=pyo.NonNegativeReals)
+            setattr(model, f'{prefix}_pp_seg', pp_seg)
+            setattr(model, f'{prefix}_pp_flow', pp_flow)
+            setattr(model, f'{prefix}_pp_one_seg', pyo.Constraint(time_set,
+                    rule=lambda m, t: sum(pp_seg[t, s] for s in range(Kp)) == 1))
+            setattr(model, f'{prefix}_pp_flow_sum', pyo.Constraint(time_set,
+                    rule=lambda m, t: flow_for_hydraulics[t] == sum(pp_flow[t, s] for s in range(Kp))))
+            setattr(model, f'{prefix}_pp_seg_lb', pyo.Constraint(time_set, range(Kp),
+                    rule=lambda m, t, s: pp_flow[t, s] >= pump_bp_flows[s] * pp_seg[t, s]))
+            # No +M*(1-seg) relaxation here: pump_bp_flows[s+1]*pp_seg[t,s] already
+            # forces pp_flow to exactly 0 when this segment is inactive. Adding a
+            # big-M term (as an earlier version of this constraint did) makes the
+            # bound leaky -- an inactive segment could then carry real flow at its
+            # (wrong) slope, letting the solver under-count P_pump exactly like the
+            # binary PWL this pin was meant to replace (see Implementation Statement
+            # Part F.2 -- same failure mode, same subsystem, previously banned).
+            setattr(model, f'{prefix}_pp_seg_ub', pyo.Constraint(time_set, range(Kp),
+                    rule=lambda m, t, s: pp_flow[t, s] <= pump_bp_flows[s + 1] * pp_seg[t, s]))
+            pp_slopes, pp_intercepts = [], []
+            for s in range(Kp):
+                _den = pump_bp_flows[s + 1] - pump_bp_flows[s]
+                _sl = (pump_bp_P[s + 1] - pump_bp_P[s]) / _den if _den > 0 else 0.0
+                pp_slopes.append(_sl)
+                pp_intercepts.append(pump_bp_P[s] - _sl * pump_bp_flows[s])
+            setattr(model, f'{prefix}_pump_power', pyo.Constraint(time_set,
+                    rule=lambda m, t: P_pump[t] == sum(
+                        pp_slopes[s] * pp_flow[t, s] + pp_intercepts[s] * pp_seg[t, s] for s in range(Kp))))
 
         # Store pressure parameters for results extraction
         pressure_params = {

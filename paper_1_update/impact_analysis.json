@@ -1,0 +1,73 @@
+{
+  "primary": {
+    "objectives": {
+      "L1": 196298.4574124117,
+      "L2": 219992.342833318,
+      "L3": 225717.06011398448,
+      "L3plus": 226451.78519841493
+    },
+    "gaps": {
+      "L1_to_L3_pct": 13.033397957033792,
+      "L2_to_L3_pct": 2.5362359751520662,
+      "L3_to_L3plus_pct_NEW": 0.3255071123376422,
+      "L3_to_L3plus_EUR_NEW": 734.7250844304508,
+      "L3_to_L3plus_paper": "+0.113% / +255 EUR"
+    },
+    "pump_electricity_MWh_NEW": 10.611733425694183,
+    "pump_electricity_MWh_paper": 2.4
+  },
+  "sensitivity_L3_to_L3plus": {
+    "baseline": {
+      "L3_L3plus_pct_NEW": 0.326,
+      "paper_pct": 0.11
+    },
+    "gas_high": {
+      "L3_L3plus_pct_NEW": 0.457,
+      "paper_pct": 0.18
+    },
+    "gas_low": {
+      "L3_L3plus_pct_NEW": 0.184,
+      "paper_pct": 0.05
+    },
+    "elec_high": {
+      "L3_L3plus_pct_NEW": -0.139,
+      "paper_pct": 0.0
+    },
+    "elec_low": {
+      "L3_L3plus_pct_NEW": 0.437,
+      "paper_pct": 0.1
+    },
+    "co2_high": {
+      "L3_L3plus_pct_NEW": 0.538,
+      "paper_pct": 0.08
+    },
+    "co2_low": {
+      "L3_L3plus_pct_NEW": 0.446,
+      "paper_pct": 0.16
+    },
+    "cold": {
+      "L3_L3plus_pct_NEW": 0.515,
+      "paper_pct": 0.11
+    },
+    "warm": {
+      "L3_L3plus_pct_NEW": 0.327,
+      "paper_pct": 0.0
+    },
+    "cop_low": {
+      "L3_L3plus_pct_NEW": 0.353,
+      "paper_pct": 0.01
+    },
+    "biomass_expensive": {
+      "L3_L3plus_pct_NEW": 0.446,
+      "paper_pct": 0.2
+    }
+  },
+  "synth": {
+    "n_configs": 36,
+    "L2_to_L3_pct_median_NEW": 0.1651363925140035,
+    "L2_to_L3_pct_max_NEW": 0.7638775955995292,
+    "L2_to_L3_paper": "+0.02% (pressure-drop term, at/below MIP noise)",
+    "L3_to_L3plus_pct_median_NEW": 0.0,
+    "L3_to_L3plus_paper": "identically zero (transport delay only)"
+  }
+}

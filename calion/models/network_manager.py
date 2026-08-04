@@ -998,6 +998,10 @@ class NetworkManager:
         pressure_drop_enabled = self._pressure_drop_enabled
         net_cfg = self._net_cfg
         delta_p_min_consumer = net_cfg.get('delta_p_min_consumer_bar', 0.7)
+        # Tie-break for thermal_node.py's lateral-loss PWL weights (2026-07-30
+        # bugfix) -- default 0.01, independent scale from
+        # pressure_regularization_epsilon (different Var, bar units).
+        lateral_tiebreak_epsilon = float(self._physics_cfg.get('lateral_tiebreak_epsilon', 0.01) or 0.0)
         lin_cfg = net_cfg.get('linearization', {})
         disable_node_return_tuning = bool(net_cfg.get('disable_node_return_tuning', False))
         params_cfg = net_cfg.get('parameters', {}) if isinstance(net_cfg.get('parameters', {}), dict) else {}
@@ -1134,6 +1138,13 @@ class NetworkManager:
                 'linearization': lin_cfg,
                 'pressure_drop_enabled': pressure_drop_enabled,
                 'delta_p_min_consumer_bar': delta_p_min_consumer,
+                # Needed by thermal_node.py's opt-in per-node lateral-pipe
+                # loss term (2026-07-29, project_memmingen_pump_pressure_study)
+                # -- same defaults as _link_pump_head's station-pump formula,
+                # kept in sync deliberately (both price the same physical pump).
+                'pump_efficiency': net_cfg.get('pump_efficiency', 0.75),
+                'lateral_diameter_mm': net_cfg.get('lateral_diameter_mm', 32.0),
+                'lateral_tiebreak_epsilon': lateral_tiebreak_epsilon,
                 'state_validation': merged_state_validation,
                 # L3+ (2026-07-08): this node gets a real, spatially-propagating
                 # T_supply Var instead of the network-uniform Param, per
@@ -1797,7 +1808,8 @@ class NetworkManager:
         # cumulative loss, no slack) instead.
         #
         # NOTE: an earlier version of this fix ALSO pushed secondary producers
-        # (e.g. a pump station) DOWN toward their own floor. Verified via
+        # (e.g. a pump station) DOWN toward their own floor, using the SAME
+        # epsilon magnitude as the downstream "push up" terms. Verified via
         # direct objective-coefficient inspection (generate_standard_repn) with
         # Gurobi presolve fully disabled: that term was mathematically present
         # and correct in isolation, but Gurobi correctly refused to act on it,
@@ -1805,15 +1817,14 @@ class NetworkManager:
         # node's achievable ceiling (P_to <= P_from - Δp) -- pushing the
         # producer down by X forces every node in its subtree down by up to X
         # too, and with >1 downstream node, their combined "push up" loss
-        # outweighs the producer's own "push down" gain. Not a solver quirk,
-        # not fixable by rebalancing epsilon (a producer with more downstream
-        # nodes would always resist proportionally more) -- the two directions
-        # are fundamentally in tension for any producer with consumers below
-        # it, so the producer-side term is intentionally NOT included. A
-        # secondary producer's own absolute pressure remains an unconstrained
-        # (but feasible, floor-respecting) operational choice, same as a real
-        # pump station has real freedom to run above its bare minimum -- only
-        # DELIVERED (propagated, downstream) pressure is tie-broken here.
+        # (N*epsilon) outweighs the producer's own "push down" gain (1*epsilon)
+        # whenever N>1. Not a solver quirk, not fixable while both sides use
+        # the SAME epsilon -- but IS fixable by scaling the producer's own
+        # epsilon by its downstream node count, restoring genuine dominance
+        # regardless of subtree size. See the topology-aware fix below
+        # (2026-08-03) for the actual implementation; a secondary producer's
+        # own absolute pressure is no longer left unconstrained by this
+        # mechanism.
         # Return-side pressure is deliberately NOT regularized either -- an
         # earlier attempt pushed it up with no anchor at the network's leaves,
         # floating the whole return chain to an arbitrary ceiling; needs its
@@ -1824,6 +1835,58 @@ class NetworkManager:
         if pressure_reg_enabled:
             model.pressure_regularization_terms = pressure_reg_terms
             logger.info('  Pressure regularization ENABLED (epsilon=%s)', pressure_reg_epsilon)
+
+        # 2026-08-03: topology-aware producer-side tie-break (reintroduces the
+        # "push down" direction the 2026-07-24 note above removed, but fixes
+        # the actual flaw instead of dropping it). The old attempt used the
+        # SAME epsilon magnitude for the producer's own "push down" term and
+        # every downstream node's "push up" term -- mathematically guaranteed
+        # to lose whenever a producer has >1 downstream node, since moving the
+        # producer down by delta drags every downstream ceiling (and thus
+        # their own tie-broken value) down by delta too, and N downstream
+        # nodes' combined pull (N*epsilon) always outvotes the producer's
+        # single pull (1*epsilon) once N>1. Fix: scale the producer's own
+        # epsilon by its downstream node count (+1 safety margin) so "push
+        # down" always dominates regardless of subtree size. Same
+        # BFS-ownership idea as _link_pump_head's pipe attribution (stop
+        # expansion at any OTHER producer node) -- counting NODES this time,
+        # and only via edges that actually carry a "-epsilon" pull below (i.e.
+        # non-bidirectional pipes; bidirectional edges never get that term,
+        # see the non-bidirectional branch below, so they must not inflate
+        # the count here either).
+        if pressure_reg_enabled and secondary_producers:
+            _fwd_adjacency: dict[str, list[str]] = {}
+            for _pc in pipe_components.values():
+                _from = _pc['from_node']
+                _to = _pc['to_node']
+                if _from not in node_components or _to not in node_components:
+                    continue
+                _fd = _pc.get('flow_dir')
+                _is_bidir = bool(_pc.get('bidirectional', False)) and _fd is not None
+                if _is_bidir:
+                    continue
+                _fwd_adjacency.setdefault(_from, []).append(_to)
+
+            for sec_producer in sorted(secondary_producers):
+                _visited: set[str] = set()
+                _stack = list(_fwd_adjacency.get(sec_producer, []))
+                while _stack:
+                    _n = _stack.pop()
+                    if _n in _visited:
+                        continue
+                    if _n in all_producer_node_ids and _n != sec_producer:
+                        continue  # that station's own tie-break takes over beyond here
+                    _visited.add(_n)
+                    _stack.extend(_fwd_adjacency.get(_n, []))
+                n_downstream = len(_visited)
+                sec_epsilon = pressure_reg_epsilon * (n_downstream + 1)
+                sec_P_supply = node_components[sec_producer]['pressure_supply']
+                pressure_reg_terms.append((sec_P_supply, sec_epsilon))
+                logger.info(
+                    '  Secondary producer %s: pressure tie-break epsilon=%s '
+                    '(%d downstream node(s), scaled to dominate their combined pull)',
+                    sec_producer, sec_epsilon, n_downstream
+                )
 
         # Primary producer: supply pressure FIXED at setpoint (the network reference).
         # Secondary producers / pump stations (e.g. Stadtbach j_pss, j_psw): supply
@@ -2173,6 +2236,65 @@ class NetworkManager:
                 f"  âœ“ producer {node_id}: nodal pump head + aggregated pump power "
                 f"for {len(pipes)} outgoing pipe(s)"
             )
+
+        # Transfer-station (Uebergabestation) differential-pressure pump work
+        # (2026-07-27, ported from the Paper-1 correction): the circulation pump
+        # must ALSO overcome the differential pressure maintained at each consumer
+        # transfer station (control-valve authority, delta_p_min_consumer_bar),
+        # dissipated at the station valve. This is real, dominant DH pump energy
+        # that the pipe-friction-only formulation omitted -- friction alone
+        # under-states pumping ~1-2 orders of magnitude vs real DH (~0.006 % of
+        # heat vs the 0.2-1 % literature band). LINEAR in the consumer mass flow
+        # m_dot_demand -> exact, no PWL, no binaries. Same unit convention as the
+        # pipe P_pump: MW = dp_bar * 1e5 * m_dot / (rho * eta * 1e6).
+        rho_w = 1000.0
+        eta_pump_st = float(self._net_cfg.get('pump_efficiency', 0.75))
+        # Default must match the OTHER read of this same key (line ~1000, which
+        # seeds thermal_node.py's per-node delta_p_min_station pressure-floor
+        # constraint) -- they price/constrain the same physical quantity and must
+        # not silently diverge when the key is left unset in a config.
+        dp_station_bar = float(self._net_cfg.get('delta_p_min_consumer_bar', 0.7))
+        n_station = 0
+        n_lateral = 0
+        if dp_station_bar > 0:
+            for c_id, c_comp in node_components.items():
+                if c_comp.get('type') not in ('consumer', 'mixed'):
+                    continue
+                mdot = c_comp.get('m_dot_demand')
+                if mdot is None:
+                    continue
+                st_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals)
+                setattr(model, f"station_{c_id}_P_pump", st_pump)
+                setattr(
+                    model,
+                    f"station_{c_id}_pump_balance",
+                    pyo.Constraint(
+                        time_set,
+                        rule=lambda m, t, _v=st_pump, _md=mdot, _dp=dp_station_bar,
+                        _rho=rho_w, _eta=eta_pump_st: (
+                            _v[t] == _dp * 1e5 * _md[t] / (_rho * _eta * 1e6)
+                        ),
+                    ),
+                )
+                pump_el_flows.append(st_pump)
+                n_station += 1
+
+                # Real-DXF-derived lateral-pipe loss (2026-07-29, opt-in, see
+                # thermal_node.py -- only non-None when this node configured
+                # pressure.lateral_length_m + n_transfer_stations).
+                lateral_pump = c_comp.get('lateral_P_pump')
+                if lateral_pump is not None:
+                    pump_el_flows.append(lateral_pump)
+                    n_lateral += 1
+            logger.info(
+                "  âœ“ transfer-station Î”p pump (%.2f bar) added for %d consumer node(s)",
+                dp_station_bar, n_station,
+            )
+            if n_lateral:
+                logger.info(
+                    "  âœ“ lateral-pipe pump loss (real DXF lengths) added for %d consumer node(s)",
+                    n_lateral,
+                )
 
         logger.info(f"  Total aggregated producer pump loads registered: {len(pump_el_flows)}")
         return pump_el_flows

@@ -18,6 +18,7 @@ Author: CALION Development Team
 """
 
 import logging
+import math
 from typing import Any
 
 try:
@@ -289,6 +290,7 @@ class ThermalNodeBlock(BaseComponent):
         Q_demand = None
         m_dot_demand = None
         Q_demand_slack = None
+        lateral_P_pump = None
 
         if node_type in ('consumer', 'mixed'):
             allow_heat_demand_slack = bool(config.get('allow_heat_demand_slack', False))
@@ -444,11 +446,166 @@ class ThermalNodeBlock(BaseComponent):
                     pyo.Var(time_set, domain=pyo.NonNegativeReals, bounds=(0, 20.0)))
             delta_p_valve_var = getattr(model, f'{prefix}_delta_p_valve')
 
+            # Real-DXF-derived "last mile" service-lateral loss (2026-07-29,
+            # see memory project_memmingen_pump_pressure_study): the pipe run
+            # from THIS trunk node to each individual real Uebergabestation was
+            # previously unmodeled entirely (only the station's own internal
+            # delta_p_min_consumer_bar loss was charged). Opt-in -- only active
+            # when both `pressure.lateral_length_m` and `n_transfer_stations`
+            # are set on this node; existing configs without them are
+            # byte-for-byte unaffected (no new Vars/constraints created).
+            #
+            # Convex (friction loss ~ flow^2) function of THIS node's own
+            # per-station share of flow (m_dot_demand / n_transfer_stations,
+            # since each real lateral only ever carries its own station's
+            # flow, not the whole node's aggregate). Represented as a plain
+            # weighted-breakpoint combination -- NO binaries/SOS2. This is
+            # exact (not just a bound) here because it is only ever used
+            # (a) on the RHS of a ">=" pressure-floor requirement and (b) as
+            # a MW term the objective minimizes via the electricity bus: for
+            # a convex function used exclusively in directions the optimizer
+            # wants to minimize, an unrestricted convex combination of
+            # breakpoints can never do better than the true adjacent-segment
+            # secant, so the LP relaxation reproduces the correct PWL value
+            # without any integer variables (see the memory entry for the
+            # full argument). Same friction-loss form as pipe_pair.py /
+            # the pressure-study notebook's add_low_flow_tangents().
+            lateral_dp_extra = None
+            _pressure_cfg_for_lateral = config.get('pressure', {}) or {}
+            _lateral_length_m = float(_pressure_cfg_for_lateral.get('lateral_length_m', 0.0) or 0.0)
+            _n_stations_lateral = int(config.get('n_transfer_stations', 0) or 0)
+            if (
+                _lateral_length_m > 0
+                and _n_stations_lateral > 0
+                and config.get('pressure_drop_enabled', False)
+            ):
+                _rho_lat = 1000.0
+                _f_lat = 0.02
+                _eta_lat = float(config.get('pump_efficiency', 0.75) or 0.75)
+                _dn_lat_mm = float(config.get('lateral_diameter_mm', 32.0) or 32.0)
+                _d_inner_lat = _dn_lat_mm / 1000.0 * 0.94
+                _area_lat = math.pi * (_d_inner_lat / 2.0) ** 2
+
+                def _dp_lat_bar(_m, _L=_lateral_length_m, _D=_d_inner_lat, _A=_area_lat,
+                                 _f=_f_lat, _rho=_rho_lat):
+                    _v = _m / (_rho * _A)
+                    return _f * (_L / _D) * (_rho / 2.0) * _v ** 2 / 1e5
+
+                def _p_pump_lat_mw(_m, _dp_bar_val, _rho=_rho_lat, _eta=_eta_lat):
+                    return _dp_bar_val * 1e5 * _m / (_rho * _eta * 1e6)
+
+                _m_station_ub = max(_mdot_ub / _n_stations_lateral, 1e-6)
+                # Breakpoints biased toward low flow (most stations run well
+                # below design capacity most hours -- same rationale as the
+                # notebook's add_low_flow_tangents()). Densified 2026-07-29
+                # after a validation run showed real per-station flows sit
+                # almost entirely in the bottom ~10% of _m_station_ub (which
+                # is a generous McCormick-driven safety-margin ceiling, not a
+                # realistic design point) -- the original 6-point set left
+                # absolute dp_extra errors of up to ~0.1 bar at the
+                # longest-lateral nodes (project_memmingen_pump_pressure_study
+                # memory has the full before/after numbers). Adding more
+                # low-end points is pure LP cost (a few more continuous
+                # weights per node per timestep, no binaries) -- negligible
+                # next to the model's existing tens of thousands of variables.
+                _fracs = (0.0, 0.01, 0.025, 0.05, 0.09, 0.15, 0.25, 0.4, 0.6, 0.8, 1.0)
+                _breakpoints = [_frac * _m_station_ub for _frac in _fracs]
+                _K = len(_breakpoints)
+                _dp_at_bp = [_dp_lat_bar(_m) for _m in _breakpoints]
+                _pp_at_bp = [_p_pump_lat_mw(_m, _dp) for _m, _dp in zip(_breakpoints, _dp_at_bp)]
+
+                setattr(model, f'{prefix}_lateral_w',
+                        pyo.Var(time_set, range(_K), domain=pyo.NonNegativeReals, bounds=(0, 1)))
+                lateral_w = getattr(model, f'{prefix}_lateral_w')
+
+                setattr(model, f'{prefix}_lateral_w_sum',
+                        pyo.Constraint(time_set, rule=lambda m, t, _w=lateral_w, _kk=_K: (
+                            sum(_w[t, k] for k in range(_kk)) == 1.0
+                        )))
+
+                setattr(model, f'{prefix}_lateral_flow_link',
+                        pyo.Constraint(time_set, rule=lambda m, t, _w=lateral_w, _bp=_breakpoints,
+                                       _kk=_K, _md=m_dot_demand, _n=_n_stations_lateral: (
+                            _md[t] == _n * sum(_w[t, k] * _bp[k] for k in range(_kk))
+                        )))
+
+                lateral_dp_extra = pyo.Var(time_set, domain=pyo.NonNegativeReals)
+                setattr(model, f'{prefix}_lateral_dp_extra', lateral_dp_extra)
+                setattr(model, f'{prefix}_lateral_dp_extra_def',
+                        pyo.Constraint(time_set, rule=lambda m, t, _dp=lateral_dp_extra, _w=lateral_w,
+                                       _vals=_dp_at_bp, _kk=_K: (
+                            _dp[t] == sum(_w[t, k] * _vals[k] for k in range(_kk))
+                        )))
+
+                # Tie-break (2026-07-30, real bug found via pandapipes/hand-
+                # calc cross-check): the "convex combination needs no SOS2"
+                # argument is only exact if the solver actually has an
+                # incentive to tighten these weights toward the adjacent-
+                # breakpoint secant -- but lateral_dp_extra/P_pump are so
+                # numerically tiny (a few kW) next to the campaign's dominant
+                # energy costs that a routine MIP gap (2-5%) can leave them
+                # "good enough" with weights spread across NON-adjacent
+                # breakpoints -- a valid convex combination (flow-link still
+                # satisfied) but a hugely inflated interpolated value.
+                # Confirmed empirically: 3.44 bar reported vs. 0.41 bar true
+                # at the same solved flow (8.4x), up to 23.6x seen elsewhere
+                # in a full week (project_memmingen_pump_pressure_study
+                # memory has the full diagnosis). Since lateral_dp_extra and
+                # lateral_P_pump share the SAME weights, tie-breaking just
+                # this one Var fixes both. Opt-in scale, independent of
+                # pressure_regularization_epsilon (different variable, bar
+                # units, needs its own tuning -- not assumed transferable).
+                if not hasattr(model, 'lateral_tiebreak_terms'):
+                    model.lateral_tiebreak_terms = []
+                _lat_tiebreak_eps = float(
+                    config.get('lateral_tiebreak_epsilon', 0.01) or 0.0
+                )
+                if _lat_tiebreak_eps > 0:
+                    model.lateral_tiebreak_terms.append((lateral_dp_extra, _lat_tiebreak_eps))
+
+                # NOTE: _pp_at_bp is ONE representative lateral's own pump work
+                # (evaluated at its own per-station flow share). The node's
+                # TOTAL electrical draw is n_transfer_stations of these in
+                # parallel, each independently consuming that same order of
+                # work -- multiply by n_stations_lateral to get the real
+                # node-level contribution (this does NOT apply to
+                # lateral_dp_extra above: pressure differential doesn't sum
+                # across parallel branches, only pump ELECTRICAL POWER does).
+                lateral_P_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals)
+                setattr(model, f'{prefix}_P_pump_lateral', lateral_P_pump)
+                setattr(model, f'{prefix}_P_pump_lateral_def',
+                        pyo.Constraint(time_set, rule=lambda m, t, _pp=lateral_P_pump, _w=lateral_w,
+                                       _vals=_pp_at_bp, _kk=_K, _n=_n_stations_lateral: (
+                            _pp[t] == _n * sum(_w[t, k] * _vals[k] for k in range(_kk))
+                        )))
+
+                # Log at a REALISTIC representative per-station flow (25 kWth,
+                # the system-average-derived assumption used to size this
+                # feature -- see memory project_memmingen_pump_pressure_study),
+                # not at _breakpoints[-1] (the node's McCormick-driven m_dot_ub
+                # ceiling / n_stations, a generous safety-margin extreme that
+                # is rarely if ever reached and would otherwise print
+                # misleadingly large "typical" numbers for low-station-count
+                # nodes with peaky demand columns).
+                _cp_mw_lat = cp_water / 1000.0
+                _dT_lat = max(supply_temp_nominal_c - return_temp_c, 5.0)
+                _m_typical = (25.0 / 1000.0) / (_cp_mw_lat * _dT_lat)
+                logger.info(
+                    f"    Node {node_id}: lateral pipe loss enabled "
+                    f"(L={_lateral_length_m:.0f}m, {_n_stations_lateral} stations, "
+                    f"DN{_dn_lat_mm:.0f}, extra dp@typical 25kW/station="
+                    f"{_dp_lat_bar(_m_typical):.4f} bar, "
+                    f"design-ceiling breakpoint={_dp_at_bp[-1]:.2f} bar)"
+                )
+
             # Minimum differential pressure at consumer station (Ãœbergabestation):
             # P_supply - P_return >= delta_p_min_station (e.g. 0.7 bar = 70 kPa)
+            # + the lateral-loss term above, if enabled for this node.
             if config.get('pressure_drop_enabled', False):
-                def _station_dp_rule(m, t, _ps=pressure_supply, _pr=pressure_return, _dp=delta_p_min_station):
-                    return _ps[t] - _pr[t] >= _dp
+                def _station_dp_rule(m, t, _ps=pressure_supply, _pr=pressure_return,
+                                      _dp=delta_p_min_station, _lat=lateral_dp_extra):
+                    _extra = _lat[t] if _lat is not None else 0.0
+                    return _ps[t] - _pr[t] >= _dp + _extra
                 setattr(model, f'{prefix}_station_dp',
                         pyo.Constraint(time_set, rule=_station_dp_rule))
 
@@ -1231,6 +1388,7 @@ class ThermalNodeBlock(BaseComponent):
             result['m_dot_demand'] = m_dot_demand
             result['Q_demand_slack'] = Q_demand_slack
             result['demand_fraction'] = config.get('demand_fraction', 0.0)
+            result['lateral_P_pump'] = lateral_P_pump
 
         if node_type in ('producer', 'mixed'):
             result['components'] = config.get('components', {})

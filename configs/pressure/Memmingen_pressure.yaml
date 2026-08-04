@@ -49,11 +49,23 @@ scenario:
 # --------------------------------------------------------------------------
 network:
   milp_linearize: true
-  # j_1 = primary producer (fixed P_supply setpoint, the network's pressure
-  # reference). j_12 hosts HP/EK and is a secondary 'mixed' producer (free,
-  # pump-boosted P_supply floor).
-  primary_producer: "j_1"
+  # j_9 = primary producer (fixed P_supply setpoint, the network's pressure
+  # reference) -- matches the real "Energiezentrale" where all 5 installed
+  # Wilo pumps (configs/pressure/Memmingen_componenets_spec) actually sit.
+  # j_1 is now a plain dead-end consumer leaf (j_9->j_3->j_2->j_1), not a
+  # producer -- updated 2026-07-29 when generation moved from j_1 to j_9.
+  # j_12 hosts HP/EK and is a secondary 'mixed' producer (free, pump-boosted
+  # P_supply floor).
+  primary_producer: "j_9"
   temperature_propagation: false
+  # Real value from configs/pressure/Memmingen_componenets_spec/
+  # 20260729_Netzkomponenten_Spezifikationen.xlsx, sheet "Uebergabestation"
+  # ("min Differenzdruck Waermenetz" AND "Druckverluste" both list 0.6 bar).
+  # Set explicitly here so it overrides BOTH of network_manager.py's two
+  # independent .get(..., default) reads of this key (0.7 in one place, 0.6
+  # in the other, before this session's fix aligned the two defaults to each
+  # other without real data to say which was right -- now we have it).
+  delta_p_min_consumer_bar: 0.6
   max_velocity_m_s: 3.0
   parameters:
     max_velocity_m_s: 3.0
@@ -102,14 +114,16 @@ network:
 
   nodes:
     j_1:
-      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
+      #assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
-      # Primary producer reference pressure (was previously the code's silent
-      # 10.0 bar default -- now explicit).
+      # No longer the primary producer (moved to j_9, 2026-07-29) -- now a
+      # plain dead-end consumer leaf, same min_required_bar floor as every
+      # other consumer node.
       pressure:
-        setpoint_bar: 10.0
+        min_required_bar: 2.0
     j_2:
+      #assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_2_demand_MWth"
       pressure:
@@ -151,11 +165,25 @@ network:
       pressure:
         min_required_bar: 2.0
     j_9:
+      # Real "Energiezentrale" -- all 5 installed Wilo pumps map here (see
+      # configs/pressure/Memmingen_componenets_spec/20260729_Netzkomponenten_
+      # Spezifikationen.xlsx, sheet "Pumpen").
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
+      # Now the primary producer's fixed reference pressure. ASSUMPTION,
+      # please confirm against real operating data: the installed Dachser
+      # pump (Wilo IL-E 65/11-64 BF) is Delta-p-c (constant differential
+      # pressure) controlled with several selectable curve levels (11/22/28/
+      # 36/43/49m up to a ~65m/100 m3/h max envelope, see the PDF in the same
+      # spec folder) -- 49 m was picked here as a representative mid-upper
+      # operating point (~4.8 bar) and verified to still clear the 2.0 bar
+      # min_required_bar floor at the network's farthest node (j_8, via
+      # j_9->j_10->j_11->j_12->j_4->j_5->j_7->j_8, ~2.3 km). Replace with the
+      # actual configured curve level if you have it.
       pressure:
-        min_required_bar: 2.0
+        setpoint_bar: 4.8
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
@@ -202,102 +230,102 @@ network:
   pipes:
     # Längen/Durchmesser aus DXF-Bestandsplan (siehe memory
     # project_memmingen_dxf_crosscheck) — identisch zu Memmingen_P2_base.yaml.
-    j1_to_j2:
-      from: j_1
-      to: j_2
-      length_m: 1180
-      diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-    j2_to_j3:
+    j2_to_j1:
       from: j_2
+      to: j_1
+      length_m: 1150
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    j3_to_j2:
+      from: j_3
+      to: j_2
+      length_m: 1200
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    j9_to_j3:
+      from: j_9
       to: j_3
-      length_m: 513
-      diameter_mm: 200
+      length_m: 185
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-    j3_to_j4:
-      from: j_3
+    j12_to_j4:
+      from: j_12
       to: j_4
-      length_m: 116
-      diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-    j3_to_j9:
-      from: j_3
-      to: j_9
-      length_m: 83
+      length_m: 470
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j4_to_j5:
       from: j_4
       to: j_5
-      length_m: 728
-      diameter_mm: 250
+      length_m: 560
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 159
+      length_m: 161
       diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 50
-      diameter_mm: 65
+      length_m: 280
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 120
-      diameter_mm: 65
+      length_m: 450
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 464
-      diameter_mm: 300
+      length_m: 175
+      diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j10_to_j11:
       from: j_10
       to: j_11
-      length_m: 230
-      diameter_mm: 300
+      length_m: 256
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j11_to_j12:
       from: j_11
       to: j_12
-      length_m: 250
-      diameter_mm: 300
+      length_m: 108
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-    j12_to_j13:
-      from: j_12
+    j11_to_j13:
+      from: j_11
       to: j_13
-      length_m: 220
-      diameter_mm: 250
+      length_m: 420
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j13_to_j14:
       from: j_13
       to: j_14
-      length_m: 180
-      diameter_mm: 125
+      length_m: 660
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j13_to_j15:
       from: j_13
       to: j_15
-      length_m: 125
-      diameter_mm: 100
+      length_m: 914
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 1.31
       u_value_return_w_per_m_k: 1.40
 

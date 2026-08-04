@@ -1,0 +1,22 @@
+{
+  "jan_2025": {
+    "window": "jan_2025",
+    "cost_total_eur": 52050.95,
+    "friction_pump_exact_MWh": 0.0299,
+    "friction_pump_pwl_MWh": 0.1408,
+    "friction_pump_overcharge_MWh": 0.1109,
+    "friction_lin_cost_delta_eur": 16.23,
+    "friction_lin_error_pct_of_total": 0.0312,
+    "mean_price_eur_MWh": 146.31
+  },
+  "feb_2025": {
+    "window": "feb_2025",
+    "cost_total_eur": 56966.7,
+    "friction_pump_exact_MWh": 0.0196,
+    "friction_pump_pwl_MWh": 0.1126,
+    "friction_pump_overcharge_MWh": 0.093,
+    "friction_lin_cost_delta_eur": 15.48,
+    "friction_lin_error_pct_of_total": 0.0272,
+    "mean_price_eur_MWh": 166.53
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "checks": [
+    {
+      "check": "cost_hierarchy_L1_le_L2",
+      "pass": true,
+      "detail": "Cost hierarchy L1≤L2: 196,298 ≤ 219,992 (+12.07%)",
+      "pct_diff": 12.07
+    },
+    {
+      "check": "cost_hierarchy_L2_le_L3",
+      "pass": true,
+      "detail": "Cost hierarchy L2≤L3: 219,992 ≤ 225,717 (+2.60%)",
+      "pct_diff": 2.602
+    },
+    {
+      "check": "cost_hierarchy_L3_le_L3plus",
+      "pass": true,
+      "detail": "Cost hierarchy L3≤L3plus: 225,717 ≤ 226,452 (+0.33%)",
+      "pct_diff": 0.326
+    },
+    {
+      "check": "heat_loss_L1",
+      "pass": false,
+      "detail": "L1 heat losses = 1329.8 MWh (must be ~0)",
+      "loss_MWh": 1329.8
+    },
+    {
+      "check": "heat_loss_L2",
+      "pass": true,
+      "detail": "L2 heat losses = 1,116 MWh (must be >0)",
+      "loss_MWh": 1115.7
+    },
+    {
+      "check": "heat_loss_L3",
+      "pass": true,
+      "detail": "L3 heat losses = 1,330 MWh (must be >0)",
+      "loss_MWh": 1329.8
+    },
+    {
+      "check": "heat_loss_L3plus",
+      "pass": true,
+      "detail": "L3plus heat losses = 1,330 MWh (must be >0)",
+      "loss_MWh": 1329.8
+    },
+    {
+      "check": "energy_balance_closure_L1",
+      "pass": false,
+      "closure_error_pct": 30.37
+    },
+    {
+      "check": "energy_balance_closure_L2",
+      "pass": false,
+      "closure_error_pct": 17.845
+    },
+    {
+      "check": "energy_balance_closure_L3",
+      "pass": false,
+      "closure_error_pct": 18.08
+    },
+    {
+      "check": "energy_balance_closure_L3plus",
+      "pass": false,
+      "closure_error_pct": 18.085
+    }
+  ],
+  "summary": {
+    "n_checks": 11,
+    "n_pass": 6,
+    "n_fail": 5,
+    "available_runs": [
+      "L1",
+      "L2",
+      "L3",
+      "L3plus"
+    ]
+  },
+  "costs_eur": {
+    "L1": 196298.4574124117,
+    "L2": 219992.342833318,
+    "L3": 225717.06011398448,
+    "L3plus": 226451.78519841493
+  },
+  "linearization_error": {
+    "note": "Full global L3NL re-solve is intractable with the corrected pump physics (BFS attribution -> 58,774 bilinear constraints; 24h/window found no incumbent). Value below is from EXACT decomposition on the L3+ optimal dispatch. See L3NL_LINEARIZATION_ANALYSIS.md + pump_linearization_error.json.",
+    "method": "decomposition: pump-friction PWL-vs-cubic on L3+ dispatch; station dp (0.6 bar) is linear and charged identically in L3+ and L3NL so it cancels; temperature linearization unchanged from submission",
+    "pump_friction_error_pct_of_total": {
+      "jan_2025": 0.031,
+      "feb_2025": 0.027
+    },
+    "submitted_total_L3plus_to_L3NL_gap_pct": {
+      "jan_2025": 0.35,
+      "feb_2025": 0.5
+    },
+    "corrected_total_gap_estimate_pct": {
+      "jan_2025": 0.32,
+      "feb_2025": 0.47
+    }
+  }
+}

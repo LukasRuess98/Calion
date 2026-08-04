@@ -2137,15 +2137,20 @@ bar-valued pressure differential) are two separate, only loosely coupled mechani
 
 ## H.4 Constraints — the physics, exactly as implemented
 
-**Per-pipe Darcy Δp and pump power** (convex, binary-free tangent lower envelope — unchanged
-from §A.4.5, repeated here for completeness):
+**Per-pipe Darcy Δp** (convex, binary-free tangent lower envelope) and **pump power**
+(pinned PWL equality since 2026-07-27 — see H.6.5):
 
 ```
 Δp_supply(t) ≥ 2·k_flow·ṁ_i · ṁ(t) − k_flow·ṁ_i²         tangent points ṁ_i = 0.33, 0.67, 1.0 × ṁ_max
 Δp_return(t) = Δp_supply(t)
-P_pump(t)    ≥ 3·C·ṁ_i² · ṁ(t) − 2·C·ṁ_i³                  C = 2·k_flow·1e5 / (ρ·η_pump·1e6)
+P_pump(t)    = PWL_pin(ṁ(t))     of the true cubic C·ṁ³, breakpoints [0, .06, .15, .35, 1.0]·ṁ_max
+               (config pump_pin_pwl=true, default;  C = 2·k_flow·1e5/(ρ·η_pump·1e6))
 k_flow = f·(L/d_inner)·(ρ/2)/1e5 / (ρ·A)²,   d_inner = diameter_mm/1000 · 0.94,   A = π·(d_inner/2)²
 ```
+
+The Δp *lower-envelope* tangent is kept (it drives pressure propagation and stays binary-free);
+only `P_pump` was switched from a tangent lower bound to a pinned PWL equality because as a pure
+electricity *cost* the lower-bound-only form failed both ways at part-load — see H.6.5.
 
 **Node pressure setpoint/floor** (`_link_pressure_propagation`):
 
@@ -2184,6 +2189,18 @@ P_pump,producer(t) = Σ_{pipes owned by this producer} P_pump,pipe(t)
 where "owned" means: every pipe on the producer's nearest (fewest-hop) path from itself,
 stopping expansion at any *other* producer node (that station's own pump takes over beyond it).
 
+**Transfer-station Δp pump** (`_link_pump_head`, added 2026-07-27 — see H.6.4). Pipe friction
+alone under-states real DH pumping by 1–2 orders of magnitude; the pump must also overcome the
+differential pressure held at each Übergabestation. Added as a separate electricity load, linear
+in the consumer mass flow (exact, no PWL/binaries):
+
+```
+P_pump,station,c(t) = Δp_station · ṁ_demand,c(t) · 1e5 / (ρ · η_pump · 1e6)     [MW]
+Δp_station = delta_p_min_consumer_bar (default 0.6 bar)      for every consumer/mixed node c
+```
+
+All `station_{c}_P_pump` and every `producer_{node}_P_pump` feed `buses.el_in` together.
+
 **Consumer minimum pressure** (only if `min_required_bar` set, type `consumer` only):
 
 ```
@@ -2206,7 +2223,9 @@ doesn't work).
 | `ρ` (density_water) | `1000` kg/m³ | Hardcoded constant in `pipe_pair.py`. |
 | `f` (friction_factor) | `0.02` | Config default, flat (no roughness/Reynolds dependence). |
 | `d_inner` | `diameter_mm/1000 × 0.94` | 94% of nominal — a fixed wall-thickness allowance, not config-driven. |
-| Tangent points | `0.33, 0.67, 1.0 × ṁ_max` | 3 points (reduced from 5 for tractability, §A.4.5) — envelope is loose below ≈22% of `ṁ_max` (tangent crossing point = ⅔ of its anchor); real Memmingen January flow often sits at 5–12% of design capacity, so `Δp`/`P_pump` can be near-arbitrary at typical (non-peak) load unless additional low-flow tangent points are added (done notebook-locally in `Memmingen_pump_pressure_study.ipynb`, not campaign-wide). |
+| Tangent points (Δp only) | `0.33, 0.67, 1.0 × ṁ_max` | 3 points for the **Δp** lower envelope (reduced from 5 for tractability, §A.4.5) — loose below ≈22% of `ṁ_max`; real Memmingen January flow often sits at 5–12% of design, so **Δp** can under-count at part-load unless extra low-flow tangents are added (still done notebook-locally in `Memmingen_pump_pressure_study.ipynb` for the pressure trace). **P_pump no longer uses this** — it is pinned to a PWL equality (H.6.5), which fixes the part-load under-count and the negative-price over-count campaign-wide. |
+| Pump PWL breakpoints | `[0, .06, .15, .35, 1.0]·ṁ_max` | Low-flow-dense breakpoints of the pinned `P_pump` cubic (H.6.5), config `pump_pin_pwl` (default true). |
+| `delta_p_min_consumer_bar` | `0.6` bar | Transfer-station differential pressure: both the pressure floor (`P_supply − P_return ≥` this) AND, since 2026-07-27, the charged station pump term (H.6.4). Raise it to model a higher plant differential. |
 | `head_max` multiplier | `2×` setpoint_bar | Hardcoded in `_link_pump_head`, not a config key — **the thing you'd change first if modelling a real pump's actual rated head**. |
 
 ## H.6 2026-07-23 fixes — pump-power attribution and reporting (campaign-wide, verified)
@@ -2239,6 +2258,41 @@ under-count pump electricity cost.
    predates all three fixes and has wrong pump numbers** (0 or too low). Fixes 1–2 only need
    re-export from an already-solved model; fix H.6.1 changes the true objective and needs a
    genuine re-solve if the pump total matters for a reported cost.
+
+### H.6.4 Transfer-station differential-pressure pump term (2026-07-27, campaign-wide)
+
+**Symptom**: the pump charged only pipe *friction* (`Σ P_pump,pipe`). Reconstructed against the
+real hydraulics, that is ~0.006 % of heat delivered — **1–2 orders of magnitude below** the
+0.2–1 % that real DH pumping draws. Cause: real pumps overcome not just friction but the
+differential pressure *maintained* at each Übergabestation (control-valve authority) — already
+enforced as a pressure constraint (`P_supply − P_return ≥ delta_p_min_consumer_bar`, H.4) but
+never *charged* as pump energy.
+
+**Fix** (`_link_pump_head`): add one electricity load per consumer/mixed node,
+`P_pump,station,c = Δp_station · ṁ_demand,c · 1e5/(ρ·η_pump·1e6)` with
+`Δp_station = delta_p_min_consumer_bar` (default **0.6 bar**). Linear in the existing
+`m_dot_demand` Var → **exact, no PWL, no binaries**. Appended to `pump_el_flows` alongside the
+producer pump loads. Raises modelled pumping to ≈0.1 % of heat (validated on Memmingen); the
+value scales directly with `delta_p_min_consumer_bar` if a higher plant differential is wanted.
+
+### H.6.5 P_pump pinned to a PWL equality — the tangent lower bound was wrong two ways (2026-07-27)
+
+**Symptom**: `P_pump ≥ tangent_k(ṁ)` (H.4, the binary-free lower envelope) is a *lower bound only*.
+At the part-load flows DH actually runs at (often 5–15 % of design), all three tangents anchored
+at 33/67/100 % go **non-positive**, so the floor collapses to `P_pump ≥ 0`. Then:
+- at **positive** prices the solver sets `P_pump = 0` → pumping **under-counted** (the notebook
+  patched this locally via `add_low_flow_tangents`, H.5);
+- at **negative** prices (Memmingen data has 2 460 h < 0, 92 h < −55 €/MWh below the CO₂ cost)
+  the solver drives `P_pump` **up to `P_pump_max`** for free-money → pumping **over-counted**, and
+  `L3⁺` can even come out *cheaper* than `L3` (pressure-physics hierarchy violated).
+
+**Fix** (`pipe_pair.py`): pin `P_pump = PWL(ṁ)` of the true cubic (segment-select equality,
+low-flow-dense breakpoints `[0, .06, .15, .35, 1.0]·ṁ_max`), config `pump_pin_pwl=true` (default;
+set `false` to restore the tangent lower bound as an escape hatch). The pin's binaries are **local
+to each pipe** (a leaf electricity load, *not* coupled to the network pressure propagation that the
+Δp tangents keep binary-free), so tractability is fine — verified on the Druckverluste January
+window: build 2.4 s, solve 10.4 s, optimal, `P_pump` finite (no inflation), station Δp active.
+This **supersedes** the notebook-local `add_low_flow_tangents` for `P_pump` (Δp still uses tangents).
 
 ## H.7 2026-07-24 fix — pump-head degeneracy (opt-in, off by default)
 
