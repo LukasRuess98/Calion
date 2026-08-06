@@ -1143,7 +1143,13 @@ class NetworkManager:
                 # -- same defaults as _link_pump_head's station-pump formula,
                 # kept in sync deliberately (both price the same physical pump).
                 'pump_efficiency': net_cfg.get('pump_efficiency', 0.75),
-                'lateral_diameter_mm': net_cfg.get('lateral_diameter_mm', 32.0),
+                # BUGFIX (2026-08-06): this used to read ONLY net_cfg, so a
+                # per-node override in the YAML (node_dict, spread into this
+                # same enriched_config above via **node_dict) was silently
+                # discarded -- dict-literal duplicate keys always take the
+                # LAST occurrence, regardless of what **node_dict contained.
+                # Node-level value now wins, network-level stays the fallback.
+                'lateral_diameter_mm': node_dict.get('lateral_diameter_mm', net_cfg.get('lateral_diameter_mm', 32.0)),
                 'lateral_tiebreak_epsilon': lateral_tiebreak_epsilon,
                 'state_validation': merged_state_validation,
                 # L3+ (2026-07-08): this node gets a real, spatially-propagating
@@ -1825,16 +1831,102 @@ class NetworkManager:
         # (2026-08-03) for the actual implementation; a secondary producer's
         # own absolute pressure is no longer left unconstrained by this
         # mechanism.
-        # Return-side pressure is deliberately NOT regularized either -- an
-        # earlier attempt pushed it up with no anchor at the network's leaves,
-        # floating the whole return chain to an arbitrary ceiling; needs its
-        # own correctly-anchored formulation later.
+        # Return-side pressure fix (2026-08-05): an earlier attempt pushed
+        # EVERY node's P_return up with no anchor, letting the whole return
+        # chain float to an arbitrary ceiling together (same push-everywhere
+        # mistake root-caused for the producer case above). The correct
+        # anchor was already sitting in the model unused: thermal_node.py's
+        # per-node `station_dp` constraint (P_supply - P_return >= required,
+        # attached to EVERY node of type consumer/mixed whenever
+        # pressure_drop_enabled is on -- confirmed via thermal_node.py: this
+        # is a GLOBAL flag, so it applies uniformly, including passthrough
+        # nodes, not just the real terminal consumers). Since P_supply is
+        # already well-regularized/pandapipes-validated, this constraint
+        # gives EVERY such node its own local, physically meaningful ceiling
+        # on P_return, so a plain uniform push works for pure consumer nodes:
+        # leaves settle at their own station_dp ceiling, passthrough/branching
+        # nodes settle at whichever is tighter -- their own ceiling, or the
+        # propagated bound from an already-tightened downstream-in-return-
+        # sense node via the inequality below (P_return[from] <= P_return[to]
+        # - Δp_return, i.e. from_node is the one left "free below its
+        # ceiling" on the return side, mirroring to_P_supply's role on the
+        # supply side).
+        # PRODUCERS ARE THE EXCEPTION (found the hard way, see the exclusion
+        # below): a producer's own station_dp constraint links ITS P_return to
+        # ITS OWN P_supply -- but that P_supply is ALSO the thing the
+        # supply-side mechanism above is trying to push DOWN (fixed for the
+        # primary, topology-scaled push-down for secondaries like j_12).
+        # Pushing a producer's P_return up raises its P_supply's floor
+        # (P_supply >= P_return + required_dp), directly fighting the
+        # push-down -- this IS the same N-vs-1-style asymmetry as the
+        # producer case above, just mediated through the differential
+        # constraint instead of the propagation chain. First version of this
+        # fix omitted the exclusion and regressed j_12 all the way to its
+        # hard 20 bar Var bound instead of its real 6.38 bar setpoint.
         pressure_reg_enabled = bool(self._physics_cfg.get('pressure_regularization', False))
         pressure_reg_epsilon = float(self._physics_cfg.get('pressure_regularization_epsilon', 1e-4))
         pressure_reg_terms: list[tuple] = []
         if pressure_reg_enabled:
             model.pressure_regularization_terms = pressure_reg_terms
             logger.info('  Pressure regularization ENABLED (epsilon=%s)', pressure_reg_epsilon)
+            if self._pressure_drop_enabled:
+                # Excluding just the producer itself was NOT enough (found by
+                # re-checking j_12 after the first version of this fix): a
+                # pure consumer downstream of a SECONDARY producer (e.g.
+                # j_4..j_8 below j_12) gets its own P_return correctly pushed
+                # up, but that raises ITS OWN P_supply floor (P_supply >=
+                # P_return + required_dp), which propagates back up the
+                # supply chain (P_supply[parent] >= P_supply[child] + Δp) all
+                # the way to the secondary producer -- fighting its push-down
+                # exactly like the original producer-vs-N-downstream problem,
+                # just mediated through the differential constraint instead
+                # of the propagation chain directly. Confirmed empirically:
+                # without excluding the WHOLE subtree, j_12 AND j_4..j_8 all
+                # floated together to the shared hard 20 bar Var bound (same
+                # "float together with no anchor" failure as the original
+                # 2026-07-24 attempt, just scoped to one subtree instead of
+                # the whole network). Fix: reuse the same downstream-BFS
+                # pattern as the topology-aware supply-side fix below to
+                # exclude every secondary producer's full subtree, not just
+                # the producer node.
+                _excluded_from_return_push = set(all_producer_node_ids)
+                if secondary_producers:
+                    _fwd_adj_for_return: dict[str, list[str]] = {}
+                    for _pc in pipe_components.values():
+                        _f, _t = _pc['from_node'], _pc['to_node']
+                        if _f not in node_components or _t not in node_components:
+                            continue
+                        _fd = _pc.get('flow_dir')
+                        if bool(_pc.get('bidirectional', False)) and _fd is not None:
+                            continue
+                        _fwd_adj_for_return.setdefault(_f, []).append(_t)
+                    for sec_producer in sorted(secondary_producers):
+                        _stack = list(_fwd_adj_for_return.get(sec_producer, []))
+                        while _stack:
+                            _n = _stack.pop()
+                            if _n in _excluded_from_return_push:
+                                continue
+                            if _n in all_producer_node_ids and _n != sec_producer:
+                                continue
+                            _excluded_from_return_push.add(_n)
+                            _stack.extend(_fwd_adj_for_return.get(_n, []))
+                n_return_anchored = 0
+                for node_id, node_comp in node_components.items():
+                    if node_comp.get('type') not in ('consumer', 'mixed'):
+                        continue
+                    if node_id in _excluded_from_return_push:
+                        continue
+                    node_P_return = node_comp.get('pressure_return')
+                    if node_P_return is None:
+                        continue
+                    pressure_reg_terms.append((node_P_return, -pressure_reg_epsilon))
+                    n_return_anchored += 1
+                logger.info(
+                    '  Return-side pressure tie-break: %d node(s) pushed toward their '
+                    'station_dp ceiling (P_supply - required_dp), %d node(s) excluded '
+                    '(producers + their secondary-producer subtrees)',
+                    n_return_anchored, len(_excluded_from_return_push),
+                )
 
         # 2026-08-03: topology-aware producer-side tie-break (reintroduces the
         # "push down" direction the 2026-07-24 note above removed, but fixes

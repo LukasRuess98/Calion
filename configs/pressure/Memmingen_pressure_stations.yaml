@@ -4,40 +4,8 @@
 # Forked from configs/pressure/Memmingen_pressure.yaml (2026-07-29) to add
 # `n_transfer_stations` per node: the real DXF-confirmed number of physical
 # Uebergabestationen (Gebaeudeeinfuehrungen) each lumped model node actually
-# represents. Everything else (topology, physics, pipe/asset data) is
-# UNCHANGED from Memmingen_pressure.yaml -- this file only adds new metadata
-# fields the solver does not read; it does not alter the solved physics.
-#
-# --- Where the numbers come from -------------------------------------------
-# `configs/memmingen/2026-07-06_MM-Nord_Bestand_FW.dxf`, layer
-# "Fernwaerme.Gebaeudeeinfuehrungen in Betrieb" has two block types, each
-# INSERT = one real physical building connection (= one Uebergabestation):
-#   FEW_GEBEINF-WOHN on ".Wohngebaeude"     -> 120 residential connections
-#   FEW_GEBEINF-WOHN on ".Industriebauten"  ->  54 industrial connections
-#   TOTAL = 174 real stations (verified by direct DXF block count, 2026-07-29)
-# -- vs. the model's 15 nodes / 27 lumped V_x demand columns: each node here
-# already aggregates MANY real stations into one simulated demand series
-# (this aggregation was done by the utility when the V_x metering zones were
-# originally defined, not introduced by this file).
-#
-# Per-node counts below are a DEMAND-PROPORTIONAL ESTIMATE, not a verified
-# real count per node (that would require a full DXF pipe-graph
-# reconstruction matching each of the 174 building points to its branch --
-# attempted this session and found only ~58% of the drawn trench forms one
-# connected graph after anchor-merging, so a full reconstruction would carry
-# real per-branch uncertainty, similar to the tiered-confidence diameter
-# work in project_memmingen_dxf_crosscheck). Method used instead, per user
-# decision (2026-07-29): each node's share of TOTAL ANNUAL DEMAND (2025,
-# `data/Import_Data_Memmingen_epronet_cleaned.xlsx`, summed over that node's
-# V_x column(s)) times 174, largest-remainder rounded to hit exactly 174.
-# ACKNOWLEDGED LIMITATION: this does NOT correct for residential vs.
-# industrial buildings likely having very different specific demand (a node
-# whose demand is dominated by one large industrial user will have its count
-# systematically OVERESTIMATED by this method; a residential-heavy node
-# UNDERESTIMATED) -- no data ties individual buildings to specific V_x
-# columns, so this correction isn't currently possible. Treat these numbers
-# as order-of-magnitude, not validated per-node counts.
-#
+# represents. 
+
 # --- How this is used in the pump/pressure study ----------------------------
 # `configs/pressure/Memmingen_pump_pressure_study.ipynb` reads
 # `n_transfer_stations` to report, alongside the aggregate
@@ -77,32 +45,9 @@ scenario:
 # --------------------------------------------------------------------------
 network:
   milp_linearize: true
-  # j_9 = primary producer (fixed P_supply setpoint, the network's pressure
-  # reference) -- matches the real "Energiezentrale" where all 5 installed
-  # Wilo pumps (configs/pressure/Memmingen_componenets_spec) actually sit.
-  # j_1 is now a plain dead-end consumer leaf (j_9->j_3->j_2->j_1), not a
-  # producer -- updated 2026-07-29 when generation moved from j_1 to j_9.
-  # j_12 hosts HP/EK and is a secondary 'mixed' producer (free, pump-boosted
-  # P_supply floor).
   primary_producer: "j_9"
   temperature_propagation: false
-  # Real value from configs/pressure/Memmingen_componenets_spec/
-  # 20260729_Netzkomponenten_Spezifikationen.xlsx, sheet "Uebergabestation"
-  # ("min Differenzdruck Waermenetz" AND "Druckverluste" both list 0.6 bar).
-  # Set explicitly here so it overrides BOTH of network_manager.py's two
-  # independent .get(..., default) reads of this key (0.7 in one place, 0.6
-  # in the other, before this session's fix aligned the two defaults to each
-  # other without real data to say which was right -- now we have it).
-  # NOTE (2026-07-29): this is the Delta-p ONE representative station sees.
-  # Since station_{node}_P_pump = delta_p_min_consumer_bar * total_flow, the
-  # AGGREGATE figure is invariant to how many real stations (n_transfer_
-  # stations below) share that flow in parallel -- see header comment.
   delta_p_min_consumer_bar: 0.6
-  # Representative real service-lateral pipe diameter (2026-07-29): DXF AGFW
-  # labels at the 174 real building-lateral start points are dominated by
-  # DN25-32 (110/146 labeled), so DN32 is used as the shared assumption for
-  # every node's `pressure.lateral_length_m` term below (see thermal_node.py's
-  # opt-in lateral-loss block + memory project_memmingen_pump_pressure_study).
   lateral_diameter_mm: 32.0
   max_velocity_m_s: 3.0
   parameters:
@@ -116,17 +61,6 @@ network:
     transport_delay: true
     tes_pressure_coupling: true
     tes_pressure_mode: same_circuit_buffer
-    # Opt-in tie-break (docs/paper_2/CALION_Paper2_Implementation_Statement.md
-    # Part H.7): without it, a node's pressure away from any binding
-    # constraint is solver-arbitrary within its feasible range. Enabled here
-    # since this config's whole purpose is a pressure investigation --
-    # verified cost-neutral on this exact network (-0.17% at the campaign's
-    # real 0.5% MIP gap, well inside normal solver noise). Fully resolves
-    # pressure downstream of the FIXED primary producer (j_1's branch);
-    # downstream of the secondary producer j_12, values stay mutually
-    # consistent but j_12's own absolute pressure remains an unconstrained
-    # (floor-respecting) choice -- see Part H.7 for why that's a scope
-    # decision, not a bug.
     pressure_regularization: true
     pressure_regularization_epsilon: 0.0001
 
@@ -152,87 +86,86 @@ network:
 
   nodes:
     j_1:
-      #assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
-      # No longer the primary producer (moved to j_9, 2026-07-29) -- now a
-      # plain dead-end consumer leaf, same min_required_bar floor as every
-      # other consumer node.
-      # n_transfer_stations: demand-proportional estimate (242.8 MWh/a ->
-      # 2.55% of system total -> 4.44 raw share, rounded).
-      n_transfer_stations: 4
+      n_transfer_stations: 31 
       pressure:
         min_required_bar: 2.0
-        # E[worst real lateral length | 4 stations], bootstrapped from the
-        # 174-building DXF-traced lateral-length distribution (2026-07-29,
-        # see memory project_memmingen_pump_pressure_study). DN32 assumed
-        # (network.lateral_diameter_mm).
-        lateral_length_m: 71.0
+        lateral_length_m: 1201
     j_2:
-      #assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_2_demand_MWth"
-      # 134.2 MWh/a -> 1.41% -> 2.46 raw share.
-      n_transfer_stations: 2
+      n_transfer_stations: 43
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 45.8
+        lateral_length_m: 1315
     j_3:
       consumers:
         - column: "V_3_demand_MWth"
-      # 1689.6 MWh/a -> 17.77% -> 30.92 raw share. Largest single-column
-      # aggregation in the network -- one V_x meter here stands in for an
-      # estimated ~31 real buildings with no internal pipe structure modeled.
-      n_transfer_stations: 31
+      n_transfer_stations: 1
+      # 2026-08-06: real winter-peak demand here (~760-920 kW through this
+      # single station) is far too large for the 32mm code-default lateral
+      # -- caused a genuine infeasibility (>17 bar friction vs. 6.38 bar
+      # available) in the JAN/MAR windows. DN150 matches the scale of a
+      # large single customer connection (comparable to the trunk pipes
+      # feeding this node) and brings the friction loss down to ~0.01 bar.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 206.2
+        lateral_length_m: 73
     j_4:
       consumers:
         - column: "V_4_demand_MWth"
         - column: "V_5_demand_MWth"
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
-      # 781.6 MWh/a -> 8.22% -> 14.30 raw share.
-      n_transfer_stations: 14
+      n_transfer_stations: 7
+      # 2026-08-06: flagged by the systematic lateral-loss audit (553 kW peak
+      # / 7 stations -> ~3.9 bar friction with the 32mm default). See j_3's
+      # comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 142.4
+        lateral_length_m: 377
     j_5:
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
-      # 331.2 MWh/a -> 3.48% -> 6.06 raw share.
-      n_transfer_stations: 6
+      n_transfer_stations: 3
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 89.2
+        lateral_length_m: 319
     j_6:
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
-      # 1321.0 MWh/a -> 13.89% -> 24.18 raw share.
-      n_transfer_stations: 24
+      n_transfer_stations: 3
+      # 2026-08-06: flagged by the systematic lateral-loss audit (941 kW peak
+      # / 3 stations -> ~17.6 bar friction with the 32mm default, guaranteed
+      # infeasible near peak). See j_3's comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 184.5
+        lateral_length_m: 107
     j_7:
       consumers:
         - column: "V_13_demand_MWth"
-      # 350.3 MWh/a -> 3.68% -> 6.41 raw share.
-      n_transfer_stations: 6
+      n_transfer_stations: 5
+      # 2026-08-06: flagged by the systematic lateral-loss audit (224 kW peak
+      # / 5 stations -> ~3.6 bar friction with the 32mm default). See j_3's
+      # comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 90.2
+        lateral_length_m: 1075
     j_8:
       consumers:
         - column: "V_14_demand_MWth"
-      # 225.2 MWh/a -> 2.37% -> 4.12 raw share.
-      n_transfer_stations: 4
+      n_transfer_stations: 3
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 70.8
+        lateral_length_m: 60
     j_9:
       # Real "Energiezentrale" -- all 5 installed Wilo pumps map here (see
       # configs/pressure/Memmingen_componenets_spec/20260729_Netzkomponenten_
@@ -241,48 +174,36 @@ network:
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
-      # 247.9 MWh/a -> 2.61% -> 4.54 raw share. Plant-adjacent buildings.
-      n_transfer_stations: 5
-      # Now the primary producer's fixed reference pressure. Was 4.8 bar
-      # (the 49m Delta-p-c curve level) -- RAISED to 6.38 bar (2026-07-30)
-      # after a full-YEAR solve found a genuine infeasibility on 2025-12-15
-      # ~12-14h: a previously-inactive meter (V_22, part of j_13's demand,
-      # zero all year until Dec 11 -- see project_memmingen_dxf_crosscheck)
-      # activates and ramps smoothly to ~1.8 MW with GOOD quality flags (a
-      # real new connection or commissioning event, not a sensor artifact --
-      # confirmed via Gurobi IIS + raw 15-min data, see memory
-      # project_memmingen_pandapipes_crosscheck). At that flow, j_13's
-      # quadratic lateral loss + trunk + station losses exceeded what 4.8 bar
-      # could supply. 6.38 bar = 65m, the Wilo IL-E 65/11-64 BF's real MAX
-      # Delta-p-c envelope (see the PDF in the spec folder) -- the highest
-      # setpoint the real installed pump can actually provide, still a real,
-      # grounded value, not an arbitrary increase. ASSUMPTION, please
-      # confirm against real operating data: does the real pump controller
-      # actually switch to this max level during demand spikes like this?
+      n_transfer_stations: 8
       pressure:
         setpoint_bar: 6.38
-        lateral_length_m: 81.1
+        lateral_length_m: 333
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
-      # 435.8 MWh/a -> 4.58% -> 7.98 raw share.
-      n_transfer_stations: 8
+      n_transfer_stations: 3
+      # 2026-08-06: flagged by the systematic lateral-loss audit (392 kW peak
+      # / 3 stations -> ~3.3 bar friction with the 32mm default). See j_3's
+      # comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 105.2
+        lateral_length_m: 117
     j_11:
       consumers:
         - column: "V_18_demand_MWth"
-      # 355.4 MWh/a -> 3.74% -> 6.50 raw share.
-      n_transfer_stations: 7
+      n_transfer_stations: 1
+      # 2026-08-06: flagged by the systematic lateral-loss audit (450 kW peak
+      # through a single station -> ~10.1 m/s, ~3.4 bar friction with the
+      # 32mm default). See j_3's comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 97.2
+        lateral_length_m: 10
     j_12:
-      # WP + EK at the waste-heat node (spec §3.3 / Paper 1 J12). Secondary
-      # 'mixed' producer -- gets its own pump-boosted P_supply floor, not the
+
+      # Secondary'mixed' producer -- gets its own pump-boosted P_supply floor, not the
       # fixed setpoint.
-      #
       # setpoint_bar=6.38 (2026-08-03): matches primary producer j_9's own
       # setpoint, not an arbitrary pick -- pandapipes' independent nonlinear
       # cross-check (configs/pressure/Memmingen_pandapipes_crosscheck.ipynb,
@@ -295,54 +216,54 @@ network:
       # settle AT its floor instead of an arbitrary head_max ceiling, but
       # that floor was still 3.6 bar higher than reality. This value closes
       # that gap using the pandapipes finding directly, not a guess.
-      assets: [hp_main, eboiler_main]
+      assets: [eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
         - column: "V_21_demand_MWth"
-      # 1905.4 MWh/a -> 20.04% -> 34.87 raw share. Largest aggregation in
-      # the whole network -- an estimated ~35 real buildings behind 3 V_x
-      # columns here; the min_required_bar=2.0 floor is least-verified for
-      # any single one of them at this node.
-      n_transfer_stations: 35
-      # No min_required_bar (secondary producer, own pump-boosted floor) but
-      # the lateral-loss term applies just the same -- highest of any node
-      # (largest n_transfer_stations -> statistically most likely to include
-      # one of the DXF's long-tail buildings).
+      n_transfer_stations: 4
+      # 2026-08-06: flagged by the systematic lateral-loss audit (1235 kW peak
+      # / 4 stations -> ~70 bar friction with the 32mm default -- this is
+      # what actually caused the real [JAN] infeasibility, since j_12 is a
+      # producer with its own tight head band, not just an open floor).
+      lateral_diameter_mm: 150
       pressure:
         setpoint_bar: 6.38
-        lateral_length_m: 217.5
+        lateral_length_m: 442
     j_13:
       consumers:
         - column: "V_22_demand_MWth"
         - column: "V_23_demand_MWth"
         - column: "V_24_demand_MWth"
-      # 324.7 MWh/a -> 3.42% -> 5.94 raw share.
-      n_transfer_stations: 6
+      n_transfer_stations: 15
+      # 2026-08-06: flagged by the systematic lateral-loss audit (1747 kW
+      # peak / 15 stations -> ~15.5 bar friction with the 32mm default,
+      # guaranteed infeasible near peak despite the higher station count).
+      # See j_3's comment for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 90.0
-      # NOTE: the notebook's "Scenario B" adds a second pump station here by
-      # attaching an asset to `assets:` in-memory (cfg_B branch) -- this base
-      # YAML deliberately leaves j_13 as a pure consumer (Scenario A / the
-      # true baseline). See the notebook's Cell 6 for how that's done.
+        lateral_length_m: 686
     j_14:
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
-      # 790.1 MWh/a -> 8.31% -> 14.46 raw share.
-      n_transfer_stations: 15
+      n_transfer_stations: 5
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 147.3
+        lateral_length_m: 42
     j_15:
       consumers:
         - column: "V_27_demand_MWth"
-      # 372.6 MWh/a -> 3.92% -> 6.82 raw share.
-      n_transfer_stations: 7
+      n_transfer_stations: 1
+      # 2026-08-06: flagged by the systematic lateral-loss audit (302 kW peak
+      # through a single station -> ~6.8 m/s, ~43.6 bar friction with the
+      # 32mm default, guaranteed infeasible near peak). See j_3's comment
+      # for the full root cause.
+      lateral_diameter_mm: 150
       pressure:
         min_required_bar: 2.0
-        lateral_length_m: 98.7
+        lateral_length_m: 287
 
   pipes:
     # Längen/Durchmesser aus DXF-Bestandsplan (siehe memory
@@ -447,9 +368,7 @@ network:
       u_value_return_w_per_m_k: 1.40
 
 # --------------------------------------------------------------------------
-# Assets — same as Memmingen_pressure.yaml, TES investment disabled (baked in
-# from the "MM-S0-HK0" scenario's tes_off_mm override — this config is about
-# pressure/pumps, not TES sizing).
+# Assets 
 # --------------------------------------------------------------------------
 assets:
   chp_main:

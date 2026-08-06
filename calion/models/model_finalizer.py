@@ -352,6 +352,15 @@ class ModelFinalizer:
                     # `pressure` dict above instead of a new top-level key, since
                     # that key is already forwarded whole.
                     "n_transfer_stations",
+                    # Real per-node service-lateral pipe diameter (mm), read by
+                    # thermal_node.py's same lateral-pipe-loss term as a TOP-LEVEL
+                    # node key (network_manager.py's enriched_config -- NOT nested
+                    # under `pressure`, unlike lateral_length_m). Missing from this
+                    # whitelist by default (2026-08-06, found via a real MILP
+                    # infeasibility at j_3: its per-node override was silently
+                    # dropped here, so every node fell back to network_manager.py's
+                    # hardcoded 32mm regardless of what the YAML configured).
+                    "lateral_diameter_mm",
                 ):
                     if key in raw_node:
                         node_dict[key] = raw_node[key]
@@ -422,7 +431,7 @@ class ModelFinalizer:
         raw_parameters = net_cfg.get("parameters", tn_cfg.get("parameters", {}))
         if isinstance(raw_parameters, dict):
             parameters.update(raw_parameters)
-        return {
+        result = {
             "enabled": True,
             "nodes": nodes_list,
             "pipes": pipes_list,
@@ -461,6 +470,32 @@ class ModelFinalizer:
             # Only populated when physics.tes_pressure_coupling is enabled.
             "tes_pressure_coupling": self._build_tes_pressure_coupling(ucfg, physics_cfg),
         }
+        # Network-level scalar physics params that network_manager.py reads via
+        # self._net_cfg.get(key, hardcoded_default) -- same bug class as the
+        # temperature_propagation fix above (2026-08-05): silently dropped by
+        # this whitelist, so any config that set them was ignored in favor of
+        # network_manager.py's own hardcoded fallback. Found via
+        # delta_p_min_consumer_bar (config 0.6 bar silently replaced by the
+        # hardcoded 0.7 bar default, ~16.7% pump-energy overstatement --
+        # pump_efficiency happened to mask the same bug by coincidence, since
+        # its config value (0.75) equals network_manager.py's own default).
+        # Only forwarded when actually configured, so networks that leave
+        # these unset keep falling through to network_manager.py's defaults
+        # exactly as before. producer_supply_anchor_mode / pressure_big_m_bar
+        # added 2026-08-05 during a critical sweep for the SAME bug class --
+        # neither is set in any current config, so no active numeric impact
+        # today, but both were equally silently droppable the moment someone
+        # did set them (found via grep for every self._net_cfg.get(...) call
+        # in network_manager.py and cross-checking each key against this
+        # whitelist, not just the one that happened to bite this notebook).
+        for _key in (
+            "delta_p_min_consumer_bar", "pump_efficiency", "max_velocity_m_s",
+            "producer_supply_anchor_mode", "pressure_big_m_bar",
+        ):
+            _val = net_cfg.get(_key, tn_cfg.get(_key))
+            if _val is not None:
+                result[_key] = _val
+        return result
 
     def _build_tes_pressure_coupling(self, ucfg, physics_cfg: dict) -> list[dict]:
         """Collect geometric-TES pressure-coupling specs (spec §4.1.3 edit).

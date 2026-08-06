@@ -68,3 +68,7 @@ grbnodes3/
 .claude/
 
 debug_model.lp
+
+# Standalone export package for external partners (own git init, not part
+# of this repo's history)
+Memmingen_Pandapipes_Share/
