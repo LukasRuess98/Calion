@@ -861,6 +861,7 @@ def create_objective(
     return_anchor_cost=0,
     pressure_reg_cost=0,
     lateral_tiebreak_cost=0,
+    pressure_slack_cost=0,
 ):
     """Create the cost minimization objective function."""
     if not HAVE_PYOMO:
@@ -883,6 +884,8 @@ def create_objective(
     model.return_anchor_cost_expr = pyo.Expression(expr=return_anchor_cost)
     model.pressure_reg_cost_expr = pyo.Expression(expr=pressure_reg_cost)
     model.lateral_tiebreak_cost_expr = pyo.Expression(expr=lateral_tiebreak_cost)
+    # Penalty only (data-artifact pressure relief) -- net out of TAC/LCOH in KPIs.
+    model.pressure_slack_cost_expr = pyo.Expression(expr=pressure_slack_cost)
 
     model.obj = pyo.Objective(
         expr=(
@@ -900,6 +903,7 @@ def create_objective(
             + return_anchor_cost
             + pressure_reg_cost
             + lateral_tiebreak_cost
+            + pressure_slack_cost
         ),
         sense=pyo.minimize,
     )

@@ -789,6 +789,21 @@ class ModelFinalizer:
                     dp_var[t] * coeff for t in T_set
                 )
 
+        # Pressure-relief slack penalty (created in thermal_node.py's station_dp
+        # block, 2026-08-07). High penalty -> slack stays 0 except at anomalous-
+        # data hours that would otherwise make the whole-year solve infeasible.
+        # This is a MODELLING penalty, NOT a real operating cost: KPI extraction
+        # must net model.pressure_slack_cost_expr out of TAC/LCOH and instead
+        # report sum(slack) as a data-quality flag.
+        pressure_slack_cost = 0
+        pressure_slack_terms = getattr(m, 'pressure_slack_terms', [])
+        if pressure_slack_terms:
+            T_set = list(m.t)
+            for slack_var, penalty in pressure_slack_terms:
+                pressure_slack_cost = pressure_slack_cost + sum(
+                    slack_var[t] * penalty for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -805,4 +820,5 @@ class ModelFinalizer:
             return_anchor_cost=return_anchor_cost,
             pressure_reg_cost=pressure_reg_cost,
             lateral_tiebreak_cost=lateral_tiebreak_cost,
+            pressure_slack_cost=pressure_slack_cost,
         )

@@ -34,7 +34,7 @@ import _style  # noqa: E402
 _ROOT = Path(__file__).resolve().parents[3]
 
 NETWORKS = {
-    "stadtbach": _ROOT / "configs" / "stadtbach" / "Stadtbach_topo.yaml",
+    "stadtbach": _ROOT / "configs" / "paper_2" / "Stadtbach_topo.yaml",
     "memmingen": _ROOT / "configs" / "paper_2" / "Memmingen_P2_base.yaml",
 }
 

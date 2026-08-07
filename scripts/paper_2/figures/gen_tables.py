@@ -33,7 +33,7 @@ from scripts.paper_2 import validation_p2  # noqa: E402
 
 NETWORKS = {
     "Stadtbach": {
-        "config": _ROOT / "configs" / "stadtbach" / "Stadtbach_topo.yaml",
+        "config": _ROOT / "configs" / "paper_2" / "Stadtbach_topo.yaml",
         "data": _ROOT / "data" / "Stadtbach" / "stadtbach_acron_combined_cleaned.xlsx",
     },
     "Memmingen": {

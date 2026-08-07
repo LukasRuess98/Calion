@@ -312,14 +312,16 @@ def build_f7() -> None:
 _TRUNK = {
     # Confirmed via scripts/paper_2/figures/trunk_path.py (algorithmic longest
     # plant->consumer path, spec F8). SB: unique candidate, 8570 m, dT_pipe
-    # 1.78 K. MM: j_14 picked over the near-tied j_15 branch (3120 m vs 3065 m,
-    # <2% apart) — j_14 serves 2 metered zones vs j_15's 1, and j_15's larger
-    # dT_pipe (0.75 vs 0.44 K) is driven by an outlier u_value_supply_w_per_m_k
-    # on pipe j13_to_j15 (1.31 W/m/K vs 0.28-0.32 on every other Memmingen
-    # pipe) rather than genuine trunk length — worth a DXF/as-built sanity
-    # check separately, not treated as the representative case here.
+    # 1.78 K.
+    # MM (2026-08-07): re-derived on the DXF-correct topology + j_9 producer.
+    # User-chosen = the algorithmic LONGEST-by-cumulative-length path,
+    # j_9 -> j_3 -> j_2 -> j_1 (2535 m; the near-tied alternative
+    # j_9->j_10->j_11->j_13->j_15 at 1765 m had higher cumulative dT_pipe but is
+    # shorter). This trunk does NOT pass through the secondary producer j_12
+    # (which sits on the parallel j_9->j_10->j_11->j_12 branch), so it is a clean
+    # single-source monotone profile with no mid-trunk pump station.
     "SB": ("SB-S1-HK0", ["j_hkw", "j_pss", "j_hws", "j_don_bosco"]),
-    "MM": ("MM-S1-HK0", ["j_1", "j_2", "j_3", "j_9", "j_10", "j_11", "j_12", "j_13", "j_14"]),
+    "MM": ("MM-S1-HK0", ["j_9", "j_3", "j_2", "j_1"]),
 }
 # Secondary pump/generator stations along each trunk (network_manager.py's
 # _link_pressure_propagation: these nodes carry a local asset, e.g. Stadtbach's
@@ -330,7 +332,7 @@ _TRUNK = {
 # A "monotone fall" is only a valid expectation WITHIN each station-to-station
 # segment, not across one -- see the 2026-07-19 investigation in the
 # Implementation Statement (F8 entry) for the full trace.
-_TRUNK_STATIONS = {"SB": {"j_pss"}, "MM": {"j_12"}}
+_TRUNK_STATIONS = {"SB": {"j_pss"}, "MM": set()}  # MM trunk j_9->j_3->j_2->j_1 has no mid-trunk station (j_12 is off the parallel branch)
 
 
 def _pick_col(df, *names):

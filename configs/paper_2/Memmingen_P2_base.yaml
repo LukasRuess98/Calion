@@ -36,9 +36,15 @@ scenario:
 # --------------------------------------------------------------------------
 network:
   milp_linearize: true
-  # j_12 hosts HP/EK (spec §3.3: WP/EK fest bei der Abwärme, Memmingen = j_12) and
-  # becomes a 'mixed' node — only j_1 keeps the fixed P_supply setpoint, j_12 floats.
-  primary_producer: "j_1"
+  # 2026-08-06: primary producer MOVED j_1 -> j_9 to match the real network.
+  # j_9 is the actual "Energiezentrale" (all 5 installed Wilo pumps + all central
+  # generators sit there, per configs/pressure/Memmingen_componenets_spec and the
+  # DXF pressure investigation). The main portfolio [chp_main, tes_main,
+  # biomass_main, gasboiler_main] moved with it (see nodes below); j_1 is now a
+  # plain consumer leaf. j_12 still hosts HP/EK (spec §3.3, waste-heat node) as a
+  # secondary 'mixed' producer with its own pump-boosted floor. Only j_9 keeps the
+  # fixed P_supply setpoint.
+  primary_producer: "j_9"
   # 2026-07-08: McCormick L3+ temperature propagation DISABLED -- at 8760 h it
   # made the model ~6M rows (barrier root LP couldn't solve, no incumbent; see
   # report Part E.1). Spatial supply-temperature DROP is now applied instead as
@@ -56,9 +62,24 @@ network:
   state_validation:
     flow_constraints:
       max_velocity_m_s: 3.0   # passed to state_constraints velocity Pyomo constraint
+  # 2026-08-06: real pressure-stack params from the DXF pressure investigation
+  # (configs/pressure/Memmingen_pressure_stations.yaml + pandapipes cross-check).
+  # delta_p_min_consumer_bar 0.6 = real Uebergabestation spec (was silently
+  # falling back to network_manager's 0.7 default). lateral_diameter_mm is the
+  # network default service-lateral DN; per-node velocity-sized overrides live in
+  # nodes: below (2 m/s on the real 2025 hourly-mean peak).
+  delta_p_min_consumer_bar: 0.6
+  lateral_diameter_mm: 32.0
   physics:
     heat_loss: true
     pressure_drop: true
+    # 2026-08-06: opt-in pressure tie-break (Impl. Statement Part H.7) so pressure
+    # away from a binding constraint is not solver-arbitrary. Enabled now that the
+    # campaign carries the full lateral/station pressure stack; verified cost-
+    # neutral on this network in the investigation config. Return-side anchoring
+    # (network_manager.py, 2026-08-05) resolves P_return at every consumer node.
+    pressure_regularization: true
+    pressure_regularization_epsilon: 0.0001
     transport_delay: true
     tes_pressure_coupling: true   # F4: TES <-> node pressure coupling (mode below)
     # same_circuit_buffer (2026-07-13): TES is an in-line buffer sharing the network's
@@ -89,168 +110,251 @@ network:
     # k slope is applied externally in scenario_runner.py via compute_heizkurve()
 
   nodes:
+    # 2026-08-06: full pressure stack injected from the DXF pressure investigation
+    # (configs/pressure/Memmingen_pressure_stations.yaml + pandapipes cross-check):
+    #   n_transfer_stations = real DXF station counts per lumped node
+    #   pressure.lateral_length_m = DXF-traced service-lateral length (m)
+    #   lateral_diameter_mm = velocity-sized (<=2 m/s) on the REAL 2025 hourly-mean
+    #     per-station peak; omitted = DN32 network default. j_12/j_15 sized one step
+    #     past 2 m/s (long laterals) -- REVIEW their length vs DXF.
+    #   min_required_bar 2.0 at consumers; setpoint_bar 6.38 at producers j_9/j_12.
+    # Plant portfolio moved j_1 -> j_9 (real Energiezentrale).
     j_1:
-      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_1_demand_MWth"
+      n_transfer_stations: 31
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 1201
     j_2:
       consumers:
         - column: "V_2_demand_MWth"
+      n_transfer_stations: 43
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 1315
     j_3:
       consumers:
         - column: "V_3_demand_MWth"
+      n_transfer_stations: 1
+      lateral_diameter_mm: 65   # velocity-sized: ~473 kW / 1 station -> 1.7 m/s
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 73
     j_4:
       consumers:
         - column: "V_4_demand_MWth"
         - column: "V_5_demand_MWth"
         - column: "V_6_demand_MWth"
         - column: "V_7_demand_MWth"
+      n_transfer_stations: 7
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 377
     j_5:
       consumers:
         - column: "V_8_demand_MWth"
         - column: "V_9_demand_MWth"
+      n_transfer_stations: 3
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 319
     j_6:
       consumers:
         - column: "V_10_demand_MWth"
         - column: "V_11_demand_MWth"
         - column: "V_12_demand_MWth"
+      n_transfer_stations: 3
+      lateral_diameter_mm: 40   # velocity-sized: ~168 kW / station -> 1.6 m/s
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 107
     j_7:
       consumers:
         - column: "V_13_demand_MWth"
+      n_transfer_stations: 5
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 1075
     j_8:
       consumers:
         - column: "V_14_demand_MWth"
+      n_transfer_stations: 3
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 60
     j_9:
+      # Real "Energiezentrale" -- all 5 Wilo pumps + central generators. Primary
+      # producer with the fixed P_supply setpoint. Portfolio moved here from j_1.
+      assets: [chp_main, tes_main, biomass_main, gasboiler_main]
       consumers:
         - column: "V_15_demand_MWth"
         - column: "V_16_demand_MWth"
+      n_transfer_stations: 8
+      pressure:
+        setpoint_bar: 6.38
+        lateral_length_m: 333
     j_10:
       consumers:
         - column: "V_17_demand_MWth"
+      n_transfer_stations: 3
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 117
     j_11:
       consumers:
         - column: "V_18_demand_MWth"
+      n_transfer_stations: 1
+      lateral_diameter_mm: 50   # velocity-sized: ~285 kW / 1 station -> 1.8 m/s
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 10
     j_12:
-      # WP + EK at the waste-heat node per spec §3.3 / Paper 1 (J12)
+      # WP + EK at the waste-heat node per spec §3.3 / Paper 1 (J12). Secondary
+      # 'mixed' producer -- own pump-boosted floor. setpoint_bar 6.38 matches the
+      # pandapipes-validated real operating pressure (investigation Teil 1/2).
       assets: [hp_main, eboiler_main]
       consumers:
         - column: "V_19_demand_MWth"
         - column: "V_20_demand_MWth"
         - column: "V_21_demand_MWth"
+      n_transfer_stations: 4
+      lateral_diameter_mm: 65   # long lateral (442 m): sized 1 step past 2 m/s -> ~0.31 bar. REVIEW length vs DXF.
+      pressure:
+        setpoint_bar: 6.38
+        lateral_length_m: 442
     j_13:
       consumers:
         - column: "V_22_demand_MWth"
         - column: "V_23_demand_MWth"
         - column: "V_24_demand_MWth"
+      n_transfer_stations: 15
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 686
     j_14:
       consumers:
         - column: "V_25_demand_MWth"
         - column: "V_26_demand_MWth"
+      n_transfer_stations: 5
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 42
     j_15:
       consumers:
         - column: "V_27_demand_MWth"
+      n_transfer_stations: 1
+      lateral_diameter_mm: 50   # long lateral (287 m): sized 1 step past 2 m/s -> ~0.40 bar. REVIEW length vs DXF.
+      pressure:
+        min_required_bar: 2.0
+        lateral_length_m: 287
 
   pipes:
-    # Längen/Durchmesser 2026-07-07 aus DXF-Bestandsplan (configs/memmingen/2026-07-06_MM-Nord_Bestand_FW.dxf)
-    # rekalibriert, gleiche Werte wie configs/memmingen/Memmingen_L3_MILP.yaml (siehe memory
-    # project_memmingen_dxf_crosscheck). Nur hoch/mittel-Konfidenz-Äste (j1_to_j2 ... j9_to_j10)
-    # aktualisiert; j10_to_j11 abwärts unverändert (Matching dort nicht belastbar).
-    j1_to_j2:
-      from: j_1
-      to: j_2
-      length_m: 1180
-      diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-    j2_to_j3:
+    # 2026-08-06: pipe topology + dimensions adopted WHOLESALE from the DXF-correct
+    # pressure investigation (configs/pressure/Memmingen_pressure_stations.yaml) --
+    # the authoritative DXF trace (incl. the Doppelrohrleitung layer) that the
+    # pandapipes cross-check actually validated. SUPERSEDES the earlier 2026-07-07
+    # calibration that used to live here. Two branches re-attached vs. the old set:
+    #   * j_4 subtree now hangs off j_12 (was j_3): j12_to_j4
+    #   * j_13 subtree now hangs off j_11 (was j_12): j11_to_j13
+    # and most trunk lengths/diameters were revised. Flow directions point OUTWARD
+    # from the j_9 producer (j9_to_j3 -> j3_to_j2 -> j2_to_j1 toward the j_1 leaf).
+    j2_to_j1:
       from: j_2
+      to: j_1
+      length_m: 1150
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    j3_to_j2:
+      from: j_3
+      to: j_2
+      length_m: 1200
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+    j9_to_j3:
+      from: j_9
       to: j_3
-      length_m: 513
-      diameter_mm: 200
+      length_m: 185
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-    j3_to_j4:
-      from: j_3
+    j12_to_j4:
+      from: j_12
       to: j_4
-      length_m: 116
-      diameter_mm: 250
-      u_value_supply_w_per_m_k: 0.32
-      u_value_return_w_per_m_k: 0.34
-    j3_to_j9:
-      from: j_3
-      to: j_9
-      length_m: 83
+      length_m: 470
       diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j4_to_j5:
       from: j_4
       to: j_5
-      length_m: 728
-      diameter_mm: 250
+      length_m: 560
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j5_to_j6:
       from: j_5
       to: j_6
-      length_m: 159
+      length_m: 161
       diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j5_to_j7:
       from: j_5
       to: j_7
-      length_m: 50
-      diameter_mm: 65
+      length_m: 280
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j7_to_j8:
       from: j_7
       to: j_8
-      length_m: 120
-      diameter_mm: 65
+      length_m: 450
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j9_to_j10:
       from: j_9
       to: j_10
-      length_m: 464
-      diameter_mm: 300
+      length_m: 175
+      diameter_mm: 250
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j10_to_j11:
       from: j_10
       to: j_11
-      length_m: 230
-      diameter_mm: 300
+      length_m: 256
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j11_to_j12:
       from: j_11
       to: j_12
-      length_m: 250
-      diameter_mm: 300
+      length_m: 108
+      diameter_mm: 150
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
-    j12_to_j13:
-      from: j_12
+    j11_to_j13:
+      from: j_11
       to: j_13
-      length_m: 220
-      diameter_mm: 250
+      length_m: 420
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.32
       u_value_return_w_per_m_k: 0.34
     j13_to_j14:
       from: j_13
       to: j_14
-      length_m: 180
-      diameter_mm: 125
+      length_m: 660
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 0.28
       u_value_return_w_per_m_k: 0.30
     j13_to_j15:
       from: j_13
       to: j_15
-      length_m: 125
-      diameter_mm: 100
+      length_m: 914
+      diameter_mm: 200
       u_value_supply_w_per_m_k: 1.31
       u_value_return_w_per_m_k: 1.40
 

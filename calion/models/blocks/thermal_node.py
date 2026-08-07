@@ -497,18 +497,28 @@ class ThermalNodeBlock(BaseComponent):
                 _m_station_ub = max(_mdot_ub / _n_stations_lateral, 1e-6)
                 # Breakpoints biased toward low flow (most stations run well
                 # below design capacity most hours -- same rationale as the
-                # notebook's add_low_flow_tangents()). Densified 2026-07-29
-                # after a validation run showed real per-station flows sit
-                # almost entirely in the bottom ~10% of _m_station_ub (which
-                # is a generous McCormick-driven safety-margin ceiling, not a
-                # realistic design point) -- the original 6-point set left
-                # absolute dp_extra errors of up to ~0.1 bar at the
-                # longest-lateral nodes (project_memmingen_pump_pressure_study
-                # memory has the full before/after numbers). Adding more
-                # low-end points is pure LP cost (a few more continuous
-                # weights per node per timestep, no binaries) -- negligible
-                # next to the model's existing tens of thousands of variables.
-                _fracs = (0.0, 0.01, 0.025, 0.05, 0.09, 0.15, 0.25, 0.4, 0.6, 0.8, 1.0)
+                # notebook's add_low_flow_tangents()). Real per-station flow
+                # sits almost entirely in the bottom ~10-15% of _m_station_ub
+                # (a generous McCormick-driven safety-margin ceiling, ~50%
+                # over peak -- NOT a realistic design point), so accuracy is
+                # governed entirely by the low-end resolution.
+                #
+                # 2026-08-06: REDUCED 11 -> 6 points for 8760 h campaign
+                # tractability. At 15 nodes x 8760 h the weight Vars dominate
+                # the added continuous-column count; 11 pts nearly doubled the
+                # model's continuous vars (see baseline: MM-S0-HK0 was already
+                # a 24 h / 2.5%-gap unit-commitment solve). This set keeps a
+                # breakpoint AT 0.15 (the operating peak) so accuracy where it
+                # matters is preserved: verified max abs error in the 0-15%
+                # operating band = 0.0020 x dp@ceiling (~0.004 bar at the
+                # worst node j_12/DN65), vs 0.0009 for 11 pts -- both far
+                # below the network's multi-bar pressure scale. The coarse
+                # high-end segment [0.4,1.0] only OVERestimates the convex
+                # loss (secant above curve), which is a safe/conservative
+                # floor for flows that in practice never reach the ceiling.
+                # Earlier densify note (2026-07-29, 6->11) is superseded: it
+                # optimised accuracy without the 8760 h var-count constraint.
+                _fracs = (0.0, 0.02, 0.06, 0.15, 0.4, 1.0)
                 _breakpoints = [_frac * _m_station_ub for _frac in _fracs]
                 _K = len(_breakpoints)
                 _dp_at_bp = [_dp_lat_bar(_m) for _m in _breakpoints]
@@ -602,10 +612,39 @@ class ThermalNodeBlock(BaseComponent):
             # P_supply - P_return >= delta_p_min_station (e.g. 0.7 bar = 70 kPa)
             # + the lateral-loss term above, if enabled for this node.
             if config.get('pressure_drop_enabled', False):
+                # 2026-08-07: bounded, penalised pressure-relief SLACK. Without it,
+                # a single anomalous-DATA hour makes the entire 8760 h solve
+                # INFEASIBLE. Root case that motivated this (Memmingen MM-S0-HK0):
+                # j_13's demand columns (V_22/23/24) are sparse daily metering --
+                # V_22 has only ~21 non-NaN hours in 2025, a mid-year commissioning
+                # connection -- which the loader ffills to hourly step-holds; the
+                # coupled pressure system at exactly one filled hour (2025-12-15
+                # 15:00) has no feasible P_supply/P_return (confirmed by direct
+                # gurobipy computeIIS on the infeasible LP snapshot). A whole-year
+                # DH optimisation must not die on one data-artifact hour. The slack
+                # lets that hour's consumer differential fall short, penalised so
+                # heavily it stays EXACTLY 0 in every normal hour (so results are
+                # unchanged except at flagged hours), and slack>0 is an explicit
+                # audit signal, not a silent relaxation. Unbounded-above (penalty,
+                # not a bound, keeps it minimal) so feasibility is GUARANTEED.
+                # NOTE for KPI extraction: model.pressure_slack_cost_expr is a
+                # penalty, NOT a real cost -- net it out of TAC/LCOH and report
+                # sum(slack) as a data-quality flag instead.
+                _slack_enabled = bool(config.get('pressure_slack', True))
+                _station_slack = None
+                if _slack_enabled:
+                    _station_slack = pyo.Var(time_set, domain=pyo.NonNegativeReals)
+                    setattr(model, f'{prefix}_station_dp_slack', _station_slack)
+                    _pen = float(config.get('pressure_slack_penalty', 1e5) or 1e5)
+                    if not hasattr(model, 'pressure_slack_terms'):
+                        model.pressure_slack_terms = []
+                    model.pressure_slack_terms.append((_station_slack, _pen))
                 def _station_dp_rule(m, t, _ps=pressure_supply, _pr=pressure_return,
-                                      _dp=delta_p_min_station, _lat=lateral_dp_extra):
+                                      _dp=delta_p_min_station, _lat=lateral_dp_extra,
+                                      _sl=_station_slack):
                     _extra = _lat[t] if _lat is not None else 0.0
-                    return _ps[t] - _pr[t] >= _dp + _extra
+                    _slack = _sl[t] if _sl is not None else 0.0
+                    return _ps[t] - _pr[t] + _slack >= _dp + _extra
                 setattr(model, f'{prefix}_station_dp',
                         pyo.Constraint(time_set, rule=_station_dp_rule))
 

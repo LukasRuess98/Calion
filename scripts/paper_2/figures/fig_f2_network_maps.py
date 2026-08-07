@@ -30,7 +30,7 @@ SCENARIOS_YAML = _ROOT / "configs" / "paper_2" / "scenarios.yaml"
 NETWORKS = {
     "stadtbach": {
         "title": "Stadtbach — 32 nodes, meshed",
-        "config": _ROOT / "configs" / "stadtbach" / "Stadtbach_topo.yaml",
+        "config": _ROOT / "configs" / "paper_2" / "Stadtbach_topo.yaml",
     },
     "memmingen": {
         "title": "Memmingen — 15 nodes, radial (real pipe lengths)",

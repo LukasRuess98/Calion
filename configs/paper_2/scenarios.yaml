@@ -72,7 +72,11 @@ heat_curve_stages:
 # TES candidate nodes (spec row → real node)
 tes_nodes:
   memmingen:
-    S1: "j_1"     # spec J1  — Zentrale (existing TES location)
+    S1: "j_9"     # spec J1 — Zentrale (existing TES + central generators). Moved
+                  # j_1 -> j_9 (2026-08-06): j_9 is the real Energiezentrale, and
+                  # the whole portfolio + primary_producer moved there in
+                  # Memmingen_P2_base.yaml. S1 = "TES at the central plant" must
+                  # follow the plant. (Analogous to Stadtbach S1 = j_hkw below.)
     S2: "j_12"    # spec J12 — waste-heat node (HP/EK site)
     S3: "j_12"    # spec J12 — same node, hot charging (feature-gated)
   stadtbach:
@@ -123,7 +127,7 @@ scenarios:
   # ═══════════════════════════════════════════════════════════════════════════
   - id: "BC-SB"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "TVLFIX"
     tvl_fix: true
     tes_node: null
@@ -172,7 +176,7 @@ scenarios:
   # ═══════════════════════════════════════════════════════════════════════════
   - id: "SB-S0-TVLFIX"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "TVLFIX"
     tvl_fix: true
     tes_node: null
@@ -194,7 +198,7 @@ scenarios:
 
   - id: "SB-S0-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: null
     hp_node: "J4"
@@ -204,7 +208,7 @@ scenarios:
 
   - id: "SB-S0-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: null
     hp_node: "J4"
@@ -214,7 +218,7 @@ scenarios:
 
   - id: "SB-S0-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: null
     hp_node: "J4"
@@ -257,7 +261,7 @@ scenarios:
   # ═══════════════════════════════════════════════════════════════════════════
   - id: "SB-S1-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: "S1"
     hp_node: "J4"
@@ -266,7 +270,7 @@ scenarios:
 
   - id: "SB-S1-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: "S1"
     hp_node: "J4"
@@ -275,7 +279,7 @@ scenarios:
 
   - id: "SB-S1-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: "S1"
     hp_node: "J4"
@@ -284,7 +288,7 @@ scenarios:
 
   - id: "SB-S2-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: "S2"
     hp_node: "J4"
@@ -293,7 +297,7 @@ scenarios:
 
   - id: "SB-S2-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: "S2"
     hp_node: "J4"
@@ -302,7 +306,7 @@ scenarios:
 
   - id: "SB-S2-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: "S2"
     hp_node: "J4"
@@ -311,7 +315,7 @@ scenarios:
 
   - id: "SB-S3-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: "S3"
     hp_node: "J4"
@@ -321,7 +325,7 @@ scenarios:
 
   - id: "SB-S3-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: "S3"
     hp_node: "J4"
@@ -331,7 +335,7 @@ scenarios:
 
   - id: "SB-S3-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: "S3"
     hp_node: "J4"
@@ -341,7 +345,7 @@ scenarios:
 
   - id: "SB-S4-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: "S4"
     hp_node: "J4"
@@ -350,7 +354,7 @@ scenarios:
 
   - id: "SB-S4-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: "S4"
     hp_node: "J4"
@@ -359,7 +363,7 @@ scenarios:
 
   - id: "SB-S4-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: "S4"
     hp_node: "J4"
@@ -368,7 +372,7 @@ scenarios:
 
   - id: "SB-S5-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: "S5"
     hp_node: "J4"
@@ -377,7 +381,7 @@ scenarios:
 
   - id: "SB-S5-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: "S5"
     hp_node: "J4"
@@ -386,7 +390,7 @@ scenarios:
 
   - id: "SB-S5-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: "S5"
     hp_node: "J4"
@@ -398,7 +402,7 @@ scenarios:
   # ═══════════════════════════════════════════════════════════════════════════
   - id: "SB-S6-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: null
     baseline: false
@@ -407,7 +411,7 @@ scenarios:
 
   - id: "SB-S6-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: null
     baseline: false
@@ -416,7 +420,7 @@ scenarios:
 
   - id: "SB-S6-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: null
     baseline: false
@@ -425,7 +429,7 @@ scenarios:
 
   - id: "SB-S7-HK0"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK0"
     tes_node: null
     baseline: false
@@ -436,7 +440,7 @@ scenarios:
 
   - id: "SB-S7-HK1"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK1"
     tes_node: null
     baseline: false
@@ -447,7 +451,7 @@ scenarios:
 
   - id: "SB-S7-HK2"
     network: "stadtbach"
-    config: "configs/stadtbach/Stadtbach_topo.yaml"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
     heat_curve_stage: "HK2"
     tes_node: null
     baseline: false
