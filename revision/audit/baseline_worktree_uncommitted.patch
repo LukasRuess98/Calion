@@ -1,0 +1,234 @@
+diff --git a/calion/models/blocks/pipe_pair.py b/calion/models/blocks/pipe_pair.py
+index 0e831fb..dd658a5 100644
+--- a/calion/models/blocks/pipe_pair.py
++++ b/calion/models/blocks/pipe_pair.py
+@@ -923,7 +923,15 @@ class PipePairBlock(BaseComponent):
+         k_flow = k_pressure / ((density_water * area_m2) ** 2) if area_m2 > 0 else 0
+ 
+         if effective_max_flow > 0:
+-            bp_fracs = [0.0, 0.3, 0.7, 1.0]
++            # 2026-07-27: breakpoints concentrated at LOW flow. The old
++            # [0, 0.3, 0.7, 1.0] left a wide first segment [0, 0.3*max] whose
++            # origin-chord over-estimated the convex P_pump ~ flow^3 up to ~30x,
++            # since these oversized pipes run at ~10-30% of design flow most of
++            # the year (objective friction pump 10.2 MWh vs 0.6 MWh physical).
++            # Placing two breakpoints inside the operating band cuts the secant
++            # over-estimation to ~2x while keeping 3 segments (no extra binaries)
++            # and the pinned PWL equality (no negative-price P_pump inflation).
++            bp_fracs = [0.0, 0.12, 0.35, 1.0]
+             bp_flows = [f * effective_max_flow for f in bp_fracs]
+             bp_dp = [k_flow * (f * effective_max_flow) ** 2 for f in bp_fracs]
+ 
+@@ -1015,7 +1023,12 @@ class PipePairBlock(BaseComponent):
+             for t in time_set:
+                 P_pump[t].fix(0.0)
+         else:
+-            # PWL approximation uses secants between breakpoint pump powers.
++            # PWL EQUALITY (secant) pump power -- P_pump is pinned to the PWL of
++            # the true cubic at the current flow (SOS-style segment selection via
++            # pwl_flow/pwl_seg). Equality is REQUIRED: a lower-bound-only
++            # formulation lets the optimiser inflate P_pump to consume
++            # negative-price electricity for profit. Over-estimation of the convex
++            # cubic is controlled by the low-flow-dense breakpoints (bp_fracs).
+             pump_slopes = []
+             pump_intercepts = []
+             for s in range(3):
+diff --git a/calion/models/blocks/thermal_node.py b/calion/models/blocks/thermal_node.py
+index eed93a0..ef1b398 100644
+--- a/calion/models/blocks/thermal_node.py
++++ b/calion/models/blocks/thermal_node.py
+@@ -332,10 +332,18 @@ class ThermalNodeBlock(BaseComponent):
+                             pyo.Param(time_set, initialize=demand_init))
+                 elif hasattr(model, _node_heatd_attr):
+                     # Prefer node-specific demand param (avoids triple-counting when multiple
+-                    # consumer nodes reference the same demand column -- m.heatd is their sum)
++                    # consumer nodes reference the same demand column -- m.heatd is their sum).
++                    # 2026-07-27 demand_fraction^2 fix (faithful Paper-1 synth correction):
++                    # system_builder.py already builds heatd_{node} as (demand_column * frac),
++                    # so it IS the node's demand. Multiplying by _frac AGAIN here yielded
++                    # (column * frac * frac) = column * frac^2 -- for the synth configs
++                    # (single fractional consumer per node, frac ~0.19) this served only
++                    # SUM(frac^2) ~ 0.20x of the true demand, under-generating by ~5x. The
++                    # primary case was unaffected because its consumers have demand_fraction
++                    # removed (frac = 1.0 -> 1^2 = 1). Use the node param directly.
+                     _node_heatd = getattr(model, _node_heatd_attr)
+-                    def demand_init(m, t, _h=_node_heatd, _frac=_demand_fraction):
+-                        return _apply_demand_floor(pyo.value(_h[t]) * _frac)
++                    def demand_init(m, t, _h=_node_heatd):
++                        return _apply_demand_floor(pyo.value(_h[t]))
+                     setattr(model, f'{prefix}_Q_demand',
+                             pyo.Param(time_set, initialize=demand_init))
+                 elif hasattr(model, 'heatd'):
+diff --git a/calion/models/network_manager.py b/calion/models/network_manager.py
+index 7fbc8d6..b4613cc 100644
+--- a/calion/models/network_manager.py
++++ b/calion/models/network_manager.py
+@@ -1634,18 +1634,52 @@ class NetworkManager:
+         logger.info("\nSetting up producer pump head constraints...")
+         pump_el_flows = []
+ 
+-        producer_pipes: dict[str, list[tuple[str, dict]]] = {}
++        # 2026-07-26 surgical pump-attribution fix (faithful Paper-1 correction).
++        # PREVIOUS behaviour attributed ONLY a producer's own immediately-outgoing
++        # pipe(s) to its pump, silently dropping every pipe further downstream --
++        # which still has a real, nonzero P_pump, friction does not stop after one
++        # hop -- from ANY producer's electricity load. For the radial primary
++        # network (plant j_1 has a single outgoing pipe j1_to_j2) this discarded
++        # 13 of 14 pipes' pumping work from the objective. Each producer now claims
++        # every pipe on its nearest (fewest-hop) path from itself, stopping
++        # expansion at any OTHER producer node (that station's own pump takes over
++        # beyond there). Objective-only change; the per-pipe P_pump aggregation and
++        # nodal pump-head handling below are untouched.
++        from collections import deque
++        adjacency: dict[str, list[tuple[str, dict, str]]] = {}
+         for pipe_id, pipe_comp in pipe_components.items():
+-            if not pipe_comp.get('pump_enabled', False):
+-                continue
+-
+             from_node = pipe_comp['from_node']
+-            if from_node not in node_components:
+-                continue
+-            if node_components[from_node]['type'] not in ('producer', 'mixed'):
++            to_node = pipe_comp['to_node']
++            if from_node not in node_components or to_node not in node_components:
+                 continue
++            adjacency.setdefault(from_node, []).append((pipe_id, pipe_comp, to_node))
+ 
+-            producer_pipes.setdefault(from_node, []).append((pipe_id, pipe_comp))
++        producer_node_ids = {
++            nid for nid, nc in node_components.items()
++            if nc['type'] in ('producer', 'mixed')
++        }
++
++        pipe_owner: dict[str, str] = {}
++        hop_of: dict[str, int] = {}
++        queue: deque[tuple[str, str, int]] = deque()
++        for pid in sorted(producer_node_ids):
++            hop_of[pid] = 0
++            queue.append((pid, pid, 0))
++        while queue:
++            node_id, owner, hops = queue.popleft()
++            for pipe_id, pipe_comp, to_node in adjacency.get(node_id, []):
++                pipe_owner.setdefault(pipe_id, owner)
++                if to_node in producer_node_ids and to_node != owner:
++                    continue  # that station's own pump takes over beyond here
++                if to_node not in hop_of or hop_of[to_node] > hops + 1:
++                    hop_of[to_node] = hops + 1
++                    queue.append((to_node, owner, hops + 1))
++
++        producer_pipes: dict[str, list[tuple[str, dict]]] = {}
++        for pipe_id, owner in pipe_owner.items():
++            if not pipe_components[pipe_id].get('pump_enabled', False):
++                continue
++            producer_pipes.setdefault(owner, []).append((pipe_id, pipe_components[pipe_id]))
+ 
+         for node_id, pipes in producer_pipes.items():
+             node_P_supply = node_components[node_id]['pressure_supply']
+@@ -1693,6 +1727,46 @@ class NetworkManager:
+                 f"for {len(pipes)} outgoing pipe(s)"
+             )
+ 
++        # Transfer-station (Uebergabestation) differential-pressure pump work
++        # (2026-07-27): the circulation pump must ALSO overcome the differential
++        # pressure maintained at each consumer transfer station (control-valve
++        # authority, delta_p_min_consumer_bar) -- dissipated at the station valve.
++        # This is real, dominant DH pump energy that the friction-only formulation
++        # omitted, under-stating pumping ~1-2 orders of magnitude vs real DH. It is
++        # LINEAR in the consumer mass flow m_dot_demand, hence exact in the MILP
++        # (no PWL -> also immune to the PWL low-flow looseness). Same unit
++        # convention as pipe P_pump: MW = dp_bar * 1e5 * m_dot / (rho * eta * 1e6).
++        rho_w = 1000.0
++        eta_pump = float(self._net_cfg.get('pump_efficiency', 0.75))
++        dp_station_bar = float(self._net_cfg.get('delta_p_min_consumer_bar', 0.6))
++        n_station = 0
++        if dp_station_bar > 0:
++            for c_id, c_comp in node_components.items():
++                if c_comp.get('type') not in ('consumer', 'mixed'):
++                    continue
++                mdot = c_comp.get('m_dot_demand')
++                if mdot is None:
++                    continue
++                st_pump = pyo.Var(time_set, domain=pyo.NonNegativeReals)
++                setattr(model, f"station_{c_id}_P_pump", st_pump)
++                setattr(
++                    model,
++                    f"station_{c_id}_pump_balance",
++                    pyo.Constraint(
++                        time_set,
++                        rule=lambda m, t, _v=st_pump, _md=mdot, _dp=dp_station_bar,
++                        _rho=rho_w, _eta=eta_pump: (
++                            _v[t] == _dp * 1e5 * _md[t] / (_rho * _eta * 1e6)
++                        ),
++                    ),
++                )
++                pump_el_flows.append(st_pump)
++                n_station += 1
++            logger.info(
++                "  âœ“ transfer-station Î”p pump (%.2f bar) added for %d consumer node(s)",
++                dp_station_bar, n_station,
++            )
++
+         logger.info(f"  Total aggregated producer pump loads registered: {len(pump_el_flows)}")
+         return pump_el_flows
+ 
+diff --git a/configs/memmingen/Memmingen_L1.yaml b/configs/memmingen/Memmingen_L1.yaml
+index 819aeec..24808b8 100644
+--- a/configs/memmingen/Memmingen_L1.yaml
++++ b/configs/memmingen/Memmingen_L1.yaml
+@@ -180,4 +180,4 @@ output:
+   log_dir: "output/logs"
+   export_dir: "output/results"
+   export_thermal_network: true
+-  export_solver_solution: true
++  export_solver_solution: false
+diff --git a/configs/memmingen/Memmingen_L2.yaml b/configs/memmingen/Memmingen_L2.yaml
+index b9d5da7..9187cd2 100644
+--- a/configs/memmingen/Memmingen_L2.yaml
++++ b/configs/memmingen/Memmingen_L2.yaml
+@@ -307,4 +307,4 @@ output:
+   log_dir: "output/logs"
+   export_dir: "output/results"
+   export_thermal_network: true
+-  export_solver_solution: true
++  export_solver_solution: false
+diff --git a/configs/memmingen/Memmingen_L3_MILP.yaml b/configs/memmingen/Memmingen_L3_MILP.yaml
+index 1ecaf0c..0760ffa 100644
+--- a/configs/memmingen/Memmingen_L3_MILP.yaml
++++ b/configs/memmingen/Memmingen_L3_MILP.yaml
+@@ -109,7 +109,7 @@ network:
+   pump_efficiency: 0.75
+   pipe_roughness_mm: 0.5
+   max_pressure_drop_bar: 2.0
+-  delta_p_min_consumer_bar: 0.7
++  delta_p_min_consumer_bar: 0.6
+ 
+   # --- NODES: 15 Junctions, alle 27 Verbraucher direkt eingebettet ---
+   nodes:
+@@ -442,4 +442,4 @@ output:
+   log_dir: "output/logs"
+   export_dir: "output/results"
+   export_thermal_network: true
+-  export_solver_solution: true
++  export_solver_solution: false
+diff --git a/configs/memmingen/Memmingen_L3_NLP.yaml b/configs/memmingen/Memmingen_L3_NLP.yaml
+index 61ba4cd..04e9079 100644
+--- a/configs/memmingen/Memmingen_L3_NLP.yaml
++++ b/configs/memmingen/Memmingen_L3_NLP.yaml
+@@ -381,6 +381,6 @@ output:
+   log_dir: "output/logs"
+   export_dir: "output/results"
+   export_thermal_network: true
+-  export_solver_solution: true
++  export_solver_solution: false
+ 
+ 
+diff --git a/configs/memmingen/Memmingen_L3_NoPhys.yaml b/configs/memmingen/Memmingen_L3_NoPhys.yaml
+index 38b301b..4f84993 100644
+--- a/configs/memmingen/Memmingen_L3_NoPhys.yaml
++++ b/configs/memmingen/Memmingen_L3_NoPhys.yaml
+@@ -355,4 +355,4 @@ output:
+   log_dir: "output/logs"
+   export_dir: "output/results"
+   export_thermal_network: true
+-  export_solver_solution: true
++  export_solver_solution: false

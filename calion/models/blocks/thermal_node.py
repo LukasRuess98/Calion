@@ -635,7 +635,19 @@ class ThermalNodeBlock(BaseComponent):
                 if _slack_enabled:
                     _station_slack = pyo.Var(time_set, domain=pyo.NonNegativeReals)
                     setattr(model, f'{prefix}_station_dp_slack', _station_slack)
-                    _pen = float(config.get('pressure_slack_penalty', 1e5) or 1e5)
+                    # Penalty sizing (2026-08-07): must be (a) >> the marginal
+                    # value of relaxing the consumer differential (~1-10 EUR/bar
+                    # of avoided pump work) so slack stays 0 at every normal hour,
+                    # yet (b) << the MIPGap tolerance in absolute EUR (0.5% of a
+                    # ~350k objective = ~1750 EUR) so the penalty on the tiny
+                    # artifact-hour slack (~0.5 bar total) does NOT inflate the
+                    # reported optimality gap or distort the LP bound. 1e3 EUR/bar
+                    # -> ~500 EUR total penalty: deters abuse by 100x, stays well
+                    # under the gap tolerance. (A 1e5 first cut inflated the gap
+                    # to ~18% purely from incumbent-vs-bound penalty asymmetry --
+                    # the LP bound uses fractional slack cheaply while the
+                    # incumbent pays the full penalty; 1e3 removes that artefact.)
+                    _pen = float(config.get('pressure_slack_penalty', 1e3) or 1e3)
                     if not hasattr(model, 'pressure_slack_terms'):
                         model.pressure_slack_terms = []
                     model.pressure_slack_terms.append((_station_slack, _pen))
