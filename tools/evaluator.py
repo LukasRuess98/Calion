@@ -295,6 +295,7 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
     per_pipe_loss = {pid: 0.0 for pid in pipes.index}
     pump_energy = 0.0
     total_loss = 0.0
+    min_node_Tsup = float("inf")   # diagnostic only: coldest delivered node supply T [C]
     viol = {k: {"n_steps": 0, "energy_mwh": 0.0, "worst": 0.0}
             for k in ("velocity", "dp_consumer", "unmet_demand")}
 
@@ -331,6 +332,11 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
                 T_to = T_from - (q_loss_lin * 1000.0 / (mdot * CP_WATER_KJ)
                                  if mdot > 1e-9 else 0.0)
             T_in_node[to] = T_to
+            # critical-consumer delivered temp: track only branches carrying meaningful
+            # flow (>2% of root); near-zero-demand dead-legs decay to ~T_gr and are not a
+            # real feasibility signal.
+            if frac > 0.02:
+                min_node_Tsup = min(min_node_Tsup, T_to)
             loss_sup = mdot * CP_WATER_KJ * (T_from - T_to) / 1000.0  # MW
             # return-side loss (return line at T_return, own U)
             if mdot > 1e-9:
@@ -413,7 +419,9 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
         per_pipe_loss_mwh=per_pipe_loss,
         diagnostics={"physics": physics, "n_timesteps": n_t,
                      "econ_cost_eur": econ["econ_cost_eur"],
-                     "loss_assumed_mwh": loss_assumed},
+                     "loss_assumed_mwh": loss_assumed,
+                     "min_node_Tsup_c": (None if min_node_Tsup == float("inf")
+                                         else min_node_Tsup)},
     )
 
 

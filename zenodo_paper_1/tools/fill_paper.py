@@ -20,9 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAPER_SRC = ROOT / "docs" / "paper_1" / "Paper_draft_v2.tex"
-# Results live in results/ when running standalone from the zenodo package,
-# or in output/paper_runs/ when running from the full development repo.
-OUT_BASE = ROOT / "results" if (ROOT / "results").exists() else ROOT / "output" / "paper_runs"
+OUT_BASE = ROOT / "output" / "paper_runs"
 PLACEHOLDER_TEMPLATE = OUT_BASE / "_placeholders_template.json"
 PLACEHOLDER_VALUES = OUT_BASE / "_placeholders.json"
 PAPER_OUT = ROOT / "docs" / "paper_1" / "Paper_filled.tex"
@@ -99,9 +97,120 @@ def _safe(val, default: str = "N/A") -> str:
         return default
 
 
+def _load_v2_analysis() -> dict[str, str]:
+    """Emit the \\result{} keys used by paper_v15_skeleton.tex from the HARDENED
+    v2 analysis CSVs (single source of truth). All solves <=0.1% gap (2026-08-11)."""
+    import pandas as pd
+    A = ROOT / "results" / "v2" / "analysis"
+    v: dict[str, str] = {}
+
+    # --- exact decomposition (decomposition_live.csv) ---
+    dp = A / "decomposition_live.csv"
+    if dp.exists():
+        d = pd.read_csv(dp).set_index("term")["pct_of_total"]
+        e = pd.read_csv(dp).set_index("term")["eur"]
+        # total_pct = total gap as % of L1 economic cost (the number quoted in prose)
+        if "cost_L1" in e.index and "total" in e.index:
+            v["total_pct"] = f"{100 * e['total'] / e['cost_L1']:.1f}"
+        for term, key in [("loss_main", "loss_pct"), ("topo_main", "topo_pct"),
+                          ("interaction", "interaction_pct")]:
+            if term in d.index:
+                v[key] = f"{d[term]:.1f}"
+
+    # --- regret (regret_decomp.csv), CP = copperplate vs L1 ---
+    rp = A / "regret_decomp.csv"
+    if rp.exists():
+        r = pd.read_csv(rp).set_index("level")
+        if "CP" in r.index:
+            v["cp_bias_pct"] = f"{r.loc['CP', 'bias_pct']:+.1f}"
+            v["cp_regret_pct"] = f"{r.loc['CP', 'regret_pct']:+.1f}"
+        if "CP+L" in r.index:
+            v["cpl_bias_pct"] = f"{r.loc['CP+L', 'bias_pct']:+.2f}"
+            v["cpl_regret_pct"] = f"{r.loc['CP+L', 'regret_pct']:+.2f}"
+
+    # --- synthetic factorial (synth_factorial_decomposition.csv) ---
+    sp = A / "synth_factorial_decomposition.csv"
+    if sp.exists():
+        s = pd.read_csv(sp)
+        v["synth_loss_median"] = f"{s['loss_pct_of_total'].median():.1f}"
+        v["synth_topo_median"] = f"{s['topo_pct_of_total'].median():.1f}"
+        v["synth_topo_absmax"] = f"{s['topo_pct_of_total'].abs().max():.2f}"
+        v["synth_burden_min"] = f"{s['total_pct'].min():.1f}"
+        v["synth_burden_max"] = f"{s['total_pct'].max():.1f}"
+
+    # --- frozen-adder drift (frozen_adder_drift.csv) ---
+    fp = A / "frozen_adder_drift.csv"
+    if fp.exists():
+        f = pd.read_csv(fp)
+        best = f.sort_values("mean_abs_drift_pts").iloc[0]
+        v["drift_best_mean_pts"] = f"{best['mean_abs_drift_pts']:.1f}"
+        v["drift_best_max_pts"] = f"{best['max_abs_drift_pts']:.1f}"
+
+    # --- supply-temperature flexibility (tsup_sensitivity.csv), Pillar-2 robustness ---
+    tp = A / "tsup_sensitivity.csv"
+    if tp.exists():
+        t = pd.read_csv(tp)
+        feas = t[t["velocity_viol_steps"] == 0]
+        base = t.iloc[0]
+        opt = feas.loc[feas["tsup_cost_eur"].idxmin()] if len(feas) else base
+        save = base["tsup_cost_eur"] - opt["tsup_cost_eur"]
+        v["tsup_opt_offset_k"] = f"{opt['offset_K']:.1f}"
+        v["tsup_saving_eur"] = f"{save:,.0f}".replace(",", r"\,")
+        v["tsup_saving_pct_op"] = f"{100 * save / ECON_L1:.1f}"   # % of L1 operating cost
+        v["tsup_pump_base_mwh"] = f"{base['pump_mwh']:.1f}"
+        v["tsup_pump_opt_mwh"] = f"{opt['pump_mwh']:.1f}"
+        binds = t[t["velocity_viol_steps"] > 0]["offset_K"]
+        if len(binds):
+            v["tsup_velocity_bind_k"] = f"{binds.min():.1f}"
+
+    # --- fidelity design rule (fidelity_rule.csv): b = lambda/(1+lambda) ---
+    frp = A / "fidelity_rule.csv"
+    if frp.exists():
+        import numpy as np
+        fr = pd.read_csv(frp).dropna(subset=["b_pred_pct", "b_meas_pct"])
+        err = fr["b_pred_pct"] - fr["b_meas_pct"]
+        ss = ((fr["b_meas_pct"] - fr["b_meas_pct"].mean()) ** 2).sum()
+        r2 = 1 - (err ** 2).sum() / ss if ss else float("nan")
+        x = (fr["lambda"] / (1 + fr["lambda"])).to_numpy()
+        Amat = np.column_stack([x, np.ones(len(x))])
+        (a, c), *_ = np.linalg.lstsq(Amat, fr["b_meas_pct"].to_numpy(), rcond=None)
+        fit = Amat @ np.array([a, c])
+        r2c = 1 - ((fr["b_meas_pct"] - fit) ** 2).sum() / ss if ss else float("nan")
+        v["rule_r2"] = f"{r2:.2f}"
+        v["rule_r2_cal"] = f"{r2c:.2f}"
+        v["rule_mae_pts"] = f"{err.abs().mean():.1f}"
+        v["rule_lambda_min"] = f"{fr['lambda'].min():.2f}"
+        v["rule_lambda_max"] = f"{fr['lambda'].max():.1f}"
+        v["rule_n"] = f"{len(fr)}"
+        m = fr[fr.net == "Memmingen"]
+        if len(m):
+            v["rule_lambda_mem"] = f"{m['lambda'].iloc[0]:.2f}"
+            v["rule_b_pred_mem"] = f"{m['b_pred_pct'].iloc[0]:.0f}"
+            v["rule_b_meas_mem"] = f"{m['b_meas_pct'].iloc[0]:.0f}"
+
+    # --- solved temperature-linearisation error (linearisation_solved.csv, R2.3) ---
+    lsp = A / "linearisation_solved.csv"
+    if lsp.exists():
+        ls = pd.read_csv(lsp).set_index("window")
+        if "winter" in ls.index:
+            v["linsolved_winter_pct"] = f"{ls.loc['winter', 'lin_error_incumbent_pct']:+.2f}"
+        if "autumn" in ls.index:
+            v["linsolved_autumn_pct"] = f"{ls.loc['autumn', 'lin_error_incumbent_pct']:+.2f}"
+        v["linsolved_absmax_pct"] = f"{ls[['lin_error_incumbent_pct','lin_error_bound_pct']].abs().max().max():.2f}"
+        v["linsolved_gap_pct"] = f"{ls['native_qcp_gap_pct'].abs().max():.2f}"
+    return v
+
+
+ECON_L1 = 136142.42   # L1 (T2P1_defU) economic operating cost, hardened lineage
+
+
 def auto_fill_values() -> dict[str, str]:
     """Build key→value mapping from available run artefacts."""
     values: dict[str, str] = {}
+    try:
+        values.update(_load_v2_analysis())
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] v2-analysis fill skipped: {exc}")
     eco = _load_economics()
 
     # Cost totals per level
@@ -304,14 +413,17 @@ def main() -> None:
     group.add_argument("--scan", action="store_true", help="Step 1: scan and generate template")
     group.add_argument("--fill", action="store_true", help="Step 2: fill from _placeholders.json")
     group.add_argument("--auto", action="store_true", help="Step 2: auto-fill from run artefacts + manual overrides")
+    parser.add_argument("--src", type=Path, default=PAPER_SRC, help="source .tex (default Paper_draft_v2.tex)")
+    parser.add_argument("--out", type=Path, default=None, help="output .tex (default <src>_filled.tex)")
     args = parser.parse_args()
 
+    out = args.out or args.src.with_name(args.src.stem + "_filled.tex")
     if args.scan:
-        generate_template()
+        generate_template(args.src)
     elif args.fill:
-        sys.exit(fill_paper())
+        sys.exit(fill_paper(tex_path=args.src, out_path=out))
     elif args.auto:
-        sys.exit(fill_paper(auto=True))
+        sys.exit(fill_paper(tex_path=args.src, out_path=out, auto=True))
 
 
 if __name__ == "__main__":

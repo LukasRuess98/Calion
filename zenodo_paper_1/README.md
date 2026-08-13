@@ -1,46 +1,51 @@
 # Data and Code Package
-## "Topology Abstraction and Physics Fidelity Effects on Dispatch Optimization of Electrified District Heating Networks"
+## "Estimation Bias versus Decision Regret in District-Heating Dispatch Optimisation: Loss Visibility, not Network Topology, Sets the Fidelity Requirement"
 
 **Authors:** Lukas [Nachname], [Betreuer], [Industriepartner]  
-**Journal:** Applied Energy (submitted 2025)  
+**Journal:** Applied Energy (APEN-D-26-15734, major revision)  
 **DOI (this dataset):** https://doi.org/10.5281/zenodo.XXXXXXX
 
-> ⚠️ **CORRECTED VERSION (2026-07-27).** Four model fixes were applied and all runs
-> re-solved (pump-power attribution, `demand_fraction²`, fine-PWL pump friction, and a
-> 0.6 bar transfer-station Δp pump term). The paper's conclusions are unchanged; the
-> pump/pressure-drop magnitudes are corrected. **See [`CHANGELOG.md`](CHANGELOG.md)** for
-> exactly what changed, the old→new numbers, and caveats. The L3NL nonlinear reference is now
-> intractable to re-solve globally with the corrected pump physics; its linearisation error
-> was instead obtained by exact decomposition — see
-> [`L3NL_LINEARIZATION_ANALYSIS.md`](L3NL_LINEARIZATION_ANALYSIS.md)
-> (`results/pump_linearization_error.json`). `results/tables/*.tex` still hold the submitted numbers.
+> **v1.2.0 — APEN REVISION (2026-08-12).** This release adds the revision's new analyses on top
+> of the v1.1.0 corrected model (`calion/`, commit `c19d690`, unchanged): estimation **bias vs
+> decision regret**, an exact **loss/topology/interaction decomposition**, an a-priori **fidelity
+> design rule** `b = λ/(1+λ)` (R²=0.86), and a **directly solved** temperature-linearisation
+> reference on representative windows (−0.15 % / −0.33 %). The last **updates** the earlier
+> "bounded-only" statement — see [`SOLVED_LINEARISATION_ANALYSIS.md`](SOLVED_LINEARISATION_ANALYSIS.md).
+> New artefacts live in `results/analysis/`, new figures `results/figures/F_*`, generators in
+> `tools/` (`fidelity_rule.py`, `linearisation_solved.py`, `figgen_p1_v2.py`, `tablegen_p1.py`).
+> **See [`CHANGELOG.md`](CHANGELOG.md).**
+>
+> The v1.1.0 correction (2026-07-27, four model fixes) remains documented below and in the
+> CHANGELOG; the corrected model is the basis of this release.
 
 ---
 
 ## Contents
 
 ```
-zenodo_paper_1/               (corrected re-release v1.1.0 — see CHANGELOG.md)
-├── CHANGELOG.md              What the correction changed + old→new numbers + caveats
-├── CITATION.cff              Citation metadata (v1.1.0, 2026-07-28)
-├── L3NL_LINEARIZATION_ANALYSIS.md  Why L3NL re-solve is intractable + decomposition result
-├── patches/                  The 3 code-fix diffs vs commit c19d690
-├── calion/                   Python optimization framework (Pyomo/Gurobi)
-├── configs/memmingen/        5 YAML configs for primary case (L1-L3NL)
-├── synth_configs/            36 synthetic network configurations
-├── scripts/paper/            Scripts to reproduce all paper runs and figures
-│   └── _pump_linearization_error.py  Pump-friction linearization-error post-processor
-├── tools/fill_paper.py       Auto-fills LaTeX placeholders from result artefacts
-├── data/synthetic_site/      Synthetic input timeseries (demand, prices, weather)
+zenodo_paper_1/               (v1.2.0 — APEN revision; built on v1.1.0 corrected model)
+├── CHANGELOG.md              v1.2.0 additions + the v1.1.0 correction (old→new numbers)
+├── CITATION.cff              Citation metadata (v1.2.0, 2026-08-12)
+├── SOLVED_LINEARISATION_ANALYSIS.md  NEW: fix-and-relax native reference (−0.15/−0.33 %)
+├── L3NL_LINEARIZATION_ANALYSIS.md    Why the global re-solve is intractable (v1.1.0)
+├── patches/                  The v1.1.0 code-fix diffs vs commit c19d690
+├── calion/                   Python optimization framework (Pyomo/Gurobi) — unchanged
+├── configs/memmingen/        Primary-case configs (L1–L3NL) + NEW Memmingen_T2P3_native.yaml
+│                             and _w3_winter/_w3_autumn_native.yaml (solved-lin. reproducers)
+├── synth_configs/            Synthetic network configurations
+├── scripts/paper/            Scripts to reproduce paper runs and figures
+├── tools/                    fill_paper.py, and NEW: fidelity_rule.py, linearisation_solved.py,
+│                             figgen_p1_v2.py, tablegen_p1.py
+├── data/synthetic_site/      Synthetic input timeseries (demand, prices, weather) — NDA-safe
 ├── results/
-│   ├── L1/                   Copperplate: economics, dispatch, meta
-│   ├── L2/                   7-zone multi-node results
-│   ├── L3/                   15-node basic MILP results
-│   ├── L3plus/               15-node extended MILP results
-│   ├── level_consistency.json  Cost hierarchy + L3⁺→L3NL linearization error (decomposition)
-│   ├── pump_linearization_error.json  Exact pump-friction PWL-vs-cubic error (Jan/Feb)
-│   ├── figures/              All paper figures (PDF + PNG)
-│   └── tables/               All paper tables (LaTeX source)
+│   ├── L1/ L2/ L3/ L3plus/   Per-level economics, dispatch, meta
+│   ├── analysis/             NEW: fidelity_rule.csv, linearisation_solved.csv,
+│   │                         decomposition_live.csv, regret_decomp*.csv, bias_regret.csv,
+│   │                         synth_factorial_decomposition.csv, frozen_adder_drift.csv,
+│   │                         tsup_sensitivity.csv, prediction_oos*.csv
+│   ├── figures/              paper figures (PDF+PNG) incl. NEW F_rule/F_decomp/F_regret/
+│   │                         F_drift/F_tsup
+│   └── tables/               paper tables (LaTeX source)
 ├── requirements.txt
 ├── pyproject.toml
 └── LICENSE (MIT)

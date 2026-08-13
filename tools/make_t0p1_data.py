@@ -20,11 +20,11 @@ import pandas as pd
 import yaml
 
 WT = r"c:/Users/LKR/Documents/GitHub/Energy_Framwork/paper1_faithful_c19d690"
-CFG = os.path.join(WT, "configs/memmingen/Memmingen_L3_MILP.yaml")
+CFG = os.path.join(WT, "configs/memmingen/Memmingen_T2P1_defU.yaml")  # defensible-U
 SRC = os.path.join(WT, "data/Import_Data_Memmingen_epronet.xlsx")
 DST = os.path.join(WT, "data/Import_Data_Memmingen_epronet_T0P1.xlsx")
 DEMAND_COL = "Waermebedarf_MWth"
-E_LOSS_ANNUAL_T2P1 = 1329.8   # MWh, calion L3 exported total network loss
+E_LOSS_ANNUAL_T2P1 = 1185.1   # MWh, defensible-U T2P1 exported total network loss
 
 
 def main():
