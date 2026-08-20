@@ -295,6 +295,7 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
     per_pipe_loss = {pid: 0.0 for pid in pipes.index}
     pump_energy = 0.0
     total_loss = 0.0
+    loss_series = np.zeros(n_t)   # per-timestep total network loss [MWh] (recourse table)
     min_node_Tsup = float("inf")   # diagnostic only: coldest delivered node supply T [C]
     viol = {k: {"n_steps": 0, "energy_mwh": 0.0, "worst": 0.0}
             for k in ("velocity", "dp_consumer", "unmet_demand")}
@@ -351,6 +352,7 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
             step_loss = max(loss_sup, 0.0) + max(loss_ret, 0.0)
             per_pipe_loss[pid] += step_loss * dt_h
             total_loss += step_loss * dt_h
+            loss_series[t] += step_loss * dt_h
 
             if physics == "full":
                 # hydraulics: supply + return
@@ -420,6 +422,8 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
         diagnostics={"physics": physics, "n_timesteps": n_t,
                      "econ_cost_eur": econ["econ_cost_eur"],
                      "loss_assumed_mwh": loss_assumed,
+                     "loss_series_mwh": loss_series,
+                     "loss_assumed_per_step_mwh": loss_assumed / n_t if n_t else 0.0,
                      "min_node_Tsup_c": (None if min_node_Tsup == float("inf")
                                          else min_node_Tsup)},
     )

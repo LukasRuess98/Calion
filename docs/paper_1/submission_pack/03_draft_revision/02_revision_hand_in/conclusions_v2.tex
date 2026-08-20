@@ -1,0 +1,64 @@
+%% ============================================================
+%% CONCLUSIONS -- v2, restructured into four paragraphs.
+%% Replaces the single block in the skeleton. NO SUBHEADINGS (editor requirement).
+%% Pattern follows the Applied Energy exemplar: what was developed and tested; what was
+%% found; what it means for model selection; scope and extension.
+%%
+%% The third paragraph now LEADS with the loss-number criterion. It is the most portable
+%% result in the paper -- a decision a planner can make before building anything -- and in
+%% the previous version it was buried mid-sentence in the second half of a long block.
+%% ============================================================
+
+This paper set out to determine which modelling choices actually change a district-heating
+dispatch decision, rather than which change a reported objective value. To do so it
+separates two quantities that the fidelity literature has treated as one -- estimation
+bias, the difference in optimised cost between formulations, and decision regret, the cost
+of executing a formulation's schedule under a common forward model -- and evaluates both on
+a ladder in which each rung adds exactly one phenomenon. A copperplate supplied with the
+aggregate loss it cannot itself compute serves as a control condition, so that loss
+representation and spatial resolution can be switched independently and their contributions
+separated exactly rather than estimated. The design was applied to one industrial network
+with measured data and to a complete 135-cell balanced factorial of synthetic networks.
+
+What a simplified model must capture is loss visibility, not spatial topology. The
+copperplate-to-baseline cost gap decomposes to machine precision into a loss main effect of
+\textbf{95.8}\,\% and a spatial-topology main effect of \textbf{4.7}\,\%, and the same
+holds across the synthetic factorial. The distinction is decision-relevant rather than
+merely book-keeping: a copperplate understates cost by \textbf{15.1}\,\% yet, executed,
+costs \textbf{46.1}\,\% more to operate, the two carrying opposite signs. The schedules show
+why -- blind to the network losses, it provisions the heat pump for a demand that is too
+small, running it some 246 fewer hours and at ten percentage points less share, and the
+shortfall is then covered at the margin in winter hours it never planned for. A lumped
+per-network loss correction captures most of the bias but only where its coefficient is
+already known: frozen and carried to another network it mis-estimates the loss burden by
+tens of percentage points of cost, and even where it reproduces the cost it still runs a
+materially different generation mix. Pushed to the opposite extreme -- the demand side
+resolved to every transmission station and its service laterals, on manufacturer component
+data with an independent nonlinear cross-check -- hydraulic detail changes dispatch cost by
+under one percent and decisions by essentially nothing.
+
+For model selection this yields a criterion that can be applied before any model is built.
+The share of cost a copperplate misses is $b = \lambda/(1+\lambda)$, where the loss number
+$\lambda$ is the ratio of annual network loss to annual demand and follows from the pipe
+inventory alone. Across all 136 networks examined this parameter-free relation reproduces
+the measured burden with $R^2 = \textbf{0.87}$. A planner computes one number from pipe
+lengths, insulation classes and an annual demand figure, and reads off whether a copperplate
+will serve, whether a calibrated loss adder is adequate, or whether the nodes must be
+resolved. Where a model must be resolved, effort belongs in the loss representation before
+the network graph and well before the hydraulics; and fidelity should be claimed only to the
+resolution at which it can be verified, which for operators metering at billing grade is the
+node or zone level rather than the substation.
+
+These conclusions are bounded by the regime that produced them, and the boundaries are
+specific rather than decorative. They hold for radial, centrally-supplied networks with
+fixed capacities, a prescribed heating curve and hourly deterministic dispatch. Each of
+those assumptions closes a channel through which extended physics could act, so the nulls
+reported here are conservative lower bounds: relaxing any of them can give the physics more
+room to matter, never less, as the supply-temperature study demonstrates by opening one of
+them and turning hydraulics from a negligible cost into the binding constraint. Ring and
+bidirectional topologies require a signed-flow formulation absent here; distributed
+generation remains an open question because every case studied is centrally supplied; and
+post-upgrade measurement of the new assets' dispatch is the natural next validation step.
+The sharpest boundary is to the companion study: whether network resolution changes not only
+how a network is dispatched but where new capacity is sited, under joint
+dispatch-and-sizing, is a question this paper deliberately does not settle.

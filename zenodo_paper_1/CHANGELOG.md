@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## v1.3.0 — APEN revision, second round (2026-08-16)
+
+Consolidates the second-round revision analyses. `calion/` unchanged (still commit `c19d690`).
+
+**Synthetic study rebalanced to the full factorial.** The synthetic factorial was completed to a
+**balanced 135-network design** (N{5,15,30} × L{1,5,15,30,50} km × HI{.1,.4,.8} × S{2,6,12}); all
+synthetic results — `synth_factorial_decomposition.csv`, `fidelity_rule.csv`, `frozen_adder_drift.csv`,
+`prediction_oos*.csv` — are recomputed on it. The fidelity rule now validates at **R²=0.87 over 136
+networks** (`fidelity_rule_fit.csv`, new), and a **balanced-design ANOVA** attributes 95.9 % of the
+loss-burden variance to trunk pipe length.
+
+**Regret lineage extended to the solved ladder.** `regret_decomp.csv` now covers CP, CP+L (const/curve),
+ND⁰, L1, **L3, L6**. L2 (temperature propagation) is reported forward-evaluated, not solved — its
+free-variable MILP is degenerate (supply temperature floored ~91 % of hours). Transport delay (L6)
+is bit-identical to L3 (sub-hourly shift on the hourly grid).
+
+**New analyses:** objective-vs-economic decomposition (`objective_decomposition.csv`: the ~40 % gap is
+CHP-CO₂ gross-vs-net + TES cycling, not a regularizer); R1.6 zone-clustering sensitivity
+(`r16_clustering_costs.csv`: ΣU·L-conserving clusterings agree to <0.01 %; routing is a null effect);
+R2.4 flow-side validation by load band (`flow_mape_by_band.csv`); full validation KPIs and per-level
+computation stats (`validation_kpis.json`, `computation_meta.csv`).
+
+**Figures:** `F_regret` now 7 levels; new `F_r16_clustering` (routing vs decomposition, log scale);
+`F_decomp`/`F_drift`/`F_rule`/`F_tsup` regenerated on the 135-net set. **Tools:** added the synth-fill,
+R1.6, objective-decomposition, flow-by-band, OOS, and evaluator generators (closes the standalone-repro
+gap). **Removed** superseded `bias_regret.csv` (subsumed by `regret_decomp.csv`).
+
+**Still withheld (NDA):** raw operational time series, as before. Configs referencing the raw case are
+shipped as reference only; the new Memmingen ladder configs (`T2P6_defU`) and the 135-net synth configs
+will be added with synthetic-site data redirection in a follow-up.
+
 ## v1.2.0 — Applied Energy revision (2026-08-12)
 
 This release accompanies the APEN major revision. The corrected model (`calion/`, commit

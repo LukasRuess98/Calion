@@ -1,0 +1,18 @@
+% static: solver-gap stability of the decomposition terms
+\begin{table}[t]
+\centering
+\caption{Solver-gap stability of the decomposition (R2.3 rigour). At the loose tolerance the
+original solves used, the small topology and interaction terms sat within solver noise; only at a
+$0.01$\,\% gap do they resolve to stable values. Loss dominance is far above the gap throughout.}
+\label{tab:gapstability}
+\begin{tabular}{lrr}
+\hline
+Term & Loose gap ($0.5$\,\%) & Hardened gap ($\le$0.01\,\%) \\
+\hline
+Loss main effect & $95.5$\,\% & $95.9$\,\% \\
+Topology main effect & $3.9$\,\% & $4.7$\,\% \\
+Interaction & $+0.6$\,\% & $-0.5$\,\% (sign flips) \\
+Closure residual & --- & $0.0$\,e${+}00$\,EUR \\
+\hline
+\end{tabular}
+\end{table}

@@ -1,0 +1,21 @@
+% objective vs economic cost (source: results/v2/analysis/objective_decomposition.csv)
+\begin{table}[t]
+\centering
+\caption{Objective versus economic cost on the decomposition lineage (EUR/yr). The Gurobi
+objective carries a systematic $\sim$39--41\,\% non-economic residual that is \emph{not} a
+dispatch distortion: the objective charges CO$_2$ on a gross basis whereas the reported cost
+applies the standard cogeneration self-use allocation ($\approx$55--58\,k), plus a
+thermal-storage cycling penalty ($\approx$24--26\,k). Both are near-constant across levels and
+cancel in every bias/regret difference, so all reported figures use the economic cost.}
+\label{tab:objdecomp}
+\begin{tabular}{lrrr}
+\hline
+Level & Objective & Economic cost & Residual \\
+\hline
+$\CP$   & 195\,994 & 115\,551 & 80\,443 (41.0\,\%) \\
+$\CPL$  & 221\,502 & 135\,288 & 86\,214 (38.9\,\%) \\
+$\NDz$  & 196\,845 & 116\,512 & 80\,332 (40.8\,\%) \\
+$\Lone$ & 222\,227 & 136\,142 & 86\,085 (38.7\,\%) \\
+\hline
+\end{tabular}
+\end{table}

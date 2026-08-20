@@ -1,0 +1,52 @@
+%% ============================================================
+%% BACK MATTER -- v2. Split out of front_matter_v2.tex on 2026-08-17.
+%%
+%% WHY THE SPLIT: front_matter_v2.tex is \input immediately BEFORE \maketitle, which is
+%% correct for the author block but placed the acknowledgments, competing-interest, data-
+%% availability and AI-declaration sections at the FRONT of the paper, directly after the
+%% title. This file carries those four sections and must be \input at the END of the
+%% document, replacing the skeleton's own placeholder versions.
+%%
+%% The skeleton's placeholder back matter MUST be deleted at the same time, or these
+%% sections print twice -- once with the real content and once with
+%% "[Funding, data-provider, and individual acknowledgments to be added by the authors.]"
+%% and "[Author One]".
+%% ============================================================
+
+\section*{Acknowledgments}
+
+This work was funded by the German Federal Ministry for Economic Affairs and Energy
+(BMWE, reference IIC2) under grant number \textbf{03EN6057B} (Verbundvorhaben eProNe;
+project period 2026--2028). Project management was carried out by Forschungszentrum
+J\"ulich GmbH (PT-J.ESN6). Open Access funding was enabled and organized by Projekt DEAL.
+The e-con AG in Memmingen provided operational data and domain expertise. The authors
+express their gratitude for the support provided.
+
+\section*{Declaration of competing interest}
+
+%% AUTHOR-SUPPLIED. Replace the sentence below with your own declaration text.
+%% (The original submission contained no such statement; Elsevier requires one.)
+
+The authors declare that they have no known competing financial interests or personal
+relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Data availability}
+
+The optimisation model source code (Python/Pyomo), all configuration files, the forward
+evaluator and all post-processing scripts are available on Zenodo
+\citep{ruess_2026_calion} under a Creative Commons Attribution 4.0 International licence.
+The release additionally contains the decomposition and regret
+analyses, the complete 135-network synthetic generator and configuration set, and the
+scripts producing every table and figure in this paper. The Memmingen input time series
+are subject to a non-disclosure agreement and are not released; anonymised summary
+statistics sufficient to characterise the demand and price signals are included. The
+synthetic networks carry no such restriction, so the entire synthetic factorial is
+independently reproducible.
+
+\section*{Declaration of generative AI and AI-assisted technologies in the manuscript
+preparation process}
+
+During the preparation of this work, the authors used \textbf{Claude Opus 5} (Anthropic)
+for language improvement and manuscript structuring, and for code generation and
+debugging. All content was reviewed and edited by the authors, who take full
+responsibility for the published article.

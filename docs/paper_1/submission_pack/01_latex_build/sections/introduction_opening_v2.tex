@@ -1,0 +1,59 @@
+%% ============================================================
+%% INTRODUCTION, OPENING -- v2 merge, drop-in for <<KEEP:intro-motivation>>.
+%% Sits immediately after \section{Introduction} and immediately BEFORE the already
+%% drafted framing paragraph ("Two features of the existing fidelity literature...").
+%% Source: v1 lines 192-241.
+%%
+%% THE ONE THING THAT HAD TO CHANGE. v1's opening built, over four paragraphs, to the
+%% question "does topology dominate thermo-hydraulic detail, as it does in electricity
+%% transmission?" -- and the paper then answered yes. The revision's answer is that it is
+%% LOSS VISIBILITY, not topology, that sets the requirement, and the title changed with
+%% it. Carrying v1's build-up unaltered would set the reader up for the wrong result and
+%% re-assert exactly the claim R1.1 objected to. The transmission analogy is kept, but as
+%% a hypothesis the paper tests and partly overturns, which is a stronger opening than
+%% one that tests and confirms.
+%%
+%% Editor compliance: v1 lumps removed --
+%%   {Lund2014_4GDH, Werner2017, Lund2025_clean} -> Lund2014_4GDH
+%%   {Frederiksen2013, Talebi2016}               -> Frederiksen2013
+%%   {Frysztacki2021, FrewJacobson2016}          -> Frysztacki2021
+%% ============================================================
+
+District-heating networks serving industrial demand are central to European
+decarbonisation, integrating heat pumps, combined heat and power and thermal storage in
+multi-source systems~\cite{Lund2014_4GDH}, and their operational optimisation relies
+increasingly on mathematical programming~\cite{PereaMoreno2026}. How much of the network
+such a model represents is a design choice, and it is made along two axes: the spatial
+resolution at which the network appears, from a single-bus copperplate to a pipe-by-pipe
+graph; and the physical phenomena admitted, from a lossless energy balance to a model with
+pressure-coupled hydraulics, temperature propagation and transport delay.
+
+The two extremes are well populated. Copperplate models aggregate all components and
+demands onto a single bus, ignoring spatial structure and thermal losses entirely, a
+limitation their authors acknowledge: \citet{Wirtz2020} note that ``the
+validity of the global energy balance assumption depends on the network topology, size and
+the operation strategy'', without quantifying the resulting error. Full thermo-hydraulic
+models resolve the network pipe by pipe and capture the thermal losses that amount to
+5--15\,\% of annual heat supply~\cite{Frederiksen2013}, along with pressure-dependent
+pumping, temperature propagation and the delays that follow from finite fluid velocity. A
+third complication sits across both axes: extended physics introduces nonlinear and
+bilinear terms incompatible with standard mixed-integer linear programming, forcing a
+choice between linearisation, which preserves tractability at the cost of approximation
+error, and native nonlinear formulations, which preserve the physics at the cost of solve
+time.
+
+The working assumption in practice is that finer spatial resolution and richer physics
+both buy proportionate accuracy, and that the computational cost is therefore justified in
+proportion. No quantitative evidence establishes that proportionality, or identifies which
+axis delivers the return. The closest evidence comes from a neighbouring field: in
+electricity systems, coarse spatial resolution causes capacity-expansion models to miss
+intra-regional congestion and understate system cost, and the spatial aggregation choice
+dominates other modelling simplifications in scenario
+comparisons~\cite{Frysztacki2021}. It is natural to expect the analogue in district
+heating, and that expectation is worth stating precisely because this paper finds it
+holds only in part. Spatial resolution does matter. But, as the controlled comparison
+below shows, it matters as the mechanism by which a model computes its thermal losses,
+not as a representation of routing. Once the losses are supplied by other means, the
+spatial structure itself is worth almost nothing in dispatch cost. The distinction is
+invisible to any comparison that changes both at once, which is the first of the two
+limitations this study addresses.

@@ -44,6 +44,14 @@ LEVELS = {
     "CP+Lb":(f"{OUT}/T0P1b",      f"{CFG}/Memmingen_T0P1b.yaml",      True),  # heating-curve adder
     "ND0":  (f"{OUT}/T2P0",       f"{CFG}/Memmingen_T2P0.yaml",       False),
     "L1":   (f"{OUT}/T2P1_defU",  f"{CFG}/Memmingen_T2P1_defU.yaml",  True),
+    # loss-aware node-resolved ladder (regret ~ bias, no calibration; the real content is the
+    # contrast with CP/ND0 at +46 % regret, since z_eval-z_econ is a near-constant offset here).
+    "L3":   (f"{OUT}/T2P3_defU",  f"{CFG}/Memmingen_T2P3_defU.yaml",  True),   # + trunk pressure/pumping
+    "L6":   (f"{OUT}/T2P6_defU",  f"{CFG}/Memmingen_T2P6_defU.yaml",  True),   # + transport delay
+    # L2 (T2P2, temperature propagation) is DELIBERATELY EXCLUDED from the solved regret table:
+    # its MILP is non-convex/degenerate -- the optimiser floors T_supply at ~56 C for 91 % of hours,
+    # collapsing losses and giving a spurious -7.2 % (6x the forward-evaluated -2 % of loss). Per
+    # §2.4/§4.7 temperature propagation is FORWARD-EVALUATED, not solved; see tab_linearisation.
 }
 REF = "L1"
 REFCFG = f"{CFG}/Memmingen_T2P1_defU.yaml"
@@ -100,6 +108,32 @@ def main():
     pdf = pd.DataFrame(prows)
     pdf.to_csv("results/v2/analysis/regret_decomp_pricing.csv", index=False)
 
+    # --- review R2.3 recourse table: quantify the shortfall the loss-blind schedule
+    # leaves for price-based recourse, and confirm hydraulic feasibility after it.
+    # Per-hour extra loss = forward loss - the level's per-step provisioned loss (0 for
+    # the copperplates). Pure post-processing of the already-evaluated schedules. -------
+    import numpy as np
+    rrows = []
+    for lv in LEVELS:
+        d = res[lv].diagnostics
+        ls = np.asarray(d["loss_series_mwh"], dtype=float)
+        provisioned = d["loss_assumed_per_step_mwh"]        # 0.0 for CP/ND0
+        per_hour_shortfall = np.maximum(ls - provisioned, 0.0)
+        v = res[lv].violations
+        rrows.append({
+            "level": lv,
+            "annual_shortfall_mwh": round(float(per_hour_shortfall.sum()), 1),
+            "hours_with_shortfall": int((per_hour_shortfall > 1e-6).sum()),
+            "max_hourly_shortfall_mw": round(float(per_hour_shortfall.max()), 4),
+            "mean_hourly_shortfall_mw": round(float(per_hour_shortfall.mean()), 4),
+            "unserved_before_recourse_mwh": round(float(per_hour_shortfall.sum()), 1),
+            "viol_velocity_h_after": v["velocity"]["n_steps"],
+            "viol_dp_h_after": v["dp_consumer"]["n_steps"],
+            "viol_unmet_h_after": v["unmet_demand"]["n_steps"],
+        })
+    rdf = pd.DataFrame(rrows)
+    rdf.to_csv("results/v2/analysis/regret_recourse.csv", index=False)
+
     pd.set_option("display.width", 200, "display.float_format", lambda x: f"{x:,.2f}")
     print("=== regret_decomp (ref = L1, defensible-U, marginal=72.2) ===")
     print(df[["level", "bias_pct", "regret_pct", "true_loss_mwh", "extra_loss_mwh",
@@ -107,7 +141,9 @@ def main():
     print("\n=== #4 shortfall-pricing: copperplate (CP) regret sign invariance ===")
     piv = pdf.pivot(index="level", columns="pricing", values="regret_pct")
     print(piv.to_string())
-    print("\nwrote regret_decomp.csv + regret_decomp_pricing.csv")
+    print("\n=== R2.3 recourse table (shortfall + post-recourse feasibility) ===")
+    print(rdf.to_string(index=False))
+    print("\nwrote regret_decomp.csv + regret_decomp_pricing.csv + regret_recourse.csv")
 
 
 if __name__ == "__main__":

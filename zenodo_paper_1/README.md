@@ -5,15 +5,18 @@
 **Journal:** Applied Energy (APEN-D-26-15734, major revision)  
 **DOI (this dataset):** https://doi.org/10.5281/zenodo.XXXXXXX
 
-> **v1.2.0 — APEN REVISION (2026-08-12).** This release adds the revision's new analyses on top
-> of the v1.1.0 corrected model (`calion/`, commit `c19d690`, unchanged): estimation **bias vs
-> decision regret**, an exact **loss/topology/interaction decomposition**, an a-priori **fidelity
-> design rule** `b = λ/(1+λ)` (R²=0.86), and a **directly solved** temperature-linearisation
-> reference on representative windows (−0.15 % / −0.33 %). The last **updates** the earlier
-> "bounded-only" statement — see [`SOLVED_LINEARISATION_ANALYSIS.md`](SOLVED_LINEARISATION_ANALYSIS.md).
-> New artefacts live in `results/analysis/`, new figures `results/figures/F_*`, generators in
-> `tools/` (`fidelity_rule.py`, `linearisation_solved.py`, `figgen_p1_v2.py`, `tablegen_p1.py`).
-> **See [`CHANGELOG.md`](CHANGELOG.md).**
+> **v1.3.0 — APEN REVISION, SECOND ROUND (2026-08-16).** Built on the v1.1.0 corrected model
+> (`calion/`, commit `c19d690`, unchanged). The synthetic study is rebalanced to the full **135-network
+> factorial**; the **fidelity design rule** `b = λ/(1+λ)` now validates at **R²=0.87 over 136 networks**
+> and a **balanced-design ANOVA** attributes 95.9 % of the loss-burden variance to trunk pipe length.
+> The **regret lineage** is extended to the solved ladder (CP, CP+L, ND⁰, L1, **L3, L6**; L2 temperature
+> propagation is forward-evaluated, its solved MILP being degenerate). New: **objective-vs-economic**
+> decomposition (CHP-CO₂ gross-vs-net + TES cycling), **R1.6 zone-clustering** sensitivity (routing is a
+> null effect), and **R2.4 flow validation by load band**. `F_regret` now has 7 levels; new
+> `F_r16_clustering`. Superseded `bias_regret.csv` removed. **See [`CHANGELOG.md`](CHANGELOG.md).**
+>
+> _v1.2.0 (2026-08-12) added the first-round analyses (bias/regret, decomposition, the R²=0.86 rule on
+> 42 networks, solved linearisation −0.15/−0.33 %); those figures are superseded by the 135-net values above._
 >
 > The v1.1.0 correction (2026-07-27, four model fixes) remains documented below and in the
 > CHANGELOG; the corrected model is the basis of this release.

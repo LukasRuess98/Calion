@@ -1,0 +1,21 @@
+% static: robustness of the loss-dominance conclusion (author: fill any TBD)
+\begin{table}[t]
+\centering
+\caption{Robustness of the decomposition. The loss-dominance conclusion survives every modelling
+choice examined; where a quantity is sensitive (last-mile loss magnitude, value of temperature
+flexibility) it does not affect the ordering. Values are the loss main effect (\% of the gap) or
+the copperplate regret sign, as applicable.}
+\label{tab:robustness}
+\begin{tabular}{lc}
+\hline
+Modelling choice & Loss dominance holds? \\
+\hline
+Remove the indefensible $\times$ multiplier (defensible $U$) & yes ($95.5\!\to\!95.9$\,\%) \\
+Two lumped-loss calibrations (constant / heating-curve) & yes (regret $-0.5$/$-0.6$\,\%) \\
+Demand-disaggregation rule (demand-share / uniform) & yes ($<0.3$\,pp) \\
+Marginal-heat-cost assumption ($47$--$90$\,EUR/MWh) & yes (regret sign invariant) \\
+Solver-gap tightening ($0.5\% \to 0.01\%$) & yes (loss unmoved; interaction resolves) \\
+Flexible supply temperature (forward) & yes (saving is a loss effect) \\
+\hline
+\end{tabular}
+\end{table}

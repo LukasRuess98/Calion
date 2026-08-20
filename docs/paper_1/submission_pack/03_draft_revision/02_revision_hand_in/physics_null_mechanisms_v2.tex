@@ -1,0 +1,66 @@
+%% ============================================================
+%% NEW SUBSECTION -- "Why the extended physics moves so little here"
+%% Insert in Results and discussion, after the linearisation subsection and before
+%% "Implications for modelling practice".
+%%
+%% This is the single most valuable addition identified by the revision brief, and it
+%% answers R1.5 where the reviewer asked for it -- in the discussion, as a mechanism --
+%% rather than only as a line in the limitations.
+%%
+%% THE ARGUMENT: our nulls (hydraulics <1 %, delay 0.00 %, linearisation -0.15/-0.33 %)
+%% admit two readings. Either the physics genuinely does not matter, or our assumptions
+%% removed the degrees of freedom through which it would act. A referee will supply the
+%% second reading if we do not. We can name each closed channel and, for one of them,
+%% we have already opened it and measured what happens -- which is what makes this
+%% section evidence rather than hedging.
+%% ============================================================
+
+\subsection{Why the extended physics moves so little here}
+\label{subsec:whynull}
+
+Three of this paper's results are nulls: station-resolved hydraulics change dispatch cost
+by under one percent, transport delay by exactly nothing, and the piecewise linearisation
+by a few tenths of a percent. A null invites two readings. Either these phenomena are
+genuinely inert in district-heating dispatch, or the assumptions under which we tested them
+closed the channels through which they would have acted. The second reading is the
+reviewer's, it is legitimate, and it deserves an answer more specific than a caveat.
+
+Four assumptions each close a specific channel. A \emph{prescribed heating curve} fixes the
+supply and return temperatures, so the optimiser cannot trade thermal loss against pumping
+energy -- the trade in which hydraulics would acquire economic weight. \emph{Precomputed
+heat-pump performance} makes the coefficient of performance independent of the network
+state, so a heat pump cannot respond to a locally depressed supply temperature by shifting
+its output in time or place. \emph{Fixed capacities} remove siting and sizing, so spatial
+structure cannot express itself through where capacity is placed, only through where heat
+is routed. And \emph{hourly resolution} discretises away every transient shorter than the
+time step: on this network the longest trunk travel time is about 35 minutes, so transport
+delay rounds to zero steps, and the thermal inertia of the pipe volume -- which buffers
+precisely the sub-hourly excursions we exclude -- never enters.
+
+The honest conclusion is therefore conditional, and we state it that way throughout: within
+the deterministic, hourly, fixed-capacity, fixed-temperature planning regime, extended
+network physics does not change dispatch decisions. That regime is not a corner case. It is
+where the overwhelming majority of published district-heating dispatch models operate, and
+the practical guidance the nulls support -- do not spend modelling effort on hydraulic
+detail before loss representation -- applies wherever such models are used.
+
+What raises this above a plausible story is that we have opened one of the four channels
+and measured the result. Freeing the supply temperature, the lever most likely to break the
+hydraulic null, does break it: pipe velocity becomes the binding constraint at a 20\,K
+reduction and pumping energy rises by a factor of four
+(Section~\ref{subsec:tsup}). Hydraulics move from a negligible \emph{cost} to a binding
+\emph{constraint} the moment the degree of freedom exists. That is direct evidence for the
+mechanism rather than an appeal to it, and it sets the expectation for the three channels
+we did not open: each should convert a null into a constraint rather than into a large cost
+term, because the physics enters dispatch as a feasibility boundary and not as a driver of
+the schedule.
+
+One asymmetry is worth stating plainly, because it determines how far the nulls can be
+trusted. Relaxing any of these four assumptions can only give the extended physics
+\emph{more} room to matter, never less. The nulls are therefore conservative: they are
+lower bounds on the fidelity requirement, and a reader operating outside this regime should
+treat them as the floor rather than the answer. The loss-dominance result carries no such
+qualification. It follows from an exact decomposition of a cost gap, holds across 135
+synthetic networks spanning two orders of magnitude in loss burden, and does not depend on
+any of the four assumptions above -- which is why it, and not the nulls, is what the title
+claims.

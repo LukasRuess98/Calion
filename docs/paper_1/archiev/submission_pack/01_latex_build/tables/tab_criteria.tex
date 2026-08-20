@@ -1,0 +1,19 @@
+% static: model-selection observations (R2.5 -- observations, not guidelines)
+\begin{table}[t]
+\centering
+\caption{What each fidelity level supports, stated as \emph{observations within the tested
+regime} (fixed capacities, radial, central generation, hourly resolution) rather than universal
+guidelines. ``Scheduling'' = small regret and physically deliverable; ``Estimation'' = usable for
+cost forecasting, CO$_2$ accounting and tariffs (small bias).}
+\label{tab:criteria}
+\begin{tabular}{lcc}
+\hline
+Model & Scheduling & Estimation \\
+\hline
+Copperplate ($\CP$) & no (incompetent controller) & no (biased) \\
+Copperplate + loss ($\CPL$) & yes, \emph{if} the loss adder is known & only where the adder transfers \\
+Node-resolved + loss ($\Lone$) & yes & yes \\
+$+$ pressure / station ($\Lthree$--$\Lfive$) & yes (no material gain) & yes (no material gain) \\
+\hline
+\end{tabular}
+\end{table}

@@ -28,6 +28,30 @@ is the **first sentence**. Never write "we have clarified this" without a pointe
 
 ---
 
+
+## Level nomenclature bridge (v1 → v2)
+
+The reviewers hold the original submission, in which the level names mean different things.
+All three of `L1`, `L2`, `L3` were reassigned in the revision; the point-by-point responses
+below use the v2 names.
+
+| v1 | v1 meaning | v2 |
+|---|---|---|
+| L1 | copperplate, no loss | **CP** |
+| L2 | 7 aggregated zones | **ZN** |
+| L1_topo | routing, no loss (synthetic auxiliary) | **ND⁰** |
+| L3 | 15 nodes + trunk loss | **L1** (baseline) |
+| L3⁺ | + pressure, temperature, delay bundled | split into **L2**, **L3** |
+| L3ᴺᴸ | native nonlinear, delay active | split into **L6**, **NL** |
+
+Thus R1.2's "13 % between L1 and L3" is the CP→L1 gap in v2 terms, now −11.8 % on the Gurobi
+objective and −15.1 % on the economic cost. We note honestly that v1 already contained
+`L1_topo` (routing without losses, today's `ND⁰`) as a synthetic-only auxiliary; R2.2's
+confound objection stands for the primary results, and we say so rather than leaving R2 to
+find it.
+
+---
+
 ## Reviewer 2
 
 ### R2.1 — novelty
@@ -65,15 +89,14 @@ decomposition is now an exact additive identity (closes to 0 €; all four solve
 ≤0.01 % optimality gap): on Memmingen (defensible pipe U-values, no inflation) the
 cost gap resolves into **loss 95.9 %, topology 4.7 %, interaction −0.5 %** (the
 interaction is negligible), and this holds across the 135-network synthetic factorial
-(all solves at ≤0.1 % gap: loss a median 100.0 % of the gap, topology within ±2.4 % on
-every single network). The result changed our principal
+(all solves at ≤0.1 % gap: loss a median 100.0 % of the gap, topology within $\pm$0.6\,% on every network of 5\,km trunk length or more, and never above
+2.4\,% even on the 1\,km networks, whose entire cost gap is below 6\,% of cost). The result changed our principal
 conclusion, and the title with it. Crucially, we also show **why the control does
 not make spatial resolution unnecessary**: on any single network a loss adder can be
 back-fitted so that `CP+L` is both low-bias (−0.6 %) and low-regret (−0.5 %) — but
 that adder is an ex-post per-network artifact. Frozen and transferred across the
 factorial it **drifts by 23–42 pts of cost** (loss burden spans 3.2–81.2 % of cost; even the
-single most-transferable adder mis-estimates by a mean 23.5 pts, max 40.1 pts; short→long
-pipe transfer under-provisions the true loss by up to 95 %). Because the adder cannot be
+single most-transferable adder mis-estimates by a mean 23.5 pts, max 40.1 pts, so no single adder can track it). Because the adder cannot be
 known a priori, the node-resolved model — which computes the loss endogenously — is
 the transferable requirement. [§2.3, §4.2, decomposition table (tab:decomposition), Figure F6]
 
@@ -88,7 +111,7 @@ thermal-storage **cycling penalty** (≈24–26 k€). Both are near-constant ac
 so they inflate every level's absolute cost about equally, *dilute* the percentage gap
 between levels, and cancel in every bias and regret *difference*. We report the
 economic cost because it is what an operator actually pays; loss-dominance and the sign
-of every bias and regret figure are invariant to the CHP-CO₂ allocation. [§2.6, §4.2]
+of every bias and regret figure are invariant to the CHP-CO₂ allocation; the copperplate's estimation bias reads $-11.8$\,% on the Gurobi objective and $-15.1$\,% on the economic cost, the same finding diluted by a constant. [§2.5, §3.2]
 
 ### R2.3 — linearisation not rigorous
 **Response:** accepted; we adopted all three remedies the reviewer offered.
@@ -156,11 +179,24 @@ any model can be validated against. Even along the corridor, a point-in-time tem
 is sensitive to the network flow (which the billing metering does not pin down), so we do **not**
 rest the validation on point node temperatures. Instead we validate the model on the quantity the
 cost conclusions actually depend on — the **annual network loss**, matched to about 1.2\,\% — and
-report the flow-side comparison as a mean-absolute-percentage error by load band. We are explicit
-that the intermediate temperature field cannot be quantitatively validated here; that is a
-metering limitation, not a modelling one, and it is the substance of the resolution argument. For **additional out-of-sample validation** we (i) split the spatial
-validation into fitted and held-out node sets, and (ii) test the a-priori bias estimator on
-held-out synthetic networks beyond the fitted pipe-length range, as R2.5 also requests.
+report the flow-side comparison as a mean-absolute-percentage error by load band. That
+decomposition is the substance of the answer: the aggregate flow MAPE ($\approx$34\,\%) is dominated
+by the many low-load hours, where the flow denominator is small and the consumer mixing valves
+bypass flow — it is **46\,\% below 25\,\% of peak demand (60\,\% of all hours) but 13--17\,\% at mid
+load** (50--75\,\% of peak: 12.9\,\%). Crucially the \emph{absolute} flow error is roughly
+\emph{constant} across bands ($\approx$12--13\,m³/h), so the large low-load percentage is a small
+absolute miss on a tiny flow — which is precisely why the annual delivered energy still closes to
+1.2\,\%. (The sparse top band, $>$75\,\% of peak, is 23\,\% but only 56 hours.) A single aggregate
+number therefore overstates the disagreement at the operating points that matter. We are
+explicit that the intermediate temperature field cannot be quantitatively validated here; that is a
+metering limitation, not a modelling one, and it is the substance of the resolution argument. On further examination we found that a held-out node split cannot be constructed on this
+network for the same reason the temperature gates cannot be met: with consumer sensors
+downstream of mixing valves, no node provides a junction-temperature reference against which
+a held-out prediction could be scored. Rather than report a split we cannot defend, we added a
+first-difference comparison, which is immune to a fixed valve offset and tests whether the
+model reproduces the network's variation: flow level $r=0.91$ and day-to-day change $r=0.80$,
+demand $0.93$ and $0.89$. The held-out evidence in the paper is therefore the synthetic
+out-of-sample test, reported including its degradation beyond the fitted range (as R2.5 also requests).
 [§2.5, §4.1, §4.5, Figures F11, F\_corridor]
 
 ### R2.5 — generality

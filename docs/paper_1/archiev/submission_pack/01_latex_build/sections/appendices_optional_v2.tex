@@ -1,0 +1,147 @@
+%% ============================================================
+%% REMAINING APPENDICES -- v2 merge. None is cited by the body, so none breaks the build;
+%% all are worth carrying. Source: v1 lines 2537-2650.
+%%
+%% NOT CARRIED OVER: v1's "BCM calibration details" (L2652-2666). It documents a global
+%% x1.330 trunk multiplier and records that the dispatch model concentrated losses in the
+%% terminal pipe at 4.7x nominal. Both calibrations are removed from this lineage, and the
+%% second is precisely what R2.4 objected to. Reproducing the appendix would reintroduce
+%% the practice the revision exists to eliminate.
+%%
+%% *** SEE THE NOTE AT THE END -- the per-node table below raises a substantive issue with
+%% *** how the current validation table reports the temperature gates.
+%% ============================================================
+
+\section{Electricity selling price}
+\label{app:selling_price}
+
+The price received for exported electricity applies the spot price less a marketing spread,
+floored, net of a self-consumption share and a fixed fee, and cannot go negative:
+%
+\begin{equation}
+  \lambda_t^{\mathrm{sell}} = \max\!\Bigl(
+    \max\bigl(\lambda_t^{\mathrm{spot}} - \lambda^{\mathrm{spread}},\;
+      \lambda^{\mathrm{floor}}\bigr)
+    (1 - h^{\mathrm{sell}})
+    - \lambda^{\mathrm{sell,fee}},\; 0\Bigr).
+\end{equation}
+
+\section{Per-node temperature error breakdown}
+\label{app:per_node_mae}
+
+Table~\ref{tab:per_node_mae} reports supply-temperature error at all fourteen network nodes
+over a 744-hour winter window, evaluated on the temperature-propagating formulation and
+sorted by path length from the source. Three groups are distinguished, and the distinction
+matters for how the aggregate figures in Section~\ref{subsec:validation} should be read.
+
+\emph{Validation nodes} (six) are consumer sensors whose mixing-valve offset is below
+$2$\,°C and which took no part in the calibration; their mean error is $1.32$\,°C.
+\emph{Calibration nodes} (four) were used in the branch-sequential coefficient tuning, so
+their residuals are in-sample by construction; their mean is $2.32$\,°C, and one node at
+$3.07$\,°C would fail a $2.5$\,°C held-out criterion. That in-sample deterioration is
+expected, and it is the reason a strict calibration/validation split matters.
+\emph{Excluded nodes} (four) are set aside for measurement reasons unrelated to model
+quality: two exhibit mixing-valve absorption above the $2$\,°C threshold and cannot be read
+as junction temperatures, one is a boundary-condition reference, and one serves four
+consumers with a $20.9$\,°C intra-node spread, so no single junction reference exists.
+
+The mean across all fourteen nodes is $1.68$\,°C, between the validation-node mean of
+$1.32$\,°C and the calibration-node mean of $2.32$\,°C. The validation nodes are therefore
+not systematically the best-performing ones -- two of the excluded nodes are in fact the
+best in the network -- so the group means are not an artefact of favourable node selection.
+
+\medskip
+{%
+\captionof{table}{Per-node supply-temperature error over a 744\,h winter window, evaluated
+on the temperature-propagating formulation.}
+\label{tab:per_node_mae}
+\centering
+\footnotesize
+\begin{threeparttable}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} l c c c c c @{}}
+\toprule
+Node & Path [m] & Role & MAE [$^\circ$C] & Bias [$^\circ$C] & In gate? \\
+\midrule
+j$_2$    &  350 & excl. & 2.99 & $+2.98$ & No  \\
+j$_3$    &  650 & excl. & 0.58 & $+0.07$ & No  \\
+j$_4$    &  910 & excl. & 0.37 & $-0.18$ & No  \\
+j$_9$    & 1100 & val.  & 0.87 & $+0.41$ & Yes \\
+j$_5$    & 1150 & excl. & 2.35 & $+1.51$ & No  \\
+j$_6$    & 1300 & cal.  & 1.62 & $-1.62$ & No  \\
+j$_{10}$ & 1300 & val.  & 2.27 & $+1.78$ & Yes \\
+j$_7$    & 1370 & cal.  & 3.07\tnote{a} & $+2.53$ & No  \\
+j$_8$    & 1450 & cal.  & 2.29 & $+1.00$ & No  \\
+j$_{11}$ & 1530 & val.  & 1.41 & $+0.71$ & Yes \\
+j$_{12}$ & 1780 & val.  & 0.69 & $-0.29$ & Yes \\
+j$_{13}$ & 2000 & val.  & 1.09 & $-1.02$ & Yes \\
+j$_{15}$ & 2125 & val.  & 1.58 & $-0.24$ & Yes \\
+j$_{14}$ & 2180 & cal.  & 2.31 & $+1.02$ & No  \\
+\midrule
+\multicolumn{3}{@{}l}{Group mean, validation (6 nodes)}  & 1.32 & & \\
+\multicolumn{3}{@{}l}{Group mean, calibration (4 nodes)} & 2.32 & & \\
+\multicolumn{3}{@{}l}{Group mean, excluded (4 nodes)}    & 1.57 & & \\
+\multicolumn{3}{@{}l}{All 14 nodes}                       & 1.68 & & \\
+\bottomrule
+\end{tabular*}
+\begin{tablenotes}\scriptsize
+  \item[a] In-sample residual on a calibration node; would exceed a $2.5$\,°C held-out
+    criterion.
+\end{tablenotes}
+\end{threeparttable}
+}% end centering group
+
+\section{Demand heterogeneity index}
+\label{app:hi_definition}
+
+With $d_n$ the share of total annual demand at node $n$, the normalised variance index is
+%
+\begin{equation}
+  d_n = \frac{\sum_t Q_{n,t}^{\mathrm{dem}}}{\sum_n \sum_t Q_{n,t}^{\mathrm{dem}}},
+  \qquad
+  \mathrm{HI} = \frac{N}{N-1} \sum_{n=1}^{N}
+    \left(d_n - \frac{1}{N}\right)^{2}.
+  \label{eq:hi}
+\end{equation}
+%
+The index maps monotonically to the Gini coefficient on tree topologies but compresses the
+realistic range: the industrial case has $\mathrm{HI} = 0.05$ against a Gini of $0.41$. The
+synthetic values $0.1$, $0.4$ and $0.8$ correspond approximately to Gini ranges of
+$0.15$--$0.25$, $0.40$--$0.55$ and $0.70$--$0.85$. Because of that compression, the
+model-selection observations in Table~\ref{tab:criteria} are expressed in terms of the Gini
+coefficient and the top-$k$ demand share rather than this index.
+
+%% ============================================================
+%% *** SUBSTANTIVE NOTE FOR THE AUTHOR -- READ BEFORE MERGING ***
+%%
+%% The per-node table above is evaluated on the TEMPERATURE-PROPAGATING formulation.
+%% v1 was explicit about this and about why: "The T_sup gates are assigned to [the
+%% propagating variant] because only this variant propagates supply temperature along
+%% pipes; [the baseline] uses fixed nominal temperatures and therefore cannot predict
+%% downstream temperature deviations." (v1 L1151-1155.)
+%%
+%% The current tab_validation reports a far-end supply-temperature MAE of 9.21 C against a
+%% 1.5 C gate, and a trunk temperature-drop MAE of 9.09 C with a SIMULATED DROP OF ZERO.
+%% A simulated drop of exactly zero is the signature of a model that does not propagate
+%% temperature at all. If those figures come from the node-resolved baseline, then we are
+%% reporting a failed gate for a formulation that by construction cannot meet it -- which
+%% is not a metering limitation and not a modelling failure, but a category error.
+%%
+%% This does not weaken the paper; it sharpens it, and the chain is coherent:
+%%   (i)  the temperature gates apply only to a formulation that propagates temperature;
+%%   (ii) the baseline does not propagate by construction, so those gates do not apply
+%%        to it and should be marked "n/a" rather than "fail";
+%%   (iii) the propagating level is degenerate when solved (91 % of hours at the
+%%        temperature floor), so its solved output is not reportable either;
+%%   (iv) temperature propagation is therefore quantified through the forward evaluator,
+%%        which applies the native exponential to a fixed schedule.
+%%
+%% RESOLVED 2026-08-16: validation_kpis.json is the MILP baseline (boundary-condition
+%% matching, nominal constant return temperature, supply temperature injected as a boundary
+%% condition and not propagated). VALIDATION_METHODOLOGY.md states that the supply-
+%% temperature gates are NLP-only and the MILP run skips them. tab_validation now carries a
+%% Model column and marks those rows n/a for the MILP. Section 3.1 is written to match.
+%%
+%% NOTE: v1 had this attribution CORRECT -- its targets table assigned the supply-
+%% temperature gates to the NLP and its results table scored them there. Nothing in the
+%% original submission needs to be walked back on this point.
+%% ============================================================

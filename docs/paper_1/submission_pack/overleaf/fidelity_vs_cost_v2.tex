@@ -1,0 +1,47 @@
+%% ============================================================
+%% REPLACEMENT for <<KEEP:computation>> -- "Fidelity gain versus computational cost".
+%% Source: v1 S5.6 (lines 1812-1826), remapped and reframed.
+%%
+%% v1 reported model size and solve time as a standalone fact. The revision brief is
+%% right that the interesting quantity is the RATIO -- what each increment of fidelity
+%% costs and what it buys -- because that is the decision a modeller actually faces.
+%% Same table, one added column of interpretation, and it becomes an argument.
+%%
+%% Numbers: computation_meta.csv / tab_computation (CP, CP+L, ND0, L1, L3, L6).
+%% Effects: decomposition_live.csv, regret_decomp.csv, tab_linearisation.
+%% v1's storage-dispatch equivalence finding is carried over -- it independently
+%% corroborates the sub-hourly travel time behind the L6 = L3 identity.
+%% ============================================================
+
+\subsection{Fidelity gain versus computational cost}
+\label{subsec:computation}
+
+Table~\ref{tab:computation} reports model size and solve time for the levels that are
+solved. Read alongside the effects each level buys, it gives the trade-off a modeller
+actually faces, and the trade is unusually lopsided.
+
+Moving from the copperplate to the node-resolved baseline multiplies the model by roughly
+a factor of eleven in variables and by about a factor of two in solve time, and buys the
+entire $15.1$\,\% cost gap: the whole of the estimation bias and the whole of the
+$46.1$\,\% decision regret. Every increment above that is expensive and nearly inert.
+Adding trunk pressure adds $368$\,thousand binary variables, roughly doubling the solve
+time, to move dispatch cost by $1.4$\,\%. Adding transport delay adds no structure at all
+at hourly resolution and moves cost by exactly nothing. The station-resolved levels are
+not solved as dispatch problems, and the forward evaluation that replaces them shows why
+that is no loss: their effect on decisions is indistinguishable from zero.
+
+The practical reading is that fidelity in this setting is not a smooth trade of accuracy
+against computation. It has one step, and the step is loss visibility. A modeller who
+resolves the network and computes its losses has bought essentially all of the available
+correction at about twice the solve time of a copperplate; a modeller who then adds
+hydraulics pays again and buys almost nothing. That the expensive levels are also the ones
+whose extra detail cannot be validated at billing-grade metering
+(Section~\ref{subsec:validation}) makes the case against them twice over.
+
+Storage dispatch is indistinguishable across levels on this case: equivalent winter cycle
+counts and state-of-charge timing shifts under $0.2$\,h from the copperplate through the
+pressure-resolved level. This is expected for a compact network (the longest trunk travel
+time is about 35 minutes, which is also why transport delay vanishes at hourly resolution)
+and it is the mechanism behind the identity between the delay level and the level below
+it. On a network with substantially longer transport times, both results would be expected
+to separate.

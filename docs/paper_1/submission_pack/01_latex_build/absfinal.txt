@@ -1,0 +1,24 @@
+Operational dispatch models for district-heating networks routinely simplify the pipe network, yet how much these simplifications distort the resulting decisions is rarely measured. Existing comparisons vary spatial resolution and thermal-loss representation together, so the two cannot be separated, and they compare objective values rather than the cost of the schedules produced. We separate two quantities: estimation bias, the difference in optimised cost between formulations, and decision regret, the extra cost when a simpler model's schedule is run under a common high-fidelity physics reference. Both are measured on a fidelity ladder that adds one phenomenon at a time, from a single-node "copperplate" through node-resolved losses, pipe pressure and station hydraulics, plus a copperplate given the aggregate loss it cannot compute, which isolates loss from topology exactly. We study one real industrial network and 135 synthetic networks. Loss visibility, not spatial layout, is decisive: the copperplate-to-detailed cost gap is 95.8 % a loss effect and only 4.7 % a topology effect. On operating cost a copperplate scores -15.1 % against the detailed model, but +46.1 % once its schedule is run: a biased estimator and an unreliable controller at once. Adding pressure, temperature propagation, transport delay and station hydraulics changes cost by under 1 % and decisions by almost nothing; a lumped loss correction hides the gap on one network but does not transfer. The practical conclusion is to resolve the network so losses become visible before refining the physics; the findings hold for radial, centrally-supplied networks dispatched at fixed capacity.
+
+Nomenclature
+Fidelity levels and evaluation quantities
+Symbol
+CP CP+L ZN ND0 L1 L2 L3 L4 L5 L6 NL
+    
+
+Code
+T0P0 T0P1 T1P1 T2P0 T2P1 T2P2 T2P3 T2P4 T2P5 T2P6 ­
+­ ­ ­ ­ ­
+
+Corresponding author.
+lukas.ruess@ipa.fraunhofer.de (L. Ruess) ORCID(s): 0009-0005-5010-3520 (L. Ruess)
+
+Description
+Copperplate, no loss (decomposition control) Copperplate + exogenous aggregate loss (control) Zone-aggregated + loss Node-resolved, no loss (topology control) Node-resolved + trunk loss (comparison baseline) + temperature propagation + trunk pressure drop and pumping + station resolution and service laterals + flow-dependent station pressure drop + transport delay Nonlinear forward reference (not a ladder rung)
+Estimation bias of level  (optimised cost difference) Decision regret of level  (forward-evaluated difference) Loss number, annual loss / annual demand Exogenous aggregate loss supplied to CP+L Loss switch in the nodal balance, {0, 1}
+
+L. Ruess and A. Sauer: Preprint submitted to Elsevier
+
+Page 1 of 38
+
+

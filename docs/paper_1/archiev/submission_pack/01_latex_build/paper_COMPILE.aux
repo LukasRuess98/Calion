@@ -1,0 +1,237 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{Lund2014_4GDH}
+\citation{PereaMoreno2026}
+\citation{Wirtz2020}
+\citation{Frederiksen2013}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{2}{section.1}\protected@file@percent }
+\newlabel{sec:introduction}{{1}{2}{Introduction}{section.1}{}}
+\citation{Frysztacki2021}
+\citation{Fang2016}
+\citation{Hilpert2018_oemof}
+\citation{Brown2018_pypsa}
+\citation{Welder2018_FINE}
+\citation{Pfenninger2018_calliope}
+\citation{Dorfner2016_urbs}
+\citation{Larsen2004}
+\citation{Falay2020}
+\citation{Wirtz2020}
+\citation{Buenning2020}
+\citation{vanderHeijde2017}
+\citation{Giraud2015}
+\citation{Connolly2014_EnergyPLAN}
+\citation{Gabrielli2018}
+\citation{Leitner2019}
+\citation{Trentmann2026}
+\citation{Ceruti2025}
+\citation{Vieth2026}
+\citation{Frederiksen2013}
+\citation{Bordin2016}
+\citation{Blommaert2020}
+\citation{Hari2024}
+\citation{Frederiksen2013}
+\citation{vanderHeijde2017}
+\citation{Maldonado2024}
+\citation{Giraud2015}
+\citation{Ommen2016}
+\citation{Hering2021}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Literature review and research gap}{3}{subsection.1.1}\protected@file@percent }
+\citation{Quaggiotto2021}
+\citation{Jansen2024}
+\citation{Wirtz2021_complexity}
+\citation{Kotzur2021}
+\citation{Mollenhauer2018}
+\citation{Walden2023}
+\citation{Nielsen2016}
+\citation{Riedl2026}
+\citation{Wirtz.2021}
+\citation{Kotzur.2021}
+\citation{Larsen2004}
+\citation{Falay2020}
+\citation{vanderHeijde.2019}
+\citation{Hering.2021}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Contributions and research questions}{4}{subsection.1.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Positioning against prior model-fidelity and network-aggregation studies. No prior study isolates the loss effect from the topology effect, and none evaluates fidelity by the cost of the resulting \emph  {decisions} rather than by objective values -- the two gaps this paper addresses.}}{5}{table.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:priorwork}{{1}{5}{Positioning against prior model-fidelity and network-aggregation studies. No prior study isolates the loss effect from the topology effect, and none evaluates fidelity by the cost of the resulting \emph {decisions} rather than by objective values -- the two gaps this paper addresses}{table.caption.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Experimental design and methodology}{5}{section.2}\protected@file@percent }
+\newlabel{sec:methodology}{{2}{5}{Experimental design and methodology}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Experimental design: fidelity ladder and decomposition controls}{5}{subsection.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces The experimental contrasts. Each arrow changes exactly one phenomenon, so no comparison is confounded. The first three are the decomposition controls (topology $\times $ loss); the rest is the monotone fidelity ladder.}}{5}{table.caption.3}\protected@file@percent }
+\newlabel{tab:contrasts}{{2}{5}{The experimental contrasts. Each arrow changes exactly one phenomenon, so no comparison is confounded. The first three are the decomposition controls (topology $\times $ loss); the rest is the monotone fidelity ladder}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Base formulation}{5}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Objective function.}{5}{section*.4}\protected@file@percent }
+\newlabel{eq:objective}{{1}{5}{Objective function}{equation.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Energy balance, and how the controls are constructed.}{6}{section*.5}\protected@file@percent }
+\newlabel{eq:balance_cp}{{2}{6}{Energy balance, and how the controls are constructed}{equation.2}{}}
+\newlabel{eq:balance_nodal}{{3}{6}{Energy balance, and how the controls are constructed}{equation.3}{}}
+\newlabel{eq:balance_el}{{4}{6}{Energy balance, and how the controls are constructed}{equation.4}{}}
+\newlabel{eq:grid_bigm}{{5}{6}{Energy balance, and how the controls are constructed}{equation.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Thermal loss model.}{6}{section*.6}\protected@file@percent }
+\newlabel{eq:loss_supply}{{6}{6}{Thermal loss model}{equation.6}{}}
+\newlabel{eq:loss_return}{{7}{6}{Thermal loss model}{equation.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{Heat pump.}{7}{section*.7}\protected@file@percent }
+\newlabel{eq:hp_split}{{8}{7}{Heat pump}{equation.8}{}}
+\newlabel{eq:hp_pel}{{9}{7}{Heat pump}{equation.9}{}}
+\newlabel{eq:hp_cap}{{10}{7}{Heat pump}{equation.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{Thermal storage.}{7}{section*.8}\protected@file@percent }
+\newlabel{eq:storage_soc}{{11}{7}{Thermal storage}{equation.11}{}}
+\@writefile{toc}{\contentsline {paragraph}{Remaining assets and emissions.}{7}{section*.9}\protected@file@percent }
+\newlabel{eq:emissions}{{12}{7}{Remaining assets and emissions}{equation.12}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Copperplate with aggregate losses}{7}{subsection.2.3}\protected@file@percent }
+\newlabel{subsec:lumped}{{2.3}{7}{Copperplate with aggregate losses}{subsection.2.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}Forward evaluator and decision regret}{7}{subsection.2.4}\protected@file@percent }
+\newlabel{subsec:evaluator}{{2.4}{7}{Forward evaluator and decision regret}{subsection.2.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5}Cost accounting: economic cost versus the solver objective}{8}{subsection.2.5}\protected@file@percent }
+\newlabel{subsec:costacct}{{2.5}{8}{Cost accounting: economic cost versus the solver objective}{subsection.2.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Objective versus economic cost on the decomposition lineage (EUR/yr). The Gurobi objective carries a systematic $\sim $39--41\,\% non-economic residual that is \emph  {not} a dispatch distortion: the objective charges CO$_2$ on a gross basis whereas the reported cost applies the standard cogeneration self-use allocation ($\approx $55--58\,k), plus a thermal-storage cycling penalty ($\approx $24--26\,k). Both are near-constant across levels and cancel in every bias/regret difference, so all reported figures use the economic cost.}}{8}{table.caption.10}\protected@file@percent }
+\newlabel{tab:objdecomp}{{3}{8}{Objective versus economic cost on the decomposition lineage (EUR/yr). The Gurobi objective carries a systematic $\sim $39--41\,\% non-economic residual that is \emph {not} a dispatch distortion: the objective charges CO$_2$ on a gross basis whereas the reported cost applies the standard cogeneration self-use allocation ($\approx $55--58\,k), plus a thermal-storage cycling penalty ($\approx $24--26\,k). Both are near-constant across levels and cancel in every bias/regret difference, so all reported figures use the economic cost}{table.caption.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6}Extended thermo-hydraulic formulation}{8}{subsection.2.6}\protected@file@percent }
+\newlabel{sec:extended}{{2.6}{8}{Extended thermo-hydraulic formulation}{subsection.2.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Pressure drop and pumping power ($\ensuremath  {\mathrm  {L3}}$).}{8}{section*.11}\protected@file@percent }
+\newlabel{eq:darcy}{{13}{8}{Pressure drop and pumping power ($\Lthree $)}{equation.13}{}}
+\newlabel{eq:massflow}{{14}{8}{Pressure drop and pumping power ($\Lthree $)}{equation.14}{}}
+\newlabel{eq:pressure_pwl}{{15}{8}{Pressure drop and pumping power ($\Lthree $)}{equation.15}{}}
+\newlabel{eq:pump_power}{{16}{8}{Pressure drop and pumping power ($\Lthree $)}{equation.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Temperature propagation ($\ensuremath  {\mathrm  {L2}}$).}{9}{section*.12}\protected@file@percent }
+\newlabel{eq:temp_prop}{{17}{9}{Temperature propagation ($\Ltwo $)}{equation.17}{}}
+\newlabel{eq:temp_prop_lin}{{18}{9}{Temperature propagation ($\Ltwo $)}{equation.18}{}}
+\@writefile{toc}{\contentsline {paragraph}{Transport delay ($\ensuremath  {\mathrm  {L6}}$).}{9}{section*.13}\protected@file@percent }
+\newlabel{eq:delay_time}{{19}{9}{Transport delay ($\Lsix $)}{equation.19}{}}
+\newlabel{eq:delayed_balance}{{20}{9}{Transport delay ($\Lsix $)}{equation.20}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.6.1}Station-resolved hydraulics (L4, L5): the test that locates the threshold}{9}{subsubsection.2.6.1}\protected@file@percent }
+\citation{Kus2025}
+\citation{Maldonado2024}
+\citation{Maldonado2024}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.7}Validation protocol}{10}{subsection.2.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Stage 1: direct network validation.}{10}{section*.14}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Validation targets. The annual energy / loss target is the one the cost conclusions depend on and is met; the point-temperature targets are shown for completeness but are metering-limited (consumer sensors sit downstream of mixing valves), as discussed in the text.}}{10}{table.caption.17}\protected@file@percent }
+\newlabel{tab:valtargets}{{4}{10}{Validation targets. The annual energy / loss target is the one the cost conclusions depend on and is met; the point-temperature targets are shown for completeness but are metering-limited (consumer sensors sit downstream of mixing valves), as discussed in the text}{table.caption.17}{}}
+\@writefile{toc}{\contentsline {paragraph}{Stage 2: necessary-condition verification.}{10}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Structural sanity checks.}{10}{section*.16}\protected@file@percent }
+\citation{pyomo}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.8}Implementation}{11}{subsection.2.8}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces The Memmingen case at a glance. All generation is co-located at the plant (central generation); the demand side resolves to 15 junction nodes, 27 metered consumer substations and 174 transmission stations.}}{11}{table.caption.18}\protected@file@percent }
+\newlabel{tab:casesummary}{{5}{11}{The Memmingen case at a glance. All generation is co-located at the plant (central generation); the demand side resolves to 15 junction nodes, 27 metered consumer substations and 174 transmission stations}{table.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.9}Case studies and data}{11}{subsection.2.9}\protected@file@percent }
+\newlabel{sec:cases}{{2.9}{11}{Case studies and data}{subsection.2.9}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.9.1}Memmingen}{11}{subsubsection.2.9.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces The synthetic factorial: a balanced grid of radial networks, each solved through the same controls and ladder as Memmingen. 135 networks in total. Generation topology (central/distributed) and a parameterised station level are additional factors.}}{12}{table.caption.19}\protected@file@percent }
+\newlabel{tab:synthetic}{{6}{12}{The synthetic factorial: a balanced grid of radial networks, each solved through the same controls and ladder as Memmingen. 135 networks in total. Generation topology (central/distributed) and a parameterised station level are additional factors}{table.caption.19}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {2.9.2}Synthetic factorial}{12}{subsubsection.2.9.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Results and discussion}{12}{section.3}\protected@file@percent }
+\newlabel{sec:results}{{3}{12}{Results and discussion}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Validation}{12}{subsection.3.1}\protected@file@percent }
+\newlabel{subsec:validation}{{3.1}{12}{Validation}{subsection.3.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{What the baseline is validated on.}{12}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{What cannot be tested here, and why.}{12}{section*.21}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Scope of the temperature evaluation.}{12}{section*.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Flow, and the per-step balance.}{12}{section*.23}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Validation against the Memmingen measurements. \textbf  {Model} names the formulation each metric is evaluated against: the shipped KPIs are the \emph  {MILP baseline}, which uses a nominal constant return temperature and does not propagate the supply temperature. The cost conclusions depend on the annual delivered energy (hence network loss) and the heat-pump performance, both of which pass; the calibrated return temperature also matches within its ex-ante 2.5\,°C gate (bias only $-0.3$\,°C). The \emph  {supply}-temperature-propagation metrics (far-end, trunk drop, corridor) are \textbf  {n/a} for the MILP: their gates are defined for the non-linear (NLP) formulation only (\texttt  {VALIDATION\_METHODOLOGY.md}), and the MILP injects the source temperature as a boundary condition without propagating it -- so a zero simulated drop is by construction, not a fit failure. The physical temperature field is reproduced by the non-linear forward evaluator and anchored to the annual loss; point/corridor temperatures are additionally not validatable at this metering resolution (sensors downstream of mixing valves). Bias is signed mean error; scatter is RMSE.}}{13}{table.caption.25}\protected@file@percent }
+\newlabel{tab:validation}{{7}{13}{Validation against the Memmingen measurements. \textbf {Model} names the formulation each metric is evaluated against: the shipped KPIs are the \emph {MILP baseline}, which uses a nominal constant return temperature and does not propagate the supply temperature. The cost conclusions depend on the annual delivered energy (hence network loss) and the heat-pump performance, both of which pass; the calibrated return temperature also matches within its ex-ante 2.5\,°C gate (bias only $-0.3$\,°C). The \emph {supply}-temperature-propagation metrics (far-end, trunk drop, corridor) are \textbf {n/a} for the MILP: their gates are defined for the non-linear (NLP) formulation only (\texttt {VALIDATION\_METHODOLOGY.md}), and the MILP injects the source temperature as a boundary condition without propagating it -- so a zero simulated drop is by construction, not a fit failure. The physical temperature field is reproduced by the non-linear forward evaluator and anchored to the annual loss; point/corridor temperatures are additionally not validatable at this metering resolution (sensors downstream of mixing valves). Bias is signed mean error; scatter is RMSE}{table.caption.25}{}}
+\@writefile{toc}{\contentsline {paragraph}{Post-upgrade assets and structural checks.}{13}{section*.24}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Estimation bias: loss visibility versus spatial resolution}{13}{subsection.3.2}\protected@file@percent }
+\newlabel{subsec:decomp}{{3.2}{13}{Estimation bias: loss visibility versus spatial resolution}{subsection.3.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces Exact loss$\times $topology decomposition of the copperplate-to-baseline cost gap on Memmingen (economic cost, all solves $\le $0.01\,\% gap; the additive identity closes to machine precision). The synthetic column reports the 135-network distribution.}}{14}{table.caption.29}\protected@file@percent }
+\newlabel{tab:decomposition}{{8}{14}{Exact loss$\times $topology decomposition of the copperplate-to-baseline cost gap on Memmingen (economic cost, all solves $\le $0.01\,\% gap; the additive identity closes to machine precision). The synthetic column reports the 135-network distribution}{table.caption.29}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Decision regret and physical feasibility}{14}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Sensitivity to the zone aggregation}{14}{subsection.3.4}\protected@file@percent }
+\newlabel{subsec:clustering}{{3.4}{14}{Sensitivity to the zone aggregation}{subsection.3.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Estimation bias versus decision regret (\% of the baseline $\ensuremath  {\mathrm  {L1}}$ operating cost, forward evaluator), with the \emph  {decision} each model drove. Regret is shown for three shortfall-pricing schemes -- top-up at the marginal unit, the peak unit, and unmet demand penalised at the dump price. \emph  {Viol.} is physical-feasibility violations (velocity, differential pressure, unmet). The last two columns are the resulting dispatch: heat-pump energy share and running hours. The copperplate, blind to network loss, under-provisions the heat pump ($77.9$\,\%, 2063\,h) relative to the loss-aware node-resolved levels ($87.8$\,\%, $\sim $2310\,h), and pays the shortfall at the margin in winter hours it never planned for -- which is what the $+46$\,\% regret \emph  {is}, physically.}}{15}{table.caption.31}\protected@file@percent }
+\newlabel{tab:regret}{{9}{15}{Estimation bias versus decision regret (\% of the baseline $\Lone $ operating cost, forward evaluator), with the \emph {decision} each model drove. Regret is shown for three shortfall-pricing schemes -- top-up at the marginal unit, the peak unit, and unmet demand penalised at the dump price. \emph {Viol.} is physical-feasibility violations (velocity, differential pressure, unmet). The last two columns are the resulting dispatch: heat-pump energy share and running hours. The copperplate, blind to network loss, under-provisions the heat pump ($77.9$\,\%, 2063\,h) relative to the loss-aware node-resolved levels ($87.8$\,\%, $\sim $2310\,h), and pays the shortfall at the margin in winter hours it never planned for -- which is what the $+46$\,\% regret \emph {is}, physically}{table.caption.31}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Secondary finding: generation topology as a moderator}{15}{subsection.3.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Thermo-hydraulic effect, to the transmission station}{15}{subsection.3.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.7}Robustness to a flexible supply temperature}{15}{subsection.3.7}\protected@file@percent }
+\newlabel{subsec:tsup}{{3.7}{15}{Robustness to a flexible supply temperature}{subsection.3.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Station-resolved hydraulics on Memmingen (real component data). The actual hydraulic pumping need is two orders of magnitude below the installed pump capacity, and every node keeps a large differential-pressure margin. Station-level hydraulics therefore move dispatch cost by $<1$\,\% and decisions by $\approx 0$.}}{16}{table.caption.34}\protected@file@percent }
+\newlabel{tab:hydraulics}{{10}{16}{Station-resolved hydraulics on Memmingen (real component data). The actual hydraulic pumping need is two orders of magnitude below the installed pump capacity, and every node keeps a large differential-pressure margin. Station-level hydraulics therefore move dispatch cost by $<1$\,\% and decisions by $\approx 0$}{table.caption.34}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Forward supply-temperature sensitivity on $\ensuremath  {\mathrm  {L1}}$: lowering the plant supply temperature by $\Delta T_\text  {sup}$ cuts loss cost but raises pumping. Cost-optimal reduction marked $^{\star }$; the velocity limit binds at 20\,K. Loss valued at the marginal unit (upper bound). Costs in EUR/yr.}}{16}{table.caption.35}\protected@file@percent }
+\newlabel{tab:tsup}{{11}{16}{Forward supply-temperature sensitivity on $\Lone $: lowering the plant supply temperature by $\Delta T_\text {sup}$ cuts loss cost but raises pumping. Cost-optimal reduction marked $^{\star }$; the velocity limit binds at 20\,K. Loss valued at the marginal unit (upper bound). Costs in EUR/yr}{table.caption.35}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.8}Linearisation error and transport delay, separated}{16}{subsection.3.8}\protected@file@percent }
+\newlabel{subsec:linearisation}{{3.8}{16}{Linearisation error and transport delay, separated}{subsection.3.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.9}Secondary finding: generalisability and out-of-sample prediction}{16}{subsection.3.9}\protected@file@percent }
+\newlabel{subsec:generalis}{{3.9}{16}{Secondary finding: generalisability and out-of-sample prediction}{subsection.3.9}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {12}{\ignorespaces Extended-physics effects, each isolated (R1.3) and reported against its method and a rigorous bound (R2.3). Trunk pressure and the linearisation error are \emph  {solved}: pressure to a $0.01$\,\% gap, and the PWL-vs-native temperature error by a fix-and-relax nonlinear re-solve (the MILP schedule is re-costed under native, non-linearised temperature propagation on a winter and an autumn week, both converged to $\le 0.03$\,\% gap). Node temperature propagation is additionally reported through the validated nonlinear forward reference -- \emph  {not} its solved MILP, whose free-variable temperature form is degenerate (the optimiser floors the supply temperature for $\sim $91\,\% of hours, collapsing losses), consistent with \S  2.4/\S  4.7. Transport delay reproduces $\ensuremath  {\mathrm  {L3}}$ \emph  {identically} -- to the last digit ($+0.00$\,\%): trunk travel times are sub-hourly, so on the hourly grid the delay is a zero-timestep shift that storage absorbs. Every effect is far below the loss main effect, and the linearisation error is small \emph  {and negative} -- the PWL model slightly over-states cost.}}{17}{table.caption.36}\protected@file@percent }
+\newlabel{tab:linearisation}{{12}{17}{Extended-physics effects, each isolated (R1.3) and reported against its method and a rigorous bound (R2.3). Trunk pressure and the linearisation error are \emph {solved}: pressure to a $0.01$\,\% gap, and the PWL-vs-native temperature error by a fix-and-relax nonlinear re-solve (the MILP schedule is re-costed under native, non-linearised temperature propagation on a winter and an autumn week, both converged to $\le 0.03$\,\% gap). Node temperature propagation is additionally reported through the validated nonlinear forward reference -- \emph {not} its solved MILP, whose free-variable temperature form is degenerate (the optimiser floors the supply temperature for $\sim $91\,\% of hours, collapsing losses), consistent with \S 2.4/\S 4.7. Transport delay reproduces $\Lthree $ \emph {identically} -- to the last digit ($+0.00$\,\%): trunk travel times are sub-hourly, so on the hourly grid the delay is a zero-timestep shift that storage absorbs. Every effect is far below the loss main effect, and the linearisation error is small \emph {and negative} -- the PWL model slightly over-states cost}{table.caption.36}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {13}{\ignorespaces Balanced-design analysis of variance of the loss burden across the 135 synthetic networks (full $3\times 5\times 3\times 3$ factorial, so the sums of squares are unambiguous). Trunk pipe length dominates; the loss main effect is $\ge $97\,\% of the cost gap on every network regardless of factor, and the topology main effect stays within $\pm $2.4\,\%, so the decomposition conclusion is a property of the design, not of any one factor level.}}{17}{table.caption.37}\protected@file@percent }
+\newlabel{tab:synthanova}{{13}{17}{Balanced-design analysis of variance of the loss burden across the 135 synthetic networks (full $3\times 5\times 3\times 3$ factorial, so the sums of squares are unambiguous). Trunk pipe length dominates; the loss main effect is $\ge $97\,\% of the cost gap on every network regardless of factor, and the topology main effect stays within $\pm $2.4\,\%, so the decomposition conclusion is a property of the design, not of any one factor level}{table.caption.37}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Out-of-sample prediction of the cost gap (loss burden) from observable network properties. The estimator is fitted on the synthetic networks up to 15\,km trunk length (train $R^2=0.999$) and tested on the held-out longer networks, an \emph  {extrapolation} beyond the fitted range. It predicts the 30\,km networks to within a few points and degrades at the extreme 50\,km extrapolation (held-out MAPE 19\,\%), which we report as given.}}{17}{table.caption.38}\protected@file@percent }
+\newlabel{tab:prediction}{{14}{17}{Out-of-sample prediction of the cost gap (loss burden) from observable network properties. The estimator is fitted on the synthetic networks up to 15\,km trunk length (train $R^2=0.999$) and tested on the held-out longer networks, an \emph {extrapolation} beyond the fitted range. It predicts the 30\,km networks to within a few points and degrades at the extreme 50\,km extrapolation (held-out MAPE 19\,\%), which we report as given}{table.caption.38}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.10}Sensitivity and robustness}{17}{subsection.3.10}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Robustness of the decomposition. The loss-dominance conclusion survives every modelling choice examined; where a quantity is sensitive (last-mile loss magnitude, value of temperature flexibility) it does not affect the ordering. Values are the loss main effect (\% of the gap) or the copperplate regret sign, as applicable.}}{18}{table.caption.41}\protected@file@percent }
+\newlabel{tab:robustness}{{15}{18}{Robustness of the decomposition. The loss-dominance conclusion survives every modelling choice examined; where a quantity is sensitive (last-mile loss magnitude, value of temperature flexibility) it does not affect the ordering. Values are the loss main effect (\% of the gap) or the copperplate regret sign, as applicable}{table.caption.41}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Solver-gap stability of the decomposition (R2.3 rigour). At the loose tolerance the original solves used, the small topology and interaction terms sat within solver noise; only at a $0.01$\,\% gap do they resolve to stable values. Loss dominance is far above the gap throughout.}}{18}{table.caption.42}\protected@file@percent }
+\newlabel{tab:gapstability}{{16}{18}{Solver-gap stability of the decomposition (R2.3 rigour). At the loose tolerance the original solves used, the small topology and interaction terms sat within solver noise; only at a $0.01$\,\% gap do they resolve to stable values. Loss dominance is far above the gap throughout}{table.caption.42}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.11}Computational performance}{18}{subsection.3.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.12}Fidelity gain versus computational cost}{18}{subsection.3.12}\protected@file@percent }
+\newlabel{subsec:computation}{{3.12}{18}{Fidelity gain versus computational cost}{subsection.3.12}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces Model size and solve time for the solved levels (single-year, hourly). Temperature propagation (L2) and the station levels (L4/L5) are forward-evaluated, not solved -- L2's free-variable temperature MILP is non-convex and degenerate. L3 adds the pressure PWL binaries.}}{18}{table.caption.44}\protected@file@percent }
+\newlabel{tab:computation}{{17}{18}{Model size and solve time for the solved levels (single-year, hourly). Temperature propagation (L2) and the station levels (L4/L5) are forward-evaluated, not solved -- L2's free-variable temperature MILP is non-convex and degenerate. L3 adds the pressure PWL binaries}{table.caption.44}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.13}Why the extended physics moves so little here}{18}{subsection.3.13}\protected@file@percent }
+\newlabel{subsec:whynull}{{3.13}{18}{Why the extended physics moves so little here}{subsection.3.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.14}Implications for modelling practice}{19}{subsection.3.14}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {18}{\ignorespaces What each fidelity level supports, stated as \emph  {observations within the tested regime} (fixed capacities, radial, central generation, hourly resolution) rather than universal guidelines. ``Scheduling'' = small regret and physically deliverable; ``Estimation'' = usable for cost forecasting, CO$_2$ accounting and tariffs (small bias).}}{19}{table.caption.45}\protected@file@percent }
+\newlabel{tab:criteria}{{18}{19}{What each fidelity level supports, stated as \emph {observations within the tested regime} (fixed capacities, radial, central generation, hourly resolution) rather than universal guidelines. ``Scheduling'' = small regret and physically deliverable; ``Estimation'' = usable for cost forecasting, CO$_2$ accounting and tariffs (small bias)}{table.caption.45}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.15}Limitations}{19}{subsection.3.15}\protected@file@percent }
+\citation{Koek2026}
+\@writefile{toc}{\contentsline {paragraph}{Uncertainty, reserves and sub-hourly operation.}{20}{section*.46}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Demand-side flexibility.}{20}{section*.47}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Network topology class and generation siting.}{20}{section*.48}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The nonlinear reference.}{20}{section*.49}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{One real network, and the synthetic generator's assumptions.}{20}{section*.50}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Demand-concentration metric.}{20}{section*.51}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Conclusions}{20}{section.4}\protected@file@percent }
+\newlabel{sec:conclusion}{{4}{20}{Conclusions}{section.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Model scope grid}{21}{section.A}\protected@file@percent }
+\newlabel{app:scopegrid}{{A}{21}{Model scope grid}{section.A}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Hydraulic cross-check against a nonlinear pipe-flow solver}{21}{section.B}\protected@file@percent }
+\newlabel{app:pandapipes}{{B}{21}{Hydraulic cross-check against a nonlinear pipe-flow solver}{section.B}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}Model formulation details}{21}{section.C}\protected@file@percent }
+\newlabel{app:model_details}{{C}{21}{Model formulation details}{section.C}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.1}Heat-pump performance pre-computation}{21}{subsection.C.1}\protected@file@percent }
+\newlabel{app:cop}{{C.1}{21}{Heat-pump performance pre-computation}{subsection.C.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.2}Linear component models}{21}{subsection.C.2}\protected@file@percent }
+\newlabel{app:component_models}{{C.2}{21}{Linear component models}{subsection.C.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {20}{\ignorespaces Linear component models, applied identically at every fidelity level.}}{21}{table.20}\protected@file@percent }
+\newlabel{tab:simple_components}{{20}{21}{Linear component models, applied identically at every fidelity level}{table.20}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {19}{\ignorespaces Model scope grid. Legend: --~none, A~aggregated, \checkmark  ~present, PWL~piecewise-linear, Bil/Quad~native nonlinear, exo~exogenous. Columns left to right: four decomposition controls then the monotone fidelity ladder. The controls, $\ensuremath  {\mathrm  {L1}}$ and $\ensuremath  {\mathrm  {L3}}$ are solved (MILP, $\le $0.01\,\% gap); temperature propagation ($\ensuremath  {\mathrm  {L2}}$), station hydraulics ($\ensuremath  {\mathrm  {L4}}$,$\ensuremath  {\mathrm  {L5}}$) and the nonlinear reference (NL) are non-convex and are quantified by the validated forward evaluator rather than solved.}}{22}{table.caption.55}\protected@file@percent }
+\newlabel{tab:designgrid}{{19}{22}{Model scope grid. Legend: --~none, A~aggregated, \checkmark ~present, PWL~piecewise-linear, Bil/Quad~native nonlinear, exo~exogenous. Columns left to right: four decomposition controls then the monotone fidelity ladder. The controls, $\Lone $ and $\Lthree $ are solved (MILP, $\le $0.01\,\% gap); temperature propagation ($\Ltwo $), station hydraulics ($\Lfour $,$\Lfive $) and the nonlinear reference (NL) are non-convex and are quantified by the validated forward evaluator rather than solved}{table.caption.55}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.3}Piecewise-linearisation error bound}{22}{subsection.C.3}\protected@file@percent }
+\newlabel{app:pwl}{{C.3}{22}{Piecewise-linearisation error bound}{subsection.C.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {21}{\ignorespaces Piecewise-linear approximation error and problem size against the number of segments $K$. The cost effect is not inferred from this table; it is measured by the solved nonlinear reference in Section~\ref {subsec:linearisation}.}}{22}{table.21}\protected@file@percent }
+\newlabel{tab:pwl_sensitivity}{{21}{22}{Piecewise-linear approximation error and problem size against the number of segments $K$. The cost effect is not inferred from this table; it is measured by the solved nonlinear reference in Section~\ref {subsec:linearisation}}{table.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {C.4}Taylor linearisation of the temperature product}{22}{subsection.C.4}\protected@file@percent }
+\newlabel{app:taylor_derivation}{{C.4}{22}{Taylor linearisation of the temperature product}{subsection.C.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {D}Electricity selling price}{22}{section.D}\protected@file@percent }
+\newlabel{app:selling_price}{{D}{22}{Electricity selling price}{section.D}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {E}Per-node temperature error breakdown}{22}{section.E}\protected@file@percent }
+\newlabel{app:per_node_mae}{{E}{22}{Per-node temperature error breakdown}{section.E}{}}
+\bibstyle{elsarticle-num-names}
+\bibdata{paper1_dh_fidelity/Paper20_Literatur}
+\csxdef{lastpage}{23}
+\@writefile{lot}{\contentsline {table}{\numberline {22}{\ignorespaces Per-node supply-temperature error over a 744\,h winter window, evaluated on the temperature-propagating formulation.}}{23}{table.22}\protected@file@percent }
+\newlabel{tab:per_node_mae}{{22}{23}{Per-node supply-temperature error over a 744\,h winter window, evaluated on the temperature-propagating formulation}{table.22}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {F}Demand heterogeneity index}{23}{section.F}\protected@file@percent }
+\newlabel{app:hi_definition}{{F}{23}{Demand heterogeneity index}{section.F}{}}
+\newlabel{eq:hi}{{25}{23}{Demand heterogeneity index}{equation.25}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Simulated against measured supply temperature at the network far end, evaluated on the temperature-propagating formulation. The residuals are almost entirely one-signed -- the mean absolute error and the bias coincide -- the signature of a fixed instrument offset rather than model error: the sensor sits downstream of a three-way mixing valve.}}{23}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:val_farend}{{1}{23}{Simulated against measured supply temperature at the network far end, evaluated on the temperature-propagating formulation. The residuals are almost entirely one-signed -- the mean absolute error and the bias coincide -- the signature of a fixed instrument offset rather than model error: the sensor sits downstream of a three-way mixing valve}{figure.caption.26}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces The mixing-valve offset that bounds what the temperature field can be validated against. Consumer sensors are billing instruments installed downstream of the valve, so the metered temperature sits systematically below the primary junction temperature.}}{23}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:mixingvalve}{{2}{23}{The mixing-valve offset that bounds what the temperature field can be validated against. Consumer sensors are billing instruments installed downstream of the valve, so the metered temperature sits systematically below the primary junction temperature}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Spatial temperature profile along the network. Nodes used in the loss calibration are shown separately from those that were not, so the comparison is not read as an in-sample fit.}}{24}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:val_spatial}{{3}{24}{Spatial temperature profile along the network. Nodes used in the loss calibration are shown separately from those that were not, so the comparison is not read as an in-sample fit}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Exact decomposition of the copperplate-to-baseline cost gap into a loss main effect, a spatial-topology main effect and their interaction, for Memmingen (left) and as a distribution across the 135 synthetic networks (right). The additive identity closes to machine precision, so the three terms are measured rather than fitted.}}{24}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:decomp}{{4}{24}{Exact decomposition of the copperplate-to-baseline cost gap into a loss main effect, a spatial-topology main effect and their interaction, for Memmingen (left) and as a distribution across the 135 synthetic networks (right). The additive identity closes to machine precision, so the three terms are measured rather than fitted}{figure.caption.30}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Estimation bias against decision regret for every level, as a percentage of the baseline operating cost. For the copperplate and the topology-only control the two carry \emph  {opposite signs}: a schedule that appears cheaper on paper is markedly more expensive to execute. Loss-aware levels show regret approximately equal to bias.}}{24}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:regret}{{5}{24}{Estimation bias against decision regret for every level, as a percentage of the baseline operating cost. For the copperplate and the topology-only control the two carry \emph {opposite signs}: a schedule that appears cheaper on paper is markedly more expensive to execute. Loss-aware levels show regret approximately equal to bias}{figure.caption.32}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Zone-boundary choice against the effects it must be compared with, on a logarithmic cost axis. With the total heat-loss capacity held equal across all twenty-four partitions, the residual routing effect (11\,EUR) is two orders of magnitude below the spatial-topology main effect (961\,EUR) and three below the loss main effect (19\,737\,EUR).}}{24}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:r16}{{6}{24}{Zone-boundary choice against the effects it must be compared with, on a logarithmic cost axis. With the total heat-loss capacity held equal across all twenty-four partitions, the residual routing effect (11\,EUR) is two orders of magnitude below the spatial-topology main effect (961\,EUR) and three below the loss main effect (19\,737\,EUR)}{figure.caption.33}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Fidelity design rule. The cost gap a copperplate misses (the loss burden) against the a-priori loss number $\lambda =\text  {annual loss}/\text  {annual demand}$. The parameter-free physics curve $b=\lambda /(1+\lambda )$ (navy) tracks the measured burden of the 135 synthetic networks (grey) and Memmingen (star) with $R^2=\textbf  {0.87}$. Shaded bands give the screening decision -- copperplate/adder, calibrate an adder, or resolve nodes -- read off from $\lambda $ alone, without solving.}}{24}{figure.caption.39}\protected@file@percent }
+\newlabel{fig:rule}{{7}{24}{Fidelity design rule. The cost gap a copperplate misses (the loss burden) against the a-priori loss number $\lambda =\text {annual loss}/\text {annual demand}$. The parameter-free physics curve $b=\lambda /(1+\lambda )$ (navy) tracks the measured burden of the 135 synthetic networks (grey) and Memmingen (star) with $R^2=\textbf {0.87}$. Shaded bands give the screening decision -- copperplate/adder, calibrate an adder, or resolve nodes -- read off from $\lambda $ alone, without solving}{figure.caption.39}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Drift of a frozen loss adder against trunk pipe length across the 135 synthetic networks. An adder calibrated on any one network mis-estimates the loss burden on others by a mean of 23.5 and up to 40.1 percentage points of cost, which is why the node-resolved model -- computing the loss endogenously -- is the transferable one.}}{25}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:drift}{{8}{25}{Drift of a frozen loss adder against trunk pipe length across the 135 synthetic networks. An adder calibrated on any one network mis-estimates the loss burden on others by a mean of 23.5 and up to 40.1 percentage points of cost, which is why the node-resolved model -- computing the loss endogenously -- is the transferable one}{figure.caption.40}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Supply-temperature flexibility. Lowering the plant supply temperature reduces thermal loss but shrinks the temperature difference, so flow and pumping rise. The cost-optimal reduction is 17.5\,K; beyond 20\,K the pipe velocity limit binds, and hydraulics change from a negligible cost into the binding constraint.}}{25}{figure.caption.43}\protected@file@percent }
+\newlabel{fig:tsup}{{9}{25}{Supply-temperature flexibility. Lowering the plant supply temperature reduces thermal loss but shrinks the temperature difference, so flow and pumping rise. The cost-optimal reduction is 17.5\,K; beyond 20\,K the pipe velocity limit binds, and hydraulics change from a negligible cost into the binding constraint}{figure.caption.43}{}}
+\gdef \@abspage@last{25}

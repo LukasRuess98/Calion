@@ -1,0 +1,8 @@
+Highlights (Elsevier: 3–5 bullets, each ≤ 85 characters incl. spaces)
+Submit as the "Highlights" item; not part of the LaTeX build. Author: confirm/trim.
+
+- Loss visibility, not network topology, sets the fidelity requirement in DH dispatch
+- A-priori rule b = λ/(1+λ) predicts the copperplate cost gap (R² = 0.87, 135 networks)
+- Copperplate schedules are undeliverable: +46% decision regret vs −15% estimation bias
+- Balanced ANOVA: trunk pipe length explains 96% of the loss-burden variance
+- Zone aggregation and station hydraulics change dispatch cost by under 1%

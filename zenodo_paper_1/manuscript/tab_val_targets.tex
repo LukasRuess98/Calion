@@ -1,0 +1,22 @@
+% static: validation KPI targets (v1 pre-registered gates; Model column per v1)
+\begin{table}[t]
+\centering
+\caption{Validation targets, the gates pre-registered in the original submission from published
+practice (after \citet{Kus2025}). The annual energy / loss target the cost conclusions depend on
+is met; the supply-temperature gates apply to the temperature-propagating (NLP) formulation only
+and are metering-limited (Section~\ref{subsec:validation}). The validation runner applies a
+tighter internal threshold of $1.0$\,°C; the gates reported here are the pre-registered ones.}
+\label{tab:valtargets}
+\begin{tabular}{lcc}
+\hline
+Quantity & Gate & Model \\
+\hline
+Annual delivered-energy error       & $\le 2$\,\%  & MILP \\
+Energy-balance closure              & $\le 2$\,\%  & MILP \\
+Return-temperature MAE at source    & $2.5$\,°C    & MILP \\
+Supply-temperature MAE, mean        & $1.5$\,°C    & NLP  \\
+Supply-temperature MAE, worst node  & $2.5$\,°C    & NLP  \\
+Flow MAPE                           & n/a          & MILP \\
+\hline
+\end{tabular}
+\end{table}

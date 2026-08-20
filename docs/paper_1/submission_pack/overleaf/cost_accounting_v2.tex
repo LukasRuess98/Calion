@@ -1,0 +1,55 @@
+%% ============================================================
+%% NEW SUBSECTION -- "Cost accounting: economic cost versus the solver objective"
+%% Insert in the methodology, after the forward evaluator and before the validation
+%% protocol. Referenced by the response letter as S2.6.
+%%
+%% Source: SECTION_2_6_objective_vs_economic.md + objective_decomposition.csv.
+%% This section does not exist in the manuscript at all, yet the response letter points
+%% R2.2 at it. Without it a reader recomputing the copperplate bias from the objective
+%% gets -11.8 % where the paper reports -15.1 %, and has no way to reconcile the two.
+%%
+%% The three terms the response letter originally named -- return-temperature anchor,
+%% terminal storage valuation, demand slack -- are all structurally ZERO on this lineage
+%% (verified in the configs and source, not assumed). The residual is CHP CO2 accounting
+%% plus storage cycling. That correction is carried here and in the letter.
+%% ============================================================
+
+\subsection{Cost accounting: economic cost versus the solver objective}
+\label{subsec:costacct}
+
+Every bias and regret figure in this paper is reported on the \emph{economic} operating
+cost, not on the raw solver objective, and the two differ systematically. On Memmingen the
+objective exceeds the economic cost by $38.7$--$41.0$\,\% depending on the level
+(Table~\ref{tab:objdecomp}). Because that difference is large enough to change the
+apparent size of every comparison, this section states what it is and why the economic cost is the
+right quantity.
+
+Two mechanisms account for it, and neither is a distortion of the dispatch. First, carbon
+enters the objective on a \emph{gross} basis (every tonne from fuel combustion and grid
+import priced at the carbon price), whereas the reported cost applies the standard
+cogeneration self-use allocation, crediting back the emissions of combined-heat-and-power
+electricity that is exported rather than self-consumed. This is the avoided-emissions
+convention conventional in district-heating studies, and on this network it amounts to
+$55$--$58$\,kEUR. Second, the objective carries a thermal-storage cycling penalty of
+$2$\,EUR per MWh of throughput, worth $24$--$26$\,kEUR, which shapes the solution away from
+physically implausible rapid cycling but corresponds to no operator cash flow. Together
+these reproduce the residual to within about $1.5$\,kEUR per run, under one percent of the
+objective.
+
+The economic cost is reported because it is what an operator pays and the only quantity a
+dispatch decision changes. Both accounting terms are near-constant across fidelity levels
+(they depend on the generation mix and the storage duty, which barely move), so they
+inflate every level's absolute cost by roughly the same amount and therefore \emph{dilute}
+the percentage differences between levels rather than distorting them. The copperplate's
+estimation bias reads $-11.8$\,\% on the raw objective and $\mathbf{-15.1}$\,\% on the
+economic cost: the same finding, measured against a base that does or does not include
+terms no operator sees. In every bias and regret \emph{difference} the accounting terms
+cancel, so the comparisons themselves are unaffected by the choice.
+
+The carbon convention is itself a modelling decision, stated explicitly: exported
+cogeneration electricity is credited with the emissions it displaces at the grid margin.
+The alternative gross convention shifts magnitudes by two to three percentage points
+(the copperplate bias reads $-12.2$\,\% rather than $-15.1$\,\%) and changes neither the
+sign of any bias or regret figure nor the loss-dominance result, because the credit is
+near-identical at every level. The per-level split is released as
+\texttt{objective\_decomposition.csv} so that either basis can be reconstructed.

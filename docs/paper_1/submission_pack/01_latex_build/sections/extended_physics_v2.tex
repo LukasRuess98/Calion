@@ -1,0 +1,140 @@
+%% ============================================================
+%% EXTENDED PHYSICS -- split 1 of 3 from the bundled file.
+%% Drop-in for <<KEEP:pressure-drop>> <<KEEP:temp-prop>> <<KEEP:delay>>.
+%% Insert BEFORE the existing drafted paragraph in that subsection (the one reconciling
+%% the 0.03 % pump-energy share against the Wilo capacity and the pandapipes check),
+%% which this file deliberately does NOT duplicate.
+%% Source: v1 lines 967-1133, restructured per phenomenon rather than per variant.
+%% ============================================================
+
+Three phenomena are added above the node-resolved baseline $\Lone$, each on its own rung so
+that no comparison changes more than one thing: temperature propagation along pipes
+($\Ltwo$), trunk pressure drop and the pumping power it implies ($\Lthree$), and transport
+delay ($\Lsix$). A fourth object, the nonlinear reference $\NLref$, retains all three in
+native form and is used for forward evaluation and bounded re-solves rather than as a rung
+of the ladder. Piecewise-linear approximations use SOS2 machinery with $K = 3$ segments
+throughout. Both the supply and the return circuit are resolved at every level from
+$\Lthree$ upward.
+
+\paragraph{Pressure drop and pumping power ($\Lthree$).}
+Friction in pipe $p$ follows Darcy--Weisbach, relating the pressure drop $\Delta p_p$ [Pa]
+to the square of the mass flow $\dot{m}_p$ [kg/s]:
+%
+\begin{equation}
+  \Delta p_{p} = f_D\, \frac{L_p}{D_p}\,
+    \frac{8\,\dot{m}_p^2}{\rho \pi^2 D_p^4},
+  \label{eq:darcy}
+\end{equation}
+%
+with $f_D$ the Darcy friction factor, $D_p$ [m] the inner diameter and $\rho$ [kg/m$^3$]
+the fluid density. Because the supply and return temperatures are prescribed by the
+heating curve, the mass flow is linear in the pipe heat flow $Q_{p,t}$ [MW]:
+%
+\begin{equation}
+  \dot{m}_{p,t} = \frac{Q_{p,t}}{
+    c_p \bigl(T_{\mathrm{sup}}^{\mathrm{nom}}(t)
+    - T_{\mathrm{ret}}^{\mathrm{nom}}(t)\bigr)},
+  \label{eq:massflow}
+\end{equation}
+%
+so that $\Delta p_{p,t} = R_p\, Q_{p,t}^2$ with $R_p$ [Pa/MW$^2$] the hydraulic resistance.
+In $\Lthree$ this quadratic is approximated piecewise-linearly over $K$ equal segments with
+SOS2 weights $w_{p,t,k} \in [0,1]$,
+%
+\begin{equation}
+  \Delta p_{p,t}^{\mathrm{PWL}} = \sum_{k=1}^{K}
+    m_k^{(p)}\, w_{p,t,k},
+  \label{eq:pressure_pwl}
+\end{equation}
+%
+whose maximum approximation error is $\varepsilon^{\max}_{\Delta p} = R_p \bar{Q}_p^2/(4K^2)$,
+about $2.8$\,\% of the peak pressure drop at $K = 3$ (Appendix~\ref{app:pwl}). In $\NLref$
+the quadratic enters natively.
+
+Pumping power is the hydraulic work summed over pipes and divided by the pump efficiency,
+%
+\begin{equation}
+  P_t^{\mathrm{pump}} = \frac{1}{\eta_{\mathrm{pump}}}
+    \sum_{p \in \mathcal{P}}
+    \frac{\dot{m}_{p,t}\, \Delta p_{p,t}}{\rho},
+  \label{eq:pump_power}
+\end{equation}
+%
+which is cubic in $Q_{p,t}$ and is piecewise-linearised directly in $\Lthree$; in $\NLref$
+it is carried by the auxiliary $W_{p,t} = Q_{p,t}^2$ entering as $Q_{p,t} W_{p,t}$.
+
+\paragraph{Temperature propagation ($\Ltwo$).}
+Where $\Lone$ computes pipe losses from fixed nominal temperatures, $\Ltwo$ tracks the
+outlet temperature as the fluid travels. In steady state it decays exponentially from the
+inlet temperature towards the ground temperature $T_{\mathrm{gr}}$:
+%
+\begin{equation}
+  T_{p,t}^{\mathrm{out}} = T_{\mathrm{gr}}(t)
+    + \bigl(T_{n_1,t}^{\mathrm{sup}} - T_{\mathrm{gr}}(t)\bigr)
+    \cdot \underbrace{\exp\!\left(
+      \frac{-U_p L_p}{\dot{m}_{p,t}\, c_p}
+    \right)}_{\displaystyle\phi_p(\dot{m}_{p,t})}.
+  \label{eq:temp_prop}
+\end{equation}
+%
+The decay factor $\phi_p \in (0,1]$ is the fraction of the inlet temperature excess
+surviving to the outlet: near unity at high flow, near zero as flow approaches zero. Two
+nonlinearities follow: the exponential itself and the bilinear product
+$T_{n_1,t}^{\mathrm{sup}} \phi_p$. The exponential is approximated by a PWL in $\dot{m}$
+shared by every level that uses it, so this component of the error is common and cancels in
+the comparisons. The bilinear product enters natively in $\NLref$; in $\Ltwo$ it is
+linearised by a first-order Taylor expansion about the nominal operating point,
+%
+\begin{align}
+  T_{p,t}^{\mathrm{out}} &\approx T_{\mathrm{gr}}(t)
+    + \bigl(T^{\mathrm{nom}}(t) - T_{\mathrm{gr}}(t)\bigr)
+      \phi_{p,t}^{\mathrm{PWL}} \notag \\
+    &\quad + \phi_p^{\mathrm{nom}}
+      \bigl(T_{n_1,t}^{\mathrm{sup}} - T^{\mathrm{nom}}(t)\bigr),
+  \label{eq:temp_prop_lin}
+\end{align}
+%
+with the neglected second-order cross-term bounded by
+$|\Delta T_{\max}||\Delta\phi_{\max}| < 2.5$\,K (Appendix~\ref{app:taylor_derivation}).
+
+One property of this formulation determines how it is reported. Freeing the node temperatures
+makes the programme non-convex and, absent a hydraulic penalty on the resulting flow
+increase, degenerate: the optimiser reduces the supply temperature uniformly to its lower
+bound, collapsing the loss term rather than reproducing the physical decay. In the solve it
+does so for about $91$\,\% of hours, against a mean supply temperature of $85.9$\,°C at the
+neighbouring levels. The solved objective of $\Ltwo$ is therefore not a meaningful fidelity
+measurement and is not used; the effect of temperature propagation is quantified
+instead through the forward evaluator of Section~\ref{subsec:evaluator}, which applies the
+native exponential to a fixed schedule and cannot exploit the degeneracy. $\Ltwo$ remains in
+the ladder as the formulation whose linearisation error is measured, not as a source of
+dispatch cost.
+
+\paragraph{Transport delay ($\Lsix$).}
+At finite velocity, heat injected at the source at time $t$ arrives downstream later. The
+nominal travel time through pipe $p$, with cross-section $A_p = \pi D_p^2/4$, is
+%
+\begin{equation}
+  \tau_p = \frac{L_p\, \rho\, A_p}{\dot{m}_p^{\mathrm{nom}}},
+  \label{eq:delay_time}
+\end{equation}
+%
+discretised to $k_p = \mathrm{round}(\tau_p/\Delta t)$ time steps, so the heat delivered
+downstream is the heat injected $k_p$ steps earlier less the corresponding losses:
+%
+\begin{equation}
+  Q_{p,t}^{\mathrm{delivered}} =
+    Q_{p,\,t-k_p} - Q_{p,\,t-k_p}^{\mathrm{loss,pipe}}
+  \quad \forall\, p,\; t \geq k_p{+}1.
+  \label{eq:delayed_balance}
+\end{equation}
+%
+Isolating delay on its own rung is what allows it to be separated from the linearisation
+error rather than confounded with it. It also produces a clean negative
+result, and the reason is visible in \eqref{eq:delay_time}: on this network every trunk
+travel time is under an hour (the longest is about 35 minutes), so $k_p = 0$ for every
+pipe and \eqref{eq:delayed_balance} collapses to the undelayed balance. $\Lsix$ and
+$\Lthree$ are consequently the same programme, with identical variable, binary and
+constraint counts and an identical optimum to the last digit. The delay effect at hourly
+resolution is exactly zero rather than merely small, and this is a statement about the
+temporal resolution: at sub-hourly resolution, or on a network with kilometres more trunk,
+$k_p$ would not vanish.
