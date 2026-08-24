@@ -389,9 +389,12 @@ def write_dispatch_hourly(outdir: Path, run_id: str, workflow, dt_h: float = 1.0
         "Q_hp_def_MW": s("hp_main_Q_def_MW"),
         "P_hp_el_MW": s("hp_main_Pel_MW"),
         "COP_hp_wrg": s("hp_main_COP"),
-        # --- E-Boiler (uppercase after P2H fix in result_collector) ---
-        "Q_ek_MW": s("EBOILER_MAIN_Q_th_MW"),
-        "P_ek_el_MW": s("EBOILER_MAIN_Pel_MW"),
+        # --- E-Boiler --- BUGFIX (chat-review P0): result_collector emits the LEGACY
+        # keys P2H_Q_th_MW / P2H_Pel_MW, not EBOILER_MAIN_*, so these columns were
+        # silently zero -> the e-boiler heat vanished from the dispatch export and opened
+        # a ~5 MW hole in the hourly energy balance. Fall back to the legacy keys.
+        "Q_ek_MW": s("EBOILER_MAIN_Q_th_MW") if series.get("EBOILER_MAIN_Q_th_MW") else s("P2H_Q_th_MW"),
+        "P_ek_el_MW": s("EBOILER_MAIN_Pel_MW") if series.get("EBOILER_MAIN_Pel_MW") else s("P2H_Pel_MW"),
         # --- Storage ---
         "Q_storage_charge_MW": s("TES_charge_MW"),
         "Q_storage_discharge_MW": s("TES_discharge_MW"),

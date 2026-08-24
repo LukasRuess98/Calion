@@ -97,13 +97,13 @@ linearised by a first-order Taylor expansion about the nominal operating point,
 with the neglected second-order cross-term bounded by
 $|\Delta T_{\max}||\Delta\phi_{\max}| < 2.5$\,K (Appendix~\ref{app:taylor_derivation}).
 
-One property of this formulation determines how we report it. Freeing the node temperatures
+One property of this formulation determines how it is reported. Freeing the node temperatures
 makes the programme non-convex and, absent a hydraulic penalty on the resulting flow
 increase, degenerate: the optimiser reduces the supply temperature uniformly to its lower
-bound, collapsing the loss term rather than reproducing the physical decay. In our solve it
+bound, collapsing the loss term rather than reproducing the physical decay. In the solve it
 does so for about $91$\,\% of hours, against a mean supply temperature of $85.9$\,°C at the
 neighbouring levels. The solved objective of $\Ltwo$ is therefore not a meaningful fidelity
-measurement and we do not use it; the effect of temperature propagation is quantified
+measurement and is not used; the effect of temperature propagation is quantified
 instead through the forward evaluator of Section~\ref{subsec:evaluator}, which applies the
 native exponential to a fixed schedule and cannot exploit the degeneracy. $\Ltwo$ remains in
 the ladder as the formulation whose linearisation error is measured, not as a source of
@@ -118,7 +118,7 @@ nominal travel time through pipe $p$, with cross-section $A_p = \pi D_p^2/4$, is
   \label{eq:delay_time}
 \end{equation}
 %
-discretised to $k_p = \mathrm{round}(\tau_p/\Delta t)$ time steps, so the heat delivered
+discretised to $k_p = \lfloor \tau_p/\Delta t \rfloor$ time steps, so the heat delivered
 downstream is the heat injected $k_p$ steps earlier less the corresponding losses:
 %
 \begin{equation}
@@ -129,7 +129,7 @@ downstream is the heat injected $k_p$ steps earlier less the corresponding losse
 \end{equation}
 %
 Isolating delay on its own rung is what allows it to be separated from the linearisation
-error, which the original submission could not do. It also produces a clean negative
+error rather than confounded with it. It also produces a clean negative
 result, and the reason is visible in \eqref{eq:delay_time}: on this network every trunk
 travel time is under an hour (the longest is about 35 minutes), so $k_p = 0$ for every
 pipe and \eqref{eq:delayed_balance} collapses to the undelayed balance. $\Lsix$ and

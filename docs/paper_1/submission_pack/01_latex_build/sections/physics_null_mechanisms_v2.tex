@@ -20,9 +20,10 @@
 
 Three of this paper's results are nulls: station-resolved hydraulics change dispatch cost
 by under one percent, transport delay by exactly nothing, and the piecewise linearisation
-by a few tenths of a percent. A null invites two readings---the phenomena are genuinely
-inert, or the assumptions under which we tested them closed the channels through which they
-would have acted. The second is legitimate and deserves more than a caveat.
+by a few tenths of a percent. A null invites two readings. Either these phenomena are
+genuinely inert in district-heating dispatch, or the assumptions under which they were tested
+closed the channels through which they would have acted. The second reading is the
+sceptical one; it is legitimate, and it deserves an answer more specific than a caveat.
 
 Four assumptions each close a specific channel. A \emph{prescribed heating curve} fixes the
 supply and return temperatures, so the optimiser cannot trade thermal loss against pumping
@@ -32,25 +33,26 @@ state, so a heat pump cannot respond to a locally depressed supply temperature b
 its output in time or place. \emph{Fixed capacities} remove siting and sizing, so spatial
 structure cannot express itself through where capacity is placed, only through where heat
 is routed. And \emph{hourly resolution} discretises away every transient shorter than the
-time step: on this network the longest trunk travel time is about 35 minutes, so transport
-delay rounds to zero steps, and the thermal inertia of the pipe volume, which buffers
-precisely the sub-hourly excursions we exclude, never enters.
+time step: With $\Delta t = 1$\,h, the trunk transit time of about $35$\,min gives $k_p = 0$: sub-hourly
+delays are not represented on the hourly grid, and the delay step therefore shifts nothing on
+this network. This is the reason the measured delay effect in
+Table~\ref{tab:linearisation} lies below the solver tolerance.
 
-The honest conclusion is therefore conditional: within the deterministic, hourly,
-fixed-capacity, fixed-temperature planning regime, extended network physics does not change
-dispatch decisions. That regime is not a corner case---it is where most published
-district-heating dispatch models operate---so the practical guidance the nulls support (spend
-modelling effort on loss representation before hydraulic detail) applies wherever such models
-are used.
+The honest conclusion is therefore conditional, and stated that way throughout: within
+the deterministic, hourly, fixed-capacity, fixed-temperature planning regime, extended
+network physics does not change dispatch decisions. That regime is not a corner case. It is
+where the overwhelming majority of published district-heating dispatch models operate, and
+the practical guidance the nulls support (do not spend modelling effort on hydraulic
+detail before loss representation) applies wherever such models are used.
 
-What raises this above a plausible story is that we have opened one of the four channels
+What raises this above a plausible story is that one of the four channels has been opened
 and measured the result. Freeing the supply temperature, the lever most likely to break the
 hydraulic null, does break it: pipe velocity becomes the binding constraint at a 20\,K
 reduction and pumping energy rises by a factor of four
 (Section~\ref{subsec:tsup}). Hydraulics move from a negligible \emph{cost} to a binding
 \emph{constraint} the moment the degree of freedom exists. That is direct evidence for the
 mechanism rather than an appeal to it, and it sets the expectation for the three channels
-we did not open: each should convert a null into a constraint rather than into a large cost
+left unopened: each should convert a null into a constraint rather than into a large cost
 term, because the physics enters dispatch as a feasibility boundary and not as a driver of
 the schedule.
 
@@ -59,8 +61,7 @@ trusted. Relaxing any of these four assumptions can only give the extended physi
 \emph{more} room to matter, never less. The nulls are therefore conservative: they are
 lower bounds on the fidelity requirement, and a reader operating outside this regime should
 treat them as the floor rather than the answer. The loss-dominance result carries no such
-\emph{dispatch-regime} qualification. It follows from an exact decomposition of a cost gap,
-holds across 135 synthetic networks spanning two orders of magnitude in loss burden, and
-does not depend on any of the four assumptions above---though, like every result here, it is
-established for radial, centrally-supplied networks. That is why it, and not the nulls, is
-what the title claims.
+qualification. It follows from an exact decomposition of a cost gap, holds across 135
+synthetic networks spanning two orders of magnitude in loss burden, and does not depend on
+any of the four assumptions above. That is why it, and not the nulls, is what the title
+claims.

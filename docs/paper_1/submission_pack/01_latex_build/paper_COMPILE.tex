@@ -31,6 +31,8 @@
 
 %% --- compatibility shims for the merged section files (numeric cite style; cas-dc has no siunitx) ---
 \usepackage{threeparttable}
+\usepackage{booktabs}
+\usepackage{makecell}
 \usepackage{caption}
 \usepackage{xcolor}
 \usepackage[numbers,sort&compress]{natbib}   % numeric [n] citations; without this the elsarticle-num-names bst prints the verbose author-year label
@@ -72,67 +74,20 @@
 %% "dominates"/"accuracy" (R1.2); moderator clause held for the synthetic factor.
 
 \begin{abstract}
-%% <<DRAFTED:ABSTRACT>> ONE PARAGRAPH (editor requirement). Shape A (Memmingen + synthetic).
-%% Contents, in order:
-%%  1. DH dispatch models are simplified everywhere; the cost of that is unquantified.
-%%  2. the distinction: estimation bias (objective differences) vs decision regret
-%%     (re-cost each schedule under a common high-fidelity forward model), and how
-%%     each is measured.
-%%  3. design in one clause: a clean one-phenomenon-per-step fidelity ladder
-%%     (copperplate through station-resolved hydraulics) with a copperplate+aggregate-
-%%     loss CONTROL enabling an exact loss/topology decomposition; one real network
-%%     (Memmingen) + a synthetic factorial.
-%%  4. PILLAR 1 result -- decomposition + regret: loss visibility ~= \textbf{95.8}% of
-%%     the gap, spatial topology ~= \textbf{4.7}% (generalises across the synthetic
-%%     factorial); the copperplate is a biased estimator (bias \textbf{-15.1}%) yet
-%%     an INCOMPETENT controller (regret \textbf{+46.1}%, opposite sign), and the
-%%     loss adder that makes it look sufficient does not transfer (drift up to 95% of true loss). Loss-aware
-%%     levels are executable.
-%%  5. PILLAR 2 result -- hydraulics down to the individual transmission station (real
-%%     component data + pandapipes) change dispatch cost by <1% and decisions by ~0: the
-%%     null at maximal fidelity that locates the threshold. Validated.
-%%  6. SECONDARY (one clause, subordinate): routing null under central generation
-%%     (synthetic); distributed generation an open question.
-%%  7. explicit scope: fixed capacities/heating curve, radial, sizing -> companion study.
-%% Numbers \result{}-filled from the HARDENED CSVs (decomposition_live.csv,
-%% regret_decomp.csv; <=0.01% solver gap). Do NOT hand-type -17/+29 -- use the macros.
-%% Do NOT write "dominates"; do NOT write "accuracy" except of decisions.
-%% ---- DRAFTED (author: polish voice only) ----
-District-heating dispatch-optimisation models are simplified in ways whose decision
-cost is rarely quantified, and prior fidelity comparisons both vary network and loss
-representation together (so neither can be attributed) and judge fidelity by
-comparing objective values across formulations, which measures the models rather than
-the decisions they produce. We separate two quantities: estimation bias (the objective
-difference between formulations) and decision regret (the cost of executing a model's
-dispatch schedule, obtained by re-simulating it under a common high-fidelity forward
-model with native-exponential losses, computed-friction hydraulics and the consumer
-differential-pressure requirement, and no piecewise linearisation). That forward model is
-not treated as ground truth; it is a common benchmark against which the sensitivity of
-dispatch \emph{decisions} to model fidelity is measured. We evaluate both on
-a one-phenomenon-per-step fidelity ladder (from a copperplate through node-resolved
-losses, trunk pressure and station-resolved hydraulics) augmented by a copperplate
-supplied with the aggregate loss it cannot itself compute, a control that yields an
-exact loss/topology decomposition, on one real network (Memmingen) and a balanced
-135-network synthetic factorial. Judged by decisions rather than by objective values, a
-copperplate is a biased estimator \emph{and} an incompetent controller at once: its
-schedule looks \textbf{-15.1}\,\% cheaper on operating cost yet costs
-\textbf{+46.1}\,\% more to execute, the two carrying opposite signs, whereas
-loss-aware levels are physically deliverable. What separates them is loss visibility, not
-spatial topology. The copperplate-to-baseline cost gap decomposes to machine precision into
-a loss main effect of \textbf{95.8}\,\% and a spatial-topology main effect of only
-\textbf{4.7}\,\%, and across the synthetic factorial loss explains a median
-\textbf{100.0}\,\% of the gap, topology staying within
-$\pm$0.6\,\% on every network of 5\,km trunk length or more and never exceeding 2.4\,\% even
-on the shortest, where the entire gap is below 6\,\% of cost. A lumped loss adder can hide
-this on any one network but does not transfer across scenarios. Resolving the demand side to all 174
-individual transmission stations and their service laterals, on real component data (pump
-datasheets, network plans) cross-checked against a nonlinear pipe-flow solver, changes
-dispatch cost by less than 1\,\% and decisions by essentially zero, a null at maximal
-fidelity that locates the threshold below station-level hydraulics. Whether spatial
-resolution matters more under distributed than central generation is posed as a controlled
-question, resolved as null for central generation. The results are conditional on fixed
-capacities, a fixed heating curve and radial networks; joint dispatch-and-sizing is left
-to a companion study.
+District-heating dispatch models are widely simplified, yet the resulting decision cost is rarely quantified. 
+We distinguish estimation bias—the objective difference between formulations—from decision regret—the execution cost of each dispatch 
+schedule when re-simulated using a common high-fidelity forward model with exponential heat losses, computed-friction hydraulics, 
+and consumer differential-pressure constraints. We evaluate these metrics using a one-phenomenon-per-step fidelity ladder, from a copperplate 
+model to station-resolved hydraulics. A copperplate model supplied with aggregate losses enables an exact decomposition of loss and topology effects. 
+Tests cover the real Memmingen network and a balanced factorial of 135 synthetic networks. The copperplate underestimates operating cost by 
+15.1\% but produces schedules costing 46.1\% more to execute, whereas loss-aware schedules are physically deliverable. Loss visibility, rather 
+than spatial topology, explains this discrepancy: 95.8\% of the copperplate-to-baseline gap is attributable to losses and 4.7\% to topology. 
+Across the synthetic networks, losses explain a median 100.0\% of the gap; the topology effect remains within $\pm 0.6$\% for trunk lengths of at 
+least 5\,km and never exceeds 2.4\%. Aggregate loss adders can conceal the deficiency for one network but do not transfer across scenarios. 
+Resolving all 174 transmission stations and service laterals using real component data changes dispatch cost by less than 1\% and decisions negligibly, 
+locating the useful fidelity threshold below station-level hydraulics. Spatial routing is likewise immaterial under central generation; 
+distributed generation remains open. Results assume fixed capacities, a fixed heating curve, and radial networks; joint dispatch and 
+sizing are deferred to a companion study.
 \end{abstract}
 
 \begin{keywords}
@@ -388,7 +343,7 @@ calibrated away, is reconciled physically by the compact network and its heavily
 the magnitudes, and the agreement with an independent nonlinear pipe-flow solver, are reported
 with the results in Section~\ref{subsec:hydraulics}.
 
-\subsubsection{Station-resolved hydraulics (L4, L5): the test that locates the threshold}
+\subsubsection{Station-resolved hydraulics (L4, L5): the test that locates the threshold}\label{subsec:stationhyd}
 %% FRAMING (R2.1): present L4/L5 NOT as "two more levels" but as the test that
 %% ESTABLISHES THE DECISION-RELEVANCE THRESHOLD -- pushing physical fidelity to its
 %% maximum (individual substation + flow-dependent pressure, on real component data)
@@ -579,25 +534,11 @@ well above solver noise.
 \new{\input{sections/validation_results_v2}}
 \input{tables/tab_validation}
 %% (hydraulic validation is Table~\ref{tab:hydraulics} in the pressure section; tab_hydraulic_val stub removed as redundant)
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/validation/stage1_scatter_Tsupply_farend}
-  \caption{Simulated against measured supply temperature at the network far end, evaluated on the temperature-propagating formulation. The residuals are almost entirely one-signed (the mean absolute error and the bias coincide), the signature of a fixed instrument offset rather than model error: the sensor sits downstream of a three-way mixing valve.}
-  \label{fig:val_farend}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/validation/mixing_valve_offset}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/validation/mixing_valve_offset}
   \caption{The mixing-valve offset that bounds what the temperature field can be validated against. Consumer sensors are billing instruments installed downstream of the valve, so the metered temperature sits systematically below the primary junction temperature.}
   \label{fig:mixingvalve}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/validation/spatial_profile_test}
-  \caption{Spatial temperature profile along the network. Nodes used in the loss calibration are shown separately from those that were not, so the comparison is not read as an in-sample fit.}
-  \label{fig:val_spatial}
 \end{figure}
 %% <<DRAFTED:CALIB-RECONCILE>> (author: polish + insert flow-MAPE-by-band numbers)
 %% ---- DRAFTED ----
@@ -640,9 +581,9 @@ storage. The multiplier correction leaves the split unchanged (v1 inflated-$U$: 
 defensible-$U$: \textbf{95.8}/\textbf{4.7}), so the conclusion is not an
 artefact of the loss calibration.
 \input{tables/tab_decomposition}
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/F_decomp}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_decomp}
   \caption{Exact decomposition of the copperplate-to-baseline cost gap into a loss main effect, a spatial-topology main effect and their interaction, for Memmingen (left) and as a distribution across the 135 synthetic networks (right). The additive identity closes to machine precision, so the three terms are measured rather than fitted.}
   \label{fig:decomp}
 \end{figure}
@@ -677,9 +618,9 @@ unmet-demand violations under the forward model. This is the decision-relevant r
 fidelity that model-to-model bias alone cannot give: use the simplest model for
 scheduling only if it is loss-aware; never a copperplate.
 \input{tables/tab_regret}
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/F_regret}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_regret}
   \caption{Estimation bias against decision regret for every level, as a percentage of the baseline operating cost. For the copperplate and the topology-only control the two carry \emph{opposite signs}: a schedule that appears cheaper on paper is markedly more expensive to execute. Loss-aware levels show regret approximately equal to bias.}
   \label{fig:regret}
 \end{figure}
@@ -790,7 +731,7 @@ the exact-decomposition bound (the friction and station-pressure terms enter at 
 few-hundredths-of-a-percent level and partly cancel). Two limitations of this solved reference are
 themselves results. The same re-solve over the full year does not converge: the non-convex
 programme finds no incumbent within the solver budget, which is why the reference is evaluated on
-representative weeks rather than globally. And a low-load summer week is \emph{infeasible} under
+representative 72-hour windows rather than globally. And a low-load summer window is \emph{infeasible} under
 native physics with the linearised schedule fixed: at summer flows the piecewise temperatures the
 optimiser relied on cannot actually be delivered, the same physical-deliverability failure that the
 decision-regret evaluation exposes (Section~\ref{subsec:evaluator}). We report each effect against
@@ -827,9 +768,9 @@ the node-resolved model, which computes the loss endogenously, the transferable 
 an a-priori estimator of the cost gap from observable network properties (pipe length, node
 count, demand heterogeneity and storage) fitted on the synthetic networks up to 15\,km trunk
 length (train $R^2\approx0.999$) predicts the held-out longer networks without refitting, an
-extrapolation beyond the fitted range. It predicts the 30\,km networks to within a couple of
+extrapolation beyond the fitted range. It predicts the 30\,km networks to within about seven
 percentage points and under-predicts at the extreme 50\,km extrapolation (held-out mean absolute
-percentage error $\approx14$\,\%; Table~S6, Supplementary Material). We report this outcome as given
+percentage error $\approx19$\,\%; Table~S6, Supplementary Material). We report this outcome as given
 (extrapolation degrades at the extreme, as one would expect) since a committed-in-advance
 prediction, whether it succeeds or fails, is more informative than a post-hoc fitted curve.
 
@@ -859,9 +800,9 @@ resolved, turning the paper's central finding into an a-priori design criterion 
 result that requires the full model to discover.
 \input{tables/tab_synth_anova}
 
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/F_rule}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_rule}
   \caption{Fidelity design rule. The cost gap a copperplate misses (the loss burden) against the
   a-priori loss number $\lambda=\text{annual loss}/\text{annual demand}$. The parameter-free
   physics curve $b=\lambda/(1+\lambda)$ (navy) tracks the measured burden of the 135
@@ -870,9 +811,9 @@ result that requires the full model to discover.
   from $\lambda$ alone, without solving.}
   \label{fig:rule}
 \end{figure}
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/F_drift}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_drift}
   \caption{Drift of a frozen loss adder against trunk pipe length across the 135 synthetic networks. An adder calibrated on any one network mis-estimates the loss burden on others by a mean of 23.5 and up to 40.1 percentage points of cost, which is why the node-resolved model, computing the loss endogenously, is the transferable one.}
   \label{fig:drift}
 \end{figure}
@@ -890,16 +831,21 @@ terms resolve out of solver noise to stable values (Table~S4, Supplementary Mate
 \emph{is} sensitive we say so (the last-mile loss magnitude depends on the service-lateral
 reconstruction, and the value of supply-temperature flexibility on how the recovered loss is
 priced), but neither affects the ordering on which the conclusions rest.
-\begin{figure}[t]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figures/F_tsup}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_tsup}
   \caption{Supply-temperature flexibility. Lowering the plant supply temperature reduces thermal loss but shrinks the temperature difference, so flow and pumping rise. The cost-optimal reduction is 17.5\,K; beyond 20\,K the pipe velocity limit binds, and hydraulics change from a negligible cost into the binding constraint.}
   \label{fig:tsup}
 \end{figure}
 
 \new{\input{sections/fidelity_vs_cost_v2}}
 \input{tables/tab_computation}
-%% Figures F9, F10
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figures/F_solvetime}
+  \caption{Solve time and model size across the solved levels. Bar labels give the variable count. Solve time rises from three to nine minutes along the ladder; the decision-relevant step (CP$\to$L1, loss visibility) is reached at five minutes, whereas the further physics (L3, L6) nearly doubles solve time and model size while changing dispatch by under $1.4$\,\%.}
+  \label{fig:solvetime}
+\end{figure}
 
 \new{\input{sections/physics_null_mechanisms_v2}}
 

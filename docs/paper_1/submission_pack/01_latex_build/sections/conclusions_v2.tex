@@ -21,31 +21,34 @@ separated exactly rather than estimated. The design was applied to one industria
 with measured data and to a complete 135-cell balanced factorial of synthetic networks.
 
 What a simplified model must capture is loss visibility, not spatial topology. The
-copperplate-to-baseline cost gap decomposes to machine precision into a \textbf{95.8}\,\%
-loss main effect and a \textbf{4.7}\,\% spatial-topology main effect, and the same holds
-across the synthetic factorial. The distinction is decision-relevant, not book-keeping: a
-copperplate understates cost by \textbf{15.1}\,\% yet, executed, costs \textbf{46.1}\,\%
-more to operate---opposite signs. The schedules show why: blind to losses, it provisions the
-heat pump for too small a demand, running it some 246 fewer hours at ten points less share,
-and tops up the shortfall at the margin in winter hours it never planned for. A lumped
-per-network loss correction captures most of the bias, but only where its coefficient is
-known: frozen and carried to another network it mis-estimates the loss burden by tens of
-percentage points, and even where it reproduces the cost it runs a materially different
-generation mix. At the opposite extreme---the demand side resolved to every transmission
-station and service lateral, on manufacturer data with an independent nonlinear
-cross-check---hydraulic detail changes cost by under one percent and decisions by essentially
-nothing.
+% CHANGED: interaction term named. "to machine precision" is only defensible with all three
+% terms present; 95.8 + 4.7 alone overshoots by 0.5 points.
+copperplate-to-baseline cost gap decomposes to machine precision into a loss main effect of
+\textbf{95.8}\,\%, a spatial-topology main effect of \textbf{4.7}\,\% and an interaction of
+\textbf{$-0.5$}\,\%, and the same holds across the synthetic factorial. The distinction is
+decision-relevant rather than merely book-keeping: a copperplate understates cost by
+\textbf{15.1}\,\% yet, executed, costs \textbf{46.1}\,\% more to operate, the two carrying
+opposite signs. The schedules show why: blind to the network losses, it provisions the heat pump
+for a demand that is too small, running it 246 fewer hours and at ten percentage points less
+share, and the shortfall is then covered at the margin in winter hours it never planned for. A lumped
+per-network loss correction captures most of the bias but only where its coefficient is
+already known: frozen and carried to another network it mis-estimates the loss burden by
+tens of percentage points of cost, and even where it reproduces the cost it still runs a
+materially different generation mix. Pushed to the opposite extreme (the demand side
+resolved to every transmission station and its service laterals, on manufacturer component
+data with an independent nonlinear cross-check), hydraulic detail changes dispatch cost by
+under one percent and decisions by essentially nothing.
 
 For model selection this yields a criterion that can be applied before any model is built.
 The share of cost a copperplate misses is $b = \lambda/(1+\lambda)$, where the loss number
 $\lambda$ is the ratio of annual network loss to annual demand and follows from the pipe
-inventory alone. Across all 136 networks examined this parameter-free relation reproduces
-the measured burden with $R^2 = \textbf{0.87}$. The screening decision (copperplate,
-calibrated adder, or resolved nodes) is read off from $\lambda$ alone, before any model is
-built. Where a model must be resolved, effort belongs in the loss representation before
-the network graph and well before the hydraulics; and fidelity should be claimed only to the
-resolution at which it can be verified, which for operators metering at billing grade is the
-node or zone level rather than the substation.
+inventory alone. Across all 136 networks examined (135 synthetic plus the industrial case)
+this parameter-free relation reproduces the measured burden with $R^2 = \textbf{0.87}$, so the
+screening decision (copperplate, calibrated adder, or resolved nodes) is read off from
+$\lambda$ alone. Where a model must be resolved, effort belongs in the loss representation
+before the network graph and well before the hydraulics; and fidelity should be claimed only to
+the resolution at which it can be verified, which for operators metering at billing grade is
+the node or zone level rather than the substation.
 
 These conclusions are bounded by the regime that produced them, and the boundaries are
 specific rather than decorative. They hold for radial, centrally-supplied networks with

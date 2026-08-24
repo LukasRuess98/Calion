@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## v1.4.0 — review-response code fixes (2026-08-24)
+
+Three code corrections from an independent code review; paper artefacts re-derived on them.
+`calion/` now diverges from commit `c19d690` by these fixes.
+
+- **PWL pump-segment coupling** (`calion/models/blocks/pipe_pair.py`): the piecewise-linear
+  pressure/pump upper bound `pwl_flow ≤ bp*seg + M(1−seg)` allowed an *unselected* segment to carry
+  flow, under-stating pipe pump power. Fixed to `pwl_flow ≤ bp*seg`. Effect on the paper is
+  negligible (L3 economic cost within 0.03 %) because pumping is dominated by the linear station-Δp
+  term, not the pipe PWL; the loss/topology decomposition (95.8 %/4.7 %) is unchanged.
+- **Electrode-boiler export key** (`scripts/paper/extract_artefacts.py`): e-boiler heat was written
+  under the legacy key `P2H_Q_th_MW` but read under `EBOILER_MAIN_Q_th_MW`, exporting as zero and
+  opening a spurious ~5 MW hourly gap (351 h) in the per-step energy balance. Fixed with a
+  legacy-key fallback; the internal energy balance now closes to machine precision.
+- **Forward-evaluator feasibility checks** (`tools/evaluator.py`): the `dp_consumer` and
+  `unmet_demand` counters were initialised but never updated (only `velocity` was checked). Both are
+  now computed (required-vs-available pump head; per-hour loss shortfall), so the regret violation
+  column is a real check rather than a constructed zero.
+
+Full 135-network synthetic config set now included (270 YAML = 135 networks × {base, L1cp}).
+
 ## v1.3.0 — APEN revision, second round (2026-08-16)
 
 Consolidates the second-round revision analyses. `calion/` unchanged (still commit `c19d690`).

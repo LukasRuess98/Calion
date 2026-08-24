@@ -1,180 +1,168 @@
 %% ============================================================
-%% NOMENCLATURE -- v2 merge, drop-in for <<KEEP:nomenclature>>.
-%% MOVED from the appendix to FRONT MATTER (immediately after \maketitle), per the
-%% Applied Energy exemplar, which places it as a boxed block on page 2.
-%% Source: v1 lines 2275-2411.
+%% NOMENCLATURE -- v3, Applied Energy house style.
+%% Front matter (immediately after \maketitle). Plain two-column symbol->definition
+%% list: no table rules, no repeated headers, units folded into the definition in [..];
+%% dimensionless quantities carry no unit. The fidelity-level block keeps its T x P code
+%% column as a small ruled table, since it is a genuine lookup table, not a symbol list.
 %%
-%% ADDED for v2 -- a first block the original did not have: the fidelity levels with
-%% their T x P configuration codes, and the evaluation quantities (bias, regret,
-%% violations, loss number). A reader meeting CP / CP+L / ND0 / L1-L6 in the abstract
-%% currently has nowhere to look them up until the methodology; this fixes that, and it
-%% is the single most useful addition to the nomenclature.
-%%
-%% Packages: \ce{} replaced by CO$_2$ and \euro by EUR, matching the rest of the
-%% manuscript (no mhchem, no eurosym assumed).
+%% CHANGES v2 -> v3:
+%%  (a) level labels set upright (\textup), not in math mode
+%%  (b) Status column added: optimised vs forward-evaluated (taxonomy consistency)
+%%  (c) ZN given an explicit purpose (Section 3.4)
+%%  (d) NL now names both roles: forward reference AND weekly re-solve
+%%  (e) C^pump REMOVED -- pump electricity enters the electricity bus and is paid
+%%      through grid procurement; a standalone term would double-count
+%%  (f) b (loss burden) and HI added
+%%  (g) alpha_s wording fixed to match the (1-alpha_s)^{Delta t} form of Eq. (11)
+%%  (h) \arraybackslash added after \raggedright in p-columns
 %% ============================================================
 
 {\footnotesize
 
-%%--- Fidelity levels and evaluation quantities (NEW in v2) ---
+%%--- Fidelity levels and evaluation quantities (small lookup table, full width) ---
 \noindent\textbf{Fidelity levels and evaluation quantities}\par\nopagebreak\smallskip
 \noindent
-\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} >{\raggedright}p{1.6cm} l @{}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
+  >{\raggedright\arraybackslash}p{1.15cm}
+  >{\raggedright\arraybackslash}p{0.95cm}
+  >{\raggedright\arraybackslash}p{1.85cm}
+  l @{}}
 \toprule
-Symbol & Code & Description \\
+Symbol & Code & Status & Description \\
 \midrule
-$\CP$      & T0P0 & Copperplate, no loss (decomposition control) \\
-$\CPL$     & T0P1 & Copperplate + exogenous aggregate loss (control) \\
-$\ZN$      & T1P1 & Zone-aggregated + loss \\
-$\NDz$     & T2P0 & Node-resolved, no loss (topology control) \\
-$\Lone$    & T2P1 & Node-resolved + trunk loss (comparison baseline) \\
-$\Ltwo$    & T2P2 & $+$ temperature propagation \\
-$\Lthree$  & T2P3 & $+$ trunk pressure drop and pumping \\
-$\Lfour$   & T2P4 & $+$ station resolution and service laterals \\
-$\Lfive$   & T2P5 & $+$ flow-dependent station pressure drop \\
-$\Lsix$    & T2P6 & $+$ transport delay \\
-$\NLref$   & --   & Nonlinear forward reference (not a ladder rung) \\
+\CP      & T0P0 & optimised   & Copperplate, no loss (decomposition control) \\
+\CPL     & T0P1 & optimised   & Copperplate $+$ exogenous aggregate loss (control) \\
+\ZN      & T1P1 & optimised   & Zone-aggregated $+$ loss (aggregation sensitivity, Section~\ref{subsec:clustering}) \\
+\NDz     & T2P0 & optimised   & Node-resolved, no loss (topology control) \\
+\Lone    & T2P1 & optimised   & Node-resolved $+$ trunk loss (comparison baseline) \\
+\Ltwo    & T2P2 & fwd.-eval.  & $+$ temperature propagation (free-variable form degenerate) \\
+\Lthree  & T2P3 & optimised   & $+$ trunk pressure drop and pumping \\
+\Lfour   & T2P4 & fwd.-eval.  & $+$ station resolution and service laterals \\
+\Lfive   & T2P5 & fwd.-eval.  & $+$ flow-dependent station pressure drop \\
+\Lsix    & T2P6 & optimised   & $+$ transport delay \\
+\NLref   &      & reference   & Nonlinear forward evaluator and bounded weekly re-solve; not a ladder rung \\
 \midrule
-$b_\ell$   & --   & Estimation bias of level $\ell$ (optimised cost difference) \\
-$r_\ell$   & --   & Decision regret of level $\ell$ (forward-evaluated difference) \\
-$\lambda$  & --   & Loss number, annual loss / annual demand \\
-$L_t$      & --   & Exogenous aggregate loss supplied to $\CPL$ \\
-$\kappa$   & --   & Loss switch in the nodal balance, $\{0,1\}$ \\
+$b_\ell$   & & & Estimation bias of level $\ell$ (optimised cost difference) \\
+$r_\ell$   & & & Decision regret of level $\ell$ (forward-evaluated difference) \\
+$\lambda$  & & & Loss number, annual loss / annual demand \\
+$b$        & & & Loss burden, $=\lambda/(1+\lambda)$ \\
+$L_t$      & & & Exogenous aggregate loss supplied to \CPL \\
+$\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \bottomrule
 \end{tabular*}
 
-\bigskip
+\smallskip
 
-%%--- Sets and indices ---
-\noindent\textbf{Sets and indices}\par\nopagebreak\smallskip
-\noindent
-\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} l @{}}
-\toprule
-Symbol & Description \\
-\midrule
-$t \in \mathcal{T}$                & Time steps ($|\mathcal{T}|=8760$) \\
-$n \in \mathcal{N}$                & Network nodes \\
-$p \in \mathcal{P}$                & Pipe segments \\
-$g \in \mathcal{G}$                & Thermal generators \\
-$h \in \mathcal{H}$                & Heat pumps \\
-$s \in \mathcal{S}$                & Thermal storage units \\
-$r \in \mathcal{R}$                & Electrode boilers (power-to-heat) \\
-$k \in \{1,\ldots,K\}$             & PWL segment index \\
-$\mathcal{G}^{\mathrm{CHP}}$       & Subset of CHP generators \\
-$\mathcal{P}_n^{\mathrm{in/out}}$  & Pipes entering/leaving node~$n$ \\
-$\mathcal{G}_n,\mathcal{S}_n$      & Generators/storage at node~$n$ \\
-$\mathcal{T}_{\mathrm{val}}$       & Validation time steps \\
-\bottomrule
-\end{tabular*}
+%%--- Symbol->definition lists, two columns, no rules ---
+%% \nom{symbol}{definition [unit]} : fixed-width symbol, hanging definition; flows across columns.
+\newcommand{\nom}[2]{\par\noindent\hangindent=2.0cm\hangafter=1\makebox[1.9cm][l]{$#1$}#2}
+\setlength{\columnsep}{16pt}
+\begin{multicols}{2}
+\raggedright
+\setlength{\parindent}{0pt}
 
-\bigskip
+\textbf{Sets and indices}\par\nopagebreak\smallskip
+\nom{t \in \mathcal{T}}{Time steps ($|\mathcal{T}|=8760$)}
+\nom{n \in \mathcal{N}}{Network nodes}
+\nom{p \in \mathcal{P}}{Pipe segments}
+\nom{g \in \mathcal{G}}{Thermal generators}
+\nom{h \in \mathcal{H}}{Heat pumps}
+\nom{s \in \mathcal{S}}{Thermal storage units}
+\nom{r \in \mathcal{R}}{Electrode boilers (power-to-heat)}
+\nom{k \in \{1,\ldots,K\}}{PWL segment index}
+\nom{\mathcal{G}^{\mathrm{CHP}}}{Subset of CHP generators}
+\nom{\mathcal{P}_n^{\mathrm{in/out}}}{Pipes entering/leaving node~$n$}
+\nom{\mathcal{G}_n,\mathcal{S}_n}{Generators/storage at node~$n$}
+\nom{\mathcal{T}_{\mathrm{val}}}{Validation time steps}
 
-%%--- Key parameters ---
-\noindent\textbf{Key parameters}\par\nopagebreak\smallskip
-\noindent
-\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} >{\raggedright}p{2.0cm} l @{}}
-\toprule
-Symbol & Unit & Description \\
-\midrule
-$U^{s}_p, U^{r}_p$           & W\,m$^{-1}$\,K$^{-1}$ & Supply/return pipe heat transfer coeff. \\
-$L_p$                        & m              & Pipe length \\
-$D_p$                        & m              & Pipe inner diameter \\
-$A_p$                        & m$^2$          & Pipe cross-sectional area \\
-$R_p$                        & Pa\,MW$^{-2}$  & Pipe hydraulic resistance \\
-$f_D$                        & --             & Darcy friction factor \\
-$\rho$                       & kg\,m$^{-3}$   & Fluid density \\
-$c_p$                        & J\,(kg\,K)$^{-1}$ & Specific heat capacity \\
-$\tau_p$                     & h              & Transport delay \\
-$k_p$                        & --             & Delay in time steps \\
-$\phi_{p,t}$                 & --             & Temperature decay factor \\
-$\phi_p^{\mathrm{nom}}$      & --             & Nominal decay factor \\
-$T_{\mathrm{sup}}^{\mathrm{nom}}(t)$ & $^\circ$C & Nominal supply temperature \\
-$T_{\mathrm{ret}}^{\mathrm{nom}}(t)$ & $^\circ$C & Nominal return temperature \\
-$T^{\mathrm{nom}}(t)$        & $^\circ$C      & Nominal operating temperature \\
-$T_{\mathrm{ground}}(t)$     & $^\circ$C      & Ground temperature \\
-$\bar{Q}_g,\bar{Q}_h,\bar{Q}_r$ & MW          & Installed thermal capacities \\
-$\bar{Q}_p$                  & MW             & Rated pipe capacity \\
-$\phi_h^{\mathrm{min}}$      & --             & Heat-pump minimum load fraction \\
-$\eta_g$                     & --             & Generator thermal efficiency \\
-$\eta_s^{\mathrm{ch/dis}}$   & --             & Storage charge/discharge efficiency \\
-$\eta_{\mathrm{pump}}$       & --             & Pump efficiency \\
-$\eta_{\mathrm{Lorenz}}$     & --             & Lorenz cycle efficiency \\
-$\alpha_s$                   & h$^{-1}$       & Storage self-discharge rate \\
-$\mathrm{COP}_{h,t}^{\mathrm{WHR}}$ & --      & Waste-heat COP (time-varying) \\
-$\mathrm{COP}_h^{\mathrm{def}}$     & --      & Default-source COP (constant) \\
-$m_k^{(p)}$                  & --             & PWL segment slope \\
-$\Delta T_{\mathrm{pp}}$     & K              & Heat-pump pinch-point temperature \\
-$\lambda_t^{\mathrm{buy/sell}}$ & EUR\,MWh$^{-1}$ & Electricity buy/sell price \\
-$\lambda_g^{\mathrm{fuel}}$  & EUR\,MWh$^{-1}$ & Specific fuel cost \\
-$\lambda^{\mathrm{dump}}$    & EUR\,MWh$^{-1}$ & Heat curtailment penalty \\
-$\lambda^{\mathrm{CO_2}}$    & EUR\,t$^{-1}$  & Carbon price \\
-$\lambda^{\mathrm{dem}}$     & EUR\,MW$^{-1}$ & Demand charge rate \\
-$e_t^{\mathrm{grid}}$        & kg\,MWh$^{-1}$ & Grid emission factor \\
-$e_g^{\mathrm{fuel}}$        & kg\,MWh$^{-1}$ & Fuel emission intensity \\
-$f^{\mathrm{yr}}$            & --             & Annual scaling factor \\
-$M^{\mathrm{grid}}$          & MW             & Grid capacity (Big-M) \\
-$\Delta t$                   & h              & Time step length ($=1$\,h) \\
-$K$                          & --             & Number of PWL segments \\
-\bottomrule
-\end{tabular*}
+\medskip
+\textbf{Parameters}\par\nopagebreak\smallskip
+\nom{U^{s}_p, U^{r}_p}{Supply/return pipe heat-transfer coefficient [W\,m$^{-1}$\,K$^{-1}$]}
+\nom{L_p}{Pipe length [m]}
+\nom{D_p}{Pipe inner diameter [m]}
+\nom{A_p}{Pipe cross-sectional area [m$^2$]}
+\nom{R_p}{Pipe hydraulic resistance [Pa\,MW$^{-2}$]}
+\nom{f_D}{Darcy friction factor}
+\nom{\rho}{Fluid density [kg\,m$^{-3}$]}
+\nom{c_p}{Specific heat capacity of water [J\,(kg\,K)$^{-1}$]}
+\nom{\tau_p}{Transport delay [h]}
+\nom{k_p}{Delay in time steps}
+\nom{\phi_{p,t}}{Temperature decay factor, $\in(0,1]$}
+\nom{\phi_p^{\mathrm{nom}}}{Nominal decay factor}
+\nom{T_{\mathrm{sup}}^{\mathrm{nom}}(t)}{Nominal supply temperature [$^\circ$C]}
+\nom{T_{\mathrm{ret}}^{\mathrm{nom}}(t)}{Nominal return temperature [$^\circ$C]}
+\nom{T^{\mathrm{nom}}(t)}{Nominal operating temperature [$^\circ$C]}
+\nom{T_{\mathrm{ground}}(t)}{Ground temperature [$^\circ$C]}
+\nom{\bar{Q}_g,\bar{Q}_h,\bar{Q}_r}{Installed thermal capacities [MW]}
+\nom{\bar{Q}_p}{Rated pipe capacity [MW]}
+\nom{\phi_h^{\mathrm{min}}}{Heat-pump minimum load fraction}
+\nom{\eta_g}{Generator thermal efficiency}
+\nom{\eta_s^{\mathrm{ch/dis}}}{Storage charge/discharge efficiency}
+\nom{\eta_{\mathrm{pump}}}{Pump efficiency}
+\nom{\eta_{\mathrm{Lorenz}}}{Lorenz cycle efficiency}
+% CHANGED: alpha_s is the fractional standing loss per hour entering as
+% (1-alpha_s)^{Delta t} in Eq. (11); it is not a rate with unit h^-1.
+\nom{\alpha_s}{Storage standing-loss fraction per hour}
+\nom{\mathrm{COP}_{h,t}^{\mathrm{WHR}}}{Waste-heat COP, time-varying}
+\nom{\mathrm{COP}_h^{\mathrm{def}}}{Default-source COP, constant}
+\nom{m_k^{(p)}}{PWL segment slope}
+\nom{\Delta T_{\mathrm{pp}}}{Heat-pump pinch-point temperature difference [K]}
+\nom{\lambda_t^{\mathrm{buy/sell}}}{Electricity buy/sell price [EUR\,MWh$^{-1}$]}
+\nom{\lambda_g^{\mathrm{fuel}}}{Specific fuel cost [EUR\,MWh$^{-1}$]}
+\nom{\lambda^{\mathrm{dump}}}{Heat-curtailment penalty [EUR\,MWh$^{-1}$]}
+\nom{\lambda^{\mathrm{CO_2}}}{Carbon price [EUR\,t$^{-1}$]}
+\nom{\lambda^{\mathrm{dem}}}{Demand-charge rate [EUR\,MW$^{-1}$]}
+\nom{e_t^{\mathrm{grid}}}{Grid emission factor [kg\,MWh$^{-1}$]}
+\nom{e_g^{\mathrm{fuel}}}{Fuel emission intensity [kg\,MWh$^{-1}$]}
+\nom{f^{\mathrm{yr}}}{Annual scaling factor}
+\nom{M^{\mathrm{grid}}}{Grid capacity, Big-M [MW]}
+\nom{\Delta t}{Time-step length [h], $=1$}
+\nom{K}{Number of PWL segments}
+% CHANGED: HI added (used in Table 6, Table 20, Appendix E)
+\nom{\mathrm{HI}}{Demand heterogeneity index (Appendix~\ref{app:hi_definition})}
 
-\bigskip
+\medskip
+\textbf{Cost terms}\par\nopagebreak\smallskip
+\nom{C^{\mathrm{en}}}{Electricity procurement net of feed-in revenue}
+\nom{C^{\mathrm{fuel}}}{Fuel expenditure}
+\nom{C^{\mathrm{dump}}}{Heat-curtailment penalty}
+\nom{C^{\mathrm{CO_2}}}{Carbon cost}
+\nom{C^{\mathrm{dem}}}{Demand charge on peak import}
+% REMOVED: C^{pump}. Pump electricity enters the electricity balance, Eq. (4),
+% and is paid through C^{en}; a standalone term would double-count it.
+\nom{Z}{Solver objective}
+\nom{z^{\mathrm{econ}}}{Economic operating cost (reported basis)}
 
-%%--- Cost components ---
-\noindent\textbf{Cost components}\par\nopagebreak\smallskip
-\noindent
-\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} l @{}}
-\toprule
-Symbol & Description \\
-\midrule
-$C^{\mathrm{en}}$      & Electricity procurement net of feed-in revenue \\
-$C^{\mathrm{fuel}}$    & Fuel expenditure \\
-$C^{\mathrm{dump}}$    & Heat curtailment penalty \\
-$C^{\mathrm{CO_2}}$    & Carbon cost \\
-$C^{\mathrm{dem}}$     & Demand charge on peak import \\
-$C^{\mathrm{pump}}$    & Network pumping cost \\
-$Z$                    & Solver objective \\
-$z^{\mathrm{econ}}$    & Economic operating cost (reported basis) \\
-\bottomrule
-\end{tabular*}
+\medskip
+\textbf{Variables}\par\nopagebreak\smallskip
+\nom{Q_{g,t}^{\mathrm{th}}}{Generator thermal output [MW]}
+\nom{Q_{h,t}}{Heat-pump thermal output [MW]}
+\nom{Q_{h,t}^{\mathrm{WHR/def}}}{Heat-pump waste-heat/default output [MW]}
+\nom{Q_{r,t}}{Electrode-boiler output [MW]}
+\nom{Q_{p,t}}{Pipe heat flow [MW]}
+\nom{Q_{p,t}^{\mathrm{loss,pipe}}}{Pipe thermal loss [MW]}
+\nom{Q_{s,t}^{\mathrm{ch/dis}}}{Storage charge/discharge rate [MW]}
+\nom{Q_{n,t}^{\mathrm{dem}}}{Nodal heat demand [MW]}
+\nom{Q_{n,t}^{\mathrm{dump}}}{Curtailed heat at node~$n$ [MW]}
+\nom{P_t^{\mathrm{buy/sell}}}{Grid import/export [MW]}
+\nom{P_{g,t}^{\mathrm{el}}}{CHP electrical output [MW]}
+\nom{P_{h,t}^{\mathrm{el}}}{Heat-pump electrical input [MW]}
+\nom{P_{r,t}^{\mathrm{el}}}{Electrode-boiler electrical input [MW]}
+\nom{P_t^{\mathrm{pump}}}{Network pumping power [MW]}
+\nom{P^{\mathrm{peak}}}{Annual peak grid import [MW]}
+\nom{\Delta p_{p,t}}{Pipe pressure drop [Pa]}
+\nom{\dot{m}_{p,t}}{Pipe mass-flow rate [kg\,s$^{-1}$]}
+\nom{T_{n,t}^{\mathrm{sup}}}{Node supply temperature [$^\circ$C]}
+\nom{T_{p,t}^{\mathrm{out}}}{Pipe outlet temperature [$^\circ$C]}
+\nom{E_{s,t}}{Storage state of charge [MWh]}
+\nom{F_{g,t}}{Fuel input, heating-value basis [MW]}
+\nom{E_t^{\mathrm{CO_2,grid}}}{Grid CO$_2$ emissions [t]}
+\nom{E_{g,t}^{\mathrm{CO_2,fuel}}}{Fuel CO$_2$ emissions [t]}
+\nom{W_{p,t}}{Bilinear auxiliary, $=Q_{p,t}^2$ [MW$^2$]}
+\nom{u_{h,t}}{Heat-pump on/off, binary}
+\nom{z_t}{Grid import mode, binary}
+\nom{w_{p,t,k}}{SOS2 weights, $[0,1]$}
 
-\bigskip
-
-%%--- Key decision variables ---
-\noindent\textbf{Key decision variables}\par\nopagebreak\smallskip
-\noindent
-\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}} >{\raggedright}p{2.0cm} >{\raggedright}p{2.0cm} l @{}}
-\toprule
-Symbol & Unit & Description \\
-\midrule
-$Q_{g,t}^{\mathrm{th}}$        & MW           & Generator thermal output \\
-$Q_{h,t}$                      & MW           & Heat-pump thermal output \\
-$Q_{h,t}^{\mathrm{WHR/def}}$   & MW           & Heat-pump waste-heat/default output \\
-$Q_{r,t}$                      & MW           & Electrode boiler output \\
-$Q_{p,t}$                      & MW           & Pipe heat flow \\
-$Q_{p,t}^{\mathrm{loss,pipe}}$ & MW           & Pipe thermal loss \\
-$Q_{s,t}^{\mathrm{ch/dis}}$    & MW           & Storage charge/discharge rate \\
-$Q_{n,t}^{\mathrm{dem}}$       & MW           & Nodal heat demand \\
-$Q_{n,t}^{\mathrm{dump}}$      & MW           & Curtailed heat at node~$n$ \\
-$P_t^{\mathrm{buy/sell}}$      & MW           & Grid import/export \\
-$P_{g,t}^{\mathrm{el}}$        & MW           & CHP electrical output \\
-$P_{h,t}^{\mathrm{el}}$        & MW           & Heat-pump electrical input \\
-$P_{r,t}^{\mathrm{el}}$        & MW           & Electrode boiler electrical input \\
-$P_t^{\mathrm{pump}}$          & MW           & Network pumping power \\
-$P^{\mathrm{peak}}$            & MW           & Annual peak grid import \\
-$\Delta p_{p,t}$               & Pa           & Pipe pressure drop \\
-$\dot{m}_{p,t}$                & kg\,s$^{-1}$ & Pipe mass flow rate \\
-$T_{n,t}^{\mathrm{sup}}$       & $^\circ$C    & Node supply temperature \\
-$T_{p,t}^{\mathrm{out}}$       & $^\circ$C    & Pipe outlet temperature \\
-$E_{s,t}$                      & MWh          & Storage state of charge \\
-$F_{g,t}$                      & MW           & Fuel input (heating-value basis) \\
-$E_t^{\mathrm{CO_2,grid}}$     & t            & Grid CO$_2$ emissions \\
-$E_{g,t}^{\mathrm{CO_2,fuel}}$ & t            & Fuel CO$_2$ emissions \\
-$W_{p,t}$                      & MW$^2$       & Bilinear auxiliary ($=Q_{p,t}^2$) \\
-$u_{h,t}$                      & $\{0,1\}$    & Heat-pump on/off \\
-$z_t$                          & $\{0,1\}$    & Grid import mode \\
-$w_{p,t,k}$                    & $[0,1]$      & SOS2 weights \\
-\bottomrule
-\end{tabular*}
+\end{multicols}
 
 }% end footnotesize

@@ -29,8 +29,8 @@ graph; and the physical phenomena admitted, from a lossless energy balance to a 
 pressure-coupled hydraulics, temperature propagation and transport delay.
 
 The two extremes are well populated. Copperplate models aggregate all components and
-demands onto a single bus, ignoring spatial structure and thermal losses entirely --
-a limitation their authors acknowledge explicitly: \citet{Wirtz2020} note that ``the
+demands onto a single bus, ignoring spatial structure and thermal losses entirely, a
+limitation their authors acknowledge: \citet{Wirtz2020} note that ``the
 validity of the global energy balance assumption depends on the network topology, size and
 the operation strategy'', without quantifying the resulting error. Full thermo-hydraulic
 models resolve the network pipe by pipe and capture the thermal losses that amount to
@@ -51,9 +51,9 @@ intra-regional congestion and understate system cost, and the spatial aggregatio
 dominates other modelling simplifications in scenario
 comparisons~\cite{Frysztacki2021}. It is natural to expect the analogue in district
 heating, and that expectation is worth stating precisely because this paper finds it
-holds only in part. Spatial resolution does matter. But, as the controlled comparison
-below shows, it matters as the mechanism by which a model computes its thermal losses,
-not as a representation of routing. Once the losses are supplied by other means, the
-spatial structure itself is worth almost nothing in dispatch cost. The distinction is
+holds only in part. Once the losses are supplied by other means, the spatial structure itself is worth
+almost nothing in dispatch cost, at least where all generation is co-located at a
+single source; whether that holds under distributed generation is left as a
+controlled open question. The distinction is
 invisible to any comparison that changes both at once, which is the first of the two
-limitations we address.
+limitations this study addresses.

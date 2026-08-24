@@ -1,9 +1,9 @@
 # Data and Code Package
-## "Estimation Bias versus Decision Regret in District-Heating Dispatch Optimisation: Loss Visibility, not Network Topology, Sets the Fidelity Requirement"
+## "Estimation Bias versus Decision Regret in District-Heating Dispatch Optimisation"
 
 **Authors:** Lukas [Nachname], [Betreuer], [Industriepartner]  
 **Journal:** Applied Energy (APEN-D-26-15734, major revision)  
-**DOI (this dataset):** https://doi.org/10.5281/zenodo.XXXXXXX
+**DOI (this dataset):** https://doi.org/10.5281/zenodo.21219368
 
 > **v1.3.0 — APEN REVISION, SECOND ROUND (2026-08-16).** Built on the v1.1.0 corrected model
 > (`calion/`, commit `c19d690`, unchanged). The synthetic study is rebalanced to the full **135-network
@@ -108,4 +108,4 @@ pump_linearization_error.json  Exact pump-friction PWL-vs-cubic error, Jan & Feb
 Dispatch Optimization of Electrified District Heating Networks. Applied Energy.
 https://doi.org/[journal DOI]
 
-Dataset: https://doi.org/10.5281/zenodo.XXXXXXX
+Dataset: https://doi.org/10.5281/zenodo.21219368

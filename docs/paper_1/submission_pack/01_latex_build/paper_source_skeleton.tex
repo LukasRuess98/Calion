@@ -31,6 +31,8 @@
 
 %% --- compatibility shims for the merged section files (numeric cite style; cas-dc has no siunitx) ---
 \usepackage{threeparttable}
+\usepackage{booktabs}
+\usepackage{makecell}
 \usepackage{caption}
 \usepackage{xcolor}
 \usepackage[numbers,sort&compress]{natbib}   % numeric [n] citations; without this the elsarticle-num-names bst prints the verbose author-year label
@@ -790,7 +792,7 @@ the exact-decomposition bound (the friction and station-pressure terms enter at 
 few-hundredths-of-a-percent level and partly cancel). Two limitations of this solved reference are
 themselves results. The same re-solve over the full year does not converge: the non-convex
 programme finds no incumbent within the solver budget, which is why the reference is evaluated on
-representative weeks rather than globally. And a low-load summer week is \emph{infeasible} under
+representative 72-hour windows rather than globally. And a low-load summer window is \emph{infeasible} under
 native physics with the linearised schedule fixed: at summer flows the piecewise temperatures the
 optimiser relied on cannot actually be delivered, the same physical-deliverability failure that the
 decision-regret evaluation exposes (Section~\ref{subsec:evaluator}). We report each effect against
@@ -827,9 +829,9 @@ the node-resolved model, which computes the loss endogenously, the transferable 
 an a-priori estimator of the cost gap from observable network properties (pipe length, node
 count, demand heterogeneity and storage) fitted on the synthetic networks up to 15\,km trunk
 length (train $R^2\approx0.999$) predicts the held-out longer networks without refitting, an
-extrapolation beyond the fitted range. It predicts the 30\,km networks to within a couple of
+extrapolation beyond the fitted range. It predicts the 30\,km networks to within about seven
 percentage points and under-predicts at the extreme 50\,km extrapolation (held-out mean absolute
-percentage error $\approx14$\,\%; Table~S6, Supplementary Material). We report this outcome as given
+percentage error $\approx19$\,\%; Table~S6, Supplementary Material). We report this outcome as given
 (extrapolation degrades at the extreme, as one would expect) since a committed-in-advance
 prediction, whether it succeeds or fails, is more informative than a post-hoc fitted curve.
 

@@ -14,10 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from scripts.paper.mpl_export import AE_DOUBLE_COLUMN_IN, apply_ae_style, save_figure_bundle
 apply_ae_style(matplotlib)
-matplotlib.rcParams.update({"font.family": "serif",
-                            "font.serif": ["STIXGeneral", "STIX Two Text", "Times New Roman"],
-                            "mathtext.fontset": "stix"})
-BLUE_D, BLUE_M = "#08306B", "#2171B5"
+# palette matched to the manuscript's analytical figures (figgen_p1_v2): navy line, teal fill
+NAVY, TEAL = "#003E6E", "#009B77"
 
 cache = ROOT / "results" / "v2" / "analysis" / "total_demand.csv"
 if cache.exists():
@@ -46,8 +44,8 @@ daily = tot.resample("D").mean().loc["2025"]   # the calendar year the model dis
 norm = daily / daily.max()
 
 fig, ax = plt.subplots(figsize=(AE_DOUBLE_COLUMN_IN, 2.5))
-ax.fill_between(norm.index, 0, norm.values, color=BLUE_M, alpha=0.18, lw=0)
-ax.plot(norm.index, norm.values, color=BLUE_D, lw=0.9)
+ax.fill_between(norm.index, 0, norm.values, color=TEAL, alpha=0.15, lw=0)
+ax.plot(norm.index, norm.values, color=NAVY, lw=1.0)
 ax.set_ylabel("Normalised total\nheat demand (--)")
 ax.set_xlabel("2025")
 ax.set_ylim(0, 1.02)

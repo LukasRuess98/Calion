@@ -19,8 +19,8 @@
 
 The zone-aggregated level rests on one hand-made seven-zone partition of the fifteen-node
 network. A partition is a modelling choice rather than a physical fact, and a different one
-could in principle redistribute losses and routing differently. We therefore re-solved the
-aggregated model across a family of alternative partitions, holding everything else fixed.
+could in principle redistribute losses and routing differently. The aggregated model was
+therefore re-solved across a family of alternative partitions, holding everything else fixed.
 
 The family comprises the original partition re-run through the same aggregator, three
 deliberate alternatives spanning granularity (four, seven and ten zones) and a null
@@ -30,9 +30,9 @@ $\sum_p U_p L_p = 1140.2$\,W/K of the node-resolved network, which is verified p
 configuration and confirmed by an identical realised annual loss across the family
 ($1257.8$--$1257.9$\,MWh). Conservation requires resolving the producer as its own zone: a
 partition that merges the plant with downstream nodes has no incoming pipe to carry the
-producer zone's internal trunk losses and silently discards them. We therefore hold the
-producer isolated in every member, which is also what the original partition does, and we
-state the consequence for the null explicitly: each draw cuts the producer edge and then
+producer zone's internal trunk losses and silently discards them. The producer is therefore held
+isolated in every member, as in the original partition, and the consequence for the null is
+stated explicitly: each draw cuts the producer edge and then
 five further random edges, partitioning the remaining fourteen consumer nodes into six
 zones. The null therefore tests consumer-zone boundary choice at fixed producer resolution
 and fixed total loss, which is the comparison the question requires.
@@ -46,9 +46,16 @@ four and ten zones changes essentially nothing.
 
 Set against the decomposition, this is more than a robustness check. With losses held
 equal, the residual is directly comparable to the spatial-topology main effect measured on
-the same network, and the three quantities span three orders of magnitude:
+the same network, and the three quantities span three orders of magnitude
+(Table~\ref{tab:r16}).
 
-\begin{center}\footnotesize
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption{Zone-boundary choice against the effects it must be compared with, on the
+copperplate-to-baseline ($\CP\!\to\!\Lone$) cost gap. With the total heat-loss capacity held
+equal across all twenty-four partitions, the residual routing effect is negligible.}
+\label{tab:r16}
 \begin{tabular}{lrr}
 \hline
 Effect & Cost & \% of the $\CP\!\to\!\Lone$ gap \\
@@ -58,37 +65,28 @@ Spatial topology (resolving routing) & 961\,EUR & 4.7 \\
 Zone-boundary choice (this subsection) & 11\,EUR & $<$0.01 \\
 \hline
 \end{tabular}
-\end{center}
+\end{table}
 
 Choosing where to draw a zone boundary is two orders of magnitude less consequential than
 resolving routing at all, and three below representing the loss
-(Figure~\ref{fig:r16}, logarithmic scale). The aggregation is therefore not a hidden degree
+(Table~\ref{tab:r16}). The aggregation is therefore not a hidden degree
 of freedom in the results, and the finding corroborates the decomposition from an
 independent direction: loss, not geometry, carries the cost.
 
-The corollary is a practical warning. An aggregation that does \emph{not} conserve the total
-heat-loss capacity---for instance one merging the producer with downstream nodes, discarding
-the trunk pipes internal to that zone ($10$--$18$\,\% of $\sum_p U_p L_p$)---shifts reported
-cost by up to about $6$\,\%, against $0.01$\,\% among conserving partitions. The binding
-requirement for a valid reduced model is preservation of the delivered loss, not fidelity of
-the zone geometry: the same conclusion the decomposition reaches by another route, and a
-straightforward error to make.
+The corollary is a practical warning worth stating. An aggregation that does \emph{not}
+conserve the total heat-loss capacity (for instance one that merges the producer with
+downstream nodes and so discards the trunk pipes internal to that zone, here $10$--$18$\,\%
+of $\sum_p U_p L_p$) shifts reported cost by up to about $6$\,\%, against the $0.01$\,\%
+agreement among conserving partitions. The binding requirement for a valid reduced network
+model is preservation of the delivered loss, not fidelity of the zone geometry. That is the
+same conclusion the decomposition reaches by a different route, and it is a straightforward
+error to make.
 
-Two values for the same pipe appear in the released data, for different purposes. The
-aggregator uses the network's per-pipe design heat-transfer coefficients (under which the
-older uninsulated far-east lateral exceeds the trunk); Stage-1 validation instead calibrates
-a single uniform coefficient to reproduce the measured annual loss. They are not meant to
-agree pipe by pipe---the first is the design network, the second a minimal calibration of its
-aggregate behaviour---and all partitions here use the same per-pipe basis, so the comparison
-is unaffected.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/F_r16_clustering}
-  \caption{Zone-boundary choice against the effects it must be compared with, on a
-  logarithmic cost axis. With the total heat-loss capacity held equal across all
-  twenty-four partitions, the residual routing effect (11\,EUR) is two orders of magnitude
-  below the spatial-topology main effect (961\,EUR) and three below the loss main effect
-  (19\,737\,EUR).}
-  \label{fig:r16}
-\end{figure}
+One parameterisation note, since two values for the same pipe appear in the released data.
+The aggregator uses the network's per-pipe design heat-transfer coefficients, under which
+the far-east lateral carries a markedly higher value than the trunk, reflecting its older
+uninsulated construction. The Stage-1 validation instead calibrates a single uniform
+coefficient across all pipes, one free parameter, to reproduce the measured annual loss.
+The two serve different purposes and are not intended to agree pipe by pipe: the first is
+the design network, the second a minimal calibration of its aggregate behaviour. All
+partitions compared here use the same per-pipe basis, so the comparison is unaffected.

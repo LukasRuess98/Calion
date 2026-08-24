@@ -963,7 +963,13 @@ class PipePairBlock(BaseComponent):
                     return pwl_flow[t, s] >= bp_flows[s] * pwl_seg[t, s]
 
                 def seg_flow_ub_rule(m, t, s):
-                    return pwl_flow[t, s] <= bp_flows[s + 1] * pwl_seg[t, s] + M_flow * (1 - pwl_seg[t, s])
+                    # BUGFIX (chat-review P0): the old formulation added
+                    # `+ M_flow*(1 - pwl_seg)`, so an UNSELECTED segment (pwl_seg=0) could
+                    # still carry flow up to M_flow. The optimiser then routed flow through
+                    # the lowest-slope segment, massively under-stating pressure drop and
+                    # pump power. Forcing the upper bound to bp_flows[s+1]*pwl_seg pins an
+                    # unselected segment's flow to zero (textbook disaggregated PWL).
+                    return pwl_flow[t, s] <= bp_flows[s + 1] * pwl_seg[t, s]
 
                 setattr(model, f'{prefix}_pwl_seg_lb',
                         pyo.Constraint(time_set, range(3), rule=seg_flow_lb_rule))

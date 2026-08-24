@@ -1,23 +1,23 @@
-% static draft (author: confirm row selection + Falay/Larsen keys)
-% Editor note: cite each row individually -- do NOT lump [x-y].
-\begin{table*}[t]
+% static (author: confirm row selection + Falay/Larsen keys)
+\begin{table}[t]
 \centering
+\small
 \caption{Positioning against prior model-fidelity and network-aggregation studies. No prior
 study isolates the loss effect from the topology effect, and none evaluates fidelity by the
-cost of the resulting \emph{decisions} rather than by objective values -- the two gaps this
-paper addresses.}
+cost of the resulting \emph{decisions} rather than by objective values. This study closes both
+gaps.}
 \label{tab:priorwork}
-\begin{tabular}{lccc}
-\hline
-Study & Compares fidelity/aggregation & Isolates loss from topology & Evaluates decisions \\
-\hline
-Wirtz et al.~\cite{Wirtz2021_complexity} — 24 MILP variants, multi-energy & \checkmark & $\times$ & $\times$ \\
-Kotzur et al.~\cite{Kotzur2021} — complexity-management review & \checkmark & $\times$ & $\times$ \\
-Larsen~\cite{Larsen2004}, Falay~\cite{Falay2020} — network aggregation & \checkmark & $\times$ & $\times$ \\
-van der Heijde et al.~\cite{vanderHeijde2017} — DH physics model & $\times$ & $\times$ & $\times$ \\
-Hering et al.~\cite{Hering2021} — DH MIQCP dispatch & $\times$ & $\times$ & $\times$ \\
-This work, original submission & \checkmark & $\times$ & $\times$ \\
-\textbf{This work (revised)} & \checkmark & \checkmark & \checkmark \\
-\hline
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}p{0.52\linewidth}ccc@{}}
+\toprule
+Study & \makecell{Varies\\fidelity} & \makecell{Isolates\\loss/topology} & \makecell{Evaluates\\decisions} \\
+\midrule
+Wirtz et al.~\cite{Wirtz2021_complexity}, 24 MILP variants, multi-energy & \checkmark & $\times$ & $\times$ \\
+Kotzur et al.~\cite{Kotzur2021}, complexity-management review & \checkmark & $\times$ & $\times$ \\
+Larsen~\cite{Larsen2004}, Falay~\cite{Falay2020}, network aggregation & \checkmark & $\times$ & $\times$ \\
+van der Heijde et al.~\cite{vanderHeijde2017}, district-heating physics model & $\times$ & $\times$ & $\times$ \\
+Hering et al.~\cite{Hering2021}, district-heating MIQCP dispatch & $\times$ & $\times$ & $\times$ \\
+\textbf{This study} & \checkmark & \checkmark & \checkmark \\
+\bottomrule
 \end{tabular}
-\end{table*}
+\end{table}
