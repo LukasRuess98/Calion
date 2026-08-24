@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex paper_COMPILE"] 1787581300.66286 "paper_COMPILE.aux" "paper_COMPILE.bbl" "paper_COMPILE" 1787581483.44601 0
+["bibtex paper_COMPILE"] 1787581300.66286 "paper_COMPILE.aux" "paper_COMPILE.bbl" "paper_COMPILE" 1787582128.44605 0
   "./paper1_dh_fidelity/Paper20_Literatur.bib" 1787495246 24278 0677f640d020a79c6386d633e7564e08 ""
   "C:/Users/LKR/AppData/Local/Programs/MiKTeX/bibtex/bst/elsarticle/elsarticle-num-names.bst" 1768130249 28896 ef8ea1833e4d69d9f60b6db23b4bea61 ""
-  "paper_COMPILE.aux" 1787581481 39440 c29bc9ea6670eca53f8e52191bc45334 "pdflatex"
+  "paper_COMPILE.aux" 1787582128 2090 8559fb4582ffa112da764ab5391d0d6a "pdflatex"
   (generated)
   "paper_COMPILE.bbl"
   "paper_COMPILE.blg"
   (rewritten before read)
-["pdflatex"] 1787581477.45935 "c:/Users/LKR/Documents/GitHub/Energy_Framwork/Planing-Framework-for-Heat/docs/paper_1/submission_pack/01_latex_build/paper_COMPILE.tex" "paper_COMPILE.pdf" "paper_COMPILE" 1787581483.44737 0
+["pdflatex"] 1787582126.42253 "c:/Users/LKR/Documents/GitHub/Energy_Framwork/Planing-Framework-for-Heat/docs/paper_1/submission_pack/01_latex_build/paper_COMPILE.tex" "paper_COMPILE.pdf" "paper_COMPILE" 1787582128.44693 2
   "C:/Users/LKR/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1787579902 101940 71d24b72f4edaf3c9e3aecf8efa4dca9 ""
   "C:/Users/LKR/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi450/ecss0800.pk" 1786522869 11964 13032a1993f6a86269567ba2870685fc ""
   "C:/Users/LKR/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi525/ecss0800.pk" 1787579242 14032 803c4e8a8bc3cb8cf9d2a4e9e6ed7220 ""
@@ -159,7 +159,7 @@
   "C:/Users/LKR/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/svgnam.def" 1729265222 4705 34614fec2d4cfd7794c82198c9076871 ""
   "C:/Users/LKR/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/xcolor.sty" 1729265222 55384 b454dec21c2d9f45ec0b793f0995b992 ""
   "C:/Users/LKR/AppData/Local/Programs/MiKTeX/tex/latex/xstring/xstring.sty" 1693735632 123 a302f2c651a95033260db60e51527ae8 ""
-  "c:/Users/LKR/Documents/GitHub/Energy_Framwork/Planing-Framework-for-Heat/docs/paper_1/submission_pack/01_latex_build/paper_COMPILE.tex" 1787581476 70393 d0db410bb70f62d2ee593a32c291f846 ""
+  "c:/Users/LKR/Documents/GitHub/Energy_Framwork/Planing-Framework-for-Heat/docs/paper_1/submission_pack/01_latex_build/paper_COMPILE.tex" 1787582121 72435 77729dc4aead5a7d0ee79f80bc28c38c ""
   "cas-common.sty" 1787578736 76622 cac7c82c0ae0adc95c36c1bf102a3325 ""
   "cas-email.jpeg" 1787578800 8764 ae276cc9956197082d008c18ae4cbb28 ""
   "cas-sc.cls" 1787580040 4525 6f4ba487dc6728413e90ab798eaa3ab5 ""
@@ -172,11 +172,11 @@
   "figures/F_tsup.pdf" 1787576504 20078 4c899aebe5375aa3c10b29de64454b92 ""
   "figures/memmingen_network.png" 1787579944 498246 2a6b7d69719f6c7d09473232391fe839 ""
   "figures/validation/mixing_valve_offset.pdf" 1787578673 21746 c7aa68624248d3b95fa0f832ec8bb8a3 ""
-  "paper_COMPILE.abs" 1787581478 1845 af1edae16b82ad7212aa92e83a2772fb "pdflatex"
-  "paper_COMPILE.aux" 1787581481 39440 c29bc9ea6670eca53f8e52191bc45334 "pdflatex"
+  "paper_COMPILE.abs" 1787582127 1845 af1edae16b82ad7212aa92e83a2772fb "pdflatex"
+  "paper_COMPILE.aux" 1787582128 2090 8559fb4582ffa112da764ab5391d0d6a "pdflatex"
   "paper_COMPILE.bbl" 1787581301 23265 b2d942e4ab7e73b31af81f6e31affa1e "bibtex paper_COMPILE"
-  "paper_COMPILE.out" 1787581481 9787 7d66644bd508c7287b8792306d7f7cbd "pdflatex"
-  "paper_COMPILE.tex" 1787581476 70393 d0db410bb70f62d2ee593a32c291f846 ""
+  "paper_COMPILE.out" 1787582128 342 fc04595b2aa76ac6b0ba3a1ec5e10156 "pdflatex"
+  "paper_COMPILE.tex" 1787582121 72435 77729dc4aead5a7d0ee79f80bc28c38c ""
   "sections/appendices_cited_v2.tex" 1787578151 6119 53327379e49394c578e290cd4d16b2fc ""
   "sections/appendices_optional_v2.tex" 1787495246 7954 ad3e4f0ab476a7644b83d463b5d45855 ""
   "sections/back_matter_v2.tex" 1787577928 2973 286ad517665fd864ccf994a4a50f9bbf ""
@@ -195,6 +195,7 @@
   "sections/validation_protocol_v2.tex" 1787495246 3158 3d86fffaeacce4c44066c1e24b69db3a ""
   "sections/validation_results_v2.tex" 1787566741 7891 8e094391b43430e0359def8194f2a945 ""
   "sections/zone_clustering_v2.tex" 1787577928 5716 93b96a946074832a4b3695f0d742e096 ""
+  "tabels/tab_contrasts.tex" 0 -1 0 ""
   "tables/tab_case_summary.tex" 1787576691 821 422d1495bbc5f3369aba47b4eb2c87d2 ""
   "tables/tab_computation.tex" 1787576691 852 a09a3d7295565e39ee71de7f829df587 ""
   "tables/tab_criteria.tex" 1787576772 891 4abb46e63d4f1326f8af03bf3daf65a1 ""
