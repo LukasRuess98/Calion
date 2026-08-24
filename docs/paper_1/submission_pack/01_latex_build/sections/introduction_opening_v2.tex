@@ -29,8 +29,8 @@ graph; and the physical phenomena admitted, from a lossless energy balance to a 
 pressure-coupled hydraulics, temperature propagation and transport delay.
 
 The two extremes are well populated. Copperplate models aggregate all components and
-demands onto a single bus, ignoring spatial structure and thermal losses entirely, a
-limitation their authors acknowledge: \citet{Wirtz2020} note that ``the
+demands onto a single bus, ignoring spatial structure and thermal losses entirely --
+a limitation their authors acknowledge explicitly: \citet{Wirtz2020} note that ``the
 validity of the global energy balance assumption depends on the network topology, size and
 the operation strategy'', without quantifying the resulting error. Full thermo-hydraulic
 models resolve the network pipe by pipe and capture the thermal losses that amount to
@@ -56,4 +56,4 @@ below shows, it matters as the mechanism by which a model computes its thermal l
 not as a representation of routing. Once the losses are supplied by other means, the
 spatial structure itself is worth almost nothing in dispatch cost. The distinction is
 invisible to any comparison that changes both at once, which is the first of the two
-limitations this study addresses.
+limitations we address.

@@ -18,11 +18,11 @@ activates and in nothing else, and a level with a phenomenon disabled reproduces
 below it to the cent. Solves use Gurobi~13.0 with identical random seeds on a 66-core,
 180\,GB machine, with \texttt{NonConvex=2} where a quadratic formulation is involved.
 
-The optimality tolerance is tight, and the reason is a result in itself. The decomposition
-terms are small relative to the total cost (the topology main effect is $961$\,EUR against a
-$136$\,kEUR baseline), so at a loose $0.5$\,\% tolerance both the topology and the interaction
-term would sit inside solver noise, the interaction even carrying the opposite sign to its
-converged value. All
+Optimality tolerances are tighter than in the original submission, and the reason is a
+result in itself. The decomposition terms are small relative to the total cost (the
+topology main effect is $961$\,EUR against a $136$\,kEUR baseline), so at the $0.5$\,\%
+tolerance the original solves used, both the topology and the interaction term sat inside
+solver noise, and the interaction carried the opposite sign to its converged value. All
 linear levels are therefore solved to a $0.01$\,\% gap with \texttt{MIPFocus=2}, and every
 network of the synthetic factorial to $0.1$\,\% or better, so that each reported term sits
 well above the attained gap. Achieved gaps are reported alongside the results rather than

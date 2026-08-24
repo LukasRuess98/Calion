@@ -1,0 +1,130 @@
+%% ============================================================
+%% RELATED WORK -- v2 merge, drop-in replacement for the
+%% <<KEEP:rw-milp-topology>> <<KEEP:rw-thermohydraulic>> <<KEEP:rw-positioning>>
+%% markers under \subsection{Related work} in the Introduction.
+%%
+%% Sources: v1 lines 317-500, remapped to the v2 taxonomy (v1 L1 = \CP,
+%% v1 L3 = \Lone -- see LEVEL_CROSSWALK_v1_to_v2.md) and re-argued toward the
+%% TWO gaps this revision claims (loss-vs-topology confound; decisions vs
+%% objective values) rather than v1's single "topology vs physics" gap.
+%%
+%% Editor compliance: every lumped \cite{a,b,c} from v1 reduced to the single
+%% most relevant reference. v1 lumps removed: {Fang2016,Guelpa2019review},
+%% {Connolly2014,Brown2018,Lund2017}, {Wirtz2020,Mertz2016,Buffa2019},
+%% {Vesterlund2017,Schweiger2017,vanderHeijde2017,Blommaert2020},
+%% {Wirtz2020,Buffa2019}, {Schweiger2017_p2h,Averfalk2017,David2017},
+%% {Bordin2016,Mertz2016}, {vanderHeijde2017,Giraud2015}.
+%%
+%% ONE OPEN ITEM flagged inline: %% <<CITE-NEEDED:vss>>
+%% ============================================================
+
+Two strands of the district-heating literature bear on this paper: how finely a
+dispatch model resolves the network, and how finely it resolves the network's physics.
+Neither strand has been evaluated by the quantity that matters for a scheduling model:
+the cost of the decisions it produces.
+
+Mixed-integer linear programming is the dominant methodology for operational
+optimisation of district-heating systems~\cite{Fang2016}. The general-purpose
+frameworks in which such studies are usually built (oemof~\cite{Hilpert2018_oemof},
+PyPSA~\cite{Brown2018_pypsa}, FINE~\cite{Welder2018_FINE},
+Calliope~\cite{Pfenninger2018_calliope} and urbs~\cite{Dorfner2016_urbs})
+represent the thermal network, in their default configuration, at what this paper calls
+the copperplate level $\CP$: thermal losses time-invariant or absent, no hydraulic
+coupling, and topology either fully aggregated or fixed at a single level of detail.
+None of them quantifies what that simplification costs.
+
+Between the copperplate and the full graph lies a continuous spectrum of spatial
+aggregation. \citet{Larsen2004} compare aggregation methods on a 23-substation network
+and show that pipe count can be reduced by roughly an order of magnitude before
+production and return-temperature errors become significant; \citet{Falay2020} carry the
+approach to dynamic simulation of several thousand substations. Both establish
+\emph{which} aggregations preserve simulation fidelity, and neither quantifies the
+resulting bias in dispatch-optimisation cost. Zone-based models aggregate demand into a
+handful of geographic clusters~\cite{Wirtz2020}, an approach \citet{Buenning2020} report
+to capture 85--95\,\% of dynamic temperature variation, while full-graph models resolve
+the network node by node from GIS data~\cite{vanderHeijde2017} and remain tractable to
+roughly a hundred nodes over hourly annual horizons~\cite{Giraud2015}. Single-node
+representations remain standard in national-scale
+analysis~\cite{Connolly2014_EnergyPLAN}, and \citet{Gabrielli2018} likewise reduce the
+thermal network of a distributed multi-energy system to a single aggregate efficiency.
+
+Where the spectrum has been traversed deliberately, the comparison has been confounded.
+\citet{Leitner2019} compare copperplate and full-graph representations of an Austrian
+network and report cost differences of 3--8\,\%, but the two representations differ in
+their treatment of thermal losses as well as in their topology, so the difference cannot
+be attributed to either. The confound is structural rather than incidental: moving from a
+lumped to a resolved network introduces pipe losses at the same time as spatial
+structure, so the objection that a coarse model ``misses losses'' is empirically
+indistinguishable from ``misses topology''. Recent full-graph studies do not resolve it,
+because they do not vary resolution at all: \citet{Trentmann2026} embed full-graph
+network expansion in an energy-hub MILP with temporally resolved heat-pump performance,
+\citet{Ceruti2025} formulate a full-graph design MILP with storage and conclude that
+temporal rather than spatial resolution dominates design quality, and
+\citet{Vieth2026} treat expansion planning of existing full-graph networks under
+resilience constraints. Each resolves the network fully throughout, so the aggregated
+comparison studied here lies outside their scope.
+
+Beyond topology, pipe models differ substantially in thermo-hydraulic fidelity.
+Steady-state thermal losses follow from the fluid--ground temperature difference and the
+pipe insulation, and are MILP-compatible whenever temperatures enter as fixed
+parameters~\cite{Frederiksen2013}. Pressure drop is not: the Darcy--Weisbach relation is
+quadratic in flow velocity and pumping power adds a cubic term, handled in the literature
+either by piecewise linearisation~\cite{Bordin2016} or by second-order cone
+relaxation~\cite{Blommaert2020}; \citet{Hari2024} integrate Darcy--Weisbach pressure drop
+with explicit pump placement in a general thermal network flow framework. Reported pumping
+costs span 1--5\,\% of thermal energy cost~\cite{Frederiksen2013}. This paper returns to
+that range, since the network studied here falls two orders of magnitude below it for
+reasons that are physical rather than numerical. Temperature propagation along a pipe
+introduces exponential and bilinear terms~\cite{vanderHeijde2017}, validated by
+\citet{Maldonado2024} against industrial data to a supply-temperature mean absolute error
+below 0.5\,K, and transport delays of one to three hours arise in long
+pipes~\cite{Giraud2015}. MIQCP formulations occupy a middle ground~\cite{Ommen2016}:
+quadratic constraints are handled natively while integer variables retain
+unit-commitment logic. \citet{Hering2021} demonstrate the approach for design and
+dispatch with multiple heat pumps at the scale of tens of consumers, but report no
+reference comparison isolating the cost of the piecewise-linear approximation against the
+native quadratic formulation. The magnitude of that linearisation error in a
+district-heating dispatch setting has not been published.
+
+Both limitations identified in Section~\ref{sec:introduction} are visible in
+Table~\ref{tab:priorwork}. On the first, no prior study separates the effect of
+representing thermal losses from the effect of representing spatial structure, so
+the two are never independently priced. On the second, the closest prior work
+approaches decision-oriented evaluation without closing it: Quaggiotto
+et al.~\cite{quaggiotto2021} report for the Verona network that simplifying thermal
+behaviour in a dispatch optimisation underestimates operational cost relative to a
+model-predictive controller using a detailed network model, and Jansen
+et al.~\cite{jansen2024} confirm the direction with a mixed-integer nonlinear MPC on
+a Belgian network, but neither separates topology from thermo-hydraulic fidelity nor
+expresses the gap as a function of observable network properties. Wirtz
+et al.~\cite{Wirtz2021_complexity} vary the level of detail across 24 MILP formulations of a
+multi-energy system and identify which simplifications are cost-relevant, the
+controlled-comparison logic this paper adopts, but their complexity axis spans
+technology and part-load representation rather than network topology and
+thermo-hydraulics, and the building-scale system they study does not resolve
+pipe-by-pipe structure. Kotzur et al.~\cite{kotzur2021} review complexity management
+for energy-system optimisation more broadly and observe that, while temporal
+aggregation is well studied, spatial aggregation ``has only a small community'' and
+lacks systematic guidance.
+
+A separate literature quantifies the dispatch value of the generation technologies
+studied here while leaving the network lumped. \citet{Mollenhauer2018} formulate hourly
+annual unit commitment for German CHP plants retrofitted with heat pumps and thermal
+storage (methodologically close to the dispatch model used here, but representing the
+network as a single aggregated demand node), and \citet{Walden2023} optimise an
+industrial power-to-heat system with an accurate nonlinear component model and no network
+representation at all. \citet{Nielsen2016} show for the Danish market that deterministic
+dispatch systematically overestimates the economic value of heat-pump and electric-boiler
+flexibility relative to stochastic formulations. \citet{Riedl2026} propose a flexibility
+assessment framework for district heating and cooling that incorporates network-side
+constraints alongside generation-side flexibility, though the published case studies do
+not yet vary spatial resolution as an experimental factor. None of this work treats
+network representation as a factor, so the interaction between topology and technology
+value remains open.
+
+This paper addresses both gaps directly: a control condition that separates loss
+visibility from spatial resolution, and a decision-regret metric that separates
+estimation error from decision quality. The second is not a new idea in optimisation:
+it is the value of the stochastic solution~\citep{BirgeLouveaux2011}, transposed from the
+uncertainty axis to the resolution axis. The contribution is the transposition and the
+empirical finding rather than the concept.

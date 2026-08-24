@@ -1,0 +1,27 @@
+% static: full phenomenon x level scope grid (methodology)
+\begin{table}[htbp]
+\centering
+\caption{Model scope grid: which phenomenon each fidelity level represents, and in what form.}
+\label{tab:designgrid}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccccccccccc@{}}
+\hline
+Phenomenon & $\CP$ & $\CPL$ & $\ZN$ & $\NDz$ & $\Lone$ & $\Ltwo$ & $\Lthree$ & $\Lfour$ & $\Lfive$ & $\Lsix$ & NL \\
+\hline
+Demand aggregation & 1pt & 1pt & zones & nodes & nodes & nodes & nodes & stat. & stat. & stat. & stat. \\
+Station representation & A & A & A & A & A & A & A & \checkmark & \checkmark & \checkmark & \checkmark \\
+Trunk losses ($U\!L\Delta T$, defensible $U$) & -- & exo & \checkmark & -- & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Service-lateral losses & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & \checkmark & \checkmark \\
+Temperature propagation & -- & -- & -- & -- & -- & PWL & PWL & PWL & PWL & PWL & Bil \\
+Time-varying COP & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Storage losses \& $\eta$ & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Trunk pressure drop (DW) & -- & -- & -- & -- & -- & -- & PWL & PWL & PWL & PWL & Quad \\
+Trunk pumping power & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Station $\Delta p$ requirement & -- & -- & -- & -- & -- & -- & flat & flat & dyn. & dyn. & dyn. \\
+Station \& lateral pumping & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & \checkmark & \checkmark \\
+Transport delay & -- & -- & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark \\
+Hourly grid emission factors & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+\hline
+\end{tabular}
+\end{table}

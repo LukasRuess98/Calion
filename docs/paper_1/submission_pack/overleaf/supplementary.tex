@@ -1,0 +1,51 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{threeparttable}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage[margin=2.5cm]{geometry}
+
+%% Level/condition name macros, mirrored from the main manuscript so the shared
+%% table files typeset identically here.
+\newcommand{\CP}{\ensuremath{\mathrm{CP}}}
+\newcommand{\CPL}{\ensuremath{\mathrm{CP{+}L}}}
+\newcommand{\ZN}{\ensuremath{\mathrm{ZN}}}
+\newcommand{\NDz}{\ensuremath{\mathrm{ND^{0}}}}
+\newcommand{\Lone}{\ensuremath{\mathrm{L1}}}
+\newcommand{\Ltwo}{\ensuremath{\mathrm{L2}}}
+\newcommand{\Lthree}{\ensuremath{\mathrm{L3}}}
+\newcommand{\Lfour}{\ensuremath{\mathrm{L4}}}
+\newcommand{\Lfive}{\ensuremath{\mathrm{L5}}}
+\newcommand{\Lsix}{\ensuremath{\mathrm{L6}}}
+\newcommand{\NLref}{\ensuremath{\mathrm{NL}}}
+\providecommand{\degree}{\ensuremath{^\circ}}
+
+%% Supplementary numbering: tables become S1, S2, ...
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\title{Supplementary Material\\[2pt]
+  \large Estimation Bias versus Decision Regret in District-Heating Dispatch Optimisation}
+\author{Lukas Ruess \and Alexander Sauer}
+\date{}
+
+\begin{document}
+\maketitle
+
+This Supplementary Material collects supporting tables referenced in the main manuscript.
+Table and figure numbers are prefixed with ``S''. All values are reproduced unchanged from
+the analysis pipeline described in the main text; the data behind each table are released
+with the manuscript.
+
+\input{tab_contrasts}
+\input{tab_objdecomp}
+\input{tab_hydraulics}
+\input{tab_gap_stability}
+\input{tab_robustness}
+\input{tab_prediction}
+
+\end{document}

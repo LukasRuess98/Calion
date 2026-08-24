@@ -1,0 +1,40 @@
+%% ============================================================
+%% COMPUTATIONAL SETUP -- split 3 of 3.
+%% Drop-in for <<KEEP:implementation>>.
+%% Insert BEFORE the existing drafted bound-reporting paragraph ("Every comparison that
+%% involves a nonlinear or mixed-integer quadratic formulation is reported with a rigorous
+%% optimality bound..."), which this file deliberately does not duplicate.
+%% Source: v1 lines 1206-1225, updated to the current lineage.
+%%
+%% Covers the revision brief's reproducibility checklist: solver, version, hardware,
+%% tolerances, focus setting, seeds, instance counts, and what is solved vs evaluated.
+%% ============================================================
+
+All levels are implemented in Python with Pyomo~\cite{pyomo}, instantiated from a single
+parameterised codebase through YAML configuration files, so that a fidelity level is a
+configuration of one model rather than a separate model. This is what makes the
+one-phenomenon-per-step contrasts exact: two levels differ in the terms their configuration
+activates and in nothing else, and a level with a phenomenon disabled reproduces the level
+below it to the cent. Solves use Gurobi~13.0 with identical random seeds on a 66-core,
+180\,GB machine, with \texttt{NonConvex=2} where a quadratic formulation is involved.
+
+Optimality tolerances are tighter than in the original submission, and the reason is a
+result in itself. The decomposition terms are small relative to the total cost -- the
+topology main effect is $961$\,EUR against a $136$\,kEUR baseline -- so at the $0.5$\,\%
+tolerance the original solves used, both the topology and the interaction term sat inside
+solver noise, and the interaction carried the opposite sign to its converged value. All
+linear levels are therefore solved to a $0.01$\,\% gap with \texttt{MIPFocus=2}, and every
+network of the synthetic factorial to $0.1$\,\% or better, so that each reported term sits
+well above the attained gap. Achieved gaps are reported alongside the results rather than
+assumed from the tolerance.
+
+Not every level is solved as a dispatch problem, and the distinction is stated wherever the
+levels are used. The station-resolved levels $\Lfour$ and $\Lfive$ are evaluated by the
+validated forward pressure-study module: their station code post-dates the baseline
+worktree, and porting it would risk the byte-identical reproduction of the lower levels on
+which the exact decomposition depends. Forward evaluation upper-bounds their regret, so the
+null they establish is rigorous rather than assumed. Temperature propagation ($\Ltwo$) is
+handled the same way for the degeneracy reason given in
+Section~\ref{sec:extended}. The instance count is 135 synthetic networks plus the
+Memmingen case, each solved through the four decomposition configurations, together with
+the ladder levels solved on Memmingen.

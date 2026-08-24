@@ -1,0 +1,420 @@
+\begin{thebibliography}{41}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\href}[2]{#2}
+\providecommand{\path}[1]{#1}
+\providecommand{\DOIprefix}{doi:}
+\providecommand{\ArXivprefix}{arXiv:}
+\providecommand{\URLprefix}{URL: }
+\providecommand{\Pubmedprefix}{pmid:}
+\providecommand{\doi}[1]{\href{http://dx.doi.org/#1}{\path{#1}}}
+\providecommand{\Pubmed}[1]{\href{pmid:#1}{\path{#1}}}
+\providecommand{\bibinfo}[2]{#2}
+\ifx\xfnm\relax \def\xfnm[#1]{\unskip,\space#1}\fi
+%Type = Article
+\bibitem[{Lund et~al.(2014)Lund, Werner, Wiltshire, Svendsen, Thorsen,
+  Hvelplund, and Mathiesen}]{Lund2014_4GDH}
+\bibinfo{author}{H.~Lund}, \bibinfo{author}{S.~Werner},
+  \bibinfo{author}{R.~Wiltshire}, \bibinfo{author}{S.~Svendsen},
+  \bibinfo{author}{J.~E. Thorsen}, \bibinfo{author}{F.~Hvelplund},
+  \bibinfo{author}{B.~V. Mathiesen},
+\newblock \bibinfo{title}{{4th} generation district heating ({4GDH}):
+  Integrating smart thermal grids into future sustainable energy systems},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{68} (\bibinfo{year}{2014})
+  \bibinfo{pages}{1--11}. \DOIprefix\doi{10.1016/j.energy.2014.02.089}.
+%Type = Article
+\bibitem[{Perea-Moreno et~al.(2026)Perea-Moreno, Mu\~{n}oz Rodr\'{i}guez,
+  Hernandez-Escobedo, Salmer\'{o}n-Manzano, and
+  Manzano-Agugliaro}]{PereaMoreno2026}
+\bibinfo{author}{A.-J. Perea-Moreno}, \bibinfo{author}{D.~Mu\~{n}oz
+  Rodr\'{i}guez}, \bibinfo{author}{Q.~Hernandez-Escobedo},
+  \bibinfo{author}{E.~Salmer\'{o}n-Manzano},
+  \bibinfo{author}{F.~Manzano-Agugliaro},
+\newblock \bibinfo{title}{Worldwide scientific landscape on district heating
+  systems},
+\newblock \bibinfo{journal}{Energy Efficiency} \bibinfo{volume}{19}
+  (\bibinfo{year}{2026}) \bibinfo{pages}{19}.
+  \DOIprefix\doi{10.1007/s12053-026-10419-4}.
+%Type = Article
+\bibitem[{Wirtz et~al.(2020)Wirtz, Kivilip, Remmen, and M\"{u}ller}]{Wirtz2020}
+\bibinfo{author}{M.~Wirtz}, \bibinfo{author}{L.~Kivilip},
+  \bibinfo{author}{P.~Remmen}, \bibinfo{author}{D.~M\"{u}ller},
+\newblock \bibinfo{title}{{5th} generation district heating: A novel design
+  approach based on mathematical optimization},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{260}
+  (\bibinfo{year}{2020}) \bibinfo{pages}{114158}.
+  \DOIprefix\doi{10.1016/j.apenergy.2019.114158}.
+%Type = Book
+\bibitem[{Frederiksen and Werner(2013)}]{Frederiksen2013}
+\bibinfo{author}{S.~Frederiksen}, \bibinfo{author}{S.~Werner},
+  \bibinfo{title}{District Heating and Cooling}, \bibinfo{edition}{1st} ed.,
+  \bibinfo{publisher}{Studentlitteratur}, \bibinfo{address}{Lund, Sweden},
+  \bibinfo{year}{2013}.
+%Type = Article
+\bibitem[{Frysztacki et~al.(2021)Frysztacki, H\"{o}rsch, Hagenmeyer, and
+  Brown}]{Frysztacki2021}
+\bibinfo{author}{M.~M. Frysztacki}, \bibinfo{author}{J.~H\"{o}rsch},
+  \bibinfo{author}{V.~Hagenmeyer}, \bibinfo{author}{T.~Brown},
+\newblock \bibinfo{title}{The strong effect of network resolution on
+  electricity system models with high shares of wind and solar},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{291}
+  (\bibinfo{year}{2021}) \bibinfo{pages}{116726}.
+  \DOIprefix\doi{10.1016/j.apenergy.2021.116726}.
+%Type = Article
+\bibitem[{Fang and Lahdelma(2016)}]{Fang2016}
+\bibinfo{author}{T.~Fang}, \bibinfo{author}{R.~Lahdelma},
+\newblock \bibinfo{title}{Optimization of combined heat and power production
+  with heat storage based on sliding time window method},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{162}
+  (\bibinfo{year}{2016}) \bibinfo{pages}{723--732}.
+  \DOIprefix\doi{10.1016/j.apenergy.2015.10.135}.
+%Type = Article
+\bibitem[{Hilpert et~al.(2018)Hilpert, Kaldemeyer, Krien, G\"{u}nther,
+  Wingenbach, and Ple{\ss}mann}]{Hilpert2018_oemof}
+\bibinfo{author}{S.~Hilpert}, \bibinfo{author}{C.~Kaldemeyer},
+  \bibinfo{author}{U.~Krien}, \bibinfo{author}{S.~G\"{u}nther},
+  \bibinfo{author}{C.~Wingenbach}, \bibinfo{author}{G.~Ple{\ss}mann},
+\newblock \bibinfo{title}{The {Open Energy Modelling Framework (oemof)} -- a
+  new approach to facilitate open science in energy system modelling},
+\newblock \bibinfo{journal}{Energy Strategy Reviews} \bibinfo{volume}{22}
+  (\bibinfo{year}{2018}) \bibinfo{pages}{16--25}.
+  \DOIprefix\doi{10.1016/j.esr.2018.07.001}.
+%Type = Article
+\bibitem[{Brown et~al.(2018)Brown, H\"{o}rsch, and
+  Schlachtberger}]{Brown2018_pypsa}
+\bibinfo{author}{T.~Brown}, \bibinfo{author}{J.~H\"{o}rsch},
+  \bibinfo{author}{D.~Schlachtberger},
+\newblock \bibinfo{title}{{PyPSA}: {Python} for power system analysis},
+\newblock \bibinfo{journal}{Journal of Open Research Software}
+  \bibinfo{volume}{6} (\bibinfo{year}{2018}) \bibinfo{pages}{4}.
+  \DOIprefix\doi{10.5334/jors.188}.
+%Type = Article
+\bibitem[{Welder et~al.(2018)Welder, Ryberg, Kotzur, Grube, Robinius, and
+  Stolten}]{Welder2018_FINE}
+\bibinfo{author}{L.~Welder}, \bibinfo{author}{D.~S. Ryberg},
+  \bibinfo{author}{L.~Kotzur}, \bibinfo{author}{T.~Grube},
+  \bibinfo{author}{M.~Robinius}, \bibinfo{author}{D.~Stolten},
+\newblock \bibinfo{title}{Spatio-temporal optimization of a future energy
+  system for power-to-hydrogen applications in {Germany}},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{158}
+  (\bibinfo{year}{2018}) \bibinfo{pages}{1130--1149}.
+  \DOIprefix\doi{10.1016/j.energy.2018.05.059}.
+%Type = Article
+\bibitem[{Pfenninger and Pickering(2018)}]{Pfenninger2018_calliope}
+\bibinfo{author}{S.~Pfenninger}, \bibinfo{author}{B.~Pickering},
+\newblock \bibinfo{title}{{Calliope}: A multi-scale energy systems modelling
+  framework},
+\newblock \bibinfo{journal}{Journal of Open Source Software}
+  \bibinfo{volume}{3} (\bibinfo{year}{2018}) \bibinfo{pages}{825}.
+  \DOIprefix\doi{10.21105/joss.00825}.
+%Type = Misc
+\bibitem[{{TUM-ENS} and Dorfner(2016)}]{Dorfner2016_urbs}
+\bibinfo{author}{{TUM-ENS}}, \bibinfo{author}{J.~Dorfner},
+  \bibinfo{title}{{urbs}: A linear optimisation model for distributed energy
+  systems}, \bibinfo{howpublished}{Software, GitHub repository},
+  \bibinfo{year}{2016}. \URLprefix \url{https://github.com/tum-ens/urbs}.
+%Type = Article
+\bibitem[{Larsen et~al.(2004)Larsen, B{\o}hm, and Wigbels}]{Larsen2004}
+\bibinfo{author}{H.~V. Larsen}, \bibinfo{author}{B.~B{\o}hm},
+  \bibinfo{author}{M.~Wigbels},
+\newblock \bibinfo{title}{A comparison of aggregated models for simulation and
+  operational optimisation of district heating networks},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{45} (\bibinfo{year}{2004}) \bibinfo{pages}{1119--1139}.
+  \DOIprefix\doi{10.1016/j.enconman.2003.08.006}.
+%Type = Article
+\bibitem[{Falay et~al.(2020)Falay, Schweiger, O'Donovan, and
+  Leusbrock}]{Falay2020}
+\bibinfo{author}{B.~Falay}, \bibinfo{author}{G.~Schweiger},
+  \bibinfo{author}{K.~O'Donovan}, \bibinfo{author}{I.~Leusbrock},
+\newblock \bibinfo{title}{Enabling large-scale dynamic simulations and reducing
+  model complexity of district heating and cooling systems by aggregation},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{209}
+  (\bibinfo{year}{2020}) \bibinfo{pages}{118410}.
+  \DOIprefix\doi{10.1016/j.energy.2020.118410}.
+%Type = Article
+\bibitem[{B\"{u}nning et~al.(2018)B\"{u}nning, Wetter, Fuchs, and
+  M\"{u}ller}]{Buenning2020}
+\bibinfo{author}{F.~B\"{u}nning}, \bibinfo{author}{M.~Wetter},
+  \bibinfo{author}{M.~Fuchs}, \bibinfo{author}{D.~M\"{u}ller},
+\newblock \bibinfo{title}{Bidirectional low temperature district energy systems
+  with agent-based control: Performance comparison and operation optimization},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{209}
+  (\bibinfo{year}{2018}) \bibinfo{pages}{502--515}.
+  \DOIprefix\doi{10.1016/j.apenergy.2017.10.072}.
+%Type = Article
+\bibitem[{van~der Heijde et~al.(2017)van~der Heijde, Fuchs, Ribas~Tugores,
+  Schweiger, Sartor, Basciotti, M\"{u}ller, and
+  Nytsch-Geusen}]{vanderHeijde2017}
+\bibinfo{author}{B.~van~der Heijde}, \bibinfo{author}{M.~Fuchs},
+  \bibinfo{author}{C.~Ribas~Tugores}, \bibinfo{author}{G.~Schweiger},
+  \bibinfo{author}{K.~Sartor}, \bibinfo{author}{D.~Basciotti},
+  \bibinfo{author}{D.~M\"{u}ller}, \bibinfo{author}{C.~Nytsch-Geusen},
+\newblock \bibinfo{title}{Dynamic equation-based thermo-hydraulic pipe model
+  for district heating and cooling systems},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{151} (\bibinfo{year}{2017}) \bibinfo{pages}{158--169}.
+  \DOIprefix\doi{10.1016/j.enconman.2017.08.072}.
+%Type = Inproceedings
+\bibitem[{Giraud et~al.(2015)Giraud, Bavi\`{e}re, Vall\'{e}e, and
+  Paulus}]{Giraud2015}
+\bibinfo{author}{L.~Giraud}, \bibinfo{author}{R.~Bavi\`{e}re},
+  \bibinfo{author}{M.~Vall\'{e}e}, \bibinfo{author}{C.~Paulus},
+\newblock \bibinfo{title}{Presentation, validation and application of the
+  {DistrictHeating} {Modelica} library},
+\newblock in: \bibinfo{booktitle}{Proceedings of the 11th International
+  {Modelica} Conference}, \bibinfo{address}{Versailles, France},
+  \bibinfo{year}{2015}, pp. \bibinfo{pages}{79--88}.
+  \DOIprefix\doi{10.3384/ecp1511879}.
+%Type = Article
+\bibitem[{Connolly et~al.(2016)Connolly, Lund, and
+  Mathiesen}]{Connolly2014_EnergyPLAN}
+\bibinfo{author}{D.~Connolly}, \bibinfo{author}{H.~Lund},
+  \bibinfo{author}{B.~V. Mathiesen},
+\newblock \bibinfo{title}{Smart {Energy Europe}: The technical and economic
+  impact of one potential 100\,\% renewable energy scenario for the {European
+  Union}},
+\newblock \bibinfo{journal}{Renewable and Sustainable Energy Reviews}
+  \bibinfo{volume}{60} (\bibinfo{year}{2016}) \bibinfo{pages}{1634--1653}.
+  \DOIprefix\doi{10.1016/j.rser.2016.02.025}.
+%Type = Article
+\bibitem[{Gabrielli et~al.(2018)Gabrielli, Gazzani, Martelli, and
+  Mazzotti}]{Gabrielli2018}
+\bibinfo{author}{P.~Gabrielli}, \bibinfo{author}{M.~Gazzani},
+  \bibinfo{author}{E.~Martelli}, \bibinfo{author}{M.~Mazzotti},
+\newblock \bibinfo{title}{Optimal design of multi-energy systems with seasonal
+  storage},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{219}
+  (\bibinfo{year}{2018}) \bibinfo{pages}{408--424}.
+  \DOIprefix\doi{10.1016/j.apenergy.2017.07.142}.
+%Type = Article
+\bibitem[{Leitner et~al.(2019)Leitner, Widl, Gawlik, and Hofmann}]{Leitner2019}
+\bibinfo{author}{B.~Leitner}, \bibinfo{author}{E.~Widl},
+  \bibinfo{author}{W.~Gawlik}, \bibinfo{author}{R.~Hofmann},
+\newblock \bibinfo{title}{A method for technical assessment of power-to-heat
+  use cases to couple local district heating and electrical distribution
+  grids},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{182}
+  (\bibinfo{year}{2019}) \bibinfo{pages}{729--738}.
+  \DOIprefix\doi{10.1016/j.energy.2019.06.016}.
+%Type = Article
+\bibitem[{Trentmann et~al.(2026)Trentmann, Ceruti, Schweiger, and
+  Spliethoff}]{Trentmann2026}
+\bibinfo{author}{L.~Trentmann}, \bibinfo{author}{A.~Ceruti},
+  \bibinfo{author}{B.~Schweiger}, \bibinfo{author}{H.~Spliethoff},
+\newblock \bibinfo{title}{What district heating share is optimal for a
+  municipality? a holistic approach including supply temperatures},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{357} (\bibinfo{year}{2026}) \bibinfo{pages}{121434}.
+  \DOIprefix\doi{10.1016/j.enconman.2026.121434}.
+%Type = Article
+\bibitem[{Ceruti et~al.(2025)Ceruti, Lambert, and Spliethoff}]{Ceruti2025}
+\bibinfo{author}{A.~Ceruti}, \bibinfo{author}{J.~Lambert},
+  \bibinfo{author}{H.~Spliethoff},
+\newblock \bibinfo{title}{Integrating renewable energy and thermal storage in
+  district heating networks: A design optimization approach},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{345} (\bibinfo{year}{2025}) \bibinfo{pages}{120323}.
+  \DOIprefix\doi{10.1016/j.enconman.2025.120323}.
+%Type = Article
+\bibitem[{Vieth et~al.(2026)Vieth, Westphal, and Speerforck}]{Vieth2026}
+\bibinfo{author}{J.~Vieth}, \bibinfo{author}{J.~Westphal},
+  \bibinfo{author}{A.~Speerforck},
+\newblock \bibinfo{title}{Optimal district heating network expansion planning
+  with resilience considerations},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{358}
+  (\bibinfo{year}{2026}) \bibinfo{pages}{141350}.
+  \DOIprefix\doi{10.1016/j.energy.2026.141350}.
+%Type = Article
+\bibitem[{Bordin et~al.(2016)Bordin, Gordini, and Vigo}]{Bordin2016}
+\bibinfo{author}{C.~Bordin}, \bibinfo{author}{A.~Gordini},
+  \bibinfo{author}{D.~Vigo},
+\newblock \bibinfo{title}{An optimization approach for district heating
+  strategic network design},
+\newblock \bibinfo{journal}{European Journal of Operational Research}
+  \bibinfo{volume}{252} (\bibinfo{year}{2016}) \bibinfo{pages}{296--307}.
+  \DOIprefix\doi{10.1016/j.ejor.2015.12.049}.
+%Type = Article
+\bibitem[{Blommaert et~al.(2020)Blommaert, Wack, and Baelmans}]{Blommaert2020}
+\bibinfo{author}{M.~Blommaert}, \bibinfo{author}{Y.~Wack},
+  \bibinfo{author}{M.~Baelmans},
+\newblock \bibinfo{title}{An adjoint optimization approach for the topological
+  design of large-scale district heating networks based on nonlinear models},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{280}
+  (\bibinfo{year}{2020}) \bibinfo{pages}{116025}.
+  \DOIprefix\doi{10.1016/j.apenergy.2020.116025}.
+%Type = Article
+\bibitem[{Hari et~al.(2025)Hari, Zlotnik, Srinivasan, Sundar, and
+  Ewers}]{Hari2024}
+\bibinfo{author}{S.~K.~K. Hari}, \bibinfo{author}{A.~Zlotnik},
+  \bibinfo{author}{S.~Srinivasan}, \bibinfo{author}{K.~Sundar},
+  \bibinfo{author}{M.~Ewers},
+\newblock \bibinfo{title}{Optimization of district heating network parameters
+  in steady-state operation},
+\newblock \bibinfo{journal}{Journal of Thermal Science and Engineering
+  Applications} \bibinfo{volume}{17} (\bibinfo{year}{2025})
+  \bibinfo{pages}{011001}. \DOIprefix\doi{10.1115/1.4066908}.
+%Type = Article
+\bibitem[{Maldonado et~al.(2024)Maldonado, Sch\"{o}nfeldt, Torio, Witte, and
+  F\"{u}ting}]{Maldonado2024}
+\bibinfo{author}{D.~Maldonado}, \bibinfo{author}{P.~Sch\"{o}nfeldt},
+  \bibinfo{author}{H.~Torio}, \bibinfo{author}{F.~Witte},
+  \bibinfo{author}{M.~F\"{u}ting},
+\newblock \bibinfo{title}{Validation of a calibrated steady-state heat network
+  model using measured data},
+\newblock \bibinfo{journal}{Applied Thermal Engineering} \bibinfo{volume}{248}
+  (\bibinfo{year}{2024}) \bibinfo{pages}{123267}.
+  \DOIprefix\doi{10.1016/j.applthermaleng.2024.123267}.
+%Type = Article
+\bibitem[{Ommen et~al.(2014)Ommen, Markussen, and Elmegaard}]{Ommen2016}
+\bibinfo{author}{T.~Ommen}, \bibinfo{author}{W.~B. Markussen},
+  \bibinfo{author}{B.~Elmegaard},
+\newblock \bibinfo{title}{Comparison of linear, mixed integer and non-linear
+  programming methods in energy system dispatch modelling},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{74} (\bibinfo{year}{2014})
+  \bibinfo{pages}{109--118}. \DOIprefix\doi{10.1016/j.energy.2014.04.023}.
+%Type = Article
+\bibitem[{Hering et~al.(2021)Hering, Xhonneux, and M\"{u}ller}]{Hering2021}
+\bibinfo{author}{D.~Hering}, \bibinfo{author}{A.~Xhonneux},
+  \bibinfo{author}{D.~M\"{u}ller},
+\newblock \bibinfo{title}{Design optimization of a heating network with
+  multiple heat pumps using mixed integer quadratically constrained
+  programming},
+\newblock \bibinfo{journal}{Energy} \bibinfo{volume}{226}
+  (\bibinfo{year}{2021}) \bibinfo{pages}{120384}.
+  \DOIprefix\doi{10.1016/j.energy.2021.120384}.
+%Type = Article
+\bibitem[{Quaggiotto et~al.(2021)Quaggiotto, Vivian, and
+  Zarrella}]{Quaggiotto2021}
+\bibinfo{author}{D.~Quaggiotto}, \bibinfo{author}{J.~Vivian},
+  \bibinfo{author}{A.~Zarrella},
+\newblock \bibinfo{title}{Management of a district heating network using model
+  predictive control with and without thermal storage},
+\newblock \bibinfo{journal}{Optimization and Engineering} \bibinfo{volume}{22}
+  (\bibinfo{year}{2021}) \bibinfo{pages}{1897--1919}.
+  \DOIprefix\doi{10.1007/s11081-021-09644-w}.
+%Type = Article
+\bibitem[{Jansen et~al.(2024)Jansen, Jorissen, and Helsen}]{Jansen2024}
+\bibinfo{author}{J.~Jansen}, \bibinfo{author}{F.~Jorissen},
+  \bibinfo{author}{L.~Helsen},
+\newblock \bibinfo{title}{Mixed-integer non-linear model predictive control of
+  district heating networks},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{361}
+  (\bibinfo{year}{2024}) \bibinfo{pages}{122874}.
+  \DOIprefix\doi{10.1016/j.apenergy.2024.122874}.
+%Type = Article
+\bibitem[{Wirtz et~al.(2021)Wirtz, Hahn, Schreiber, and
+  M\"{u}ller}]{Wirtz2021_complexity}
+\bibinfo{author}{M.~Wirtz}, \bibinfo{author}{M.~Hahn},
+  \bibinfo{author}{T.~Schreiber}, \bibinfo{author}{D.~M\"{u}ller},
+\newblock \bibinfo{title}{Design optimization of multi-energy systems using
+  mixed-integer linear programming: Which model complexity and level of detail
+  is sufficient?},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{240} (\bibinfo{year}{2021}) \bibinfo{pages}{114249}.
+  \DOIprefix\doi{10.1016/j.enconman.2021.114249}.
+%Type = Article
+\bibitem[{Kotzur et~al.(2021)Kotzur, Nolting, Hoffmann, Gro{\ss}, Smolenko,
+  Priesmann, B\"{u}sing, Beer, Kullmann, Singh, Praktiknjo, Stolten, and
+  Robinius}]{Kotzur2021}
+\bibinfo{author}{L.~Kotzur}, \bibinfo{author}{L.~Nolting},
+  \bibinfo{author}{M.~Hoffmann}, \bibinfo{author}{T.~Gro{\ss}},
+  \bibinfo{author}{A.~Smolenko}, \bibinfo{author}{J.~Priesmann},
+  \bibinfo{author}{H.~B\"{u}sing}, \bibinfo{author}{R.~Beer},
+  \bibinfo{author}{F.~Kullmann}, \bibinfo{author}{B.~Singh},
+  \bibinfo{author}{A.~Praktiknjo}, \bibinfo{author}{D.~Stolten},
+  \bibinfo{author}{M.~Robinius},
+\newblock \bibinfo{title}{A modeler's guide to handle complexity in energy
+  systems optimization},
+\newblock \bibinfo{journal}{Advances in Applied Energy} \bibinfo{volume}{4}
+  (\bibinfo{year}{2021}) \bibinfo{pages}{100063}.
+  \DOIprefix\doi{10.1016/j.adapen.2021.100063}.
+%Type = Article
+\bibitem[{Mollenhauer et~al.(2018)Mollenhauer, Christidis, and
+  Tsatsaronis}]{Mollenhauer2018}
+\bibinfo{author}{E.~Mollenhauer}, \bibinfo{author}{A.~Christidis},
+  \bibinfo{author}{G.~Tsatsaronis},
+\newblock \bibinfo{title}{Increasing the flexibility of combined heat and power
+  plants with heat pumps and thermal energy storage},
+\newblock \bibinfo{journal}{Journal of Energy Resources Technology}
+  \bibinfo{volume}{140} (\bibinfo{year}{2018}) \bibinfo{pages}{020907}.
+  \DOIprefix\doi{10.1115/1.4038461}.
+%Type = Article
+\bibitem[{Walden et~al.(2023)Walden, B\"{a}hr, Glade, Gollasch, Tran, and
+  Lorenz}]{Walden2023}
+\bibinfo{author}{J.~V.~M. Walden}, \bibinfo{author}{M.~B\"{a}hr},
+  \bibinfo{author}{A.~Glade}, \bibinfo{author}{J.~Gollasch},
+  \bibinfo{author}{A.~P. Tran}, \bibinfo{author}{T.~Lorenz},
+\newblock \bibinfo{title}{Nonlinear operational optimization of an industrial
+  power-to-heat system with a high temperature heat pump, a thermal energy
+  storage and wind energy},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{344}
+  (\bibinfo{year}{2023}) \bibinfo{pages}{121247}.
+  \DOIprefix\doi{10.1016/j.apenergy.2023.121247}.
+%Type = Article
+\bibitem[{Nielsen et~al.(2016)Nielsen, Morales, Zugno, Pedersen, and
+  Madsen}]{Nielsen2016}
+\bibinfo{author}{M.~G. Nielsen}, \bibinfo{author}{J.~M. Morales},
+  \bibinfo{author}{M.~Zugno}, \bibinfo{author}{T.~E. Pedersen},
+  \bibinfo{author}{H.~Madsen},
+\newblock \bibinfo{title}{Economic valuation of heat pumps and electric boilers
+  in the {Danish} energy system},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{167}
+  (\bibinfo{year}{2016}) \bibinfo{pages}{189--200}.
+  \DOIprefix\doi{10.1016/j.apenergy.2015.08.115}.
+%Type = Article
+\bibitem[{Riedl et~al.(2026)Riedl, Zwickl-Bernhard, Kranzl, Kauko, and
+  Schifflechner}]{Riedl2026}
+\bibinfo{author}{L.~Riedl}, \bibinfo{author}{S.~Zwickl-Bernhard},
+  \bibinfo{author}{L.~Kranzl}, \bibinfo{author}{H.~Kauko},
+  \bibinfo{author}{C.~Schifflechner},
+\newblock \bibinfo{title}{A framework for flexibility assessment of district
+  heating and cooling systems},
+\newblock \bibinfo{journal}{Applied Energy} \bibinfo{volume}{416}
+  (\bibinfo{year}{2026}) \bibinfo{pages}{127973}.
+  \DOIprefix\doi{10.1016/j.apenergy.2026.127973}.
+%Type = Book
+\bibitem[{Birge and Louveaux(2011)}]{BirgeLouveaux2011}
+\bibinfo{author}{J.~R. Birge}, \bibinfo{author}{F.~Louveaux},
+  \bibinfo{title}{Introduction to Stochastic Programming}, Springer Series in
+  Operations Research and Financial Engineering, \bibinfo{edition}{2nd} ed.,
+  \bibinfo{publisher}{Springer}, \bibinfo{address}{New York},
+  \bibinfo{year}{2011}. \DOIprefix\doi{10.1007/978-1-4614-0237-4}.
+%Type = Article
+\bibitem[{Ku\'{s} et~al.(2025)Ku\'{s}, Mika, and {\.Z}urawski}]{Kus2025}
+\bibinfo{author}{J.~Ku\'{s}}, \bibinfo{author}{{\L}.~Mika},
+  \bibinfo{author}{M.~{\.Z}urawski},
+\newblock \bibinfo{title}{Validation strategies for district heating network
+  models},
+\newblock \bibinfo{journal}{Energies} \bibinfo{volume}{18}
+  (\bibinfo{year}{2025}) \bibinfo{pages}{5012}.
+  \DOIprefix\doi{10.3390/en18185012}.
+%Type = Book
+\bibitem[{Bynum et~al.(2021)Bynum, Hackebeil, Hart, Laird, Nicholson, Siirola,
+  Watson, and Woodruff}]{pyomo}
+\bibinfo{author}{M.~L. Bynum}, \bibinfo{author}{G.~A. Hackebeil},
+  \bibinfo{author}{W.~E. Hart}, \bibinfo{author}{C.~D. Laird},
+  \bibinfo{author}{B.~L. Nicholson}, \bibinfo{author}{J.~D. Siirola},
+  \bibinfo{author}{J.-P. Watson}, \bibinfo{author}{D.~L. Woodruff},
+  \bibinfo{title}{{Pyomo} -- Optimization Modeling in {Python}},
+  \bibinfo{edition}{3rd} ed., \bibinfo{publisher}{Springer},
+  \bibinfo{year}{2021}. \DOIprefix\doi{10.1007/978-3-030-68928-5}.
+%Type = Article
+\bibitem[{K\"{o}k et~al.(2026)K\"{o}k, Hachez, Kranzl, Kumar, and
+  Dalgren}]{Koek2026}
+\bibinfo{author}{A.~K\"{o}k}, \bibinfo{author}{J.~Hachez},
+  \bibinfo{author}{L.~Kranzl}, \bibinfo{author}{S.~Kumar},
+  \bibinfo{author}{J.~Dalgren},
+\newblock \bibinfo{title}{Beyond perfect foresight: Sequential investment
+  optimization for district heating capacity expansion},
+\newblock \bibinfo{journal}{Energy Conversion and Management}
+  \bibinfo{volume}{357} (\bibinfo{year}{2026}) \bibinfo{pages}{121433}.
+  \DOIprefix\doi{10.1016/j.enconman.2026.121433}.
+%Type = Misc
+\bibitem[{Ruess(2026)}]{ruess_2026_calion}
+\bibinfo{author}{L.~Ruess}, \bibinfo{title}{calion v1.0.0 — district heating
+  dispatch optimization framework}, \bibinfo{year}{2026}. \URLprefix
+  \url{https://doi.org/10.5281/zenodo.21219368}.
+  \DOIprefix\doi{10.5281/zenodo.21219368}.
+
+\end{thebibliography}

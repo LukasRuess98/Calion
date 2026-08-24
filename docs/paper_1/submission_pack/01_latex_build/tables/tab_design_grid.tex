@@ -1,11 +1,15 @@
-% static: full phenomenon x level scope grid (methodology)
-\begin{table}[htbp]
+% static: full phenomenon x level scope grid (appendix reference)
+\begin{table*}[t]
 \centering
-\caption{Model scope grid: which phenomenon each fidelity level represents, and in what form.}
+\caption{Model scope grid. Legend: --~none, A~aggregated, \checkmark~present,
+PWL~piecewise-linear, Bil/Quad~native nonlinear, exo~exogenous. Columns left to right:
+four decomposition controls then the monotone fidelity ladder. The controls, $\Lone$ and
+$\Lthree$ are solved (MILP, $\le$0.01\,\% gap); temperature propagation ($\Ltwo$), station
+hydraulics ($\Lfour$,$\Lfive$) and the nonlinear reference (NL) are non-convex and are
+quantified by the validated forward evaluator rather than solved.}
 \label{tab:designgrid}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lccccccccccc@{}}
+\small
+\begin{tabular}{lccccccccccc}
 \hline
 Phenomenon & $\CP$ & $\CPL$ & $\ZN$ & $\NDz$ & $\Lone$ & $\Ltwo$ & $\Lthree$ & $\Lfour$ & $\Lfive$ & $\Lsix$ & NL \\
 \hline
@@ -24,4 +28,4 @@ Transport delay & -- & -- & -- & -- & -- & -- & -- & -- & -- & \checkmark & \che
 Hourly grid emission factors & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
 \hline
 \end{tabular}
-\end{table}
+\end{table*}

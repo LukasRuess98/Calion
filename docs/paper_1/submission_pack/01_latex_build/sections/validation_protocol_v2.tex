@@ -17,12 +17,13 @@ strategy after \citet{Kus2025} and \citet{Maldonado2024}.
 \paragraph{Stage 1: direct network validation.}
 The pipe model is validated against pre-upgrade monitoring data with the new assets set to
 zero capacity, calibrated by the branch-sequential $U_p$-tuning procedure of
-\citet{Maldonado2024} but constrained to a defensible coefficient range
+\citet{Maldonado2024} but constrained, in this revision, to a defensible coefficient range
 for the pipe class. Table~\ref{tab:valtargets} lists the key performance indicators and
 their gates, fixed \emph{ex ante} from published practice before the calibration was run.
 
-How those gates are used is deliberate: they are reported in full in
-Section~\ref{subsec:validation}, including the several that are not met. The temperature gates in particular cannot be met by any model of
+How those gates are used differs from the original submission, and the difference is
+deliberate. They are reported in full in Section~\ref{subsec:validation}, including the
+several that are not met. The temperature gates in particular cannot be met by any model of
 this network, for reasons of instrumentation set out there. Retaining gates the instrumentation cannot support, and
 reporting the failures against them, is the point rather than an oversight: it is the
 evidence for the claim that a model resolved more finely than its metering cannot have that
@@ -34,8 +35,8 @@ depend on.
 Dispatch of the new assets is verified against plausibility bounds rather than
 measurements: heat-pump coefficient of performance within $[2.5, 5.5]$, thermal-storage
 state of charge within $[0.05, 0.95]\bar{E}_s$, no simultaneous charge and discharge, and
-per-step energy closure. These are necessary conditions, not sufficient ones, and are labelled
-as such; a post-upgrade measurement campaign is the natural follow-up and is listed
+per-step energy closure. These are necessary conditions, not sufficient ones, and we label
+them as such; a post-upgrade measurement campaign is the natural follow-up and is listed
 among the limitations.
 
 \paragraph{Structural sanity checks.}

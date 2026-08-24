@@ -20,7 +20,7 @@
 Every bias and regret figure in this paper is reported on the \emph{economic} operating
 cost, not on the raw solver objective, and the two differ systematically. On Memmingen the
 objective exceeds the economic cost by $38.7$--$41.0$\,\% depending on the level
-(Table~\ref{tab:objdecomp}). Because that difference is large enough to change the
+(Table~S2, Supplementary Material). Because that difference is large enough to change the
 apparent size of every comparison, this section states what it is and why the economic cost is the
 right quantity.
 
@@ -54,3 +54,16 @@ The alternative gross convention shifts magnitudes by two to three percentage po
 sign of any bias or regret figure nor the loss-dominance result, because the credit is
 near-identical at every level. The per-level split is released as
 \texttt{objective\_decomposition.csv} so that either basis can be reconstructed.
+
+One residual concern is that the schedules are optimised on the solver objective, so
+aligning the objective to the reported economic cost could in principle shift the
+decomposition. This is tested directly. The storage-cycling penalty is the only objective
+term that both differs from the economic cost and is a well-posed optimisation term---the
+carbon self-use credit is a reporting allocation that, placed in the objective, would reward
+selling electricity purely to shed carbon, so it is excluded, and the gross-basis figures
+above are the objective-consistent report for carbon. Removing the cycling penalty and
+re-solving the four levels to the same $0.01$\,\% gap lowers every economic cost by a
+near-uniform $3.5$\,\%: the loss share moves only from $95.8$ to $95.6$\,\% and topology
+from $4.7$ to $5.0$\,\%. The decomposition is thus stable to the objective--economic
+distinction, not merely arithmetically separated from it
+(\texttt{loss\_share\_econobj\_sensitivity.csv}).

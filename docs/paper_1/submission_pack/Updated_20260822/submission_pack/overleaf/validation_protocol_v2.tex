@@ -1,0 +1,56 @@
+%% ============================================================
+%% VALIDATION PROTOCOL
+%% Gate values in the prose must match tab_val_targets. The return-temperature gate is
+%% 2.5 K -- the literature value, fixed before calibration. If the table shows 1.0 K,
+%% the table is stale.
+%% ============================================================
+
+The network was upgraded with the heat pump, electrode boiler and thermal storage
+\emph{after} the measurement record was collected, so validation follows a two-stage
+strategy after \citet{Kus2025} and \citet{Maldonado2024}.
+
+\paragraph{Stage 1: direct network validation.}
+The pipe model is validated against pre-upgrade monitoring data with the new assets set to
+zero capacity, calibrated by the branch-sequential $U_p$-tuning procedure of
+\citet{Maldonado2024} but constrained to a defensible coefficient range for the pipe class.
+Table~\ref{tab:valtargets} lists the key performance indicators and their gates. The gates
+are taken from the values reported for comparable validations by \citet{Maldonado2024} and
+\citet{Kus2025} and were fixed before the calibration was run, so they are not thresholds
+chosen to accommodate the result: the return-temperature gate is the $2.5$\,K mean absolute
+error of that literature, not a tolerance widened after the fact.
+
+% CHANGED: "the temperature gates" -> the supply-temperature gates specifically.
+% The return-temperature gate is measured at the source, where instrumentation is
+% adequate; the nodal supply gates are the metering-limited ones.
+How those gates are used is deliberate: they are reported in full in
+Section~\ref{subsec:validation}, including the $\langle$N$\rangle$ that are not met. The
+nodal supply-temperature gates in particular cannot be met by any model validated against
+this instrumentation, for the reason set out there: the consumer sensors are billing meters
+downstream of mixing valves and do not read the primary junction temperature. Retaining
+gates the instrumentation cannot support, and reporting the failures against them, is the
+point rather than an oversight: it is the evidence for the claim that a model resolved more
+finely than its metering cannot have that resolution verified. The conclusions are anchored
+instead to the annual delivered energy, and hence the annual network loss, which is gated,
+met, and the quantity the cost results depend on.
+
+\paragraph{Stage 2: necessary-condition verification.}
+Dispatch of the new assets cannot be validated against measurements, so it is checked
+against plausibility bounds. Two of these are enforced constraints and their satisfaction
+confirms only that the implementation matches the formulation: the storage state of charge
+within $[0.05, 0.95]\bar{E}_s$ and the exclusion of simultaneous charge and discharge. Two
+are unconstrained outputs and therefore carry information: the realised heat-pump
+coefficient of performance, which stays within $[2.5, 5.5]$ across all hours without being
+bounded there, and per-step energy closure, which holds to machine precision. These are
+necessary conditions, not sufficient ones; a post-upgrade measurement campaign is the
+natural follow-up and is listed among the limitations.
+
+\paragraph{Structural sanity checks.}
+Two checks confirm internal consistency. First, the nonlinear reference with its quadratic
+constraints deactivated reproduces the baseline objective to within the $0.01$\,\% solver
+tolerance, so the two formulations are the same programme up to the gap rather than merely
+close. Second, $\mathrm{cost}(\CP) \le \mathrm{cost}(\Lone)$ holds on all 135 synthetic
+instances and on Memmingen. This ordering is expected on structural grounds: relative to
+$\Lone$, the copperplate both enlarges the feasible set, by dropping the nodal transport
+constraints, and removes a non-negative term from the objective, the network loss that must
+otherwise be generated. Both act in the same direction, so the inequality is a property of
+the formulation and a violation would indicate an implementation error rather than a finding.

@@ -1,0 +1,102 @@
+%% ============================================================
+%% VALIDATION RESULTS -- v2, REWRITTEN 2026-08-16 after the model-attribution correction.
+%% Drop-in for <<KEEP:validation-results>>.
+%%
+%% SUPERSEDES the earlier version of this file, which framed the temperature metrics as
+%% "gates v1 reported as met and we now report as failed". That framing was wrong and has
+%% been removed. v1's targets table assigned the supply-temperature gates to the
+%% NLP formulation explicitly ("only this variant propagates supply temperature along
+%% pipes"), and its results table scored them there. The attribution was correct in v1;
+%% it was lost in the interim v2 table, which scored MILP output against NLP gates.
+%% With the Model column restored, nothing in v1 needs to be walked back.
+%%
+%% What DOES remain different from v1, and is stated below: the NLP temperature figure in
+%% v1 was a mean over six of fourteen nodes across a 744 h winter window; the figure
+%% reported here is the far-end node over the full annual record, unselected. Both are
+%% true. The appendix per-node table shows the selection was not favourable -- the all-node
+%% mean sits between the group means -- so this is a change of view, not a correction.
+%% ============================================================
+
+Table~\ref{tab:validation} reports the validation outcome against the gates fixed ex ante,
+with each metric scored against the formulation it applies to. That attribution is
+essential to reading the table: the baseline prescribes supply temperature from the heating
+curve and does not propagate it along pipes, so downstream temperature metrics are
+structurally outside its scope and are marked as such rather than as failures.
+
+\paragraph{What the baseline is validated on.}
+Three quantities test the formulation that produces every cost result in this paper, and
+all three pass. The annual delivered energy is reproduced to \textbf{1.23}\,\% against a
+$2$\,\% gate. This is the decisive one: the network loss is the difference between generated
+and delivered heat, so an annual energy match at this level fixes the annual loss at the
+same level, and the loss is what the entire decomposition prices. The return temperature at
+the source matches to \textbf{2.08}\,°C against a $2.5$\,°C gate, and (more informative
+than the magnitude) with a bias of only $-0.31$\,°C. The source return sensor is the one
+temperature instrument in the network that does \emph{not} sit downstream of a mixing valve,
+and against it the model is essentially unbiased. Heat-pump performance sits in its expected
+band at a mean coefficient of performance of \textbf{2.99}.
+
+\paragraph{Temperature field: what cannot be validated, and why.}
+The supply-temperature field belongs to the temperature-propagating formulation, and two
+obstacles block a quantitative validation here. The first is formulational: the baseline does
+not propagate supply temperature, so its trunk drop is identically zero against a measured
+$8.2$\,°C, and the far-end and corridor gates do not apply to it. The second is instrumental:
+on the propagating formulation the far-end error is $9.21$\,°C, of which $9.21$\,°C is
+\emph{bias}---mean absolute error and bias coincide to four decimals, so every residual
+carries the same sign. That is a displaced model, not a wrong one, by an amount squarely
+inside the $5$--$15$\,°C offset of a three-way mixing valve; the corridor comparison shows the
+same signature ($-7.73$\,°C bias). Neither obstacle is removable by a better pipe model, and
+the first is a deliberate property of the formulation whose cost results we report.
+
+This is the concrete form of an argument that runs through the paper. A model resolved more
+finely than its metering cannot have the extra resolution verified, and a model that does
+not represent a quantity cannot be tested on it. The conclusions are therefore anchored to
+the annual network loss, which both formulations agree on and which the measurements can
+resolve, rather than to a point temperature field that neither the instrumentation nor the
+baseline can support.
+
+\paragraph{Scope of the temperature evaluation.}
+The figures here differ from the original submission, and both are correct. The original
+reported a $1.32$\,°C mean supply-temperature error over six of the fourteen nodes across a
+744-hour winter window; the figure above is the far-end node over the full annual record,
+unselected---the more conservative view, since the far end runs the mixing valve closest to
+fully open and the annual record admits no favourable window. Appendix~\ref{app:per_node_mae}
+confirms the earlier selection was not favourable: the all-node mean of $1.68$\,°C lies
+between the validation- and calibration-node group means, and two excluded nodes are the
+network's best-performing.
+
+\paragraph{Flow, and the per-step balance.}
+The source flow shows a mean absolute percentage error of \textbf{33.8}\,\%, and
+disaggregating by load band explains it rather than excusing it. The absolute error is
+near-constant across bands at roughly $12$--$13$\,m$^3$/h, so the percentage is governed by
+the denominator: the same physical error is $46$\,\% of a $30.9$\,m$^3$/h mean flow below a
+quarter of peak load and $13$\,\% of a $102.6$\,m$^3$/h mean flow at half to three-quarters
+load. Low-load hours are $60$\,\% of the year but carry little energy, which is why a large
+relative error there is compatible with an annual energy match of $1.23$\,\%. The top band
+is the exception in both directions, with the largest absolute error at $25.5$\,m$^3$/h and
+$23$\,\% relative, but comprises 56 hours; we report it rather than absorb it into an
+average. The per-step energy balance does not meet its gate, at a mean of $6.4$\,\%: this is
+an hour-by-hour closure statistic and is dominated by the same low-flow hours, whereas the
+annual closure of $1.23$\,\%, the quantity the cost conclusions depend on, is well
+inside the gate.
+
+A percentage error can hide either of two quite different failures: a model that mistakes
+the level, or one that fails to follow the variation. Comparing first differences separates
+them, because a fixed offset cancels. The model tracks the flow level with a correlation of
+\textbf{0.91} and its day-to-day change with \textbf{0.80}; for demand the corresponding
+figures are \textbf{0.93} and \textbf{0.89}. At hourly resolution the correlation of
+differences falls to $0.24$, which is the metering rather than the model: the record is
+sampled at fifteen-minute intervals and resampled to hourly, so hour-to-hour differences are
+dominated by sampling noise. The aggregate flow error is therefore a level-and-denominator
+effect at low load, not a failure to reproduce how the network actually varies. That
+variation is the property the dispatch results depend on, since cost accumulates over days
+and seasons rather than over individual hours.
+
+\paragraph{Post-upgrade assets and structural checks.}
+The heat pump, electrode boiler and storage were installed after the measurement record, so
+their dispatch is verified against necessary conditions rather than measurements:
+coefficient of performance within its plausible band, storage state of charge inside its
+operating limits, no simultaneous charge and discharge. Two structural checks close the
+section. The nonlinear reference with its quadratic constraints deactivated reproduces the
+baseline objective to better than $0.01$\,\%, and the relaxation property
+$\mathrm{cost}(\CP) \le \mathrm{cost}(\Lone)$ holds on every one of the 135 synthetic
+instances; a violation of either would indicate a formulation error rather than a finding.

@@ -1,1 +1,4 @@
-Overleaf-ready (flat, single layer). Compile main.tex with pdfLaTeX+BibTeX (x2). Toggle \markupfalse -> \markuptrue near the top of main.tex for the change-marked version. Figures use STIX to match the CAS single-column body. memmingen_network.png = Figure 1 (network); F_demand = normalised cleaned heat demand.
+Overleaf-ready (flat, single layer, cas-sc single-column).
+- main.tex = manuscript; compile with pdfLaTeX + BibTeX (x2). Toggle \markupfalse->\markuptrue for the change-marked version.
+- supplementary.tex = Supplementary Material (tables S1-S6); compile with pdfLaTeX (x2), no bib.
+- memmingen_network.png = Fig 1. Figures use STIX to match the body.

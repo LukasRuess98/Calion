@@ -166,6 +166,17 @@ defensible multiplier range and moved the residual last-mile loss into an explic
 service-lateral term that enters only at L4. Supply and return circuits, substation
 boundary, pressure requirements and pump characteristics are described in §2.6.
 
+Two export/formulation corrections were made in response to this review. First, the
+per-step internal energy balance — previously a failed gate at a 6.4\,\% mean residual —
+now closes to machine precision: the residual was an extraction artefact in which the
+electrode-boiler heat (≈1{,}749 MWh/yr) was written under a legacy output column and read
+back as zero, opening a spurious 5 MW hourly gap; with the export corrected the model's own
+conservation holds exactly. Second, we corrected a piecewise-linear pump-segment constraint
+that could allow an unselected segment to carry flow; re-solving the pressure levels shows
+the effect on this network is negligible (dispatch cost within 0.03\,%), because the pumping
+is dominated by the linear station differential-pressure term rather than the pipe-friction
+PWL — confirming that the low pumping energy is physical, not a numerical artefact.
+
 On the **thermal validation** we are now explicit about what the metering can and cannot
 test, which both answers the "large flow errors" concern and strengthens the study. The
 monitoring system records temperatures at consumer substations that sit \emph{downstream of
@@ -178,7 +189,7 @@ node-by-node validation. We say this plainly, and it is itself the point behind 
 any model can be validated against. Even along the corridor, a point-in-time temperature match
 is sensitive to the network flow (which the billing metering does not pin down), so we do **not**
 rest the validation on point node temperatures. Instead we validate the model on the quantity the
-cost conclusions actually depend on — the **annual network loss**, matched to about 1.2\,\% — and
+cost conclusions actually depend on — the **annual delivered demand energy**, matched to about 1.2\,\%; the network loss is the model's computed difference between generation and this delivered demand, not an independently metered quantity — and
 report the flow-side comparison as a mean-absolute-percentage error by load band. That
 decomposition is the substance of the answer: the aggregate flow MAPE ($\approx$34\,\%) is dominated
 by the many low-load hours, where the flow denominator is small and the consumer mixing valves
@@ -200,10 +211,13 @@ out-of-sample test, reported including its degradation beyond the fitted range (
 [§2.6, §3.1, §3.6, Figures F11, F\_corridor]
 
 ### R2.5 — generality
-**Response:** accepted on all three points. All 81 synthetic configurations are
-now solved; the previous filtering reflected under-sized generation capacity, and
-we diagnosed each infeasibility and adopted a stated sizing convention whose
-influence on the results we report. The taxonomy is unified — the Memmingen case
+**Response:** accepted on all three points. The synthetic study was rebuilt as a
+balanced 135-cell factorial (three node counts x five trunk lengths x three
+demand-heterogeneity levels x three storage sizes), replacing the original
+81-configuration design of which only 36 cells were retained; the previous filtering
+reflected under-sized generation capacity, so we diagnosed each infeasibility and
+adopted a stated sizing convention whose influence on the results we report, and all
+135 cells are now solved. The taxonomy is unified — the Memmingen case
 and the synthetic study use identical level definitions and the previous
 physics-scope mapping table is removed. The analysis is a variance decomposition
 plus regression with confidence intervals over the balanced design, and the

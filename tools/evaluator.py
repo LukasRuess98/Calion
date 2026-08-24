@@ -69,6 +69,7 @@ class NetworkSpec:
     delta_p_min_consumer_bar: float = 0.6   # station-internal differential (real spec)
     pump_efficiency: float = 0.75
     max_velocity_m_s: float = 2.5
+    max_pump_head_bar: float = 6.0   # available circulation-pump differential head [bar]
     models_loss: bool = True   # False for copperplate/no-loss levels (T0P0)
     # optional real-data service-lateral / substation loss (Option A, P6):
     lateral_length_m: Optional[dict] = None      # node_id -> representative lateral length
@@ -374,10 +375,17 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
             p_pump_station = dp_station_pa * mdot_root / (RHO_PUMP * net.pump_efficiency * 1e6)
             step_pump += p_pump_station
             pump_energy += step_pump * dt_h
-            # consumer dp adequacy: farthest node available head vs requirement
+            # consumer dp adequacy (chat-review P0 fix: this was a no-op diagnostic).
+            # The pump must supply the friction head to the farthest node on BOTH the
+            # supply and return line plus the station-internal differential; flag hours
+            # where that required head exceeds the available pump head.
             if step_dp_path:
-                worst_path = max(step_dp_path.values())
-                # (available head check would need setpoint; recorded as diagnostic)
+                worst_path = max(step_dp_path.values())          # supply-side head [bar]
+                required_head = 2.0 * worst_path + net.delta_p_min_consumer_bar
+                if required_head > net.max_pump_head_bar:
+                    viol["dp_consumer"]["n_steps"] += 1
+                    viol["dp_consumer"]["worst"] = max(
+                        viol["dp_consumer"]["worst"], required_head)
 
     per_pipe_loss = pd.Series(per_pipe_loss)
 
@@ -394,6 +402,16 @@ def evaluate(run: dict, net: NetworkSpec, cost: CostParams,
     # that modelled losses already generated for them -> credit their modelled loss.
     loss_assumed = _loss_assumed(run) if models_loss else 0.0
     extra_loss = max(total_loss - loss_assumed, 0.0)
+    # unmet-demand violation (chat-review P0 fix: this counter was never updated). The
+    # per-hour heat a schedule fails to deliver because it did not provision the network
+    # loss: for a loss-blind level (loss_assumed=0) this is the full hourly loss; a
+    # loss-aware level spreads its provisioned loss over the year.
+    prov_per_step = (loss_assumed / n_t) if n_t else 0.0
+    unmet_series = np.maximum(loss_series - prov_per_step, 0.0)
+    _um = unmet_series[unmet_series > 1e-3]
+    viol["unmet_demand"]["n_steps"] = int(_um.size)
+    viol["unmet_demand"]["energy_mwh"] = float(_um.sum())
+    viol["unmet_demand"]["worst"] = float(unmet_series.max()) if unmet_series.size else 0.0
     mc = cost.marginal_heat_cost_eur_mwh
     # pump electricity valued at mean grid buy price (+ grid fee) for this run
     ep = cost.elec_price_eur_mwh

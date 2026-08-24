@@ -1,0 +1,83 @@
+%% ============================================================
+%% VALIDATION RESULTS -- v2, compressed to Applied Energy style.
+%% ============================================================
+
+Table~\ref{tab:validation} reports the validation against the ex-ante gates, each metric
+scored against the formulation to which it applies. The baseline prescribes supply
+temperature from the heating curve and does not propagate it along pipes, so downstream
+temperature metrics are structurally outside its scope and are marked as such rather than as
+failures.
+
+% CHANGED: N recomputed after reclassifying the return temperature. Two gates genuinely score
+% MILP outputs: annual energy (met) and per-step closure (missed). The COP band is a
+% consistency check and the two supply-temperature gates score a formulation the baseline does
+% not instantiate.
+Two gates score outputs of the formulation used for the cost results: the annual
+delivered-energy error, which is met at $1.23$\,\%, and the per-step energy-balance closure,
+which is missed at a mean of $6.4$\,\% against a $2$\,\% gate. The miss is diagnosed rather
+than absorbed: it is concentrated in hours of near-zero flow, where the relative measure has a
+vanishing denominator, and it does not propagate to the annual closure. The remaining entries
+are a plausibility band on the heat-pump coefficient of performance, a calibration check on the
+constant return temperature, and two nodal supply-temperature gates that apply to the
+propagating formulation only.
+
+\paragraph{Validated quantities.}
+Two quantities test the formulation that produces every cost result, and both pass. Annual
+delivered energy is reproduced to \textbf{1.23}\,\% against a $2$\,\% gate; since the network
+loss is the difference between generated and delivered heat, this fixes the annual loss, which
+the decomposition prices. The heat-pump coefficient of performance sits inside its plausibility
+band at a mean of \textbf{2.99}; the band is a consistency check, not a measured comparison.
+
+The source return temperature is a fixed parameter in this formulation
+($63.6$\,°C, set from the design specification) rather than a solved variable, so its
+\textbf{2.08}\,K mean absolute deviation from the measurement at the one sensor upstream of any
+mixing valve (bias $-0.31$\,K) characterises the calibration of that parameter and the scatter
+of the measured series about it. It is reported as such and not counted among the validated
+outputs. Return-temperature propagation is available in the nonlinear formulation, where the
+temperature is a free variable; the present results do not depend on it.
+
+% CHANGED: units. Trunk drop, far-end error, bias and the valve offset are temperature
+% DIFFERENCES and belong in K, not degC; absolute levels (63.6 degC) correctly stay in degC.
+% CHANGED: the trunk-drop gate is named as mis-specified rather than merely missed -- a gate on
+% a quantity the formulation does not produce cannot be satisfied by any calibration.
+\paragraph{Temperature field: limitation.}
+The supply-temperature field belongs to the propagating formulation and is not quantitatively
+validatable on this network. The baseline does not propagate supply temperature, so its trunk
+drop is zero by construction against a measured $8.2$\,K. This gate was mis-specified: no
+calibration of the baseline can satisfy it, because the quantity it scores is not one the
+formulation produces. It is therefore reported as inapplicable to the baseline rather than as a
+failure, as are the far-end and corridor gates. On the propagating formulation the far-end error
+is $9.21$\,K and is almost entirely bias (mean absolute error and bias coincide to four
+decimals), matching the $5$--$15$\,K offset of a three-way mixing valve rather than model error;
+the corridor comparison shows the same signature (bias $-7.73$\,K). A model resolved more finely
+than its metering cannot have the extra resolution verified, so the conclusions are anchored to
+the annual network loss, which both formulations agree on and the measurements resolve. The
+far-end node over the full annual record is reported rather than a mean over selected nodes, as
+the more conservative choice; the all-node mean of $1.68$\,K lies between the calibration- and
+validation-node group means (Appendix~\ref{app:per_node_mae}).
+
+% CHANGED: added the maximum of the per-step residual, so the table's 99 % is not read as model
+% failure. CHANGED: deleted the closing block, which repeated the head paragraph verbatim and
+% contradicted its gate count (four vs. two gates scoring the MILP formulation).
+\paragraph{Flow and energy balance.}
+The source flow shows a mean absolute percentage error of \textbf{33.8}\,\%, governed by the
+denominator rather than the model: the absolute error is near-constant at $12$--$13$\,m$^3$/h,
+so the same error is $46$\,\% of mean flow below a quarter of peak load but $13$\,\% at half to
+three-quarters load. Low-load hours are $60$\,\% of the year but carry little energy, so the
+large relative error is compatible with the $1.23$\,\% annual energy match. First differences
+separate a level error from a variation error, since a fixed offset cancels: the model tracks
+flow level at $r=\textbf{0.91}$ and day-to-day change at $\textbf{0.80}$, and demand at $0.93$
+and $0.89$. The per-step energy balance averages $6.4$\,\%, dominated by the same low-flow
+hours, and reaches $99$\,\% in the extreme, in hours where flow is essentially zero: the
+relative measure degenerates as its denominator vanishes, while the absolute residual in those
+hours remains negligible. The annual closure of $1.23$\,\% is correspondingly unaffected and
+well inside its gate.
+
+\paragraph{Post-upgrade assets.}
+The heat pump, electrode boiler and storage were installed after the measurement record, so
+their dispatch is verified against necessary conditions rather than measurements: coefficient
+of performance in band, storage state of charge within limits, and no simultaneous charge and
+discharge. Two structural checks close the section: the nonlinear reference with its quadratic
+constraints deactivated reproduces the baseline objective to better than $0.01$\,\%, and the
+relaxation property $\mathrm{cost}(\CP) \le \mathrm{cost}(\Lone)$ holds on every one of the 135
+synthetic instances.

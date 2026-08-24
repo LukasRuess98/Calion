@@ -24,30 +24,23 @@
 %% ============================================================
 
 \paragraph{Uncertainty, reserves and sub-hourly operation.}
-The dispatch is deterministic and hourly. Price and demand are perfect-foresight time
-series; forecast error, reserve provision, intra-hour demand excursions and operational
-disturbances such as unit outages are all outside the formulation. Each of these plausibly
-raises the value of the physics this paper finds inert. Transport delay is a zero-timestep
-shift on an hourly grid and would not be at a five-minute one; thermal inertia in the pipe
-volume buffers exactly the sub-hourly excursions excluded here; and storage and heat-pump
-flexibility are worth more when they can be sold into reserve markets than when they can
-only arbitrage a known price curve. The results should therefore be read as establishing
-that extended network physics is decision-irrelevant \emph{in the deterministic hourly
-planning regime}, the regime in which the great majority of published district-heating
-dispatch models operate, and not as a claim about real-time control. The direction of
-the bias is worth stating plainly: relaxing any of these assumptions can only give the
-extended physics more room to matter, never less, so the nulls reported here are conservative
-and the loss-dominance result, which does not depend on them, is not.
+The dispatch is deterministic and hourly: prices and demand are perfect-foresight series,
+and forecast error, reserve provision, intra-hour excursions and unit outages are excluded.
+Each plausibly raises the value of the physics found inert here---transport delay is a
+zero-timestep shift at hourly but not five-minute resolution, pipe thermal inertia buffers
+precisely the sub-hourly excursions we omit, and storage and heat-pump flexibility are worth
+more in reserve markets than against a known price curve. The nulls should thus be read as
+decision-irrelevance \emph{in the deterministic hourly planning regime} where most published
+dispatch models operate, not as a claim about real-time control; per
+Section~\ref{subsec:whynull}, relaxing these assumptions can only give the physics more room,
+so the nulls are conservative while the loss-dominance result, independent of them, is not.
 
-A related caution applies to the estimation-bias result in the opposite direction.
-\citet{Koek2026} show for multistage investment planning that ignoring price and
-demand-trajectory uncertainty, the value of the stochastic solution, biases technology
-selection by 27--39\,\%. Their setting is investment rather than dispatch and does not
-vary network topology, but the comparison suggests that the resolution bias quantified
-here and the uncertainty bias they quantify are additive rather than substitutable. A
-model can be wrong about the network and wrong about the future independently, and
-correcting one does not correct the other; addressing both within a single formulation
-remains open.
+A caution runs the other way too. \citet{Koek2026} show that in multistage investment
+planning, ignoring price and demand-trajectory uncertainty biases technology selection by
+27--39\,\%. Their setting is investment, not dispatch, and fixes topology, but it suggests
+the resolution bias quantified here and their uncertainty bias are additive rather than
+substitutable: a model can be wrong about the network and about the future independently,
+and addressing both in one formulation remains open.
 
 \paragraph{Demand-side flexibility.}
 All demands are exogenous time series and demand response is excluded. This is one of the
@@ -66,17 +59,17 @@ the loop's friction drops to be non-positive, which is infeasible for any non-ze
 Admitting loops requires signed-flow hydraulic variables, a per-pipe direction selection
 that reorients each pressure drop and temperature mix, which is a distinct formulation
 rather than a parameter change. The same boundary limits the generation-topology
-moderator: the synthetic generator roots all injection at the primary producer, so the
+moderator: our synthetic generator roots all injection at the primary producer, so the
 distributed-generation arm is posed as a controlled open question rather than answered,
 and multi-source operation on a meshed network is left to the companion study. Because
-generation is central in every case examined, the null reported for spatial routing is
+generation is central in every case examined, the null we report for spatial routing is
 established for centrally-supplied networks specifically.
 
 \paragraph{The nonlinear reference.}
 The nonlinear reference is solved on representative weeks rather than globally. The
 full-year non-convex programme finds no incumbent within the solver budget, and a low-load
-summer week is infeasible under native physics with the linearised schedule fixed. Both
-are reported as results in Section~\ref{subsec:linearisation} (the second is itself an
+summer week is infeasible under native physics with the linearised schedule fixed. We
+report both as results in Section~\ref{subsec:linearisation} (the second is itself an
 instance of the physical-deliverability failure the regret evaluation was built to expose),
 but they do bound the claim: the solved linearisation error is established for winter
 and autumn operating points, and whether it remains sub-percent under shoulder-season

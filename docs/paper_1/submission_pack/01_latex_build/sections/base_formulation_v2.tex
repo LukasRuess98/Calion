@@ -69,8 +69,8 @@ $\lambda^{\mathrm{dump}}$; $\lambda^{\mathrm{CO_2}}$ [EUR/t] is the carbon price
 $f^{\mathrm{yr}}$ an annualisation factor; and $P^{\mathrm{peak}}$ [MW] the annual peak
 grid import entering the demand charge $\lambda^{\mathrm{dem}}$.
 
-Two terms of $Z$ are accounting conventions rather than operator cash flows, and the
-economic cost is reported separately from the solver objective throughout; the
+Two terms of $Z$ are accounting conventions rather than operator cash flows, and we
+report the economic cost separately from the solver objective throughout; the
 distinction and its magnitude are set out in Section~\ref{subsec:costacct}.
 
 \paragraph{Energy balance, and how the controls are constructed.}
@@ -178,16 +178,16 @@ enter exogenously as $L_t$ for $\CPL$, and are computed by \eqref{eq:loss_supply
 \eqref{eq:loss_return} for $\ZN$ and $\Lone$ upward.
 
 Two points about the calibration matter for what follows. First, the $U$ values are
-constrained to a defensible range for the pipe class rather than fitted freely: forcing the
-trunk-only loss to match the measured total by inflating terminal-pipe coefficients cannot be
-justified as insulation ageing. Second, what such a multiplier would absorb is the
-\emph{last mile}, the service laterals and substations a trunk-only model does not represent,
-and it is therefore placed where it physically belongs, entering only at the station-resolved
-level $\Lfour$.
+constrained to a defensible range for the pipe class rather than fitted freely; the
+original submission raised terminal-pipe coefficients by a large multiplier to force the
+trunk-only loss to match the measured total, which cannot be justified as insulation
+ageing. Second, what that multiplier was absorbing is the \emph{last mile}, the service
+laterals and substations a trunk-only model does not represent, and it is therefore
+placed where it physically belongs, entering only at the station-resolved level $\Lfour$.
 The node-resolved levels consequently \emph{undercount} the true network loss by
 construction, and the modelled total matches the measurement only once the laterals are
-added. This is a result rather than a defect: a quantitative statement of what a
-trunk-resolved model cannot see.
+added. We treat this as a result rather than a defect: it is a quantitative statement of
+what a trunk-resolved model cannot see.
 
 \paragraph{Heat pump.}
 Each heat pump $h$ either recovers industrial waste heat at a time-varying source
@@ -207,7 +207,7 @@ The waste-heat coefficient of performance $\mathrm{COP}_{h,t}^{\mathrm{WHR}}$ is
 pre-computed offline from an analytical Lorenz-cycle model
 (Appendix~\ref{app:cop}), which avoids bilinear terms in the optimisation. That
 pre-computation is a deliberate scope restriction rather than an approximation of
-convenience, and it is revisited in the limitations: a model with endogenous COP would
+convenience, and we return to it in the limitations: a model with endogenous COP would
 give the heat pump more room to respond to the network state than it has here.
 
 Operation is bounded by a minimum load fraction $\phi_h^{\mathrm{min}}$ and the installed

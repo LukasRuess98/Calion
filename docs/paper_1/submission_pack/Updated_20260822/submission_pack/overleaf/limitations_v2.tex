@@ -1,0 +1,101 @@
+%% ============================================================
+%% LIMITATIONS -- v2 merge, drop-in replacement for <<KEEP:limitations-other>>.
+%% Placed AFTER the two paragraphs already drafted in the manuscript
+%% (the scope-ceiling paragraph and the pre-upgrade-validation paragraph),
+%% which are not repeated here.
+%%
+%% Source: v1 lines 2085-2157, remapped (v1 L3 -> \Lone, v1 L3+ -> \Lthree,
+%% v1 L3NL -> \NLref) and filtered: several v1 limitations have become v2 RESULTS
+%% and must NOT be restated as open.
+%%
+%% DROPPED from v1, because the revision resolved them:
+%%  - "L+ -> Lnl interpretation": v1 conceded linearisation and delay could not be
+%%    separated. They now are -- delay is its own level (L6, measured at 0.00 %) and
+%%    the linearisation error is solved directly. Restating this as a limitation would
+%%    contradict Section 4.7 and concede R1.3/R2.3 unnecessarily.
+%%  - "Supply temperature ... could amplify the L3->L+ effect": now bounded forward
+%%    by the supply-temperature study (Section 4.6), so it is reported as a bounded
+%%    result, not an open risk.
+%%
+%% CLOSES: R1.7 (deterministic, hourly, no reserves) -- previously answered in the
+%% response letter with "limitations expanded" while no expansion existed.
+%% COMPLETES: R1.5 (precomputed COP and sub-hourly dynamics; the heating-curve half
+%% is already covered by the scope-ceiling paragraph above).
+%% ============================================================
+
+\paragraph{Uncertainty, reserves and sub-hourly operation.}
+The dispatch is deterministic and hourly. Price and demand are perfect-foresight time
+series; forecast error, reserve provision, intra-hour demand excursions and operational
+disturbances such as unit outages are all outside the formulation. Each of these plausibly
+raises the value of the physics this paper finds inert. Transport delay is a zero-timestep
+shift on an hourly grid and would not be at a five-minute one; thermal inertia in the pipe
+volume buffers exactly the sub-hourly excursions excluded here; and storage and heat-pump
+flexibility are worth more when they can be sold into reserve markets than when they can
+only arbitrage a known price curve. The results should therefore be read as establishing
+that extended network physics is decision-irrelevant \emph{in the deterministic hourly
+planning regime}, the regime in which the great majority of published district-heating
+dispatch models operate, and not as a claim about real-time control. The direction of
+the bias is worth stating plainly: relaxing any of these assumptions can only give the
+extended physics more room to matter, never less, so the nulls reported here are conservative
+and the loss-dominance result, which does not depend on them, is not.
+
+A related caution applies to the estimation-bias result in the opposite direction.
+\citet{Koek2026} show for multistage investment planning that ignoring price and
+demand-trajectory uncertainty, the value of the stochastic solution, biases technology
+selection by 27--39\,\%. Their setting is investment rather than dispatch and does not
+vary network topology, but the comparison suggests that the resolution bias quantified
+here and the uncertainty bias they quantify are additive rather than substitutable. A
+model can be wrong about the network and wrong about the future independently, and
+correcting one does not correct the other; addressing both within a single formulation
+remains open.
+
+\paragraph{Demand-side flexibility.}
+All demands are exogenous time series and demand response is excluded. This is one of the
+few exclusions that could plausibly \emph{increase} the topology effect rather than leave
+it unchanged, because spatially distributed flexibility has location-dependent value: a
+flexible load near the network far end can absorb local surplus without incurring the
+trunk losses that serving it from the plant would. Whether that is enough to lift routing
+above the decision threshold is untested here and is a well-posed question for a follow-up
+study.
+
+\paragraph{Network topology class and generation siting.}
+Every case, real and synthetic, is a radial tree with unidirectional flow. Ring and meshed
+topologies are not merely a larger instance of the same problem: with pipe-flow direction
+fixed by the pipe list, the return-side pressure balance around a cycle forces the sum of
+the loop's friction drops to be non-positive, which is infeasible for any non-zero flow.
+Admitting loops requires signed-flow hydraulic variables, a per-pipe direction selection
+that reorients each pressure drop and temperature mix, which is a distinct formulation
+rather than a parameter change. The same boundary limits the generation-topology
+moderator: the synthetic generator roots all injection at the primary producer, so the
+distributed-generation arm is posed as a controlled open question rather than answered,
+and multi-source operation on a meshed network is left to the companion study. Because
+generation is central in every case examined, the null reported for spatial routing is
+established for centrally-supplied networks specifically.
+
+\paragraph{The nonlinear reference.}
+The nonlinear reference is solved on representative weeks rather than globally. The
+full-year non-convex programme finds no incumbent within the solver budget, and a low-load
+summer week is infeasible under native physics with the linearised schedule fixed. Both
+are reported as results in Section~\ref{subsec:linearisation} (the second is itself an
+instance of the physical-deliverability failure the regret evaluation was built to expose),
+but they do bound the claim: the solved linearisation error is established for winter
+and autumn operating points, and whether it remains sub-percent under shoulder-season
+operation with frequent on/off cycling is open. Warm-start heuristics or a reformulation
+of the bilinear terms are the natural routes.
+
+\paragraph{One real network, and the synthetic generator's assumptions.}
+The Memmingen figures come from a single industrial network; the synthetic factorial
+supplies external validity for the \emph{structure} of the result (loss dominance,
+adder non-transfer, the loss-number rule) but not for the absolute magnitudes, which
+should not be treated as universal constants. The synthetic networks also share the
+assumptions of the generator that produced them: radial trees, a common heating curve,
+proportionally sized capacity under a stated convention. They are a controlled parametric
+family, not a sample of real networks, and the balanced factorial buys unambiguous
+attribution across the design at the cost of that representativeness.
+
+\paragraph{Demand-concentration metric.}
+The normalised variance index used as a synthetic design factor has a narrow dynamic range
+on realistic tree networks, and the model-selection observations in
+Table~\ref{tab:criteria} therefore use the Gini coefficient and top-$k$ demand share
+instead. An empirical mapping from either metric to the aggregation gap would require
+several real networks and is a natural follow-up.

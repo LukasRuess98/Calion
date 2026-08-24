@@ -1,0 +1,8 @@
+The manuscript's last line is:
+    \bibliography{paper1_dh_fidelity/Paper20_Literatur}
+
+Paper20_Literatur.bib is NOT present in this repository checkout (it lives in the
+author's local submission environment). Copy your Paper20_Literatur.bib into THIS
+folder (paper1_dh_fidelity/) so the path resolves, then delete this note.
+
+This is the ONLY external file required to complete the build.
