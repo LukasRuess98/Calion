@@ -232,8 +232,8 @@ Section~\ref{sec:conclusion} concludes.
 %% loss_main + topo_main + interaction (an identity, not an approximation), which
 %% closes to machine precision (0.000e+00 EUR) at <=0.01% solver gap.
 %% ---- DRAFTED (author: polish voice) ----
-We compare a family of formulations that differ from one another in exactly one modelled
-phenomenon at a time, so that each pairwise contrast isolates a single effect and no
+This study compares a family of formulations that differ from one another in exactly one
+modelled phenomenon at a time, so that each pairwise contrast isolates a single effect and no
 comparison is confounded. The family has two parts. Four \emph{decomposition controls} form a
 $2\times2$ factorial of spatial topology against thermal loss: a copperplate with no loss
 ($\CP$), the copperplate supplied with the aggregate loss ($\CPL$), the node-resolved network
@@ -242,7 +242,7 @@ the comparison baseline. A monotone \emph{fidelity ladder} then adds, one at a t
 same node-resolved network: temperature propagation ($\Ltwo$), trunk pressure and pumping
 ($\Lthree$), station resolution with service laterals ($\Lfour$), a dynamic flow-dependent
 station pressure requirement ($\Lfive$), and transport delay ($\Lsix$), with the fully
-nonlinear formulation ($\NLref$) as an unsolved reference. Table~S1 (Supplementary Material) states
+nonlinear formulation ($\NLref$) as an unsolved reference. Table~\ref{tab:contrasts} states
 what each arrow isolates. Two design principles hold throughout. First, exactly one phenomenon
 changes per step, so any cost difference is attributable. Second, the 174 transmission stations
 are present at every level; only their spatial aggregation changes, from all lumped at one
@@ -261,6 +261,34 @@ are judged, is the forward evaluator of Section~\ref{subsec:evaluator}, \emph{no
 level: even the finest solved level linearises the temperature-decay factor, so using it as
 ground truth would carry the same linearisation into the reference. Model-to-model differences
 are therefore estimation bias; only the forward evaluation speaks to decision quality.
+\input{tabels/tab_contrasts}
+
+Where the contrasts in Table~\ref{tab:contrasts} name what each step \emph{changes},
+Table~\ref{tab:designgrid} gives the complete picture: every fidelity level against every
+phenomenon. In that grid \checkmark\ marks a represented phenomenon and a dash its absence;
+\texttt{A} an aggregated form and \texttt{exo} an exogenous input; \texttt{PWL}, \texttt{Bil}
+and \texttt{Quad} a piecewise-linear, native-bilinear or native-quadratic treatment; and
+\texttt{flat} or \texttt{dyn} the static or flow-dependent station pressure requirement. The
+four decomposition controls stand to the left of the monotone $\Lone$ through $\Lsix$ ladder,
+with the nonlinear reference $\NLref$ closing it on the right.
+% CHANGED: L6 added to the solved list (Tables 14 and 19 report it as a solved MILP);
+% "The controls, L1 and L3" rephrased, since L1 is itself one of the four controls.
+The four decomposition controls, together with $\Lthree$ and $\Lsix$, are solved as
+mixed-integer linear programs to a $0.01$\,\% gap; the non-convex levels
+($\Ltwo$, $\Lfour$, $\Lfive$, $\NLref$) are quantified with the validated forward model
+rather than solved. 
+% ADDED: gives ZN an explicit place. It is neither a control nor a ladder rung,
+% and it appears in no bias/regret table; leaving it undeclared while giving it a
+% column in Table 3 invited the question of what it is doing there.
+One further formulation sits outside both parts of the family. The zone-aggregated level
+$\ZN$ resolves demand into geographic clusters rather than junctions and computes trunk
+loss on the aggregated graph; it is not a decomposition control, since it occupies no
+corner of the $2\times2$, and not a ladder rung, since the ladder is defined on the
+node-resolved network. It is used solely to test whether the choice of zone boundary is a
+hidden degree of freedom in the decomposition (Section~\ref{subsec:zonesens}), and is
+reported there rather than among the bias and regret results.
+\input{tabels/tab_design_grid}
+
 %% Figure F1
 %% The full phenomenon x level scope grid (11 columns, CP..NL x 13 phenomena) is
 %% reference material, MOVED TO APPENDIX (tab_design_grid, app:scopegrid) so the
