@@ -1,35 +1,15 @@
-District-heating dispatch-optimisation models are simplified in ways whose decision
-cost is rarely quantified, and prior fidelity comparisons both vary network and loss
-representation together (so neither can be attributed) and judge fidelity by
-comparing objective values across formulations, which measures the models rather than
-the decisions they produce. We separate two quantities: estimation bias (the objective
-difference between formulations) and decision regret (the cost of executing a model's
-dispatch schedule, obtained by re-simulating it under a common high-fidelity forward
-model with native-exponential losses, computed-friction hydraulics and the consumer
-differential-pressure requirement, and no piecewise linearisation). That forward model is
-not treated as ground truth; it is a common benchmark against which the sensitivity of
-dispatch \emph{decisions} to model fidelity is measured. We evaluate both on
-a one-phenomenon-per-step fidelity ladder (from a copperplate through node-resolved
-losses, trunk pressure and station-resolved hydraulics) augmented by a copperplate
-supplied with the aggregate loss it cannot itself compute, a control that yields an
-exact loss/topology decomposition, on one real network (Memmingen) and a balanced
-135-network synthetic factorial. Judged by decisions rather than by objective values, a
-copperplate is a biased estimator \emph{and} an incompetent controller at once: its
-schedule looks \textbf{-15.1}\,\% cheaper on operating cost yet costs
-\textbf{+46.1}\,\% more to execute, the two carrying opposite signs, whereas
-loss-aware levels are physically deliverable. What separates them is loss visibility, not
-spatial topology. The copperplate-to-baseline cost gap decomposes to machine precision into
-a loss main effect of \textbf{95.8}\,\% and a spatial-topology main effect of only
-\textbf{4.7}\,\%, and across the synthetic factorial loss explains a median
-\textbf{100.0}\,\% of the gap, topology staying within
-$\pm$0.6\,\% on every network of 5\,km trunk length or more and never exceeding 2.4\,\% even
-on the shortest, where the entire gap is below 6\,\% of cost. A lumped loss adder can hide
-this on any one network but does not transfer across scenarios. Resolving the demand side to all 174
-individual transmission stations and their service laterals, on real component data (pump
-datasheets, network plans) cross-checked against a nonlinear pipe-flow solver, changes
-dispatch cost by less than 1\,\% and decisions by essentially zero, a null at maximal
-fidelity that locates the threshold below station-level hydraulics. Whether spatial
-resolution matters more under distributed than central generation is posed as a controlled
-question, resolved as null for central generation. The results are conditional on fixed
-capacities, a fixed heating curve and radial networks; joint dispatch-and-sizing is left
-to a companion study.
+District-heating dispatch models are widely simplified, yet their decision costs are seldom quantified.
+This study distinguishes estimation bias, the objective-value difference between formulations, from decision regret---an L1-relative \emph{forward-valued} schedule gap, so termed here---
+the forward-valued cost of each schedule when re-simulated using a common high-fidelity forward model with exponential heat losses,
+computed-friction hydraulics, and consumer differential-pressure constraints. We assess both using a one-phenomenon-at-a-time
+fidelity ladder from a copperplate model to station-resolved hydraulics. Supplying the copperplate with aggregate losses
+enables an exact separation of loss and topology effects. Tests cover the Memmingen network and 135 synthetic networks
+in a balanced factorial design. The copperplate underestimates operating costs by 15.1\% but produces schedules whose unprovisioned loss, forward-valued at the marginal unit, adds 46.1\%,
+whereas loss-aware schedules provision that loss and stay hydraulically deliverable. Loss visibility, not spatial topology, explains this discrepancy:
+losses account for 95.8\% of the copperplate-to-baseline gap and topology for 4.7\%. Across synthetic networks, losses explain a
+ median 100.0\% of the gap. The topology effect remains within $\pm 0.6\%$ for trunk lengths of at least 5~km and never exceeds 2.4\%.
+ Aggregate loss adders may conceal the deficiency in one network but do not transfer across scenarios.
+ Forward-evaluating all 174 transmission stations and service laterals on the fixed schedule, using real component data, adds less
+ than 1\% to its cost and finds no hydraulic violation, suggesting limited re-optimisation value at station-level hydraulics in this case. Spatial routing
+ is immaterial under central generation; distributed generation remains open. Results assume fixed capacities,
+a fixed heating curve, and radial networks; joint dispatch and sizing will be addressed separately.

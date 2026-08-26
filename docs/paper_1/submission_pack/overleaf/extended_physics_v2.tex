@@ -12,7 +12,7 @@ that no comparison changes more than one thing: temperature propagation along pi
 ($\Ltwo$), trunk pressure drop and the pumping power it implies ($\Lthree$), and transport
 delay ($\Lsix$). A fourth object, the nonlinear reference $\NLref$, retains all three in
 native form and is used for forward evaluation and bounded re-solves rather than as a rung
-of the ladder. Piecewise-linear approximations use SOS2 machinery with $K = 3$ segments
+of the ladder. Piecewise-linear approximations use a binary multiple-choice representation with $K = 3$ segments
 throughout. Both the supply and the return circuit are resolved at every level from
 $\Lthree$ upward.
 
@@ -31,37 +31,55 @@ the fluid density. Because the supply and return temperatures are prescribed by 
 heating curve, the mass flow is linear in the pipe heat flow $Q_{p,t}$ [MW]:
 %
 \begin{equation}
-  \dot{m}_{p,t} = \frac{Q_{p,t}}{
+  \dot{m}_{p,t} = \frac{10^{6}\, Q_{p,t}}{
     c_p \bigl(T_{\mathrm{sup}}^{\mathrm{nom}}(t)
     - T_{\mathrm{ret}}^{\mathrm{nom}}(t)\bigr)},
   \label{eq:massflow}
 \end{equation}
 %
 so that $\Delta p_{p,t} = R_p\, Q_{p,t}^2$ with $R_p$ [Pa/MW$^2$] the hydraulic resistance.
-In $\Lthree$ this quadratic is approximated piecewise-linearly over $K$ equal segments with
-SOS2 weights $w_{p,t,k} \in [0,1]$,
+In $\Lthree$ this quadratic is approximated by a multiple-choice piecewise-linear model over $K$
+equal flow segments with breakpoints $0 = Q^{(0)} < Q^{(1)} < \dots < Q^{(K)} = \bar{Q}_p$. A
+binary $z_{p,t,k}$ selects the active segment and the flow is disaggregated onto it,
+%
+\begin{equation}
+  Q_{p,t} = \sum_{k=1}^{K} Q_{p,t,k}, \quad
+  \sum_{k=1}^{K} z_{p,t,k} = 1, \quad
+  Q^{(k-1)} z_{p,t,k} \le Q_{p,t,k} \le Q^{(k)} z_{p,t,k}, \quad z_{p,t,k} \in \{0,1\},
+  \label{eq:pressure_pwl_sel}
+\end{equation}
+%
+so exactly one segment carries the flow (it is these segment binaries the solver branches on,
+not SOS2 sets); the pressure drop is the chord of $R_p Q^2$ on the active segment,
 %
 \begin{equation}
   \Delta p_{p,t}^{\mathrm{PWL}} = \sum_{k=1}^{K}
-    m_k^{(p)}\, w_{p,t,k},
+    \bigl(m_k^{(p)}\, Q_{p,t,k} + c_k^{(p)}\, z_{p,t,k}\bigr),
   \label{eq:pressure_pwl}
 \end{equation}
 %
-whose maximum approximation error is $\varepsilon^{\max}_{\Delta p} = R_p \bar{Q}_p^2/(4K^2)$,
+with $m_k^{(p)}$ and $c_k^{(p)}$ the slope and intercept of the $k$-th chord of $R_p Q^2$. Its
+maximum approximation error is $\varepsilon^{\max}_{\Delta p} = R_p \bar{Q}_p^2/(4K^2)$,
 about $2.8$\,\% of the peak pressure drop at $K = 3$ (Appendix~\ref{app:pwl}). In $\NLref$
 the quadratic enters natively.
 
 Pumping power is the hydraulic work summed over pipes and divided by the pump efficiency,
 %
 \begin{equation}
-  P_t^{\mathrm{pump}} = \frac{1}{\eta_{\mathrm{pump}}}
+  P_t^{\mathrm{pump}} = \frac{10^{-6}}{\eta_{\mathrm{pump}}}
     \sum_{p \in \mathcal{P}}
     \frac{\dot{m}_{p,t}\, \Delta p_{p,t}}{\rho},
   \label{eq:pump_power}
 \end{equation}
 %
 which is cubic in $Q_{p,t}$ and is piecewise-linearised directly in $\Lthree$; in $\NLref$
-it is carried by the auxiliary $W_{p,t} = Q_{p,t}^2$ entering as $Q_{p,t} W_{p,t}$.
+it is carried by the auxiliary $W_{p,t} = Q_{p,t}^2$ entering as $Q_{p,t} W_{p,t}$; the
+auxiliary keeps the formulation quadratically constrained (a bilinear $Q_{p,t}W_{p,t}$ with the
+quadratic definition $W_{p,t}=Q_{p,t}^2$) rather than cubic, solved globally with
+\texttt{NonConvex=2}. The $10^{6}$ in
+Eq.~\eqref{eq:massflow} and the $10^{-6}$ here reconcile the MW heat and power units with the
+SI $c_p$ [J\,kg$^{-1}$\,K$^{-1}$], $\Delta p$ [Pa] and $\dot m$ [kg\,s$^{-1}$] of the physical
+relations, matching the implementation.
 
 \paragraph{Temperature propagation ($\Ltwo$).}
 Where $\Lone$ computes pipe losses from fixed nominal temperatures, $\Ltwo$ tracks the
@@ -78,12 +96,16 @@ inlet temperature towards the ground temperature $T_{\mathrm{gr}}$:
 \end{equation}
 %
 The decay factor $\phi_p \in (0,1]$ is the fraction of the inlet temperature excess
-surviving to the outlet: near unity at high flow, near zero as flow approaches zero. Two
+surviving to the outlet: near unity at high flow, near zero as flow approaches zero; the
+forward evaluator floors $\dot{m}_p$ at a small positive value so the exponent stays finite,
+and at zero flow $\phi_p$ is taken as its limit, $0$ (full decay). Two
 nonlinearities follow: the exponential itself and the bilinear product
-$T_{n_1,t}^{\mathrm{sup}} \phi_p$. The exponential is approximated by a PWL in $\dot{m}$
-shared by every level that uses it, so this component of the error is common and cancels in
-the comparisons. The bilinear product enters natively in $\NLref$; in $\Ltwo$ it is
-linearised by a first-order Taylor expansion about the nominal operating point,
+$T_{n_1,t}^{\mathrm{sup}} \phi_p$. The exponential is approximated by a PWL in $\dot{m}$ in the
+solved level $\Ltwo$, and enters natively in $\NLref$ and the nonlinear 72-hour re-solves; the
+reported PWL-versus-native gap therefore combines this exponential approximation with the
+product approximation below, rather than cancelling it. The bilinear product likewise enters
+natively in $\NLref$; in $\Ltwo$ it is linearised by a first-order Taylor expansion about the
+nominal operating point,
 %
 \begin{align}
   T_{p,t}^{\mathrm{out}} &\approx T_{\mathrm{gr}}(t)
@@ -118,8 +140,10 @@ nominal travel time through pipe $p$, with cross-section $A_p = \pi D_p^2/4$, is
   \label{eq:delay_time}
 \end{equation}
 %
-discretised to $k_p = \lfloor \tau_p/\Delta t \rfloor$ time steps, so the heat delivered
-downstream is the heat injected $k_p$ steps earlier less the corresponding losses:
+discretised to $k_p = \lfloor \tau_p/\Delta t \rfloor$ time steps (with $\tau_p$ from
+Eq.~\eqref{eq:delay_time} in seconds and the hourly step taken as $\Delta t = 3600$\,s, so
+$k_p$ counts whole hours), so the heat delivered downstream is the heat injected $k_p$ steps
+earlier less the corresponding losses:
 %
 \begin{equation}
   Q_{p,t}^{\mathrm{delivered}} =
@@ -128,13 +152,18 @@ downstream is the heat injected $k_p$ steps earlier less the corresponding losse
   \label{eq:delayed_balance}
 \end{equation}
 %
-Isolating delay on its own rung is what allows it to be separated from the linearisation
-error rather than confounded with it. It also produces a clean negative
-result, and the reason is visible in \eqref{eq:delay_time}: on this network every trunk
-travel time is under an hour (the longest is about 35 minutes), so $k_p = 0$ for every
-pipe and \eqref{eq:delayed_balance} collapses to the undelayed balance. $\Lsix$ and
-$\Lthree$ are consequently the same programme, with identical variable, binary and
-constraint counts and an identical optimum to the last digit. The delay effect at hourly
-resolution is exactly zero rather than merely small, and this is a statement about the
-temporal resolution: at sub-hourly resolution, or on a network with kilometres more trunk,
-$k_p$ would not vanish.
+Isolating delay on its own rung allows it to be separated from the linearisation error rather 
+than confounded with it. It also produces a clean negative result, whose reason is visible 
+in \eqref{eq:delay_time}: every trunk travel time in this network is under an hour, with 
+the longest being about 35 minutes, so \(k_p=0\) for every pipe and \eqref{eq:delayed_balance} 
+collapses to the undelayed balance. \(\Lsix\) solves \(\Lthree\) plus this integer-step delay; 
+it does \emph{not} inherit the forward-only station levels \(\Lfour\) and \(\Lfive\), which 
+lie outside the solved ladder. With \(k_p=0\) at hourly resolution, \(\Lsix\) and \(\Lthree\) 
+are therefore the same programme, with identical variable, binary, and constraint counts and 
+an identical optimum to the last digit. The represented integer-step delay effect is zero at 
+hourly resolution rather than merely small, and this is a statement about temporal resolution: 
+at sub-hourly resolution or in a network with several additional kilometres of trunk, \(k_p\) 
+would not vanish. This is checked at the \emph{path} level, not only per pipe: the longest 
+source-to-consumer path, the approximately \(2.8\,\mathrm{km}\) trunk to the far end, has a 
+cumulative nominal travel time below one hour, so flooring each pipe separately does not 
+erase a cumulative delay that would otherwise exceed the time step.

@@ -9,7 +9,7 @@
 %%  (a) level labels set upright (\textup), not in math mode
 %%  (b) Status column added: optimised vs forward-evaluated (taxonomy consistency)
 %%  (c) ZN given an explicit purpose (Section 3.4)
-%%  (d) NL now names both roles: forward reference AND weekly re-solve
+%%  (d) NL now names both roles: forward reference AND 72-hour re-solve
 %%  (e) C^pump REMOVED -- pump electricity enters the electricity bus and is paid
 %%      through grid procurement; a standalone term would double-count
 %%  (f) b (loss burden) and HI added
@@ -40,7 +40,7 @@ Symbol & Code & Status & Description \\
 \Lfour   & T2P4 & fwd.-eval.  & $+$ station resolution and service laterals \\
 \Lfive   & T2P5 & fwd.-eval.  & $+$ flow-dependent station pressure drop \\
 \Lsix    & T2P6 & optimised   & $+$ transport delay \\
-\NLref   &      & reference   & Nonlinear forward evaluator and bounded weekly re-solve; not a ladder rung \\
+\NLref   &      & reference   & Nonlinear forward evaluator and bounded 72-hour re-solve; not a ladder rung \\
 \midrule
 $b_\ell$   & & & Estimation bias of level $\ell$ (optimised cost difference) \\
 $r_\ell$   & & & Decision regret of level $\ell$ (forward-evaluated difference) \\
@@ -85,7 +85,7 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{f_D}{Darcy friction factor}
 \nom{\rho}{Fluid density [kg\,m$^{-3}$]}
 \nom{c_p}{Specific heat capacity of water [J\,(kg\,K)$^{-1}$]}
-\nom{\tau_p}{Transport delay [h]}
+\nom{\tau_p}{Transport delay [s] (Eq.~\eqref{eq:delay_time}; $k_p=\lfloor\tau_p/\Delta t\rfloor$ with $\Delta t=3600$\,s)}
 \nom{k_p}{Delay in time steps}
 \nom{\phi_{p,t}}{Temperature decay factor, $\in(0,1]$}
 \nom{\phi_p^{\mathrm{nom}}}{Nominal decay factor}
@@ -105,7 +105,7 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{\alpha_s}{Storage standing-loss fraction per hour}
 \nom{\mathrm{COP}_{h,t}^{\mathrm{WHR}}}{Waste-heat COP, time-varying}
 \nom{\mathrm{COP}_h^{\mathrm{def}}}{Default-source COP, constant}
-\nom{m_k^{(p)}}{PWL segment slope}
+\nom{m_k^{(p)},\,c_k^{(p)}}{PWL segment slope and intercept (chord of $R_pQ^2$)}
 \nom{\Delta T_{\mathrm{pp}}}{Heat-pump pinch-point temperature difference [K]}
 \nom{\lambda_t^{\mathrm{buy/sell}}}{Electricity buy/sell price [EUR\,MWh$^{-1}$]}
 \nom{\lambda_g^{\mathrm{fuel}}}{Specific fuel cost [EUR\,MWh$^{-1}$]}
@@ -156,12 +156,12 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{T_{p,t}^{\mathrm{out}}}{Pipe outlet temperature [$^\circ$C]}
 \nom{E_{s,t}}{Storage state of charge [MWh]}
 \nom{F_{g,t}}{Fuel input, heating-value basis [MW]}
-\nom{E_t^{\mathrm{CO_2,grid}}}{Grid CO$_2$ emissions [t]}
-\nom{E_{g,t}^{\mathrm{CO_2,fuel}}}{Fuel CO$_2$ emissions [t]}
+\nom{E_t^{\mathrm{CO_2,grid}}}{Grid CO$_2$ emissions [kg]}
+\nom{E_{g,t}^{\mathrm{CO_2,fuel}}}{Fuel CO$_2$ emissions [kg]}
 \nom{W_{p,t}}{Bilinear auxiliary, $=Q_{p,t}^2$ [MW$^2$]}
 \nom{u_{h,t}}{Heat-pump on/off, binary}
 \nom{z_t}{Grid import mode, binary}
-\nom{w_{p,t,k}}{SOS2 weights, $[0,1]$}
+\nom{z_{p,t,k}}{Binary PWL segment selector, $\{0,1\}$ ($Q_{p,t,k}$ the flow on segment $k$ [MW])}
 
 \end{multicols}
 

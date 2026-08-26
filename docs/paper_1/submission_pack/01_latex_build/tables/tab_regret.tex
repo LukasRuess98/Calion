@@ -2,22 +2,26 @@
 \begin{table*}[t]
 \centering
 \caption{Estimation bias versus decision regret (\% of the baseline $\Lone$ operating cost).
-Regret is a forward valuation of the unprovisioned network loss at the marginal replacement
-heat, shown for three pricing schemes; \emph{Viol.} counts hydraulic-feasibility violations
-(velocity, differential pressure), all zero; the last two columns give the heat-pump energy
-share and running hours.}
+Decision regret is a forward valuation of the unprovisioned network loss at the marginal
+replacement heat (an L1-relative forward-valued schedule gap, not a re-optimised operating
+cost), shown for three pricing schemes. \emph{Short.} is the raw unprovisioned network loss
+(MWh\,yr$^{-1}$) the schedule leaves uncovered---a physical under-provision, distinct from the
+hydraulic \emph{Viol.} count (velocity, differential pressure); only a level with \emph{both}
+zero is physically deliverable. The last two columns give the heat-pump energy share and
+running hours.}
 \label{tab:regret}
-\begin{tabular}{lrrrrrrr}
+\begin{tabular}{lrrrrrrrr}
 \hline
-Level & Bias & \multicolumn{3}{c}{Regret (marginal / peak / unmet)} & Viol. & HP share & HP hrs \\
+Level & Bias & \multicolumn{3}{c}{Regret (marginal / peak / unmet)} & Viol. & Short.\ & HP share & HP hrs \\
+ & & & & & (hyd.) & (MWh) & & \\
 \hline
-$\CP$ & -15.1 & +46.1 & +61.2 & +831.7 & 0 & 77.9 & 2\,063 \\
-$\CPL$ (const.) & -0.6 & -0.5 & -0.5 & -0.5 & 0 & 78.2 & 2\,309 \\
-$\CPL$ (curve) & -0.7 & -0.6 & -0.6 & -0.6 & 0 & 78.2 & 2\,310 \\
-$\NDz$ & -14.4 & +46.8 & +61.9 & +832.5 & 0 & 78.0 & 2\,061 \\
-$\Lone$ & +0.0 & +0.0 & +0.0 & +0.0 & 0 & 87.8 & 2\,309 \\
-$\Lthree$ & +1.4 & +1.4 & +1.4 & +1.4 & 0 & 87.8 & 2\,311 \\
-$\Lsix$ & +1.4 & +1.4 & +1.4 & +1.4 & 0 & 87.8 & 2\,311 \\
+$\CP$ & -15.1 & +46.1 & +61.2 & +831.7 & 0 & 1\,159 & 77.9 & 2\,063 \\
+$\CPL$ (const.) & -0.6 & -0.5 & -0.5 & -0.5 & 0 & 0 & 78.2 & 2\,309 \\
+$\CPL$ (curve) & -0.7 & -0.6 & -0.6 & -0.6 & 0 & 0 & 78.2 & 2\,310 \\
+$\NDz$ & -14.4 & +46.8 & +61.9 & +832.5 & 0 & 1\,160 & 78.0 & 2\,061 \\
+$\Lone$ & +0.0 & +0.0 & +0.0 & +0.0 & 0 & 0 & 87.8 & 2\,309 \\
+$\Lthree$ & +1.4 & +1.4 & +1.4 & +1.4 & 0 & 0 & 87.8 & 2\,311 \\
+$\Lsix$ & +1.4 & +1.4 & +1.4 & +1.4 & 0 & 0 & 87.8 & 2\,311 \\
 \hline
 \end{tabular}
 \end{table*}

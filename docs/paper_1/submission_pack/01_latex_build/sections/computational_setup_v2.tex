@@ -23,9 +23,11 @@ with a rigorous optimality bound alongside the point estimate, using the incumbe
 and the best bound of the other so that the reported effect is conservative, together with both
 solver gaps. No effect smaller than the attained tolerance is claimed; where the bound does not
 support the point estimate this is stated, and treated as a result rather than a failure. The
-linear levels are solved to a $0.01$\,\% gap; the one bilinear level (temperature propagation)
-is solved to $0.1$\,\%, which still lies far below the effect it measures, and this asymmetry is
-stated wherever that level is used.
+linear levels are solved to a $0.01$\,\% gap. Temperature propagation is \emph{not} reported as
+a solved dispatch: its free-variable form is bilinear and degenerate, so it is forward-evaluated
+(Section~\ref{sec:extended}) rather than optimised. Where its diagnostic MILP is solved at all it
+terminates only at a $0.1$\,\% gap, and that solve is retained as a diagnostic, not a reported
+cost.
 
 Not every level is solved as a dispatch problem, and the distinction is stated wherever the
 levels are used. The station-resolved levels $\Lfour$ and $\Lfive$ are quantified with the

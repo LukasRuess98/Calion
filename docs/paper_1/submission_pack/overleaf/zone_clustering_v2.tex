@@ -61,15 +61,17 @@ equal across all twenty-four partitions, the residual routing effect is negligib
 Effect & Cost & \% of the $\CP\!\to\!\Lone$ gap \\
 \hline
 Loss visibility & 19\,737\,EUR & 95.8 \\
-Spatial topology (resolving routing) & 961\,EUR & 4.7 \\
-Zone-boundary choice (this subsection) & 11\,EUR & $<$0.01 \\
+Spatial topology (resolving routing, physics-matched) & 52\,EUR & 0.25 \\
+Zone-boundary choice (this subsection) & $\lesssim$11\,EUR & at solver tolerance \\
 \hline
 \end{tabular}
 \end{table}
 
-Choosing where to draw a zone boundary is two orders of magnitude less consequential than
-resolving routing at all, and three below representing the loss
-(Table~\ref{tab:r16}). The aggregation is therefore not a hidden degree
+Choosing where to draw a zone boundary is negligible: at $\lesssim$11\,EUR the residual is
+three orders of magnitude below representing the loss and, like the physics-matched topology
+effect itself, sits at the $0.01$\,\% solver tolerance
+($\approx$13\,EUR on the Memmingen cost), so no zone-partition effect is resolved
+above it. The aggregation is therefore not a hidden degree
 of freedom in the results, and the finding corroborates the decomposition from an
 independent direction: loss, not geometry, carries the cost.
 
@@ -86,7 +88,7 @@ One parameterisation note, since two values for the same pipe appear in the rele
 The aggregator uses the network's per-pipe design heat-transfer coefficients, under which
 the far-east lateral carries a markedly higher value than the trunk, reflecting its older
 uninsulated construction. The Stage-1 validation instead calibrates a single uniform
-coefficient across all pipes, one free parameter, to reproduce the measured annual loss.
+coefficient across all pipes, one free parameter, to reproduce the annual loss implied by the delivered-energy measurement.
 The two serve different purposes and are not intended to agree pipe by pipe: the first is
 the design network, the second a minimal calibration of its aggregate behaviour. All
 partitions compared here use the same per-pipe basis, so the comparison is unaffected.

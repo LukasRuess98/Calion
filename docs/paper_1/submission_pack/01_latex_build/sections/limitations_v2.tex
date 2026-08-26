@@ -35,9 +35,11 @@ only arbitrage a known price curve. The results should therefore be read as esta
 that extended network physics is decision-irrelevant \emph{in the deterministic hourly
 planning regime}, the regime in which the great majority of published district-heating
 dispatch models operate, and not as a claim about real-time control. The direction of
-the bias is worth stating plainly: relaxing any of these assumptions can only give the
-extended physics more room to matter, never less, so the nulls reported here are conservative
-and the loss-dominance result, which does not depend on them, is not.
+the bias is worth stating plainly: relaxing these assumptions would generally give the
+extended physics more room to matter, though not necessarily monotonically, so the nulls
+reported here are best read as conservative within the tested regime; the loss-dominance
+algebraic identity does not depend on them, though its empirical magnitude is conditional on
+the tested systems.
 
 A related caution applies to the estimation-bias result in the opposite direction.
 \citet{Koek2026} show for multistage investment planning that ignoring price and
@@ -67,18 +69,18 @@ Admitting loops requires signed-flow hydraulic variables, a per-pipe direction s
 that reorients each pressure drop and temperature mix, which is a distinct formulation
 rather than a parameter change. The same boundary limits the generation-topology
 moderator: the synthetic generator roots all injection at the primary producer, so the
-distributed-generation arm is posed as a controlled open question rather than answered,
+distributed-generation case is posed as a controlled open question rather than answered,
 and multi-source operation on a meshed network is left to the companion study. Because
 generation is central in every case examined, the null reported for spatial routing is
 established for centrally-supplied networks specifically.
 
 \paragraph{The nonlinear reference.}
-The nonlinear reference is solved on representative weeks rather than globally. The
+The nonlinear reference is solved on representative 72-hour windows rather than globally. The
 full-year non-convex programme finds no incumbent within the solver budget, and a low-load
-summer week is infeasible under native physics with the linearised schedule fixed. Both
-are reported as results in Section~\ref{subsec:linearisation} (the second is itself an
-instance of the physical-deliverability failure the regret evaluation was built to expose),
-but they do bound the claim: the solved linearisation error is established for winter
+summer 72-hour window is infeasible under native physics with the linearised schedule fixed. Both
+are reported as results in Section~\ref{subsec:linearisation} (the second is a solver outcome
+whose physical-versus-numerical cause is not yet established; an IIS diagnosis is left to future
+work), but they do bound the claim: the solved linearisation error is established for winter
 and autumn operating points, and whether it remains sub-percent under shoulder-season
 operation with frequent on/off cycling is open. Warm-start heuristics or a reformulation
 of the bilinear terms are the natural routes.

@@ -20,7 +20,7 @@
 Every bias and regret figure in this paper is reported on the \emph{economic} operating
 cost, not on the raw solver objective, and the two differ systematically. On Memmingen the
 objective exceeds the economic cost by $38.7$--$41.0$\,\% depending on the level
-(Table~S2, Supplementary Material). Because that difference is large enough to change the
+(Table~S1, Supplementary Material). Because that difference is large enough to change the
 apparent size of every comparison, this section states what it is and why the economic cost is the
 right quantity.
 
@@ -36,8 +36,10 @@ physically implausible rapid cycling but corresponds to no operator cash flow. T
 these reproduce the residual to within about $1.5$\,kEUR per run, under one percent of the
 objective.
 
-The economic cost is reported because it is what an operator pays and the only quantity a
-dispatch decision changes. Every bias and regret figure is computed \emph{directly} on this
+The economic cost is reported because it is what an operator pays and is the primary
+operator-cost basis for the reported comparisons; dispatch also changes emissions, storage
+cycling and exports, which are accounted separately and not folded into the bias/regret
+figures. Every bias and regret figure is computed \emph{directly} on this
 economic cost, so neither accounting term enters a reported comparison: the loss/topology
 decomposition (Table~\ref{tab:decomposition}) is formed from the four levels' economic costs and
 closes with zero residual by construction, and the objective residual---together with its
@@ -50,9 +52,10 @@ terms no operator sees.
 The carbon convention is itself a modelling decision, stated explicitly: exported
 cogeneration electricity is credited with the emissions it displaces at the grid margin.
 The alternative gross convention shifts magnitudes by two to three percentage points
-(the copperplate bias reads $-12.2$\,\% rather than $-15.1$\,\%) and changes neither the
-sign of any bias or regret figure nor the loss-dominance result, because the credit is
-near-identical at every level. The per-level split is released as
+(the copperplate bias reads $-12.2$\,\% rather than $-15.1$\,\%, and the loss share of the gap
+reads $97.0$\,\% rather than $95.8$\,\%) and changes
+neither the sign of any bias or regret figure nor the loss-dominance result---which the gross
+basis in fact strengthens---because the credit is near-identical at every level. The per-level split is released as
 \texttt{objective\_decomposition.csv} so that either basis can be reconstructed.
 
 One residual concern is that the schedules are optimised on the solver objective, so
@@ -63,7 +66,6 @@ carbon self-use credit is a reporting allocation that, placed in the objective, 
 selling electricity purely to shed carbon, so it is excluded, and the gross-basis figures
 above are the objective-consistent report for carbon. Removing the cycling penalty and
 re-solving the four levels to the same $0.01$\,\% gap lowers every economic cost by a
-near-uniform $3.5$\,\%: the loss share moves only from $95.8$ to $95.6$\,\% and topology
-from $4.7$ to $5.0$\,\%. The decomposition is thus stable to the objective--economic
+near-uniform $3.5$\,\%: the loss share moves only from $95.8$ to $95.6$\,\%. The decomposition is thus stable to the objective--economic
 distinction, not merely arithmetically separated from it
 (\texttt{loss\_share\_econobj\_sensitivity.csv}).

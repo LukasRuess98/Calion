@@ -40,7 +40,8 @@ Table~\ref{tab:linearisation} lies below the solver tolerance.
 
 The honest conclusion is therefore conditional, and stated that way throughout: within
 the deterministic, hourly, fixed-capacity, fixed-temperature planning regime, extended
-network physics does not change dispatch decisions. That regime is not a corner case. It is
+network physics adds little to a fixed schedule's forward-evaluated cost and reveals no
+hydraulic violation. That regime is not a corner case. It is
 where the overwhelming majority of published district-heating dispatch models operate, and
 the practical guidance the nulls support (do not spend modelling effort on hydraulic
 detail before loss representation) applies wherever such models are used.
@@ -57,11 +58,12 @@ term, because the physics enters dispatch as a feasibility boundary and not as a
 the schedule.
 
 One asymmetry is worth stating plainly, because it determines how far the nulls can be
-trusted. Relaxing any of these four assumptions can only give the extended physics
-\emph{more} room to matter, never less. The nulls are therefore conservative: they are
-lower bounds on the fidelity requirement, and a reader operating outside this regime should
-treat them as the floor rather than the answer. The loss-dominance result carries no such
-qualification. It follows from an exact decomposition of a cost gap, holds across 135
-synthetic networks spanning two orders of magnitude in loss burden, and does not depend on
-any of the four assumptions above. That is why it, and not the nulls, is what the title
-claims.
+trusted. Relaxing these assumptions would generally give the extended physics \emph{more} room
+to matter, though not necessarily monotonically; we therefore read the nulls as conservative
+\emph{within the tested regime}, and a reader operating outside it should treat them as
+indicative rather than as guarantees. The loss-dominance result is more robust: the
+decomposition itself is an exact algebraic identity on the four optimised costs, and
+empirically the loss term dominates across all 135 synthetic networks, spanning two orders of
+magnitude in loss burden. Its magnitude remains conditional on the tested systems, but within
+that regime it does not hinge on any single one of the four assumptions above. That is why it,
+and not the nulls, is what the title claims.

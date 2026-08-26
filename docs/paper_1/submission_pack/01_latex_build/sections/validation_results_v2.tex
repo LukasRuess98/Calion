@@ -44,24 +44,29 @@ not propagate supply temperature, so its trunk drop is identically zero against 
 $8.2$\,°C, and the far-end and corridor gates do not apply to it. The second is instrumental:
 on the propagating formulation the far-end error is $9.21$\,°C, of which $9.21$\,°C is
 \emph{bias}---mean absolute error and bias coincide to four decimals, so every residual
-carries the same sign. That is a displaced model, not a wrong one, by an amount squarely
-inside the $5$--$15$\,°C offset of a three-way mixing valve; the corridor comparison shows the
-same signature ($-7.73$\,°C bias). Neither obstacle is removable by a better pipe model, and
+carries the same sign, and the magnitude sits squarely inside the $5$--$15$\,°C offset of a
+three-way mixing valve (the corridor comparison shows the same signature, $-7.73$\,°C bias).
+This is \emph{consistent with} a fixed sensor-location offset rather than model error; but the
+primary and secondary temperatures were not measured simultaneously, so the available
+instrumentation cannot distinguish sensor-location bias from model error, and the temperature
+field is therefore not independently validated. Neither obstacle is removable by a better pipe model, and
 the first is a deliberate property of the formulation whose cost results we report.
 
 This is the concrete form of an argument that runs through the paper. A model resolved more
 finely than its metering cannot have the extra resolution verified, and a model that does
 not represent a quantity cannot be tested on it. The conclusions are therefore anchored to
-the annual network loss, which both formulations agree on and which the measurements can
-resolve, rather than to a point temperature field that neither the instrumentation nor the
-baseline can support.
+the annual delivered energy, which the measurements resolve, and hence to the model-implied
+network loss both formulations agree on, rather than to a point temperature field that neither
+the instrumentation nor the baseline can support.
 
 \paragraph{Scope of the temperature evaluation.}
-The figures here differ from the original submission, and both are correct. The original
-reported a $1.32$\,°C mean supply-temperature error over six of the fourteen nodes across a
-744-hour winter window; the figure above is the far-end node over the full annual record,
-unselected---the more conservative view, since the far end runs the mixing valve closest to
-fully open and the annual record admits no favourable window. Appendix~\ref{app:per_node_mae}
+Two views of the temperature error are consistent. On the ex-ante validation set---the held-out
+nodes over the 744-hour winter window on which the gates of Table~\ref{tab:valtargets} were
+fixed---the mean supply-temperature error is $1.32$\,°C and the worst-node error $2.27$\,°C,
+both \emph{within} their $1.5$ and $2.5$\,K gates. The $9.21$\,°C figure in
+Table~\ref{tab:validation} is a separate, more conservative diagnostic: the far-end node over
+the full annual record, unselected---the far end runs the mixing valve closest to fully open
+and the annual record admits no favourable window. Appendix~\ref{app:per_node_mae}
 confirms the earlier selection was not favourable: the all-node mean of $1.68$\,°C lies
 between the validation- and calibration-node group means, and two excluded nodes are the
 network's best-performing.
@@ -100,6 +105,6 @@ their dispatch is verified against necessary conditions rather than measurements
 coefficient of performance within its plausible band, storage state of charge inside its
 operating limits, no simultaneous charge and discharge. Two structural checks close the
 section. The nonlinear reference with its quadratic constraints deactivated reproduces the
-baseline objective to better than $0.01$\,\%, and the relaxation property
+baseline objective to better than $0.01$\,\%, and, on the economic-cost basis, the relaxation ordering
 $\mathrm{cost}(\CP) \le \mathrm{cost}(\Lone)$ holds on every one of the 135 synthetic
 instances; a violation of either would indicate a formulation error rather than a finding.

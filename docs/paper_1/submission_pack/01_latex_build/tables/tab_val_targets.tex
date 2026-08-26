@@ -26,9 +26,12 @@ Quantity & Gate & Formulation & Status \\
 \multicolumn{4}{l}{\emph{Gated}}\\
 Annual delivered-energy error       & $\le 2$\,\%   & MILP & met \\
 Energy-balance closure              & $\le 2$\,\%   & MILP & met \\
-Return-temperature MAE at source    & $\le 2.5$\,K  & MILP ($\Delta T$ param.) & met \\
-Supply-temperature MAE, mean        & $\le 1.5$\,K  & NLP  & not met (metering-limited) \\
-Supply-temperature MAE, worst node  & $\le 2.5$\,K  & NLP  & not met (metering-limited) \\
+Supply-temperature MAE, mean (val.\ nodes, 744\,h)  & $\le 1.5$\,K  & NLP  & met (1.32\,K) \\
+Supply-temperature MAE, worst node (744\,h)         & $\le 2.5$\,K  & NLP  & met (2.27\,K) \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Calibration / diagnostic (not gated validation)}}\\
+Return-temperature MAE at source    & (calib.) & MILP ($\Delta T$ param.) & calibration check \\
+Far-end supply-temp MAE (annual)    & (diag.)  & NLP  & 9.21\,K (metering-limited) \\
 \addlinespace
 \multicolumn{4}{l}{\emph{Reported, not gated}}\\
 Flow MAPE, source (reported, not gated)  & 33.8\,\%  & MILP \\

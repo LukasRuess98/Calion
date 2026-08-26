@@ -80,10 +80,11 @@ distinction and its magnitude are set out in Section~\ref{subsec:costacct}.
 
 \paragraph{Energy balance, and how the controls are constructed.}
 The copperplate levels $\CP$ and $\CPL$ enforce a single bus-level balance over all
-generators and storage, with no spatial routing:
+generators, heat pumps, electrode boilers and storage, with no spatial routing:
 %
 \begin{equation}
   \sum_{g} Q_{g,t}^{\mathrm{th}}
+    + \sum_{h} Q_{h,t} + \sum_{r} Q_{r,t}
     + \sum_{s} Q_{s,t}^{\mathrm{dis}}
   = Q_t^{\mathrm{dem}} + Q_t^{\mathrm{dump}}
     + \sum_{s} Q_{s,t}^{\mathrm{ch}}
@@ -106,6 +107,8 @@ and for the spatial distribution of assets and demands:
   &\sum_{p \in \mathcal{P}_n^{\mathrm{in}}}
     \bigl(Q_{p,t} - \kappa\, Q_{p,t}^{\mathrm{loss,pipe}}\bigr)
   + \sum_{g \in \mathcal{G}_n} Q_{g,t}^{\mathrm{th}}
+  + \sum_{h \in \mathcal{H}_n} Q_{h,t}
+  + \sum_{r \in \mathcal{R}_n} Q_{r,t}
   + \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{dis}} \notag \\
   &= Q_{n,t}^{\mathrm{dem}} + Q_{n,t}^{\mathrm{dump}}
   + \sum_{s \in \mathcal{S}_n} Q_{s,t}^{\mathrm{ch}}
@@ -189,13 +192,14 @@ enter exogenously as $L_t$ for $\CPL$, and are computed by \eqref{eq:loss_supply
 % reference, not a known truth.
 Two points about the calibration matter for what follows. First, the $U$ values are
 constrained to a defensible range for the pipe class rather than fitted freely: forcing the
-trunk-only loss to match the measured total by inflating terminal-pipe coefficients cannot be
-justified as insulation ageing. Second, what such a multiplier would absorb is the
+trunk-only loss to match the delivered-energy-implied total by inflating terminal-pipe
+coefficients cannot be attributed to insulation ageing. Second, what such a multiplier would absorb is the
 \emph{last mile}, the service laterals and substations a trunk-only model does not represent,
 and it is therefore placed where it physically belongs, entering only at the station-resolved
-level $\Lfour$. The node-resolved levels consequently \emph{undercount} the measured network
-loss by construction, and the modelled total matches the measurement to about one percent
-only once the laterals are added (Section~\ref{subsec:validation}). This is a result rather
+level $\Lfour$. The node-resolved levels consequently \emph{undercount} the network
+loss by construction, and the modelled total matches the measured \emph{delivered energy} to
+about one percent only once the laterals are added (Section~\ref{subsec:validation}); the
+network loss this implies is model-derived, not independently metered. This is a result rather
 than a defect: a quantitative statement of what a trunk-resolved model cannot see.
 
 \paragraph{Heat pump.}
@@ -237,7 +241,7 @@ The state of charge $E_{s,t}$ [MWh] of storage unit $s$ follows a discrete-time 
 with self-discharge and separate charging and discharging efficiencies:
 %
 \begin{equation}
-  E_{s,t} = (1 - \alpha_s)^{\Delta t}\, E_{s,t-1}
+  E_{s,t} = (1 - \alpha_s)^{\Delta t/\mathrm{1\,h}}\, E_{s,t-1}
     + \eta_s^{\mathrm{ch}}\, Q_{s,t}^{\mathrm{ch}}\, \Delta t
     - \frac{Q_{s,t}^{\mathrm{dis}}\, \Delta t}{\eta_s^{\mathrm{dis}}}.
   \label{eq:storage_soc}

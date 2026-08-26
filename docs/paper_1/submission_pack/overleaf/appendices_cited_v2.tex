@@ -39,7 +39,7 @@ model,
   T_{\mathrm{src},h}(t) + \Delta T_{\mathrm{pp}}},
 \end{equation}
 %
-with a Lorenz efficiency of $0.6$ and a pinch-point difference of $5$\,K, giving a combined
+with all temperatures in kelvin, a Lorenz efficiency of $0.6$ and a pinch-point difference of $5$\,K, giving a combined
 approximation error of about $3.6$\,\%. Pre-computing rather than co-optimising the
 coefficient of performance keeps the formulation free of bilinear terms; it also decouples
 heat-pump operation from the network state, which is one of the assumptions discussed in
@@ -70,7 +70,7 @@ CHP              & $Q^{\mathrm{th}} = \eta^{\mathrm{th}} F$ & $\sigma_g$ constan
 
 Because these models are identical at every level, they cannot contribute to any
 level-to-level difference. This is what allows the contrasts of
-Table~S1 (Supplementary Material) to be attributed to the network representation alone.
+Table~\ref{tab:contrasts} to be attributed to the network representation alone.
 
 \subsection{Piecewise-linearisation error bound}
 \label{app:pwl}
@@ -130,7 +130,9 @@ nominal operating point $(T_{n_1}^0, \phi_p^0)$:
 %
 The neglected second-order cross-term is bounded by
 $|\varepsilon| \leq |\Delta T_{\max}| |\Delta\phi_{\max}| < 2.5$\,K over the operating
-envelope. The exponential decay factor itself is approximated piecewise-linearly by
-\emph{every} level that represents temperature propagation, including the nonlinear
-reference, so that component of the error is common to both sides of the comparison and
-cancels in the measured linearisation gap.
+envelope. The exponential decay factor is approximated piecewise-linearly only in the
+\emph{solved} temperature-propagating level ($\Ltwo$); the nonlinear reference re-solves it
+natively (Section~\ref{subsec:evaluator}). The measured linearisation gap of
+$-0.15$/$-0.33$\,\% (Section~\ref{subsec:linearisation}) therefore already contains this
+exponential-approximation component (native versus piecewise-linear) rather than cancelling
+it, so the reported figure is the combined PWL-versus-native gap, not an isolated one.

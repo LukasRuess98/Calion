@@ -45,11 +45,13 @@ def f_decomp():
     d = pd.read_csv(A / "decomposition_live.csv").set_index("term")["pct_of_total"]
     s = pd.read_csv(A / "synth_factorial_decomposition.csv")
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(AE_DOUBLE_COLUMN_IN, 2.7))
-    # (a) Memmingen exact decomposition
-    terms = ["loss_main", "topo_main", "interaction"]
+    # (a) Memmingen exact decomposition (topology measured with physics held to CP; the
+    #     physics-parameter difference between the CP and node-resolved configs is shown
+    #     separately so it is not attributed to spatial resolution)
+    terms = ["loss_main", "topo_matched", "phys_param", "interaction"]
     vals = [d[t] for t in terms]
-    labels = ["Loss\n(visibility)", "Topology\n(routing)", "Interaction"]
-    bars = ax1.bar(labels, vals, color=[TEAL, NAVY, SILVER], width=0.6, edgecolor="k", lw=0.4)
+    labels = ["Loss\n(visibility)", "Topology\n(routing)", "Physics\nparams", "Interaction"]
+    bars = ax1.bar(labels, vals, color=[TEAL, NAVY, AMBER, SILVER], width=0.6, edgecolor="k", lw=0.4)
     ax1.axhline(0, color="k", lw=0.6)
     for b, v in zip(bars, vals):
         ax1.text(b.get_x() + b.get_width() / 2, v + (2 if v >= 0 else -4),
@@ -65,7 +67,7 @@ def f_decomp():
     ax2.axhline(100, color=TEAL, lw=0.8, ls="--", alpha=0.7)
     ax2.axhline(0, color=NAVY, lw=0.8, ls="--", alpha=0.7)
     ax2.set_ylabel("Share of cost gap (%)")
-    ax2.set_title("(b) Synthetic factorial (42 networks)", fontsize=9)
+    ax2.set_title("(b) Synthetic factorial (135 networks)", fontsize=9)
     fig.tight_layout()
     _save(fig, "F_decomp")
 

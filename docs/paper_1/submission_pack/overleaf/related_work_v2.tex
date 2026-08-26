@@ -28,7 +28,7 @@ optimisation~\cite{Fang2016}, and the general-purpose frameworks in which such s
 built (oemof~\cite{Hilpert2018_oemof}, PyPSA~\cite{Brown2018_pypsa},
 FINE~\cite{Welder2018_FINE}, Calliope~\cite{Pfenninger2018_calliope},
 urbs~\cite{Dorfner2016_urbs}) are typically applied with aggregated or component-based
-thermal networks---losses time-invariant or absent, no hydraulic coupling, topology fixed at
+thermal networks: losses time-invariant or absent, no hydraulic coupling, topology fixed at
 one level of detail, at what this paper calls the copperplate level $\CP$; detailed
 thermo-hydraulic coupling requires additional formulations. The cost of that simplification
 is not quantified.
@@ -136,6 +136,9 @@ value remains open.
 This paper addresses both gaps directly: a control condition that separates loss
 visibility from spatial resolution, and a decision-regret metric that separates
 estimation error from decision quality. The second is not a new idea in optimisation:
-it is the value of the stochastic solution~\citep{BirgeLouveaux2011}, transposed from the
-uncertainty axis to the resolution axis. We claim the transposition and the empirical
-finding rather than the concept.
+it is analogous to the value of the stochastic solution~\citep{BirgeLouveaux2011}, transposed
+from the uncertainty axis to the resolution axis. The analogy is structural rather than exact:
+the forward valuation is an overlay under a common high-fidelity model, so, unlike the classical
+value of the stochastic solution, it need not be sign-definite (a loss-blind schedule can
+forward-evaluate as cheaper on a mispriced term). The claimed contribution lies in the
+transposition and the empirical finding rather than in the concept itself.
