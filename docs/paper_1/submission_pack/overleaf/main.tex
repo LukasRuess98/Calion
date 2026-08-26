@@ -274,7 +274,8 @@ the comparison baseline. A monotone \emph{fidelity ladder} then adds, one at a t
 same node-resolved network: temperature propagation ($\Ltwo$), trunk pressure and pumping
 ($\Lthree$), station resolution with service laterals ($\Lfour$), a dynamic flow-dependent
 station pressure requirement ($\Lfive$), and transport delay ($\Lsix$), with the fully
-nonlinear formulation ($\NLref$) as an unsolved reference. Table~\ref{tab:contrasts} states
+nonlinear formulation ($\NLref$) as a reference that is not solved globally (evaluated
+forward and on bounded 72-hour re-solves). Table~\ref{tab:contrasts} states
 what each arrow isolates. Two design principles hold. First, within the four decomposition controls, each contrast changes exactly one
 phenomenon, so its cost difference is attributable to that phenomenon. The
 extended-physics levels (\(\Ltwo\) to \(\Lsix\), \(\NLref\)) form a
@@ -517,10 +518,11 @@ therefore remains below the decision relevance threshold.
 %% <<DRAFTED:TRANSPORT-DELAY>> ---- DRAFTED ----
 Transport delay ($\Lsix$) is a linear time shift of delivered heat and is isolated as its own
 level. The fully nonlinear reference (bilinear temperature propagation and quadratic
-pressure together) is not solved: the global mixed-integer \emph{nonlinear} program
-is intractable (no incumbent within a day). Its distance from the linearised levels is instead
-characterised by the measured linearisation error and by the forward evaluator,
-which quantify it without asserting an unattainable global solve.
+pressure together) is not solved \emph{globally}: the full-year mixed-integer
+\emph{nonlinear} program is intractable (no incumbent within a day). Its distance from the
+linearised levels is instead characterised by the measured linearisation error and by the
+forward evaluator, and by bounded fixed-integer re-solves on representative 72-hour windows
+(Section~\ref{subsec:linearisation}), without asserting an unattainable full-year global solve.
 %% (The full 11-column scope grid lives in the appendix, app:scopegrid -- not repeated
 %% here; the methodology carries only the seven-contrast table of S2.1.)
 
@@ -962,7 +964,9 @@ it additionally generates the network loss, and cost scales with heat produced, 
 copperplate misses is $b=\lambda/(1+\lambda)$, where the dimensionless \emph{loss number}
 $\lambda=\text{annual loss}/\text{annual demand}$ is computable a priori from the pipe geometry, heat-transfer coefficients, supply/return/ground temperatures and annual demand
 alone, $\lambda=\big(\sum_p U^{s}_p L_p (T_{\text{sup}}-T_g)+\sum_p U^{r}_p L_p
-(T_{\text{ret}}-T_g)\big)\,\cdot 8760/\text{demand}$, without solving any optimisation. This
+(T_{\text{ret}}-T_g)\big)\cdot 8760/(10^{6}\,D)$, with the $10^{6}$ converting W to MW,
+representative annual temperatures, and $D$ the annual demand in MWh, without solving any
+optimisation. This
 zero-parameter curve reproduces the computed burden across all \textbf{136} points (the
 135 synthetic networks and Memmingen, $\lambda$ spanning
 \textbf{0.03}--\textbf{1.7}) with $R^2=\textbf{0.87}$ and a mean

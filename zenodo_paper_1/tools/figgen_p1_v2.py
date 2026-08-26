@@ -128,10 +128,10 @@ def f_tsup():
     ax.axvline(opt["offset_K"], color=SILVER, ls="--", lw=0.8)
     ax.axvspan(20, t["offset_K"].max(), color=RED, alpha=0.08)
     ax.text(20.3, ax.get_ylim()[1]*0.55, "velocity\nlimit", fontsize=7, color=RED, va="top")
-    ax.text(opt["offset_K"], ax.get_ylim()[1]*0.9, f"optimum\n{opt['offset_K']:.1f} K",
+    ax.text(opt["offset_K"], ax.get_ylim()[1]*0.9, f"lowest-cost\ntested\n{opt['offset_K']:.1f} K",
             fontsize=7, ha="center", color="k")
     ax.set_xlabel("Supply-temperature reduction (K)")
-    ax.set_ylabel("Annual cost (kEUR)")
+    ax.set_ylabel("Annual loss+pumping valuation (kEUR)")
     ax.legend(frameon=False, fontsize=7.5)
     fig.tight_layout()
     _save(fig, "F_tsup")

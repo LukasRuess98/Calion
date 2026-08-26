@@ -34,12 +34,13 @@ decomposition of Section~\ref{sec:results} is exact rather than fitted.
 % separately would double-count it.
 \paragraph{Objective function.}
 The optimiser minimises total annual operating cost: electricity procurement net of
-feed-in revenue, fuel, heat-curtailment penalties, carbon charges and a demand charge on
-peak grid import,
+feed-in revenue, fuel, heat-curtailment penalties, carbon charges, a demand charge on
+peak grid import, and a thermal-storage cycling penalty,
 %
 \begin{equation}
   \min \; Z = C^{\mathrm{en}} + C^{\mathrm{fuel}}
-    + C^{\mathrm{dump}} + C^{\mathrm{CO_2}} + C^{\mathrm{dem}} .
+    + C^{\mathrm{dump}} + C^{\mathrm{CO_2}} + C^{\mathrm{dem}}
+    + C^{\mathrm{cyc}} .
   \label{eq:objective}
 \end{equation}
 %
@@ -62,7 +63,9 @@ C^{\mathrm{dem}}  &= \lambda^{\mathrm{dem}} f^{\mathrm{yr}}
   P^{\mathrm{peak}}, \\
 C^{\mathrm{CO_2}} &= \frac{\lambda^{\mathrm{CO_2}}}{1000} \sum_t
   \Bigl(E_t^{\mathrm{CO_2,grid}} +
-        \textstyle\sum_g E_{g,t}^{\mathrm{CO_2,fuel}}\Bigr). &&
+        \textstyle\sum_g E_{g,t}^{\mathrm{CO_2,fuel}}\Bigr), &
+C^{\mathrm{cyc}} &= \lambda^{\mathrm{cyc}}\,\Delta t \sum_{s,t}
+  \bigl(Q_{s,t}^{\mathrm{ch}} + Q_{s,t}^{\mathrm{dis}}\bigr).
 \end{align*}
 %
 Here $P_t^{\mathrm{buy}}$ and $P_t^{\mathrm{sell}}$ [MW] are grid import and export at
@@ -71,11 +74,17 @@ corresponding prices; $F_{g,t}$ [MW] is the fuel input to generator $g$ on a
 heating-value basis at specific cost $\lambda_g^{\mathrm{fuel}}$;
 $Q_{n,t}^{\mathrm{dump}}$ [MW] is heat curtailed at node $n$, penalised at
 $\lambda^{\mathrm{dump}}$; $\lambda^{\mathrm{CO_2}}$ [EUR/t] is the carbon price;
-$f^{\mathrm{yr}}$ an annualisation factor; and $P^{\mathrm{peak}}$ [MW] the annual peak
-grid import entering the demand charge $\lambda^{\mathrm{dem}}$.
+$f^{\mathrm{yr}}$ an annualisation factor; $P^{\mathrm{peak}}$ [MW] the annual peak
+grid import entering the demand charge $\lambda^{\mathrm{dem}}$; and
+$\lambda^{\mathrm{cyc}}$ [EUR/MWh] the storage-cycling cost, applied to the combined
+charge-and-discharge throughput $Q_{s,t}^{\mathrm{ch}}+Q_{s,t}^{\mathrm{dis}}$ of each
+storage $s$.
 
-Two terms of $Z$ are accounting conventions rather than operator cash flows, and the
-economic cost is reported separately from the solver objective throughout; the
+Two elements of $Z$ depart from operator cash flow: the carbon charge $C^{\mathrm{CO_2}}$
+enters on a gross basis, and the cycling penalty $C^{\mathrm{cyc}}$ is a wear-and-arbitrage
+deterrent rather than a cash outlay. The reported \emph{economic} cost applies the standard
+cogeneration self-use carbon credit and excludes $C^{\mathrm{cyc}}$, so it differs
+systematically from $Z$; the economic cost is used for every reported comparison. The
 distinction and its magnitude are set out in Section~\ref{subsec:costacct}.
 
 \paragraph{Energy balance, and how the controls are constructed.}
