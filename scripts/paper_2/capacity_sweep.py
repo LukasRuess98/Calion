@@ -75,7 +75,9 @@ _SWEEP_SOLVER_OPTIONS = {
     # ~9 min on a Stadtbach-scale point) -- they don't need the investment
     # MILP's 24h/1% budget. A tighter budget here is what makes a 7x7=49-point
     # sweep per network tractable (2026-07-19).
-    "TimeLimit": 1800,
+    "TimeLimit": 500,   # 2026-08-30: surface-sweep budget (~6% gap/point) so an
+    # 84-point re-run completes overnight; the cost SURFACE shape + optimum
+    # location (F3's job) are robust to per-point incumbent noise at this gap.
     "MIPGap": 0.02,
     "Threads": 4,
     "Cuts": 2,

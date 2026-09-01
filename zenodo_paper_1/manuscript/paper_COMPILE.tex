@@ -87,7 +87,7 @@
 %%  4. PILLAR 1 result -- decomposition + regret: loss visibility ~= \textbf{95.8}% of
 %%     the gap, spatial topology ~= \textbf{4.7}% (generalises across the synthetic
 %%     factorial); the copperplate is a biased estimator (bias \textbf{-15.1}%) yet
-%%     an INCOMPETENT controller (regret \textbf{+46.1}%, opposite sign), and the
+%%     an INADEQUATE controller (regret \textbf{+46.1}%, opposite sign), and the
 %%     loss adder that makes it look sufficient does not transfer (drift up to 95% of true loss). Loss-aware
 %%     levels are executable.
 %%  5. PILLAR 2 result -- hydraulics down to the individual transmission station (real
@@ -116,7 +116,7 @@ losses, trunk pressure and station-resolved hydraulics) augmented by a copperpla
 supplied with the aggregate loss it cannot itself compute, a control that yields an
 exact loss/topology decomposition, on one real network (Memmingen) and a balanced
 135-network synthetic factorial. Judged by decisions rather than by objective values, a
-copperplate is a biased estimator \emph{and} an incompetent controller at once: its
+copperplate is a biased estimator \emph{and} an inadequate controller at once: its
 schedule looks \textbf{-15.1}\,\% cheaper on operating cost yet costs
 \textbf{+46.1}\,\% more to execute, the two carrying opposite signs, whereas
 loss-aware levels are physically deliverable. What separates them is loss visibility, not
@@ -198,7 +198,7 @@ metric that separates estimation error from decision quality.
 %%  PILLAR 1 -- DECISION REGRET + PHYSICAL DELIVERABILITY. Fidelity has been judged by
 %%    objective differences (estimation bias); we re-cost each schedule under a common
 %%    high-fidelity forward model (decision regret) and check physical deliverability.
-%%    The finding: the copperplate is a biased estimator AND an incompetent controller
+%%    The finding: the copperplate is a biased estimator AND an inadequate controller
 %%    (bias and regret carry OPPOSITE signs); loss-aware levels are executable. Paired
 %%    with the exact loss/topology DECOMPOSITION CONTROL (CP+L), this shows loss
 %%    visibility -- not spatial routing -- sets the fidelity requirement, AND that a
@@ -229,7 +229,7 @@ and test whether the schedule is physically deliverable, and we pair this with a
 condition (a copperplate supplied with the aggregate loss it cannot itself compute)
 that turns the comparison into an exact loss/topology decomposition. Together these show
 that loss visibility, not spatial routing, sets the fidelity requirement; that a model can
-be a biased estimator and an incompetent controller at once, its bias and regret carrying
+be a biased estimator and an inadequate controller at once, its bias and regret carrying
 opposite signs; and that a per-network loss adder which makes a copperplate appear
 sufficient does not transfer across networks or operating regimes, so the resolved model is
 the transferable one. We position the regret idea honestly as the value of the stochastic
@@ -657,27 +657,27 @@ Estimation bias and decision regret diverge sharply, and for the copperplate the
 carry \emph{opposite signs}. Its schedule appears \textbf{-15.1}\,\% cheaper
 than the baseline (bias), yet re-costing that loss-ignoring schedule under the common
 forward physics makes it \textbf{+46.1}\,\% more expensive to execute
-(regret): a copperplate is a biased estimator \emph{and} an incompetent controller,
+(regret): a copperplate is a biased estimator \emph{and} an inadequate controller,
 because it under-generates for the network losses it never saw. The asymmetry
 ($|\text{regret}|>|\text{bias}|$) is mechanistic: the loss the copperplate omits must
-be covered under execution by topping up at the marginal or peak unit, at the winter
-hours it never planned for, rather than by optimal pre-planning. The schedules show this directly: the copperplate runs the heat pump 2\,063 hours against the baseline's 2\,309 and gives it 77.9\,\% of production against 87.8\,\%: 246 fewer operating hours and ten percentage points less share, the 46\,\% regret being that substitution priced. Supplying the same
+be valued, under the forward model, at the marginal or peak unit's cost in the winter
+hours it never planned for, rather than avoided by optimal pre-planning. The schedules show this directly: the copperplate runs the heat pump 2\,063 hours against the baseline's 2\,309 and gives it 77.9\,\% of production against 87.8\,\%: 246 fewer operating hours and ten percentage points less share, the 46\,\% regret being that substitution priced. Supplying the same
 copperplate the aggregate loss it cannot compute (\CPL) collapses both bias and regret
 to $\approx\textbf{-0.54}\,\%$, but that adder is calibrated ex post on this
 network and does not transfer (S\ref{subsec:generalis}). The loss-aware node-resolved levels
 (\Lone, \Lthree, \Lsix) reach regret $\approx$ bias with no calibration, as expected, since with
-no ignored loss to top up the forward-minus-economic residual is a near-constant pump offset, so
+no ignored loss to cover the forward-minus-economic residual is a near-constant pump offset, so
 the decision-relevant content is the copperplate's asymmetry rather than this near-equality.
 Temperature propagation (\Ltwo) is forward-evaluated rather than solved (S2.4, S4.7), its
 free-variable form being degenerate. The sign of the
-copperplate regret is invariant across three shortfall-pricing schemes (topping up at
+copperplate regret is invariant across three shortfall-pricing schemes (valuing the shortfall at
 the marginal unit, at the peak unit, and penalising unmet demand at the dump price, giving
 $+46$/$+61$/$+832$\,\% regret) and across the demand-disaggregation rule
 ($<0.3$\,pp), so it is not an artefact of either assumption. Physical deliverability is
 checked directly: loss-aware schedules incur zero velocity, differential-pressure or
 unmet-demand violations under the forward model. This is the decision-relevant reading of
 fidelity that model-to-model bias alone cannot give: use the simplest model for
-scheduling only if it is loss-aware; never a copperplate.
+scheduling only if it is loss-aware, not a loss-blind copperplate.
 \input{tables/tab_regret}
 \begin{figure}[t]
   \centering
@@ -715,7 +715,7 @@ companion study.
 %% <<DRAFTED:HYDRAULICS-RESULT>> DRAFT. Trunk pressure/pumping (L3-L1) restated on the
 %% validated roughness/return-circuit model (was +0.11 % in v1; magnitude restated,
 %% ordering survives). Then the station-resolved result (L4/L5):
-The station-resolved hydraulics change dispatch negligibly. Resolving the demand side
+Station-resolved hydraulics leave the fixed schedule almost unchanged in forward-evaluated cost. Resolving the demand side
 to all 174 transmission stations and their service laterals (L4), and replacing the
 flat station differential-pressure requirement with a flow-dependent one (L5), the
 total electrical pump draw (producer friction, per-station $\Delta p$ and
@@ -725,11 +725,11 @@ real node carries $0.10$\,bar trunk $+\,0.60$\,bar station $+\,0.62$\,bar latera
 $=1.32$\,bar, leaving $2.7$\,bar over its floor. These figures rest on real component
 data (pump datasheets, DXF-traced laterals) and agree with an independent
 \texttt{pandapipes} nonlinear solve to $<0.007$\,bar on trunk pipes
-(Appendix~\ref{app:pandapipes}). The pump-energy share is therefore $\sim\!0.03$\,\%
-of thermal demand, two orders below the $1$--$5$\,\% transmission-network literature
+(Appendix~\ref{app:pandapipes}). The pump-energy share is therefore $\sim\!0.080$\,\%
+of thermal demand, more than an order of magnitude below the $1$--$5$\,\% transmission-network literature
 range, reconciled by the compact network and heavily oversized pumps, not by a
-modelling error. Consequently station-level hydraulics move dispatch cost by $<1$\,\%
-and dispatch decisions by $\approx 0$: even resolved to the individual substation with
+modelling error. Consequently station-level hydraulics move the fixed schedule's forward-evaluated cost by
+$<1$\,\%, with the re-optimised dispatch effect not evaluated: even resolved to the individual substation with
 flow-dependent pressure, hydraulic fidelity is below the decision-relevance threshold.
 %% NOTE: L4/L5 evaluated by the validated forward pressure-study module (real-component
 %% + pandapipes), NOT a dispatch re-solve on the c19d690 baseline -- the station code is

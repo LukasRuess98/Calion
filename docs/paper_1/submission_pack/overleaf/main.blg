@@ -8,45 +8,45 @@ Database file #1: Paper20_Literatur.bib
 Warning--entry type for "ruess_2026_calion" isn't style-file defined
 --line 1247 of file Paper20_Literatur.bib
 Reallocating 'singl_function' (item size: 4) to 100 items.
-You've used 42 entries,
+You've used 55 entries,
             2918 wiz_defined-function locations,
-            940 strings with 14906 characters,
-and the built_in function-call counts, 30932 in all, are:
-= -- 2206
-> -- 1549
-< -- 7
-+ -- 592
-- -- 534
-* -- 3983
-:= -- 4454
-add.period$ -- 84
-call.type$ -- 42
-change.case$ -- 388
-chr.to.int$ -- 42
-cite$ -- 42
-duplicate$ -- 2152
-empty$ -- 2057
-format.name$ -- 668
-if$ -- 5650
+            1030 strings with 17659 characters,
+and the built_in function-call counts, 40862 in all, are:
+= -- 2921
+> -- 2059
+< -- 10
++ -- 790
+- -- 711
+* -- 5270
+:= -- 5884
+add.period$ -- 110
+call.type$ -- 55
+change.case$ -- 512
+chr.to.int$ -- 55
+cite$ -- 55
+duplicate$ -- 2827
+empty$ -- 2702
+format.name$ -- 886
+if$ -- 7464
 int.to.chr$ -- 1
 int.to.str$ -- 1
-missing$ -- 469
-newline$ -- 215
-num.names$ -- 168
-pop$ -- 699
+missing$ -- 619
+newline$ -- 280
+num.names$ -- 220
+pop$ -- 912
 preamble$ -- 1
-purify$ -- 388
+purify$ -- 512
 quote$ -- 0
-skip$ -- 441
+skip$ -- 574
 stack$ -- 0
-substring$ -- 1191
-swap$ -- 1777
+substring$ -- 1596
+swap$ -- 2352
 text.length$ -- 1
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 369
+type$ -- 486
 warning$ -- 0
-while$ -- 164
+while$ -- 217
 width$ -- 0
-write$ -- 597
+write$ -- 779
 (There was 1 warning)

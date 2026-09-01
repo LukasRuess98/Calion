@@ -1,18 +1,3 @@
-%% ============================================================
-%% NEW SUBSECTION -- "Sensitivity to the zone aggregation".
-%% Insert in Results and discussion, after the decision-regret subsection.
-%% Source: R1_6_zone_clustering_sensitivity.md, r16_clustering_costs.csv, F_r16_clustering.
-%%
-%% This result currently lives only in the response letter. It belongs in the body: with
-%% total U*L held equal it isolates a PURE ROUTING effect, which makes it directly
-%% comparable to the decomposition's own spatial term and therefore independent
-%% corroboration of the central result rather than a reviewer answer.
-%%
-%% The null-space restriction is stated explicitly in the text. Holding the producer as
-%% its own zone is required for conservation and matches the paper's own L2, but it does
-%% constrain the null distribution, and an unstated restriction that happens to shrink the
-%% spread is exactly what a sceptical referee looks for.
-%% ============================================================
 
 \subsection{Sensitivity to the zone aggregation}
 \label{subsec:clustering}
@@ -49,23 +34,7 @@ equal, the residual is directly comparable to the spatial-topology main effect m
 the same network, and the three quantities span three orders of magnitude
 (Table~\ref{tab:r16}).
 
-\begin{table}[htbp]
-\centering
-\footnotesize
-\caption{Zone-boundary choice against the effects it must be compared with, on the
-copperplate-to-baseline ($\CP\!\to\!\Lone$) cost gap. With the total heat-loss capacity held
-equal across all twenty-four partitions, the residual routing effect is negligible.}
-\label{tab:r16}
-\begin{tabular}{lrr}
-\hline
-Effect & Cost & \% of the $\CP\!\to\!\Lone$ gap \\
-\hline
-Loss visibility & 19\,737\,EUR & 95.8 \\
-Spatial topology (resolving routing, physics-matched) & 52\,EUR & 0.25 \\
-Zone-boundary choice (this subsection) & $\lesssim$11\,EUR & at solver tolerance \\
-\hline
-\end{tabular}
-\end{table}
+\input{table10}
 
 Choosing where to draw a zone boundary is negligible: at $\lesssim$11\,EUR the residual is
 three orders of magnitude below representing the loss and, like the physics-matched topology

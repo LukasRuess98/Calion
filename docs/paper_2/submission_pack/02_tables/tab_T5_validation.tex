@@ -1,0 +1,23 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Model validation summary across the campaign.}
+  \label{tab:t5_validation}
+  \begin{tabular}{lll}
+  \toprule
+  Validation metric & Value & Note \\
+  \midrule
+  Campaign population & 46 canonical scenarios & 38 reported here directly; 6 SB-S6/MM-S4 ids resolved via enumeration decomposition instead of a monolithic solve (per G.8) — see tab\_T3b\_T4b\_f3\_endogenous\_siting\_FINAL.csv for their KPIs; 186 further diagnostic/enumeration run dirs (F3 sub-pairs, TEST/DIAG, superseded re-solves) excluded from this table — see tab\_T5\_supplement\_excluded\_runs \\
+  MW closure error (mean) & 24.92 \% & 24 converged runs; gen+storage vs demand \\
+  MW closure error (max) & 52.83 \% & worst: MM-S5-HK0 \\
+  Runs passing closure gate (≤2\%) & 1/24 & converged runs only \\
+  Network loss fraction (mean) & 5.82 \% & thermal diagnostic — not an imbalance (dispatch balance is MW-lossless) \\
+  Runs excluded (implausible balance) & 1 & stale/wrong-network dispatch — refreshes on re-run \\
+  MIP gap & n/a & meta.json mip\_gap null — see solver status \\
+  Solver status & optimal: 25; maxTimeLimit: 13 & 38 runs \\
+  Annual COP range & 2.75 -- 3.77 & plausibility (Lorenz surrogate) \\
+  Memmingen P1 OPEX consistency & 117.08 \% & P2=489,996 EUR vs P1=225,717 EUR (FAIL, gate <=2\%) \\
+  Sweep-MILP optimum consistency (sweep\_memmingen\_MM-S1-HK0) & grenzwertig & TAC dev -4.0\% (gate <=10\%), grid dist Q=2 V=3 steps (gate <=1 each) \\
+  Sweep-MILP optimum consistency (sweep\_stadtbach\_SB-S1-HK0) & grenzwertig & TAC dev +4.3\% (gate <=10\%), grid dist Q=2 V=2 steps (gate <=1 each) \\
+  \bottomrule
+  \end{tabular}
+\end{table}

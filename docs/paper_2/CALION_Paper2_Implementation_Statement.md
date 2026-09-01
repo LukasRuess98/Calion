@@ -2379,4 +2379,79 @@ likely `network_manager.py`'s topology-loading step) to also recognize an explic
 
 ---
 
-*End of statement — updated 2026-07-24 (Part H added: pump & pressure subsystem reference).*
+# PART I — Rework 2026-08-30…09-01: repositioning, gap breakthrough, electrification study, corrections
+
+**Context.** A full re-audit + rework on the validated campaign-era code (worktree
+`e8e445e`; see I.5). Repositions the paper and adds a designed centrepiece; several
+July claims are updated below.
+
+## I.1 Repositioning
+From an implicit "comparison of network characteristics" (which n=2 case studies
+cannot support) to **"a multi-fidelity DH-electrification optimisation *framework*,
+demonstrated on two contrasting real networks."** Electrification level becomes a
+**controlled** factor (Study A); the two networks are illustrative endpoints;
+MIP-gap and single-year scope are stated limitations. See
+`submission_pack/IMPLEMENTATION_PLAN.md` + `PUBLICATION_FIGURES.md`.
+
+## I.2 Solver-tractability BREAKTHROUGH — the grid big-M (extends Part F)
+Part F found "a weak LP bound, not the integer count" and applied cutting planes
+(F.4), reaching ~2–4%. **It missed the dominant root cause.** The grid connection was
+`max_import_mw = max_export_mw = 5000 MW` in both configs, versus network peaks of
+~5 MW (MM) / ~200 MW (SB) and *frozen peak grid use of 0.18 MW (MM) / 50 MW (SB)*.
+The LP relaxation could therefore import/export absurd amounts → **root dual bound
+−3.8×10¹⁰** (verified in a 24 h Memmingen log) → the branch-and-bound could never make
+the bound meaningful. **Fix:** tighten to 50 MW (MM) / 500 MW (SB) — non-binding, so the
+optimum is unchanged, but the root bound becomes finite (+228,992 €) and binaries drop
+78,842→52,572 (presolve). **Result: Memmingen full-investment scenarios now solve to
+`optimal` (were `maxTimeLimit` at 3.79% after 24 h).** Applied to both base configs
+(2026-09-01). *Rejected alternatives:* coarser `dt_h` (biased TAC −12%/−25% by averaging
+peaks); binary relaxation (the `u`/`v` startup binaries don't exist — `min_up/down = 0`;
+`on` binaries are load-bearing via `min_load`; `grid_mode` is minor). **For proven
+<1%/0.1% everywhere, weighted typical-days is required** — an invasive build (the
+objective weights OPEX by a scalar `dt_h`, no per-period weighting) — scoped as a
+deliberate follow-on, NOT rushed.
+
+## I.3 Study A — electrification sweep (new centrepiece) + finding
+`scripts/paper_2/electrification_sweep.py`: HP nameplate forced at levels of PEAK heat
+demand, siting/HK fixed, TES+EK+dispatch endogenous. **Forcing mechanism (important):**
+`capacity_min_mw` only bounds capacity *when the build binary = 1*; the model just picks
+build=0, and `investment.enabled=False` drops the CAPEX (added only `if self.investable`,
+heat_pump.py:311). So the driver keeps the HP investable and **monkeypatches
+`HeatPumpBlock.attach` to fix `build=1` + `cap=hp_mw`** (CAPEX counted). Grid tightened
+per I.2. **FINDING:** in *both* networks, mandated HP electrification **raises cost
+monotonically** (LCOH: MM 26→56, SB 18→36 €/MWh) and **does not cut CO₂** — the forced HP
+sits **largely idle** (SB electrification 0.6% even at 40 MW) because the existing
+CHP/biomass/waste-heat is cheaper to run and already low-carbon. **At 2026 prices,
+HP electrification is not cost-effective in either network.** This refines the corrected
+"+44.8% Memmingen" (that saving was TES + heat-curve, not the HP). Figure: `fig_Felec`.
+Price-dependent (see F7) → the natural follow-up is a price × electrification sweep.
+
+## I.4 Corrections to earlier claims
+- **KPI baseline bug (NEW, fixed).** `kpi_calculator.compute_all_kpis` matched the
+  Memmingen baseline to `BC-MM-DIAGJAN` (a January-only diagnostic, TAC 71.7 k) instead
+  of full-year `BC-MM` (505.2 k) because `sorted()` put it later → every Memmingen
+  `cost_reduction_pct` used a ~7× too-small denominator (BC-MM −604% vs itself). Fixed via
+  an `_is_diagnostic()` skip. **After fix: MM-S5-HK2 = +44.8% (was −289%).**
+- **G.12 "MW-closure RESOLVED" — UPDATE.** Closure is *still* a reporting artefact: the
+  validation counts `hp_main_MW`/`hp_sb_MW` (HP **electricity** input) as heat generation
+  instead of P_el×COP. Post-hoc ×COP correction cuts median closure ~25%→~11% (MM-S5-HK0
+  52.8%→4.1%), confirming it is extraction, not a real imbalance (the MILP enforces nodal
+  balance). Exact ≤2% fix = export HP/WP **heat** output at solve time — fold into the re-run.
+- **P1↔P2 gap (G.11).** Re-measured 117%; largely the deliberate 2026 price harmonisation
+  (gas 45→58.6, gridcost 25→61.6) — disclosure, not a bug; residual needs a line-item OPEX decomp.
+
+## I.5 Canonical code — REPRODUCIBILITY
+Current `main` has **drifted** from the campaign (lateral-loss + pressure physics added
+2026-07-26+); it does NOT reproduce the results (MM-S4 = 493 k on `main` vs 299 k frozen,
+due to the 08-07 `pressure_slack` term). **Canonical basis for the rework = worktree
+`e8e445e`** (validated: reproduces the campaign model, tractable) + the closure-export fix.
+`main`'s extra physics is a documented future sensitivity, not the basis.
+
+## I.6 MILP incumbent variance
+Memmingen's non-optimal MILP had **~9% incumbent variance** (271.8 k vs 299.4 k for the
+identical MM-S4 pair). With the I.2 grid fix removing the garbage bound, MM now reaches
+`optimal`, eliminating this for MM; report gaps on all scenarios and never rank within-gap.
+
+---
+
+*End of statement — Part I added 2026-09-01 (rework: grid big-M breakthrough, electrification study, corrections). Earlier parts A–H unchanged; see I.4 for updates to G.11/G.12.*

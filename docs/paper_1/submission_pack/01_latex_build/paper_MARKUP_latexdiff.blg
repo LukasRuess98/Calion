@@ -1,0 +1,53 @@
+This is BibTeX, Version 0.99e
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: paper_MARKUP_latexdiff.aux
+Reallocating 'name_of_file' (item size: 1) to 21 items.
+The style file: elsarticle-num-names.bst
+Reallocating 'name_of_file' (item size: 1) to 18 items.
+Database file #1: Paper20_Literatur.bib
+Warning--entry type for "ruess_2026_calion" isn't style-file defined
+--line 1247 of file Paper20_Literatur.bib
+Warning--I didn't find a database entry for "Buenning2020"
+Reallocating 'singl_function' (item size: 4) to 100 items.
+You've used 63 entries,
+            2918 wiz_defined-function locations,
+            1088 strings with 19728 characters,
+and the built_in function-call counts, 47009 in all, are:
+= -- 3366
+> -- 2371
+< -- 10
++ -- 908
+- -- 819
+* -- 6070
+:= -- 6768
+add.period$ -- 126
+call.type$ -- 63
+change.case$ -- 588
+chr.to.int$ -- 63
+cite$ -- 63
+duplicate$ -- 3243
+empty$ -- 3106
+format.name$ -- 1018
+if$ -- 8590
+int.to.chr$ -- 1
+int.to.str$ -- 1
+missing$ -- 711
+newline$ -- 320
+num.names$ -- 252
+pop$ -- 1044
+preamble$ -- 1
+purify$ -- 588
+quote$ -- 0
+skip$ -- 654
+stack$ -- 0
+substring$ -- 1862
+swap$ -- 2704
+text.length$ -- 1
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 558
+warning$ -- 0
+while$ -- 249
+width$ -- 0
+write$ -- 891
+(There were 2 warnings)

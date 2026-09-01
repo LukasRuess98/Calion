@@ -1,0 +1,4 @@
+scenario_id,network,heat_curve_stage,tes_node,baseline,TAC_eur_per_a,CAPEX_annual_eur_per_a,OPEX_annual_eur_per_a,LCOH_eur_per_MWh,payback_years,cost_reduction_pct,NPV_eur,co2_t_per_a,co2_reduction_pct,electrification_pct,renewable_heat_pct,Q_WP_opt_MW,Q_EK_opt_MW,V_TES_m3,h_TES_m,E_TES_MWh,TES_cycles_per_a,TES_utilization_pct,WP_hours_per_a,COP_annual_mean,pump_energy_MWh_el_per_a,waste_heat_utilization_pct,DSM_activation_MWh_per_a,k_opt,T_VL_min_opt_c,T_VL_avg_c,p_max_bar,p_min_bar,endog_site
+BC-MM,memmingen,TVLFIX,,True,505182.0,9568.0,495614.0,51.72,,0.0,3.0,500.8,-0.01,0.0,0.0,0.0,0.0,,,,,,0,,,,,,,85.66,20.0,8.718,
+BC-MM-DIAGJAN,memmingen,TVLFIX,,True,71737.0,1077.0,70660.0,46.12,,85.8,5401681.0,67.4,86.55,0.0,0.0,0.0,0.0,,,,,,0,,,,,,,85.66,20.0,8.927,
+BC-SB,stadtbach,TVLFIX,,True,11027129.0,548674.0,10478455.0,17.23,,0.0,2.0,40538.0,-0.0,0.0,0.0,0.0,0.0,,,,,,0,,,,,,,100.56,20.0,5.6,

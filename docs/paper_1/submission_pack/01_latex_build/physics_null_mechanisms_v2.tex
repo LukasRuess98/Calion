@@ -1,0 +1,53 @@
+
+\subsection{Why the extended physics moves so little here}
+\label{subsec:whynull}
+
+Three of this paper's results are nulls: station-resolved hydraulics change dispatch cost
+by under one percent, transport delay by exactly nothing, and the piecewise linearisation
+by a few tenths of a percent. A null invites two readings. Either these phenomena are
+genuinely inert in district-heating dispatch, or the assumptions under which they were tested
+closed the channels through which they would have acted. The second reading is the
+sceptical one; it is legitimate, and it deserves an answer more specific than a caveat.
+
+Four assumptions each close a specific channel. A \emph{prescribed heating curve} fixes the
+supply and return temperatures, so the optimiser cannot trade thermal loss against pumping
+energy, the trade in which hydraulics would acquire economic weight. \emph{Precomputed
+heat-pump performance} makes the coefficient of performance independent of the network
+state, so a heat pump cannot respond to a locally depressed supply temperature by shifting
+its output in time or place. \emph{Fixed capacities} remove siting and sizing, so spatial
+structure cannot express itself through where capacity is placed, only through where heat
+is routed. And \emph{hourly resolution} discretises away every transient shorter than the
+time step: With $\Delta t = 1$\,h, the trunk transit time of about $35$\,min gives $k_p = 0$: sub-hourly
+delays are not represented on the hourly grid, and the delay step therefore shifts nothing on
+this network. This is the reason the measured delay effect in
+Table~\ref{tab:linearisation} lies below the solver tolerance.
+
+The honest conclusion is therefore conditional, and stated that way throughout: within
+the deterministic, hourly, fixed-capacity, fixed-temperature planning regime, extended
+network physics adds little to a fixed schedule's forward-evaluated cost and reveals no
+hydraulic violation. That regime is not a corner case. It is
+where the overwhelming majority of published district-heating dispatch models operate, and
+the practical guidance the nulls support (do not spend modelling effort on hydraulic
+detail before loss representation) applies wherever such models are used.
+
+What raises this above a plausible story is that one of the four channels has been opened
+and measured the result. Freeing the supply temperature, the lever most likely to break the
+hydraulic null, does break it: pipe velocity becomes the binding constraint at a 20\,K
+reduction and pumping energy rises by a factor of four
+(Section~\ref{subsec:tsup}). Hydraulics move from a negligible \emph{cost} to a binding
+\emph{constraint} the moment the degree of freedom exists. That is direct evidence for the
+mechanism rather than an appeal to it, and it sets the expectation for the three channels
+left unopened: each should convert a null into a constraint rather than into a large cost
+term, because the physics enters dispatch as a feasibility boundary and not as a driver of
+the schedule.
+
+One asymmetry is worth stating plainly because it determines how far the null results can be
+trusted. Relaxing these assumptions would generally give the extended physics \emph{more} room
+to matter, although not necessarily monotonically. The null results should therefore be
+interpreted as conservative \emph{within the tested regime}; outside that regime, they are
+indicative rather than guaranteed. The loss-dominance result is more robust: the decomposition
+is an exact algebraic identity based on the four optimised costs, and the loss term dominates
+empirically across all 135 synthetic networks, which span two orders of magnitude in loss
+burden. Its magnitude remains conditional on the tested systems, but within that regime it
+does not depend on any single one of the four assumptions above. This result, rather than the
+null results, therefore motivates the title.

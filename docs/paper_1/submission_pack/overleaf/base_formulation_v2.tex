@@ -1,56 +1,25 @@
-%% ============================================================
-%% BASE FORMULATION -- v2 merge, drop-in replacement for the
-%% <<KEEP:objective>> <<KEEP:balances>> <<KEEP:losses>> <<KEEP:hp>>
-%% <<KEEP:storage>> <<KEEP:emissions>>  markers under \subsection{Base formulation}.
-%%
-%% Source: v1 lines 724-962, remapped to the v2 taxonomy.
-%%   v1 L1  -> \CP      (copperplate)
-%%   v1 L2  -> \ZN      (zone-aggregated)
-%%   v1 L3  -> \Lone    (node-resolved + trunk loss, the BASELINE)
-%%   v1 L3+ -> \Ltwo/\Lthree ;  v1 L3NL -> \Lsix/\NLref
-%% Every "L1/L2/L3" in the v1 text therefore had to be re-pointed, not copied.
-%%
-%% TWO SUBSTANTIVE CHANGES beyond remapping, both required by the revision:
-%%  (a) v1 closed the energy-balance paragraph by saying the missing pipe-loss and
-%%      spatial-flow terms "are the mechanism driving the L1->L2 cost gap". That is the
-%%      confound R2.2 objected to -- the two terms are named together and priced together.
-%%      Rewritten to show the two controls are obtained by switching the terms
-%%      INDEPENDENTLY, which is what makes the decomposition exact.
-%%  (b) The loss paragraph now states the defensible-U calibration and the last-mile
-%%      placement rule (laterals enter only at L4), replacing v1's silent multiplier.
-%%
-%% PACKAGE NOTE: v1 used \ce{CO2} (mhchem) and \si{\celsius}/\SI (siunitx).
-%% paper_COMPILE.tex writes CO$_2$ and °C directly, so those macros are NOT used here.
-%% If mhchem/siunitx are added to the preamble later, they can be restored.
-%% ============================================================
 
 All levels share the objective function and component models set out below. They differ
 only in two places (the topology of the energy balance and the treatment of thermal
 losses), and it is precisely because these two enter as separable terms that the
 decomposition of Section~\ref{sec:results} is exact rather than fitted.
 
-% CHANGED: C^pump removed from the objective. Pump electrical power enters the
-% electricity balance, Eq. (4), and is therefore paid through C^en; listing it
-% separately would double-count it.
 \paragraph{Objective function.}
 The optimiser minimises total annual operating cost: electricity procurement net of
 feed-in revenue, fuel, heat-curtailment penalties, carbon charges, a demand charge on
 peak grid import, and a thermal-storage cycling penalty,
-%
 \begin{equation}
   \min \; Z = C^{\mathrm{en}} + C^{\mathrm{fuel}}
     + C^{\mathrm{dump}} + C^{\mathrm{CO_2}} + C^{\mathrm{dem}}
     + C^{\mathrm{cyc}} .
   \label{eq:objective}
 \end{equation}
-%
 Network pumping does not appear as a separate cost term. The pump electrical power
 $P_t^{\mathrm{pump}}$ enters the electricity balance, Eq.~\eqref{eq:balance_el}, and is
 therefore paid for through grid procurement inside $C^{\mathrm{en}}$; it is identically
 zero at every level below $\Lthree$ and is computed from Eq.~\eqref{eq:pump_power} from
 $\Lthree$ upward (Section~\ref{sec:extended}). With $\Delta t = 1$\,h and $t$ indexing all
 8\,760 hours of the year,
-%
 \begin{align*}
 C^{\mathrm{en}}   &= \Delta t \sum_t
   \bigl(P_t^{\mathrm{buy}} \lambda_t^{\mathrm{buy}}
@@ -67,7 +36,6 @@ C^{\mathrm{CO_2}} &= \frac{\lambda^{\mathrm{CO_2}}}{1000} \sum_t
 C^{\mathrm{cyc}} &= \lambda^{\mathrm{cyc}}\,\Delta t \sum_{s,t}
   \bigl(Q_{s,t}^{\mathrm{ch}} + Q_{s,t}^{\mathrm{dis}}\bigr).
 \end{align*}
-%
 Here $P_t^{\mathrm{buy}}$ and $P_t^{\mathrm{sell}}$ [MW] are grid import and export at
 time $t$ and $\lambda_t^{\mathrm{buy}}$, $\lambda_t^{\mathrm{sell}}$ [EUR/MWh] the
 corresponding prices; $F_{g,t}$ [MW] is the fuel input to generator $g$ on a
@@ -90,7 +58,6 @@ distinction and its magnitude are set out in Section~\ref{subsec:costacct}.
 \paragraph{Energy balance, and how the controls are constructed.}
 The copperplate levels $\CP$ and $\CPL$ enforce a single bus-level balance over all
 generators, heat pumps, electrode boilers and storage, with no spatial routing:
-%
 \begin{equation}
   \sum_{g} Q_{g,t}^{\mathrm{th}}
     + \sum_{h} Q_{h,t} + \sum_{r} Q_{r,t}
@@ -101,7 +68,6 @@ generators, heat pumps, electrode boilers and storage, with no spatial routing:
   \;\; \forall\, t,
   \label{eq:balance_cp}
 \end{equation}
-%
 where $Q_{g,t}^{\mathrm{th}}$ [MW] is the thermal output of generator $g$,
 $Q_{h,t}$ and $Q_{r,t}$ [MW] the heat-pump and electrode-boiler thermal outputs,
 $Q_{s,t}^{\mathrm{dis}}$ and $Q_{s,t}^{\mathrm{ch}}$ [MW] the discharge and charge of
@@ -112,7 +78,6 @@ $\CP$; its calibration is given in Section~\ref{subsec:lumped}.
 All node-resolved levels ($\ZN$, $\NDz$ and $\Lone$ through $\Lsix$) instead enforce
 a nodal balance at each junction $n$, accounting for thermal losses along incoming pipes
 and for the spatial distribution of assets and demands:
-%
 \begin{align}
   &\sum_{p \in \mathcal{P}_n^{\mathrm{in}}}
     \bigl(Q_{p,t} - \kappa\, Q_{p,t}^{\mathrm{loss,pipe}}\bigr)
@@ -126,13 +91,10 @@ and for the spatial distribution of assets and demands:
   \;\; \forall\, n,\, t,
   \label{eq:balance_nodal}
 \end{align}
-%
 with $\mathcal{P}_n^{\mathrm{in}}$, $\mathcal{P}_n^{\mathrm{out}}$ the pipes entering and
 leaving node $n$, $Q_{p,t}$ [MW] the heat flow in pipe $p$, and
 $Q_{p,t}^{\mathrm{loss,pipe}}$ [MW] its thermal loss.
 
-% CHANGED: removed the visible reference to a reviewer request. The design
-% rationale stands on its own and must not name the review process.
 The switch $\kappa \in \{0,1\}$ is the point of the design. Equations
 \eqref{eq:balance_cp} and \eqref{eq:balance_nodal} differ in two respects at once
 (spatial resolution and loss visibility), and prior fidelity comparisons have moved both
@@ -150,7 +112,6 @@ tolerance.
 The global electricity balance and grid mutual-exclusivity constraints close the system.
 All electrical generators, power-to-heat units $r$, heat pumps and pumps balance against
 grid import, export and in-network consumption:
-%
 \begin{align}
   P_t^{\mathrm{buy}}
     &+ \sum_{g \in \mathcal{G}^{\mathrm{CHP}}} P_{g,t}^{\mathrm{el}}
@@ -165,7 +126,6 @@ grid import, export and in-network consumption:
   \;\; \forall\, t,
   \label{eq:grid_bigm}
 \end{align}
-%
 where $P_{g,t}^{\mathrm{el}}$ [MW] is CHP electrical output, $P_{h,t}^{\mathrm{el}}$ the
 heat-pump electrical input, $P_{r,t}^{\mathrm{el}}$ the electrode-boiler input and
 $P_t^{\mathrm{pump}}$ the network pumping power. The binary $z_t \in \{0,1\}$ enforces
@@ -177,7 +137,6 @@ For each pipe $p$, steady-state conductive losses are computed separately for th
 and return circuit. Because the supply temperature follows the heating curve rather than
 being optimised, the losses are fixed parameters, the simplification that keeps the
 formulation linear:
-%
 \begin{align}
   Q_{p,t}^{\mathrm{loss,sup}} &= \frac{U^{s}_p\, L_p\,
     \bigl(T_{\mathrm{sup}}^{\mathrm{nom}}(t)
@@ -188,7 +147,6 @@ formulation linear:
     - T_{\mathrm{ground}}(t)\bigr)}{10^6},
   \label{eq:loss_return}
 \end{align}
-%
 with $U^{s}_p$, $U^{r}_p$ [W/(m\,K)] the linear heat-transfer coefficients of the supply
 and return pipe, set by diameter and insulation class, $L_p$ [m] the length,
 $T_{\mathrm{sup}}^{\mathrm{nom}}$, $T_{\mathrm{ret}}^{\mathrm{nom}}$ [°C] the nominal
@@ -197,13 +155,10 @@ temperature; $10^6$ converts W to MW. Losses are identically zero for $\CP$ and 
 enter exogenously as $L_t$ for $\CPL$, and are computed by \eqref{eq:loss_supply} and
 \eqref{eq:loss_return} for $\ZN$ and $\Lone$ upward.
 
-% CHANGED: the match to measurement is quantified (about one percent, Section 3.1)
-% rather than asserted, and "true network loss" replaced -- the measurement is the
-% reference, not a known truth.
 Two points about the calibration matter for what follows. First, the $U$ values are
 constrained to a defensible range for the pipe class rather than fitted freely: forcing the
-trunk-only loss to match the delivered-energy-implied total by inflating terminal-pipe
-coefficients cannot be attributed to insulation ageing. Second, what such a multiplier would absorb is the
+trunk-only loss to match the total inferred from the delivered-energy record by inflating
+terminal-pipe coefficients cannot be attributed to insulation ageing. Second, what such a multiplier would absorb is the
 \emph{last mile}, the service laterals and substations a trunk-only model does not represent,
 and it is therefore placed where it physically belongs, entering only at the station-resolved
 level $\Lfour$. The node-resolved levels consequently \emph{undercount} the network
@@ -216,7 +171,6 @@ than a defect: a quantitative statement of what a trunk-resolved model cannot se
 Each heat pump $h$ either recovers industrial waste heat at a time-varying source
 temperature or falls back on a low-temperature source at constant performance, the
 thermal output being the sum of the two contributions:
-%
 \begin{align}
   Q_{h,t} &= Q_{h,t}^{\mathrm{WHR}} + Q_{h,t}^{\mathrm{def}},
   \label{eq:hp_split} \\[4pt]
@@ -225,9 +179,8 @@ thermal output being the sum of the two contributions:
     + \frac{Q_{h,t}^{\mathrm{def}}}{\mathrm{COP}_h^{\mathrm{def}}}.
   \label{eq:hp_pel}
 \end{align}
-%
 The waste-heat coefficient of performance $\mathrm{COP}_{h,t}^{\mathrm{WHR}}$ is
-pre-computed offline from an analytical Lorenz-cycle model
+pre-computed from an analytical Lorenz-cycle model
 (Appendix~\ref{app:cop}), which avoids bilinear terms in the optimisation. That
 pre-computation is a deliberate scope restriction rather than an approximation of
 convenience, and it is revisited in the limitations: a model with endogenous COP would
@@ -235,30 +188,24 @@ give the heat pump more room to respond to the network state than it has here.
 
 Operation is bounded by a minimum load fraction $\phi_h^{\mathrm{min}}$ and the installed
 capacity $\bar{Q}_h$, switched by the on/off binary $u_{h,t} \in \{0,1\}$:
-%
 \begin{equation}
   \phi_h^{\mathrm{min}}\, \bar{Q}_h\, u_{h,t}
   \leq Q_{h,t} \leq \bar{Q}_h\, u_{h,t}
   \quad \forall\, h,\, t,
   \label{eq:hp_cap}
 \end{equation}
-%
 so that the unit is either off or above its minimum load, preventing uneconomic part-load
 cycling.
 
 \paragraph{Thermal storage.}
 The state of charge $E_{s,t}$ [MWh] of storage unit $s$ follows a discrete-time balance
 with self-discharge and separate charging and discharging efficiencies:
-%
 \begin{equation}
   E_{s,t} = (1 - \alpha_s)^{\Delta t/\mathrm{1\,h}}\, E_{s,t-1}
     + \eta_s^{\mathrm{ch}}\, Q_{s,t}^{\mathrm{ch}}\, \Delta t
     - \frac{Q_{s,t}^{\mathrm{dis}}\, \Delta t}{\eta_s^{\mathrm{dis}}}.
   \label{eq:storage_soc}
 \end{equation}
-%
-% CHANGED: alpha_s is a dimensionless fractional standing loss per hour in the
-% (1-alpha_s)^{Delta t} form, not a rate with unit h^-1.
 The coefficient $\alpha_s$, the fractional standing loss per hour, represents losses of
 the vessel, and the exponential form makes the discretisation independent of the time step.
 A cyclic condition $E_{s,|\mathcal{T}|} = E_{s,0}$ enforces energy-neutral operation over
@@ -269,7 +216,6 @@ Gas boiler, biomass boiler, electrode boiler and CHP follow standard linear form
 capacity-bounded with constant efficiency, detailed in
 Appendix~\ref{app:component_models}. Grid and fuel emissions are the product of energy
 consumed and the corresponding emission intensity,
-%
 \begin{equation}
   E_t^{\mathrm{CO_2,grid}} =
     P_t^{\mathrm{buy}}\, e_t^{\mathrm{grid}}\, \Delta t,
@@ -278,7 +224,6 @@ consumed and the corresponding emission intensity,
     F_{g,t}\, e_g^{\mathrm{fuel}}\, \Delta t,
   \label{eq:emissions}
 \end{equation}
-%
 with $e_t^{\mathrm{grid}}$ [kg/MWh] the hourly marginal grid emission factor and
 $e_g^{\mathrm{fuel}}$ [kg/MWh] the fuel-specific intensity. Both are fixed inputs: the
 optimiser is carbon-aware but does not optimise the emission factor itself.

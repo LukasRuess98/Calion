@@ -1,21 +1,3 @@
-%% ============================================================
-%% VALIDATION RESULTS -- v2, REWRITTEN 2026-08-16 after the model-attribution correction.
-%% Drop-in for <<KEEP:validation-results>>.
-%%
-%% SUPERSEDES the earlier version of this file, which framed the temperature metrics as
-%% "gates v1 reported as met and we now report as failed". That framing was wrong and has
-%% been removed. v1's targets table assigned the supply-temperature gates to the
-%% NLP formulation explicitly ("only this variant propagates supply temperature along
-%% pipes"), and its results table scored them there. The attribution was correct in v1;
-%% it was lost in the interim v2 table, which scored MILP output against NLP gates.
-%% With the Model column restored, nothing in v1 needs to be walked back.
-%%
-%% What DOES remain different from v1, and is stated below: the NLP temperature figure in
-%% v1 was a mean over six of fourteen nodes across a 744 h winter window; the figure
-%% reported here is the far-end node over the full annual record, unselected. Both are
-%% true. The appendix per-node table shows the selection was not favourable -- the all-node
-%% mean sits between the group means -- so this is a change of view, not a correction.
-%% ============================================================
 
 Table~\ref{tab:validation} reports the validation outcome against the gates fixed
 \emph{ex ante}, with each metric assessed against the formulation to which it applies. That
@@ -23,20 +5,22 @@ attribution is essential when reading the table: the baseline prescribes supply 
 from the heating curve and does not propagate it along pipes, so downstream temperature
 metrics are structurally outside its scope and are marked as such rather than as failures.
 
-\paragraph{What the baseline is validated on.}
+\paragraph{Baseline validation}
 Three quantities test the formulation that produces every cost result in this paper, and all
 three pass. Annual delivered energy is reproduced to \textbf{1.23}\,\% against a \(2\,\%\)
 gate. This anchors the energy scale priced by the decomposition. Network loss is the model's
-computed difference between generation and delivered demand. No independent measurement of
-loss is claimed, as this would require metered supply-side energy that the site does not
-record, but the agreement in delivered energy fixes the scale at which loss enters the cost.
-The source return temperature matches to \textbf{2.08}\,°C against a \(2.5\)\,°C gate and,
+computed difference between generation and delivered demand and is therefore
+\emph{model-implied}, not measured: an independent value would require metered supply-side
+energy that the site does not record. Delivered-energy agreement fixes the demand scale to
+which that loss is referenced, rather than the loss itself.
+The source return temperature matches to \textbf{2.08}\,°C within a \(2.5\)\,°C calibration
+tolerance and,
 more informatively, has a bias of only \(-0.31\)\,°C. The source return sensor is the only
 temperature instrument in the network that does \emph{not} sit downstream of a mixing valve,
 and the model is essentially unbiased against it. Heat-pump performance remains within its
 expected band, with a mean coefficient of performance of \textbf{2.99}.
 
-\paragraph{Temperature field: what cannot be validated, and why.}
+\paragraph{Temperature field: validation limitation.}
 The supply-temperature field belongs to the temperature-propagating formulation, and two
 obstacles prevent quantitative validation here. The first is formulational: the baseline does
 not propagate supply temperature, so its trunk drop is identically zero compared with a
@@ -108,7 +92,8 @@ coefficient of performance remains within its plausible band, the storage state 
 remains within its operating limits, and simultaneous charging and discharging are
 prohibited. Two structural checks close the section. The nonlinear reference with its
 quadratic constraints deactivated reproduces the baseline objective to better than
-\(0.01\,\%\). On the economic-cost basis, the relaxation ordering
+\(0.01\,\%\). On the economic-cost basis, the ordering
 \(\mathrm{cost}(\CP) \leq \mathrm{cost}(\Lone)\) also holds for every one of the 135 synthetic
-instances. A violation of either condition would indicate a formulation error rather than a
-finding.
+instances, the expected direction for a loss-free relaxation, though not an inequality
+guaranteed in general. A departure from either check on this test set would indicate a
+formulation error rather than a finding.

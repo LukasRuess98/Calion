@@ -77,6 +77,13 @@ DIV_NEG = FHG_ORANGE      # worse than baseline
 DIV_MID = "#f2f1ee"       # neutral
 DIV_POS = FHG_GREEN       # better than baseline
 
+# ── Paper 1 palette (for cross-paper visual consistency — user request 2026-08-30)
+P1_TEAL = "#009B77"
+P1_NAVY = "#003E6E"
+P1_AMBER = "#E8A33D"
+P1_SILVER = "#8C9EA8"
+P1_RED = "#C1272D"
+
 # ── Ink / structural tokens (text wears these, never a series colour) ─────────
 INK = "#1a1a19"
 INK_SOFT = "#52514e"

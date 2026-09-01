@@ -1,0 +1,51 @@
+ \DIFdel{The widespread assumption that higher physics fidelity yields
+proportional accuracy gains in district heating dispatch is
+untested}\DIFdelend \DIFaddbegin \DIFadd{District-heating dispatch models are simplified, yet their decision costs are
+seldom quantified}\DIFaddend . This study \DIFdelbegin \DIFdel{provides a comparison across
+184 optimisation  instances on a validated industrial network and
+36~synthetic topologies, pressure-drop hydraulics, temperature
+propagation, and nonlinear formulations collectively contribute
+less than }\DIFdelend \DIFaddbegin \DIFadd{distinguishes estimation bias, the objective-value
+difference between formulations, from decision regret, defined as an
+\(L_1\)-relative }\emph{\DIFadd{forward-valued}} \DIFadd{schedule gap based on each schedule's cost
+when re-simulated with a high-fidelity forward model incorporating exponential
+heat losses, computed-friction hydraulics, and consumer differential-pressure
+constraints. Both are assessed through a one-phenomenon-at-a-time fidelity ladder
+from a copperplate model to station-resolved hydraulics. Aggregate losses in the
+copperplate enable exact separation of loss and topology effects. Tests use the
+Memmingen network and 135 factorially designed synthetic networks. The copperplate
+underestimates operating costs by 15.1\% but produces schedules whose unprovisioned
+loss, valued at the marginal unit, adds 46.1\%; loss-aware schedules provision this
+loss and remain hydraulically deliverable. Loss visibility, not spatial topology,
+explains the discrepancy. Losses account for 95.8\% of the
+copperplate-to-baseline gap, while topology alone, with physics fixed, adds 0.25\%.
+Across synthetic networks, losses explain a median 100.0\% of the gap. The topology
+effect remains within \(\pm 0.6\%\) for trunk lengths of at least \(5~\mathrm{km}\)
+and never exceeds 2.4\%. Aggregate loss adders may conceal the deficiency in one
+network but do not transfer across scenarios. Forward evaluation of all 174
+transmission stations and service laterals using real component data adds less
+than }\DIFaddend 1\DIFdelbegin \DIFdel{\,\% to dispatch cost while the
+computationally
+trivial step of resolving network topology captures
+13--39\,\% of hidden cost bias.
+}%DIFDELCMD <
+
+%DIFDELCMD < %%%
+\DIFdel{A five-level taxonomy (L1 copperplate through $\Lnl$ MIQCP)
+isolates three effectsthrough pairwise comparison. Results show
+that topology dominates: the
+copperplate to detailed gap reaches
+13\,\% cost underestimation and 74\,t\,}%DIFDELCMD < \ce{CO2}%%%
+\DIFdel{/year on the primary case, driven almost entirely by thermal losses made
+visible through spatial resolution. Extended hydraulic physics add ${\leq}\,0.3\,\%$; the combined linearisation and transport-delay effect remains at or below solver tolerance (${\leq}\,0.5\,\%$) across two independent winter windows,
+confirming that MILP linearisation is adequate for planning-accuracy dispatch. These findings yield quantitative
+selection thresholds linking pipe length and demand heterogeneity
+to the minimum warranted model fidelity. }%DIFDELCMD <
+
+%DIFDELCMD < %%%
+\DIFdel{Within the tested scope (radial trees, }\DIFdelend \DIFaddbegin \DIFadd{\% to the fixed schedule and finds no hydraulic violation. Spatial routing is immaterial under central generation; distributed
+generation remains open. Results assume fixed capacities, a }\DIFaddend fixed heating curve,
+\DIFdelbegin \DIFdel{dispatch with given capacities), practical implications could be determined: resolve the network graph before refining the physics.
+Ring topologies, variable supply temperature, and joint
+dispatch--sizing problems may shift these thresholds and are
+identified as priority follow-up studies}\DIFdelend \DIFaddbegin \DIFadd{and radial networks}\DIFaddend .

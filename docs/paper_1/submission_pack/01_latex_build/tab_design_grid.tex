@@ -1,0 +1,33 @@
+\begin{table}[htbp]
+\centering
+\caption{Model scope grid: which phenomenon each fidelity level represents, and in what
+form: \emph{fwd} = forward-evaluated (not in the solved dispatch), \emph{A} = aggregated
+station, PWL/Bil/Quad the linearisation form. The solved levels $\Lone$, $\Lthree$, $\Lsix$
+fix node temperatures (the free-variable form is degenerate), so $\Lsix=\Lthree+$ transport
+delay and does \emph{not} inherit the station-resolved rows; temperature propagation and the
+station levels ($\Ltwo$, $\Lfour$, $\Lfive$) are forward-evaluated. The four decomposition
+controls ($\CP$, $\CPL$, $\NDz$, $\Lone$) are separated from the zone-aggregated variant
+$\ZN$, used only for the aggregation-sensitivity study of Section~\ref{subsec:zoneclustering}.}
+\label{tab:designgrid}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcc|c|cccccccc@{}}
+\hline
+Phenomenon & $\CP$ & $\CPL$ & $\ZN$ & $\NDz$ & $\Lone$ & $\Ltwo$ & $\Lthree$ & $\Lfour$ & $\Lfive$ & $\Lsix$ & $\NLref$ \\
+\hline
+Demand aggregation & 1pt & 1pt & zones & nodes & nodes & nodes & nodes & stat. & stat. & nodes & stat. \\
+Station representation & A & A & A & A & A & A & A & \checkmark & \checkmark & A & \checkmark \\
+Trunk losses ($U\!L\Delta T$, defensible $U$) & -- & exo & \checkmark & -- & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Service-lateral losses & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & -- & \checkmark \\
+Temperature propagation & -- & -- & -- & -- & -- & fwd & -- & fwd & fwd & -- & Bil \\
+Time-varying COP & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Storage losses \& $\eta$ & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Trunk pressure drop (DW) & -- & -- & -- & -- & -- & -- & PWL & PWL & PWL & PWL & Quad \\
+Trunk pumping power & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Station $\Delta p$ requirement & -- & -- & -- & -- & -- & -- & -- & flat & dyn. & -- & dyn. \\
+Station \& lateral pumping & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark & -- & \checkmark \\
+Transport delay & -- & -- & -- & -- & -- & -- & -- & -- & -- & \checkmark & \checkmark \\
+Hourly grid emission factors & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+\hline
+\end{tabular}
+\end{table}

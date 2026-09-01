@@ -1,26 +1,7 @@
-%% ============================================================
-%% NOMENCLATURE -- v3, Applied Energy house style.
-%% Front matter (immediately after \maketitle). Plain two-column symbol->definition
-%% list: no table rules, no repeated headers, units folded into the definition in [..];
-%% dimensionless quantities carry no unit. The fidelity-level block keeps its T x P code
-%% column as a small ruled table, since it is a genuine lookup table, not a symbol list.
-%%
-%% CHANGES v2 -> v3:
-%%  (a) level labels set upright (\textup), not in math mode
-%%  (b) Status column added: optimised vs forward-evaluated (taxonomy consistency)
-%%  (c) ZN given an explicit purpose (Section 3.4)
-%%  (d) NL now names both roles: forward reference AND 72-hour re-solve
-%%  (e) C^pump REMOVED -- pump electricity enters the electricity bus and is paid
-%%      through grid procurement; a standalone term would double-count
-%%  (f) b (loss burden) and HI added
-%%  (g) alpha_s wording fixed to match the (1-alpha_s)^{Delta t} form of Eq. (11)
-%%  (h) \arraybackslash added after \raggedright in p-columns
-%% ============================================================
 
 {\footnotesize
 
-%%--- Fidelity levels and evaluation quantities (small lookup table, full width) ---
-\noindent\textbf{Fidelity levels and evaluation quantities}\par\nopagebreak\smallskip
+\noindent\textbf{Physical effects and evaluation quantities}\par\nopagebreak\smallskip
 \noindent
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}
   >{\raggedright\arraybackslash}p{1.15cm}
@@ -53,8 +34,6 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 
 \smallskip
 
-%%--- Symbol->definition lists, two columns, no rules ---
-%% \nom{symbol}{definition [unit]} : fixed-width symbol, hanging definition; flows across columns.
 \newcommand{\nom}[2]{\par\noindent\hangindent=2.0cm\hangafter=1\makebox[1.9cm][l]{$#1$}#2}
 \setlength{\columnsep}{16pt}
 \begin{multicols}{2}
@@ -100,8 +79,6 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{\eta_s^{\mathrm{ch/dis}}}{Storage charge/discharge efficiency}
 \nom{\eta_{\mathrm{pump}}}{Pump efficiency}
 \nom{\eta_{\mathrm{Lorenz}}}{Lorenz cycle efficiency}
-% CHANGED: alpha_s is the fractional standing loss per hour entering as
-% (1-alpha_s)^{Delta t} in Eq. (11); it is not a rate with unit h^-1.
 \nom{\alpha_s}{Storage standing-loss fraction per hour}
 \nom{\mathrm{COP}_{h,t}^{\mathrm{WHR}}}{Waste-heat COP, time-varying}
 \nom{\mathrm{COP}_h^{\mathrm{def}}}{Default-source COP, constant}
@@ -119,7 +96,6 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{M^{\mathrm{grid}}}{Grid capacity, Big-M [MW]}
 \nom{\Delta t}{Time-step length [h], $=1$}
 \nom{K}{Number of PWL segments}
-% CHANGED: HI added (used in Table 6, Table 20, Appendix E)
 \nom{\mathrm{HI}}{Demand heterogeneity index (Appendix~\ref{app:hi_definition})}
 
 \medskip
@@ -130,8 +106,6 @@ $\kappa$   & & & Loss switch in the nodal balance, $\{0,1\}$ \\
 \nom{C^{\mathrm{CO_2}}}{Carbon cost}
 \nom{C^{\mathrm{dem}}}{Demand charge on peak import}
 \nom{C^{\mathrm{cyc}}}{Storage-cycling penalty}
-% REMOVED: C^{pump}. Pump electricity enters the electricity balance, Eq. (4),
-% and is paid through C^{en}; a standalone term would double-count it.
 \nom{Z}{Solver objective}
 \nom{z^{\mathrm{econ}}}{Economic operating cost (reported basis)}
 

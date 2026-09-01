@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Solver-gap stability of the decomposition. At a loose optimality tolerance the
+small topology and interaction terms sit within solver noise; only at a
+$0.01$\,\% gap do they resolve to stable values. The as-run $\NDz\!-\!\CP$ row here is the
+combined topology-plus-physics-parameter difference between the copperplate and node-resolved
+configurations (the physics-matched topology main effect alone is $0.25$\,\%; see the main-text
+decomposition); it is reported only to illustrate gap sensitivity. Loss dominance is far above the
+gap throughout.}
+\label{tab:gapstability}
+\begin{tabular}{lrr}
+\hline
+Term & Loose gap ($0.5$\,\%) & Hardened gap ($\le$0.01\,\%) \\
+\hline
+Loss main effect & $95.5$\,\% & $95.9$\,\% \\
+As-run $\NDz\!-\!\CP$ (topology + physics) & $3.9$\,\% & $4.7$\,\% \\
+Interaction & $+0.6$\,\% & $-0.5$\,\% (sign flips) \\
+Closure residual & --- & $0.0$\,e${+}00$\,EUR \\
+\hline
+\end{tabular}
+\end{table}

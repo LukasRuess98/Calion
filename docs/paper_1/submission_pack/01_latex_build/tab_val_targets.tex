@@ -1,0 +1,29 @@
+\begin{table}[t]
+\centering
+\caption{Validation targets. Gates were fixed \emph{ex ante} from the values reported for
+comparable validations by \citet{Kus2025} and \citet{Maldonado2024}, before calibration.
+The supply-temperature gates apply to the propagating formulation only and are
+metering-limited; the return-temperature check tests the assumed differential-temperature
+parameterisation of the dispatch model rather than a resolved temperature field
+(Section~\ref{subsec:validation}).}
+\label{tab:valtargets}
+\begin{tabular}{lccc}
+\toprule
+Quantity & Gate & Formulation & Status \\
+\midrule
+\multicolumn{4}{l}{\emph{Gated}}\\
+Annual delivered-energy error       & $\le 2$\,\%   & MILP & met \\
+Energy-balance closure              & $\le 2$\,\%   & MILP & met \\
+Supply-temperature MAE, mean (val.\ nodes, 744\,h)  & $\le 1.5$\,K  & NLP  & met (1.32\,K) \\
+Supply-temperature MAE, worst node (744\,h)         & $\le 2.5$\,K  & NLP  & met (2.27\,K) \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Calibration / diagnostic (not gated validation)}}\\
+Return-temperature MAE at source    & (calib.) & MILP ($\Delta T$ param.) & calibration check \\
+Far-end supply-temp MAE (annual)    & (diag.)  & NLP  & 9.21\,K (metering-limited) \\
+\addlinespace
+\multicolumn{4}{l}{\emph{Reported, not gated}}\\
+Flow MAPE, source (reported, not gated)  & 33.8\,\%  & MILP \\
+Demand MAPE, total (reported, not gated) & 29.1\,\%  & MILP \\
+\bottomrule
+\end{tabular}
+\end{table}

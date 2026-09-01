@@ -1,40 +1,10 @@
-%% ============================================================
-%% PAPER 1 — REVISION v15 SKELETON (pack v2: bias/regret reframe)
-%% Applied Energy · APEN-D-26-15734 · Major Revision
-%%
-%% MARKERS
-%%   %% <<GAP:ID>>     prose a human must write; build fails if present
-%%   \result{key}      auto-filled from results/v2/analysis/*.csv
-%%   %% <<KEEP:sec>>   carry over v1 text, lightly edited
-%% ============================================================
 
 \documentclass[a4paper,fleqn]{cas-sc}
-%% Generate ToUnicode CMaps so ligatures (fi, ff, ffi) and dashes extract/search correctly
-%% (fixes "fidelity"->"delity", "effect"->"eect", "L1--L6"->"L1L6" on copy-paste).
-\input glyphtounicode
-\pdfgentounicode=1
-\pdfglyphtounicode{ff}{0066 0066}
-\pdfglyphtounicode{fi}{0066 0069}
-\pdfglyphtounicode{fl}{0066 006C}
-\pdfglyphtounicode{ffi}{0066 0066 0069}
-\pdfglyphtounicode{ffl}{0066 0066 006C}
-\pdfglyphtounicode{uniFB00}{0066 0066}
-\pdfglyphtounicode{uniFB01}{0066 0069}
-\pdfglyphtounicode{uniFB02}{0066 006C}
-\pdfglyphtounicode{uniFB03}{0066 0066 0069}
-\pdfglyphtounicode{uniFB04}{0066 0066 006C}
-%% preamble carried over from v1. Single-column (cas-sc) so wide tables get the full
-%% text width and figures sit near their text, matching the original submission layout.
-
-%% Redesigned ladder (2026-08-10, docs/.../08_LEVEL_REDESIGN.md). Reader-friendly
-%% L-names bound to T{i}P{j} codes; one phenomenon per step; stations at every level.
-%% -- Decomposition controls --
-%% level/condition names use \ensuremath so they typeset in BOTH text and math mode
+% (pdfTeX glyphtounicode block removed for engine portability)
 \newcommand{\CP}{\ensuremath{\mathrm{CP}}}      % T0P0 copperplate, no loss   (control)
 \newcommand{\CPL}{\ensuremath{\mathrm{CP{+}L}}} % T0P1 copperplate + aggregate loss (control)
 \newcommand{\ZN}{\ensuremath{\mathrm{ZN}}}      % T1P1 zone-aggregated + loss
 \newcommand{\NDz}{\ensuremath{\mathrm{ND^{0}}}} % T2P0 full nodes, no loss     (topology control)
-%% -- Fidelity ladder --
 \newcommand{\Lone}{\ensuremath{\mathrm{L1}}}    % T2P1 nodes + trunk loss  BASELINE
 \newcommand{\Ltwo}{\ensuremath{\mathrm{L2}}}    % T2P2 + temperature propagation (PWL)
 \newcommand{\Lthree}{\ensuremath{\mathrm{L3}}}  % T2P3 + trunk pressure drop & pumping
@@ -43,18 +13,14 @@
 \newcommand{\Lsix}{\ensuremath{\mathrm{L6}}}    % T2P6 + transport delay
 \newcommand{\NLref}{\ensuremath{\mathrm{NL}}}   % nonlinear reference (solved on representative 72-hour windows; global re-solve intractable)
 
-%% --- compatibility shims for the merged section files (numeric cite style; cas-dc has no siunitx) ---
 \usepackage{threeparttable}
 \usepackage{booktabs}
 \usepackage{makecell}
-% amssymb's \checkmark uses the msam font, which falls back to a Type 3 bitmap on some TeX
-% installations (the blurry checkmark in tables). Redefine it to a Type 1 ZapfDingbats glyph.
 \usepackage{pifont}
 \renewcommand{\checkmark}{\ding{51}}
 \usepackage{caption}
 \usepackage{xcolor}
 \usepackage[numbers,sort&compress]{natbib}   % numeric [n] citations; without this the elsarticle-num-names bst prints the verbose author-year label
-%% --- float placement: keep tables near their text (original-submission layout) ---
 \usepackage{float}
 \usepackage{multicol}            % two-column nomenclature list (Applied Energy style)
 \restylefloat{figure}            % let the float package own the figure env so [H] (place-here) is honoured under cas
@@ -83,13 +49,17 @@
 \providecommand{\citeauthor}[1]{\cite{#1}}
 \providecommand{\degree}{\ensuremath{^\circ}}
 
+% suppress the cas-sc "Preprint submitted to Elsevier" first-page footer
+\ExplSyntaxOn
+\cs_set:Npn \__first_footerline: { }
+\ExplSyntaxOff
+
 \begin{document}
 
 \title[mode=title]{%
-  Loss Visibility versus Spatial Detail in District-Heating Dispatch Optimisation}
-%% DECIDED 2026-08-10 (02_STUDY_REDESIGN.md S10 / 00_MASTER_STATUS.md). Foregrounds the
-%% bias-vs-regret framing (R2.1) and the decomposition finding (loss>>topology); avoids
-%% "dominates"/"accuracy" (R1.2); moderator clause held for the synthetic factor.
+  Loss Visibility versus Spatial Detail in industrial District-Heating Dispatch Optimisation}
+
+\input{front_matter_v2}
 
 \begin{abstract}
 District-heating dispatch models are simplified, yet their decision costs are
@@ -100,8 +70,7 @@ when re-simulated with a high-fidelity forward model incorporating exponential
 heat losses, computed-friction hydraulics, and consumer differential-pressure
 constraints. Both are assessed through a one-phenomenon-at-a-time fidelity ladder
 from a copperplate model to station-resolved hydraulics. Aggregate losses in the
-copperplate enable exact separation of loss and topology effects. Tests use the
-Memmingen network and 135 factorially designed synthetic networks. The copperplate
+copperplate enable exact separation of loss and topology effects. Results are computed for one real network and 135 factorially designed synthetic networks. The copperplate
 underestimates operating costs by 15.1\% but produces schedules whose unprovisioned
 loss, valued at the marginal unit, adds 46.1\%; loss-aware schedules provision this
 loss and remain hydraulically deliverable. Loss visibility, not spatial topology,
@@ -112,8 +81,7 @@ effect remains within \(\pm 0.6\%\) for trunk lengths of at least \(5~\mathrm{km
 and never exceeds 2.4\%. Aggregate loss adders may conceal the deficiency in one
 network but do not transfer across scenarios. Forward evaluation of all 174
 transmission stations and service laterals using real component data adds less
-than 1\% and finds no hydraulic violation, suggesting limited re-optimisation
-value. Spatial routing is immaterial under central generation; distributed
+than 1\% to the fixed schedule and finds no hydraulic violation. Spatial routing is immaterial under central generation; distributed
 generation remains open. Results assume fixed capacities, a fixed heating curve,
 and radial networks.
 \end{abstract}
@@ -123,8 +91,6 @@ District heating \sep Mixed-integer linear programming \sep Model fidelity \sep
 Decision regret \sep Thermal losses \sep Network aggregation \sep
 Heat pump optimisation
 \end{keywords}
-
-\input{front_matter_v2}
 
 \maketitle
 
@@ -142,16 +108,13 @@ marking is applied at paragraph rather than sentence level.}}
 \end{center}
 \fi
 
-
 \section*{Nomenclature}
 \new{\input{nomenclature_v2}}
 
-%% ============================================================
 \section{Introduction}
 \label{sec:introduction}
 \new{\input{introduction_opening_v2}}
 
-%% <<DRAFTED:INTRO-FRAMING>> DRAFTED (author: polish voice) -- two framing moves.
 Two features of the existing fidelity literature limit what its comparisons can
 conclude. First, the comparisons are confounded: moving from a copperplate or a
 zone-aggregated model to a node-resolved one changes the spatial representation of the
@@ -170,39 +133,9 @@ metric that separates estimation error from decision quality.
 
 \subsection{Literature review and research gap}
 \new{\input{related_work_v2}}
-\input{tab_prior_work}
-%% ADD two columns: "isolates loss from topology" and "evaluates decisions".
-%% Every prior entry -- including our own v1 -- is "No". That is the contribution.
+\input{table1}
 
 \subsection{Contributions and research questions}
-%% <<DRAFTED:CONTRIBUTIONS>>
-%% CONCEDE FIRST (see 04_NOVELTY_STATEMENT.md): the five formulations are
-%% established; comparative fidelity studies exist (Wirtz, Larsen, Kotzur).
-%% THEN rest the contribution on TWO PILLARS (R2.1 optics -- do NOT list five
-%% co-equal claims; that reads as padding). Lead with these two:
-%%  PILLAR 1 -- DECISION REGRET + PHYSICAL DELIVERABILITY. Fidelity has been judged by
-%%    objective differences (estimation bias); we re-cost each schedule under a common
-%%    high-fidelity forward model (decision regret) and check physical deliverability.
-%%    The finding: the copperplate is a biased estimator AND an incompetent controller
-%%    (bias and regret carry OPPOSITE signs); loss-aware levels are executable. Paired
-%%    with the exact loss/topology DECOMPOSITION CONTROL (CP+L), this shows loss
-%%    visibility -- not spatial routing -- sets the fidelity requirement, AND that a
-%%    per-network loss adder that makes a copperplate look sufficient does not transfer
-%%    (drift up to 95% of true loss across the factorial), so the resolved model is the transferable one.
-%%    Positioned honestly as VSS transposed from the uncertainty axis to the resolution
-%%    axis (claim the transfer + finding, not the concept).
-%%  PILLAR 2 -- HYDRAULICS EMPIRICALLY BELOW THE DECISION THRESHOLD. Resolving the demand
-%%    side to the individual transmission station and its service laterals (L4/L5), on
-%%    REAL component data (Wilo datasheets, DXF laterals, 174 stations) + a pandapipes
-%%    cross-check, changes dispatch cost by <1% and decisions by ~0. The finest physical
-%%    detail is the NULL that establishes where the threshold sits -- the R2.4 answer.
-%% THEN, as SECONDARY findings (one sentence each, clearly subordinate):
-%%  (s1) generation-topology moderator -- proven null under central generation (synthetic
-%%       factorial); distributed-generation arm posed as a controlled open question;
-%%  (s2) an a-priori bias estimator tested out-of-sample on held-out synthetic networks.
-%% Do NOT elevate s1/s2 to pillars. Research questions follow the two pillars +
-%% (transferability via drift) + (the two secondary questions).
-%% ---- DRAFTED (author: polish voice) ----
 The individual formulations compared here are established, and comparative fidelity studies
 already exist: Wirtz et al.\ compared MILP variants of a multi-energy system, Larsen and
 Falay studied network aggregation, and Kotzur et al.\ reviewed complexity management. The
@@ -213,7 +146,7 @@ high-fidelity forward model to quantify decision regret and tested for physical
 deliverability. This evaluation is paired with a control condition, a copperplate supplied
 with the aggregate loss it cannot itself compute, that turns the comparison into an exact
 loss/topology decomposition. Together, these show that loss visibility, not spatial routing,
-sets the fidelity requirement; that a model can be both a biased estimator and an incompetent
+sets the fidelity requirement; that a model can be both a biased estimator and an inadequate
 controller, with its estimation bias and signed forward-cost deviation pointing in opposite
 directions; and that a per-network loss adder that makes a copperplate appear sufficient does
 not transfer across networks or operating regimes, making the resolved model the transferable
@@ -233,7 +166,6 @@ organised around four research questions: the loss/topology decomposition, decis
 and deliverability, the transferability of a lumped-loss correction, and the location of the
 hydraulic threshold, with the two secondary questions addressed alongside.
 
-%% ============================================================
 The remainder of the paper is organised as follows.
 Section~\ref{sec:methodology} sets out the experimental design (the fidelity ladder, the
 decomposition controls and the contrasts each isolates), then the two case studies, the
@@ -247,23 +179,6 @@ Section~\ref{sec:conclusion} concludes.
 \label{sec:methodology}
 
 \subsection{Experimental design: fidelity ladder and decomposition controls}
-%% <<DRAFTED:FACTORIAL>> LEAD WITH THE SEVEN CONTRASTS (R2.1 optics), not the big grid.
-%% Open by stating what each STEP ISOLATES -- one phenomenon per arrow, no confounds --
-%% and present that as a compact contrast table (tab_contrasts):
-%%   CP->CP+L  loss visibility (no topology)         [R2.2]
-%%   CP->ND0   spatial topology (no loss)            [R2.2]
-%%   L1 vs CP+L,ND0  loss x topology interaction     [R2.2]
-%%   L1->L2    temperature propagation
-%%   L2->L3    trunk pressure + pumping
-%%   L3->L4    station resolution + service laterals (flat Dp)   [R2.4/novelty]
-%%   L4->L5    dynamic (flow-dependent) station Dp                [novelty]
-%%   L5->L6    transport delay ; L6->NL linearisation error       [R1.3/R2.3]
-%% Then the two DESIGN PRINCIPLES: (i) ONE phenomenon per step; (ii) the 174
-%% transmission stations exist at EVERY level, only their aggregation changes
-%% (R2.5 consistent taxonomy). State the exact identity cost(L1)-cost(CP) =
-%% loss_main + topo_main + interaction (an identity, not an approximation), which
-%% closes to machine precision (0.000e+00 EUR) at <=0.01% solver gap.
-%% ---- DRAFTED (author: polish voice) ----
 This study compares a family of formulations that differ from one another in exactly one
 modelled phenomenon at a time, so that each pairwise contrast isolates a single effect and no
 comparison is confounded. The family has two parts. Four \emph{decomposition controls} form a
@@ -290,7 +205,6 @@ loss main effect is $\text{cost}(\CPL)-\text{cost}(\CP)$, the topology main effe
 $\text{cost}(\NDz)-\text{cost}(\CP)$, and the interaction is the residual; it is an identity,
 not an approximation, and closes to machine precision when the four models are solved to a
 0.01\,\% optimality gap.
-%% <<DRAFTED:REF-DEF>> ---- DRAFTED ----
 Two reference roles must be kept distinct. The baseline $\Lone$ is the detailed
 mixed-integer model a practitioner would actually build; every estimation-bias percentage is
 normalised to it. The \emph{physics} reference, against which regret and physical feasibility
@@ -298,7 +212,7 @@ are judged, is the forward evaluator of Section~\ref{subsec:evaluator}, \emph{no
 level: even the finest solved level linearises the temperature-decay factor, so using it as
 ground truth would carry the same linearisation into the reference. Model-to-model differences
 are therefore estimation bias; only the forward evaluation speaks to decision quality.
-\input{tab_contrasts}
+\input{table2}
 
 Where the contrasts in Table~\ref{tab:contrasts} name what each step \emph{changes},
 Table~\ref{tab:designgrid} gives the complete picture: every fidelity level against every
@@ -308,15 +222,10 @@ and \texttt{Quad} a piecewise-linear, native-bilinear or native-quadratic treatm
 \texttt{flat} or \texttt{dyn} the static or flow-dependent station pressure requirement. The
 four decomposition controls stand to the left of the monotone $\Lone$ through $\Lsix$ ladder,
 with the nonlinear reference $\NLref$ closing it on the right.
-% CHANGED: L6 added to the solved list (Tables 14 and 19 report it as a solved MILP);
-% "The controls, L1 and L3" rephrased, since L1 is itself one of the four controls.
 The four decomposition controls, together with $\Lthree$ and $\Lsix$, are solved as
 mixed-integer linear programs to a $0.01$\,\% gap; the non-convex levels
 ($\Ltwo$, $\Lfour$, $\Lfive$, $\NLref$) are quantified with the validated forward model
 rather than solved. 
-% ADDED: gives ZN an explicit place. It is neither a control nor a ladder rung,
-% and it appears in no bias/regret table; leaving it undeclared while giving it a
-% column in Table 3 invited the question of what it is doing there.
 One further formulation sits outside both parts of the family. The zone-aggregated level
 $\ZN$ resolves demand into geographic clusters rather than junctions and computes trunk
 loss on the aggregated graph; it is not a decomposition control, since it occupies no
@@ -324,27 +233,12 @@ corner of the $2\times2$, and not a ladder rung, since the ladder is defined on 
 node-resolved network. It is used solely to test whether the choice of zone boundary is a
 hidden degree of freedom in the decomposition (Section~\ref{subsec:clustering}), and is
 reported there rather than among the bias and regret results.
-\input{tab_design_grid}
-
-%% Figure F1
-%% The full phenomenon x level scope grid (11 columns, CP..NL x 13 phenomena) is
-%% reference material, MOVED TO APPENDIX (tab_design_grid, app:scopegrid) so the
-%% methodology reads as an experiment, not a taxonomy.
-%% <<DRAFTED:REF-DEF>> TWO REFERENCE ROLES -- keep distinct, this is load-bearing:
-%%  - T2P1 is the COMPARISON BASELINE (the detailed MILP a practitioner builds);
-%%    all bias percentages normalise to it
-%%  - the forward evaluator (S2.4) is the PHYSICS REFERENCE; NOT T2P4, because
-%%    T2P4 still uses PWL for the decay factor -- the caveat that undermined v1's
-%%    "ground truth" framing
-%%  - state that model-to-model differences are bias, and only regret speaks to
-%%    decision quality (answers R1.2)
+\input{table3}
 
 \subsection{Base formulation}
 \new{\input{base_formulation_v2}}
 
 \subsection{Copperplate with aggregate losses}\label{subsec:lumped}
-%% <<DRAFTED:LUMPED-LOSS>> (author: polish + insert adder eqn). T0P1c dropped per scope.
-%% ---- DRAFTED ----
 The control condition $\CPL$ is the copperplate supplied with the aggregate network loss it
 cannot itself compute, so that the loss/topology decomposition is exact. The loss enters
 exogenously, by inflating the single-node demand series; the formulation stays a linear
@@ -368,8 +262,6 @@ transfer across networks (Section~\ref{subsec:generalis}) is therefore conservat
 
 \subsection{Forward evaluator and decision regret}
 \label{subsec:evaluator}
-%% <<DRAFTED:EVALUATOR>> THE NEW METHOD SECTION. (author: polish + insert equations)
-%% ---- DRAFTED ----
 The evaluator is a forward simulator, not an optimisation model: it takes a \emph{fixed}
 dispatch schedule (the generation, storage and temperature trajectory a level produced)
 and computes the forward-evaluated (policy-dependent) cost of executing it under high-fidelity
@@ -436,8 +328,6 @@ without adjusting the fixed grid import. If recomputed native losses are lower t
 
 \subsection{Extended thermo-hydraulic formulation}\label{sec:extended}
 \new{\input{extended_physics_v2}}
-%% <<DRAFTED:HYDRAULIC-DETAIL>> Answers R2.4. (author: polish + insert DW eqns)
-%% ---- DRAFTED ----
 The extended formulation resolves both the supply and the return circuit. Trunk pressure drop
 (from $\Lthree$) follows Darcy--Weisbach, linearised as a piecewise function of flow, and the
 associated pumping power enters the objective at the pump efficiency taken from the installed
@@ -448,41 +338,9 @@ calibrated away, is reconciled physically by the compact network and its heavily
 the magnitudes, and the agreement with an independent nonlinear pipe-flow solver, are reported
 with the results in Section~\ref{subsec:hydraulics}.
 
-\subsubsection{Station-resolved hydraulics (L4, L5): the test that locates the threshold}\label{subsec:stationhyd}
-%% FRAMING (R2.1): present L4/L5 NOT as "two more levels" but as the test that
-%% ESTABLISHES THE DECISION-RELEVANCE THRESHOLD -- pushing physical fidelity to its
-%% maximum (individual substation + flow-dependent pressure, on real component data)
-%% and finding a NULL. A null at maximal fidelity is stronger evidence than any
-%% mid-ladder effect: it bounds how much ANY hydraulic detail can matter. This is the
-%% R2.4 answer and Pillar 2 of the contribution.
-%% <<DRAFTED:STATION-HYDRAULICS>> The demand side resolved to the individual transmission
-%% station. L4 adds: (i) station count n_transfer_stations per node (174 real, from
-%% DXF); (ii) service-lateral (last-mile) losses from real DXF trace lengths -- these
-%% appear ONLY at L4, so coarser levels honestly undercount real loss and use
-%% DEFENSIBLE trunk U (no x4.7 multiplier); (iii) flat per-station Dp. L5 replaces the
-%% flat station Dp with a DYNAMIC flow-dependent Dp (convex PWL, no binaries) and the
-%% associated station pumping. Validated on Memmingen real component data + pandapipes;
-%% parameterised (stations ~ node demand, bootstrap laterals) for the synthetic
-%% out-of-sample test. Headline: resolved to the station, hydraulics change cost by <1%
-%% and decisions by ~0.
-%% <<DRAFTED:STATION-METHOD-JUSTIFICATION>> State plainly WHY L4/L5 are forward-evaluated,
-%% not solved as MILP dispatch levels -- this is the rigorous choice, not a compromise:
-%%  (i) the forward module uses NATIVE nonlinear station Dp validated against real
-%%      component data + pandapipes = the "validated nonlinear reference" R2.3 asked
-%%      for; a MILP level would re-linearise the station Dp (PWL), reintroducing the
-%%      linearisation the reviewers criticised;
-%%  (ii) re-costing the baseline schedule under full station physics UPPER-BOUNDS the
-%%      regret -- <1% extra cost with zero feasibility violations PROVES no schedule
-%%      can be >1% better, i.e. decisions change by <1% (a bound, not a gap-limited
-%%      point estimate);
-%%  (iii) consistent with the paper's thesis that the forward evaluator, not further
-%%      PWL-MILP levels, is the physics reference (same argument that demotes T2P4);
-%%  (iv) station pump work is load-following (~ flow ~ demand), not dispatchable, so
-%%      the optimiser has no lever to re-optimise around it -> bias ~ regret ~ the
-%%      forward adder regardless.
-%% ---- DRAFTED (author: polish voice) ----
+\subsubsection{Station-resolved hydraulics (L4, L5): test for threshold locating}\label{subsec:stationhyd}
 The station levels are evaluated with the forward model rather than solved as additional
-mixed-integer dispatch levels, and this is the rigorous choice, not a compromise, for four
+mixed-integer dispatch levels for four
 reasons. First, the forward module uses the native nonlinear station pressure relation,
 validated against real component data and the nonlinear solver (exactly the validated
 nonlinear reference), whereas a mixed-integer level would re-linearise
@@ -515,7 +373,6 @@ Section~\ref{subsec:linearisation} and isolated through the exact decomposition.
 Temperature propagation reduces total network losses by about 2\%, corresponding to
 only a few tenths of a percent of total cost. Like station hydraulics, its effect
 therefore remains below the decision relevance threshold.
-%% <<DRAFTED:TRANSPORT-DELAY>> ---- DRAFTED ----
 Transport delay ($\Lsix$) is a linear time shift of delivered heat and is isolated as its own
 level. The fully nonlinear reference (bilinear temperature propagation and quadratic
 pressure together) is not solved \emph{globally}: the full-year mixed-integer
@@ -523,26 +380,10 @@ pressure together) is not solved \emph{globally}: the full-year mixed-integer
 linearised levels is instead characterised by the measured linearisation error and by the
 forward evaluator, and by bounded fixed-integer re-solves on representative 72-hour windows
 (Section~\ref{subsec:linearisation}), without asserting an unattainable full-year global solve.
-%% (The full 11-column scope grid lives in the appendix, app:scopegrid -- not repeated
-%% here; the methodology carries only the seven-contrast table of S2.1.)
 
 \subsection{Validation protocol}
 \new{\input{validation_protocol_v2}}
-\input{tab_val_targets}
-%% <<DRAFTED:VALIDATION-RESOLUTION>> THE RESOLUTION ARGUMENT (Shape A -- Memmingen only):
-%%  - Memmingen THERMAL: measured T + flow at 27 consumer nodes -> validatable at NODE
-%%    resolution
-%%  - Memmingen HYDRAULIC: station-resolved model validated on REAL COMPONENT DATA (Wilo
-%%    pump datasheets, DXF-traced service laterals, 174 stations) + an independent
-%%    pandapipes nonlinear solve -- the hydraulic validation, on real data, no borrowed
-%%    pressure measurements
-%%  - "a model resolved finer than its metering cannot be validated at that
-%%    resolution; its additional detail is asserted, not verified"
-%%  - the converse edge (Pillar 2): even resolved to the substation, hydraulic detail
-%%    changes decisions by ~0, so the fidelity requirement sits BELOW it
-%%  - practical consequence: for most operators the node/zone thermal level is the finest
-%%    DEFENSIBLE level, not merely the cheapest
-%% ---- DRAFTED (author: polish voice) ----
+\input{table4}
 Validation resolution bounds what fidelity can be claimed, and the Memmingen metering makes the
 point concretely. Its consumer sensors are billing instruments downstream of mixing valves, so
 they read several degrees below the primary junction temperature; intermediate node temperatures
@@ -562,17 +403,11 @@ extra detail could even be validated.
 
 \subsection{Implementation}
 \new{\input{computational_setup_v2}}
-%% (bound-reporting + solver-tolerance paragraph lives in computational_setup_v2; not duplicated here)
 
-%% ============================================================
 \subsection{Case studies and data}
 \label{sec:cases}
-%% Shape A: one real network (Memmingen) + the synthetic factorial.
-%% (case inventory is Table~\ref{tab:case_summary} below; tab_cases stub removed as redundant)
 
 \subsubsection{Memmingen}
-%% <<DRAFTED:CASE-A>> (author: polish + fill portfolio numbers from tab_case_summary)
-%% ---- DRAFTED ----
 The real case is the Memmingen district-heating network, resolved as fifteen junction nodes
 carrying twenty-seven metered consumer substations, supplied from a single plant that holds
 the whole generation portfolio: combined heat and power, gas and biomass boilers, a heat
@@ -589,26 +424,23 @@ limitation applies to the portfolio: the measurements predate the heat pump, ele
 and storage, so the network transport physics they validate is asset-independent, but the
 dispatch of those units is modelled with standard component relations and plausibility-checked
 rather than validated against post-upgrade metering (Section~\ref{sec:conclusion} limitations).
-\input{tab_case_summary}
-%% Figure F2 -- all generation assets at j1 (central generation)
+\input{table5}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{memmingen_network}
+  \includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{figure1}
   \caption{The Memmingen network: fifteen junctions (j$_1$--j$_{15}$) serving twenty-seven metered consumer substations (V$_1$--V$_{27}$) on a radial tree, with all generation (CHP, thermal storage, gas and biomass boilers, heat pump and electrode boiler) co-located at the production hub j$_1$. Pipe diameters are labelled DN; the trunk and the two branch arms are distinguished by colour.}
   \label{fig:network}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.32\textheight,keepaspectratio]{F_demand}
+  \includegraphics[width=\linewidth,height=0.32\textheight,keepaspectratio]{figure2}
   \caption{Normalised total heat demand of the Memmingen network over 2025 (cleaned consumption): the summed load of the twenty-seven consumer substations, shown as its daily mean and scaled to the annual peak. The seasonal heating profile is the exogenous demand the dispatch must serve.}
   \label{fig:demand}
 \end{figure}
 
 \subsubsection{Synthetic factorial}
-%% <<DRAFTED:SYNTH-DESIGN>> (author: polish + fill grid levels from tab_synthetic)
-%% ---- DRAFTED ----
 The synthetic factorial is a balanced $3\times5\times3\times3$ family of radial networks that
 varies node count, trunk pipe length, demand heterogeneity and storage size. Each of the 135
 networks is solved through the four decomposition controls ($\CP$, $\CPL$, $\NDz$, $\Lone$)
@@ -621,32 +453,20 @@ ad-hoc feasibility filtering) sizes the assets, and its influence on the results
 Full-network solves use
 the same 0.01\,\% optimality gap as the real case, so the per-network decomposition terms sit
 well above solver noise.
-%% (superseded guidance below retained for reference)
-%% <<KEEP-NOTE>> The parametric grid (node count x pipe length x demand
-%% heterogeneity x storage), the documented capacity-sizing convention that replaces
-%% v1's feasibility filtering and its sensitivity, and the SAME ladder taxonomy as the
-%% real case. TWO new factors carry claims that Shape A moved off the second real
-%% network: (i) generation topology (central vs distributed) = the MODERATOR;
-%% (ii) parameterised station hydraulics (L4/L5, stations ~ node demand) = the
-%% OUT-OF-SAMPLE test of the Memmingen-validated station model.
-\input{tab_synthetic}
+\input{table6}
 
-%% ============================================================
 \section{Results and discussion}
 \label{sec:results}
 
 \subsection{Validation}\label{subsec:validation}
 \new{\input{validation_results_v2}}
-\input{tab_validation}
-%% (hydraulic validation is Table~\ref{tab:hydraulics} in the pressure section; tab_hydraulic_val stub removed as redundant)
+\input{table7}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{mixing_valve_offset}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure3}
   \caption{The mixing-valve offset that bounds what the temperature field can be validated against. Consumer sensors are billing instruments installed downstream of the valve, so the metered temperature sits systematically below the primary junction temperature.}
   \label{fig:mixingvalve}
 \end{figure}
-%% <<DRAFTED:CALIB-RECONCILE>> (author: polish + insert flow-MAPE-by-band numbers)
-%% ---- DRAFTED ----
 Pipe losses admit two calibration approaches that require reconciliation. The first
 uses a global boundary-condition match and applies a single scaling factor to all
 heat-transfer coefficients. The second uses a branch-sequential fit and increases
@@ -676,8 +496,6 @@ absolute percentage error by load band, making the fit at part load, where most
 operating hours occur, visible rather than obscuring it within an annual aggregate.
 
 \subsection{Estimation bias: loss visibility versus spatial resolution}\label{subsec:decomp}
-%% <<DRAFTED:DECOMPOSITION>> DRAFT with final defensible-U numbers (decomposition_
-%% defensibleU.csv + synth_factorial_decomposition.csv); polish prose, add CO2 row.
 On Memmingen the copperplate-to-baseline cost gap of \textbf{15.1}\,\%
 (\CP\ $\to$ \Lone) decomposes to machine precision into a loss main effect of
 \textbf{95.8}\,\% of the gap and an interaction of \textbf{-0.5}\,\% (defensible trunk $U$; the single
@@ -702,19 +520,21 @@ $\le0.1$\,\% optimality gap), over node counts, pipe lengths, demand heterogenei
 storage. The corrected Memmingen topology (0.25\,\%) sits comfortably inside this synthetic range.
 The $U$-calibration choice leaves the loss share essentially unchanged (inflated-$U$: 96\,\%;
 defensible-$U$: \textbf{95.8}\,\%), so the conclusion is not an
-artefact of the loss calibration.
-\input{tab_decomposition}
+artefact of the loss calibration. Supplying the copperplate control with the hourly,
+heating-curve-consistent loss profile that the resolved model realises, in place of the flat
+annual adder, likewise moves the loss main effect only from $95.8$ to $95.5$\,\% of the gap
+(a $0.4$-percentage-point shift, and a $0.06$\,\% change in the $\CPL$ cost); the constant
+adder is retained as the primary oracle because the decomposition is insensitive to the
+adder's temporal shape.
+\input{table8}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_decomp}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure4}
   \caption{Exact decomposition of the copperplate-to-baseline cost gap for Memmingen (left) and as a distribution across the 135 synthetic networks (right). On Memmingen the topology main effect is measured with physics held identical to the copperplate; the physics-parameter difference between the copperplate and node-resolved configurations (return temperature, heating curve, heat-pump coefficient of performance) is shown separately so it is not attributed to spatial resolution. The additive identity closes to machine precision, so the terms are measured rather than fitted. The synthetic networks share physics across variants by construction and so carry no such term.}
   \label{fig:decomp}
 \end{figure}
 
 \subsection{Decision regret and physical feasibility}
-%% <<DRAFTED:REGRET>> DRAFT filled from HARDENED regret_decomp.csv / regret_decomp_pricing.csv
-%% (ref = L1, <=0.01% gap). TODO polish: add decision-divergence metrics (HP hours,
-%% producer shares); finalise F6(c) violation panel.
 Estimation bias and decision regret diverge sharply, and for the copperplate they
 carry \emph{opposite signs}. Its schedule appears \textbf{-15.1}\,\% cheaper
 than the baseline (bias), yet re-costing that loss-ignoring schedule under the common
@@ -722,28 +542,28 @@ forward physics values its unprovisioned loss at \textbf{+46.1}\,\% of the basel
 (its forward-valued schedule gap): a copperplate is a biased estimator \emph{and}
 under-provisions the network losses it never saw. The asymmetry
 ($|\text{regret}|>|\text{bias}|$) is mechanistic: the loss the copperplate omits must
-be covered under execution by topping up at the marginal or peak unit, at the winter
-hours it never planned for, rather than by optimal pre-planning. The schedules show this directly: the copperplate runs the heat pump 2\,063 hours against the baseline's 2\,309 and gives it 77.9\,\% of production against 87.8\,\%: 246 fewer operating hours and ten percentage points less share, the 46\,\% regret being that substitution priced. Supplying the same
+be valued, under the forward model, at the marginal or peak unit's cost in the winter
+hours it never planned for, rather than avoided by optimal pre-planning. The schedules show this directly: the copperplate runs the heat pump 2\,063 hours against the baseline's 2\,309 and gives it 77.9\,\% of production against 87.8\,\%: 246 fewer operating hours and ten percentage points less share, the 46\,\% regret being that substitution priced. Supplying the same
 copperplate the aggregate loss it cannot compute (\CPL) collapses both bias and regret
 to $\approx\textbf{-0.54}\,\%$, but that adder is calibrated ex post on this
 network and does not transfer (S\ref{subsec:generalis}). The loss-aware node-resolved levels
 (\Lone, \Lthree, \Lsix) reach regret $\approx$ bias with no calibration, as expected, since with
-no ignored loss to top up the forward-minus-economic residual is a near-constant pump offset, so
+no ignored loss to cover the forward-minus-economic residual is a near-constant pump offset, so
 the decision-relevant content is the copperplate's asymmetry rather than this near-equality.
 Temperature propagation (\Ltwo) is forward-evaluated rather than solved (Section~\ref{subsec:evaluator}), its
 free-variable form being degenerate. The sign of the
-copperplate regret is invariant across three shortfall-pricing schemes (topping up at
+copperplate regret is invariant across three shortfall-pricing schemes (valuing the shortfall at
 the marginal unit, at the peak unit, and penalising unmet demand at the dump price, giving
 $+46$/$+61$/$+832$\,\% regret) and across the demand-disaggregation rule
 ($<0.3$\,pp), so it is not an artefact of either assumption. Physical deliverability is
 checked directly: loss-aware schedules incur zero velocity, differential-pressure or
 unmet-demand violations under the forward model. This is the decision-relevant reading of
 fidelity that model-to-model bias alone cannot give: use the simplest model for
-scheduling only if it is loss-aware; never a copperplate.
-\input{tab_regret}
+scheduling only if it is loss-aware, not a loss-blind copperplate.
+\input{table9}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_regret}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure5}
   \caption{Estimation bias against decision regret for every level, as a percentage of the baseline operating cost. For the copperplate and the topology-only control the two carry \emph{opposite signs}: a schedule that appears cheaper on paper leaves a large forward-valued loss shortfall. Loss-aware levels show regret approximately equal to bias.}
   \label{fig:regret}
 \end{figure}
@@ -751,18 +571,6 @@ scheduling only if it is loss-aware; never a copperplate.
 \new{\input{zone_clustering_v2}}\label{subsec:zoneclustering}
 
 \subsection{Scope condition: the routing null is specific to central generation}
-%% <<DRAFTED:MODERATOR>> SECONDARY finding -- keep short, clearly subordinate to the two
-%% pillars (do NOT let it read as a headline). Shape A: carried by the SYNTHETIC
-%% central-vs-distributed factor, not a second real network. State plainly that v1's
-%% "routing is negligible" was partly a property of a centrally-supplied case
-%% (Memmingen, all assets at j1). CENTRAL arm: topo_main ~ 0, proven across all 42
-%% synthetic nets. DISTRIBUTED arm: pose as a controlled OPEN QUESTION -- the radial
-%% synthetic model roots generation at the primary producer, so a non-root source is
-%% stranded/infeasible without a source-injection redesign (00_MASTER_STATUS.md S5b);
-%% do NOT claim a delivered two-regime result. Honest framing: routing null where
-%% generation is central; distributed generation left to a companion/future study.
-%% Figure F14 (synthetic central vs distributed; both captions prepared)
-%% ---- DRAFTED (author: polish voice) ----
 One scope condition attaches to the routing null. All generation in Memmingen sits at a
 single node, and the synthetic factorial is built the same way (also central generation), so
 the null is established for centrally-supplied networks rather than for district-heating
@@ -774,10 +582,7 @@ Distributed generation, with meshed and bidirectional topologies, is therefore l
 companion study.
 
 \subsection{Thermo-hydraulic effect, to the transmission station}\label{subsec:hydraulics}
-%% <<DRAFTED:HYDRAULICS-RESULT>> DRAFT. Trunk pressure/pumping (L3-L1) restated on the
-%% validated roughness/return-circuit model (was +0.11 % in v1; magnitude restated,
-%% ordering survives). Then the station-resolved result (L4/L5):
-The station-resolved hydraulics change dispatch negligibly. Resolving the demand side
+Station-resolved hydraulics leave the fixed schedule almost unchanged in forward-evaluated cost. Resolving the demand side
 to all 174 transmission stations and their service laterals (L4), and replacing the
 flat station differential-pressure requirement with a flow-dependent one (L5), the
 total electrical pump draw (producer friction, per-station $\Delta p$ and
@@ -789,7 +594,7 @@ data (pump datasheets, DXF-traced laterals) and agree with an independent
 \texttt{pandapipes} nonlinear solve to $<0.007$\,bar on trunk pipes, a check of the trunk
 pressure \emph{calculation}, not of the flows themselves nor of the station and lateral
 components, which \texttt{pandapipes} does not resolve (Appendix~\ref{app:pandapipes}).
-Propagating the $33.8$\,\% source-flow uncertainty (pump power scales as flow$^{3}$) widens the
+Applying a $\pm33.8$\,\% deterministic flow perturbation, matched to the aggregate flow MAPE (pump power scales as flow$^{3}$), widens the
 pump-energy estimate to roughly $2$--$19$\,MWh\,yr$^{-1}$ and the peak draw to at most
 $\sim$7\,kW; even at the upper end the $\approx$108\,kW capacity margin is untouched and the
 $\Lone\!\to\!\Lthree$ cost effect stays near $1.4$\,\%, so the conclusion is unchanged. The
@@ -797,19 +602,13 @@ pump-energy share is therefore $\sim\!0.080$\,\%
 of thermal demand ($7.9\,\mathrm{MWh}$ against $\approx$9.9\,GWh), more than an order of
 magnitude below the $1$--$5$\,\% transmission-network literature
 range, reconciled by the compact network and heavily oversized pumps, not by a
-modelling error. Consequently station-level hydraulics move dispatch cost by $<1$\,\%
-and dispatch decisions by $\approx 0$: even resolved to the individual substation with
-flow-dependent pressure, hydraulic fidelity is below the decision-relevance threshold.
-%% NOTE: L4/L5 evaluated by the validated forward pressure-study module (real-component
-%% + pandapipes), NOT a dispatch re-solve on the c19d690 baseline -- the station code is
-%% Paper-2-era and porting it would risk baseline fidelity. State this in methods.
+modelling error. Consequently adding station-level hydraulics to the fixed schedule moves its forward-valued
+cost by $<1$\,\% and reveals no evaluated hydraulic violation: even resolved to the individual
+substation with flow-dependent pressure, hydraulic fidelity is below the decision-relevance
+threshold, which bounds the value of re-optimising rather than the re-optimised schedule itself.
 
 \subsection{Robustness to a flexible supply temperature}
 \label{subsec:tsup}
-%% <<DRAFTED:TSUP>> Pillar-2 robustness (tsup_sensitivity.csv). Stress-tests the null
-%% against the lever most likely to break it. Method note lives in S2.4 (forward, not a
-%% re-solve, because free T_sup is bilinear = MIQP-intractable, same as NL-ref).
-%% ---- DRAFTED (author: polish voice) ----
 
 The station-hydraulics null result and the loss-dominance finding are established
 with the plant supply temperature fixed by an outdoor-temperature heating curve.
@@ -850,11 +649,7 @@ Hydraulics therefore shift from a negligible \emph{cost} contribution under the
 fixed heating curve to a binding \emph{constraint} under a flexible supply
 temperature. This boundary qualifies, but does not overturn, the
 station-hydraulics null result.
-%% CAVEAT (methods/appendix): the forward evaluator's demand-share flow model understates
-%% circulation, so absolute delivered node temperatures are not reliable (it is validated to
-%% ~2% on TOTAL loss, not on node temperature); the binding constraint reported here is pipe
-%% VELOCITY (rigorous: mass flow + geometry), not a delivered-temperature floor.
-\input{tab_tsup}
+\input{table11}
 
 \subsection{Linearisation error and transport delay, separated}
 \label{subsec:linearisation}
@@ -923,19 +718,10 @@ the conclusion is that no effect can be demonstrated at the attained tolerance.
 Across all extensions, the result remains consistent with the decomposition:
 every effect beyond loss visibility is only a fraction of the loss effect.
 
-\input{tab_linearisation}
-%% Figure F13
+\input{table12}
 
 \subsection{Secondary finding: generalisability and out-of-sample prediction}
 \label{subsec:generalis}
-%% <<DRAFTED:SYNTH-RESULTS>> SECONDARY finding -- subordinate to the two pillars. ANOVA and
-%% regression on the balanced factorial, fitted separately for loss_main, topo_main and
-%% regret (this part is the GENERALISATION of Pillar 1 and can stay with it). The a-priori
-%% estimator is the demotable piece: fitted on Memmingen + a TRAINING subset of the
-%% synthetic factorial and tested on HELD-OUT synthetic networks WITHOUT refitting
-%% (Shape A -- NOT Stadtbach), whose pipe lengths lie beyond the fitted range; the
-%% parameterised-L4 point extends it to station resolution. Report the outcome honestly.
-%% ---- DRAFTED (author: polish voice; ANOVA table from synth CSV) ----
 The decomposition generalises. Across the 135 synthetic networks the loss main effect
 accounts for a median \textbf{100.0}\,\% of the cost gap and the topology main
 effect stays within $\pm$0.6\,\% on every network of 5\,km trunk length or more, never exceeding 2.4\,\% even on the shortest, where the entire gap is below 6\,\% of cost, over the full range of
@@ -985,11 +771,11 @@ and reads off whether a copperplate plausibly suffices ($\lambda$ small, $b\less
 whether a calibrated loss adder is likely adequate, or whether node resolution is worth
 checking, a screening indication rather than a guarantee, since a known transferable loss
 adder can itself suffice, as the decomposition shows.
-\input{tab_synth_anova}
+\input{table13}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_rule}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure6}
   \caption{Fidelity design rule. The cost gap a copperplate misses (the loss burden) against the
   a-priori loss number $\lambda=\text{annual loss}/\text{annual demand}$. The parameter-free
   physics curve $b=\lambda/(1+\lambda)$ (navy) tracks the computed burden of the 135
@@ -1001,14 +787,12 @@ adder can itself suffice, as the decomposition shows.
 \end{figure}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_drift}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure7}
   \caption{Drift of a frozen loss adder against trunk pipe length across the 135 synthetic networks. An adder calibrated on any one network mis-estimates the loss burden on others by a mean of 23.5 and up to 40.1 percentage points of cost, which is why the node-resolved model, computing the loss endogenously, is the transferable one.}
   \label{fig:drift}
 \end{figure}
 
 \subsection{Sensitivity and robustness}
-%% <<DRAFTED:ROBUSTNESS>> (author: polish + fill scenario table)
-%% ---- DRAFTED ----
 The decomposition is not an artefact of a single modelling choice: loss dominance survives every
 perturbation in Table~S4 (Supplementary Material), from removing the indefensible terminal-pipe
 multiplier (the defensible-$U$ loss share of \textbf{95.8}\,\% is
@@ -1022,16 +806,16 @@ on how the recovered loss is priced. Neither sensitivity changes the ordering
 on which the conclusions rest.
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_tsup}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure8}
   \caption{Supply-temperature flexibility. Lowering the plant supply temperature reduces thermal loss but shrinks the temperature difference, so flow and pumping rise. The lowest-cost tested reduction is 17.5\,K; beyond 20\,K the pipe velocity limit binds, and hydraulics change from a negligible cost into the binding constraint.}
   \label{fig:tsup}
 \end{figure}
 
 \new{\input{fidelity_vs_cost_v2}}
-\input{tab_computation}
+\input{table14}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{F_solvetime}
+  \includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{figure9}
   \caption{Solve time and model size across the solved levels. Bar labels give the variable count. Solve time rises from three to nine minutes along the ladder; the decision-relevant step (CP$\to$L1, loss visibility) is reached at five minutes, whereas the further physics (L3, L6) nearly doubles solve time and model size while changing dispatch by under $1.4$\,\%.}
   \label{fig:solvetime}
 \end{figure}
@@ -1039,8 +823,6 @@ on which the conclusions rest.
 \new{\input{physics_null_mechanisms_v2}}
 
 \subsection{Implications for modelling practice}
-%% <<DRAFTED:IMPLICATIONS>> DRAFTED (author: polish voice). Rewrite of v1 S6.2.
-%% ---- DRAFTED ----
 The results translate into concrete guidance for building district-heating dispatch models.
 Zeroth, and most concretely: the decision can be made before any model is built. Memmingen has a loss number of $\lambda=0.12$ from its pipe geometry, insulation classes, temperatures and annual demand, which the design rule converts to a predicted copperplate error of 11\,\%, above the threshold at which a lumped representation is likely safe, a screening indication that node resolution is worth checking here, though a known transferable loss adder can still suffice. The realised error is 15\,\%. A planner reaches that indication from pipe lengths, insulation classes, temperatures and an annual demand figure, without solving anything. First, what a model must capture is the network loss, not the network graph. A per-node or
 per-link loss term recovers almost all of the bias that separating a copperplate from a
@@ -1059,15 +841,13 @@ than reporting a single ``accuracy''. Fourth, fidelity should be claimed only to
 at which it can be validated: a model resolved below its metering cannot have its extra detail
 verified, so for most operators the node or zone level is the finest \emph{defensible} level,
 not merely the cheapest. Finally, the physics beyond losses (trunk pressure, station-resolved
-hydraulics, and even a flexible supply temperature) changes dispatch cost by little and
-dispatch decisions by less in the setting studied; its main role is as a feasibility
+hydraulics, and even a flexible supply temperature) changes dispatch cost by little and,
+evaluated forward, discloses no hydraulic violation in the setting studied; its main role is as a feasibility
 \emph{constraint} (velocity, differential pressure) rather than a driver of the schedule, so it
 belongs in a model as bounds to be respected, not as detail to be optimised over.
-\input{tab_criteria}
-%% Caption and headers as OBSERVATIONS in the tested regimes, not guidelines (R2.5).
+\input{table15}
 
 \subsection{Limitations}
-%% <<DRAFTED:SCOPE-CEILING>> ---- DRAFTED ----
 The negative results, namely that extended physics adds little to the fixed schedule's
 forward-evaluated cost, are conditional on the regime studied. Fixed capacities, a fixed
 heating curve, precomputed heat-pump performance, parameterised losses, and hourly resolution
@@ -1088,12 +868,7 @@ synthetic factorial, they do not depend on a measurement-accurate absolute sched
 post-upgrade measurement campaign that directly validates the dispatch interactions would be
 the natural next step; no such validation is claimed here.
 \new{\input{limitations_v2}}
-%% MIQCP tractability; demand flexibility; radial trees; one real network (Shape A --
-%% Stadtbach + Memmingen-upgraded deferred to the companion study); the distributed-
-%% generation moderator arm is an open question (synthetic source-injection redesign
-%% pending, S5b); synthetic networks share the generator's assumptions.
 
-%% ============================================================
 \section{Conclusions}\label{sec:conclusion}
 \new{\input{conclusions_v2}}
 
@@ -1102,8 +877,6 @@ the natural next step; no such validation is claimed here.
 \appendix
 
 \section{Hydraulic cross-check against a nonlinear pipe-flow solver}\label{app:pandapipes}
-%% <<DRAFTED:PANDAPIPES-APP>> (author: polish + add the per-pipe comparison figure/table)
-%% ---- DRAFTED ----
 As an independent check on the linearised trunk hydraulics, the same network, flows and pipe
 geometry were solved with \texttt{pandapipes}, a nonlinear steady-state pipe-flow solver, and
 the resulting trunk pressure drops compared pipe by pipe. The two agree to better than
@@ -1114,20 +887,10 @@ not from a hydraulic modelling error. The station-internal and service-lateral p
 which \texttt{pandapipes} does not resolve, are added from the manufacturer datasheets and the
 DXF-reconstructed lateral geometry.
 
-%% [nomenclature moved to front matter after \\maketitle]
 \new{\input{appendices_cited_v2}}
 \new{\input{appendices_optional_v2}}
-%% <<KEEP:l2-zones>>  -- assets in Zone A (j1)
-%% NEW: evaluator specification and its validation
-%% NEW: lumped-loss calibration protocol (all three sources)
-%% NEW: hydraulic model boundary; station/lateral reconstruction from DXF; pandapipes
-%%      cross-check setup
-%% NEW: synthetic capacity-sizing convention and its sensitivity
-%% NEW (app:scopegrid): the full 11-column phenomenon x level scope grid (tab_design_grid),
-%%      moved here from the methodology so S2 leads with the seven contrasts
-%% DELETED: v1 Table 6 physics-scope mapping
 
 \printcredits
 \bibliographystyle{elsarticle-num-names}
-\bibliography{Paper20_Literatur}
+\bibliography{literature}
 \end{document}

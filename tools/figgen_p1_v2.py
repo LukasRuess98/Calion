@@ -110,6 +110,10 @@ def f_regret():
         axin.annotate(name, (x, y), ha="center", va="center", fontsize=5.6, linespacing=0.9, zorder=5)
     axin.set_xlim(-1.05, 1.95); axin.set_ylim(-1.05, 1.95)
     axin.tick_params(labelsize=6); axin.set_title("zoom near origin", fontsize=6.6)
+    # opaque white background + a clear border so the inset reads as a separate panel
+    axin.set_facecolor("white"); axin.patch.set_alpha(1.0); axin.set_zorder(5)
+    for _sp in axin.spines.values():
+        _sp.set_visible(True); _sp.set_edgecolor("0.25"); _sp.set_linewidth(1.0)
     ax.indicate_inset_zoom(axin, edgecolor="0.45", lw=0.6)
     fig.tight_layout()
     _save(fig, "F_regret")
@@ -125,7 +129,7 @@ def f_drift():
     s["L_km"] = s["net"].map(_parse_L)
     s["n"] = s["net"].str.extract(r"_n(\d+)_").astype(int)
     fig, ax = plt.subplots(figsize=(AE_SINGLE_COLUMN_IN, 2.7))
-    for n, c, m in zip([5, 15, 30], [BLUE_L, BLUE_M, BLUE_D], ["o", "s", "^"]):
+    for n, c, m in zip([5, 15, 30], ["#0072B2", "#E69F00", "#009E73"], ["o", "s", "^"]):
         sub = s[s["n"] == n]
         ax.scatter(sub["L_km"], sub["total_pct"], s=26, facecolors="none", edgecolors=c,
                    lw=0.8, marker=m, label=f"$n={n}$")
@@ -171,7 +175,7 @@ def f_rule():
     xr = df["lambda"].max()
     ax.text(xr, 5, "copperplate ok", fontsize=6.3, va="center", ha="right", color="0.20")
     ax.text(xr, 20, "calibrate an adder", fontsize=6.3, va="center", ha="right", color="0.20")
-    ax.text(xr, 45, "resolve nodes", fontsize=6.3, va="center", ha="right", color="0.20")
+    ax.text(xr, 35, "resolve nodes", fontsize=6.3, va="center", ha="right", color="0.20")
     ax.plot(lam, curve, "-", color="k", lw=1.4, label=r"$b=\lambda/(1{+}\lambda)$ (physics)")
     ax.scatter(syn["lambda"], syn["b_meas_pct"], s=15, facecolors="none", edgecolors="#1a3a5c",
                lw=0.6, alpha=0.8, label="synthetic (135)", zorder=3)

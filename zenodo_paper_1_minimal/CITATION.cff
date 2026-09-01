@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite as below."
+type: software
+title: "calion: District Heating Dispatch Optimization Framework"
+abstract: >
+  Code and configuration package for 'Loss Visibility versus Spatial Detail in
+  industrial District-Heating Dispatch Optimisation' (Applied Energy,
+  APEN-D-26-15734R1). Model levels from a loss-blind copperplate to a nonlinear
+  reference are implemented in Pyomo/Gurobi. This minimal release contains the
+  calion framework together with the Memmingen primary-case and 135-network
+  synthetic configurations. Raw operational data for the primary case (non-disclosure
+  agreement) and the manuscript text are not included.
+authors:
+  - family-names: "Ruess"
+    given-names: "Lukas"
+    affiliation: "Institute for Energy Efficiency in Production EEP, University of Stuttgart, and Fraunhofer Institute for Manufacturing Engineering and Automation IPA"
+    orcid: "https://orcid.org/0009-0005-5010-3520"
+  - family-names: "Sauer"
+    given-names: "Alexander"
+    affiliation: "Institute for Energy Efficiency in Production EEP, University of Stuttgart, and Fraunhofer Institute for Manufacturing Engineering and Automation IPA"
+repository-code: "https://github.com/[username]/calion-dh-fidelity"
+license: MIT
+version: "1.4.0"
+date-released: "2026-08-30"
+keywords:
+  - district heating
+  - MILP
+  - MIQCP
+  - thermal energy storage
+  - heat pump optimization
+  - network modeling
+  - loss visibility
+  - decision regret

@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{Extended-physics effects on dispatch cost, each isolated with the method used to
+quantify it. Entries are shares of total cost except the temperature-propagation row, which is a
+share of network loss and corresponds to a few tenths of a percent of cost. All lie far below the
+loss main effect, and the linearisation error is small and negative (the piecewise-linear model
+slightly over-states cost).}
+\label{tab:linearisation}
+\begin{tabular}{lrl}
+\hline
+Phenomenon (step) & Effect & How quantified \\
+\hline
+Trunk pressure \& pumping ($\Lone\!\to\!\Lthree$) & $+1.4$\,\% & solved MILP, $\le$0.01\,\% gap \\
+Temperature propagation ($\Lone\!\to\!\Ltwo$) & $\approx-2$\,\% of loss & forward (native decay) \\
+Transport delay ($\Lthree\!\to\!\Lsix$) & $<0.01$\,\% & solved MILP, $\le$0.01\,\% gap ($k_p{=}0$) \\
+Linearisation error (PWL vs native) & $-0.15/-0.33$\,\% & solved native, $\le$0.03\,\% gap (winter/autumn 72-h) \\
+\hline
+\end{tabular}
+\end{table}

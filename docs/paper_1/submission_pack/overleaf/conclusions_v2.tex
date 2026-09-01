@@ -1,16 +1,6 @@
-%% ============================================================
-%% CONCLUSIONS -- v2, restructured into four paragraphs.
-%% Replaces the single block in the skeleton. NO SUBHEADINGS (editor requirement).
-%% Pattern follows the Applied Energy exemplar: what was developed and tested; what was
-%% found; what it means for model selection; scope and extension.
-%%
-%% The third paragraph now LEADS with the loss-number criterion. It is the most portable
-%% result in the paper -- a decision a planner can make before building anything -- and in
-%% the previous version it was buried mid-sentence in the second half of a long block.
-%% ============================================================
 
 This paper set out to determine which modelling choices actually change a district-heating
-dispatch decision, rather than which change a reported objective value. To do so it
+dispatch decision, rather than which change a reported objective value. Therefore it
 separates two quantities that the fidelity literature has treated as one (estimation
 bias, the difference in optimised cost between formulations, and decision regret, the cost
 of executing a formulation's schedule under a common forward model) on a four-cell
@@ -18,7 +8,7 @@ decomposition whose controls each isolate one phenomenon, extended by a physics-
 framework for the finer levels. A copperplate supplied with the
 aggregate loss it cannot itself compute serves as a control condition, so that loss
 representation and spatial resolution can be switched independently and their contributions
-separated exactly rather than estimated. The design was applied to one industrial network
+separated exactly rather than estimated. The design was applied to one industrial District-heating-network
 with measured data and to a complete 135-cell balanced factorial of synthetic networks.
 
 What a simplified model must capture is loss visibility, not spatial topology. The
@@ -37,7 +27,7 @@ carried to another network, it mis-estimates the loss burden by tens of percenta
 and even where it reproduces the cost, it still runs a materially different generation mix.
 Pushed to the opposite extreme, with the demand side resolved to every transmission station and
 its service laterals using manufacturer component data and an independent nonlinear cross-check,
-hydraulic detail changes dispatch cost by under one percent and decisions by essentially nothing.
+hydraulic detail changes the forward-valued cost of the fixed schedule by under one percent and reveals no evaluated hydraulic violation, suggesting limited re-optimisation value.
 
 For model selection this yields a criterion that can be applied before any model is built.
 The share of cost a copperplate misses is $b = \lambda/(1+\lambda)$, where the loss number
