@@ -771,7 +771,11 @@ costs:
   dump_cost_eur_per_mwh_th: 1000.0
 
 emissions:
-  ef_el_kg_per_mwh: 400.0
+  ef_el_kg_per_mwh: 400.0       # UNUSED (not read by the model) — grid CO2 uses the HOURLY
+                                # `grid_co2_kg_MWh` series (electricitymaps) in both the objective
+                                # (system_builder->emissions_calculator) and reporting. Kept for
+                                # backward-compat only; do NOT treat 400 as the grid factor. See
+                                # docs/paper_2/submission_pack/00_statements/WP0_BEFUND.md (Frage 5).
   ef_gas_kg_per_mwh: 200.0
   ef_biomass_kg_per_mwh: 20.0
 

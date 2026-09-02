@@ -70,7 +70,7 @@ def merge(scenario_id: str, energies: list[float]) -> Path:
 
 
 def run(scenario_id: str, energies: list[float], concurrency: int, threads: int,
-        time_limit: int, mip_gap: float) -> None:
+        time_limit: int, mip_gap: float, relax_commitment: bool = True) -> None:
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     logger.info("Parallel probe %s: %d points, concurrency=%d, threads=%d/solve, "
                 "TimeLimit=%ds, MIPGap=%.3f", scenario_id, len(energies), concurrency,
@@ -82,9 +82,11 @@ def run(scenario_id: str, energies: list[float], concurrency: int, threads: int,
             e = pending.pop(0)
             log = open(LOGDIR / f"value_probe_{scenario_id}_{_tag(e)}.log", "w")
             cmd = [sys.executable, str(PROBE), scenario_id,
-                   "--energies", f"{e:g}", "--relax-commitment",
+                   "--energies", f"{e:g}",
                    "--out-tag", _tag(e), "--time-limit", str(time_limit),
                    "--threads", str(threads), "--mip-gap", str(mip_gap)]
+            if relax_commitment:
+                cmd.append("--relax-commitment")
             p = subprocess.Popen(cmd, cwd=str(_ROOT), env=env, stdout=log, stderr=subprocess.STDOUT)
             running.append((e, p, log))
             logger.info("  launched E=%g MWh (pid=%s), %d running / %d pending",
@@ -114,13 +116,15 @@ def main() -> None:
     ap.add_argument("--time-limit", type=int, default=86400)
     ap.add_argument("--mip-gap", type=float, default=0.02)
     ap.add_argument("--merge", action="store_true", help="merge existing per-point CSVs only")
+    ap.add_argument("--no-relax-commitment", action="store_true",
+                    help="do NOT relax generator min_load (keep full UC MILP; use for Memmingen)")
     args = ap.parse_args()
     energies = sorted({float(x) for x in args.energies.split(",")})
     if args.merge:
         merge(args.scenario_id, energies)
         return
     run(args.scenario_id, energies, args.concurrency, args.threads,
-        args.time_limit, args.mip_gap)
+        args.time_limit, args.mip_gap, relax_commitment=not args.no_relax_commitment)
 
 
 if __name__ == "__main__":

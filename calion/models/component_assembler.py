@@ -1101,6 +1101,20 @@ class ComponentAssembler:
         discrete_energies_mwh = p.get("discrete_energies_mwh")
         unit_tank_m3 = p.get("unit_tank_m3")
 
+        # v3 atmospheric geometry (injected per-asset by scenario_runner from
+        # storage_geometry.yaml; all default to LEGACY so existing configs are
+        # bit-for-bit unchanged).
+        loss_model = str(p.get("loss_model", "proportional"))
+        cost_model = str(p.get("cost_model", "linear"))
+        eta_strat = float(p.get("eta_strat", 1.0))
+        u_value_w_m2k = float(p.get("u_value_w_m2k", 0.0))
+        t_amb_c = float(p.get("t_amb_c", 10.0))
+        t_return_c = p.get("t_return_c")
+        t_store_max_c = p.get("t_store_max_c")
+        c0_eur = p.get("c0_eur")
+        v0_m3 = p.get("v0_m3")
+        exponent_b = p.get("exponent_b")
+
         block = GeometricStorageBlock(
             name=name,
             alpha_tes_eur_per_m3=alpha_tes,
@@ -1125,6 +1139,16 @@ class ComponentAssembler:
             e_min_fraction=e_min_fraction,
             discrete_energies_mwh=discrete_energies_mwh,
             unit_tank_m3=float(unit_tank_m3) if unit_tank_m3 else None,
+            loss_model=loss_model,
+            cost_model=cost_model,
+            eta_strat=eta_strat,
+            u_value_w_m2k=u_value_w_m2k,
+            t_amb_c=t_amb_c,
+            t_return_c=float(t_return_c) if t_return_c is not None else None,
+            t_store_max_c=float(t_store_max_c) if t_store_max_c is not None else None,
+            c0_eur=float(c0_eur) if c0_eur is not None else None,
+            v0_m3=float(v0_m3) if v0_m3 is not None else None,
+            exponent_b=float(exponent_b) if exponent_b is not None else None,
         )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
@@ -1178,7 +1202,12 @@ class ComponentAssembler:
         n_tanks_cost = fs.get("n_tanks", build)
         annual_factor = self.inv_calc.annual_factor(lifetime_years)
         if investable and annual_factor > 0:
-            sys_buses.capex_terms.append(annual_factor * (alpha_tes * V + beta_tes * n_tanks_cost))
+            # Block builds the CAPEX expression (degressive per-rung, or legacy
+            # α·V + β·N) so degressive cost stays linear via the size binaries.
+            capex_raw = fs.get("capex_raw_expr")
+            if capex_raw is None:
+                capex_raw = alpha_tes * V + beta_tes * n_tanks_cost
+            sys_buses.capex_terms.append(annual_factor * capex_raw)
 
         if cycling_cost_eur > 0:
             Qc = fs["Q_th_in"]

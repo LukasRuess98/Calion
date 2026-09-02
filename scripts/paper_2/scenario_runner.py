@@ -39,6 +39,31 @@ logger = logging.getLogger(__name__)
 
 OUT_BASE = _ROOT / "output" / "paper2_runs"
 SCENARIOS_YAML = _ROOT / "configs" / "paper_2" / "scenarios.yaml"
+STORAGE_GEOMETRY_YAML = _ROOT / "configs" / "paper_2" / "storage_geometry.yaml"
+
+_STORAGE_GEOM_CACHE: dict | None = None
+
+
+def _load_storage_geometry(cfg: dict | None = None) -> dict:
+    """Atmospheric TES geometry/cost params — OPT-IN via env CALION_ATMOSPHERIC_TES=1.
+
+    Returns {} when disabled, so every existing campaign scenario is bit-for-bit
+    unchanged (the v3 atmospheric model must not silently alter the frozen v1/v2
+    results). When enabled, returns the `storage_geometry:` block of
+    configs/paper_2/storage_geometry.yaml (surface loss, degressive cost,
+    eta_strat, atmospheric ceiling).
+    """
+    global _STORAGE_GEOM_CACHE
+    import os
+    if not os.environ.get("CALION_ATMOSPHERIC_TES"):
+        return {}
+    if _STORAGE_GEOM_CACHE is None:
+        try:
+            _STORAGE_GEOM_CACHE = (yaml.safe_load(
+                open(STORAGE_GEOMETRY_YAML, encoding="utf-8")) or {}).get("storage_geometry", {})
+        except FileNotFoundError:
+            _STORAGE_GEOM_CACHE = {}
+    return _STORAGE_GEOM_CACHE
 
 
 def load_scenarios_config() -> dict:
@@ -369,14 +394,31 @@ def run_single_scenario(
         # all stages. Now every geometric_storage asset is updated so fixed
         # and investable tanks stay consistent within a scenario.
         delta_T_scenario_k = round(T_VL_min_effective - return_temp_c, 2)
+        _geom = _load_storage_geometry(cfg)
         for _asset_key, _asset_cfg in cfg.get("assets", {}).items():
             if _asset_cfg.get("type") == "geometric_storage":
                 _asset_cfg["delta_T_scenario_k"] = delta_T_scenario_k
+                # v3: inject atmospheric geometry/cost params (storage_geometry.yaml)
+                # + the scenario return temp, so the loss ΔT and store ceiling work.
+                # setdefault -> a per-asset config value overrides the global default.
+                if _geom:
+                    # Global params: setdefault (asset config value wins).
+                    for _gk, _gv in _geom.items():
+                        if _gk == "per_asset":
+                            continue
+                        _asset_cfg.setdefault(_gk, _gv)
+                    _asset_cfg.setdefault("t_return_c", round(return_temp_c, 2))
+                    # Per-asset atmospheric envelope: OVERRIDE the frozen
+                    # pressurized caps/ladder (V_max, p_max, r_hd, ladder).
+                    _pa = (_geom.get("per_asset") or {}).get(_asset_key)
+                    if _pa:
+                        _asset_cfg.update(_pa)
                 logger.info(
                     "[%s] geometric_storage %s: delta_T_scenario_k=%.2f K (worst-case; "
-                    "T_VL_min=%.1f°C, T_return=%.1f°C)",
+                    "T_VL_min=%.1f°C, T_return=%.1f°C)%s",
                     scen_id, _asset_key, delta_T_scenario_k,
                     T_VL_min_effective, return_temp_c,
+                    f", loss={_asset_cfg.get('loss_model')}/cost={_asset_cfg.get('cost_model')}" if _geom else "",
                 )
     else:
         T_VL_ts = None

@@ -52,6 +52,35 @@ def _energy_coeff_mwh_per_m3(delta_T_k: float) -> float:
     return _RHO * _CP * delta_T_k / 3600.0 / 1000.0
 
 
+def surface_factor(aspect_ratio: float) -> float:
+    """k(AR) for a closed cylinder: outer surface A = k(AR) * V^(2/3), AR = h/d.
+
+    A = π(AR+0.5)·(4/(π·AR))^(2/3)·V^(2/3). Minimal at AR=1 (h=d); k(2)/k(1)≈1.05
+    — the surface (loss) penalty of a tall, well-stratified tank is small (~5%).
+    """
+    return math.pi * (aspect_ratio + 0.5) * (4.0 / (math.pi * aspect_ratio)) ** (2.0 / 3.0)
+
+
+def standing_loss_fraction_per_h(volume_m3: float, aspect_ratio: float,
+                                 u_value_w_m2k: float, t_tes_c: float, t_amb_c: float,
+                                 energy_coeff_mwh_per_m3: float) -> float:
+    """Fractional standing loss per hour for a stratified tank, surface-scaled.
+
+    Q̇_loss,full [MW] = U·k(AR)·V^(2/3)·(T_tes−T_amb) / 1e6.  The fractional rate
+    (loss ÷ full-charge energy E_max = coeff·V) is
+        λ = U·k(AR)·(T_tes−T_amb)/(1e6·coeff) · V^(−1/3)   [1/h]
+    i.e. it DECREASES with size as V^(−1/3): big stores lose relatively less
+    (the surface-area benefit). For a stratified tank the absolute loss scales
+    with the hot fraction (SoC), so applying λ to E[t] (SoC-proportional) is exact
+    in shape and avoids driving E below 0. Returns λ for a KNOWN (fixed) V.
+    """
+    if volume_m3 <= 0 or energy_coeff_mwh_per_m3 <= 0:
+        return 0.0
+    k = surface_factor(aspect_ratio)
+    return (u_value_w_m2k * k * max(t_tes_c - t_amb_c, 0.0)
+            / (1.0e6 * energy_coeff_mwh_per_m3) * volume_m3 ** (-1.0 / 3.0))
+
+
 @register_component(
     "geometric_storage",
     category="storage",
@@ -112,6 +141,17 @@ class GeometricStorageBlock(BaseComponent):
         n_discrete_sizes: int = 4,
         discrete_energies_mwh: list | None = None,
         unit_tank_m3: float | None = None,
+        # ── v3 atmospheric geometry (all default to LEGACY = pre-v3 behaviour) ──
+        loss_model: str = "proportional",   # "surface" | "proportional"(legacy)
+        cost_model: str = "linear",         # "degressive" | "linear"(legacy)
+        eta_strat: float = 1.0,             # stratification efficiency on E_max (1.0 = legacy)
+        u_value_w_m2k: float = 0.0,         # surface standing-loss coefficient (surface model)
+        t_amb_c: float = 10.0,
+        t_return_c: float | None = None,    # for T_hot = t_return + ΔT in the loss ΔT
+        t_store_max_c: float | None = None, # atmospheric store ceiling (clips ΔT)
+        c0_eur: float | None = None,        # degressive C0·(V/V0)^b
+        v0_m3: float | None = None,
+        exponent_b: float | None = None,
         label: str | None = None,
     ):
         super().__init__(name, label)
@@ -145,8 +185,29 @@ class GeometricStorageBlock(BaseComponent):
         self.discrete_energies_mwh = list(discrete_energies_mwh) if discrete_energies_mwh else None
         self.unit_tank_m3 = float(unit_tank_m3) if unit_tank_m3 else None
 
-        # Pre-compute energy coefficient [MWh/m³] for this scenario's ΔT
-        self.energy_coeff = _energy_coeff_mwh_per_m3(self.delta_T_k)
+        # ── v3 atmospheric geometry params ──────────────────────────────────
+        self.loss_model = str(loss_model)
+        self.cost_model = str(cost_model)
+        self.eta_strat = float(eta_strat)
+        self.u_value_w_m2k = float(u_value_w_m2k)
+        self.t_amb_c = float(t_amb_c)
+        self.t_return_c = float(t_return_c) if t_return_c is not None else None
+        self.t_store_max_c = float(t_store_max_c) if t_store_max_c is not None else None
+        self.c0_eur = float(c0_eur) if c0_eur is not None else None
+        self.v0_m3 = float(v0_m3) if v0_m3 is not None else None
+        self.exponent_b = float(exponent_b) if exponent_b is not None else None
+
+        # Atmospheric store ceiling: clip the usable ΔT if the (charge) supply
+        # temperature would exceed the tank's boiling-limited ceiling. Uses
+        # t_return to reconstruct the hot temperature T_hot = t_return + ΔT.
+        if self.t_store_max_c is not None and self.t_return_c is not None:
+            t_hot = self.t_return_c + self.delta_T_k
+            if t_hot > self.t_store_max_c:
+                self.delta_T_k = max(self.t_store_max_c - self.t_return_c, 0.0)
+
+        # Pre-compute energy coefficient [MWh/m³]: ρ·c_p·ΔT scaled by stratification
+        # efficiency η_strat (usable fraction). η_strat=1.0 reproduces legacy.
+        self.energy_coeff = self.eta_strat * _energy_coeff_mwh_per_m3(self.delta_T_k)
 
         # Derive V_max from pressure constraint
         h_max_from_p = _h_max_from_pressure(self.p_max_bar)
@@ -244,6 +305,22 @@ class GeometricStorageBlock(BaseComponent):
             n_tanks_expr = getattr(m, f"{comp}_n_tanks")
         self._n_tanks_expr = n_tanks_expr
 
+        # ── CAPEX expression (un-annualized; the assembler applies ANF) ──────
+        # Degressive C0·(V/V0)^b is attached PER LADDER RUNG as a constant
+        # selected by the size binary -> the whole term stays LINEAR (no PWL,
+        # no SOS2), and captures economies of scale on the TOTAL volume (so it
+        # also removes the anti-degressive per-tank β penalty). Only valid with
+        # the discrete ladder; otherwise fall back to legacy linear α·V + β·N.
+        if self.cost_model == "degressive" and self.c0_eur and use_discrete:
+            _c0, _v0, _b = self.c0_eur, self.v0_m3, self.exponent_b
+            _cost_k = [(_c0 * (_vl[k] / _v0) ** _b) if _vl[k] > 0 else 0.0
+                       for k in range(len(_vl))]
+            setattr(m, f"{comp}_capex_raw",
+                    pyo.Expression(rule=lambda mm: sum(_cost_k[k] * ysel[k] for k in range(len(_vl)))))
+            self._capex_raw_expr = getattr(m, f"{comp}_capex_raw")
+        else:
+            self._capex_raw_expr = self.alpha_tes * V + self.beta_tes * n_tanks_expr
+
         # Energy capacity derived from volume (linear thanks to scenario ΔT param)
         # E_max [MWh] = energy_coeff [MWh/m³] * V [m³]
         E_max_expr = self.energy_coeff * V
@@ -339,7 +416,29 @@ class GeometricStorageBlock(BaseComponent):
         Qd = getattr(m, f"{comp}_Qd")
         cm = dm = active = None  # eliminated (complementarity implied by losses)
 
-        loss_factor = float(self.hourly_loss) ** self.dt_h
+        # Standing-loss retention factor per timestep. Legacy ("proportional"):
+        # a fixed fractional decay, size-independent. v3 ("surface"): a fractional
+        # rate λ ∝ V^(-1/3) (bigger stores lose relatively less — the surface-area
+        # benefit), applied SoC-proportionally so it stays exact for a stratified
+        # tank and never drives E<0. λ needs a KNOWN V, so surface loss is applied
+        # for a fixed-geometry tank (V pinned/non-investable — the sizing/dispatch
+        # study G); the endogenous-investment ladder falls back to proportional
+        # (documented: sizing evidence comes from the dispatch class, not the MILP).
+        if self.loss_model == "surface" and self.V_fixed_m3 is not None \
+                and self.u_value_w_m2k > 0 and self.t_return_c is not None:
+            t_hot = self.t_return_c + self.delta_T_k
+            lam = standing_loss_fraction_per_h(
+                self.V_fixed_m3, self.r_hd, self.u_value_w_m2k,
+                t_hot, self.t_amb_c, self.energy_coeff)
+            loss_factor = max(0.0, 1.0 - lam) ** self.dt_h
+        else:
+            if self.loss_model == "surface" and self.V_fixed_m3 is None:
+                import logging
+                logging.getLogger(__name__).info(
+                    "[GEOMETRIC_STORAGE] %s: loss_model=surface with endogenous V "
+                    "-> falling back to proportional loss (sizing evidence uses fixed-V study G).",
+                    comp)
+            loss_factor = float(self.hourly_loss) ** self.dt_h
         eff_c = max(self.eff_c, 1e-4)
         eff_d = max(self.eff_d, 1e-4)
         # Initial SOC as an expression of V so it stays feasible for any invested capacity.
@@ -439,6 +538,7 @@ class GeometricStorageBlock(BaseComponent):
             "SOC": E,
             "build": build,
             "n_tanks": self._n_tanks_expr,
+            "capex_raw_expr": self._capex_raw_expr,  # un-annualized CAPEX (degressive or legacy)
             "V_m3": V,
             "cap_power": cap_p,
             "h_m": h_m3,   # None unless option_b=True
