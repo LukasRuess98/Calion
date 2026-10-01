@@ -308,3 +308,10 @@ def test_erforderliche_kwk_dp_haelt_mindestwerte():
     dp = nz.dp_knoten(nz.loese(b, nz.k0, g), nz.k0, req, g)[0]
     reserve = [dp[nz.idx[nm.ZIEL_KNOTEN[z]]] - v for z, v in mindest.items()]
     assert min(reserve) == pytest.approx(0.0, abs=1e-9) and all(r > -1e-9 for r in reserve)
+
+
+def test_entlastung_aus_hebeln_wechselt_massgebende_station():
+    need = pd.Series({"A": 3.0, "B": 2.8})
+    # A wird stark entlastet, danach bindet B: Entlastung nur bis zum Bedarf von B (3,0 − 2,7)
+    assert nm.entlastung_aus_hebeln(need, {"A": 0.5, "B": 0.1}, 100.0) == pytest.approx(0.3)
+    assert nm.entlastung_aus_hebeln(need, {"A": 0.1, "B": 0.1}, 100.0) == pytest.approx(0.1)

@@ -14,6 +14,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from . import daten, hydraulik
@@ -215,7 +216,7 @@ def netzmodell_abbildungen(out):
         ax.set_title(titel, fontsize=10.5, color=TINTE, loc="left")
         ax.set_ylabel("Δp [bar]", fontsize=9, color=TINTE2)
     axs[0, 0].legend(frameon=False, fontsize=9, loc="upper left", labelcolor=TINTE2, ncol=2)
-    fig.suptitle("Netzmodell gegen Messung, Holdout-Spitzenzeit 10.–23.02.2025 (nicht kalibriert)", fontsize=12,
+    fig.suptitle("Netzmodell gegen Messung, Spitzenzeit 10.–23.02.2025 (Holdout, nicht in der Kalibrierung)", fontsize=12,
                  color=TINTE, x=0.01, ha="left")
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -232,7 +233,8 @@ def netzmodell_abbildungen(out):
     ax.scatter(x, gh["RMSE"], s=64, color=SERIE[0], label="kalibriert (RMSE)", zorder=4)
     ax.scatter(x, gh["Bias"].abs(), s=40, color=SERIE[1], marker="D", label="kalibriert (|Bias|)", zorder=4)
     ax.axhline(0.2, color=TINTE2, linewidth=0.9, linestyle=(0, (4, 2)))
-    ax.annotate("Kriterium Plan 3.1: RMSE ≤ 0,2 bar", (len(gh) - 0.5, 0.21), fontsize=8.5, color=TINTE2, ha="right")
+    ax.annotate("gestrichelt: Kriterium Plan 3.1, RMSE ≤ 0,2 bar", (len(gh) - 0.5, 0.012), fontsize=8.5, color=TINTE2,
+                ha="right")
     ax.set_xticks(list(x))
     ax.set_xticklabels(gh.index, rotation=0, fontsize=8.5)
     ax.set_ylabel("Abweichung [bar]", fontsize=9, color=TINTE2)
@@ -262,6 +264,30 @@ def netzmodell_abbildungen(out):
                  fontsize=12, color=TINTE, x=0.01, ha="left")
     fig.tight_layout()
     fig.savefig(out / "netzmodell_hebel.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+    # 4) Hebel „Ost statt KWK“ je KWK-Durchflussband: Grenze der Extrapolation
+    hb = pd.read_csv(res / "hebel_kwk_baender.csv", index_col=[0, 1])
+    baender = ["0–180 kg/s", "180–240 kg/s", "240–600 kg/s"]
+    fig, axs = plt.subplots(1, 4, figsize=(11, 3.9), facecolor=FLAECHE, sharey=False)
+    for ax, (st, titel) in zip(axs, (("V03", "V03 – City"), ("V06", "V06 – Regelpunkt Süd"), ("V22", "V22 – Standort S"),
+                                     ("PS1", "PS1 – Pumpstation Süd")), strict=True):
+        _stil(ax)
+        d = hb.loc[st].reindex(baender)
+        x = np.arange(len(baender))
+        ax.errorbar(x - 0.08, d["Messung"], yerr=2 * d["SE"], fmt="o", color=SERIE[0], markersize=7, capsize=3,
+                    label="Messung ± 2 SE")
+        ax.scatter(x + 0.08, d["Modell"], s=56, marker="D", color=SERIE[1], label="Modell", zorder=4)
+        ax.set_xticks(x)
+        ax.set_xticklabels(["< 180", "180–240", "> 240"], fontsize=8.5)
+        ax.set_xlabel("KWK-Durchfluss [kg/s]", fontsize=8.5, color=TINTE2)
+        ax.set_ylim(0, None)
+        ax.set_title(titel, fontsize=10, color=TINTE, loc="left")
+    axs[0].set_ylabel("bar je 100 kg/s", fontsize=9, color=TINTE2)
+    axs[0].legend(frameon=False, fontsize=8.5, loc="lower left", labelcolor=TINTE2)
+    fig.suptitle("Hebel „Ost statt KWK“ je Durchflussband (Heizperiode): Modell bis 240 kg/s passend, darüber zu steil",
+                 fontsize=12, color=TINTE, x=0.01, ha="left")
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_hebel_baender.png", dpi=150, facecolor=FLAECHE)
     plt.close(fig)
 
 

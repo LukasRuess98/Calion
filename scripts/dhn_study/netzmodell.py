@@ -277,16 +277,20 @@ HEBEL_ZIELE = ["V06", "V03", "V12", "V23", "V22", "V15", "MVA", "PS1"]
 HEBEL_REGRESSOREN = ["KWK-Fluss", "KWK-Δp", "Verbraucher", "HW1", "PS1-Gewinn"]
 
 
-def hebel_regressoren(m: pd.DataFrame, e: pd.DataFrame, index: pd.DatetimeIndex) -> pd.DataFrame:
+def hebel_regressoren(m: pd.DataFrame, e: pd.DataFrame, index: pd.DatetimeIndex, mit_west: bool = False) -> pd.DataFrame:
     """Massenstromkonsistente Regressoren der Hebelregression: KWK-Eigendurchfluss, KWK-Δp, Verbraucherdurchfluss,
     HW1-Durchfluss (je 100 kg/s) und PS1-Gewinn. Bei festem KWK-Durchfluss und Verbrauch beschreibt der HW1-Koeffizient
-    den Ersatz von Ost- durch Süd-Einspeisung; der KWK-Koeffizient (negativ) den Ersatz von KWK- durch Ost-Wasser."""
+    den Ersatz von Ost- durch Süd-Einspeisung; der KWK-Koeffizient (negativ) den Ersatz von KWK- durch Ost-Wasser.
+    ``mit_west``: zusätzlich der Übergabestrom zum Westnetz. Dann ist der KWK-Koeffizient reiner Ost-Ersatz (ohne den
+    Anteil, in dem eine geänderte West-Entnahme den KWK-Durchfluss verschiebt)."""
     ms = hydraulik.massenstroeme(m, e)
     kwk = m[[f"gas_CHP_flow_line_{k}" for k in range(1, 5)]].sum(axis=1, min_count=4) / 3.6
     verbr = kwk + ms.MVA + ms.GT.fillna(0.0) + ms.Bio + ms.HW1 - m.boiler_plant_2_hx_flow / 3.6
     r = pd.DataFrame({"KWK-Fluss": kwk / 100, "KWK-Δp": m.gas_CHP_p_supply - m.gas_CHP_p_return,
                       "Verbraucher": verbr / 100, "HW1": ms.HW1 / 100,
                       "PS1-Gewinn": m.pump_station_1_p_supply_after_pump - m.pump_station_1_p_supply_before_pump})
+    if mit_west:
+        r["West"] = m.boiler_plant_2_hx_flow / 360
     return r.reindex(index)
 
 
@@ -322,7 +326,8 @@ def hebel_vergleich(fall: Fall, reg: pd.DataFrame, sim: pd.DataFrame) -> tuple[p
 
 def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: float = 0.3, gewicht_sigma: float = 0.3,
                grundlast_sigma: float = 40.0, gewichtung: np.ndarray | None = None, max_nfev: int = 300,
-               paar_gewicht: float = 0.0, hebel: dict | None = None) -> dict:
+               paar_gewicht: float = 0.0, hebel: dict | None = None, kanten_sigma: dict[str, float] | None = None,
+               start: dict | None = None) -> dict:
     """Gewichtete kleinste Quadrate über alle Stunden des Falls. Parameter mit Prior:
     * Widerstandsmultiplikator je Kante (log, N(0, ``prior_sigma``)),
     * Lastgewicht je Lastgruppe (log, N(0, ``gewicht_sigma``)),
@@ -334,6 +339,7 @@ def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: fl
     (natürliche Experimente) und trennt Verluste, die nur vom Gesamtdurchfluss abhängen, von solchen einzelner Leitungen.
     ``hebel``: {"fall": zusammenhängender Fall, "reg": Regressoren (``hebel_regressoren``), "gewicht": float}. Die gemessenen
     Hebel (Differenzenregression) werden mit denselben Regressionen auf der Modellreihe verglichen; Skala = max(SE, 0,03).
+    ``kanten_sigma``: abweichender Prior je Kante (z. B. eng um den Planwert); ``start``: früheres Ergebnis als Startwert.
     """
     stationen = [s for s in STATIONEN if s in fall.ziele]
     gruppen = list(LASTGRUPPEN)
@@ -366,6 +372,8 @@ def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: fl
         hzeilen = folge[:, None] & np.isfinite(dYmh) & (np.abs(dYmh) < 1.0) & np.isfinite(np.diff(hreg.to_numpy(), axis=0)).all(axis=1)[:, None]
         hkm = km0.to_numpy()
 
+    sig_k = np.array([(kanten_sigma or {}).get(k, prior_sigma) for k in nz.kanten_ids])
+
     def res(x):
         K, gew, gl, vs = zerlege(x)
         sim = simuliere(nz, fall, K, vs, gew, gl)[spalten].to_numpy()
@@ -380,10 +388,19 @@ def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: fl
             simh = simuliere(nz, hf, K, vs, gew, gl)[HEBEL_ZIELE].to_numpy()
             ks = _hebel_koeff(simh, dXh, hzeilen)
             teile.append(np.sqrt(hebel.get("gewicht", 1.0)) * ((ks - hkm) / hskala).ravel())
-        return np.concatenate([*teile, x[:E] / prior_sigma, x[E:E + G] / gewicht_sigma, x[E + G:E + G + H] / grundlast_sigma,
+        return np.concatenate([*teile, x[:E] / sig_k, x[E:E + G] / gewicht_sigma, x[E + G:E + G + H] / grundlast_sigma,
                                x[E + G + H:] / versatz_sigma])
 
-    lsq = least_squares(res, np.zeros(E + G + H + len(stationen)), method="trf", x_scale="jac", max_nfev=max_nfev)
+    x0 = np.zeros(E + G + H + len(stationen))
+    if start:
+        x0[:E] = np.log(np.clip(start["multiplikator"].reindex(nz.kanten_ids).to_numpy(float), 1e-3, None))
+        x0[E:E + G] = np.log([start["gewichte"].get(g, 1.0) for g in gruppen])
+        x0[E + G:E + G + H] = [start["grundlast"].get(g, 0.0) for g in GRUNDLAST_GRUPPEN]
+        x0[E + G + H:] = [float(start["versatz"].get(st, 0.0)) for st in stationen]
+        for i, k in enumerate(nz.kanten_ids):
+            if k in (kanten_sigma or {}):
+                x0[i] = 0.0
+    lsq = least_squares(res, x0, method="trf", x_scale="jac", max_nfev=max_nfev)
     K, gew, gl, vs = zerlege(lsq.x)
     return {"K": K, "multiplikator": pd.Series(np.exp(lsq.x[:E]), index=nz.kanten_ids), "gewichte": gew, "grundlast": gl,
             "versatz": pd.Series(vs), "kosten": float(lsq.cost), "erfolg": bool(lsq.success)}
@@ -424,6 +441,12 @@ def erforderliche_kwk_dp(nz: Netz, K: np.ndarray, b: np.ndarray, gewinn: np.ndar
     d0 = nz.dp_knoten(m, K, np.zeros(b.shape[0]), gewinn)
     need = pd.DataFrame({z: mindest[z] - d0[:, nz.idx[ZIEL_KNOTEN[z]]] - (versatz or {}).get(z, 0.0) for z in mindest})
     return need.max(axis=1).to_numpy(), need
+
+
+def entlastung_aus_hebeln(need: pd.Series, hebel: dict[str, float], dm: float) -> float:
+    """Senkung der erforderlichen KWK-Δp durch eine Einspeisung von ``dm`` kg/s anstelle von KWK-Wasser, wenn sie jede
+    Zielstation um ``hebel[z]`` bar je 100 kg/s anhebt. ``need``: KWK-Δp-Bedarf je Zielstation (maßgebend ist das Maximum)."""
+    return float(need.max() - max(need[z] - hebel[z] * dm / 100 for z in need.index))
 
 
 def auslegungs_einspeisung(nz: Netz, P_verbund_mw: float, dh_kj_kg: float, ost_mw: dict[str, float], hw1_mw: float,
