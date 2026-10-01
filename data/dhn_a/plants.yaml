@@ -1,0 +1,78 @@
+# Anonymisierte Anlagendaten Fernwärmenetz DHN-A (aus den Betreiberplänen „Plan A“ Erzeuger und „Plan B“ Netz)
+# Höhen relativ zur Hauptanlage gas_CHP (dz_m). Drücke in bar Überdruck. Laut Plan A sind Umwälzungen, Δp und
+# Rücklauftemperaturen „Erfahrungswerte“ (abhängig von Einspeisung, Schaltzustand, Kundenanlagen). Auslegungsfall
+# des Plans: Ausfall der größten Erzeugungsleistung (n-1), Außentemperatur −14 °C.
+network:
+  name: DHN-A
+  pressure_class: PN25            # Verbundnetz; Sekundärnetz West PN16, über Wärmeübertrager getrennt
+  connected_load_MW: {L1_sector: 48.9, L2_sector: 150.7, L3_sector: 80.6, L4_sector: 111.9, total_primary: 392.0, secondary_west: 75.8}
+  large_consumer_storage_site_MW: 32.0     # Speicherstandort S (Verbraucher V22), Anschlussleistung
+  separated_operation_transport_t_h: {L5: 750, L6: 500, L7: 300}
+  # Mindest-Ruhedruck am Druckhaltepunkt der Hauptanlage je Netzbereich und Vorlauftemperatur (bar Ü)
+  min_static_pressure_bar: {T_supply_C: [130, 120, 110, 100], City: [7.2, 6.5, 6.0, 5.6], Mitte_L1_L3_L4: [4.0, 3.2, 2.6, 2.5], Sued: [4.0, 3.2, 2.6, 2.5], Ost: [2.5, 2.5, 2.5, 2.5]}
+plants:
+  gas_CHP:
+    role: Hauptanlage, einziger Druckhalter im Verbundbetrieb (Druckhaltung auf Pumpen-Saugseite/Rücklauf)
+    dz_m: 0.0
+    P_max_MW: {design_minus14C: 127, diversion_mode: 143}
+    m_max_t_h: 2350                # entspricht 127 MW bei 107/60 °C
+    pumps: {arrangement: supply, installed: "2x1000 t/h + 2x900 t/h", head_m: 73.5}
+    dp_internal_bar: 1.1
+    dp_max_outlet_bar: 4.0         # Planwert; Status (harte Grenze/Erfahrungswert) offen
+    static_pressure_bar: {normal: 8.4, min: 6.1, max: 9.1, ref_dz_m: 0.91}
+    T_supply_max_C: 128
+    T_return_design_C: 60
+  waste_incineration:
+    dz_m: -7.08
+    P_max_MW: {design_minus14C: 40, transition: 45}
+    m_max_t_h: {design_minus14C: 530, transition: 990}
+    T_design_C: {design_minus14C: [125, 60], transition: [99, 60]}
+    pumps: {arrangement: return, installed: "2x500 t/h", head_m: 90}
+    dp_internal_bar: 0.8
+    dp_max_outlet_bar: 7.5
+    static_pressure_bar: {emergency_only: 7.5, ref_dz_m: -5.93}
+    shutdown_bar: {p_return_below: 5.0, p_supply_above: 19.5, ref_dz_m: -5.93}
+    max_parallel_flow_east_t_h: 1550
+  gas_turbine:
+    dz_m: -5.79
+    P_max_MW: {design_minus14C: 31, transition: 35}
+    m_max_t_h: {design_minus14C: 410, transition: 720}
+    pumps: {arrangement: return, installed: "2x725 t/h", head_m: 90}
+    dp_internal_bar: 1.3
+    dp_max_outlet_bar: 7.5
+    static_pressure_bar: {island_only: 6.8, ref_dz_m: 1.21}
+    shutdown_bar: {p_return_below: 4.4, p_supply_above: 20.5, ref_dz_m: 1.21}
+  biomass_CHP:
+    dz_m: -6.69
+    P_max_MW: {design_minus14C: 13, transition: 14.5}
+    m_max_t_h: {design_minus14C: 190, transition: 400}
+    pumps: {arrangement: return, installed: "2x206 t/h", head_m: 115}
+    dp_internal_bar: 0.9
+    dp_max_outlet_bar: 7.5
+    shutdown_bar: {p_return_below: 4.8, p_supply_above: 22.0, ref_dz_m: -0.02}
+  boiler_plant_1:
+    dz_m: 16.74
+    P_max_MW: {design_minus14C: 40, transition: 32}
+    m_max_t_h: 550
+    pumps: {arrangement: return, installed: "3x280 m3/h", head_m: 58.5}
+    dp_internal_bar: 0.8
+    dp_max_outlet_bar: 4.0
+    static_pressure_bar: {island_only: 6.8, ref_dz_m: 14.39}
+    shutdown_bar: {p_return_below: 4.0, p_return_above: 12.0, ref_dz_m: 14.28}
+  boiler_plant_2:
+    role: Versorgung Sekundärnetz West (Kessel + Wärmeübertrager aus dem Verbund); Export in den Verbund möglich
+    dz_m: 4.22
+    P_max_MW: {boilers_plus_hx_feed: 64, boilers_only: 40, export_to_primary_hx: 9}
+    hx_inlet_dp_bar: {min: 0.7, max: 2.5, absolute_max: 3.0, overflow_valve_opens_above: 3.5}
+    pumps: {arrangement: return, installed: "3x480 m3/h", head_m: 75}
+    static_pressure_bar: {normal: 6.8, ref_dz_m: 1.41}
+    shutdown_bar: {p_return_below: 4.6, p_return_above: 8.3, ref_dz_m: 1.41}
+pump_stations:
+  pump_station_1:
+    dz_m: 7.68
+    pumps: {towards_boiler_plant_1: "2x429 m3/h @ 40 m (kein Parallelbetrieb)", towards_gas_CHP: "215 m3/h @ 27 m"}
+    shutdown_bar: {suction_below: 5.0, discharge_above: 18.0, ref_dz_m: 8.23}
+  pump_station_2:
+    dz_m: -2.22
+    pumps: {towards_boiler_plant_2: "700 m3/h @ 38 m (kein Parallelbetrieb)", alternative: "325 m3/h @ 30 m"}
+    shutdown_bar: {suction_below: 5.0, discharge_above: 18.0, ref_dz_m: -2.61}

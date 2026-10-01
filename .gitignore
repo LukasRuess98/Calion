@@ -72,3 +72,7 @@ debug_model.lp
 # Standalone export package for external partners (own git init, not part
 # of this repo's history)
 Memmingen_Pandapipes_Share/
+
+# Speicherstudie DHN-A: Rohdaten, lokale Zuordnungstabellen und DWD-Zwischenspeicher nicht versionieren
+data/raw_dhn_a/
+data/dwd/
