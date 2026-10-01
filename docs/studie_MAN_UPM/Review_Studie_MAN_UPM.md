@@ -6,6 +6,8 @@ Stand: 2026-10-01 · Geprüfter Stand: Branch `claude/busy-shannon-9uws43`, Comm
 
 **Prüfumfang und Grenzen.** Die Messdaten (`data/Stadtbach/upload/`) liegen nicht im Repository. Das Notebook ist ohne Ausgaben eingecheckt. Ich konnte es daher **nicht ausführen**. Geprüft habe ich den Zelleninhalt aller 159 Zellen (Code, Gleichungen, Texte), das Annahmenregister und die Datenanfrage. Kernformeln und Annahmen habe ich unabhängig nachgerechnet (Abschnitt 5). Zahlenwerte aus Ergebnissen stammen aus der Studiendokumentation und sind als solche gekennzeichnet.
 
+**Nachtrag (2026-10-01):** Nachträglich lagen die Messdaten 2025 (`acron_stundenwerte_wert.parquet`) und die Pläne WV640 Bl. 3, WV650 und WV660 vor. Damit habe ich die Befunde an Daten und Plänen geprüft (**Abschnitt 9**). Alle Hauptbefunde bestätigen sich. Hinzu kommen neue Befunde, u. a. ein **fehlerhaftes GT-Wärmesignal** und **gemessene Netzhebel**.
+
 ---
 
 ## 1. Gesamturteil
@@ -305,3 +307,146 @@ In `objective` statt `nan_to_num(..., nan=0)` die nicht konvergierten Stunden mi
 2. **Modell:** Druckrandbedingung umstellen (HKW als einziger Druckhalter, AVA mit gekoppeltem VL/RL-Massenstrom). Lastanteile auf plausible Auslastungen begrenzen und danach Kalibrierung, Standortvergleich und Maßnahmenrangfolge wiederholen.
 3. **Konzept:** Behältergeometrie und Druckhaltekonzept des Speichers mit dem Auftraggeber klären (direkt mit Netzdruck, mehrere Behälter oder druckentkoppelt), bevor Pumpe und Anschluss ausgelegt werden.
 4. **Kommunikation:** In Management Summary und Antworten zwischen „physikalisch belastbar“ (Pumpe nötig, kleine Wirkung, Laden zur Spitze schädlich) und „annahmegetrieben“ (Bestandsdefizit, Ausbaugrenze, HKW-Limit, 17 bar) unterscheiden.
+
+---
+
+## 9. Nachtrag: Prüfung mit Messdaten 2025 und Plänen
+
+**Datenbasis:**
+* `acron_stundenwerte_wert.parquet`: 8 759 Stunden × 169 Signale, 2025
+* WV640 Bl. 3 „Erzeugerausspeisungen und -umwälzungen bei Ausfall der größten Erzeugungsleistung“ (Stand 14.06.2023)
+* WV650 Netz Mitte (Stand 28.10.2022)
+* WV660 Netz West (Stand 25.03.2022)
+
+**Nicht vorhanden:** Außentemperatur (`Import_Data_stadtbach_15min`), Signalindex, Lastgänge 2020–2022 und Stunden-Min/Max. Die Auswertungen kommen deshalb ohne Außentemperatur aus. „Hochlast“ ist hier wie in der Studie das obere 10-%-Quantil der Erzeugung (n = 771 h). Die Auswerteskripte sind wegen NDA nicht versioniert; unten stehen nur aggregierte Kennzahlen.
+
+### 9.1 Prüfung der Review-Befunde
+
+| Befund | Prüfung | Ergebnis |
+|---|---|---|
+| **2.1 S-05** (−0,4/+0,25 bar) | Erzeugerdrücke in den Hochlaststunden relativ zum Basistag | HKW: P5 der Δp nur **−0,18 bar** unter dem Basistag; AVA: **−0,33 bar**. Die Studie setzt −0,65 bar an. VL ≤ P5 **und** RL ≥ P95 traten in **0 %** der Hochlaststunden gleichzeitig auf. **Bestätigt:** S-05 ist 2- bis 3,5-mal zu groß und als Kombination nie beobachtet |
+| **2.1 Auslegungsfall** | HKW-Temperaturen am 14.02.2025 | T_VL 111,4 °C, T_RL 58,7 °C ⇒ f_m = 0,86, Reibungsverluste × 0,74 gegenüber dem gemessenen Tag. **Bestätigt** |
+| **2.1 Basistag „≈ 215 MW“** | Erzeugung nach der Definition der Studie (HKW netto + AVA + BM + „GT“ + HWS + HWW-Kessel), Tagesmittel | 14.02.2025 ≈ **169 MW**. Die höchsten Tage sind der 17.–19.02.2025 mit ≈ 181–183 MW; das entspricht den 183 MW aus Kap. 10.5.8. **215 MW sind nicht reproduzierbar**, und der 14.02. ist auch unter den vollständig gemessenen Tagen nicht der höchste |
+| **2.2 Erzeugergrenzen** | WV640 Bl. 3 gelesen, mit Daten 2025 verglichen | Details unter der Tabelle. **Bestätigt**, und präzisiert: Bei Ausbau ist nicht das HKW knapp, sondern die **Ost-Erzeugung und die Ost-Förderhöhe** |
+| **2.3 Druckhaltung** | WV640, WV650 | WV640: HKW „Ruhedruckanbindung auf P-Saugseite“, AVA „Ruhedruck (**Notbetrieb**)“, GT-Ost und HWS „Ruhedruck (**Inselbetrieb**)“. WV650: „Die RL-Absperrarmatur muss (zur Sicherstellung der Druckhaltung) offen bleiben.“ **Bestätigt:** Im Verbund ist das HKW der einzige Druckhalter; ein fester RL-Druck an AVA widerspricht dem Plan |
+| **3.1 Δp_min 1,0 bar** | Kunden-Δp 2025; WV640-Kopfzeilen | **Fraunhofer** (Süd) liegt in 106 h unter 1,0 bar (21 h davon in Hochlast), **HWW-Prim** in 276 h unter 1,0 bar und in 50 h unter 0,8 bar. Das ist Normalbetrieb ohne bekannte Störung. „Δp intern“ steht in WV640 im Kopf **jeder Erzeugeranlage**; für die HWW-WÜ nennt der Plan 0,7–2,5 bar am Eintritt. **Bestätigt** |
+| **3.2 Durchflusseinheit** | Q gegen ṁ·Δh mit Stoffwerten | Kundenstationen (KUKA, MAN, SIGMA, UNI, Lechhauser, HWW-Prim): **t/h passt auf 0,1–0,3 %**, m³/h mit ρ(T_VL) liegt 4–5 % daneben. HKW-Stammleitungen: t/h passt am besten (0,98). BM-HKW: m³/h im Vorlauf. Laut WV650 wird der SL-Durchfluss **im Rücklauf** gemessen. **Bestätigt:** Die Studie unterschätzt die Massenströme um ≈ 4–5 % |
+| **3.4 Lastverteilung** | Energiebilanz im Winter und Temperatur-Tracer | Details unter der Tabelle. **Bestätigt:** Die niedrige City-Auslastung der Studie spiegelt fehlende Verbundflüsse wider, keine geringe Last |
+
+**Details zu 2.2 (Erzeugergrenzen):**
+* **HKW:** Max. Δp am Werksaustritt 4,0 bar, Pumpen 2×1000 + 2×900 t/h bei 73,5 m, 127 MW (143 MW im Umlenkbetrieb), 2350 t/h.
+  * 2025 lag die HKW-Δp in Hochlast bei P95 3,21 bar (max. 4,16). Die **Reserve bis 4,0 bar beträgt ≈ 0,8 bar**.
+  * HKW-Wärme: P99 62 MW (max. 91) von 127 MW, also **große Reserve**.
+* **Ost und HWS:**
+  * AVA: max. 46 MW (Plan 40/45); BM: 15,4 MW (Plan 13/14,5); HWS: 569 t/h (Plan 550). Diese Erzeuger lagen **2025 an ihrer Grenze**.
+  * AVA-Δp lag in 390–550 h über 7,5 bar. Laut Fußnote des Plans ist der Wert ein Erfahrungswert, keine harte Grenze.
+* „HKW-Limit ab +15 %“ ist damit ein Artefakt. Zusatzlast muss vom HKW kommen.
+
+**Details zu 3.4 (Lastverteilung):**
+* Winter-Median: Die Ost-Erzeugung liegt bei ≈ 89 MW (GT gemessen). Nur ≈ 4 MW fließen davon über SL1/SL3 ins HKW.
+* SL2 liefert 25 MW für 151 MW Anschluss; das ergibt eine Auslastung von 0,16.
+* Ost-Wasseranteil aus dem Temperatur-Tracer (Mischungsregression bei T_Ost ≠ T_HKW, Winter, n = 287 h):
+
+| Station | Ost-Wasseranteil | R² |
+|---|---|---|
+| MAN | ≈ 75 % | 0,63 |
+| Hans-Böckler-Str. | ≈ 85 % | |
+| Lechhauser Str. | ≈ 64 % | |
+| Schlettererstr. | ≈ 49 % | |
+| Kreissparkasse (City) | ≈ 28 % | 0,28 |
+
+* Ost-Wasser erreicht also die City. Die Verbundkanten tragen deshalb wahrscheinlich **erheblich** (Größenordnung 30–45 MW bei gleicher Auslastung aller Gebiete), nicht null.
+
+### 9.2 Neue Befunde
+
+**N1 – Das GT-Wärmesignal ist eine Kopie der Westnetz-Wärme.**
+* `GT-Ost_Waermeleistung` ist in allen 8 757 Stunden identisch mit `HWW_Waermeleistung_Sek_Aussp`. Das HWW-Signal ist echt: Es passt zu den Sek-Durchflüssen (Verhältnis 0,996).
+* Wenn die GT steht (27 % der Stunden mit T_VL < 60 °C), „liefert“ das Signal im Median 5,7 MW.
+* Aus V̇·Δh, wo der GT-Durchfluss gemessen ist (35 % der Stunden), ergeben sich im Median 23 MW gegenüber 17 MW im Signal; die Korrelation beträgt nur 0,7.
+* Folgen für die Studie:
+  * GT-Einspeisung (`m_gt = Q/ΔT`) und Ost-Erzeugung,
+  * Gesamterzeugung, Basistag und Lastregression,
+  * die Aussage „Ost speist 60 %“,
+  * die Ost-Kalibrierung. Das ist eine wahrscheinliche Mitursache der Parameter an den Grenzen.
+
+→ Dem Betreiber melden und das richtige GT-Signal anfordern. Bis dahin GT nur aus V̇·Δh verwenden.
+
+**N2 – Die kritischste Δp-Messung wird nicht genutzt.**
+* Fraunhofer (Süd, P1 0,9 bar), Hoher Weg und Hunoldsgraben (City), KUKA und Don Bosco haben nur ein `DiffDruck`-Signal. Der Code der Studie verlangt für die Δp-Validierung und die Bias-Korrektur `Druck_VL` **und** `Druck_RL` und lässt diese Stationen daher aus.
+* Wo beides vorhanden ist, stimmt `DiffDruck` auf ±0,1 bar mit VL − RL überein (r = 0,99).
+
+**N3 – Der Betrieb hält den Kunden-Δp; die Erzeugerdrücke sind nicht fest.**
+
+| Lastdezil (Erzeugung) | HKW-Δp | min. Δp Mitte-Stationen (P50 / P10) | Fraunhofer (P50 / P10) |
+|---|---|---|---|
+| unterstes (≈ 27 MW) | 1,77 bar | 1,6 / 1,3 | 1,5 / 1,2 |
+| mittleres (≈ 87 MW) | 2,58 bar | 1,8 / 1,3 | 1,2 / 1,2 |
+| 8. (≈ 123 MW) | 2,93 bar | 1,8 / 1,5 | 1,2 / 1,1 |
+| oberstes (≈ 161 MW) | 2,53 bar | 1,6 / 1,3 | 1,2 / 1,1 |
+
+* Die HKW-Δp wird lastabhängig nachgeführt (r = 0,66), die Kunden-Δp bleiben nahezu konstant. Das entspricht einer Schlechtpunkt- oder Kennlinienregelung.
+* Szenarien mit festgehaltenen Erzeugerdrücken bilden den Betrieb nicht ab. Das stützt die Umstellung auf „erforderliche Förderhöhe“ im Plan.
+
+**N4 – Netzhebel gemessen** (Regression auf stündliche Differenzen, n ≈ 4 900 h, 660 Stunden mit HWS-Sprung > 72 t/h; kontrolliert für HKW-Δp, AVA-Δp, Last und PSS-Gewinn)
+
+| Station | je 100 kg/s Einspeisung HWS (Süd) | je bar HKW-Δp | je bar AVA-Δp | je bar PSS-Gewinn | je 10 MW Last |
+|---|---|---|---|---|---|
+| Fraunhofer (Süd) | **+1,01** ± 0,02 bar | 0,69 | −0,05 | +0,30 | −0,14 |
+| Theodor-Heuss-Pl. (SL4) | +0,06 | 0,84 | 0,03 | −0,13 | −0,07 |
+| Hoher Weg (City) | +0,10 | 0,84 | 0,05 | −0,11 | −0,07 |
+| Hunoldsgraben (City) | +0,12 | 0,84 | 0,04 | −0,12 | −0,08 |
+| Fuggerstr. (City) | +0,07 | 0,84 | 0,03 | −0,12 | −0,07 |
+| Schlettererstr. (SL1) | +0,02 | 0,84 | 0,02 | −0,12 | −0,06 |
+| MAN | +0,04 | 0,74 | **0,19** | −0,07 | −0,05 |
+| Lechhauser (STAWA) | +0,11 | 0,75 | **0,19** | −0,06 | −0,08 |
+| HWW-Prim | +0,05 | 0,71 | −0,04 | −0,11 | −0,03 |
+
+Folgerungen:
+* Lokale Einspeisung wirkt **stark lokal** (Fraunhofer +1 bar je 100 kg/s) und **schwach entfernt** (City +0,07…0,12 bar). Das bestätigt die qualitative Aussage der Studie, dass die Speicherwirkung lokal und klein ist.
+* Der kritischste Knoten (Fraunhofer/Süd) profitiert vor allem von **Einspeisung im Süden oder von PSS**, nicht von einem Speicher am MAN.
+* Die HKW-Δp wirkt mit 0,7–0,84 statt 1,0 auf die Kunden durch, weil die Ost-Erzeuger mitregeln. Die 1:1-Verschiebung des Studienmodells überschätzt die Druckanhebung etwas.
+* **Diese Hebel sind die Validierungsziele** für jedes Netzmodell (Plan, Phase 3).
+
+**N5 – Auslegungsfall in WV640.** Das Blatt gilt „bei Ausfall der größten Erzeugungsleistung“ (n−1). Das HKW ist dort mit „2350 t/h (= 127 MW bei 107 °C − 60 °C)“ angegeben, die Ost-Erzeuger mit 125/60 °C. Das deutet auf eine Auslegungs-Vorlauftemperatur am HKW **unter 120 °C** hin; 2025 lag sie in Hochlast im Median bei 111,7 °C, nur 42 h ≥ 120 °C. Mit dem Betreiber klären. Bei T_VL < 120 °C sind die Massenströme im Auslegungsfall größer als in der Studie.
+
+**N6 – Mindest-Ruhedruck je Netzbereich (WV650).** Am Ruhedruckbalken des HKW gelten bei 130/120/110/100 °C:
+
+| Netzbereich | 130 °C | 120 °C | 110 °C | 100 °C |
+|---|---|---|---|---|
+| MITTE-CITY | 7,2 | 6,5 | 6,0 | 5,6 bar |
+| Mitte-DOM/ULRICH/STAWA/SL1/SL4 | 4,0 | 3,2 | 2,6 | 2,5 bar |
+| SÜD | 4,0 | 3,2 | 2,6 | 2,5 bar |
+| OST | 2,5 | 2,5 | 2,5 | 2,5 bar |
+
+Das ist die direkte Prüfgröße für die Siedesicherheit und begrenzt die Alternative „Rücklaufdruck absenken“ (2025: HKW-RL min. 6,96 bar).
+
+**N7 – Datenbasierter Plausibilitätsanker** (indikativ)
+
+Der Druckverlust vom HKW zur ungünstigsten Mitte-Station folgt ≈ 0,28 + 4,1·10⁻⁵·P² bar (P = Verbundeinspeisung in MW, R² = 0,75). Daraus ergibt sich die erforderliche HKW-Δp für 1,0 bar in der City:
+
+| Last | erforderliche HKW-Δp |
+|---|---|
+| Höchstlast 2025 (P = 187 MW, stündlich) | ≈ 2,7 bar |
+| +20 % | ≈ 3,3 bar |
+| +40 % | ≈ 4,1 bar |
+
+Mit dem Fluss SL2 + SL4 als Lastgröße liegt +20 % bei ≈ 3,9 bar. Einschränkungen: quadratische Extrapolation, Erzeugeraufteilung wie 2025, Süd/Fraunhofer hängt zusätzlich an PSS und HWS.
+
+**Das widerspricht „Bestand kritisch“.** Die Grenze 4,0 bar am HKW wird erst bei einem Ausbau in der Größenordnung **+20…40 %** erreicht. Hinzu kommen die bereits ausgelasteten Ost-Erzeuger.
+
+**N8 – PSS ist aktiv, nicht nur Bypass.** Die PSS läuft in 82 % der Hochlaststunden mit ≈ 0,6 bar Gewinn (P95 1,3 bar). Installiert sind 2×429 m³/h bei 40 m (≈ 3,7 bar). Das ist eine vorhandene Reserve für den Süden; je bar PSS-Gewinn steigt der Δp an Fraunhofer um +0,3 bar.
+
+**N9 – Datenqualität:**
+* `PSW_Durchfluss_RL_nach_Mitte` hängt in 2,5 % der Stunden bei 1078.
+* `PSW_Durchfluss_RL_nach_West` hat 1 % Abdeckung, `PPS_Durchfluss_RL_nach_Sued` 7 %.
+* `HWW_Waermeleistung_Primeinsp` zeigt 2 Spitzen über 40 MW.
+
+### 9.3 Konsequenzen für die Kernaussagen
+
+| Aussage der Studie | Stand nach Datenprüfung |
+|---|---|
+| „Bestand kritisch“ | **durch die Daten widerlegt**: 2025 alle Mitte-Stationen ≥ 1,1 bar (P1); Anker N7 zeigt ≈ 1,3 bar Reserve bis 4,0 bar bei Last 2025. Engster Punkt ist Fraunhofer (Süd) mit ≈ 1,0–1,1 bar, gehalten über PSS und HWS |
+| „Ausbau nur +5…10 %“ | **nicht haltbar**; nach Anker N7 Größenordnung +20…40 % bis zur HKW-Grenze. Engpass sind die Ost-Erzeuger (an der Grenze) und der Süden. Genauer erst mit konsistentem Modell |
+| „Speicherwirkung klein und lokal“ | **durch gemessene Hebel gestützt** (N4) |
+| „Standort entscheidend“ | **gestützt**: Für den kritischen Süden wirken lokale Einspeisung oder PSS um ein Vielfaches stärker als der MAN |
+| „Druckanhebung ist der Haupthebel“ | qualitativ ja (HKW-Reserve ≈ 0,8 bar bis 4,0 bar). Sie wirkt aber nur zu 0,7–0,84 durch, und die Ost-Pumpen liegen bereits nahe 7,5 bar |
