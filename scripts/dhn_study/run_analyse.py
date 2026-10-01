@@ -40,7 +40,9 @@ def main() -> dict:
     # 3) Auslegungslast
     lg = daten.lade_lastgaenge()
     erg["ausrichtung_2020"] = auslegung.pruefe_ausrichtung(lg[2020].to_numpy(), 2020, ta_d)
-    reihen = {"Lastgang 2020–2022": pd.concat(lg.values()), "2025 gesamt": e["gesamt"], "2025 Verbund": e["verbund"]}
+    west = e["hx_west"] + e["boilers_west"]
+    reihen = {"Lastgang 2020–2022": pd.concat(lg.values()), "2025 gesamt": e["gesamt"], "2025 Verbund": e["verbund"],
+              "2025 Verbund ohne West-Bezug": e["verbund"] - e["hx_west"], "2025 West": west}
     erg["auslegung"] = auslegung.auslegungsband(reihen, ta_d, T_AUSL, wetter.ta_eff(ta_d))
     erg["auslegung"].to_csv(out_dir / "auslegungslast.csv", index=False)
     erg["spitzenfaktor"] = {k: auslegung.spitzenfaktor(s, ta_d) for k, s in (("Lastgang 2020–2022", pd.concat(lg.values())), ("2025 gesamt", e["gesamt"]))}
@@ -109,8 +111,21 @@ def main() -> dict:
     ps1_voll = float(ps1.quantile(0.99))
     fo, fs = erg["ost_kopplung"], erg["regelgesetz_sued"]
     aus = erg["auslegung"]
-    v = aus[(aus.Reihe == "2025 Verbund") & (aus.Temperatur == "Ta")]
     band = erg["kwk_band"]
+    kessel_west = anl["boiler_plant_2"]["P_max_MW"]["boilers_only"]
+
+    def tagesmittel(reihe, modell, q):
+        r = aus[(aus.Reihe == reihe) & (aus.Temperatur == "Ta") & (aus.Modell == modell)].iloc[0]
+        return float(r[f"{q} bei {T_AUSL:g} °C [MW]"])
+
+    def verbundlast(modell, q, variante):
+        """Verbund-Tagesmittel bei Auslegung: West-Bezug wie 2025 oder West aus HW2-Kesseln (Bezug nur über deren Leistung)."""
+        if variante == "West-Bezug wie 2025":
+            return tagesmittel("2025 Verbund", modell, q)
+        return auslegung.verbundlast_west_eigen(tagesmittel("2025 Verbund ohne West-Bezug", modell, q),
+                                                tagesmittel("2025 West", modell, q), kessel_west, sp)
+
+    VARIANTEN = ("West aus HW2 (Plan A)", "West-Bezug wie 2025")
 
     def fall(P, dTd, ost=ost_mw):
         t_rl = T_VL_AUSL - dTd
@@ -130,12 +145,13 @@ def main() -> dict:
 
     dT0 = dT_ausl["RL Median Kälte"]
     rows = []
-    for _, r in v.iterrows():
-        for q in ("P50", "P90"):
-            rows.append({"Lastmodell": f"{r.Modell} {q}", **fall(r[f"{q} bei {T_AUSL:g} °C [MW]"] * sp, dT0)})
+    for var in VARIANTEN:
+        for mod in auslegung.MODELLE:
+            for q in ("P50", "P90"):
+                rows.append({"West": var, "Lastmodell": f"{mod} {q}", **fall(verbundlast(mod, q, var) * sp, dT0)})
     erg["erforderliche_dp"] = pd.DataFrame(rows)
     erg["erforderliche_dp"].to_csv(out_dir / "erforderliche_dp_hauptanlage.csv", index=False)
-    P_ref = v[v.Modell.str.startswith("linear unbegrenzt")][f"P50 bei {T_AUSL:g} °C [MW]"].iloc[0] * sp
+    P_ref = verbundlast("linear unbegrenzt (Fit ≥ 0 °C)", "P50", VARIANTEN[0]) * sp
     erg["sensitivitaet_rl"] = pd.DataFrame([{"Rücklauf": lab, **fall(P_ref, dTd)} for lab, dTd in
                                             (("gemessen Median (Ta < −5 °C)", dT0), ("gemessen P90", dT_ausl["RL P90 Kälte"]),
                                              ("Median + 5 K", dT0 - 5.0), ("Median − 5 K", dT0 + 5.0))])
@@ -158,12 +174,12 @@ def main() -> dict:
     prof = auslegung.tagesprofile(pd.concat(lg.values()), ta_d)
     leistung = {"Plan A (−14 °C)": kwk["P_max_MW"]["design_minus14C"] + ost_mw + hw1_mw,
                 "KWK im Umleitbetrieb": kwk["P_max_MW"]["diversion_mode"] + ost_mw + hw1_mw}
-    erg["spitze"] = pd.DataFrame([{"Lastmodell": f"{r.Modell} {q}", "Tagesmittel [MW]": r[f"{q} bei {T_AUSL:g} °C [MW]"],
-                                   "Erzeugung": lab, "Leistung [MW]": L,
-                                   **auslegung.ueberschuss(prof, r[f"{q} bei {T_AUSL:g} °C [MW]"], L)}
-                                  for _, r in v.iterrows() for q in ("P50", "P90") for lab, L in leistung.items()])
+    erg["spitze"] = pd.DataFrame([{"West": var, "Lastmodell": f"{mod} {q}", "Tagesmittel [MW]": verbundlast(mod, q, var),
+                                   "Erzeugung": lab, "Leistung [MW]": L, **auslegung.ueberschuss(prof, verbundlast(mod, q, var), L)}
+                                  for var in VARIANTEN for mod in auslegung.MODELLE for q in ("P50", "P90")
+                                  for lab, L in leistung.items()])
     erg["spitze"].to_csv(out_dir / "spitze_auslegungstag.csv", index=False)
-    erg["auslegung_annahmen"] = {"Ost-Einspeisung [MW]": ost_mw, "HW1 [MW]": hw1_mw, "HW1 [kg/s]": hw1_m,
+    erg["auslegung_annahmen"] = {"Ost-Einspeisung [MW]": ost_mw, "HW1 [MW]": hw1_mw, "HW1 [kg/s]": hw1_m, "HW2-Kessel West [MW]": kessel_west,
                                  "PS1-Gewinn (P99 2025) [bar]": ps1_voll, "Spitzenfaktor": sp, "Verbund-Erzeugung [MW]": leistung}
     hoch = e["verbund"] >= e["verbund"].quantile(0.9)
     erg["dp_chp_2025"] = {"Hochlast-P95": float(dp_chp[hoch].quantile(0.95)), "max": float(dp_chp.max()),

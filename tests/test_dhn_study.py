@@ -185,3 +185,18 @@ def test_tagesprofile_und_ueberschuss():
     u = auslegung.ueberschuss(prof, 100.0, 110.0)
     ex = np.clip(form / form.mean() * 100 - 110, 0, None)
     assert u["Energie Median [MWh]"] == pytest.approx(ex.sum()) and u["Leistung Median [MW]"] == pytest.approx(ex.max())
+
+
+def test_verbundlast_west_eigen():
+    assert auslegung.verbundlast_west_eigen(200.0, 30.0, 40.0, 1.14) == 200.0                 # Kessel decken die Spitze
+    p = auslegung.verbundlast_west_eigen(200.0, 40.0, 40.0, 1.15)
+    assert p * 1.15 == pytest.approx(200.0 * 1.15 + (40.0 * 1.15 - 40.0))                    # nur Spitze über 40 MW
+
+
+def test_sektoren_summen():
+    s = daten.lade_sektoren()
+    verbund, west = s[~s.section.str.startswith("W")], s[s.section.str.startswith("W")]
+    assert verbund.connected_MW.sum() == pytest.approx(392.0, abs=0.15)
+    assert west.connected_MW.sum() == pytest.approx(75.8, abs=0.15)
+    regionen_kunden = {r.split(" (")[0] for r in daten.lade_verbraucher().region}
+    assert regionen_kunden <= set(s.region)                                                  # gleiche Regionsnamen

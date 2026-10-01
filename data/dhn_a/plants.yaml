@@ -1,24 +1,27 @@
 # Anonymisierte Anlagendaten Fernwärmenetz DHN-A (aus den Betreiberplänen „Plan A“ Erzeuger und „Plan B“ Netz)
 # Höhen relativ zur Hauptanlage gas_CHP (dz_m). Drücke in bar Überdruck. Laut Plan A sind Umwälzungen, Δp und
-# Rücklauftemperaturen „Erfahrungswerte“ (abhängig von Einspeisung, Schaltzustand, Kundenanlagen). Auslegungsfall
-# des Plans: Ausfall der größten Erzeugungsleistung (n-1), Außentemperatur −14 °C.
+# Rücklauftemperaturen „derzeitige Erfahrungswerte“ (abhängig von Einspeisung, Schaltzustand, Kundenanlagen); die
+# Werte dp_max_outlet_bar sind daher keine Auslegungsgrenzen. Harte Grenzen sind Pumpen (Förderhöhe), Abschaltdrücke
+# (shutdown_bar), Druckstufe und Mindest-Ruhedruck. Alle Leistungen bei −14 °C gelten für den Auslegungsfall des Plans:
+# Ausfall der größten Erzeugungsleistung (n-1), Außentemperatur −14 °C (Stand des Plans: 2023).
 network:
   name: DHN-A
   pressure_class: PN25            # Verbundnetz; Sekundärnetz West PN16, über Wärmeübertrager getrennt
   connected_load_MW: {L1_sector: 48.9, L2_sector: 150.7, L3_sector: 80.6, L4_sector: 111.9, total_primary: 392.0, secondary_west: 75.8}
   large_consumer_storage_site_MW: 32.0     # Speicherstandort S (Verbraucher V22), Anschlussleistung
   separated_operation_transport_t_h: {L5: 750, L6: 500, L7: 300}
+  # Anschlussleistung je Teilgebiet: sectors.csv (Summe Verbund 392,0 MW, West 75,8 MW; Stand 2022)
   # Mindest-Ruhedruck am Druckhaltepunkt der Hauptanlage je Netzbereich und Vorlauftemperatur (bar Ü)
   min_static_pressure_bar: {T_supply_C: [130, 120, 110, 100], City: [7.2, 6.5, 6.0, 5.6], Mitte_L1_L3_L4: [4.0, 3.2, 2.6, 2.5], Sued: [4.0, 3.2, 2.6, 2.5], Ost: [2.5, 2.5, 2.5, 2.5]}
 plants:
   gas_CHP:
     role: Hauptanlage, einziger Druckhalter im Verbundbetrieb (Druckhaltung auf Pumpen-Saugseite/Rücklauf)
     dz_m: 0.0
-    P_max_MW: {design_minus14C: 127, diversion_mode: 143}
+    P_max_MW: {design_minus14C: 127, diversion_mode: 143}   # n-1: 4 Einheiten 50 + 0 + 44 + 33 MW (Umleitbetrieb 66 + 0 + 44 + 33)
     m_max_t_h: 2350                # entspricht 127 MW bei 107/60 °C
     pumps: {arrangement: supply, installed: "2x1000 t/h + 2x900 t/h", head_m: 73.5}
     dp_internal_bar: 1.1
-    dp_max_outlet_bar: 4.0         # Planwert; Status (harte Grenze/Erfahrungswert) offen
+    dp_max_outlet_bar: 4.0         # Erfahrungswert laut Plan A, keine Auslegungsgrenze (Pumpe: ≈ 5,7 bar)
     static_pressure_bar: {normal: 8.4, min: 6.1, max: 9.1, ref_dz_m: 0.91}
     T_supply_max_C: 128
     T_return_design_C: 60
@@ -29,7 +32,7 @@ plants:
     T_design_C: {design_minus14C: [125, 60], transition: [99, 60]}
     pumps: {arrangement: return, installed: "2x500 t/h", head_m: 90}
     dp_internal_bar: 0.8
-    dp_max_outlet_bar: 7.5
+    dp_max_outlet_bar: 7.5         # Erfahrungswert laut Plan A; 2025 in 552 h überschritten (max. 9,0 bar)
     static_pressure_bar: {emergency_only: 7.5, ref_dz_m: -5.93}
     shutdown_bar: {p_return_below: 5.0, p_supply_above: 19.5, ref_dz_m: -5.93}
     max_parallel_flow_east_t_h: 1550
@@ -63,6 +66,10 @@ plants:
     role: Versorgung Sekundärnetz West (Kessel + Wärmeübertrager aus dem Verbund); Export in den Verbund möglich
     dz_m: 4.22
     P_max_MW: {boilers_plus_hx_feed: 64, boilers_only: 40, export_to_primary_hx: 9}
+    # Fahrweisen laut Plan A bei −14 °C (n-1): 2 Kessel + 2 WÜ Bezug aus dem Verbund 64 MW (davon WÜ 24 MW);
+    # 2 Kessel allein 40 MW; 2 Kessel + 1 WÜ mit Export in den Verbund: West 31 MW + Export 9 MW.
+    # Übergangszeit: WÜ-Bezug max. 24 MW (2 WÜ, 516 t/h), WÜ-Export max. 12 MW (1 WÜ, 258 t/h).
+    operating_modes_minus14C_MW: {import_mode: {west: 64, hx_import: 24}, self_supply: {west: 40}, export_mode: {west: 31, export: 9}}
     hx_inlet_dp_bar: {min: 0.7, max: 2.5, absolute_max: 3.0, overflow_valve_opens_above: 3.5}
     pumps: {arrangement: return, installed: "3x480 m3/h", head_m: 75}
     static_pressure_bar: {normal: 6.8, ref_dz_m: 1.41}

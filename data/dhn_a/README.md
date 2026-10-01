@@ -13,7 +13,8 @@ durch den Auftraggeber; vor einer Weitergabe außerhalb des Projekts erneut klä
 | `generation_profiles_2020_2022_hourly.csv` | Stündliche Gesamterzeugung 2020–2022 [MW], Zeile = Stunde ab 01.01. (2020 fortlaufend inkl. 29.02., endet 30.12.) |
 | `ambient_temperature_hourly.parquet` | Außentemperatur stündlich ab 2019 [°C], naive Ortszeit |
 | `ambient_temperature_daily.csv` | Tagesmittel der Außentemperatur ab 1955 [°C] |
-| `plants.yaml` | Anlagendaten der Erzeuger und Pumpstationen aus den Betreiberplänen; Höhen relativ zur Hauptanlage |
+| `plants.yaml` | Anlagendaten der Erzeuger und Pumpstationen aus den Betreiberplänen; Höhen relativ zur Hauptanlage. Δp-Werte sind laut Plan Erfahrungswerte, Leistungen bei −14 °C gelten für n−1 |
+| `sectors.csv` | 52 Teilgebiete mit versorgender Stammleitung (L1–L4, West W1–W3), Region, Netzvolumen [m³], Kundenzahl und Anschlussleistung [MW], Stand 2022. Summen: Verbund 392,0 MW / 8 875 m³, West 75,7 MW / 1 781 m³. In Teilgebiet L7-O ist die Kundenzahl der Quelle widersprüchlich |
 
 ## Signalnamen
 
@@ -50,7 +51,7 @@ Aufbau `<Objekt>_<Größe>`.
 
 ## Quellen und Lizenz
 
-* **Mess- und Plandaten:** Netzbetreiber, anonymisiert. Verbraucher- und Ortsnamen, Armaturennummern und absolute Höhen sind entfernt.
+* **Mess- und Plandaten:** Netzbetreiber, anonymisiert. Verbraucher-, Gebiets- und Ortsnamen, Armaturennummern und absolute Höhen sind entfernt.
 * **Außentemperatur:** Datenbasis Deutscher Wetterdienst (DWD Climate Data Center, Stundenwerte Lufttemperatur), Stationsangabe entfernt, in Ortszeit umgerechnet. Nutzung nach den DWD-Nutzungsbedingungen (CC BY 4.0, Quellenvermerk „Deutscher Wetterdienst“).
 
 Restrisiko der Anonymisierung: Netzgröße, Anlagentypen und der Verlauf der Temperatur- und Lastreihen können für Insider auf das Netz schließen lassen.

@@ -70,6 +70,14 @@ def lade_anlagen(pfad: Path | None = None) -> dict:
     return yaml.safe_load((pfad or daten_dir() / "plants.yaml").read_text(encoding="utf-8"))
 
 
+def lade_sektoren(pfad: Path | None = None) -> pd.DataFrame:
+    """Teilgebiete mit Netzvolumen [m³], Kundenzahl und Anschlussleistung [MW] (``sectors.csv``, Stand 2022).
+
+    ``section``: versorgende Stammleitung (L1–L4 Verbund, W1–W3 Sekundärnetz West); ``region`` wie in ``consumers.csv``.
+    """
+    return pd.read_csv(pfad or daten_dir() / "sectors.csv").set_index("sub_area")
+
+
 def lade_lastgaenge(pfad: Path | None = None) -> dict[int, pd.Series]:
     """Stündliche Erzeugungslastgänge 2020–2022 [MW], je Jahr ab dem 01.01. fortlaufend (2020 inkl. 29.02.)."""
     df = pd.read_csv(pfad or daten_dir() / LASTGAENGE)

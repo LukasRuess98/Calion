@@ -102,6 +102,16 @@ def spitzenfaktor(p_h: pd.Series, t_tag: pd.Series, t_max: float = 0.0) -> dict[
     return {"n": len(r), "median": float(r.median()), "p90": float(r.quantile(0.9))}
 
 
+def verbundlast_west_eigen(p_ohne_west: float, p_west: float, kessel_west_mw: float, spitzenfaktor: float) -> float:
+    """Verbund-Tagesmittel [MW], wenn das Sekundärnetz West aus seinen Kesseln versorgt wird (Fahrweise Plan A bei −14 °C).
+
+    Bezug aus dem Verbund nur für den Teil der West-Stundenspitze, der die Kesselleistung übersteigt; zurückgerechnet
+    auf ein Tagesmittel, damit es mit dem Spitzenfaktor wieder die Stundenlast ergibt.
+    """
+    bezug_stunde = max(0.0, spitzenfaktor * p_west - kessel_west_mw)
+    return p_ohne_west + bezug_stunde / spitzenfaktor
+
+
 def tagesprofile(p_h: pd.Series, t_tag: pd.Series, t_max: float = -2.0) -> np.ndarray:
     """Normierte 24-h-Profile (Stunde / Tagesmittel) aller vollständigen Werktage mit Tagesmittel unter ``t_max``."""
     d = p_h.resample("D").mean()

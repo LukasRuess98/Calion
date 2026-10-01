@@ -21,7 +21,7 @@ Stand: 2026-10-01 · Bezug: `Plan_belastbare_Aussagen.md` (Arbeitspakete 1.4, 1.
 | Leitsystem 2025 | `measurements_2025_hourly.parquet`, 8 759 h × 169 Signale |
 | Lastgänge | `generation_profiles_2020_2022_hourly.csv`, stündliche Fernwärmeerzeugung 2020–2022 |
 | Wetter | DWD Climate Data Center, Referenzstation, Lufttemperatur stündlich 1955 – 09/2026 |
-| Pläne | Plan A, Plan B, Plan C |
+| Pläne | Plan A (Erzeuger, Stand 2023), Plan B, Plan C; Anschlussleistung je Teilgebiet (`sectors.csv`, Stand 2022) |
 
 Die DWD-Zeitstempel werden in Ortszeit umgerechnet: bis 30.11.1996 MEZ, danach UTC.
 
@@ -36,17 +36,22 @@ Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` 
 
 ## 1. Kernergebnis
 
+**Referenzfall** nach Plan A:
+* −14 °C, Ausfall der größten Erzeugungseinheit (n−1);
+* unbegrenzter Bedarf, gemessener Rücklauf 59 °C;
+* das **Sekundärnetz West versorgt sich aus den eigenen Kesseln** (Fahrweise laut Plan A).
+
 | Frage | Ergebnis (indikativ, datenbasiert) |
 |---|---|
-| **F1:** Reicht das Netz bei Auslegungslast (−14 °C)? | Das KWK braucht **≈ 2,8–4,5 bar** Druckdifferenz, je nach Lastmodell. Bei linearer und unbegrenzter Last bestimmt der **Süden** die Anforderung, nicht die Mitte. Gerechnet ist mit gemessenem Rücklauf (120/59 °C), HW1 voll und PS1 wie 2025 maximal. Gegen den Planwert **4,0 bar** reicht das Netz **knapp oder nicht**. Gegen die aus der Pumpenförderhöhe ableitbaren **≈ 5,7 bar** reicht es mit Reserve (Abschnitt 6). |
-| Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt** steht auf seinem Sollwert von ≈ 1,2 bar. (2) Die KWK-Δp ist **nicht frei bis 4,0 bar erhöhbar**. Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrer Grenze (Planwert 7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Sekundärnetz West auf die HW2-Kessel umstellt (−8 MW Bezug). Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
-| **F2:** Wie viel Ausbau ist ohne Maßnahmen möglich? | Bis 4,0 bar: **−5 % bis +25 %**, beim unbegrenzten Bedarf ≈ **0 %**. Bis ≈ 5,7 bar (Pumpe): **+12 % bis +48 %**. |
-| Erzeugungsleistung | Die Verbund-Erzeugung nach Plan A bei −14 °C beträgt **251 MW**, mit KWK im Umleitbetrieb 267 MW. Sie reicht für das Tagesmittel, aber nicht für die **Stundenspitze** des unbegrenzten Bedarfs: An einem Auslegungstag fehlen ≈ 20–40 MW über 6–12 h, das sind **≈ 80–230 MWh** (Median P50/P90). Das ist eine **thermische** Speicheraufgabe. |
-| Status 4,0 bar | Planwert. 2025 in 5 h überschritten (max. 4,16 bar). Die KWK-Pumpen (73,5 m) erlauben ≈ 5,7 bar am Austritt. Woraus 4,0 bar folgen, muss der Betreiber klären, z. B. aus der maximalen Δp der Kundenventile nahe dem KWK. **Von dieser Antwort hängen F1 und F2 am stärksten ab.** |
-| Stärkste Stellhebel | **Ost-Vorlauf auf 120 °C** (heute ≈ 114 °C): weniger Ost-Massenstrom hebt die wirksame KWK-Grenze um ≈ 0,8 bar. **Rücklauf**: −5 K ≈ −0,5 bar, +5 K ≈ +0,8 bar. **HW1** im Süden: ≈ 1 bar je 100 kg/s. **West aus HW2-Kesseln** versorgen. |
+| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Gegen den Erfahrungswert **4,0 bar** reicht das Netz **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. |
+| Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt** steht auf seinem Sollwert von ≈ 1,2 bar. (2) Die KWK-Δp ist **nicht frei erhöhbar**: Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrem Erfahrungswert (7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Westnetz auf die eigenen Kessel umstellt. Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
+| **F2:** Wie viel Ausbau ist ohne Maßnahmen möglich? | Bis 4,0 bar **+5 % bis +13 %**, bis ≈ 5,7 bar **+24 % bis +34 %**. Mit West-Bezug wie 2025: −5 % bis +1 % bzw. +12 % bis +20 %. |
+| Erzeugungsleistung (n−1) | Plan A: 251 MW im Verbund bei Ausfall der größten KWK-Einheit (KWK 50 + 0 + 44 + 33 MW). Im Referenzfall reicht das bei P50. Bei P90 fehlen ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Mit KWK im Umleitbetrieb (267 MW) bleibt praktisch keine Lücke. Nur mit West-Bezug wie 2025 fehlen 80–230 MWh. |
+| Status der Δp-Grenzen | Plan A: Umwälzungen, Δp und Rücklauftemperaturen sind **„derzeitige Erfahrungswerte“**. 4,0 bar (KWK) und 7,5 bar (MVA) sind also **keine Auslegungsgrenzen**; beide wurden 2025 überschritten. Harte Grenzen sind die Pumpen (KWK ≈ 5,7 bar bei 73,5 m), die Abschaltdrücke Ost (VL 19,5–22 bar, RL 4,4–5,0 bar), PN25 und der Mindest-Ruhedruck. |
+| Stärkste Stellhebel | **Westnetz bei Kälte aus eigenen Kesseln:** ≈ −25 MW Verbundlast, entspricht ≈ −0,7…0,9 bar. **Rücklauf:** −5 K ≈ −0,3 bar, +5 K ≈ +0,5 bar. **HW1/PS1** im Süden: ≈ 1 bar je 100 kg/s HW1. **Ost-Vorlauf über der Heizkurve:** nur im heutigen Kältebetrieb, ≈ +0,8 bar wirksame KWK-Grenze. |
 
 Einschränkungen:
-* Alle Aussagen beruhen auf **Ersatzgesetzen** aus dem Betriebsbereich 2025, nicht auf dem Netzmodell. Bei Auslegung wird bis zum 1,1- bis 1,45-fachen Massenstrom extrapoliert.
+* Alle Aussagen beruhen auf **Ersatzgesetzen** aus dem Betriebsbereich 2025, nicht auf dem Netzmodell. Bei Auslegung wird bis zum 1,2- bis 1,3-fachen Massenstrom extrapoliert (bei West-Bezug wie 2025 bis 1,45-fach).
 * Das Süd-Gesetz ist das **heutige Regelverhalten**. Ein anderer Sollwert am Schlechtpunkt verschiebt es.
 * Die Aussagen sind deshalb **Plausibilitätsanker**, die das konsistente Netzmodell (Plan, Phase 2/3) reproduzieren muss.
 
@@ -81,7 +86,7 @@ KWK-Vorlauftemperatur 2025 (Median) gegen DWD-Tagestemperatur:
 * Der Rücklauf ist praktisch konstant bei ≈ 59 °C.
 * Die Auslegungsspreizung am KWK beträgt damit **≈ 61 K** (120/59 °C). Die „107 °C“ in Plan A beziehen sich auf den Arbeitspunkt der Angabe „2350 t/h = 127 MW“ und sind nicht die Fahrweise. Das klärt Review N5.
 * **Rücklauf aus Messdaten:** Bei Ta < −5 °C liegt der KWK-Rücklauf im Median bei **59,1 °C** (P90 59,9 °C). Mit 120 °C Vorlauf ergibt das **60,9 K** bzw. 60,1 K. Diese Werte gehen direkt in Abschnitt 6 ein, statt einer angenommenen Spreizung. Unterhalb +5 °C hängt der Rücklauf kaum von der Außentemperatur ab; die Extrapolation auf −14 °C ist daher unkritisch.
-* Die Ost-Erzeuger fahren 2025 bei Kälte nur **≈ 109–115 °C** Vorlauf, Plan A sieht 125 °C vor. Ihr Massenstrom ist dadurch ≈ 10 % größer als nötig; das ist hydraulisch relevant (Abschnitt 5.2).
+* Die Ost-Erzeuger folgen 2025 der Heizkurve: ≈ 109–115 °C bei −2 … −5 °C. Plan A nennt für −14 °C 125 °C (MVA, GT) bzw. 120 °C (Bio-KWK). Bei Auslegung ist der Ost-Vorlauf also ohnehin hoch. Im heutigen Kältebetrieb wäre ein Ost-Vorlauf über der Heizkurve ein Hebel, weil er den Ost-Massenstrom senkt (Abschnitt 5.2).
 
 ## 4. Auslegungslast
 
@@ -114,11 +119,38 @@ Regression der Tagesmittelleistung auf das Tagesmittel der Außentemperatur, Tag
 * 2025 ist das Verbund-Minus bei −5 … −2 °C **vollständig eine Verlagerung**: Der Bezug West über den WÜ sinkt um 8 MW, die HW2-Kessel liefern 7 MW mehr (Abschnitt 5.4).
 * Das deckt sich mit der Betreiberaussage, dass die Hydraulik an kalten Tagen begrenzt. Der Lastgang unterschätzt dann den Bedarf. **Für die Auslegung gilt deshalb „linear unbegrenzt“**; das quadratische Modell beschreibt nur die heute begrenzte Lieferung.
 
+**Westnetz bei Auslegung.** Plan A nennt für −14 °C (n−1) drei Fahrweisen des Westnetzes:
+* 2 Kessel allein: 40 MW;
+* 2 Kessel + 1 WÜ mit Export in den Verbund: 31 MW West-Last + 9 MW Export;
+* 2 Kessel + 2 WÜ mit Bezug aus dem Verbund: 64 MW, davon bis 24 MW Bezug.
+
+| Reihe | Modell | Steigung [MW/K] | P50 bei −14 °C | P90 bei −14 °C |
+|---|---|---|---|---|
+| 2025 Verbund ohne West-Bezug | linear unbegrenzt | −6,3 | 205 MW | 219 MW |
+| 2025 West (WÜ-Bezug + HW2-Kessel) | linear unbegrenzt | −1,1 | 36 MW | 38 MW |
+
+* Die West-Last erreicht bei −14 °C ≈ 36–38 MW im Tagesmittel und ≈ 41–44 MW in der Stundenspitze. 2025 lag das Maximum bei 30 MW.
+* Die HW2-Kessel (40 MW) decken das fast vollständig; Bezug braucht es nur für ≈ 1–4 MW in der Spitze.
+* 2025 bezog das Westnetz bei Kälte dagegen 10–28 MW aus dem Verbund, linear extrapoliert ≈ 25 MW bei −14 °C. Diese Fahrweise ist in der Reihe „2025 Verbund“ enthalten.
+* **Referenzfall ist deshalb die Plan-A-Fahrweise** (Verbund ohne West-Bezug, Bezug nur über 40 MW): **235–252 MW** Verbund-Stundenlast. Mit West-Bezug wie 2025 sind es 262–280 MW.
+
+**Lastverteilung nach Teilgebieten** (`data/dhn_a/sectors.csv`, Anschlussleistung, Stand 2022):
+
+| Region | City | Süd | Mitte-L3 | Mitte-L2 | Ost-L5 | Mitte-L4 | Ost-L7 | Ost-L6 | L1 | Summe |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Anschluss [MW] | 98,8 | 73,3 | 58,8 | 51,9 | 42,6 | 38,6 | 12,4 | 9,4 | 6,2 | 392 |
+| Anteil | 25 % | 19 % | 15 % | 13 % | 11 % | 10 % | 3 % | 2 % | 2 % | 100 % |
+
+* Ost-L5 enthält den Standort S mit 32,0 MW.
+* Das Netzvolumen beträgt 8 875 m³ im Verbund und 1 781 m³ im Westnetz.
+* Die Tabelle liefert die **Lastverteilungsschlüssel** für das Netzmodell (Plan 2.4) statt freier Auslastungsfaktoren.
+* Der Süden hat 73 MW Anschluss; bei Auslegung (Gleichzeitigkeit ≈ 0,6) entspricht das ≈ 45 MW. Das liegt in der Größe der lokalen Einspeisung HW1 (40 MW). Das erklärt, warum der Süden bei hoher Last nur mit voller HW1 und PS1 zu halten ist und dann die Anforderung bestimmt.
+
 Weitere Befunde:
 * Die Lastgänge passen sehr eng zur lokalen Temperatur: r = −0,94 … −0,96 je Jahr. Der Lastgang 2020 läuft ab dem 01.01. fortlaufend durch, einschließlich 29.02.; das bestätigt die Korrelation.
 * Das Niveau 2025 liegt bei gleicher Temperatur ≈ 6 % über 2020–2022 (Achsenabschnitt 138 gegen 130 MW). Das deutet auf Netzzuwachs hin; Jahresenergie 2025 ≈ 613 GWh, 2020–2022: 571–670 GWh.
 * Das Verhältnis Stundenspitze zu Tagesmittel an Frosttagen liegt bei 1,14 (2025) bzw. 1,17 (2020–2022), P90 1,22–1,28.
-* **Auslegungs-Stundenlast Verbund:** 212–229 MW (quadratisch, heute begrenzt) bis **262–280 MW** (linear unbegrenzt, P50–P90).
+* **Auslegungs-Stundenlast Verbund** im Referenzfall (West aus HW2): **235–252 MW** (linear unbegrenzt, P50–P90); 213–229 MW (quadratisch, heute begrenzt). Mit West-Bezug wie 2025: 262–280 MW.
 
 Die Studie nennt für den Basistag 215 MW Tagesmittel; mit den Daten ergeben sich ≈ 169 MW. Ihre Auslegungsangabe von 216 MW (Mittel) und 269 MW (Spitze) liegt im Band, entsteht in den Szenarien aber nicht: Dort bleibt die Last auf dem Basistag (Review 2.1).
 
@@ -153,9 +185,9 @@ Die Ost-Erzeuger speisen gegen die Druckdifferenz, die das KWK einstellt. Aus 8 
 * Der erste Massenstrom-Term ist der Transportverlust Ost → Verbund. Der zweite ist die Entlastung durch den KWK-Strom bis zum Treffpunkt der Ströme.
 * Stündliche Differenzen bestätigen den Durchgriff: **+0,78 bar MVA-Δp je bar KWK-Δp** (SE 0,01, mit Ost-, KWK- und HW1-Massenstrom als Regressoren). Mit strengerem Ausreißerfilter ergibt sich ≈ 0,96.
 * Folge: **Die wirksame KWK-Grenze ist min(KWK-Grenze; MVA-Grenze − Ost-Verlust).**
-* Auch die MVA-Grenze ist ein Planwert: 7,5 bar laut Plan A. 2025 wurde sie in 552 h überschritten (P99 8,2 bar, max. 9,0 bar). Aus der Nennförderhöhe 90 m folgen ≈ 7,9 bar.
+* Auch die MVA-Grenze ist ein Erfahrungswert: 7,5 bar laut Plan A. 2025 wurde sie in 552 h überschritten (P99 8,2 bar, max. 9,0 bar). Aus der Nennförderhöhe 90 m folgen ≈ 7,9 bar.
 * Im Kältebetrieb 2025 (Ta < −2 °C, GT in Betrieb, 293 h; ṁ_Ost ≈ 381 kg/s, ṁ_KWK ≈ 217 kg/s) ergibt das **≈ 3,6 bar** (MVA 7,5 bar) bzw. **≈ 4,3 bar** (MVA 8,2 bar). Gefahren wurden im Median 2,8 bar.
-* **Hebel Ost-Vorlauf:** Bei 120 °C statt 114 °C sinkt ṁ_Ost bei gleicher Leistung auf ≈ 343 kg/s. Die wirksame KWK-Grenze steigt damit um ≈ 0,8 bar, auf **≈ 4,4–5,1 bar**.
+* **Hebel Ost-Vorlauf (heutiger Betrieb):** Bei 120 °C statt 114 °C sinkt ṁ_Ost bei gleicher Leistung auf ≈ 343 kg/s. Die wirksame KWK-Grenze steigt damit um ≈ 0,8 bar, auf **≈ 4,4–5,1 bar**. Bei Auslegung fährt Ost laut Plan A ohnehin 120–125 °C; dort liegt die Ost-Grenze bei ≥ 5,4 bar (Abschnitt 6).
 * Ebenso wirkt es, Ost-Leistung zum KWK zu verschieben. An den kalten Tagen 17.–19.02.2025 lief die GT nicht: Die MVA-Δp lag nur bei 3,7 bar, KWK (60–63 MW) und HW1 (22 MW) übernahmen.
 
 ### 5.3 Schlechtpunktregelung Süd
@@ -183,7 +215,7 @@ Abweichung vom unbegrenzten Bedarf (Fit ≥ 0 °C) an 6 Werktagen mit Ta < −2 
 
 Die Begrenzung an kalten Tagen ist **keine fehlende KWK-Förderhöhe**, sondern das Zusammenspiel dreier Größen:
 1. **Süd-Schlechtpunkt auf Sollwert:** Er bestimmt die KWK-Δp, zusammen mit HW1 und PS1.
-2. **Ost-Pumpengrenze:** Weil die Ost-Erzeuger ≈ 1:1 an die KWK-Δp gekoppelt sind, kann das KWK nicht frei nachschieben, solange Ost mit niedrigem Vorlauf und vollem Massenstrom einspeist. Die wirksame Grenze liegt bei ≈ 3,6–4,3 bar statt 4,0 bar; welcher Wert gilt, hängt an der MVA-Grenze (7,5 bar Planwert oder mehr).
+2. **Ost-Pumpengrenze:** Weil die Ost-Erzeuger ≈ 1:1 an die KWK-Δp gekoppelt sind, kann das KWK nicht frei nachschieben, solange Ost mit niedrigem Vorlauf und vollem Massenstrom einspeist. Die wirksame Grenze liegt bei ≈ 3,6–4,3 bar statt 4,0 bar; welcher Wert gilt, hängt am MVA-Erfahrungswert (7,5 bar) bzw. der tatsächlichen Pumpengrenze.
 3. **Ausweichen im Betrieb:**
    * HW1 einsetzen,
    * West auf HW2 umstellen,
@@ -203,55 +235,57 @@ Unter ≈ −5 °C reichen diese Maßnahmen nach den Lastgängen 2020–2022 nic
 
 **Süd-Gesetz.** Siehe Abschnitt 5.3. Bei Auslegung wird HW1 voll angesetzt (40 MW, 153 kg/s) und PS1 mit 1,7 bar Gewinn (P99 2025).
 
-**Grenzband KWK-Δp** (die 4,0 bar sind nicht gesichert hart):
+**Grenzband KWK-Δp.** Plan A bezeichnet Δp-Werte ausdrücklich als derzeitige Erfahrungswerte.
 
 | Grenze | Wert | Herkunft |
 |---|---|---|
-| Planwert | 4,0 bar | Plan A, Austritt KWK; Status offen |
+| Erfahrungswert | 4,0 bar | Plan A, Austritt KWK |
 | gemessen 2025 | max. 4,16 bar | 5 h über 4,0 bar, ohne bekannte Störung |
 | Pumpe | ≈ 5,7 bar | 73,5 m Förderhöhe bei 120 °C (6,8 bar) minus 1,1 bar anlageninterne Verluste |
-| Ost-Kopplung | ≈ 3,6–4,3 bar (Kältebetrieb 2025, MVA 7,5–8,2 bar) bzw. ≥ 5,4 bar (Auslegung, Ost 84 MW mit 120 °C, MVA 7,5 bar) | Abschnitt 5.2; die Entlastung durch den KWK-Strom ist konservativ nicht über das P99 2025 hinaus extrapoliert |
+| Ost-Kopplung | Kältebetrieb 2025: ≈ 3,6–4,3 bar (MVA 7,5–8,2 bar). Auslegung: ≥ 5,4 bar (Ost 84 MW mit 120 °C, MVA 7,5 bar) | Abschnitt 5.2; die Entlastung durch den KWK-Strom ist konservativ nicht über das P99 2025 hinaus extrapoliert |
 
 **Auslegungsfall.** Annahmen:
-* T_a −14 °C, Vorlauf 120 °C, **Rücklauf gemessen 59,1 °C (ΔT 60,9 K)**;
+* T_a −14 °C, n−1 nach Plan A;
+* Vorlauf 120 °C, **Rücklauf gemessen 59,1 °C (ΔT 60,9 K)**;
 * Ost 84 MW (Plan A: MVA 40, GT 31, Bio-KWK 13), HW1 40 MW, Stunden-Spitzenfaktor 1,14.
 
-| Lastmodell (Verbund, Stunde) | P | P_KWK | erf. Δp Mitte | erf. Δp Süd | maßgebend | Reserve bis 4,0 bar | Reserve bis 5,7 bar | Extrapolation F |
+| Westnetz | Lastmodell (Verbund, Stunde) | P | P_KWK | erf. Δp Mitte | erf. Δp Süd | maßgebend | Reserve bis 4,0 bar | Reserve bis 5,7 bar |
 |---|---|---|---|---|---|---|---|---|
-| quadratisch P50 | 212 MW | 88 MW | 2,82 bar | 2,47 bar | 2,82 bar | +25 % | +48 % | 1,09 |
-| quadratisch P90 | 229 MW | 105 MW | 3,11 bar | 2,93 bar | 3,11 bar | +16 % | +37 % | 1,18 |
-| linear P50 | 253 MW | 129 MW | 3,55 bar | 3,63 bar | 3,63 bar | +5 % | +24 % | 1,30 |
-| linear P90 | 271 MW | 147 MW | 3,90 bar | 4,19 bar | 4,19 bar | −2 % | +16 % | 1,40 |
-| **linear unbegrenzt P50** | **262 MW** | 138 MW | 3,72 bar | 3,90 bar | **3,90 bar** | **+1 %** | **+20 %** | 1,35 |
-| linear unbegrenzt P90 | 280 MW | 156 MW | 4,09 bar | 4,49 bar | 4,49 bar | −5 % | +12 % | 1,44 |
+| **aus HW2 (Plan A)** | quadratisch P50 / P90 | 213 / 229 MW | 89 / 105 MW | 2,84 / 3,10 bar | 2,51 / 2,92 bar | 2,84 / 3,10 bar | +24 % / +16 % | +47 % / +37 % |
+| **aus HW2 (Plan A)** | linear P50 / P90 | 232 / 250 MW | 108 / 126 MW | 3,16 / 3,48 bar | 3,02 / 3,52 bar | 3,16 / 3,52 bar | +14 % / +6 % | +35 % / +26 % |
+| **aus HW2 (Plan A)** | **linear unbegrenzt P50 / P90** | **235 / 252 MW** | 111 / 128 MW | 3,21 / 3,53 bar | 3,09 / 3,60 bar | **3,21 / 3,60 bar** | **+13 % / +5 %** | **+34 % / +24 %** |
+| Bezug wie 2025 | linear P50 / P90 | 253 / 271 MW | 129 / 147 MW | 3,55 / 3,90 bar | 3,63 / 4,19 bar | 3,63 / 4,19 bar | +5 % / −2 % | +24 % / +16 % |
+| Bezug wie 2025 | linear unbegrenzt P50 / P90 | 262 / 280 MW | 138 / 156 MW | 3,72 / 4,09 bar | 3,90 / 4,49 bar | 3,90 / 4,49 bar | +1 % / −5 % | +20 % / +12 % |
 
 Erläuterungen:
 * „Reserve“ ist der Lastzuwachs, bis die maßgebende Anforderung (Mitte oder Süd) die Grenze erreicht.
-* „Extrapolation F“ ist der Massenstrom relativ zum P99 der Messungen, auf denen das Süd-Gesetz beruht.
+* Das Süd-Gesetz wird bis zum 1,2- bis 1,3-fachen Massenstrom des Messbereichs extrapoliert, bei West-Bezug bis 1,45-fach.
 
-**Rücklauf-Sensitivität** (linear unbegrenzt P50, 262 MW):
+**Rücklauf-Sensitivität** (Referenzfall linear unbegrenzt P50, 235 MW):
 
 | Rücklauf | ΔT | erf. KWK-Δp | Reserve bis 4,0 bar | Reserve bis 5,7 bar |
 |---|---|---|---|---|
-| gemessen, Median Ta < −5 °C: 59,1 °C | 60,9 K | 3,90 bar | +1 % | +20 % |
-| gemessen, P90: 59,9 °C | 60,1 K | 4,01 bar | 0 % | +18 % |
-| Median + 5 K | 55,9 K | 4,68 bar | −7 % | +10 % |
-| Median − 5 K | 65,9 K | 3,39 bar | +8 % | +29 % |
+| gemessen, Median Ta < −5 °C: 59,1 °C | 60,9 K | 3,21 bar | +13 % | +34 % |
+| gemessen, P90: 59,9 °C | 60,1 K | 3,26 bar | +11 % | +32 % |
+| Median + 5 K | 55,9 K | 3,71 bar | +4 % | +23 % |
+| Median − 5 K | 65,9 K | 2,90 bar | +21 % | +44 % |
 
-**Erzeugungsleistung am Auslegungstag.** Die Verbund-Erzeugung nach Plan A bei −14 °C beträgt 251 MW (KWK 127, MVA 40, GT 31, Bio-KWK 13, HW1 40). Mit KWK im Umleitbetrieb (143 MW) sind es 267 MW. Gerechnet sind die 22 Werktagsprofile unter −2 °C aus den Lastgängen 2020–2022, skaliert auf das Auslegungs-Tagesmittel:
+**Erzeugungsleistung am Auslegungstag (n−1).** Grundlage:
+* Plan A gilt für den Ausfall der größten Erzeugungseinheit; das KWK ist mit 50 + 0 + 44 + 33 = 127 MW angesetzt.
+* Die Verbund-Erzeugung beträgt damit 251 MW (KWK 127, MVA 40, GT 31, Bio-KWK 13, HW1 40), mit KWK im Umleitbetrieb (143 MW) 267 MW.
+* Gerechnet sind die 22 Werktagsprofile unter −2 °C aus den Lastgängen 2020–2022, skaliert auf das Auslegungs-Tagesmittel des Verbunds.
 
-| Tagesmittel (Verbund) | Erzeugung | fehlende Leistung, Median / P90 | Stunden | fehlende Energie, Median / P90 |
-|---|---|---|---|---|
-| linear P50, 223 MW | 251 MW | 12 / 20 MW | 4 | 33 / 62 MWh |
-| linear P90, 238 MW | 251 MW | 30 / 39 MW | 8 | 135 / 181 MWh |
-| **linear unbegrenzt P50, 230 MW** | 251 MW | **21 / 29 MW** | 6 | **80 / 113 MWh** |
-| linear unbegrenzt P90, 246 MW | 251 MW | 40 / 49 MW | 12 | 233 / 278 MWh |
-| linear unbegrenzt P50, 230 MW | 267 MW | 5 / 13 MW | 2 | 10 / 30 MWh |
-| linear unbegrenzt P90, 246 MW | 267 MW | 24 / 33 MW | 6 | 93 / 130 MWh |
+| Westnetz | Tagesmittel Verbund | Erzeugung | fehlende Leistung, Median / P90 | Stunden | fehlende Energie, Median / P90 |
+|---|---|---|---|---|---|
+| **aus HW2 (Plan A)** | unbegrenzt P50, 206 MW | 251 MW | 0 / 0 MW | 0 | 0 / 0 MWh |
+| **aus HW2 (Plan A)** | unbegrenzt P90, 222 MW | 251 MW | 11 / 19 MW | 4 | **29 / 57 MWh** |
+| aus HW2 (Plan A) | unbegrenzt P90, 222 MW | 267 MW | 0 / 3 MW | 0 | 0 / 3 MWh |
+| Bezug wie 2025 | unbegrenzt P50, 230 MW | 251 MW | 21 / 29 MW | 6 | 80 / 113 MWh |
+| Bezug wie 2025 | unbegrenzt P90, 246 MW | 251 MW | 40 / 49 MW | 12 | 233 / 278 MWh |
 
-* Beim quadratischen Modell fehlt keine Leistung.
-* Ein Teil der Lücke lässt sich mit voller HW2-Leistung im Westen und dem HW2-Export (9 MW) schließen.
-* Zu klären ist, ob die Plan-A-Leistungen bereits den n−1-Fall abbilden. 2025 lieferte Ost bei Kälte ≈ 92 MW statt 84 MW.
+* Im Referenzfall ist die thermische Lücke klein und tritt nur bei P90 und n−1 auf.
+* Mit allen Einheiten verfügbar (n−0) ist die KWK-Leistung um die ausgefallene Einheit höher (mindestens 50 MW). Dann gibt es keine Lücke.
+* Bei P50 hat der Plan-A-Fall stündlich noch ≈ 16 MW Reserve; der HW2-Export (bis 9 MW) ist darin nicht enthalten.
 
 Zum Vergleich gemessen 2025:
 * KWK-Δp in Hochlast: P95 3,5 bar, Maximum 4,16 bar.
@@ -311,23 +345,28 @@ Aussagekräftig ist der Tracer nur bei R² ≳ 0,3. Mit 15-min-Werten wird er de
 ## 10. Folgerungen für Studie und Plan
 
 1. **Auslegungsfall neu definieren:**
-   * −14 °C Tagesmittel mit dem **unbegrenzten** Bedarf: Verbund 262–280 MW Stundenlast; das quadratische Modell nur als „heutige begrenzte Lieferung“;
+   * −14 °C, n−1 nach Plan A;
+   * **unbegrenzter** Bedarf; das quadratische Modell nur als „heutige begrenzte Lieferung“;
+   * Westnetz aus den eigenen Kesseln (Plan-A-Fahrweise): Verbund **235–252 MW** Stundenlast. West-Bezug wie 2025 (262–280 MW) läuft als Sensitivität;
    * Spreizung aus Messdaten 120/59 °C (Abschnitt 3);
    * zusätzlich eine Auslegungswoche mit 5-Tage-Mittel ≈ −11 °C.
-2. **Hauptkennzahl** ist die erforderliche KWK-Δp, und zwar das Maximum aus Mitte- und Süd-Anforderung. Sie wird gegen ein **Grenzband** geprüft: 4,0 bar Planwert, ≈ 5,7 bar Pumpe und die **Ost-Kopplung**, also die MVA-Δp unter ihrer Grenze (7,5 bar Planwert, 2025 bis 8,2 bar). Ein Δp-Defizit bei festgehaltenen Drücken ist keine geeignete Kennzahl. Das Netzmodell (Plan, Phase 2) muss die Ost-Kopplung als Validierungsziel reproduzieren.
-3. **Entscheidende Betreiberangaben:**
-   * Woraus folgen die 4,0 bar am KWK-Austritt und die 7,5 bar an der MVA: Kundenventile, Druckstufe, Erfahrungswert? **Pumpenkennlinien** von KWK und MVA anfordern; beide Grenzen wurden 2025 überschritten.
-   * Wo liegt die Schlechtpunktregelung, mit welchem Sollwert? Vermutet: V01, 1,2 bar. Welche Mindest-Δp brauchen V01 und V06 tatsächlich?
-   * Warum fahren MVA und GT mit ≈ 114 °C statt 125 °C (Plan A), und lässt sich das anheben?
-   * Kann das Sekundärnetz West bei Auslegung vollständig aus HW2 versorgt werden?
-   * Gab es 2021/2022 an Tagen unter −5 °C Unterversorgung bei Kunden?
-   * Bilden die Plan-A-Leistungen den n−1-Fall ab?
-4. **Speicher – zwei getrennte Nutzen:**
+2. **Hauptkennzahl** ist die erforderliche KWK-Δp, und zwar das Maximum aus Mitte- und Süd-Anforderung. Sie wird gegen ein **Grenzband** geprüft:
+   * 4,0 bar Erfahrungswert, ≈ 5,7 bar Pumpe;
+   * die **Ost-Kopplung**, also die MVA-Δp unter ihrem Erfahrungswert 7,5 bar bzw. ihrer Pumpengrenze.
+
+   Ein Δp-Defizit bei festgehaltenen Drücken ist keine geeignete Kennzahl. Das Netzmodell (Plan, Phase 2) muss die Ost-Kopplung als Validierungsziel reproduzieren und die Lastverteilung aus `sectors.csv` übernehmen.
+3. **Betreiberangaben**, geordnet nach Einfluss:
+   * **Wird das Westnetz bei Auslegung wie in Plan A aus den eigenen Kesseln versorgt?** Das ist der größte Einzeleinfluss: ≈ 0,7–0,9 bar KWK-Δp und die thermische Lücke von 0–60 MWh gegen 80–230 MWh.
+   * Welche Grenze steht hinter dem Erfahrungswert 4,0 bar (Pumpenkennlinie, maximale Δp der Kundenventile nahe dem KWK)? Das wird erst für Ausbau über +5…13 % entscheidend.
+   * Wo liegt die Schlechtpunktregelung, mit welchem Sollwert? Vermutet: V01, 1,2 bar. Welche Mindest-Δp brauchen V01 und V06 tatsächlich? Etwa ±0,2 bar entsprechen ≈ 3–4 Prozentpunkten Reserve.
+   * Kann Ost im heutigen Kältebetrieb über der Heizkurve fahren? Das ist ein Betriebshebel, für die Auslegung nicht relevant: Bei −14 °C fährt Ost laut Plan A ohnehin 120–125 °C.
+   * *Geklärt:* Plan A gilt für n−1, und die Δp-Werte sind Erfahrungswerte (Plan A). Die Lastabflachung bei Kälte ist hydraulisch bedingt (Auftraggeber).
+4. **Speicher:**
    * **Hydraulisch:** Entlastung ≈ 0,1–0,3 bar KWK-Δp, also ≈ 2–6 Prozentpunkte Ausbaureserve, wenn der Hebel am V22 ähnlich wirkt wie im Süden. Am Standort S (Ost-L5, 75 % Ost-Wasser) wirkt der Speicher zusätzlich auf die **Ost-Kopplung**: Eine Entladung dort kann den Ost-Transport entlasten oder verdrängen. Das ist im Netzmodell und per Feldtest zu prüfen (Plan 3.3).
-   * **Thermisch:** Am Auslegungstag fehlen ≈ 20–40 MW über 6–12 h, also **≈ 80–230 MWh** (Abschnitt 6). Diese Spitzendeckung ist voraussichtlich der **größere Nutzen**. Ein 40-MW-Speicher passt in der Leistung dazu.
+   * **Thermisch:** Im Referenzfall nur bei P90 und n−1 nötig, ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Bei West-Bezug wie 2025 wären es 80–230 MWh. Die Spitzendeckung ist damit eine **n−1-Reserve**, nicht der Hauptnutzen.
 5. **Alternativen mit gleicher oder höherer Wirkung,** im Maßnahmenvergleich zu rechnen:
-   * **Ost-Vorlauf 120 °C:** wirksame KWK-Grenze ≈ +0,8 bar, ohne Investition;
-   * **Rücklauf −5 K:** ≈ −0,5 bar erforderliche Δp;
+   * **West bei Kälte aus eigenen Kesseln:** ≈ −0,7…0,9 bar; nur Fahrweise, keine Investition;
+   * **Rücklauf −5 K:** ≈ −0,3 bar;
    * **HW1 und PS1 im Süden:** ≈ 1 bar je 100 kg/s HW1;
-   * **West aus HW2-Kesseln;**
+   * **Ost-Vorlauf über der Heizkurve** im heutigen Betrieb: ≈ +0,8 bar wirksame KWK-Grenze;
    * Druckerhöhungsstation im Süden.

@@ -98,7 +98,7 @@ Damit lässt sich der **Spielraum der Druckanhebung** (Antworten 3, 18, 23) scho
 
 Das ist entscheidend, weil die **Wirksamkeit** der Druckanhebung im Modell per Konstruktion feststeht: Aus demselben Grund wie in 2.1 erhöht „Erzeugerdruck +x bar“ den Kunden-Δp an **jedem** Knoten um genau x bar. Das entspricht einer Absenkung von Δp_min um x. Die Rangfolge „Druckanhebung schlägt jede bauliche Maßnahme“ (Antwort 23, Maßnahme M1) ist daher kein Rechenergebnis. Die eigentliche Frage ist allein die **Machbarkeit**: Pumpenreserve, die Δp-Grenze 4,0 bar am KWK, Abschaltdrücke und PN. Genau diese prüft die Studie nicht.
 
-**Empfehlung:** Planwerte als Erzeugerlimits verwenden (2025-P99,9 höchstens als Sensitivität). Die Druckanhebung gegen 4,0 bar (KWK) und 7,5 bar (Ost) prüfen.
+**Empfehlung:** Planwerte als Erzeugerlimits verwenden (2025-P99,9 höchstens als Sensitivität). Die Druckanhebung gegen 4,0 bar (KWK) und 7,5 bar (Ost) prüfen. Laut Plan A sind diese Δp-Werte Erfahrungswerte; sie gehören deshalb als untere Grenze eines Bands neben die Pumpengrenzen und Abschaltdrücke (`Datenanalyse_Auslegung.md`, Abschnitt 6).
 
 ### 2.3 Druckrandbedingungen: zwei Druckhalter, keine Massenbilanz je Erzeuger (M-06/M-07)
 
@@ -445,12 +445,13 @@ Mit dem Fluss L2 + L4 als Lastgröße liegt +20 % bei ≈ 3,9 bar. Einschränkun
 **Korrektur (nach Auswertung von Wetterdaten, Lastgängen und Rücklaufmessung):** Die Werte oben beziehen sich auf die **Last 2025**, ein mildes Jahr mit einem kältesten Tag von −5,6 °C.
 
 Bei **Auslegungslast** gilt:
-* Annahmen: −14 °C, unbegrenzter Bedarf aus den Lastgängen 2020–2022 und 2025, gemessener Rücklauf 59 °C.
-* Das KWK braucht **≈ 2,8–4,5 bar**. Bei hoher Last ist der **Süden** maßgebend, nicht die City.
-* Ausbaureserve bis 4,0 bar: **−5…+25 %**; bis zur Pumpengrenze ≈ 5,7 bar: +12…48 %.
-* Die KWK-Δp ist über die Kopplung an die Ost-Erzeuger (MVA an ihrer Pumpengrenze) heute nur bis ≈ 3,6–4,3 bar nutzbar.
+* Annahmen: −14 °C, n−1 nach Plan A, unbegrenzter Bedarf aus den Lastgängen 2020–2022 und 2025, gemessener Rücklauf 59 °C, Westnetz aus eigenen Kesseln (Plan A).
+* Das KWK braucht **≈ 3,2–3,6 bar**. Bei P90 ist der **Süden** maßgebend, nicht die City.
+* Ausbaureserve bis 4,0 bar (Erfahrungswert laut Plan A): **+5…13 %**; bis zur Pumpengrenze ≈ 5,7 bar: +24…34 %.
+* Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, sind es 3,9–4,5 bar.
+* Die KWK-Δp ist über die Kopplung an die Ost-Erzeuger (MVA an ihrem Δp-Erfahrungswert) heute nur bis ≈ 3,6–4,3 bar nutzbar.
 
-Der Bestand ist bei Last 2025 nicht kritisch, bei Auslegungslast **knapp bis nicht ausreichend**. Siehe `Datenanalyse_Auslegung.md`, Abschnitte 1, 5 und 6.
+Der Bestand ist bei Last 2025 nicht kritisch, bei Auslegungslast **knapp ausreichend**. Siehe `Datenanalyse_Auslegung.md`, Abschnitte 1, 5 und 6.
 
 **N8 – PS1 ist aktiv, nicht nur Bypass.** Die PS1 läuft in 82 % der Hochlaststunden mit ≈ 0,6 bar Gewinn (P95 1,3 bar). Installiert sind 2×429 m³/h bei 40 m (≈ 3,7 bar). Das ist eine vorhandene Reserve für den Süden; je bar PS1-Gewinn steigt der Δp an V06 um +0,3 bar.
 
@@ -463,8 +464,8 @@ Der Bestand ist bei Last 2025 nicht kritisch, bei Auslegungslast **knapp bis nic
 
 | Aussage der Studie | Stand nach Datenprüfung |
 |---|---|
-| „Bestand kritisch“ | **Bei Last 2025 widerlegt**: alle Mitte-Stationen ≥ 1,1 bar (P1), ≈ 1,3 bar Reserve am KWK. **Bei Auslegungslast knapp bis nicht ausreichend**: erforderliche KWK-Δp ≈ 2,8–4,5 bar (Süden maßgebend) gegen 4,0 bar Plan bzw. ≈ 5,7 bar Pumpe. Die Begründung der Studie (S-05) ist trotzdem falsch. Der Süd-Schlechtpunkt (V01/V06) wird auf ≈ 1,2 bar geregelt, gehalten über PS1 und HW1 |
-| „Ausbau nur +5…10 %“ | **Größenordnung plausibel, Begründung falsch**: Bei Auslegungslast reicht die Reserve bis 4,0 bar am KWK für −5…+25 % (beim unbegrenzten Bedarf ≈ 0 %), bis ≈ 5,7 bar für +12…48 %. Begrenzend sind die KWK-Δp, die Kopplung an die ausgelasteten Ost-Erzeuger und die Erzeugungsleistung, nicht S-05. Genauer erst mit konsistentem Modell und geklärten Grenzen 4,0/7,5 bar |
+| „Bestand kritisch“ | **Bei Last 2025 widerlegt**: alle Mitte-Stationen ≥ 1,1 bar (P1), ≈ 1,3 bar Reserve am KWK. **Bei Auslegungslast knapp ausreichend**: erforderliche KWK-Δp ≈ 3,2–3,6 bar mit Westnetz aus eigenen Kesseln (3,9–4,5 bar bei West-Bezug), gegen 4,0 bar Erfahrungswert bzw. ≈ 5,7 bar Pumpe. Die Begründung der Studie (S-05) ist trotzdem falsch. Der Süd-Schlechtpunkt (V01/V06) wird auf ≈ 1,2 bar geregelt, gehalten über PS1 und HW1 |
+| „Ausbau nur +5…10 %“ | **Größenordnung plausibel, Begründung falsch**: Bei Auslegungslast reicht die Reserve bis 4,0 bar am KWK für +5…13 %, bis ≈ 5,7 bar für +24…34 % (Westnetz aus eigenen Kesseln). Begrenzend sind die KWK-Δp, die Kopplung an die ausgelasteten Ost-Erzeuger und die Erzeugungsleistung, nicht S-05. Genauer erst mit konsistentem Modell; 4,0/7,5 bar sind laut Plan A Erfahrungswerte |
 | „Speicherwirkung klein und lokal“ | **durch gemessene Hebel gestützt** (N4) |
 | „Standort entscheidend“ | **gestützt**: Für den kritischen Süden wirken lokale Einspeisung oder PS1 um ein Vielfaches stärker als der V22 |
 | „Druckanhebung ist der Haupthebel“ | qualitativ ja (KWK-Reserve ≈ 0,8 bar bis 4,0 bar). Sie wirkt aber nur zu 0,7–0,84 durch. Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und die MVA liegt bei Kälte an ihrer Pumpengrenze. Nutzbar sind deshalb heute nur ≈ 3,6–4,3 bar; mit 120 °C Ost-Vorlauf ≈ 0,8 bar mehr |
