@@ -200,3 +200,29 @@ def test_sektoren_summen():
     assert west.connected_MW.sum() == pytest.approx(75.8, abs=0.15)
     regionen_kunden = {r.split(" (")[0] for r in daten.lade_verbraucher().region}
     assert regionen_kunden <= set(s.region)                                                  # gleiche Regionsnamen
+
+
+def test_regelpunkt_signatur_erkennt_geregelten_punkt():
+    rng = np.random.default_rng(7)
+    n = 3000
+    idx = pd.date_range("2025-01-01", periods=n, freq="h")
+    last = pd.Series(10 + 3 * np.sin(np.arange(n) / 30) + rng.normal(0, 0.3, n), index=idx)
+    stoer = pd.Series(np.cumsum(rng.normal(0, 0.02, n)), index=idx)          # langsame Netzstörung
+    regel = 1.2 + rng.normal(0, 0.02, n)                                        # eng geregelt
+    quelle = pd.Series(1.2 + 0.1 * last.to_numpy() + stoer.to_numpy(), index=idx)  # Quelle wird nachgeführt
+    frei = 0.9 * quelle - 0.08 * last + 0.6 + rng.normal(0, 0.02, n)            # folgt der Quelle
+    dp = pd.DataFrame({"R": regel, "F": frei}, index=idx)
+    s = hydraulik.regelpunkt_signatur(dp, quelle, last)
+    assert abs(s.loc["R", "Durchgriff"]) < 0.1 and s.loc["F", "Durchgriff"] > 0.7
+    assert s.loc["R", "Std [bar]"] < s.loc["F", "Std [bar]"] and s.loc["R", "Anteil Minimum"] > 0.5
+
+
+def test_netz_zugehoerigkeit_und_entlastung():
+    rng = np.random.default_rng(8)
+    n = 2000
+    idx = pd.date_range("2025-01-01", periods=n, freq="h")
+    a, b = pd.Series(np.cumsum(rng.normal(0, 0.1, n)), index=idx), pd.Series(np.cumsum(rng.normal(0, 0.1, n)), index=idx)
+    st = {"X": a + rng.normal(0, 0.02, n), "Y": b + rng.normal(0, 0.02, n)}
+    z = hydraulik.netz_zugehoerigkeit(st, {"KWK": a, "West": b})
+    assert z.loc["X", "Netz"] == "KWK" and z.loc["Y", "Netz"] == "West"
+    assert hydraulik.entlastung_kwk(0.5, 0.5, 200.0) == pytest.approx(2.0)

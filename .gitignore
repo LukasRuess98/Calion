@@ -56,6 +56,8 @@ grbnodes3/
 *.xlsx
 *.png
 *.pdf
+# Abbildungen der Speicherstudie (anonymisiert, im Bericht verlinkt)
+!docs/dhn_storage_study/abbildungen/*.png
 
 # IDE / editor settings
 .vscode/

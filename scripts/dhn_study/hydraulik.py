@@ -2,7 +2,9 @@
 
 Befund 2025 (siehe ``docs/dhn_storage_study/Datenanalyse_Auslegung.md``, Abschnitte 5 und 6):
 
-* Der Süd-Schlechtpunkt wird auf ≈ 1,2 bar geregelt. Die KWK-Δp folgt dieser Regelung (``fit_regelgesetz_sued``).
+* Die KWK-Δp wird auf den Süd-Schlechtpunkt V06 (≈ 1,2 bar) geregelt; das Westnetz auf V01/V13 (≈ 1,2–1,3 bar).
+  Regelpunkte und Netzzugehörigkeit: ``regelpunkt_signatur``, ``netz_zugehoerigkeit``. Das empirische Regelgesetz der
+  KWK-Δp liefert ``fit_regelgesetz_sued``.
 * Die Ost-Erzeuger speisen gegen die KWK-Δp: Δp_MVA − Δp_KWK = c + d·(ṁ_Ost/100)² − f·(ṁ_KWK/100)²
   (``fit_ost_kopplung``). Jede zusätzliche bar KWK-Δp hebt die MVA-Δp um ≈ 1 bar; an deren Pumpengrenze (7,5 bar)
   ist die KWK-Δp deshalb nicht frei erhöhbar.
@@ -143,3 +145,86 @@ def aktive_grenzen(x: pd.DataFrame, ta: pd.Series, klassen=(-15, -2, 2, 8, 30),
     })
     out.index = out.index.astype(str)
     return out
+
+
+def netz_zugehoerigkeit(p_stationen: dict[str, pd.Series], p_quellen: dict[str, pd.Series],
+                        maske: pd.Series | None = None) -> pd.DataFrame:
+    """Korrelation der stündlichen Vorlaufdruck-Änderungen jeder Station mit den Druckquellen (z. B. KWK, Heizwerk West).
+
+    Hydraulisch getrennte Netze (Wärmeübertrager) teilen keine Druckschwankungen; die Station gehört zum Netz der Quelle
+    mit der höchsten Korrelation (Spalte ``Netz``).
+    """
+    dq = {q: s.diff() for q, s in p_quellen.items()}
+    rows = []
+    for st, p in p_stationen.items():
+        d = p.diff()
+        if maske is not None:
+            d = d[maske.reindex(d.index).fillna(False).to_numpy(bool)]
+        r = {q: float(d.corr(s.reindex(d.index))) for q, s in dq.items()}
+        rows.append({"Station": st, **r, "Netz": max(r, key=lambda k: -np.inf if np.isnan(r[k]) else r[k])})
+    return pd.DataFrame(rows).set_index("Station")
+
+
+def regelpunkt_signatur(dp: pd.DataFrame, dp_quelle: pd.Series, last: pd.Series, maske: pd.Series | None = None,
+                        max_sprung: float = 1.0) -> pd.DataFrame:
+    """Kennzeichen eines Regelpunkts der Schlechtpunktregelung je Station (Δp in bar, Quelle z. B. KWK-Δp).
+
+    * ``Durchgriff``: Änderung des Stations-Δp je bar Quellen-Δp (stündliche Differenzen, mit Laständerung). Ein eng
+      geregelter Punkt hat ≈ 0, weil die Quelle genau so nachgeführt wird, dass er konstant bleibt.
+    * ``Rückkopplung``: Änderung der Quellen-Δp in der Folgestunde je bar unerwartet niedrigem Stations-Δp (Residuum nach
+      Quellen-Δp und Last), mit t-Wert. Stark negativ: Die Regelung reagiert auf diese Station. ``t gemeinsam`` stammt aus
+      einem Modell mit allen Stationen und trennt den Regelpunkt von Stationen, die nur mit ihm korrelieren.
+    * ``Anteil Minimum``: Anteil der Stunden, in denen die Station das Netz-Minimum stellt.
+    """
+    sel = maske.reindex(dp.index).fillna(False).to_numpy(bool) if maske is not None else np.ones(len(dp), bool)
+    q, P = dp_quelle.reindex(dp.index), last.reindex(dp.index)
+    dQ, dP = q.diff(), P.diff()
+    mins = dp[sel].idxmin(axis=1).value_counts(normalize=True)
+    res, rows = {}, []
+    for st in dp.columns:
+        z = pd.concat([dp[st].diff().rename("y"), dQ.rename("q"), dP.rename("P")], axis=1)[sel].dropna()
+        z = z[z.y.abs() < max_sprung]
+        dg = np.linalg.lstsq(np.c_[np.ones(len(z)), z.q, z.P], z.y, rcond=None)[0][1] if len(z) > 50 else np.nan
+        lv = pd.concat([dp[st].rename("y"), q.rename("q"), P.rename("P")], axis=1)[sel].dropna()
+        A = np.c_[np.ones(len(lv)), lv.q, lv.P, lv.P**2]
+        res[st] = dp[st] - pd.Series(A @ np.linalg.lstsq(A, lv.y, rcond=None)[0], index=lv.index).reindex(dp.index)
+        x = dp[st][sel].dropna()
+        rows.append({"Station": st, "Median [bar]": float(x.median()), "P5 [bar]": float(x.quantile(0.05)),
+                     "Std [bar]": float(x.std()), "Anteil Minimum": float(mins.get(st, 0.0)), "Durchgriff": float(dg)})
+    out = pd.DataFrame(rows).set_index("Station")
+    basis = pd.DataFrame({"k1": q.shift(1), "P1": P.shift(1), "dP": dP})
+    R = pd.DataFrame(res).shift(1)
+
+    def _fit(cols):
+        z = pd.concat([dQ.rename("y"), R[cols], basis], axis=1)[sel].dropna()
+        z = z[z.y.abs() < max_sprung]
+        A = np.c_[np.ones(len(z)), z[cols + list(basis.columns)]]
+        c = np.linalg.lstsq(A, z.y, rcond=None)[0]
+        e = z.y - A @ c
+        se = np.sqrt(np.diag(np.linalg.inv(A.T @ A)) * e.var())
+        return c[1:1 + len(cols)], se[1:1 + len(cols)]
+
+    for st in dp.columns:
+        c, se = _fit([st])
+        out.loc[st, "Rückkopplung"], out.loc[st, "t"] = c[0], c[0] / se[0]
+    c, se = _fit(list(dp.columns))
+    out["t gemeinsam"] = c / se
+    return out
+
+
+def entlastung_kwk(hebel_regelpunkt: float, durchgriff_kwk: float, m_kg_s: float) -> float:
+    """KWK-Δp-Entlastung [bar] durch eine zusätzliche Einspeisung ṁ [kg/s], wenn die KWK auf einen Regelpunkt regelt.
+
+    ``hebel_regelpunkt``: Änderung des Regelpunkt-Δp je 100 kg/s Einspeisung (Netzhebel); ``durchgriff_kwk``: Änderung des
+    Regelpunkt-Δp je bar KWK-Δp. Die Regelung senkt die KWK-Δp so weit, bis der Regelpunkt wieder auf Sollwert liegt.
+    """
+    return hebel_regelpunkt * m_kg_s / 100 / durchgriff_kwk
+
+
+def fit_druck_standort(p_station: pd.Series, p_ruhe: pd.Series, dp_kwk: pd.Series) -> dict:
+    """Vorlaufdruck an einem Standort: p = c + a·p_Ruhe(KWK-Rücklauf) + b·Δp_KWK (Grundlage des Speicher-Auslegungsdrucks)."""
+    x = pd.concat([p_station, p_ruhe, dp_kwk], axis=1, keys=["p", "r", "d"]).dropna()
+    c, r2, _ = _lstsq(x.p.to_numpy(), np.c_[np.ones(len(x)), x.r, x.d])
+    e = x.p.to_numpy() - np.c_[np.ones(len(x)), x.r, x.d] @ c
+    return {"c": float(c[0]), "a": float(c[1]), "b": float(c[2]), "r2": r2, "residuum_p99": float(np.quantile(np.abs(e), 0.99)),
+            "max_2025": float(x.p.max())}

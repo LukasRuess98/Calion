@@ -14,6 +14,7 @@ from . import anker, auslegung, daten, hydraulik, wetter
 T_AUSL = -14.0          # Auslegungs-Tagesmittel (≈ 10-Jahres-Kältetag der Referenzstation, siehe Kältewellen)
 DP_GRENZE = 4.0         # Plan A: max. Differenzdruck Austritt Hauptanlage (Status offen, siehe Grenzband)
 T_VL_AUSL = 120.0       # Vorlauf bei Auslegung (Heizkurve 110 − Ta, begrenzt auf 120 °C)
+SPEICHER_MW = 40.0      # Entladeleistung des Speichers am Standort S (Studie)
 
 
 def main() -> dict:
@@ -75,6 +76,24 @@ def main() -> dict:
     dp_ost = pd.concat([m.waste_incineration_p_supply - m.waste_incineration_p_return, m.gas_turbine_dp.where(gt_an),
                         m.biomass_CHP_dp], axis=1).max(axis=1)
     ta = ta_h.reindex(m.index)
+    # Regelpunkte der Schlechtpunktregelung: Netzzugehörigkeit und Regelsignatur (Heizperiode, Ta < 8 °C)
+    vb = daten.lade_verbraucher()
+    erg["netz"] = hydraulik.netz_zugehoerigkeit({st: m[f"{st}_p_supply"] for st in vb.index if f"{st}_p_supply" in m},
+                                                {"KWK": m.gas_CHP_p_supply, "Heizwerk West": m.boiler_plant_2_secondary_p_supply},
+                                                maske=ta < 8)
+    erg["netz"]["Region"] = vb.region.reindex(erg["netz"].index)
+    erg["netz"].to_csv(out_dir / "netzzugehoerigkeit.csv")
+    st_west = [st for st in kd.columns if vb.region.get(st, "") == "Sekundärnetz West"]
+    st_verbund = [st for st in kd.columns if st not in st_west and st != "HX_West"]
+    dp_west = m.boiler_plant_2_secondary_p_supply - m.boiler_plant_2_secondary_p_return
+    erg["regelpunkte_verbund"] = hydraulik.regelpunkt_signatur(kd[st_verbund], dp_chp, e["verbund"] / 10, maske=ta < 8)
+    erg["regelpunkte_west"] = hydraulik.regelpunkt_signatur(kd[st_west], dp_west, (e["hx_west"] + e["boilers_west"]) / 10, maske=ta < 8)
+    for k in ("regelpunkte_verbund", "regelpunkte_west"):
+        erg[k]["Region"] = vb.region.reindex(erg[k].index)
+        erg[k].to_csv(out_dir / f"{k}.csv")
+    erg["sollwert_monat"] = pd.DataFrame({st: kd[st].groupby(m.index.month).median() for st in
+                                          daten.SUED_SCHLECHTPUNKTE + daten.WEST_SCHLECHTPUNKTE}).assign(
+        **{"KWK-Δp": dp_chp.groupby(m.index.month).median(), "HW2-West-Δp": dp_west.groupby(m.index.month).median()})
     erg["grenzen"] = hydraulik.aktive_grenzen(pd.DataFrame({"dp_ost": dp_ost, "dp_kwk": dp_chp, "dp_sued": sued_min,
                                                             "dp_mitte": mitte_min, "gt_an": gt_an}), ta)
     erg["grenzen"].to_csv(out_dir / "aktive_grenzen.csv")
@@ -98,7 +117,7 @@ def main() -> dict:
     # 6) Grenzband der KWK-Δp und Machbarkeit des Auslegungspunkts
     anl = daten.lade_anlagen()["plants"]
     kwk = anl["gas_CHP"]
-    erg["kwk_band"] = {"Planwert (Plan A)": kwk["dp_max_outlet_bar"], "gemessen max. 2025": float(dp_chp.max()),
+    erg["kwk_band"] = {"Planwert (Plan A)": kwk["dp_max_outlet_bar"],  # Erfahrungswert / statische Worst-Case-Simulation "gemessen max. 2025": float(dp_chp.max()),
                        "aus Pumpenförderhöhe": hydraulik.dp_aus_pumpe(kwk["pumps"]["head_m"], T_VL_AUSL, kwk["dp_internal_bar"])}
     fit = anker.fit_verlustgesetz(dp_chp, mitte_min, e["verbund"], dT)
     erg["verlustgesetz"] = fit
@@ -194,6 +213,26 @@ def main() -> dict:
     erg["netzhebel"] = anker.netzhebel(ziele, reg)
     erg["netzhebel"].to_csv(out_dir / "netzhebel.csv", index=False)
 
+    # 7b) Einspeise-Hebel: Wirkung zusätzlicher Einspeisung im Süden (HW1) und im Osten (Ost-Erzeuger) auf die Stationen;
+    #     daraus die KWK-Entlastung eines Speichers am Standort S (Ost-L5, Wasser zu ≈ 75 % aus dem Osten) unter
+    #     Regelung auf den Verbund-Regelpunkt
+    reg_e = pd.DataFrame({"HW1 [100 kg/s]": ms.HW1 / 100, "Ost [100 kg/s]": ms.Ost / 100, "KWK-Δp [bar]": dp_chp,
+                          "Last [10 MW]": e["verbund"] / 10, "PS1-Gewinn [bar]": ps1})
+    erg["einspeisehebel"] = anker.netzhebel({k: kd[k] for k in [*daten.SUED_SCHLECHTPUNKTE, *daten.MITTE_STATIONEN, "V22", "V15"]}, reg_e)
+    erg["einspeisehebel"].to_csv(out_dir / "einspeisehebel.csv", index=False)
+    rp = erg["einspeisehebel"].set_index("Ziel").loc[daten.SUED_SCHLECHTPUNKTE[0]]
+    m_sp = float(hydraulik.massenstrom(SPEICHER_MW, T_VL_AUSL, T_VL_AUSL - dT0))
+    erg["speicher_hydraulik"] = {"Speicher [MW]": SPEICHER_MW, "ṁ [kg/s]": m_sp,
+                                 "Regelpunkt-Δp bei Einspeisung Ost [bar]": rp["Ost [100 kg/s]"] * m_sp / 100,
+                                 "KWK-Entlastung als Ost-Einspeisung [bar]": hydraulik.entlastung_kwk(rp["Ost [100 kg/s]"], rp["KWK-Δp [bar]"], m_sp),
+                                 "KWK-Entlastung Bandbreite ±1 SE [bar]": [hydraulik.entlastung_kwk(rp["Ost [100 kg/s]"] + f * rp["SE Ost [100 kg/s]"], rp["KWK-Δp [bar]"], m_sp) for f in (-1, 1)],
+                                 "Regelpunkt-Δp bei gleicher Einspeisung im Süden (Vergleich) [bar]": rp["HW1 [100 kg/s]"] * m_sp / 100}
+    # Vorlaufdruck am Standort S (Grundlage Speicher-Auslegungsdruck, Konzept K1)
+    fd = hydraulik.fit_druck_standort(m[f"{daten.SPEICHERSTANDORT}_p_supply"], m.gas_CHP_p_return, dp_chp)
+    ruhe = anl["gas_CHP"]["static_pressure_bar"]
+    erg["druck_standort_s"] = {**fd, **{f"p_VL bei Ruhedruck {r} bar, KWK-Δp {d} bar": fd["c"] + fd["a"] * r + fd["b"] * d + fd["residuum_p99"]
+                                         for r in (ruhe["normal"], ruhe["max"]) for d in (3.6, band["Planwert (Plan A)"], round(band["aus Pumpenförderhöhe"], 1))}}
+
     # 8) Temperatur-Tracer (Anteil Ost-Wasser, Winter)
     t_ost = m[["waste_incineration_T_supply", "biomass_CHP_T_supply"]].mean(axis=1)
     winter = pd.Series(m.index.month.isin([1, 2, 11, 12]), index=m.index)
@@ -224,6 +263,9 @@ def _bericht(erg: dict, out_dir) -> None:
              "## Ungedeckte Last an kalten Werktagen (gegen Fit ≥ 0 °C)", _md(erg["ungedeckt"].round(1), index=False), "",
              f"Spitzenfaktoren: {erg['spitzenfaktor']}", "", "## Heizkurve Hauptanlage", _md(erg["heizkurve"].round(1)), "",
              f"Auslegungsspreizung aus gemessenem Rücklauf: {erg['dT_ausl']}", "",
+             "## Regelpunkte der Schlechtpunktregelung", "Netzzugehörigkeit (Korrelation der VL-Druckänderungen):", _md(erg["netz"].round(2)), "",
+             "Verbund (Quelle KWK-Δp):", _md(erg["regelpunkte_verbund"].round(3)), "", "Westnetz (Quelle Heizwerk-West-Δp):",
+             _md(erg["regelpunkte_west"].round(3)), "", "Monatsmedian der Regelpunkte:", _md(erg["sollwert_monat"].round(2)), "",
              "## Hydraulische Begrenzung: aktive Grenzen je Außentemperatur", _md(erg["grenzen"].round(2)), "",
              f"Ost-Kopplung (Niveau): Δp_MVA − Δp_KWK = {fo['c']:.2f} + {fo['d']:.3f}·(ṁ_Ost/100)² − {fo['f']:.3f}·(ṁ_KWK/100)² "
              f"(R² {fo['r2']:.2f}, Rest P90 {fo['residuum_p90']:.2f} bar, n {fo['n']}, ṁ_Ost P99 {fo['m_ost_p99']:.0f} kg/s, ṁ_KWK P99 {fo['m_kwk_p99']:.0f} kg/s)",
@@ -238,7 +280,10 @@ def _bericht(erg: dict, out_dir) -> None:
              _md(erg["sensitivitaet_rl"].round(2), index=False), "", f"Ost-Grenze im Kältebetrieb 2025: {erg['ost_grenze_2025']}", "", f"MVA-Δp-Band: {erg['mva_band']}", "",
              f"Δp Hauptanlage 2025: {erg['dp_chp_2025']}", "",
              "## Thermische Spitze am Auslegungstag (Profile Lastgang 2020–2022, Werktage < −2 °C)", _md(erg["spitze"].round(1), index=False), "",
-             "## Netzhebel", _md(erg["netzhebel"].round(3), index=False), "", "## Tracer", _md(erg["tracer"].round(2))]
+             "## Netzhebel", _md(erg["netzhebel"].round(3), index=False), "",
+             "## Einspeise-Hebel (Süd gegen Ost)", _md(erg["einspeisehebel"].round(3), index=False), "",
+             f"Speicher am Standort S (hydraulisch, Regelung auf {daten.SUED_SCHLECHTPUNKTE[0]}): {erg['speicher_hydraulik']}", "",
+             f"Vorlaufdruck am Standort S: {erg['druck_standort_s']}", "", "## Tracer", _md(erg["tracer"].round(2))]
     (out_dir / "zusammenfassung.md").write_text("\n".join(teile), encoding="utf-8")
 
 

@@ -1,17 +1,17 @@
 id,region,note
-V01,Süd (Stichleitungsende),Ende einer langen Stichleitung
+V01,Sekundärnetz West,Übergabe-WÜ am Leitungsende W1 (nach Druckkorrelation Westnetz; Δp-Schlechtpunkt West)
 V02,Sekundärnetz West,
 V03,City,
 V04,Sekundärnetz West,
 V05,Süd,
-V06,Süd,
+V06,Süd,Südende Stammleitung L4; Δp-Schlechtpunkt Verbund
 V07,Ost-L7,
 V08,Ost-L5,
 V09,Sekundärnetz West,
 V10,City,
 V11,Ost-L5,
 V12,Mitte-L4,
-V13,Sekundärnetz West,
+V13,Sekundärnetz West,Leitungsende W1; Δp-Schlechtpunkt West
 V14,Süd,
 V15,Mitte-L3,zusätzlich Hausanschluss-Signale (_house_)
 V16,Sekundärnetz West,

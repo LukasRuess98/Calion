@@ -9,7 +9,7 @@ durch den Auftraggeber; vor einer Weitergabe außerhalb des Projekts erneut klä
 | Datei | Inhalt |
 |---|---|
 | `measurements_2025_hourly.parquet` | 8 759 Stundenwerte 2025, 169 Signale aus dem Leitsystem; Index naive Ortszeit (Sommerzeit: 30.03. 02:00 fehlt, Doppelstunde 26.10. auf einen Wert reduziert) |
-| `consumers.csv` | Verbraucher V01–V24 mit Netzregion |
+| `consumers.csv` | Verbraucher V01–V24 mit Netzregion und Hinweis (Regelpunkte V06, V01, V13). V01 gehört zum Westnetz (Druckkorrelation) |
 | `generation_profiles_2020_2022_hourly.csv` | Stündliche Gesamterzeugung 2020–2022 [MW], Zeile = Stunde ab 01.01. (2020 fortlaufend inkl. 29.02., endet 30.12.) |
 | `ambient_temperature_hourly.parquet` | Außentemperatur stündlich ab 2019 [°C], naive Ortszeit |
 | `ambient_temperature_daily.csv` | Tagesmittel der Außentemperatur ab 1955 [°C] |

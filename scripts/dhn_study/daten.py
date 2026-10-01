@@ -200,4 +200,5 @@ def stationen(region_enthaelt: tuple[str, ...]) -> list[str]:
 MITTE_STATIONEN = ["V03", "V10", "V12", "V23", "V24"]     # City, Mitte-L4, L1 – Stationen mit Δp-Messung
 SUED_KRITISCH = "V06"                                   # kritischste Verbundstation (Süd)
 SPEICHERSTANDORT = "V22"                                # Großkunde, Speicherstandort S
-SUED_SCHLECHTPUNKTE = ["V01", "V06"]                    # Δp-Minimum im Verbund bei Kälte (V01 regelungsnah konstant)
+SUED_SCHLECHTPUNKTE = ["V06"]                           # Regelpunkt der KWK-Δp (Verbund-Minimum, Südende L4)
+WEST_SCHLECHTPUNKTE = ["V01", "V13"]                    # Regelpunkte des Westnetzes (Leitungsenden W1)

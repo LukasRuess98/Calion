@@ -28,9 +28,10 @@ Die DWD-Zeitstempel werden in Ortszeit umgerechnet: bis 30.11.1996 MEZ, danach U
 **Reproduktion:** Der anonymisierte Datensatz liegt im Repository unter `data/dhn_a/`, einschließlich der Außentemperatur; siehe `data/dhn_a/README.md`. Dann:
 ```
 python -m scripts.dhn_study.run_analyse
+python -m scripts.dhn_study.abbildungen      # Abbildungen Abschnitt 5.6 (benötigt matplotlib)
 python -m pytest -o addopts="" tests/test_dhn_study.py
 ```
-Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` (CSV und `zusammenfassung.md`). Der Code liegt in `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`).
+Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` (CSV und `zusammenfassung.md`). Der Code liegt in `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`, `abbildungen`).
 
 ---
 
@@ -39,15 +40,17 @@ Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` 
 **Referenzfall** nach Plan A:
 * −14 °C, Ausfall der größten Erzeugungseinheit (n−1);
 * unbegrenzter Bedarf, gemessener Rücklauf 59 °C;
-* das **Sekundärnetz West versorgt sich aus den eigenen Kesseln** (Fahrweise laut Plan A).
+* das **Sekundärnetz West versorgt sich aus den eigenen Kesseln** (Fahrweise laut Plan A, vom Auftraggeber als Annahme bestätigt).
 
 | Frage | Ergebnis (indikativ, datenbasiert) |
 |---|---|
-| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Gegen den Erfahrungswert **4,0 bar** reicht das Netz **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. |
-| Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt** steht auf seinem Sollwert von ≈ 1,2 bar. (2) Die KWK-Δp ist **nicht frei erhöhbar**: Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrem Erfahrungswert (7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Westnetz auf die eigenen Kessel umstellt. Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
+| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Das liegt unter den **4,0 bar** aus der statischen Worst-Case-Simulation des Betreibers; das Netz reicht also, **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. |
+| Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt V06** am Südende der Stammleitung L4 steht auf seinem Sollwert von ≈ 1,2 bar. Auf ihn regelt die KWK (Abschnitt 5.6). (2) Die KWK-Δp ist **nicht frei erhöhbar**: Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrem Erfahrungswert (7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Westnetz auf die eigenen Kessel umstellt. Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
 | **F2:** Wie viel Ausbau ist ohne Maßnahmen möglich? | Bis 4,0 bar **+5 % bis +13 %**, bis ≈ 5,7 bar **+24 % bis +34 %**. Mit West-Bezug wie 2025: −5 % bis +1 % bzw. +12 % bis +20 %. |
 | Erzeugungsleistung (n−1) | Plan A: 251 MW im Verbund bei Ausfall der größten KWK-Einheit (KWK 50 + 0 + 44 + 33 MW). Im Referenzfall reicht das bei P50. Bei P90 fehlen ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Mit KWK im Umleitbetrieb (267 MW) bleibt praktisch keine Lücke. Nur mit West-Bezug wie 2025 fehlen 80–230 MWh. |
-| Status der Δp-Grenzen | Plan A: Umwälzungen, Δp und Rücklauftemperaturen sind **„derzeitige Erfahrungswerte“**. 4,0 bar (KWK) und 7,5 bar (MVA) sind also **keine Auslegungsgrenzen**; beide wurden 2025 überschritten. Harte Grenzen sind die Pumpen (KWK ≈ 5,7 bar bei 73,5 m), die Abschaltdrücke Ost (VL 19,5–22 bar, RL 4,4–5,0 bar), PN25 und der Mindest-Ruhedruck. |
+| **F3:** Was bringt der Speicher am Standort S? | **Hydraulisch wenig:** Eine Einspeisung im Osten, wo S liegt, hebt den Regelpunkt V06 nur um ≈ 0,03 bar je 100 kg/s; im Süden wären es 0,85 bar. 40 MW am Standort S senken die KWK-Δp um **≈ 0,08 bar (0,04–0,11)**, also ≈ 1 Prozentpunkt Ausbaureserve. **Thermisch:** n−1-Reserve für die P90-Spitze, 30–60 MWh. Wirksamer für den Engpass sind Maßnahmen im Süden (Abschnitt 7). |
+| **F4:** Druck am Standort S | Vorlaufdruck 2025 max. 12,0 bar. Bei Auslegung (KWK-Δp 3,6–4,0 bar, Ruhedruck 8,4–9,1 bar) 11,6–12,8 bar, bis ≈ 14 bar, wenn die KWK bis zur Pumpengrenze fährt. Das ist die Eingangsgröße für den Auslegungsdruck eines direkt angebundenen Speichers (Konzept K1). |
+| Status der Δp-Grenzen | Plan A: Umwälzungen, Δp und Rücklauftemperaturen sind **„derzeitige Erfahrungswerte“**. Laut Betreiber stammen sie aus Erfahrung und statischen Worst-Case-Simulationen. 4,0 bar (KWK) und 7,5 bar (MVA) sind also **keine physikalischen Grenzen**; beide wurden 2025 überschritten. Harte Grenzen sind die Pumpen (KWK ≈ 5,7 bar bei 73,5 m), die Abschaltdrücke Ost (VL 19,5–22 bar, RL 4,4–5,0 bar), PN25 und der Mindest-Ruhedruck. |
 | Stärkste Stellhebel | **Westnetz bei Kälte aus eigenen Kesseln:** ≈ −25 MW Verbundlast, entspricht ≈ −0,7…0,9 bar. **Rücklauf:** −5 K ≈ −0,3 bar, +5 K ≈ +0,5 bar. **HW1/PS1** im Süden: ≈ 1 bar je 100 kg/s HW1. **Ost-Vorlauf über der Heizkurve:** nur im heutigen Kältebetrieb, ≈ +0,8 bar wirksame KWK-Grenze. |
 
 Einschränkungen:
@@ -160,19 +163,19 @@ Die Studie nennt für den Basistag 215 MW Tagesmittel; mit den Daten ergeben sic
 
 | T_a | Stunden | Ost-Δp ≥ 7,0 bar | Ost-Δp ≥ 7,5 bar | KWK-Δp ≥ 3,5 bar | Süd ≤ 1,1 bar | Mitte ≤ 1,2 bar | GT in Betrieb | Ost-Δp P95 | KWK-Δp P95 |
 |---|---|---|---|---|---|---|---|---|---|
-| < −2 °C | 517 | 12 % | 5 % | 2 % | 41 % | 7 % | 60 % | 7,4 bar | 3,35 bar |
-| −2 … 2 °C | 1 411 | 24 % | 11 % | 4 % | 29 % | 5 % | 61 % | 7,7 bar | 3,45 bar |
-| 2 … 8 °C | 1 929 | 21 % | 12 % | 3 % | 19 % | 7 % | 43 % | 7,8 bar | 3,41 bar |
-| > 8 °C | 4 799 | 7 % | 4 % | 0,3 % | 9 % | 5 % | 22 % | 7,3 bar | 2,83 bar |
+| < −2 °C | 517 | 12 % | 5 % | 2 % | 15 % | 7 % | 60 % | 7,4 bar | 3,35 bar |
+| −2 … 2 °C | 1 411 | 24 % | 11 % | 4 % | 17 % | 5 % | 61 % | 7,7 bar | 3,45 bar |
+| 2 … 8 °C | 1 929 | 21 % | 12 % | 3 % | 15 % | 7 % | 43 % | 7,8 bar | 3,41 bar |
+| > 8 °C | 4 799 | 7 % | 4 % | 0,3 % | 8 % | 5 % | 22 % | 7,3 bar | 2,83 bar |
 
 Definitionen:
 * Ost-Δp ist die höchste Austritts-Δp von MVA, GT (in Betrieb) und Bio-KWK. In 99 % der Stunden ist das die MVA.
-* Süd ist das Minimum von V01 und V06; Mitte ist das Minimum der Mitte/City-Stationen.
+* Süd ist V06, der Regelpunkt der KWK (Abschnitt 5.6); Mitte ist das Minimum der Mitte/City-Stationen.
 
 Befunde:
 * Das **KWK** erreicht weder seine 4,0 bar (P95 3,3–3,5 bar) noch seine thermischen Grenzen. Das Tagesmittel liegt bei höchstens 63 MW gegen 127 MW, der Durchfluss bei höchstens 1 000 t/h gegen 2 350 t/h.
 * An der Grenze sind dagegen zwei andere Stellen:
-  * der **Süd-Schlechtpunkt**: V01 ist praktisch konstant 1,2 bar, also regelungsnah; V06 liegt bei 1,1–1,3 bar;
+  * der **Süd-Schlechtpunkt V06**: Median 1,2 bar (Sollwert), P10 1,1 bar, in 6–7 % der kalten Stunden ≤ 1,0 bar;
   * die **Ost-Pumpen**: die MVA-Δp erreicht bei laufender GT bis 7,8 bar.
 * Die Ost-Erzeuger laufen bei Kälte an ihrer thermischen Grenze: MVA ≈ 44 MW, GT 32–37 MW, Bio-KWK 14,5 MW.
 
@@ -196,7 +199,7 @@ In der Heizperiode (Ta < 8 °C, 3 799 h) folgt die KWK-Δp dem Gesetz (F = P/ΔT
 
 Δp_KWK = 2,05 + 0,223·F² − 1,03·ṁ_HW1/100 − 0,42·Δp_PS1  (R² 0,65, Restfehler P90 0,48 bar)
 
-* Das Gesetz beschreibt die **heutige Regelung** auf den Süd-Schlechtpunkt, vermutlich V01 (dessen Δp ist praktisch konstant).
+* Das Gesetz beschreibt die **heutige Regelung** auf den Süd-Schlechtpunkt V06 (Abschnitt 5.6).
 * HW1 entlastet das KWK um ≈ 1 bar je 100 kg/s, PS1 um ≈ 0,4 bar je bar Pumpengewinn. Das passt zu den Netzhebeln (Abschnitt 7: V06 +1,0 bar je 100 kg/s HW1).
 * Für die Mitte-Stationen gilt das Verlustgesetz aus Abschnitt 6. Bei hoher Last ist **der Süden** die strengere Anforderung, selbst mit voller HW1-Unterstützung.
 
@@ -214,7 +217,7 @@ Abweichung vom unbegrenzten Bedarf (Fit ≥ 0 °C) an 6 Werktagen mit Ta < −2 
 ### 5.5 Mechanismus der Begrenzung
 
 Die Begrenzung an kalten Tagen ist **keine fehlende KWK-Förderhöhe**, sondern das Zusammenspiel dreier Größen:
-1. **Süd-Schlechtpunkt auf Sollwert:** Er bestimmt die KWK-Δp, zusammen mit HW1 und PS1.
+1. **Süd-Schlechtpunkt V06 auf Sollwert:** Auf ihn regelt die KWK; er bestimmt die KWK-Δp, zusammen mit HW1 und PS1.
 2. **Ost-Pumpengrenze:** Weil die Ost-Erzeuger ≈ 1:1 an die KWK-Δp gekoppelt sind, kann das KWK nicht frei nachschieben, solange Ost mit niedrigem Vorlauf und vollem Massenstrom einspeist. Die wirksame Grenze liegt bei ≈ 3,6–4,3 bar statt 4,0 bar; welcher Wert gilt, hängt am MVA-Erfahrungswert (7,5 bar) bzw. der tatsächlichen Pumpengrenze.
 3. **Ausweichen im Betrieb:**
    * HW1 einsetzen,
@@ -222,6 +225,35 @@ Die Begrenzung an kalten Tagen ist **keine fehlende KWK-Förderhöhe**, sondern 
    * an einzelnen Tagen ohne GT fahren.
 
 Unter ≈ −5 °C reichen diese Maßnahmen nach den Lastgängen 2020–2022 nicht mehr: Die Erzeugung liegt dort 10–15 % unter dem Bedarf (Abschnitt 4).
+
+### 5.6 Regelpunkte der Schlechtpunktregelung
+
+Gesucht sind die Stationen, auf die KWK bzw. Heizwerk West ihre Δp regeln. Drei Kennzeichen aus den Stundenwerten der Heizperiode (Ta < 8 °C):
+* **Durchgriff:** Ein geregelter Punkt ändert sich kaum mit der Quellen-Δp (stündliche Differenzen), weil die Quelle genau so nachgeführt wird, dass er konstant bleibt.
+* **Rückkopplung:** Liegt der Regelpunkt unerwartet niedrig, steigt die Quellen-Δp in der Folgestunde. Der t-Wert „gemeinsam“ stammt aus einem Modell mit allen Stationen und trennt den Regelpunkt von Stationen, die nur mit ihm korrelieren.
+* **Netzzugehörigkeit:** Korrelation der stündlichen Vorlaufdruck-Änderungen mit KWK bzw. Heizwerk West. Verbund und Westnetz sind über Wärmeübertrager getrennt und teilen keine Druckschwankungen.
+
+| Netz | Station | Lage | Δp Median / P5 | Streuung | Anteil Minimum | Durchgriff | Rückkopplung t (gemeinsam) |
+|---|---|---|---|---|---|---|---|
+| Verbund | **V06** | Südende Stammleitung L4 | 1,20 / 1,00 bar | 0,18 bar | **92 %** | **0,24** | **−7,8** |
+| Verbund | City/Mitte (V03, V10, V12, V23, V24) | Mitte | 1,8–1,9 / 1,3–1,4 bar | 0,33–0,37 bar | 0–7 % | 0,87–0,89 | −2,7 … +1,9 |
+| Verbund | Mitte-L3 und Ost (V07, V08, V11, V15, V18, V19, V22) | Mitte-L3, Ost | 2,6–5,0 bar | 0,5–1,4 bar | 0 % | 0,85–0,96 | −3,4 … +3,2 (uneinheitlich) |
+| West | **V01** | Leitungsende W1 (Übergabe-WÜ) | 1,20 / 1,10 bar | 0,07 bar | **97 %** | **−0,03** | −0,6 |
+| West | **V13** | Leitungsende W1 | 1,26 / 1,17 bar | 0,07 bar | 3 % | **−0,05** | **−8,1** |
+| West | V09, V16 | W1 | 1,50 / 1,50 bar | 0,03–0,06 bar | 0 % | 0,08–0,10 | – (konstant, vermutlich lokal geregelt) |
+
+* **Verbund:** Die KWK regelt auf **V06** am Südende der Stammleitung L4. Sollwert ≈ **1,2 bar** im Winter, 1,3–1,4 bar in der Übergangszeit; im Sommer schwimmt V06 bei 1,4–1,5 bar, weil die KWK-Δp dann an ihrem Minimum (≈ 1,8 bar) liegt. City/Mitte haben 0,6 bar mehr und sind nicht in der Regelung.
+* **Westnetz:** Das Heizwerk West regelt auf die beiden Leitungsenden **V01** und **V13** (≈ 1,2–1,3 bar). V01 ist meist das Minimum und so eng geführt, dass es stündlich kaum Rückkopplung zeigt; V13 zeigt sie deutlich.
+* **Korrektur:** V01 war bisher dem Süden des Verbunds zugeordnet. Seine Drücke laufen jedoch mit dem Heizwerk West (r = 0,61) und V13 (r = 0,75), nicht mit dem KWK (r = 0,02). V01 gehört zum Westnetz. Die Auswertungen „Süd“ (Abschnitte 5.1, 5.5) verwenden jetzt nur V06; das KWK-Regelgesetz (5.3) ist davon unberührt.
+* Die Lage ist im Betreiber-Netzplan bestätigt: An V06 und an beiden West-Leitungsenden sind Δp-Messstellen eingezeichnet. Die Klarnamen liegen nur lokal vor.
+
+![Regelsignatur](abbildungen/regelpunkte_signatur.png)
+
+![Kältewoche](abbildungen/regelpunkte_kaeltewoche.png)
+
+![Netzschema](abbildungen/regelpunkte_schema.png)
+
+Die Abbildungen erzeugt `python -m scripts.dhn_study.abbildungen`.
 
 ## 6. Erforderliche KWK-Druckdifferenz und Grenzband
 
@@ -235,11 +267,11 @@ Unter ≈ −5 °C reichen diese Maßnahmen nach den Lastgängen 2020–2022 nic
 
 **Süd-Gesetz.** Siehe Abschnitt 5.3. Bei Auslegung wird HW1 voll angesetzt (40 MW, 153 kg/s) und PS1 mit 1,7 bar Gewinn (P99 2025).
 
-**Grenzband KWK-Δp.** Plan A bezeichnet Δp-Werte ausdrücklich als derzeitige Erfahrungswerte.
+**Grenzband KWK-Δp.** Plan A bezeichnet Δp-Werte als derzeitige Erfahrungswerte. Laut Betreiber stammen die 4,0 bar aus Erfahrungswerten und **statischen Worst-Case-Simulationen**. Sie sind also der Planungswert des Betreibers für den ungünstigsten Fall, keine physikalische Grenze.
 
 | Grenze | Wert | Herkunft |
 |---|---|---|
-| Erfahrungswert | 4,0 bar | Plan A, Austritt KWK |
+| Erfahrungswert / Worst Case | 4,0 bar | Plan A, Austritt KWK; statische Worst-Case-Simulation des Betreibers |
 | gemessen 2025 | max. 4,16 bar | 5 h über 4,0 bar, ohne bekannte Störung |
 | Pumpe | ≈ 5,7 bar | 73,5 m Förderhöhe bei 120 °C (6,8 bar) minus 1,1 bar anlageninterne Verluste |
 | Ost-Kopplung | Kältebetrieb 2025: ≈ 3,6–4,3 bar (MVA 7,5–8,2 bar). Auslegung: ≥ 5,4 bar (Ost 84 MW mit 120 °C, MVA 7,5 bar) | Abschnitt 5.2; die Entlastung durch den KWK-Strom ist konservativ nicht über das P99 2025 hinaus extrapoliert |
@@ -259,6 +291,7 @@ Unter ≈ −5 °C reichen diese Maßnahmen nach den Lastgängen 2020–2022 nic
 
 Erläuterungen:
 * „Reserve“ ist der Lastzuwachs, bis die maßgebende Anforderung (Mitte oder Süd) die Grenze erreicht.
+* **Abgleich mit dem Betreiber:** Der Referenzfall braucht 3,2–3,6 bar. Die statische Worst-Case-Simulation des Betreibers setzt 4,0 bar an. Beide unabhängigen Ansätze liegen damit 0,4–0,8 bar auseinander, und zwar in der erwarteten Richtung: Die Worst-Case-Rechnung ist konservativer.
 * Das Süd-Gesetz wird bis zum 1,2- bis 1,3-fachen Massenstrom des Messbereichs extrapoliert, bei West-Bezug bis 1,45-fach.
 
 **Rücklauf-Sensitivität** (Referenzfall linear unbegrenzt P50, 235 MW):
@@ -309,6 +342,21 @@ Regression auf stündliche Differenzen, n ≈ 5 000 h. Die Spalten geben an, um 
 * Robust sind: V06 ≈ +1 bar je 100 kg/s HW1, KWK-Durchgriff 0,72–0,83, PS1-Wirkung im Süden positiv und upstream negativ.
 * Als Validierungsziel gilt daher eine **Spanne**: City +0,07…0,20 bar je 100 kg/s lokale Süd-Einspeisung.
 
+**Einspeise-Hebel.** Die folgende Regression setzt die Einspeisung als Massenstrom an: HW1 (Süd) und Ost-Erzeuger zusammen, bei gleicher Last und KWK-Δp. Ein Koeffizient beschreibt damit, was 100 kg/s **anstelle von KWK-Wasser** an der Station bewirken. Genau das tut ein Speicher, der die Spitze statt der KWK deckt. n ≈ 7 700 h.
+
+| Station | je 100 kg/s im Süden (HW1) | je 100 kg/s im Osten | je bar KWK-Δp |
+|---|---|---|---|
+| **V06 (Regelpunkt)** | **+0,85** (SE 0,02) | **+0,03** (SE 0,01) | 0,54 |
+| City/Mitte (V03, V10, V12, V23, V24) | −0,03 … +0,02 | +0,15 … +0,17 | 0,72 |
+| V22 (Standort S) | −0,10 | +0,41 | 0,74 |
+| V15 (Mitte-L3) | −0,09 | +0,46 | 0,73 |
+
+* Einspeisung im Süden wirkt am Regelpunkt **≈ 30-mal stärker** als dieselbe Menge im Osten.
+* Der Standort S liegt in Ost-L5; sein Wasser stammt zu ≈ 75 % aus dem Osten (Tracer, Abschnitt 8). Eine Speicherentladung dort wirkt deshalb wie eine Ost-Einspeisung.
+* **40 MW (≈ 156 kg/s) am Standort S heben V06 um ≈ 0,04 bar.** Unter der heutigen Regelung auf V06 senkt das die KWK-Δp um **≈ 0,08 bar (0,04–0,11 bar)**; das entspricht ≈ 1 Prozentpunkt Ausbaureserve.
+* City/Mitte gewinnt ≈ 0,25 bar. Das hilft nur, solange die Mitte maßgebend ist; im Referenzfall liegen Mitte- und Süd-Anforderung nur ≈ 0,1 bar auseinander.
+* Die frühere Schätzung „0,1–0,3 bar“ beruhte auf dem City-Hebel. Maßgebend ist aber der Regelpunkt V06.
+
 ## 8. Temperatur-Tracer (Ost-Wasseranteil, Winter, n = 287 h)
 
 | Station | V22 | V11 | V15 | V23 | V17 (City) | V12 | V24 | V05 |
@@ -344,29 +392,40 @@ Aussagekräftig ist der Tracer nur bei R² ≳ 0,3. Mit 15-min-Werten wird er de
 
 ## 10. Folgerungen für Studie und Plan
 
-1. **Auslegungsfall neu definieren:**
+1. **Auslegungsfall** (mit dem Auftraggeber abgestimmt):
    * −14 °C, n−1 nach Plan A;
    * **unbegrenzter** Bedarf; das quadratische Modell nur als „heutige begrenzte Lieferung“;
-   * Westnetz aus den eigenen Kesseln (Plan-A-Fahrweise): Verbund **235–252 MW** Stundenlast. West-Bezug wie 2025 (262–280 MW) läuft als Sensitivität;
+   * Westnetz aus den eigenen Kesseln: Verbund **235–252 MW** Stundenlast. West-Bezug wie 2025 (262–280 MW) läuft als Sensitivität;
    * Spreizung aus Messdaten 120/59 °C (Abschnitt 3);
    * zusätzlich eine Auslegungswoche mit 5-Tage-Mittel ≈ −11 °C.
-2. **Hauptkennzahl** ist die erforderliche KWK-Δp, und zwar das Maximum aus Mitte- und Süd-Anforderung. Sie wird gegen ein **Grenzband** geprüft:
-   * 4,0 bar Erfahrungswert, ≈ 5,7 bar Pumpe;
-   * die **Ost-Kopplung**, also die MVA-Δp unter ihrem Erfahrungswert 7,5 bar bzw. ihrer Pumpengrenze.
+2. **Hauptkennzahl** ist die erforderliche KWK-Δp, und zwar das Maximum aus Mitte-Anforderung und Regelpunkt V06. Sie wird gegen ein **Grenzband** geprüft:
+   * 4,0 bar: Worst-Case-Wert des Betreibers;
+   * ≈ 5,7 bar: Pumpe;
+   * die **Ost-Kopplung**, also die MVA-Δp unter 7,5 bar bzw. ihrer Pumpengrenze.
 
-   Ein Δp-Defizit bei festgehaltenen Drücken ist keine geeignete Kennzahl. Das Netzmodell (Plan, Phase 2) muss die Ost-Kopplung als Validierungsziel reproduzieren und die Lastverteilung aus `sectors.csv` übernehmen.
-3. **Betreiberangaben**, geordnet nach Einfluss:
-   * **Wird das Westnetz bei Auslegung wie in Plan A aus den eigenen Kesseln versorgt?** Das ist der größte Einzeleinfluss: ≈ 0,7–0,9 bar KWK-Δp und die thermische Lücke von 0–60 MWh gegen 80–230 MWh.
-   * Welche Grenze steht hinter dem Erfahrungswert 4,0 bar (Pumpenkennlinie, maximale Δp der Kundenventile nahe dem KWK)? Das wird erst für Ausbau über +5…13 % entscheidend.
-   * Wo liegt die Schlechtpunktregelung, mit welchem Sollwert? Vermutet: V01, 1,2 bar. Welche Mindest-Δp brauchen V01 und V06 tatsächlich? Etwa ±0,2 bar entsprechen ≈ 3–4 Prozentpunkten Reserve.
-   * Kann Ost im heutigen Kältebetrieb über der Heizkurve fahren? Das ist ein Betriebshebel, für die Auslegung nicht relevant: Bei −14 °C fährt Ost laut Plan A ohnehin 120–125 °C.
-   * *Geklärt:* Plan A gilt für n−1, und die Δp-Werte sind Erfahrungswerte (Plan A). Die Lastabflachung bei Kälte ist hydraulisch bedingt (Auftraggeber).
-4. **Speicher:**
-   * **Hydraulisch:** Entlastung ≈ 0,1–0,3 bar KWK-Δp, also ≈ 2–6 Prozentpunkte Ausbaureserve, wenn der Hebel am V22 ähnlich wirkt wie im Süden. Am Standort S (Ost-L5, 75 % Ost-Wasser) wirkt der Speicher zusätzlich auf die **Ost-Kopplung**: Eine Entladung dort kann den Ost-Transport entlasten oder verdrängen. Das ist im Netzmodell und per Feldtest zu prüfen (Plan 3.3).
-   * **Thermisch:** Im Referenzfall nur bei P90 und n−1 nötig, ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Bei West-Bezug wie 2025 wären es 80–230 MWh. Die Spitzendeckung ist damit eine **n−1-Reserve**, nicht der Hauptnutzen.
+   Ein Δp-Defizit bei festgehaltenen Drücken ist keine geeignete Kennzahl. Das Netzmodell (Plan, Phase 2) muss reproduzieren:
+   * die Ost-Kopplung,
+   * die Einspeise-Hebel,
+   * die Lage der Regelpunkte V06 (Verbund) und V01/V13 (West).
+
+   Die Lastverteilung übernimmt es aus `sectors.csv`.
+3. **Betreiberangaben – Stand:**
+   * *Geklärt:*
+     * n−1 und Erfahrungswerte (Plan A);
+     * Lastabflachung bei Kälte hydraulisch bedingt;
+     * West aus eigenen Kesseln bei Auslegung;
+     * 4,0 bar aus Erfahrung und statischer Worst-Case-Simulation;
+     * Regelpunkte aus den Daten bestimmt (V06; West V01/V13).
+   * *Offen, aber nicht ergebnisentscheidend:*
+     * Mindest-Δp, das V06 tatsächlich braucht (TAB). ±0,2 bar am Sollwert entsprechen ≈ 3–4 Prozentpunkten Reserve.
+     * Pumpenkennlinien von KWK und MVA, nur für Ausbau über +5…13 % nötig.
+4. **Speicher am Standort S:**
+   * **Hydraulisch** senkt er die KWK-Δp nur um ≈ 0,08 bar (0,04–0,11), weil S auf der Ostseite liegt und der maßgebende Regelpunkt V06 im Süden. Die Aussage der Studie „+0,1…0,2 bar“ ist damit eher zu hoch, die qualitative Aussage „klein und lokal“ ist bestätigt.
+   * **Thermisch** deckt er im Referenzfall nur die P90-Spitze bei n−1 (30–60 MWh).
+   * Ein Speicher **im Süden** würde am Regelpunkt ≈ 30-mal stärker wirken; Standortvergleich in Phase 5/6.
 5. **Alternativen mit gleicher oder höherer Wirkung,** im Maßnahmenvergleich zu rechnen:
-   * **West bei Kälte aus eigenen Kesseln:** ≈ −0,7…0,9 bar; nur Fahrweise, keine Investition;
+   * **HW1 und PS1 im Süden:** ≈ 0,85 bar am Regelpunkt je 100 kg/s HW1;
    * **Rücklauf −5 K:** ≈ −0,3 bar;
-   * **HW1 und PS1 im Süden:** ≈ 1 bar je 100 kg/s HW1;
    * **Ost-Vorlauf über der Heizkurve** im heutigen Betrieb: ≈ +0,8 bar wirksame KWK-Grenze;
-   * Druckerhöhungsstation im Süden.
+   * Druckerhöhungsstation oder Einspeisung im Süden.
+6. **Stand gegen das Ziel der Studie:** siehe `Plan_belastbare_Aussagen.md`, Abschnitt 1.6.
