@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from scripts.dhn_study import anker, auslegung, daten, hydraulik, wetter
+from scripts.dhn_study import netzmodell as nm
 
 RNG = np.random.default_rng(1)
 
@@ -226,3 +227,84 @@ def test_netz_zugehoerigkeit_und_entlastung():
     z = hydraulik.netz_zugehoerigkeit(st, {"KWK": a, "West": b})
     assert z.loc["X", "Netz"] == "KWK" and z.loc["Y", "Netz"] == "West"
     assert hydraulik.entlastung_kwk(0.5, 0.5, 200.0) == pytest.approx(2.0)
+
+
+# ---------------------------------------------------------------- Netzmodell
+
+def _klein():
+    """Wurzel R, Masche über A und B, radialer Ast nach C mit Pumpe."""
+    kn = ["R", "A", "B", "C"]
+    ka = [("e1", "R", "A", 300, 1000), ("e2", "R", "B", 300, 1000), ("e3", "B", "A", 300, 500), ("e4", "A", "C", 200, 800)]
+    return nm.Netz(kn, ka, wurzel="R")
+
+
+def test_netz_massenbilanz_und_maschen():
+    nz = _klein()
+    assert np.abs(nz.C @ nz.A.T).max() == 0
+    rng = np.random.default_rng(3)
+    b = np.zeros((50, 4))
+    b[:, 1:] = -rng.uniform(10, 100, (50, 3))                       # Entnahmen, Wurzel gleicht aus
+    K = np.array([2e-5, 3e-5, 1e-5, 5e-5])
+    g = np.zeros((50, 4))
+    g[:, 3] = 0.5                                                   # Pumpe im radialen Ast
+    m = nz.loese(b, K, g)
+    b_voll = b.copy()
+    b_voll[:, 0] = -b[:, 1:].sum(axis=1)
+    assert np.abs(m @ nz.A.T + b_voll).max() < 1e-8                 # Knotenbilanz
+    assert np.abs((K * m * np.abs(m) - g) @ nz.C.T).max() < 1e-6    # Maschengleichung
+
+
+def test_netz_parallelzweige_und_druckpfad():
+    nz = _klein()
+    K = np.array([4e-5, 1e-5, 1e-5, 2e-5])                          # e1 parallel zu (e2 + e3)
+    b = np.array([[0.0, -100.0, 0.0, -20.0]])
+    m = nz.loese(b, K)[0]
+    assert m[0] + m[2] == pytest.approx(120.0)
+    assert K[0] * m[0] ** 2 == pytest.approx((K[1] + K[2]) * m[1] ** 2, rel=1e-6)
+    g = np.array([[0.0, 0.0, 0.0, 0.3]])
+    dp = nz.dp_knoten(nz.loese(b, K, g), K, np.array([3.0]), g)[0]
+    assert dp[1] == pytest.approx(3.0 - K[0] * m[0] ** 2)
+    assert dp[3] == pytest.approx(dp[1] - K[3] * 20.0**2 + 0.3)
+
+
+def test_hebel_koeffizienten():
+    rng = np.random.default_rng(4)
+    n = 800
+    X = np.cumsum(rng.normal(0, 1, (n, 2)), axis=0)
+    Y = np.c_[0.4 * X[:, 0] - 0.2 * X[:, 1], 1.5 * X[:, 1]] + rng.normal(0, 0.01, (n, 2))
+    zeilen = np.ones((n - 1, 2), bool)
+    k = nm._hebel_koeff(Y, np.diff(X, axis=0), zeilen)
+    assert k == pytest.approx(np.array([[0.4, -0.2], [0.0, 1.5]]), abs=0.02)
+
+
+def test_kalibrierung_reproduziert_synthetische_messung():
+    nz = nm.netz()
+    rng = np.random.default_rng(5)
+    B, N, E = 120, len(nz.knoten), len(nz.kanten)
+    b_fix = np.zeros((B, N))
+    for k, (lo, hi) in {"MVA": (100, 180), "GT": (0, 130), "BIO": (40, 60), "HW1": (0, 120), "HW2": (-60, -10)}.items():
+        b_fix[:, nz.idx[k]] = rng.uniform(lo, hi, B)
+    rest = rng.uniform(300, 700, B)
+    idx = pd.date_range("2025-01-01", periods=B, freq="h")
+    gew = np.zeros((B, E))
+    gew[:, nz.kanten_ids.index("L4c")] = rng.uniform(0, 1.5, B)
+    leer = pd.DataFrame(index=idx)
+    f0 = nm.Fall(b_fix, rest, np.zeros(B, bool), gew, rng.uniform(2.0, 3.5, B), leer, idx)
+    K_true = nz.k0 * np.exp(rng.normal(0, 0.3, E))
+    ziele = nm.simuliere(nz, f0, K_true, {s: 0.05 for s in nm.STATIONEN})
+    f = nm.Fall(b_fix, rest, np.zeros(B, bool), gew, f0.dp_kwk, ziele, idx)
+    kal = nm.kalibriere(nz, f, max_nfev=40)
+    sim = nm.simuliere(nz, f, kal["K"], kal["versatz"].to_dict(), kal["gewichte"], kal["grundlast"])
+    g = nm.guete(sim, ziele)
+    assert g.loc[[s for s in nm.STATIONEN], "RMSE"].max() < 0.05
+
+
+def test_erforderliche_kwk_dp_haelt_mindestwerte():
+    nz = nm.netz()
+    b = nm.auslegungs_einspeisung(nz, 240.0, 255.0, {"MVA": 40, "GT": 31, "BIO": 13}, 40.0, 150.0)
+    g = np.zeros((1, len(nz.kanten)))
+    mindest = {"V06": 1.2, "V03": 1.0, "V22": 1.0}
+    req, _ = nm.erforderliche_kwk_dp(nz, nz.k0, b, g, mindest)
+    dp = nz.dp_knoten(nz.loese(b, nz.k0, g), nz.k0, req, g)[0]
+    reserve = [dp[nz.idx[nm.ZIEL_KNOTEN[z]]] - v for z, v in mindest.items()]
+    assert min(reserve) == pytest.approx(0.0, abs=1e-9) and all(r > -1e-9 for r in reserve)

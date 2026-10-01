@@ -193,6 +193,78 @@ def schema(kd, ta, vb, pfad):
     plt.close(fig)
 
 
+def netzmodell_abbildungen(out):
+    """Abgleich Netzmodell–Messung (benötigt ``python -m scripts.dhn_study.run_netzmodell``)."""
+    res = daten.repo_root() / "results" / "dhn_study" / "netzmodell"
+    if not (res / "simulation.parquet").exists():
+        return
+    from . import netzmodell as nm
+    m = daten.lade_messdaten()
+    e = daten.erzeugung(m)
+    nz = nm.netz()
+    f = nm.randbedingungen(m, e, nz)
+    sim = pd.read_parquet(res / "simulation.parquet")
+    # 1) Zeitreihen Spitzenzeit (Holdout)
+    w = slice("2025-02-10", "2025-02-23")
+    fig, axs = plt.subplots(2, 2, figsize=(11, 6.2), facecolor=FLAECHE, sharex=True)
+    for ax, (z, titel) in zip(axs.ravel(), (("V06", "V06 – Regelpunkt Süd"), ("V03", "V03 – City"),
+                                             ("V22", "V22 – Standort S"), ("MVA", "MVA – Ost-Erzeuger")), strict=True):
+        _stil(ax)
+        ax.plot(f.ziele[z][w].index, f.ziele[z][w].values, color=SERIE[0], linewidth=1.4, label="Messung")
+        ax.plot(sim[z][w].index, sim[z][w].values, color=SERIE[1], linewidth=1.4, label="Modell")
+        ax.set_title(titel, fontsize=10.5, color=TINTE, loc="left")
+        ax.set_ylabel("Δp [bar]", fontsize=9, color=TINTE2)
+    axs[0, 0].legend(frameon=False, fontsize=9, loc="upper left", labelcolor=TINTE2, ncol=2)
+    fig.suptitle("Netzmodell gegen Messung, Holdout-Spitzenzeit 10.–23.02.2025 (nicht kalibriert)", fontsize=12,
+                 color=TINTE, x=0.01, ha="left")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_zeitreihen.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+    # 2) Güte je Messziel (Holdout, Hochlast)
+    g = pd.read_csv(res / "guete.csv", header=[0, 1], index_col=0)
+    gh = g["Holdout Hochlast"].drop([c for c in g.index if c.startswith("Fluss")])
+    g0 = g["ohne Kalibrierung, Holdout Hochlast"].reindex(gh.index)
+    fig, ax = plt.subplots(figsize=(11, 4.4), facecolor=FLAECHE)
+    _stil(ax)
+    x = range(len(gh))
+    ax.scatter(x, g0["RMSE"], s=40, color=GEDAEMPFT, label="ohne Kalibrierung", zorder=3)
+    ax.scatter(x, gh["RMSE"], s=64, color=SERIE[0], label="kalibriert (RMSE)", zorder=4)
+    ax.scatter(x, gh["Bias"].abs(), s=40, color=SERIE[1], marker="D", label="kalibriert (|Bias|)", zorder=4)
+    ax.axhline(0.2, color=TINTE2, linewidth=0.9, linestyle=(0, (4, 2)))
+    ax.annotate("Kriterium Plan 3.1: RMSE ≤ 0,2 bar", (len(gh) - 0.5, 0.21), fontsize=8.5, color=TINTE2, ha="right")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(gh.index, rotation=0, fontsize=8.5)
+    ax.set_ylabel("Abweichung [bar]", fontsize=9, color=TINTE2)
+    ax.set_yscale("log")
+    ax.legend(frameon=False, fontsize=9, loc="upper right", labelcolor=TINTE2)
+    ax.set_title("Güte im Holdout bei Hochlast (oberes Lastzehntel, 241 h)", fontsize=11, color=TINTE, loc="left")
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_guete.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+    # 3) Hebel Messung gegen Modell
+    h = pd.read_csv(res / "hebel_holdout.csv", header=[0, 1], index_col=0)
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.4), facecolor=FLAECHE)
+    for ax, (reg, titel) in zip(axs, (("KWK-Fluss", "je 100 kg/s KWK-Durchfluss (Ersatz durch Ost)"),
+                                      ("HW1", "je 100 kg/s HW1 (Süd statt Ost)")), strict=True):
+        _stil(ax)
+        y = range(len(h))
+        ax.errorbar(h[("Messung", reg)], y, xerr=2 * h[("SE Messung", reg)], fmt="o", color=SERIE[0], markersize=7,
+                    capsize=3, label="Messung ± 2 SE")
+        ax.scatter(h[("Modell", reg)], y, s=60, marker="D", color=SERIE[1], label="Modell", zorder=4)
+        ax.axvline(0, color=ACHSE, linewidth=0.8)
+        ax.set_yticks(list(y))
+        ax.set_yticklabels(h.index, fontsize=9)
+        ax.set_title(titel, fontsize=10.5, color=TINTE, loc="left")
+        ax.set_xlabel("Δp-Änderung [bar]", fontsize=9, color=TINTE2)
+    axs[0].legend(frameon=False, fontsize=9, loc="lower left", labelcolor=TINTE2)
+    fig.suptitle("Hebel aus natürlichen Experimenten (Holdout, Heizperiode): gleiche Regression auf Messung und Modell",
+                 fontsize=12, color=TINTE, x=0.01, ha="left")
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_hebel.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+
+
 def main():
     out = daten.repo_root() / "docs" / "dhn_storage_study" / "abbildungen"
     out.mkdir(parents=True, exist_ok=True)
@@ -200,6 +272,7 @@ def main():
     signatur(m, e, ta, kd, vb, out / "regelpunkte_signatur.png")
     kaeltewoche(m, e, ta, kd, out / "regelpunkte_kaeltewoche.png")
     schema(kd, ta, vb, out / "regelpunkte_schema.png")
+    netzmodell_abbildungen(out)
     return out
 
 

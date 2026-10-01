@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from . import anker, auslegung, daten, hydraulik, wetter
+from . import anker, auslegung, daten, hydraulik, netzmodell, wetter
 
 T_AUSL = -14.0          # Auslegungs-Tagesmittel (≈ 10-Jahres-Kältetag der Referenzstation, siehe Kältewellen)
 DP_GRENZE = 4.0         # Plan A: max. Differenzdruck Austritt Hauptanlage (Status offen, siehe Grenzband)
@@ -213,20 +213,26 @@ def main() -> dict:
     erg["netzhebel"] = anker.netzhebel(ziele, reg)
     erg["netzhebel"].to_csv(out_dir / "netzhebel.csv", index=False)
 
-    # 7b) Einspeise-Hebel: Wirkung zusätzlicher Einspeisung im Süden (HW1) und im Osten (Ost-Erzeuger) auf die Stationen;
-    #     daraus die KWK-Entlastung eines Speichers am Standort S (Ost-L5, Wasser zu ≈ 75 % aus dem Osten) unter
-    #     Regelung auf den Verbund-Regelpunkt
-    reg_e = pd.DataFrame({"HW1 [100 kg/s]": ms.HW1 / 100, "Ost [100 kg/s]": ms.Ost / 100, "KWK-Δp [bar]": dp_chp,
-                          "Last [10 MW]": e["verbund"] / 10, "PS1-Gewinn [bar]": ps1})
-    erg["einspeisehebel"] = anker.netzhebel({k: kd[k] for k in [*daten.SUED_SCHLECHTPUNKTE, *daten.MITTE_STATIONEN, "V22", "V15"]}, reg_e)
-    erg["einspeisehebel"].to_csv(out_dir / "einspeisehebel.csv", index=False)
-    rp = erg["einspeisehebel"].set_index("Ziel").loc[daten.SUED_SCHLECHTPUNKTE[0]]
+    # 7b) Einspeise-Hebel, massenstromkonsistent: Regressoren KWK-Eigendurchfluss, KWK-Δp, Verbraucherdurchfluss, HW1, PS1.
+    #     Bei festem Verbrauch und fester HW1 bedeutet weniger KWK-Durchfluss Ersatz durch Ost-Einspeisung; Hebel Ost =
+    #     −Koeffizient KWK-Fluss. Hebel Süd (anstelle von KWK-Wasser) = HW1 − KWK-Fluss. Heizperiode (Ta < 8 °C).
+    reg_e = netzmodell.hebel_regressoren(m, e, m.index)[ta < 8]
+    roh = anker.netzhebel({k: kd[k][ta < 8] for k in [*daten.SUED_SCHLECHTPUNKTE, *daten.MITTE_STATIONEN, "V22", "V15"]}, reg_e)
+    roh = roh.set_index("Ziel")
+    erg["einspeisehebel"] = pd.DataFrame({"je 100 kg/s Ost statt KWK": -roh["KWK-Fluss"], "SE Ost": roh["SE KWK-Fluss"],
+                                          "je 100 kg/s Süd statt KWK": roh["HW1"] - roh["KWK-Fluss"],
+                                          "je 100 kg/s Süd statt Ost": roh["HW1"], "SE Süd statt Ost": roh["SE HW1"],
+                                          "je bar KWK-Δp (regelungsverzerrt)": roh["KWK-Δp"]})
+    erg["einspeisehebel"].to_csv(out_dir / "einspeisehebel.csv")
+    rp = erg["einspeisehebel"].loc[daten.SUED_SCHLECHTPUNKTE[0]]
     m_sp = float(hydraulik.massenstrom(SPEICHER_MW, T_VL_AUSL, T_VL_AUSL - dT0))
+    # Unter Regelung auf den Regelpunkt senkt die KWK ihre Δp, bis er wieder auf Sollwert liegt; der strukturelle
+    # Durchgriff der KWK-Δp ist 1 (Netzmodell), der gemessene Koeffizient ist durch die Regelung nach unten verzerrt.
     erg["speicher_hydraulik"] = {"Speicher [MW]": SPEICHER_MW, "ṁ [kg/s]": m_sp,
-                                 "Regelpunkt-Δp bei Einspeisung Ost [bar]": rp["Ost [100 kg/s]"] * m_sp / 100,
-                                 "KWK-Entlastung als Ost-Einspeisung [bar]": hydraulik.entlastung_kwk(rp["Ost [100 kg/s]"], rp["KWK-Δp [bar]"], m_sp),
-                                 "KWK-Entlastung Bandbreite ±1 SE [bar]": [hydraulik.entlastung_kwk(rp["Ost [100 kg/s]"] + f * rp["SE Ost [100 kg/s]"], rp["KWK-Δp [bar]"], m_sp) for f in (-1, 1)],
-                                 "Regelpunkt-Δp bei gleicher Einspeisung im Süden (Vergleich) [bar]": rp["HW1 [100 kg/s]"] * m_sp / 100}
+                                 "Regelpunkt-Δp bei Speicher am Standort S [bar]": rp["je 100 kg/s Ost statt KWK"] * m_sp / 100,
+                                 "KWK-Entlastung, Lastniveau 2025 [bar]": hydraulik.entlastung_kwk(rp["je 100 kg/s Ost statt KWK"], 1.0, m_sp),
+                                 "Bandbreite ±2 SE [bar]": [hydraulik.entlastung_kwk(rp["je 100 kg/s Ost statt KWK"] + f * rp["SE Ost"], 1.0, m_sp) for f in (-2, 2)],
+                                 "Regelpunkt-Δp bei gleicher Einspeisung im Süden (Vergleich) [bar]": rp["je 100 kg/s Süd statt KWK"] * m_sp / 100}
     # Vorlaufdruck am Standort S (Grundlage Speicher-Auslegungsdruck, Konzept K1)
     fd = hydraulik.fit_druck_standort(m[f"{daten.SPEICHERSTANDORT}_p_supply"], m.gas_CHP_p_return, dp_chp)
     ruhe = anl["gas_CHP"]["static_pressure_bar"]
@@ -281,7 +287,7 @@ def _bericht(erg: dict, out_dir) -> None:
              f"Δp Hauptanlage 2025: {erg['dp_chp_2025']}", "",
              "## Thermische Spitze am Auslegungstag (Profile Lastgang 2020–2022, Werktage < −2 °C)", _md(erg["spitze"].round(1), index=False), "",
              "## Netzhebel", _md(erg["netzhebel"].round(3), index=False), "",
-             "## Einspeise-Hebel (Süd gegen Ost)", _md(erg["einspeisehebel"].round(3), index=False), "",
+             "## Einspeise-Hebel (massenstromkonsistent, Heizperiode)", _md(erg["einspeisehebel"].round(3)), "",
              f"Speicher am Standort S (hydraulisch, Regelung auf {daten.SUED_SCHLECHTPUNKTE[0]}): {erg['speicher_hydraulik']}", "",
              f"Vorlaufdruck am Standort S: {erg['druck_standort_s']}", "", "## Tracer", _md(erg["tracer"].round(2))]
     (out_dir / "zusammenfassung.md").write_text("\n".join(teile), encoding="utf-8")
