@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts.dhn_study import anker, auslegung, daten, wetter
+from scripts.dhn_study import anker, auslegung, daten, hydraulik, wetter
 
 RNG = np.random.default_rng(1)
 
@@ -117,3 +117,71 @@ def test_kunden_dp_aus_diffdruck_und_vl_rl():
     k = daten.kunden_dp(m)
     assert set(k.columns) == {"V06", "V24", "HX_West"} and np.isnan(k.V06.iloc[2])
     assert k.V24.round(2).tolist() == [1.8, 1.9, 2.0]
+
+
+def test_unbegrenzter_fit_und_ungedeckte_last():
+    idx = pd.date_range("2021-10-01", periods=500, freq="D")
+    t = pd.Series(RNG.uniform(-12, 11, 500), index=idx)
+    bedarf = 130.0 - 7.0 * t + RNG.normal(0, 0.5, 500)
+    p = bedarf.where(t >= -3, bedarf - 0.1 * (bedarf - (130 + 21)))         # Kappung unter −3 °C
+    begrenzt = auslegung.fit_last_temperatur(p, t)
+    frei = auslegung.fit_last_temperatur(p, t, t_min=0.0, ferien=True)
+    assert frei["koeff"][1] == pytest.approx(-7.0, abs=0.1)
+    assert begrenzt["koeff"][1] > frei["koeff"][1] + 0.2                    # Gerade über alle Tage zu flach
+    assert auslegung.last_bei(frei, -14.0)[0] == pytest.approx(130 + 7 * 14, abs=2.0)
+    u = auslegung.ungedeckte_last(p, t, frei)
+    assert (u["Differenz_MW"] < 0).all() and u["Differenz_MW"].is_monotonic_increasing
+    assert u.loc["(-20, -8]", "Differenz_MW"] < -3.0
+
+
+def test_dp_aus_pumpe():
+    assert hydraulik.dp_aus_pumpe(73.5, 120.0, 1.1) == pytest.approx(943.1 * 9.81 * 73.5 / 1e5 - 1.1, abs=0.01)
+
+
+def test_ost_kopplung_und_grenze():
+    n = 3000
+    dp_k = pd.Series(RNG.uniform(1.5, 3.5, n))
+    m_o, m_k = pd.Series(RNG.uniform(150, 450, n)), pd.Series(RNG.uniform(20, 300, n))
+    dp_o = dp_k + 0.5 + 0.3 * (m_o / 100) ** 2 - 0.2 * (m_k / 100) ** 2
+    f = hydraulik.fit_ost_kopplung(dp_o, dp_k, m_o, m_k)
+    assert (f["c"], f["d"], f["f"]) == pytest.approx((0.5, 0.3, 0.2), abs=1e-6)
+    g = hydraulik.kwk_grenze_ost(f, 400.0, 200.0, dp_ost_max=7.5)
+    assert hydraulik.ost_dp(f, g, 400.0, 200.0) == pytest.approx(7.5, abs=1e-9)
+    assert hydraulik.m_ost_max(f, g, 200.0, dp_ost_max=7.5) == pytest.approx(400.0, abs=1e-6)
+    # Entlastung durch ṁ_KWK wird konservativ nicht über das P99 hinaus extrapoliert
+    assert hydraulik.kwk_grenze_ost(f, 400.0, 900.0) == pytest.approx(hydraulik.kwk_grenze_ost(f, 400.0, f["m_kwk_p99"]))
+    assert hydraulik.kwk_grenze_ost(f, 400.0, 900.0, konservativ=False) > hydraulik.kwk_grenze_ost(f, 400.0, 900.0)
+
+
+def test_regelgesetz_sued_und_ausbaureserve():
+    n = 3000
+    F, h, ps = pd.Series(RNG.uniform(1, 3.5, n)), pd.Series(RNG.uniform(0, 150, n)), pd.Series(RNG.uniform(0, 1.8, n))
+    dp_k = 2.0 + 0.2 * F**2 - 1.0 * h / 100 - 0.4 * ps
+    f = hydraulik.fit_regelgesetz_sued(dp_k, F, h, ps)
+    assert (f["a"], f["b"], f["g"], f["h"]) == pytest.approx((2.0, 0.2, 1.0, 0.4), abs=1e-6)
+    mitte = {"a": 0.12, "b": 0.14}
+    r = hydraulik.ausbaureserve(mitte, f, 250.0, 61.0, 4.0, 150.0, 1.7)
+    assert r["gesamt"] == min(r["Mitte"], r["Süd"])
+    P_s = 250.0 * (1 + r["Süd"])
+    assert hydraulik.erforderliche_dp_sued(f, P_s, 61.0, 150.0, 1.7) == pytest.approx(4.0, abs=1e-9)
+
+
+def test_aktive_grenzen():
+    idx = pd.date_range("2025-01-01", periods=2000, freq="h")
+    ta = pd.Series(RNG.uniform(-8, 10, 2000), index=idx)
+    x = pd.DataFrame({"dp_ost": 7.6, "dp_kwk": 3.0, "dp_sued": 1.1, "dp_mitte": 1.8, "gt_an": True}, index=idx)
+    g = hydraulik.aktive_grenzen(x, ta)
+    assert g["Stunden"].sum() == 2000 and (g["Ost-Δp ≥ 7.5 bar [%]"] == 100).all() and (g["Süd ≤ 1.1 bar [%]"] == 100).all()
+    assert (g["Mitte ≤ 1,2 bar [%]"] == 0).all()
+
+
+def test_tagesprofile_und_ueberschuss():
+    idx = pd.date_range("2021-02-01", periods=24 * 10, freq="h")               # Mo 01.02. bis Mi 10.02.
+    form = 1 + 0.2 * np.sin(np.arange(24) / 24 * 2 * np.pi)
+    p = pd.Series(np.tile(form, 10) * 200.0, index=idx)
+    t = pd.Series(-5.0, index=pd.date_range("2021-02-01", periods=10, freq="D"))
+    prof = auslegung.tagesprofile(p, t)
+    assert prof.shape == (8, 24) and np.allclose(prof.mean(axis=1), 1.0)       # Wochenende ausgeschlossen
+    u = auslegung.ueberschuss(prof, 100.0, 110.0)
+    ex = np.clip(form / form.mean() * 100 - 110, 0, None)
+    assert u["Energie Median [MWh]"] == pytest.approx(ex.sum()) and u["Leistung Median [MW]"] == pytest.approx(ex.max())

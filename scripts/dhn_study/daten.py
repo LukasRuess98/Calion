@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 MESSDATEN = "measurements_2025_hourly.parquet"
 LASTGAENGE = "generation_profiles_2020_2022_hourly.csv"
@@ -62,6 +63,11 @@ def lade_messdaten(pfad: Path | None = None) -> pd.DataFrame:
 
 def lade_verbraucher(pfad: Path | None = None) -> pd.DataFrame:
     return pd.read_csv(pfad or daten_dir() / "consumers.csv").set_index("id")
+
+
+def lade_anlagen(pfad: Path | None = None) -> dict:
+    """Anlagendaten aus ``plants.yaml`` (Leistungen, Pumpen, Δp-Grenzen, Abschaltdrücke)."""
+    return yaml.safe_load((pfad or daten_dir() / "plants.yaml").read_text(encoding="utf-8"))
 
 
 def lade_lastgaenge(pfad: Path | None = None) -> dict[int, pd.Series]:
@@ -186,3 +192,4 @@ def stationen(region_enthaelt: tuple[str, ...]) -> list[str]:
 MITTE_STATIONEN = ["V03", "V10", "V12", "V23", "V24"]     # City, Mitte-L4, L1 – Stationen mit Δp-Messung
 SUED_KRITISCH = "V06"                                   # kritischste Verbundstation (Süd)
 SPEICHERSTANDORT = "V22"                                # Großkunde, Speicherstandort S
+SUED_SCHLECHTPUNKTE = ["V01", "V06"]                    # Δp-Minimum im Verbund bei Kälte (V01 regelungsnah konstant)
