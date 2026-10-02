@@ -315,3 +315,86 @@ def test_entlastung_aus_hebeln_wechselt_massgebende_station():
     # A wird stark entlastet, danach bindet B: Entlastung nur bis zum Bedarf von B (3,0 − 2,7)
     assert nm.entlastung_aus_hebeln(need, {"A": 0.5, "B": 0.1}, 100.0) == pytest.approx(0.3)
     assert nm.entlastung_aus_hebeln(need, {"A": 0.1, "B": 0.1}, 100.0) == pytest.approx(0.1)
+
+
+def test_quellanteile_mischung():
+    nz = nm.netz()
+    b = nm.auslegungs_einspeisung(nz, 240.0, 255.0, {"MVA": 40, "GT": 31, "BIO": 13}, 40.0, 150.0)
+    m = nz.loese(b, nz.k0)
+    phi = nm.quellanteile(nz, m, b)[0]
+    assert np.allclose(phi.sum(axis=1), 1.0) and phi.min() > -1e-9
+    assert phi[nz.idx["KWK"], 0] == pytest.approx(1.0)
+    # Ein Erzeugerknoten ohne Zufluss führt nur eigenes Wasser; HW1 speist am Knoten HW1 ein
+    i_hw1 = nm.QUELLEN.index("HW1")
+    assert phi[nz.idx["HW1"], i_hw1] > 0.5
+    # Mischungsbilanz am Knoten SEC2: Zufluss·Anteil = Summe der zufließenden Anteile
+    n = nz.idx["SEC2"]
+    zu = np.maximum(nz.A[n] * m[0], 0.0)
+    oben = [nz.idx[k[1]] if m[0, j] > 0 else nz.idx[k[2]] for j, k in enumerate(nz.kanten)]
+    misch = sum(zu[j] * phi[oben[j]] for j in range(len(nz.kanten))) / zu.sum()
+    assert np.allclose(misch, phi[n], atol=1e-6)
+
+
+def test_verlust_lineare_fortsetzung():
+    K = np.array([2.0e-5])
+    m = np.array([[-300.0, -100.0, 0.0, 100.0, 300.0]]).T
+    h, d = nm.verlust(m, K, np.array([150.0]))
+    hq, dq = nm.verlust(m, K)
+    assert np.allclose(h[1:4], hq[1:4]) and np.allclose(d[1:4], dq[1:4])
+    assert h[4, 0] == pytest.approx(K[0] * (2 * 150 * 300 - 150**2)) and h[0, 0] == pytest.approx(-h[4, 0])
+    assert d[4, 0] == pytest.approx(2 * K[0] * 150)
+    # Netzlösung: lineare Fortsetzung oberhalb eines sehr großen Knies = quadratisch; kleines Knie = geringere Verluste
+    nz = nm.netz()
+    b = nm.auslegungs_einspeisung(nz, 240.0, 255.0, {"MVA": 40, "GT": 31, "BIO": 13}, 40.0, 150.0)
+    groß = np.full(len(nz.kanten), 1e6)
+    m_q, m_g = nz.loese(b, nz.k0), nz.loese(b, nz.k0, m_lin=groß)
+    assert np.allclose(m_q, m_g, atol=1e-6)
+    m_l = nz.loese(b, nz.k0, m_lin=np.full(len(nz.kanten), 50.0))
+    assert np.allclose(nz.A[[i for i in range(len(nz.knoten)) if nz.knoten[i] != "KWK"]] @ m_l[0],
+                       -b[0, [i for i in range(len(nz.knoten)) if nz.knoten[i] != "KWK"]], atol=1e-6)
+    d_q = nz.dp_knoten(m_q, nz.k0, np.array([4.0]))[0]
+    d_l = nz.dp_knoten(m_l, nz.k0, np.array([4.0]), m_lin=np.full(len(nz.kanten), 50.0))[0]
+    # KWK-versorgte Zielknoten: geringere Verluste -> höherer Δp (Ost-Knoten liegen über der KWK und sinken dagegen)
+    assert all(d_l[nz.idx[k]] > d_q[nz.idx[k]] for k in ("SEC2", "SEC4", "L1G", "SUED_E"))
+
+
+def test_laplace_kovarianz_lineares_problem():
+    rng = np.random.default_rng(3)
+    A = rng.standard_normal((40, 3))
+    y = rng.standard_normal(40)
+    pr = {"res": lambda x: A @ x - y}
+    x = np.linalg.lstsq(A, y, rcond=None)[0]
+    assert np.allclose(nm.laplace_kovarianz(pr, x), np.linalg.inv(A.T @ A), rtol=1e-6)
+
+
+def test_ensemble_reproduziert_einzelfall():
+    from scripts.dhn_study import unsicherheit as un
+
+    nz = nm.netz()
+    E = len(nz.kanten)
+    pr = {"zerlege": lambda x: (nz.k0 * np.exp(x[:E]), {}, {}, {})}
+    g = np.zeros((1, E))
+    g[0, nz.kanten_ids.index("L4c")] = 1.5
+    ost = {"MVA": 40.0, "GT": 31.0, "BIO": 13.0}
+    ae = {"ost": {"Ost Plan A": ost, "Ost wie 2025": ost}, "hw1_mw": 40.0, "hw1_m": 150.0, "gewinn": g,
+          "mindest": {"V06": 1.2, "V03": 1.0, "V12": 1.0}}
+    ens = un.Ensemble(nz, pr, np.zeros((2, E)), ae, t_rl=59.0, lam_ost=0.0, ps1=1.5, v06=1.2)
+    dh = float(daten.dh(un.T_VL_AUSL, 59.0))
+    b = nm.auslegungs_einspeisung(nz, 240.0, dh, ost, 40.0, 150.0, 2.0)
+    req, _ = nm.erforderliche_kwk_dp(nz, nz.k0, b, g, ae["mindest"])
+    assert ens.bedarf(np.full(2, 240.0), 2.0).max(axis=1) == pytest.approx(np.full(2, req[0]))
+
+
+def test_pandapipes_gegenrechnung_quadratisch():
+    pytest.importorskip("pandapipes")
+    from scripts.dhn_study import gegenrechnung_pandapipes as gp
+
+    nz = nm.netz()
+    b = nm.auslegungs_einspeisung(nz, 240.0, 255.0, {"MVA": 40, "GT": 31, "BIO": 13}, 40.0, 150.0)
+    g = np.zeros(len(nz.kanten))
+    g[nz.kanten_ids.index("L4c")] = 1.0
+    m = nz.loese(b, nz.k0, g[None])
+    ppn = gp.baue_netz(nz, nz.k0, np.abs(m[0]), "nikuradse")
+    dp, m_vl, m_rl = gp.rechne(nz, ppn, b[0], g, 4.0)
+    assert np.max(np.abs(dp - nz.dp_knoten(m, nz.k0, np.array([4.0]), g[None])[0])) < 0.05
+    assert np.max(np.abs(m_vl - m[0])) < 2.0 and np.max(np.abs(m_rl - m[0])) < 2.0

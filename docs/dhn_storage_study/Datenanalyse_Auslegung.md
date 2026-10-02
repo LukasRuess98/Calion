@@ -45,7 +45,7 @@ Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` 
 
 | Frage | Ergebnis (indikativ, datenbasiert) |
 |---|---|
-| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Das liegt unter den **4,0 bar** aus der statischen Worst-Case-Simulation des Betreibers; das Netz reicht also, **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. **Das kalibrierte Netzmodell bestätigt das:** 3,1–3,4 bar (P50) und 3,8–4,05 bar (P90), maßgebend die Mitte (`Netzmodell.md`, Abschnitt 5). |
+| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Das liegt unter den **4,0 bar** aus der statischen Worst-Case-Simulation des Betreibers; das Netz reicht also, **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. **Das kalibrierte Netzmodell bestätigt das:** 3,1–3,4 bar (P50) und 3,8–4,05 bar (P90), maßgebend die Mitte (`Netzmodell.md`, Abschnitt 5). In den Unsicherheitsläufen sind „P50 ≤ 4,0 bar“ und „P90 unter der Pumpengrenze“ gestützt; ob bei P90 4,0 bar reichen, ist offen (Abschnitt 5.2). |
 | Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt V06** am Südende der Stammleitung L4 steht auf seinem Sollwert von ≈ 1,2 bar. Auf ihn regelt die KWK (Abschnitt 5.6). (2) Die KWK-Δp ist **nicht frei erhöhbar**: Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrem Erfahrungswert (7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Westnetz auf die eigenen Kessel umstellt. Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
 | **F2:** Wie viel Ausbau ist ohne Maßnahmen möglich? | Bis 4,0 bar **+5 % bis +13 %**, bis ≈ 5,7 bar **+24 % bis +34 %**. Mit West-Bezug wie 2025: −5 % bis +1 % bzw. +12 % bis +20 %. |
 | Erzeugungsleistung (n−1) | Plan A: 251 MW im Verbund bei Ausfall der größten KWK-Einheit (KWK 50 + 0 + 44 + 33 MW). Im Referenzfall reicht das bei P50. Bei P90 fehlen ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Mit KWK im Umleitbetrieb (267 MW) bleibt praktisch keine Lücke. Nur mit West-Bezug wie 2025 fehlen 80–230 MWh. |
@@ -370,6 +370,8 @@ Werte in bar je 100 kg/s.
 | R² | 0,63 | 0,65 | 0,51 | 0,48 | 0,28 | 0,15 | 0,11 | 0,09 |
 
 Aussagekräftig ist der Tracer nur bei R² ≳ 0,3. Mit 15-min-Werten wird er deutlich schärfer.
+
+Das kalibrierte Netzmodell trifft die Anteile an V22, V11 und V23 auf ±6 Prozentpunkte und an V15 auf +16 Prozentpunkte, wenn auf seine Mischungsanteile dieselbe Regression angewandt wird (`Netzmodell.md`, Abschnitt 4.6).
 
 ## 9. Signalprüfungen
 

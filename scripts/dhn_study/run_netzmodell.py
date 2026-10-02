@@ -21,6 +21,12 @@ HEBEL_GEWICHT = 1.0
 # 130–330 kg/s konstant. Der interne Verlust wird deshalb eng an den Planwert gebunden (sonst falsche Extrapolation).
 KANTEN_SIGMA = {"KWKi": 0.2}
 MINDEST_MITTE = 1.0
+# Temperatur-Tracer (Datenanalyse Abschnitt 8): Station -> (Temperatursignal, Modellknoten). V05 (Süd) liegt ohne
+# Lageangabe entweder vor oder hinter HW1; beide Knoten werden gezeigt.
+TRACER_STATIONEN = {"V22": ("V22_T_supply", "S"), "V11": ("V11_T_supply", "L5M"), "V15": ("V15_house_T_supply", "K3"),
+                    "V23": ("V23_T_supply", "L1G"), "V17": ("V17_T_supply", "SEC2"), "V12": ("V12_T_supply", "SEC4"),
+                    "V24": ("V24_T_supply", "SEC2"), "V05 (vor HW1)": ("V05_T_supply", "SUED_N"),
+                    "V05 (hinter HW1)": ("V05_T_supply", "SUED_S")}
 # KWK-Durchflussbänder der Hebelprüfung; das Band ab 180 kg/s (Kältebetrieb) verankert die Speicherentlastung
 BAENDER = ((0, 180), (180, 240), (240, 600), (180, 600))
 BAND_AUSLEGUNG = (180, 600)
@@ -37,6 +43,49 @@ def aufteilung(f: nm.Fall, ta: pd.Series) -> tuple[np.ndarray, np.ndarray]:
     start = np.concatenate([idx[ok & (T[:-1] < 5)][::6], idx[ok & ~(T[:-1] < 5)][::20]])
     start = np.sort(start)
     return hold, np.ravel(np.column_stack([start, start + 1]))
+
+
+def kalibrier_eingaben(m: pd.DataFrame, e: pd.DataFrame, ta: pd.Series, f: nm.Fall) -> dict:
+    """Eingaben der Kalibrierung: Holdout-Maske, Kalibrierpaare, Hebel-Trainingsstunden (Heizperiode), Stundengewichte."""
+    hold, sel = aufteilung(f, ta)
+    ft = f.teil(sel)
+    hreg = nm.hebel_regressoren(m, e, f.index)
+    heiz = (ta.reindex(f.index) < 8).to_numpy()
+    return {"hold": hold, "sel": sel, "ft": ft, "hreg": hreg, "heiz": heiz,
+            "hebel": {"fall": f.teil(~hold & heiz), "reg": hreg[~hold & heiz], "gewicht": HEBEL_GEWICHT},
+            "gewichtung": np.where(ta.reindex(ft.index).to_numpy() < 5, 3.0, 1.0)}
+
+
+def kalibrier_problem(nz: nm.Netz, ein: dict) -> dict:
+    """Residuenfunktion der Kalibrierung mit den Einstellungen dieses Laufs (``nm.kalibrier_problem``)."""
+    return nm.kalibrier_problem(nz, ein["ft"], gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
+                                kanten_sigma=KANTEN_SIGMA)
+
+
+def auslegung_eingaben(m: pd.DataFrame, e: pd.DataFrame, ta: pd.Series, nz: nm.Netz) -> dict:
+    """Randbedingungen des Auslegungsfalls (−14 °C, n−1, West aus eigenen Kesseln): Spreizung aus dem gemessenen
+    Rücklauf bei Kälte, Ost nach Plan A und wie 2025, HW1, Pumpengewinne, Mindest-Δp, Lastfälle, Pumpengrenze KWK."""
+    anl = daten.lade_anlagen()["plants"]
+    t_rl = float(m.gas_CHP_T_return[ta < -5].median())
+    kalt = ta < -2
+    ps1 = m.pump_station_1_p_supply_after_pump - m.pump_station_1_p_supply_before_pump
+    gewinn = np.zeros((1, len(nz.kanten)))
+    gewinn[0, nz.kanten_ids.index("L4c")] = float(ps1.quantile(0.99))
+    gewinn[0, nz.kanten_ids.index("W1")] = float((m.pump_station_2_dp_supply_after_pump
+                                                  - m.pump_station_2_dp_supply_before_pump)[kalt].median())
+    gt_an = e["gas_turbine"] > 2
+    return {"T_RL": t_rl, "dT": T_VL_AUSL - t_rl, "dh": float(daten.dh(T_VL_AUSL, t_rl)),
+            "ost": {"Ost Plan A": {"MVA": anl["waste_incineration"]["P_max_MW"]["design_minus14C"],
+                                   "GT": anl["gas_turbine"]["P_max_MW"]["design_minus14C"],
+                                   "BIO": anl["biomass_CHP"]["P_max_MW"]["design_minus14C"]},
+                    "Ost wie 2025": {"MVA": float(e["waste_incineration"][kalt].median()),
+                                     "GT": float(e["gas_turbine"][kalt & gt_an].median()),
+                                     "BIO": float(e["biomass_CHP"][kalt].median())}},
+            "hw1_mw": anl["boiler_plant_1"]["P_max_MW"]["design_minus14C"], "hw1_m": anl["boiler_plant_1"]["m_max_t_h"] / 3.6,
+            "gewinn": gewinn, "ps1_quantile": {"P95": float(ps1.quantile(0.95)), "P99": float(ps1.quantile(0.99))},
+            "mindest": {"V06": 1.2, **{s: MINDEST_MITTE for s in nm.MITTE_ZIELE}},
+            "faelle": {"P50": (235.0, 1.0), "P90": (252.0, 3.7)},   # Verbund-Stundenlast, West-Bezug [MW] (Datenanalyse 6)
+            "pumpe": hydraulik.dp_aus_pumpe(anl["gas_CHP"]["pumps"]["head_m"], T_VL_AUSL, anl["gas_CHP"]["dp_internal_bar"])}
 
 
 def lade_kalibrierung(out, nz: nm.Netz) -> dict:
@@ -57,18 +106,15 @@ def main(neu_kalibrieren: bool = True) -> dict:
     ta = daten.lade_aussentemperatur()[0].reindex(m.index)
     nz = nm.netz()
     f = nm.randbedingungen(m, e, nz)
-    hold, sel = aufteilung(f, ta)
-    ft = f.teil(sel)
+    ein = kalibrier_eingaben(m, e, ta, f)
+    hold, sel, ft, hreg, heiz = ein["hold"], ein["sel"], ein["ft"], ein["hreg"], ein["heiz"]
     erg = {"stunden": {"gesamt": len(f.index), "Kalibrierung": len(sel), "Holdout": int(hold.sum())}}
 
     # 1) Kalibrierung auf Pegel, stündliche Änderungen und gemessene Hebel (Heizperiode, nur Trainingswochen)
-    hreg = nm.hebel_regressoren(m, e, f.index)
-    heiz = (ta.reindex(f.index) < 8).to_numpy()
-    hebel_train = {"fall": f.teil(~hold & heiz), "reg": hreg[~hold & heiz], "gewicht": HEBEL_GEWICHT}
     if neu_kalibrieren or not (out / "kalibrierung_kanten.csv").exists():
         start = lade_kalibrierung(out, nz) if (out / "kalibrierung_kanten.csv").exists() else None
-        kal = nm.kalibriere(nz, ft, gewichtung=np.where(ta.reindex(ft.index).to_numpy() < 5, 3.0, 1.0),
-                            paar_gewicht=PAAR_GEWICHT, hebel=hebel_train, kanten_sigma=KANTEN_SIGMA, start=start)
+        kal = nm.kalibriere(nz, ft, gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
+                            kanten_sigma=KANTEN_SIGMA, start=start)
     else:
         kal = lade_kalibrierung(out, nz)
     erg["kal"] = kal
@@ -133,6 +179,32 @@ def main(neu_kalibrieren: bool = True) -> dict:
     kop_mod = hydraulik.fit_ost_kopplung(sim["MVA"], pd.Series(f.dp_kwk, f.index), msf.Ost, msf.KWK)
     erg["kopplung"] = pd.DataFrame({"Messung": kop_mess, "Modell": kop_mod}).loc[["c", "d", "f", "r2"]]
 
+    # 3.5 Temperatur-Tracer: Mischungsanteile aus den Modellflüssen (Aufwind, Quellmarkierung); daraus eine synthetische
+    # Stationstemperatur aus den gemessenen Quelltemperaturen und darauf dieselbe Regression wie in der Datenanalyse
+    b_all = f.b(nz, gw, gl)
+    phi = nm.quellanteile(nz, nz.loese(b_all, kal["K"], f.gewinn), b_all)
+    mm = m.reindex(f.index)
+    t_q = {"KWK": mm.gas_CHP_T_supply, "MVA": mm.waste_incineration_T_supply,
+           "GT": mm.gas_turbine_T_supply.fillna(mm.waste_incineration_T_supply), "BIO": mm.biomass_CHP_T_supply,
+           "HW1": mm.boiler_plant_1_T_supply.fillna(mm.gas_CHP_T_supply)}
+    Tq = np.stack([t_q[q].to_numpy() for q in nm.QUELLEN], axis=1)
+    t_ost = mm[["waste_incineration_T_supply", "biomass_CHP_T_supply"]].mean(axis=1)
+    winter = pd.Series(f.index.month.isin([1, 2, 11, 12]), index=f.index)
+    sel_t = (winter & ((t_ost - mm.gas_CHP_T_supply).abs() > 3)).to_numpy()
+    zeilen_t = {}
+    for st, (spalte, kn) in TRACER_STATIONEN.items():
+        mess = anker.tracer_anteil(mm[spalte], mm.gas_CHP_T_supply, t_ost, maske=winter)
+        t_mod = pd.Series((phi[:, nz.idx[kn], :] * Tq).sum(axis=1), index=f.index)
+        mod = anker.tracer_anteil(t_mod, mm.gas_CHP_T_supply, t_ost, lags=(0,), maske=winter)
+        zeilen_t[st] = {"Knoten": kn, "Messung": mess["anteil"], "R² Messung": mess["r2"], "Stunden": mess["n"],
+                        "Modell (gleiche Regression)": mod["anteil"], "Abweichung [Pp]": 100 * (mod["anteil"] - mess["anteil"]),
+                        "Modell Ost-Anteil (Mittel)": float(phi[sel_t, nz.idx[kn], 1:4].sum(axis=1).mean()),
+                        "Modell HW1-Anteil (Mittel)": float(phi[sel_t, nz.idx[kn], 4].mean()),
+                        "aussagekräftig (R² ≥ 0,3)": mess["r2"] >= 0.3,
+                        "erfüllt (±15 Pp)": abs(mod["anteil"] - mess["anteil"]) <= 0.15}
+    erg["tracer"] = pd.DataFrame(zeilen_t).T.infer_objects()
+    erg["tracer"].to_csv(out / "kriterium_3_5_tracer.csv")
+
     # Plan-Kriterien: 3.1 Zustand (Hochlast-Holdout, kritische Stationen), 3.2 Hebel (Vorzeichen richtig, Betrag ±30 %
     # bzw. ±0,05 bar), 3.4 Ost-Kopplung (Modellgesetz gegen gemessenes Gesetz im Bereich 2025, ±0,3 bar)
     gh = erg["guete"]["Holdout Hochlast"].loc[["V06", *nm.MITTE_ZIELE]]
@@ -176,24 +248,12 @@ def main(neu_kalibrieren: bool = True) -> dict:
     k36_par.to_csv(out / "kriterium_3_6_parameter.csv")
 
     # 5) Auslegungsfall mit dem kalibrierten Modell (Referenz: −14 °C, n−1, West aus eigenen Kesseln)
-    anl = daten.lade_anlagen()["plants"]
-    dTd = T_VL_AUSL - float(m.gas_CHP_T_return[ta < -5].median())       # gemessener Rücklauf bei Kälte
-    dh = float(daten.dh(T_VL_AUSL, T_VL_AUSL - dTd))
-    ost = {"MVA": anl["waste_incineration"]["P_max_MW"]["design_minus14C"], "GT": anl["gas_turbine"]["P_max_MW"]["design_minus14C"],
-           "BIO": anl["biomass_CHP"]["P_max_MW"]["design_minus14C"]}
-    hw1_mw, hw1_m = anl["boiler_plant_1"]["P_max_MW"]["design_minus14C"], anl["boiler_plant_1"]["m_max_t_h"] / 3.6
-    kalt = ta < -2
-    gewinn = np.zeros((1, len(nz.kanten)))
-    gewinn[0, nz.kanten_ids.index("L4c")] = float(ps1.quantile(0.99))
-    gewinn[0, nz.kanten_ids.index("W1")] = float((m.pump_station_2_dp_supply_after_pump - m.pump_station_2_dp_supply_before_pump)[kalt].median())
-    mindest = {"V06": 1.2, **{s: MINDEST_MITTE for s in nm.MITTE_ZIELE}}
-    faelle = {"P50": (235.0, 1.0), "P90": (252.0, 3.7)}       # Verbund-Stundenlast [MW], West-Bezug [MW] (Datenanalyse Abschnitt 6)
-    gt_an = e["gas_turbine"] > 2
-    ost_2025 = {"MVA": float(e["waste_incineration"][kalt].median()), "GT": float(e["gas_turbine"][kalt & gt_an].median()),
-                "BIO": float(e["biomass_CHP"][kalt].median())}
-    varianten = {"Ost Plan A": ost, "Ost wie 2025": ost_2025}
+    ae = auslegung_eingaben(m, e, ta, nz)
+    dTd, dh, gewinn, mindest, faelle, pumpe = ae["dT"], ae["dh"], ae["gewinn"], ae["mindest"], ae["faelle"], ae["pumpe"]
+    hw1_mw, hw1_m = ae["hw1_mw"], ae["hw1_m"]
+    varianten = ae["ost"]
+    ost, ost_2025 = varianten["Ost Plan A"], varianten["Ost wie 2025"]
     bias_v06 = float(erg["guete"].loc["V06", ("Holdout Hochlast", "Bias")])
-    pumpe = hydraulik.dp_aus_pumpe(anl["gas_CHP"]["pumps"]["head_m"], T_VL_AUSL, anl["gas_CHP"]["dp_internal_bar"])
     zeilen = []
 
     def rechne(P, west, ost_v, speicher=None, mind=mindest):
@@ -240,6 +300,8 @@ def main(neu_kalibrieren: bool = True) -> dict:
                                                                                             gemessener_hebel=True),
                            "Entlastung Speicher Südende, Modell [bar]": req - rechne(P, west, ost_v, {"SUED_E": SPEICHER_MW})[0],
                            "Reserve bis 4,0 bar mit Speicher Südende, Modell": reserve(P, west, ost_v, 4.0, {"SUED_E": SPEICHER_MW})})
+    pd.DataFrame({"Hebel [bar je 100 kg/s]": {z: hebel_s(z) for z in mindest},
+                  "SE": {z: hebel_s(z, 1.0) - hebel_s(z) for z in mindest}}).to_csv(out / "hebel_speicher_s_gemessen.csv")
     erg["auslegung"] = pd.DataFrame(zeilen).set_index(["Ost", "Fall"])
     erg["auslegung"].to_csv(out / "auslegung_netzmodell.csv")
     erg["auslegung_annahmen"] = {"ΔT [K]": dTd, "Ost Plan A [MW]": ost, "Ost wie 2025 [MW]": ost_2025, "V06-Bias [bar]": bias_v06,
@@ -265,6 +327,8 @@ def _bericht(erg: dict, out) -> None:
              "## Plan-Kriterien", "3.1 (Hochlast-Holdout, RMSE ≤ 0,2 bar, |Bias| ≤ 0,1 bar)", _md(erg["kriterien"]["3.1"].round(3)), "",
              "3.2 (Hebel Holdout-Heizperiode: Vorzeichen, Betrag ±30 % bzw. ±0,05 bar)", _md(erg["kriterien"]["3.2"]), "",
              "3.4 (Ost-Kopplung, Modellgesetz − gemessenes Gesetz)", _md(erg["kriterien"]["3.4"].round(3).to_frame("Wert")), "",
+             "3.5 (Temperatur-Tracer: Ost-Wasseranteil, Winter; Modell mit derselben Regression auf synthetischer Temperatur)",
+             _md(erg["tracer"].drop(columns="Knoten").round(2)), "",
              "3.6 (Plausibilitätsanker, Modellgesetz − gemessenes Gesetz; Mitte über den Lastbereich P5–P99, Süd P5–P95 der Stunden)",
              _md(erg["kriterien"]["3.6"].round(3)), "", _md(erg["kriterien"]["3.6 Parameter"].round(4)), "",
              "## Auslegungsfall", f"Annahmen: {erg['auslegung_annahmen']}", "", _md(erg["auslegung"].round(3))]

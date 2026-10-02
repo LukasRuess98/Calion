@@ -291,6 +291,84 @@ def netzmodell_abbildungen(out):
     plt.close(fig)
 
 
+def tracer_abbildung(out):
+    """Ost-Wasseranteil: Messung (Temperatur-Tracer) gegen Modell (gleiche Regression), Plan 3.5."""
+    res = daten.repo_root() / "results" / "dhn_study" / "netzmodell" / "kriterium_3_5_tracer.csv"
+    if not res.exists():
+        return
+    t = pd.read_csv(res, index_col=0)
+    t = t.drop(index=[i for i in t.index if i.startswith("V05 (hinter")]).rename(index=lambda i: i.replace(" (vor HW1)", ""))
+    fig, ax = plt.subplots(figsize=(11, 4.0), facecolor=FLAECHE)
+    _stil(ax)
+    x = np.arange(len(t))
+    gut = t["R² Messung"].to_numpy() >= 0.3
+    for i in x:
+        ax.plot([i, i], sorted([t["Messung"].iloc[i], t["Modell (gleiche Regression)"].iloc[i]]), color=ACHSE, linewidth=1.2, zorder=2)
+    ax.scatter(x[gut], t["Messung"][gut], s=70, color=SERIE[0], label="Messung (R² ≥ 0,3)", zorder=4)
+    ax.scatter(x[~gut], t["Messung"][~gut], s=70, facecolor=FLAECHE, edgecolor=SERIE[0], linewidth=1.5,
+               label="Messung (R² < 0,3, wenig aussagekräftig)", zorder=4)
+    ax.scatter(x, t["Modell (gleiche Regression)"], s=60, marker="D", color=SERIE[1], label="Modell", zorder=5)
+    ax.set_xticks(x)
+    ax.set_xticklabels(t.index, fontsize=9)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Ost-Wasseranteil", fontsize=9, color=TINTE2)
+    ax.legend(frameon=False, fontsize=8.5, loc="upper right", labelcolor=TINTE2)
+    ax.set_title("Temperatur-Tracer im Winter: Ost-Wasseranteil an den Stationen, Messung gegen Netzmodell",
+                 fontsize=11, color=TINTE, loc="left")
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_tracer.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+
+
+def unsicherheit_abbildung(out):
+    """Unsicherheitsläufe: Verteilung der erforderlichen KWK-Δp und Reservegewinn durch Speicher (Plan, Phase 4)."""
+    res = daten.repo_root() / "results" / "dhn_study" / "netzmodell" / "unsicherheit_laeufe.csv"
+    if not res.exists():
+        return
+    from .run_analyse import T_VL_AUSL
+    anl = daten.lade_anlagen()["plants"]["gas_CHP"]
+    pumpe = hydraulik.dp_aus_pumpe(anl["pumps"]["head_m"], T_VL_AUSL, anl["dp_internal_bar"])
+    lf = pd.read_csv(res)
+    varianten = ["quadratisch", "linear oberhalb P95"]
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.4), facecolor=FLAECHE, gridspec_kw={"width_ratios": [1.15, 1]})
+    ax = axs[0]
+    _stil(ax)
+    for v, farbe in zip(varianten, SERIE, strict=False):
+        for fall, ls in (("P50", "-"), ("P90", (0, (5, 2)))):
+            r = np.sort(lf.loc[(lf.Variante == v) & (lf.Fall == fall), "erf. KWK-Δp [bar]"].to_numpy())
+            ax.plot(r, np.arange(1, len(r) + 1) / len(r), color=farbe, linestyle=ls, linewidth=2, label=f"{fall}, {v}")
+    for wert, text in ((4.0, "4,0 bar"), (pumpe, f"Pumpe {pumpe:.1f} bar".replace(".", ","))):
+        ax.axvline(wert, color=TINTE2, linewidth=0.9, linestyle=(0, (2, 2)))
+        ax.annotate(text, (wert, 0.03), xytext=(4, 0), textcoords="offset points", fontsize=8.5, color=TINTE2)
+    ax.set_xlabel("erforderliche KWK-Δp [bar]", fontsize=9, color=TINTE2)
+    ax.set_ylabel("Anteil der Läufe", fontsize=9, color=TINTE2)
+    ax.legend(frameon=False, fontsize=8.5, loc="center right", labelcolor=TINTE2)
+    ax.set_title("Erforderliche KWK-Δp (400 Läufe je Fall)", fontsize=10.5, color=TINTE, loc="left")
+    ax = axs[1]
+    _stil(ax)
+    groessen = [("Reservegewinn S, gemessene Hebel [Pp]", "Speicher S,\ngemessene Hebel"),
+                ("Reservegewinn S, Modell [Pp]", "Speicher S,\nModell"),
+                ("Reservegewinn Südende, Modell [Pp]", "Speicher Südende,\nModell")]
+    p90 = lf[lf.Fall == "P90"]
+    for k, (spalte, _) in enumerate(groessen):
+        for j, (v, farbe) in enumerate(zip(varianten, SERIE, strict=False)):
+            r = p90.loc[p90.Variante == v, spalte]
+            y = k + (j - 0.5) * 0.28
+            ax.plot([r.quantile(0.05), r.quantile(0.95)], [y, y], color=farbe, linewidth=2.2, solid_capstyle="round")
+            ax.scatter([r.median()], [y], s=46, color=farbe, zorder=4, label=v if k == 0 else None)
+    ax.set_yticks(range(len(groessen)))
+    ax.set_yticklabels([t for _, t in groessen], fontsize=9)
+    ax.set_xlabel("zusätzliche Ausbaureserve bis 4,0 bar bei P90 [Prozentpunkte]", fontsize=9, color=TINTE2)
+    ax.legend(frameon=False, fontsize=8.5, loc="lower right", labelcolor=TINTE2, title="Median, P5–P95",
+              title_fontsize=8.5)
+    ax.set_title("Speicher 40 MW: Gewinn an Ausbaureserve", fontsize=10.5, color=TINTE, loc="left")
+    fig.suptitle("Unsicherheitsläufe zum Auslegungsfall (Parameter, Eingangsgrößen, Strukturvarianten)", fontsize=12,
+                 color=TINTE, x=0.01, ha="left")
+    fig.tight_layout()
+    fig.savefig(out / "netzmodell_unsicherheit.png", dpi=150, facecolor=FLAECHE)
+    plt.close(fig)
+
+
 def main():
     out = daten.repo_root() / "docs" / "dhn_storage_study" / "abbildungen"
     out.mkdir(parents=True, exist_ok=True)
@@ -299,6 +377,8 @@ def main():
     kaeltewoche(m, e, ta, kd, out / "regelpunkte_kaeltewoche.png")
     schema(kd, ta, vb, out / "regelpunkte_schema.png")
     netzmodell_abbildungen(out)
+    tracer_abbildung(out)
+    unsicherheit_abbildung(out)
     return out
 
 

@@ -129,35 +129,80 @@ class Netz:
         self._nr = nr
 
     def loese(self, b: np.ndarray, K: np.ndarray, gewinn: np.ndarray | None = None, iter_max: int = 50,
-              tol: float = 1e-7) -> np.ndarray:
+              tol: float = 1e-7, m_lin: np.ndarray | None = None) -> np.ndarray:
         """Kantenströme [kg/s] (B×E) für Einspeisungen b (B×N, + = Einspeisung; Summe über Nicht-Wurzelknoten beliebig,
-        die Wurzel gleicht aus). Pumpengewinne auf Kanten innerhalb von Maschen werden berücksichtigt."""
+        die Wurzel gleicht aus). Pumpengewinne auf Kanten innerhalb von Maschen werden berücksichtigt. ``K`` je Kante (E)
+        oder je Fall und Kante (B×E); ``m_lin``: Verlustgesetz oberhalb dieses Durchflusses linear (``verlust``)."""
         b = np.atleast_2d(b)
         B = b.shape[0]
-        g = np.zeros((B, len(K))) if gewinn is None else np.atleast_2d(gewinn)
+        g = np.zeros((B, np.shape(K)[-1])) if gewinn is None else np.atleast_2d(gewinn)
         m0 = b @ self.M0.T
         nl = self.C.shape[0]
         q = np.zeros((B, nl))
         for _ in range(iter_max):
             m = m0 + q @ self.C
-            h = K * m * np.abs(m) - g
-            f = h @ self.C.T
+            h, d = verlust(m, K, m_lin)
+            f = (h - g) @ self.C.T
             if np.max(np.abs(f)) < tol:
                 break
-            d = 2 * K * np.abs(m) + 1e-9
-            J = np.einsum("le,be,ke->blk", self.C, d, self.C)
+            J = np.einsum("le,be,ke->blk", self.C, d + 1e-9, self.C)
             q = q - np.linalg.solve(J, f[..., None])[..., 0]
         return m0 + q @ self.C
 
-    def dp_knoten(self, m: np.ndarray, K: np.ndarray, dp_wurzel: np.ndarray, gewinn: np.ndarray | None = None) -> np.ndarray:
+    def dp_knoten(self, m: np.ndarray, K: np.ndarray, dp_wurzel: np.ndarray, gewinn: np.ndarray | None = None,
+                  m_lin: np.ndarray | None = None) -> np.ndarray:
         """Δp (VL − RL) [bar] je Knoten (B×N) bei Wurzel-Δp ``dp_wurzel`` (B,)."""
         g = 0.0 if gewinn is None else gewinn
-        verlust = K * m * np.abs(m) - g
-        return np.asarray(dp_wurzel)[:, None] - verlust @ self.P.T
+        return np.asarray(dp_wurzel)[:, None] - (verlust(m, K, m_lin)[0] - g) @ self.P.T
+
+
+def verlust(m: np.ndarray, K: np.ndarray, m_lin: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Kantenverlust [bar] und Ableitung nach ṁ. Quadratisch K·ṁ·|ṁ|; mit ``m_lin`` (je Kante) oberhalb von m_lin
+    linear fortgesetzt (stetig differenzierbar): K·sign(ṁ)·(2·m_lin·|ṁ| − m_lin²). Die lineare Fortsetzung bildet die
+    Strukturvariante „Hebel wachsen oberhalb des Messbereichs nicht mehr“ ab."""
+    a = np.abs(m)
+    if m_lin is None:
+        return K * m * a, 2 * K * a
+    über = a > m_lin
+    h = np.where(über, K * np.sign(m) * (2 * m_lin * a - m_lin**2), K * m * a)
+    d = np.where(über, 2 * K * m_lin, 2 * K * a)
+    return h, d
 
 
 def netz() -> Netz:
     return Netz(list(KNOTEN), KANTEN)
+
+
+QUELLEN = ["KWK", "MVA", "GT", "BIO", "HW1"]      # Quellmarkierung für die Mischungsrechnung (Temperatur-Tracer)
+
+
+def quellanteile(nz: Netz, m: np.ndarray, b: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    """Anteil jeder Quelle (``QUELLEN``) am Vorlaufwasser je Knoten (B×N×Q): vollständige Mischung am Knoten,
+    Aufwind entlang der Kantenströme ``m`` (B×E). Quellen sind die KWK (Wurzel) und die Erzeugerknoten mit Einspeisung
+    b > 0. Knoten ohne Zufluss erhalten KWK-Wasser."""
+    m, b = np.atleast_2d(m), np.atleast_2d(b)
+    B, N = b.shape
+    von = np.zeros((len(nz.kanten), N))
+    nach = np.zeros_like(von)
+    for j, (_, a, z, *_r) in enumerate(nz.kanten):
+        von[j, nz.idx[a]] = 1.0
+        nach[j, nz.idx[z]] = 1.0
+    zufluss = np.maximum(nz.A[None, :, :] * m[:, None, :], 0.0)                   # B×N×E: Zufluss in n über e
+    oben = np.where((m > 0)[..., None], von[None], nach[None])                    # B×E×N: Knoten stromauf von e
+    ein = np.zeros((B, N, len(QUELLEN)))
+    for q, kn in enumerate(QUELLEN[1:], start=1):
+        ein[:, nz.idx[kn], q] = np.maximum(b[:, nz.idx[kn]], 0.0)
+    w = nz.idx[nz.wurzel]
+    Q = zufluss.sum(axis=2) + ein.sum(axis=2) + eps
+    M = -np.einsum("bne,bek->bnk", zufluss, oben)
+    M[:, np.arange(N), np.arange(N)] += Q
+    rhs = ein.copy()
+    rhs[:, :, 0] += eps                                                           # stehendes Wasser = KWK
+    M[:, w, :] = 0.0
+    M[:, w, w] = 1.0
+    rhs[:, w, :] = 0.0
+    rhs[:, w, 0] = 1.0
+    return np.linalg.solve(M, rhs)
 
 
 def lastanteile(gewichte: dict[str, float] | None = None) -> pd.Series:
@@ -324,11 +369,10 @@ def hebel_vergleich(fall: Fall, reg: pd.DataFrame, sim: pd.DataFrame) -> tuple[p
     return f(km), f(ks), f(se)
 
 
-def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: float = 0.3, gewicht_sigma: float = 0.3,
-               grundlast_sigma: float = 40.0, gewichtung: np.ndarray | None = None, max_nfev: int = 300,
-               paar_gewicht: float = 0.0, hebel: dict | None = None, kanten_sigma: dict[str, float] | None = None,
-               start: dict | None = None) -> dict:
-    """Gewichtete kleinste Quadrate über alle Stunden des Falls. Parameter mit Prior:
+def kalibrier_problem(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: float = 0.3, gewicht_sigma: float = 0.3,
+                      grundlast_sigma: float = 40.0, gewichtung: np.ndarray | None = None, paar_gewicht: float = 0.0,
+                      hebel: dict | None = None, kanten_sigma: dict[str, float] | None = None) -> dict:
+    """Residuenfunktion der Kalibrierung (gewichtete kleinste Quadrate über alle Stunden des Falls). Parameter mit Prior:
     * Widerstandsmultiplikator je Kante (log, N(0, ``prior_sigma``)),
     * Lastgewicht je Lastgruppe (log, N(0, ``gewicht_sigma``)),
     * Grundlastverschiebung je Lastgruppe (kg/s, N(0, ``grundlast_sigma``); SEC2 gleicht aus),
@@ -339,7 +383,8 @@ def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: fl
     (natürliche Experimente) und trennt Verluste, die nur vom Gesamtdurchfluss abhängen, von solchen einzelner Leitungen.
     ``hebel``: {"fall": zusammenhängender Fall, "reg": Regressoren (``hebel_regressoren``), "gewicht": float}. Die gemessenen
     Hebel (Differenzenregression) werden mit denselben Regressionen auf der Modellreihe verglichen; Skala = max(SE, 0,03).
-    ``kanten_sigma``: abweichender Prior je Kante (z. B. eng um den Planwert); ``start``: früheres Ergebnis als Startwert.
+    ``kanten_sigma``: abweichender Prior je Kante (z. B. eng um den Planwert).
+    Rückgabe: {"res": Residuen(x), "zerlege": x -> (K, Gewichte, Grundlast, Versatz), "x_aus": Kalibrierung -> x, "namen"}.
     """
     stationen = [s for s in STATIONEN if s in fall.ziele]
     gruppen = list(LASTGRUPPEN)
@@ -391,19 +436,52 @@ def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: fl
         return np.concatenate([*teile, x[:E] / sig_k, x[E:E + G] / gewicht_sigma, x[E + G:E + G + H] / grundlast_sigma,
                                x[E + G + H:] / versatz_sigma])
 
-    x0 = np.zeros(E + G + H + len(stationen))
+    def x_aus(kal: dict) -> np.ndarray:
+        x = np.zeros(E + G + H + len(stationen))
+        x[:E] = np.log(np.clip(kal["multiplikator"].reindex(nz.kanten_ids).to_numpy(float), 1e-3, None))
+        x[E:E + G] = np.log([kal["gewichte"].get(g, 1.0) for g in gruppen])
+        x[E + G:E + G + H] = [kal["grundlast"].get(g, 0.0) for g in GRUNDLAST_GRUPPEN]
+        x[E + G + H:] = [float(kal["versatz"].get(st, 0.0)) for st in stationen]
+        return x
+
+    namen = ([f"log Multiplikator {k}" for k in nz.kanten_ids] + [f"log Gewicht {g}" for g in gruppen]
+             + [f"Grundlast {g} [kg/s]" for g in GRUNDLAST_GRUPPEN] + [f"Versatz {st} [bar]" for st in stationen])
+    return {"res": res, "zerlege": zerlege, "x_aus": x_aus, "namen": namen}
+
+
+def kalibriere(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: float = 0.3, gewicht_sigma: float = 0.3,
+               grundlast_sigma: float = 40.0, gewichtung: np.ndarray | None = None, max_nfev: int = 300,
+               paar_gewicht: float = 0.0, hebel: dict | None = None, kanten_sigma: dict[str, float] | None = None,
+               start: dict | None = None) -> dict:
+    """Kalibrierung (``kalibrier_problem``) mit ``least_squares``; ``start``: früheres Ergebnis als Startwert (Kanten mit
+    eigenem Prior in ``kanten_sigma`` starten am Planwert)."""
+    pr = kalibrier_problem(nz, fall, prior_sigma, versatz_sigma, gewicht_sigma, grundlast_sigma, gewichtung, paar_gewicht,
+                           hebel, kanten_sigma)
+    E = len(nz.kanten)
+    x0 = np.zeros(len(pr["namen"]))
     if start:
-        x0[:E] = np.log(np.clip(start["multiplikator"].reindex(nz.kanten_ids).to_numpy(float), 1e-3, None))
-        x0[E:E + G] = np.log([start["gewichte"].get(g, 1.0) for g in gruppen])
-        x0[E + G:E + G + H] = [start["grundlast"].get(g, 0.0) for g in GRUNDLAST_GRUPPEN]
-        x0[E + G + H:] = [float(start["versatz"].get(st, 0.0)) for st in stationen]
+        x0 = pr["x_aus"](start)
         for i, k in enumerate(nz.kanten_ids):
             if k in (kanten_sigma or {}):
                 x0[i] = 0.0
-    lsq = least_squares(res, x0, method="trf", x_scale="jac", max_nfev=max_nfev)
-    K, gew, gl, vs = zerlege(lsq.x)
+    lsq = least_squares(pr["res"], x0, method="trf", x_scale="jac", max_nfev=max_nfev)
+    K, gew, gl, vs = pr["zerlege"](lsq.x)
     return {"K": K, "multiplikator": pd.Series(np.exp(lsq.x[:E]), index=nz.kanten_ids), "gewichte": gew, "grundlast": gl,
             "versatz": pd.Series(vs), "kosten": float(lsq.cost), "erfolg": bool(lsq.success)}
+
+
+def laplace_kovarianz(problem: dict, x: np.ndarray, schritt: np.ndarray | None = None) -> np.ndarray:
+    """Kovarianz der Parameter in Laplace-Näherung, (JᵀJ)⁻¹ mit der Jacobi-Matrix der Residuen (zentrale Differenzen).
+    Die Residuen der Kalibrierung sind so skaliert, dass jede Messreihe wie eine Beobachtung mit 0,1 bar Fehler
+    (Pegel) bzw. ihrem Standardfehler (Hebel) zählt; die Kovarianz beschreibt damit die Parameterunsicherheit bei
+    systematischem Modellfehler dieser Größe."""
+    h = np.full(len(x), 1e-3) if schritt is None else np.asarray(schritt, float)
+    J = np.empty((len(problem["res"](x)), len(x)))
+    for i in range(len(x)):
+        e = np.zeros(len(x))
+        e[i] = h[i]
+        J[:, i] = (problem["res"](x + e) - problem["res"](x - e)) / (2 * h[i])
+    return np.linalg.inv(J.T @ J)
 
 
 def guete(sim: pd.DataFrame, ziele: pd.DataFrame, maske: np.ndarray | None = None) -> pd.DataFrame:

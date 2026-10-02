@@ -29,6 +29,10 @@ Stand: 2026-10-01, **Version 2 nach Prüfung mit den Messdaten 2025 und den Plä
   * Die Ausbaureserve wächst aber nur um 1–8 Prozentpunkte, weil danach der Süden bindet.
   * Die frühere Angabe von 0,08 bar ist korrigiert.
 * **Das Netzmodell ist gebaut und an den Messwerten abgeglichen** (`Netzmodell.md`). Es bestätigt F1. Seine Hebel stimmen bis 240 kg/s KWK-Durchfluss; darüber sind sie zu groß.
+  * Der Temperatur-Tracer bestätigt die Verbundflüsse.
+  * Die pandapipes-Gegenrechnung als geschlossener Kreis bestätigt Löser und Strukturannahmen (≤ 0,017 bar).
+  * Die Unsicherheitsläufe stützen nach der Regel „≥ 90 % und alle Varianten“: P50 ≤ 4,0 bar; P90 unter der Pumpengrenze; Speicher S entlastet ≥ 0,15 bar, bringt aber < 10 Prozentpunkte Reserve; ein Speicher im Süden bringt mehr.
+  * Ob bei P90 4,0 bar reichen, bleibt offen.
 * Stand gegen das Ziel: Abschnitt 1.6.
 
 ---
@@ -94,34 +98,32 @@ Damit entfällt S-05 als Annahme. Die Druckanhebung wird nicht mehr als Wirkung 
 | Hydraulische Begrenzung | **analysiert** (`Datenanalyse_Auslegung.md`, Abschnitt 5): Süd-Schlechtpunkt auf Sollwert, Ost-Pumpen an der Grenze, Ausweichen über HW1 und HW2 West |
 | Regelpunkte | **bestimmt** (Abschnitt 5.6, `hydraulik.regelpunkt_signatur`, Abbildungen): Verbund V06, West V01/V13; V01 dem Westnetz zugeordnet (Korrektur) |
 | 3.2 / 3.4 / 3.5 / 3.6 | Validierungsziele **berechnet**: Netzhebel und Einspeise-Hebel, Ost-Kopplung, Tracer, Mitte-Verlustgesetz und Süd-Regelgesetz |
-| Phase 2 / 3 Netzmodell | **Ersatznetz gebaut, kalibriert und abgeglichen** (`Netzmodell.md`, `scripts/dhn_study/netzmodell.py`):
-• Phase 2: eine Druckhaltung (KWK), Ost-Erzeuger massenstromgeführt (Variante a), Lastverteilung aus `sectors.csv`.
-• 3.1: an 2 von 6 kritischen Stationen erfüllt, an 3 knapp verfehlt; V06 0,33 bar.
-• 3.2: 18 von 40 Hebeln, für den Ost-Ersatz 6 von 8; bis 240 kg/s KWK-Durchfluss an allen Stationen ≤ 0,06 bar.
-• 3.4: in 91 % der Stunden ±0,3 bar.
-• 3.6: Mitte erfüllt, Süd knapp verfehlt.
-• Offen: 2.3 (sektionsintern), 2.5 (Höhen), 2.7 (pandapipes), 3.5 (Tracer), Multiplikatoren L1/L3 außerhalb 0,5–2 |
-| 1.7 Modul + Tests | **weitgehend**: `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`, `netzmodell`, `abbildungen`) mit 26 Tests (`tests/test_dhn_study.py`); der Netzlöser der Studie ist noch im Notebook |
+| Phase 2 / 3 Netzmodell | **Ersatznetz gebaut, kalibriert und abgeglichen** (`Netzmodell.md`, `scripts/dhn_study/netzmodell.py`):<br>• Phase 2: eine Druckhaltung (KWK), Ost-Erzeuger massenstromgeführt (Variante a), Lastverteilung aus `sectors.csv`.<br>• 3.1: an 2 von 6 kritischen Stationen erfüllt, an 3 knapp verfehlt; V06 0,33 bar.<br>• 3.2: 18 von 40 Hebeln, für den Ost-Ersatz 6 von 8; bis 240 kg/s KWK-Durchfluss an allen Stationen ≤ 0,06 bar.<br>• 3.4: in 91 % der Stunden ±0,3 bar.<br>• 3.5 Tracer: an 3 von 4 aussagekräftigen Stationen ±15 Pp, V15 +16 Pp.<br>• 3.6: Mitte erfüllt, Süd knapp verfehlt.<br>• 2.7 pandapipes (geschlossener Kreis): ≤ 0,017 bar, erfüllt.<br>• Phase 4 Unsicherheitsläufe: 400 Läufe × 2 Strukturvarianten (`unsicherheit.py`).<br>• Offen: 2.3 (sektionsintern), 2.5 (Höhen), Leave-one-Station-out, Multiplikatoren L1/L3 außerhalb 0,5–2 |
+| 1.7 Modul + Tests | **weitgehend**: `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`, `netzmodell`, `unsicherheit`, `gegenrechnung_pandapipes`, `abbildungen`) mit 31 Tests (`tests/test_dhn_study.py`, der pandapipes-Test läuft nur, wenn pandapipes installiert ist); der Netzlöser der Studie ist noch im Notebook |
 
-### 1.6 Stand gegen das Ziel (Gesamtprüfung 2026-10-01)
+### 1.6 Stand gegen das Ziel (Gesamtprüfung 2026-10-02)
 
 Ziel des Plans: Aus der Studie belastbare Aussagen zu den Leitfragen F1–F5 (Abschnitt 2) gewinnen, je mit dem Nachweis ihres Aussagetyps (1.1).
 
 | Leitfrage | Aussage heute | Typ / Nachweis | Was bis zum Ziel fehlt |
 |---|---|---|---|
-| **F1** Reicht das Netz bei Auslegungslast? | **Ja, knapp:** erforderliche KWK-Δp 3,2–3,6 bar (Anker) bzw. 3,1–4,05 bar (Netzmodell) gegen 4,0 bar (Worst Case des Betreibers) bzw. ≈ 5,7 bar (Pumpe). Bei P90 liegt das Modell an der 4,0-bar-Grenze. Referenzfall: −14 °C, n−1, unbegrenzter Bedarf, West aus eigenen Kesseln | **A bedingt.** Erfüllt: Grenzwerte vom Betreiber (4), Lastband P50/P90 (6), konsistentes Netzmodell (1), das den Anker auf 0,2–0,45 bar reproduziert. Abgleich mit der Worst-Case-Simulation des Betreibers auf 0,4–0,8 bar. Teilweise: Δp-Validierung (5; 3.1 an 2 von 6 Stationen, 3 knapp). Fehlt: Unsicherheitsläufe (3). Der KWK-Durchfluss bei Auslegung liegt beim 1,4- bis 1,8-fachen des P99 2025 | Feldtest bei hoher Last (3.3) für die Extrapolation; Unsicherheitsläufe |
-| **F2** Wie viel Ausbau, wo? | Gesamt bis 4,0 bar: +5…13 % (Anker) bzw. −0,5…+9 % (Netzmodell); bis zur Pumpengrenze +24…34 % bzw. +10…20 %. Regional noch offen | A bedingt, wie F1 | Aufnahmekapazität je Gebiet mit dem Netzmodell (4.3) |
-| **F3** Was bringt der Speicher am Standort S gegenüber Alternativen? | **Hydraulisch spürbar, aber nicht am Engpass Süd:** 0,3 bar (gemessene Hebel) bis 0,85–1,1 bar (Netzmodell) KWK-Entlastung bei Auslegung. Die Ausbaureserve steigt nur um 1–2 bzw. 8 Prozentpunkte, weil danach V06 im Süden bindet. Ein Speicher am Südende: Modell +15 Prozentpunkte (obere Schranke). **Thermisch:** n−1-Reserve für die P90-Spitze, 30–60 MWh | **V mit Band.** Gestützt durch natürliche Experimente (massenstromkonsistente Einspeise-Hebel), das Netzmodell (3.2 für den Ost-Ersatz bis 240 kg/s erfüllt) und den Tracer. Fehlt: Hebel bei hohem KWK-Durchfluss (Feldtest 3.3), Unsicherheitsläufe (3) | Feldtest bei hoher Last; Vergleich mit Süd-Varianten (Phase 6) |
+| **F1** Reicht das Netz bei Auslegungslast? | **Ja, knapp:** erforderliche KWK-Δp 3,2–3,6 bar (Anker) bzw. 3,1–4,05 bar (Netzmodell) gegen 4,0 bar (Worst Case des Betreibers) bzw. ≈ 5,7 bar (Pumpe). Bei P90 liegt das Modell an der 4,0-bar-Grenze. Referenzfall: −14 °C, n−1, unbegrenzter Bedarf, West aus eigenen Kesseln | **A bedingt.** Erfüllt: Grenzwerte vom Betreiber (4), Lastband P50/P90 (6), konsistentes Netzmodell (1), das den Anker auf 0,2–0,45 bar reproduziert. Abgleich mit der Worst-Case-Simulation des Betreibers auf 0,4–0,8 bar. Teilweise: Δp-Validierung (5; 3.1 an 2 von 6 Stationen, 3 knapp). Unsicherheitsläufe (3): **gestützt** sind „P50 ≤ 4,0 bar“ (92,5–96 %) und „P90 unter der Pumpengrenze“ (≥ 98,8 %); **offen** ist „P90 ≤ 4,0 bar“ (27 % bzw. 80 %). Der KWK-Durchfluss bei Auslegung liegt beim 1,4- bis 1,8-fachen des P99 2025 | Feldtest bei hoher Last (3.3) entscheidet zwischen den Strukturvarianten |
+| **F2** Wie viel Ausbau, wo? | Gesamt bis 4,0 bar: +5…13 % (Anker) bzw. −0,5…+9 % (Netzmodell); bis zur Pumpengrenze +24…34 % bzw. +10…20 %. Regional noch offen | A bedingt, wie F1. Unsicherheitsläufe P90: Reserve bis zur Pumpengrenze +4…+14 % (quadratisch) bzw. +10…+25 % (linear), „≥ 5 %“ in 89,5 % bzw. 98,8 % der Läufe | Aufnahmekapazität je Gebiet mit dem Netzmodell (4.3) |
+| **F3** Was bringt der Speicher am Standort S gegenüber Alternativen? | **Hydraulisch spürbar, aber nicht am Engpass Süd:** 0,3 bar (gemessene Hebel) bis 0,85–1,1 bar (Netzmodell) KWK-Entlastung bei Auslegung. Die Ausbaureserve steigt nur um 1–2 bzw. 8 Prozentpunkte, weil danach V06 im Süden bindet. Ein Speicher am Südende: Modell +15 Prozentpunkte (obere Schranke). **Thermisch:** n−1-Reserve für die P90-Spitze, 30–60 MWh | **V mit Band.** Gestützt durch natürliche Experimente (massenstromkonsistente Einspeise-Hebel), das Netzmodell (3.2 für den Ost-Ersatz bis 240 kg/s erfüllt, Tracer 3.5) und die Unsicherheitsläufe: „S entlastet ≥ 0,15 bar“, „S bringt < 10 Pp Reserve“ und „Südende bringt mehr als S“ gelten in ≥ 92 % der Läufe beider Varianten. Fehlt: Hebel bei hohem KWK-Durchfluss (Feldtest 3.3) für die genaue Größe | Feldtest bei hoher Last; Vergleich mit Süd-Varianten (Phase 6) |
 | **F4** Speicherkonzept und Auslegungsdruck | Vorlaufdruck am Standort S 11,6–12,8 bar bei Auslegung, bis ≈ 14 bar an der Pumpengrenze; 2025 max. 12,0 bar | Eingangsgröße datenbasiert; Konzept offen | Phase 5 mit Planer: Konzepte K1–K4, Absicherung, Druckstoß |
 | **F5** Günstigste Maßnahme(n) | Wirkungen quantifiziert: Süd-Einspeisung/HW1 ≈ 0,9–1,0 bar je 100 kg/s am Regelpunkt, Rücklauf −5 K ≈ −0,3 bar, Ost-Vorlauf über der Heizkurve ≈ +0,8 bar wirksame Grenze, Speicher am Standort S 0,3–1,1 bar KWK-Entlastung bzw. +1…8 Prozentpunkte Reserve | V (Wirkung), ohne Kosten | Kostenansätze (F1/F2 der Datenanfrage), Maßnahmenvergleich Phase 6 |
 
 **Gesamturteil:**
 * **Inhaltlich ist die Kernfrage beantwortet.** Das Netz reicht bei Auslegung knapp. Der Speicher am Standort S entlastet die KWK spürbar, löst aber den Engpass im Süden nicht; die zusätzliche Ausbaureserve ist klein. Sein Nutzen ist vor allem thermisch und betrieblich.
-* Diese Richtung ist auf zwei Wegen belegt: datenbasiert (Ersatzgesetze, natürliche Experimente) und mit dem kalibrierten Netzmodell. Beide sind unabhängig vom Modell der Studie.
+* Diese Richtung ist auf drei Wegen belegt, alle unabhängig vom Modell der Studie:
+  * datenbasiert (Ersatzgesetze, natürliche Experimente);
+  * mit dem kalibrierten Netzmodell, geprüft gegen pandapipes und den Tracer;
+  * mit Unsicherheitsläufen, die beide Strukturvarianten enthalten.
 * **Formal am Ziel sind wir noch nicht.**
   * Das Netzmodell (Phase 2) und seine Validierung (Phase 3) liegen vor, erfüllen 3.1 und 3.2 aber nur teilweise.
   * Nach Gate G2 sind damit V-Aussagen mit Band zulässig, A-Aussagen nur bedingt.
-  * Es fehlen der Feldtest bei hoher Last (3.3), Unsicherheitsläufe (Phase 4) sowie Planer- und Kostenbeiträge (Phasen 5/6).
+  * Die Unsicherheitsläufe (Phase 4) stützen die Kernaussagen zu F1 (bis zur Pumpengrenze) und F3 (Rangfolge, Mindestwirkung). Offen ist, ob bei P90 4,0 bar reichen.
+  * Es fehlen der Feldtest bei hoher Last (3.3) sowie Planer- und Kostenbeiträge (Phasen 5/6).
 * Die Korrekturen am Notebook der Studie (Phase 1, 1.1–1.6) sind noch nicht umgesetzt; die Datenanalyse läuft unabhängig davon in `scripts/dhn_study/`.
 
 ### 1.3 Aussagenregister
@@ -390,11 +392,11 @@ Ohne Betreiberdaten möglich: Phasen 1, 2 (mit Varianten), 3.1/3.2 (natürliche 
 | Entladen nur mit Pumpe | – | bleibt; im konsistenten Modell erneut bestätigen | 2 | P |
 | Laden zur Lastspitze schädlich | – | im konsistenten Modell bestätigen | 2 | P/V |
 | Speicherwirkung +0,1…0,2 bar | Netzhebel nicht validiert; Struktur (2.3) | **Eher größer, aber nicht am Engpass:** 40 MW am Standort S ≙ 0,24 bar am Regelpunkt V06 bei Last 2025. Bei Auslegung 0,3 bar (gemessene Hebel) bis 0,85–1,1 bar (Netzmodell) KWK-Entlastung, vor allem in der Mitte. Die Ausbaureserve steigt nur um 1–2 bzw. 8 Prozentpunkte, weil danach V06 im Süden bindet. Die frühere Angabe von 0,08 bar ist korrigiert (`Netzmodell.md`, Abschnitt 5.1). Das Band schließt ein Feldtest bei hoher Last (3.3). Thermisch nur als n−1-Reserve: 30–60 MWh bei P90 | 3, 5, 7 | V |
-| Bestand kritisch, Defizit 15–19 bar·h | S-05, Auslegungsfall (2.1) | Bei Last 2025 **widerlegt** (Reserve ≈ 1,3 bar). Bei **Auslegungslast knapp ausreichend**: Anker 3,2–3,6 bar (West aus eigenen Kesseln), bei West-Bezug 3,9–4,5 bar. Süden bei P90 maßgebend; Prüfung gegen das Grenzband 4,0–5,7 bar und die Ost-Kopplung. **Netzmodell bestätigt:** 3,1–3,4 / 3,8–4,05 bar, Ost-Kopplung nicht begrenzend (`Netzmodell.md`, Abschnitt 5). Offen: Extrapolation über den Messbereich, Unsicherheitsläufe | 3, 4 | A |
+| Bestand kritisch, Defizit 15–19 bar·h | S-05, Auslegungsfall (2.1) | Bei Last 2025 **widerlegt** (Reserve ≈ 1,3 bar). Bei **Auslegungslast knapp ausreichend**: Anker 3,2–3,6 bar (West aus eigenen Kesseln), bei West-Bezug 3,9–4,5 bar. Süden bei P90 maßgebend; Prüfung gegen das Grenzband 4,0–5,7 bar und die Ost-Kopplung. **Netzmodell bestätigt:** 3,1–3,4 / 3,8–4,05 bar, Ost-Kopplung nicht begrenzend (`Netzmodell.md`, Abschnitt 5). Unsicherheitsläufe: P50 ≤ 4,0 bar und P90 unter der Pumpengrenze gestützt; P90 ≤ 4,0 bar offen (Extrapolation über den Messbereich, Feldtest 3.3) | 3, 4 | A |
 | Ausbau nur bis +5…10 % | S-05, S-02, Ausbauort | Anker bei Auslegungslast: +5…13 % bis 4,0 bar, +24…34 % bis 5,7 bar (West aus eigenen Kesseln). Die Größenordnung der Studie trifft den Fall „4,0 bar als Grenze“; die Herleitung ist falsch, und 4,0 bar ist nur ein Erfahrungswert. Exakt über die Aufnahmekapazität je Gebiet, mit Ost-Kopplung und Erzeugungsleistung | 2, 4, 6 | A |
 | KWK-Limit ab +15 % | Limit = 2025-Beobachtung (2.2) | **Artefakt bestätigt** (KWK-Wärme P99 62 von 127 MW). Plangrenzen und Merit-Order; Ost-Erzeuger sind der eigentliche Engpass | 1, 4 | A |
 | Druckanhebung ist der Haupthebel | per Konstruktion (2.2) | Die KWK-Δp wirkt mit 0,7–0,84 durch, ist aber über die Ost-Kopplung auf ≈ 3,6–4,3 bar begrenzt (MVA an der Pumpengrenze). Hebel ohne Investition: West bei Kälte aus eigenen Kesseln (≈ −0,7…0,9 bar erforderliche Δp), im heutigen Betrieb Ost-Vorlauf über der Heizkurve (≈ +0,8 bar wirksame Grenze). Kostenvergleich mit PS1/HW1-Nutzung, Booster und Rücklaufabsenkung | 1, 6 | A/V |
-| Standort Innenstadt wirkt stärker | Lastverteilung nicht identifizierbar (3.4) | Verbundflüsse über den Tracer (3.5) bestimmen. Für den kritischen Süden sind lokale Einspeisung oder PS1 um ein Vielfaches wirksamer als der V22 | 2, 3, 5, 7 | V |
+| Standort Innenstadt wirkt stärker | Lastverteilung nicht identifizierbar (3.4) | Verbundflüsse über den Tracer (3.5) bestimmt: Das Netzmodell trifft die Ost-Anteile an 3 von 4 aussagekräftigen Stationen auf ±15 Pp (`Netzmodell.md`, Abschnitt 4.6). Für den kritischen Süden sind lokale Einspeisung oder PS1 um ein Vielfaches wirksamer als der V22; ein Speicher am Südende bringt in 98,5–99,5 % der Unsicherheitsläufe mehr Reserve als S | 3, 5, 7 | V |
 | Auslegungsdruck ≈ 17 bar | Formel (2.4) | Konzept K1–K4, korrekte Ableitung, Druckstoß | 1, 5 | A |
 | Siedesicherheit gegeben | Höhen abgeleitet | DGM-Höhen, Hochpunkte | 2 | A |
 
