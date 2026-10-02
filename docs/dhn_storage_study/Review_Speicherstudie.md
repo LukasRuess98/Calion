@@ -10,7 +10,7 @@
 >
 > Weitere Bezeichnungen: Speicherstandort **S = Verbraucher V22**; L1–L7 = Haupt- und Transportleitungen; N_… = Modellknoten; A1… = Armaturen; Plan A/B/C = Betreiberpläne (Erzeuger, Netz Mitte, Netz West). Datensatz und Spaltennamen: `data/dhn_a/README.md`.
 
-Stand: 2026-10-01 · Geprüfter Stand: Branch Studien-Branch, Commit `121196e` (Notebook Studien-Notebook, `docs/dhn_storage_study/Dokumentation_Skript_und_Annahmen.md`, `docs/dhn_storage_study/Datenanfrage_Betreiber.md`).
+Stand: 2026-10-01, Nachträge 2026-10-02 · Geprüfter Stand: Branch Studien-Branch, Commit `121196e` (Notebook Studien-Notebook, `docs/dhn_storage_study/Dokumentation_Skript_und_Annahmen.md`, `docs/dhn_storage_study/Datenanfrage_Betreiber.md`).
 
 **Hinweis zur Weitergabe:** Der Bericht zitiert Kennzahlen aus der Studiendokumentation. Diese Kennzahlen sind dort als aus NDA-Daten abgeleitet gekennzeichnet. Vor einer externen Weitergabe deshalb freigeben lassen.
 
@@ -414,7 +414,7 @@ In `objective` statt `nan_to_num(..., nan=0)` die nicht konvergierten Stunden mi
 Folgerungen:
 * Lokale Einspeisung wirkt **stark lokal** (V06 +1 bar je 100 kg/s) und **schwach entfernt** (City +0,07…0,12 bar; mit korrigierter Last +0,17…0,20 bar, siehe `Datenanalyse_Auslegung.md`, Abschnitt 7). Das stützt die qualitative Aussage der Studie, dass die Speicherwirkung lokal ist. *Nachtrag:* Die massenstromkonsistente Auswertung und das Netzmodell zeigen, dass ein Ersatz von KWK-Wasser alle Stationen spürbar anhebt; „klein“ gilt nur für den Engpass im Süden (`Netzmodell.md`, Abschnitt 5.1).
 * Der kritischste Knoten (V06/Süd) profitiert vor allem von **Einspeisung im Süden oder von PS1**, nicht von einem Speicher am V22.
-* Die KWK-Δp wirkt mit 0,7–0,84 statt 1,0 auf die Kunden durch, weil die Ost-Erzeuger mitregeln. Die 1:1-Verschiebung des Studienmodells überschätzt die Druckanhebung etwas.
+* Die KWK-Δp wirkt mit 0,7–0,84 statt 1,0 auf die Kunden durch, weil die Ost-Erzeuger mitregeln. Die 1:1-Verschiebung des Studienmodells überschätzt die Druckanhebung etwas. *Nachtrag (Netzmodell):* Mit einer Druckhaltung und massenstromgeführten Ost-Erzeugern ist der Durchgriff strukturell 1. Die gleiche Regression auf Modellwerten ergibt an Mitte und City 0,97–1,03, gemessen 0,83–0,96; an V06 senkt die Regelung den Wert stark. Ein Durchgriff unter 1 ist deshalb zum Teil ein Effekt der Regression (`Netzmodell.md`, Abschnitt 4.2).
 * **Diese Hebel sind die Validierungsziele** für jedes Netzmodell (Plan, Phase 3).
 
 **N5 – Auslegungsfall in Plan A.** Das Blatt gilt „bei Ausfall der größten Erzeugungsleistung“ (n−1). Das KWK ist dort mit „2350 t/h (= 127 MW bei 107 °C − 60 °C)“ angegeben, die Ost-Erzeuger mit 125/60 °C. *Geklärt mit DWD-Temperaturen* (`Datenanalyse_Auslegung.md`, Abschnitt 3): Der Betrieb folgt der Vorgabe-Heizkurve und erreicht ≈ 120 °C ab −10 °C. Die 107 °C beschreiben den Arbeitspunkt der Mengenangabe, nicht die Fahrweise. Die Auslegungsspreizung beträgt ≈ 61 K (120/59 °C).

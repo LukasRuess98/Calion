@@ -24,12 +24,13 @@ TEMP_TAG = "ambient_temperature_daily.csv"
 
 
 def repo_root(start: Path | None = None) -> Path:
-    """Repository-Wurzel (Ordner mit ``calion/`` und ``configs/``)."""
+    """Repository-Wurzel: der erste übergeordnete Ordner mit dem Datensatz ``data/dhn_a/`` (auch in einer eigenständigen
+    Veröffentlichung der Studie ohne das übrige Framework)."""
     start = Path(start or __file__).resolve()
     for p in [start, *start.parents]:
-        if (p / "calion").is_dir() and (p / "configs").is_dir():
+        if (p / "data" / "dhn_a").is_dir() and (p / "scripts" / "dhn_study").is_dir():
             return p
-    raise FileNotFoundError("Repository-Wurzel nicht gefunden")
+    raise FileNotFoundError("Repository-Wurzel nicht gefunden (Ordner mit data/dhn_a/ und scripts/dhn_study/)")
 
 
 def daten_dir() -> Path:

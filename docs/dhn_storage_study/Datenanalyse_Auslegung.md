@@ -10,7 +10,7 @@
 >
 > Weitere Bezeichnungen: Speicherstandort **S = Verbraucher V22**; L1–L7 = Haupt- und Transportleitungen; N_… = Modellknoten; A1… = Armaturen; Plan A/B/C = Betreiberpläne (Erzeuger, Netz Mitte, Netz West). Datensatz und Spaltennamen: `data/dhn_a/README.md`.
 
-Stand: 2026-10-01 · Bezug: `Plan_belastbare_Aussagen.md` (Arbeitspakete 1.4, 1.8–1.11, 3.2, 3.4–3.6, 4.1) und `Review_Speicherstudie.md` (Abschnitt 9).
+Stand: 2026-10-02 · Bezug: `Plan_belastbare_Aussagen.md` (Arbeitspakete 1.4, 1.8–1.11, 3.2, 3.4–3.6, 4.1) und `Review_Speicherstudie.md` (Abschnitt 9).
 
 **Hinweis zur Weitergabe:** Der Bericht beruht auf anonymisierten Betreiberdaten (Freigabe für dieses Repository liegt vor). Vor externer Weitergabe gesondert freigeben lassen.
 
@@ -32,7 +32,7 @@ python -m scripts.dhn_study.abbildungen      # Abbildungen Abschnitt 5.6 (benöt
 python -m pytest -o addopts="" tests/test_dhn_study.py
 ```
 Das kalibrierte Netzmodell (Ersatznetz) und seinen Abgleich mit den Messwerten beschreibt `Netzmodell.md`.
-Laufzeit ≈ 3 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` (CSV und `zusammenfassung.md`). Der Code liegt in `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`, `abbildungen`).
+Laufzeit ≈ 10 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/` (CSV und `zusammenfassung.md`). Der Code liegt in `scripts/dhn_study/` (`daten`, `wetter`, `auslegung`, `anker`, `hydraulik`, `abbildungen`).
 
 ---
 
@@ -68,7 +68,7 @@ Tiefste n-Tage-Mittel der Lufttemperatur je Jahr, 1991–2025:
 | Dauer | Minimum | Jahr | 10-%-Quantil der Jahresminima | Median | Jahre < −10 °C |
 |---|---|---|---|---|---|
 | 1 Tag | −17,0 °C | 2012 | −14,5 °C | −10,2 °C | 19 |
-| 2 Tage | −16,2 °C | 2012 | −13,9 °C | −9,0 °C | 14 |
+| 2 Tage | −16,1 °C | 2012 | −13,9 °C | −9,0 °C | 14 |
 | 3 Tage | −15,8 °C | 2012 | −12,7 °C | −8,1 °C | 11 |
 | 5 Tage | −15,1 °C | 2012 | −11,4 °C | −7,1 °C | 9 |
 
@@ -432,7 +432,7 @@ Das kalibrierte Netzmodell trifft die Anteile an V22, V11 und V23 auf ±6 Prozen
    * **Thermisch** deckt er im Referenzfall nur die P90-Spitze bei n−1 (30–60 MWh).
    * Ein Speicher **im Süden** wirkt am Regelpunkt ≈ 7-mal stärker (Messung 2025). Im Netzmodell erhöht er die Ausbaureserve um ≈ 15 statt 8 Prozentpunkte (obere Schranke). Standortvergleich in Phase 5/6.
 5. **Alternativen mit gleicher oder höherer Wirkung,** im Maßnahmenvergleich zu rechnen:
-   * **HW1 und PS1 im Süden:** ≈ 0,85 bar am Regelpunkt je 100 kg/s HW1;
+   * **HW1 und PS1 im Süden:** ≈ 0,9–1,0 bar am Regelpunkt je 100 kg/s HW1 (anstelle von Ost- bzw. KWK-Wasser, Abschnitt 7);
    * **Rücklauf −5 K:** ≈ −0,3 bar;
    * **Ost-Vorlauf über der Heizkurve** im heutigen Betrieb: ≈ +0,8 bar wirksame KWK-Grenze;
    * Druckerhöhungsstation oder Einspeisung im Süden.

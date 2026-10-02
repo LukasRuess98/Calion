@@ -10,7 +10,7 @@
 >
 > Weitere Bezeichnungen: Speicherstandort **S = Verbraucher V22**; L1–L7 = Haupt- und Transportleitungen; N_… = Modellknoten; A1… = Armaturen; Plan A/B/C = Betreiberpläne (Erzeuger, Netz Mitte, Netz West). Datensatz und Spaltennamen: `data/dhn_a/README.md`.
 
-Stand: 2026-10-01, **Version 2 nach Prüfung mit den Messdaten 2025 und den Plänen Plan A/650/660** · Bezug: `Review_Speicherstudie.md` (Befunde 2.1–3.6, Datenprüfung Abschnitt 9) und Notebook Studien-Notebook (Branch Studien-Branch, Stand `121196e`). Der Plan ersetzt den Plan aus Kap. 23.1 der Studie (Phasen A–E) und schärft ihn.
+Stand: 2026-10-02, **Version 2 nach Prüfung mit den Messdaten 2025 und den Plänen A, B und C** · Bezug: `Review_Speicherstudie.md` (Befunde 2.1–3.6, Datenprüfung Abschnitt 9) und Notebook Studien-Notebook (Branch Studien-Branch, Stand `121196e`). Der Plan ersetzt den Plan aus Kap. 23.1 der Studie (Phasen A–E) und schärft ihn.
 
 **Hinweis zur Weitergabe:** Der Plan enthält aggregierte, aus NDA-Daten abgeleitete Kennzahlen. Vor externer Weitergabe freigeben lassen.
 
@@ -208,7 +208,7 @@ dp_kwk_erf = dp0 + (DP_MIN[None, :] - dpk).max(axis=1)                     # erf
 ```
 Im getrennten Betrieb (S7) hat die Ost-Insel keinen KWK-Bezug. Dort wird die MVA zum Druckhalter der Insel; dasselbe Verfahren gilt je Insel.
 
-Die Daten zeigen, dass die KWK-Δp nur mit dem Faktor 0,70–0,84 auf die Kunden durchwirkt (Review 9.2, N4), weil die Ost-Erzeuger mitregeln. In Variante (b) aus 2.1 ist die Verschiebung daher nicht mehr exakt gleichmäßig. Dann gilt: 1-D-Nullstellensuche auf Δp_KWK statt der geschlossenen Formel.
+Die Daten zeigen, dass die KWK-Δp nur mit dem Faktor 0,70–0,84 auf die Kunden durchwirkt (Review 9.2, N4), weil die Ost-Erzeuger mitregeln. In Variante (b) aus 2.1 ist die Verschiebung daher nicht mehr exakt gleichmäßig. Dann gilt: 1-D-Nullstellensuche auf Δp_KWK statt der geschlossenen Formel. *Stand 2026-10-02:* Variante (a) reicht aus, der Durchgriff ist im Netzmodell strukturell 1 (`Netzmodell.md`, Abschnitte 4.2 und 4.4).
 
 Kennzahlen je Szenario:
 * max. erforderliche KWK-Δp gegen 4,0 bar bzw. die Kennlinie,
@@ -395,7 +395,7 @@ Ohne Betreiberdaten möglich: Phasen 1, 2 (mit Varianten), 3.1/3.2 (natürliche 
 | Bestand kritisch, Defizit 15–19 bar·h | S-05, Auslegungsfall (2.1) | Bei Last 2025 **widerlegt** (Reserve ≈ 1,3 bar). Bei **Auslegungslast knapp ausreichend**: Anker 3,2–3,6 bar (West aus eigenen Kesseln), bei West-Bezug 3,9–4,5 bar. Süden bei P90 maßgebend; Prüfung gegen das Grenzband 4,0–5,7 bar und die Ost-Kopplung. **Netzmodell bestätigt:** 3,1–3,4 / 3,8–4,05 bar, Ost-Kopplung nicht begrenzend (`Netzmodell.md`, Abschnitt 5). Unsicherheitsläufe: P50 ≤ 4,0 bar und P90 unter der Pumpengrenze gestützt; P90 ≤ 4,0 bar offen (Extrapolation über den Messbereich, Feldtest 3.3) | 3, 4 | A |
 | Ausbau nur bis +5…10 % | S-05, S-02, Ausbauort | Anker bei Auslegungslast: +5…13 % bis 4,0 bar, +24…34 % bis 5,7 bar (West aus eigenen Kesseln). Die Größenordnung der Studie trifft den Fall „4,0 bar als Grenze“; die Herleitung ist falsch, und 4,0 bar ist nur ein Erfahrungswert. Exakt über die Aufnahmekapazität je Gebiet, mit Ost-Kopplung und Erzeugungsleistung | 2, 4, 6 | A |
 | KWK-Limit ab +15 % | Limit = 2025-Beobachtung (2.2) | **Artefakt bestätigt** (KWK-Wärme P99 62 von 127 MW). Plangrenzen und Merit-Order; Ost-Erzeuger sind der eigentliche Engpass | 1, 4 | A |
-| Druckanhebung ist der Haupthebel | per Konstruktion (2.2) | Die KWK-Δp wirkt mit 0,7–0,84 durch, ist aber über die Ost-Kopplung auf ≈ 3,6–4,3 bar begrenzt (MVA an der Pumpengrenze). Hebel ohne Investition: West bei Kälte aus eigenen Kesseln (≈ −0,7…0,9 bar erforderliche Δp), im heutigen Betrieb Ost-Vorlauf über der Heizkurve (≈ +0,8 bar wirksame Grenze). Kostenvergleich mit PS1/HW1-Nutzung, Booster und Rücklaufabsenkung | 1, 6 | A/V |
+| Druckanhebung ist der Haupthebel | per Konstruktion (2.2) | Die KWK-Δp wirkt gemessen mit 0,7–0,96 durch (strukturell 1, `Netzmodell.md` 4.2), ist aber über die Ost-Kopplung auf ≈ 3,6–4,3 bar begrenzt (MVA an der Pumpengrenze). Hebel ohne Investition: West bei Kälte aus eigenen Kesseln (≈ −0,7…0,9 bar erforderliche Δp), im heutigen Betrieb Ost-Vorlauf über der Heizkurve (≈ +0,8 bar wirksame Grenze). Kostenvergleich mit PS1/HW1-Nutzung, Booster und Rücklaufabsenkung | 1, 6 | A/V |
 | Standort Innenstadt wirkt stärker | Lastverteilung nicht identifizierbar (3.4) | Verbundflüsse über den Tracer (3.5) bestimmt: Das Netzmodell trifft die Ost-Anteile an 3 von 4 aussagekräftigen Stationen auf ±15 Pp (`Netzmodell.md`, Abschnitt 4.6). Für den kritischen Süden sind lokale Einspeisung oder PS1 um ein Vielfaches wirksamer als der V22; ein Speicher am Südende bringt in 98,5–99,5 % der Unsicherheitsläufe mehr Reserve als S | 3, 5, 7 | V |
 | Auslegungsdruck ≈ 17 bar | Formel (2.4) | Konzept K1–K4, korrekte Ableitung, Druckstoß | 1, 5 | A |
 | Siedesicherheit gegeben | Höhen abgeleitet | DGM-Höhen, Hochpunkte | 2 | A |

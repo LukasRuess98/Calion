@@ -398,3 +398,30 @@ def test_pandapipes_gegenrechnung_quadratisch():
     dp, m_vl, m_rl = gp.rechne(nz, ppn, b[0], g, 4.0)
     assert np.max(np.abs(dp - nz.dp_knoten(m, nz.k0, np.array([4.0]), g[None])[0])) < 0.05
     assert np.max(np.abs(m_vl - m[0])) < 2.0 and np.max(np.abs(m_rl - m[0])) < 2.0
+
+
+def test_veroeffentlichte_kalibrierung_vollstaendig():
+    from scripts.dhn_study import run_netzmodell as rn
+
+    nz = nm.netz()
+    kal = rn.lade_kalibrierung(rn.KALIBRIERUNG_REPO / "A", nz)
+    assert len(kal["K"]) == len(nz.kanten) and (kal["K"] > 0).all()
+    assert np.allclose(kal["K"], nz.k0 * kal["multiplikator"].to_numpy(), rtol=1e-9)
+    assert set(kal["gewichte"]) == set(nm.LASTGRUPPEN) and set(kal["grundlast"]) == set(nm.GRUNDLAST_GRUPPEN)
+    assert set(kal["versatz"].index) == set(nm.STATIONEN)
+
+
+def test_mehrfachstart_startwerte_und_uebersicht(tmp_path):
+    from scripts.dhn_study import mehrfachstart as ms
+
+    nz = nm.netz()
+    assert ms.startwert("B", nz) is None
+    c1, c2 = ms.startwert("C", nz), ms.startwert("C", nz)
+    assert np.allclose(c1["multiplikator"], c2["multiplikator"])            # reproduzierbar (fester Seed)
+    assert not np.allclose(c1["multiplikator"], ms.startwert("D", nz)["multiplikator"])
+    assert set(c1["gewichte"]) == set(nm.LASTGRUPPEN) and len(c1["multiplikator"]) == len(nz.kanten)
+    for name, k in (("A", 100.0), ("B", 103.0), ("C", 120.0)):
+        (tmp_path / name).mkdir()
+        pd.Series({"Start": name, "Kosten": k, "Kosten Daten": k - 10, "Kosten Prior": 10.0}).to_csv(tmp_path / name / "kosten.csv")
+    u = ms.uebersicht(tmp_path)
+    assert list(u.index[u["gleich gut"]]) == ["A", "B"]                     # B 3 % über dem besten, C 20 %

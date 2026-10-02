@@ -1,11 +1,17 @@
 """Netzmodell DHN-A: Kalibrierung an den Messwerten 2025, Validierung (Holdout, Hebel, Ost-Kopplung) und Auslegungsfall.
 
-Aufruf aus der Repository-Wurzel:  ``python -m scripts.dhn_study.run_netzmodell`` (Kalibrierung ≈ 15–30 min);
-``... --ohne-kalibrierung`` verwendet die gespeicherte Kalibrierung und rechnet nur Validierung und Auslegung (≈ 1 min).
+Aufruf aus der Repository-Wurzel:
+* ``python -m scripts.dhn_study.run_netzmodell --ohne-kalibrierung``: verwendet die veröffentlichte Kalibrierung
+  (``scripts/dhn_study/kalibrierung/``) und rechnet Validierung und Auslegung (≈ 1 min). Damit sind alle Zahlen in
+  ``docs/dhn_storage_study/Netzmodell.md`` reproduzierbar.
+* ``python -m scripts.dhn_study.run_netzmodell``: kalibriert neu, ausgehend von der veröffentlichten Kalibrierung
+  (≈ 30 min); ``--von-null`` startet bei den Prior-Werten. Die Optimierung kann in einem anderen lokalen Optimum enden.
 Ergebnisse: ``results/dhn_study/netzmodell/`` (CSV, ``zusammenfassung.md``); Abbildungen ``docs/dhn_storage_study/abbildungen/``.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -14,6 +20,7 @@ from . import anker, daten, hydraulik
 from . import netzmodell as nm
 from .run_analyse import T_VL_AUSL, _md
 
+KALIBRIERUNG_REPO = Path(__file__).resolve().parent / "kalibrierung"   # veröffentlichte Kalibrierung
 SPEICHER_MW = 40.0
 PAAR_GEWICHT = 1.0
 HEBEL_GEWICHT = 1.0
@@ -88,8 +95,33 @@ def auslegung_eingaben(m: pd.DataFrame, e: pd.DataFrame, ta: pd.Series, nz: nm.N
             "pumpe": hydraulik.dp_aus_pumpe(anl["gas_CHP"]["pumps"]["head_m"], T_VL_AUSL, anl["gas_CHP"]["dp_internal_bar"])}
 
 
+def speichere_kalibrierung(kal: dict, nz: nm.Netz, ordner: Path) -> None:
+    """Kalibrierung als CSV: Widerstände je Kante sowie Lastgewichte, Grundlast und Stationsversatz."""
+    ordner.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"Multiplikator": kal["multiplikator"], "K [bar/(kg/s)²]": kal["K"],
+                  "K_prior": nz.k0}).rename_axis("Kante").to_csv(ordner / "kalibrierung_kanten.csv")
+    pd.Series({**{f"Gewicht {k}": v for k, v in kal["gewichte"].items()},
+               **{f"Grundlast {k} [kg/s]": v for k, v in kal["grundlast"].items()},
+               **{f"Versatz {k} [bar]": v for k, v in kal["versatz"].items()}}).to_csv(ordner / "kalibrierung_last_versatz.csv")
+
+
+def kalibriervarianten() -> tuple[list[str], str]:
+    """Gleich gute Kalibriervarianten (``mehrfachstart``) und die Referenz (niedrigste Kosten). Ohne Übersicht nur „A“."""
+    datei = KALIBRIERUNG_REPO / "uebersicht.csv"
+    if not datei.exists():
+        return ["A"], "A"
+    u = pd.read_csv(datei, index_col=0)
+    gut = u[u["gleich gut"].astype(str).str.lower() == "true"]
+    return list(gut.index), str(u["Kosten"].idxmin())
+
+
+def kalibrierung_ordner(out: Path) -> Path:
+    """Ordner der zu verwendenden Kalibrierung: die des letzten Laufs in ``out``, sonst die veröffentlichte."""
+    return out if (out / "kalibrierung_kanten.csv").exists() else KALIBRIERUNG_REPO / kalibriervarianten()[1]
+
+
 def lade_kalibrierung(out, nz: nm.Netz) -> dict:
-    """Kalibrierung aus den CSV-Dateien eines früheren Laufs wiederherstellen."""
+    """Kalibrierung aus den CSV-Dateien eines Laufs (bzw. der veröffentlichten Kalibrierung) wiederherstellen."""
     k = pd.read_csv(out / "kalibrierung_kanten.csv", index_col=0)
     lv = pd.read_csv(out / "kalibrierung_last_versatz.csv", index_col=0).iloc[:, 0]
     sub = lambda pre, suf="": {i[len(pre):].replace(suf, ""): float(v) for i, v in lv.items() if i.startswith(pre)}  # noqa: E731
@@ -98,7 +130,7 @@ def lade_kalibrierung(out, nz: nm.Netz) -> dict:
             "versatz": pd.Series(sub("Versatz ", " [bar]")), "erfolg": True, "kosten": float("nan")}
 
 
-def main(neu_kalibrieren: bool = True) -> dict:
+def main(neu_kalibrieren: bool = True, von_null: bool = False) -> dict:
     out = daten.repo_root() / "results" / "dhn_study" / "netzmodell"
     out.mkdir(parents=True, exist_ok=True)
     m = daten.lade_messdaten()
@@ -111,19 +143,14 @@ def main(neu_kalibrieren: bool = True) -> dict:
     erg = {"stunden": {"gesamt": len(f.index), "Kalibrierung": len(sel), "Holdout": int(hold.sum())}}
 
     # 1) Kalibrierung auf Pegel, stündliche Änderungen und gemessene Hebel (Heizperiode, nur Trainingswochen)
-    if neu_kalibrieren or not (out / "kalibrierung_kanten.csv").exists():
-        start = lade_kalibrierung(out, nz) if (out / "kalibrierung_kanten.csv").exists() else None
+    if neu_kalibrieren:
+        start = None if von_null else lade_kalibrierung(KALIBRIERUNG_REPO / kalibriervarianten()[1], nz)
         kal = nm.kalibriere(nz, ft, gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
                             kanten_sigma=KANTEN_SIGMA, start=start)
     else:
-        kal = lade_kalibrierung(out, nz)
+        kal = lade_kalibrierung(KALIBRIERUNG_REPO / kalibriervarianten()[1], nz)
     erg["kal"] = kal
-    par = pd.DataFrame({"Multiplikator": kal["multiplikator"], "K [bar/(kg/s)²]": kal["K"],
-                        "K_prior": nz.k0}).rename_axis("Kante")
-    par.to_csv(out / "kalibrierung_kanten.csv")
-    pd.Series({**{f"Gewicht {k}": v for k, v in kal["gewichte"].items()},
-               **{f"Grundlast {k} [kg/s]": v for k, v in kal["grundlast"].items()},
-               **{f"Versatz {k} [bar]": v for k, v in kal["versatz"].items()}}).to_csv(out / "kalibrierung_last_versatz.csv")
+    speichere_kalibrierung(kal, nz, out)
 
     # 2) Validierung: Güte Holdout / Hochlast, Prior-Modell zum Vergleich
     vs, gw, gl = kal["versatz"].to_dict(), kal["gewichte"], kal["grundlast"]
@@ -150,9 +177,12 @@ def main(neu_kalibrieren: bool = True) -> dict:
     for lo, hi in BAENDER:
         band = heiz & (kwk_f >= lo) & (kwk_f < hi)
         hm_b, hs_b, se_b = nm.hebel_vergleich(f.teil(band), hreg_w[band], sim[band])
+        hm_f, hs_f, _ = nm.hebel_vergleich_fest(f.teil(band), hreg_w[band], sim[band])   # Gegenprobe: KWK-Δp-Koeff. = 1
         zeilen_b += [{"Band": f"{lo}–{hi} kg/s", "Stunden": int(band.sum()), "Station": st,
                       "Messung": -hm_b.loc[st, "KWK-Fluss"], "SE": se_b.loc[st, "KWK-Fluss"],
-                      "Modell": -hs_b.loc[st, "KWK-Fluss"]} for st in nm.HEBEL_ZIELE]
+                      "Modell": -hs_b.loc[st, "KWK-Fluss"],
+                      "Messung, KWK-Δp-Koeff. 1": -hm_f.loc[st, "KWK-Fluss"],
+                      "Modell, KWK-Δp-Koeff. 1": -hs_f.loc[st, "KWK-Fluss"]} for st in nm.HEBEL_ZIELE]
         if (lo, hi) == BAND_AUSLEGUNG:
             ost_hebel = {st: (-hm_b.loc[st, "KWK-Fluss"], se_b.loc[st, "KWK-Fluss"]) for st in nm.HEBEL_ZIELE}
     erg["hebel_band"] = pd.DataFrame(zeilen_b).set_index(["Station", "Band"]).sort_index()
@@ -164,13 +194,6 @@ def main(neu_kalibrieren: bool = True) -> dict:
     erg["hebel_struktur"] = pd.DataFrame(struk).loc[[nm.STATIONEN[s] for s in ["V06", "V03", "V22", "V15"]]]
     erg["hebel_struktur"].index = ["V06", "V03/V10/V24", "V22", "V15"]
     erg["hebel_struktur"].to_csv(out / "hebel_struktur.csv")
-    # Datenverankerter Hebel eines Speichers am Standort S je Zielstation: gemessener Ost-Hebel (ohne Anstieg mit dem
-    # Durchfluss), mit dem Modellverhältnis S/Ost auf den Standort umgerechnet; Stationen ohne Hebelziel über ihren Knoten
-    def hebel_s(z, k_se=0.0):
-        q = next(s for s in nm.HEBEL_ZIELE if nm.STATIONEN.get(s) == nm.STATIONEN[z])
-        kn = nm.STATIONEN[z]
-        return (ost_hebel[q][0] + k_se * ost_hebel[q][1]) * struk["Standort S"][kn] / struk["Ost (MVA)"][kn]
-
     # 4) Ost-Kopplung im Modell gegen Messung (gleiche Regression auf Modellwerten)
     ms = hydraulik.massenstroeme(m, e)
     ps1 = m.pump_station_1_p_supply_after_pump - m.pump_station_1_p_supply_before_pump
@@ -247,27 +270,67 @@ def main(neu_kalibrieren: bool = True) -> dict:
     k36.to_csv(out / "kriterium_3_6.csv")
     k36_par.to_csv(out / "kriterium_3_6_parameter.csv")
 
-    # 5) Auslegungsfall mit dem kalibrierten Modell (Referenz: −14 °C, n−1, West aus eigenen Kesseln)
+    # 5) Auslegungsfall mit dem kalibrierten Modell (Referenz: −14 °C, n−1, West aus eigenen Kesseln), dazu alle gleich
+    # guten Kalibriervarianten (Mehrfachstart)
     ae = auslegung_eingaben(m, e, ta, nz)
-    dTd, dh, gewinn, mindest, faelle, pumpe = ae["dT"], ae["dh"], ae["gewinn"], ae["mindest"], ae["faelle"], ae["pumpe"]
-    hw1_mw, hw1_m = ae["hw1_mw"], ae["hw1_m"]
-    varianten = ae["ost"]
-    ost, ost_2025 = varianten["Ost Plan A"], varianten["Ost wie 2025"]
     bias_v06 = float(erg["guete"].loc["V06", ("Holdout Hochlast", "Bias")])
-    zeilen = []
+    erg["auslegung"], hebel_s = auslegung_tabelle(nz, kal, ae, fh, ost_hebel, bias_v06)
+    pd.DataFrame({"Hebel [bar je 100 kg/s]": {z: hebel_s(z) for z in ae["mindest"]},
+                  "SE": {z: hebel_s(z, 1.0) - hebel_s(z) for z in ae["mindest"]}}).to_csv(out / "hebel_speicher_s_gemessen.csv")
+    erg["auslegung"].to_csv(out / "auslegung_netzmodell.csv")
+    namen, referenz = kalibriervarianten()
+    tab, gue = {}, {}
+    for v in namen:
+        kal_v = lade_kalibrierung(KALIBRIERUNG_REPO / v, nz)
+        tab[v], hebel_v = auslegung_tabelle(nz, kal_v, ae, fh, ost_hebel, bias_v06)
+        pd.DataFrame({"Hebel [bar je 100 kg/s]": {z: hebel_v(z) for z in ae["mindest"]},
+                      "SE": {z: hebel_v(z, 1.0) - hebel_v(z) for z in ae["mindest"]}}).to_csv(
+            out / f"hebel_speicher_s_gemessen_{v}.csv")
+        sim_v = nm.simuliere(nz, f.teil(hoch), kal_v["K"], kal_v["versatz"].to_dict(), kal_v["gewichte"], kal_v["grundlast"])
+        gue[v] = nm.guete(sim_v, f.ziele[hoch])["RMSE"]
+    erg["auslegung_varianten"] = pd.concat(tab, names=["Kalibrierung"])
+    erg["auslegung_varianten"].to_csv(out / "auslegung_kalibriervarianten.csv")
+    erg["guete_varianten"] = pd.DataFrame(gue)
+    erg["guete_varianten"].to_csv(out / "guete_kalibriervarianten.csv")
+    erg["referenz"] = referenz
+    dTd, dh, gewinn, mindest, hw1_mw = ae["dT"], ae["dh"], ae["gewinn"], ae["mindest"], ae["hw1_mw"]
+    ost, ost_2025 = ae["ost"]["Ost Plan A"], ae["ost"]["Ost wie 2025"]
+    dm_s = SPEICHER_MW * 1e3 / dh
+    erg["auslegung_annahmen"] = {"ΔT [K]": dTd, "Ost Plan A [MW]": ost, "Ost wie 2025 [MW]": ost_2025, "V06-Bias [bar]": bias_v06,
+                                 "HW1 [MW]": hw1_mw, "PS1-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("L4c")]),
+                                 "PS2-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("W1")]), "Mindest-Δp": mindest,
+                                 "Speicher S [kg/s]": dm_s, "Band gemessener Hebel [kg/s]": BAND_AUSLEGUNG,
+                                 "Hebel Speicher S, gemessen [bar je 100 kg/s]": {z: round(hebel_s(z), 3) for z in mindest}}
+    _bericht(erg, out)
+    return erg
+
+
+def auslegung_tabelle(nz: nm.Netz, kal: dict, ae: dict, fh: nm.Fall, ost_hebel: dict, bias_v06: float = 0.0):
+    """Auslegungsfall für eine Kalibrierung: erforderliche KWK-Δp, Reserven und Speicherwirkung je Ost-Variante und
+    Lastfall. ``fh``: Hochlast-Stunden für die strukturellen Hebel; ``ost_hebel``: gemessener Hebel „Ost statt KWK“
+    (Station -> (Wert, SE)). Rückgabe: Tabelle und Funktion ``hebel_s(z, k_se)`` (datenverankerter Speicherhebel)."""
+    vs, gw, gl, K = kal["versatz"].to_dict(), kal["gewichte"], kal["grundlast"], kal["K"]
+    dh, gewinn, mindest, pumpe = ae["dh"], ae["gewinn"], ae["mindest"], ae["pumpe"]
+    struk = {k: nm.hebel_modell(nz, fh, K, kn, gw, gl) for k, kn in (("Standort S", "S"), ("Ost (MVA)", "MVA"))}
+
+    def hebel_s(z, k_se=0.0):
+        """Gemessener Ost-Hebel (ohne Anstieg mit dem Durchfluss), mit dem Modellverhältnis S/Ost auf den Standort S
+        umgerechnet; Stationen ohne eigenes Hebelziel über ihren Knoten."""
+        q = next(s for s in nm.HEBEL_ZIELE if nm.STATIONEN.get(s) == nm.STATIONEN[z])
+        kn = nm.STATIONEN[z]
+        return (ost_hebel[q][0] + k_se * ost_hebel[q][1]) * struk["Standort S"][kn] / struk["Ost (MVA)"][kn]
 
     def rechne(P, west, ost_v, speicher=None, mind=mindest):
-        b = nm.auslegungs_einspeisung(nz, P, dh, ost_v, hw1_mw, hw1_m, west, speicher, gw, gl)
-        req, need = nm.erforderliche_kwk_dp(nz, kal["K"], b, gewinn, mind, vs)
-        mfl = nz.loese(b, kal["K"], gewinn)
-        dpn = nz.dp_knoten(mfl, kal["K"], req, gewinn)[0]
+        b = nm.auslegungs_einspeisung(nz, P, dh, ost_v, ae["hw1_mw"], ae["hw1_m"], west, speicher, gw, gl)
+        req, need = nm.erforderliche_kwk_dp(nz, K, b, gewinn, mind, vs)
+        mfl = nz.loese(b, K, gewinn)
+        dpn = nz.dp_knoten(mfl, K, req, gewinn)[0]
         return float(req[0]), need.iloc[0], dpn, mfl[0]
 
     dm_s = SPEICHER_MW * 1e3 / dh
 
     def reserve(P, west, ost_v, grenze, speicher=None, gemessener_hebel=False):
-        """Lastzuwachs (Faktor − 1), bis die erforderliche KWK-Δp die Grenze erreicht (Bisektion). ``gemessener_hebel``:
-        Speicher S mit dem datenverankerten Hebel statt im Modell."""
+        """Lastzuwachs (Faktor − 1), bis die erforderliche KWK-Δp die Grenze erreicht (Bisektion)."""
         def erf(x):
             req, need, *_ = rechne(P * x, west, ost_v, speicher)
             if gemessener_hebel:
@@ -280,10 +343,11 @@ def main(neu_kalibrieren: bool = True) -> dict:
             (lo, hi) = (mid, hi) if erf(mid) < grenze else (lo, mid)
         return lo - 1.0
 
-    for var, ost_v in varianten.items():
-        for name, (P, west) in faelle.items():
+    zeilen = []
+    for var, ost_v in ae["ost"].items():
+        for name, (P, west) in ae["faelle"].items():
             req, need, dpn, mfl = rechne(P, west, ost_v)
-            req10, *_ = rechne(P, west, ost_v, mind={"V06": 1.0, **{s: MINDEST_MITTE for s in nm.MITTE_ZIELE}})
+            req10, *_ = rechne(P, west, ost_v, mind={**mindest, "V06": 1.0})
             bind = need.idxmax()
             ent_daten = {k: nm.entlastung_aus_hebeln(need, {z: hebel_s(z, k) for z in need.index}, dm_s) for k in (-2, 0, 2)}
             zeilen.append({"Ost": var, "Fall": name, "P Verbund [MW]": P, "erf. KWK-Δp [bar]": req, "maßgebend": bind,
@@ -300,17 +364,7 @@ def main(neu_kalibrieren: bool = True) -> dict:
                                                                                             gemessener_hebel=True),
                            "Entlastung Speicher Südende, Modell [bar]": req - rechne(P, west, ost_v, {"SUED_E": SPEICHER_MW})[0],
                            "Reserve bis 4,0 bar mit Speicher Südende, Modell": reserve(P, west, ost_v, 4.0, {"SUED_E": SPEICHER_MW})})
-    pd.DataFrame({"Hebel [bar je 100 kg/s]": {z: hebel_s(z) for z in mindest},
-                  "SE": {z: hebel_s(z, 1.0) - hebel_s(z) for z in mindest}}).to_csv(out / "hebel_speicher_s_gemessen.csv")
-    erg["auslegung"] = pd.DataFrame(zeilen).set_index(["Ost", "Fall"])
-    erg["auslegung"].to_csv(out / "auslegung_netzmodell.csv")
-    erg["auslegung_annahmen"] = {"ΔT [K]": dTd, "Ost Plan A [MW]": ost, "Ost wie 2025 [MW]": ost_2025, "V06-Bias [bar]": bias_v06,
-                                 "HW1 [MW]": hw1_mw, "PS1-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("L4c")]),
-                                 "PS2-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("W1")]), "Mindest-Δp": mindest,
-                                 "Speicher S [kg/s]": dm_s, "Band gemessener Hebel [kg/s]": BAND_AUSLEGUNG,
-                                 "Hebel Speicher S, gemessen [bar je 100 kg/s]": {z: round(hebel_s(z), 3) for z in mindest}}
-    _bericht(erg, out)
-    return erg
+    return pd.DataFrame(zeilen).set_index(["Ost", "Fall"]), hebel_s
 
 
 def _bericht(erg: dict, out) -> None:
@@ -331,11 +385,18 @@ def _bericht(erg: dict, out) -> None:
              _md(erg["tracer"].drop(columns="Knoten").round(2)), "",
              "3.6 (Plausibilitätsanker, Modellgesetz − gemessenes Gesetz; Mitte über den Lastbereich P5–P99, Süd P5–P95 der Stunden)",
              _md(erg["kriterien"]["3.6"].round(3)), "", _md(erg["kriterien"]["3.6 Parameter"].round(4)), "",
-             "## Auslegungsfall", f"Annahmen: {erg['auslegung_annahmen']}", "", _md(erg["auslegung"].round(3))]
+             "## Auslegungsfall", f"Annahmen: {erg['auslegung_annahmen']}", "", _md(erg["auslegung"].round(3)), "",
+             f"## Kalibriervarianten (Mehrfachstart; Referenz {erg['referenz']})", "RMSE Holdout Hochlast:",
+             _md(erg["guete_varianten"].round(3)), "",
+             _md(erg["auslegung_varianten"][["erf. KWK-Δp [bar]", "maßgebend", "Reserve bis 4,0 bar", "Reserve bis Pumpe",
+                                            "Entlastung Speicher S, Modell [bar]", "Entlastung Speicher S, gemessener Hebel [bar]",
+                                            "Reserve bis 4,0 bar mit Speicher S, Modell",
+                                            "Reserve bis 4,0 bar mit Speicher S, gemessener Hebel",
+                                            "Reserve bis 4,0 bar mit Speicher Südende, Modell"]].round(3))]
     (out / "zusammenfassung.md").write_text("\n".join(teile), encoding="utf-8")
 
 
 if __name__ == "__main__":
     import sys
 
-    main(neu_kalibrieren="--ohne-kalibrierung" not in sys.argv)
+    main(neu_kalibrieren="--ohne-kalibrierung" not in sys.argv, von_null="--von-null" in sys.argv)

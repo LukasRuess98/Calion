@@ -1,8 +1,10 @@
 """Unsicherheitsläufe zum Auslegungsfall (Plan, Phase 4): Ensemble über Parameter, Eingangsgrößen und Modellstruktur.
 
 Quellen der Unsicherheit:
-* **Parameter** der Kalibrierung: Laplace-Näherung um die Kalibrierung (``netzmodell.laplace_kovarianz``), gezogen als
-  multivariate Normalverteilung der log-Multiplikatoren, log-Lastgewichte, Grundlastverschiebungen und Stationsversätze.
+* **Kalibrierung:** alle gleich guten Kalibriervarianten aus dem Mehrfachstart (``mehrfachstart.py``,
+  ``scripts/dhn_study/kalibrierung/``), je Variante gleich viele Läufe. Um jede Variante streuen die Parameter nach der
+  Laplace-Näherung (``netzmodell.laplace_kovarianz``): log-Multiplikatoren, log-Lastgewichte, Grundlastverschiebungen
+  und Stationsversätze als multivariate Normalverteilung.
 * **Eingangsgrößen** des Auslegungsfalls:
   * Rücklauf ~ N(gemessener Median bei Kälte, 1 K);
   * Ost-Erzeugung zwischen Plan A und dem Kältebetrieb 2025 (gleichverteilt);
@@ -14,10 +16,12 @@ Quellen der Unsicherheit:
     Hebel also nicht mehr (Befund der Hebel je Durchflussband, ``Netzmodell.md`` Abschnitt 4.3).
   Zusätzlich für den Speicher S die datenverankerte Entlastung mit den gemessenen Hebeln (± Standardfehler).
 
-Bewertung nach Plan 1.1: Eine Aussage gilt als gestützt, wenn sie in ≥ 90 % der Läufe **und** in allen Varianten gilt.
+Bewertung nach Plan 1.1: Eine Aussage gilt als gestützt, wenn sie in ≥ 90 % der Läufe **jeder** Kombination aus
+Struktur- und Kalibriervariante gilt.
 
-Aufruf: ``python -m scripts.dhn_study.unsicherheit`` (≈ 3–5 min; die Kovarianz wird beim ersten Lauf berechnet und
-gespeichert, ``--neu`` erzwingt die Neuberechnung). Voraussetzung: ``python -m scripts.dhn_study.run_netzmodell``.
+Aufruf: ``python -m scripts.dhn_study.unsicherheit`` (≈ 2–5 min; die Kovarianzen werden beim ersten Lauf berechnet und
+gespeichert, ``--neu`` erzwingt die Neuberechnung). Voraussetzung: ``python -m scripts.dhn_study.run_netzmodell
+--ohne-kalibrierung`` (gemessene Speicherhebel je Variante).
 Ergebnisse: ``results/dhn_study/netzmodell/unsicherheit_*.csv`` und ``unsicherheit_zusammenfassung.md``.
 """
 
@@ -30,14 +34,16 @@ from . import daten
 from . import netzmodell as nm
 from .run_analyse import T_VL_AUSL, _md
 from .run_netzmodell import (
+    KALIBRIERUNG_REPO,
     SPEICHER_MW,
     auslegung_eingaben,
     kalibrier_eingaben,
     kalibrier_problem,
+    kalibriervarianten,
     lade_kalibrierung,
 )
 
-N_LAEUFE = 400
+N_JE_VARIANTE = 200       # Läufe je Kalibriervariante, Strukturvariante und Lastfall
 SEED = 7
 SIGMA_RUECKLAUF_K = 1.0
 V06_MINDEST = (1.0, 1.4)
@@ -117,38 +123,44 @@ class Ensemble:
         return lo - 1.0
 
 
-def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
+def main(n_je: int = N_JE_VARIANTE, neu_kovarianz: bool = False) -> dict:
     out = daten.repo_root() / "results" / "dhn_study" / "netzmodell"
     m = daten.lade_messdaten()
     e = daten.erzeugung(m)
     ta = daten.lade_aussentemperatur()[0].reindex(m.index)
     nz = nm.netz()
     f = nm.randbedingungen(m, e, nz)
-    kal = lade_kalibrierung(out, nz)
     ein = kalibrier_eingaben(m, e, ta, f)
     pr = kalibrier_problem(nz, ein)
-    x_hat = pr["x_aus"](kal)
+    namen, referenz = kalibriervarianten()
     E, G, H = len(nz.kanten), len(nm.LASTGRUPPEN), len(nm.GRUNDLAST_GRUPPEN)
-    datei = out / "kalibrierung_kovarianz.csv"
-    if neu_kovarianz or not datei.exists():
-        schritt = np.full(len(x_hat), 1e-3)
-        schritt[E + G:E + G + H] = 0.05
-        pd.DataFrame(nm.laplace_kovarianz(pr, x_hat, schritt), index=pr["namen"], columns=pr["namen"]).to_csv(datei)
-    kov = pd.read_csv(datei, index_col=0).loc[pr["namen"], pr["namen"]].to_numpy()
-    sd = np.sqrt(np.diag(kov))
-    erg = {"parameter": pd.DataFrame({"Schätzwert": x_hat, "Standardabweichung": sd}, index=pr["namen"])}
+    rng = np.random.default_rng(SEED)
+    x_hat, xs, var_kal, par = {}, [], [], {}
+    for v in namen:
+        x_hat[v] = pr["x_aus"](lade_kalibrierung(KALIBRIERUNG_REPO / v, nz))
+        datei = out / f"kalibrierung_kovarianz_{v}.csv"
+        if neu_kovarianz or not datei.exists():
+            schritt = np.full(len(x_hat[v]), 1e-3)
+            schritt[E + G:E + G + H] = 0.05
+            pd.DataFrame(nm.laplace_kovarianz(pr, x_hat[v], schritt), index=pr["namen"], columns=pr["namen"]).to_csv(datei)
+        kov = pd.read_csv(datei, index_col=0).loc[pr["namen"], pr["namen"]].to_numpy()
+        par[v] = pd.DataFrame({"Schätzwert": x_hat[v], "Standardabweichung": np.sqrt(np.diag(kov))}, index=pr["namen"])
+        xs.append(ziehe_parameter(x_hat[v], kov, n_je, rng))
+        var_kal += [v] * n_je
+    xs, var_kal = np.vstack(xs), np.array(var_kal)
+    n = len(xs)
+    erg = {"parameter": pd.concat(par, axis=1), "varianten": namen, "referenz": referenz}
     erg["parameter"].to_csv(out / "unsicherheit_parameter.csv")
 
-    rng = np.random.default_rng(SEED)
-    xs = ziehe_parameter(x_hat, kov, n, rng)
     ae = auslegung_eingaben(m, e, ta, nz)
     ens = Ensemble(nz, pr, xs, ae, t_rl=ae["T_RL"] + SIGMA_RUECKLAUF_K * rng.standard_normal(n),
                    lam_ost=rng.uniform(0.0, 1.0, n), ps1=rng.uniform(ae["ps1_quantile"]["P95"], ae["ps1_quantile"]["P99"], n),
                    v06=rng.uniform(*V06_MINDEST, n))
-    # Beiträge zur Streuung der erforderlichen KWK-Δp (quadratische Variante): nur Parameter, nur Eingangsgrößen, alles
+    # Beiträge zur Streuung der erforderlichen KWK-Δp (quadratische Variante): nur Parameter (inkl. Kalibriervarianten),
+    # nur Eingangsgrößen (Referenzkalibrierung), alles
+    x_ref = np.repeat(x_hat[referenz][None], n, axis=0)
     teil_ens = {"nur Parameter": Ensemble(nz, pr, xs, ae, ae["T_RL"], 0.5, ae["ps1_quantile"]["P99"], ae["mindest"]["V06"]),
-                "nur Eingangsgrößen": Ensemble(nz, pr, np.repeat(x_hat[None], n, axis=0), ae, ens.t_rl, ens.lam_ost,
-                                               ens.ps1, ens.v06),
+                "nur Eingangsgrößen": Ensemble(nz, pr, x_ref, ae, ens.t_rl, ens.lam_ost, ens.ps1, ens.v06),
                 "alles": ens}
     beitrag = {}
     for fall, (P, west) in ae["faelle"].items():
@@ -158,26 +170,30 @@ def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
     erg["beitrag"] = pd.DataFrame(beitrag).T
     erg["beitrag"]["Breite P5–P95"] = erg["beitrag"]["P95"] - erg["beitrag"]["P5"]
     erg["beitrag"].to_csv(out / "unsicherheit_beitraege.csv")
-    # Welche Parameter treiben die Streuung? Rangkorrelation mit der erf. KWK-Δp (P90, nur Parameter)
+    # Welche Parameter treiben die Streuung? Rangkorrelation mit der erf. KWK-Δp (P90, nur Parameter, Referenzvariante)
     P90, west90 = ae["faelle"]["P90"]
     r90 = teil_ens["nur Parameter"].bedarf(np.full(n, P90), west90).max(axis=1)
-    rho = pd.DataFrame(xs, columns=pr["namen"]).corrwith(pd.Series(r90), method="spearman")
+    ref = var_kal == referenz
+    rho = pd.DataFrame(xs[ref], columns=pr["namen"]).corrwith(pd.Series(r90[ref]), method="spearman")
     erg["parameter_einfluss"] = rho.reindex(rho.abs().sort_values(ascending=False).index[:8]).to_frame("Rangkorrelation (P90)")
-    # Kontrolle: ohne Streuung reproduziert das Ensemble den deterministischen Auslegungsfall (Ost nach Plan A)
-    det = Ensemble(nz, pr, x_hat[None], ae, ae["T_RL"], 0.0, ae["ps1_quantile"]["P99"], ae["mindest"]["V06"])
+    # Kontrolle: ohne Streuung reproduziert das Ensemble den deterministischen Auslegungsfall (Referenz, Ost nach Plan A)
+    det = Ensemble(nz, pr, x_hat[referenz][None], ae, ae["T_RL"], 0.0, ae["ps1_quantile"]["P99"], ae["mindest"]["V06"])
     erg["kontrolle"] = {fall: float(det.bedarf(np.array([P]), west).max()) for fall, (P, west) in ae["faelle"].items()}
 
-    # Knie der Strukturvariante: P95 des Durchflusses je Kante in der Heizperiode 2025 (kalibriertes Modell)
-    K_hat, gw_hat, gl_hat, vs_hat = pr["zerlege"](x_hat)
-    m_hat = nz.loese(f.b(nz, gw_hat, gl_hat), K_hat, f.gewinn)
-    m_lin = np.quantile(np.abs(m_hat[ein["heiz"]]), KNIE_QUANTIL, axis=0)
-    erg["knie"] = pd.Series(m_lin, index=nz.kanten_ids, name="Knie [kg/s]")
+    # Knie der Strukturvariante je Kalibriervariante: P95 des Durchflusses je Kante in der Heizperiode 2025
+    knie = {}
+    for v in namen:
+        K_v, gw_v, gl_v, _ = pr["zerlege"](x_hat[v])
+        knie[v] = np.quantile(np.abs(nz.loese(f.b(nz, gw_v, gl_v), K_v, f.gewinn)[ein["heiz"]]), KNIE_QUANTIL, axis=0)
+    m_lin = np.array([knie[v] for v in var_kal])
+    erg["knie"] = pd.DataFrame(knie, index=nz.kanten_ids)
 
-    # Gemessene Hebel des Speichers S (je Zielstation, mit Standardfehler; Mitte-Stationen am selben Knoten gekoppelt)
-    hm = pd.read_csv(out / "hebel_speicher_s_gemessen.csv", index_col=0).reindex(ens.ziele)
+    # Gemessene Hebel des Speichers S je Kalibriervariante (Standardfehler; Mitte-Stationen am selben Knoten gekoppelt)
     gruppe = {z: nm.STATIONEN[z] for z in ens.ziele}
     zufall = {g: rng.standard_normal(n) for g in sorted(set(gruppe.values()))}
-    hebel = np.column_stack([hm.loc[z, "Hebel [bar je 100 kg/s]"] + hm.loc[z, "SE"] * zufall[gruppe[z]] for z in ens.ziele])
+    hm = {v: pd.read_csv(out / f"hebel_speicher_s_gemessen_{v}.csv", index_col=0).reindex(ens.ziele) for v in namen}
+    hebel = np.column_stack([np.array([hm[v].loc[z, "Hebel [bar je 100 kg/s]"] for v in var_kal])
+                             + np.array([hm[v].loc[z, "SE"] for v in var_kal]) * zufall[gruppe[z]] for z in ens.ziele])
 
     zeilen = []
     for var in VARIANTEN:
@@ -192,7 +208,7 @@ def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
             req_s_mess = (need - hebel * dm[:, None] / 100).max(axis=1)
             r4 = ens.reserve(P, west, 4.0, m_lin=ml)
             zeilen.append(pd.DataFrame({
-                "Variante": var, "Fall": fall, "Lauf": np.arange(n), "Rücklauf [°C]": ens.t_rl, "Anteil Ost wie 2025": ens.lam_ost,
+                "Variante": var, "Fall": fall, "Kalibrierung": var_kal, "Lauf": np.arange(n), "Rücklauf [°C]": ens.t_rl, "Anteil Ost wie 2025": ens.lam_ost,
                 "PS1-Gewinn [bar]": ens.ps1, "Mindest-Δp V06 [bar]": ens.v06,
                 "erf. KWK-Δp [bar]": req, "maßgebend": np.array(ens.ziele)[need.argmax(axis=1)],
                 "Reserve bis 4,0 bar": r4, "Reserve bis Pumpe": ens.reserve(P, west, ae["pumpe"], m_lin=ml),
@@ -212,10 +228,15 @@ def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
     q.columns = [f"{g} {'P5' if p == 0.05 else 'P50' if p == 0.5 else 'P95'}" for g, p in q.columns]
     erg["quantile"] = q
     q.to_csv(out / "unsicherheit_quantile.csv")
+    qk = lf.groupby(["Fall", "Variante", "Kalibrierung"])[groessen].median()
+    erg["median_je_kalibrierung"] = qk
+    qk.to_csv(out / "unsicherheit_median_je_kalibrierung.csv")
     eingaben = ["Rücklauf [°C]", "Anteil Ost wie 2025", "PS1-Gewinn [bar]", "Mindest-Δp V06 [bar]"]
     erg["rang"] = pd.DataFrame({(fall, var): g[eingaben].corrwith(g["erf. KWK-Δp [bar]"], method="spearman")
                                 for (fall, var), g in lf.groupby(["Fall", "Variante"])})
     erg["massgebend"] = lf.groupby(["Fall", "Variante"]).maßgebend.value_counts(normalize=True).unstack().fillna(0.0)
+    erg["massgebend_je_kalibrierung"] = (lf.groupby(["Fall", "Kalibrierung"]).maßgebend.value_counts(normalize=True)
+                                         .unstack().fillna(0.0))
 
     aussagen = {
         "F1: P50 erf. KWK-Δp ≤ 4,0 bar": ("P50", lf["erf. KWK-Δp [bar]"] <= 4.0),
@@ -233,9 +254,12 @@ def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
     }
     a = []
     for text, (fall, wahr) in aussagen.items():
-        anteil = wahr[lf.Fall == fall].groupby(lf.Variante[lf.Fall == fall]).mean()
+        sel = lf.Fall == fall
+        anteil = wahr[sel].groupby(lf.Variante[sel]).mean()
+        je = wahr[sel].groupby([lf.Variante[sel], lf.Kalibrierung[sel]]).mean()
         a.append({"Aussage": text, **{f"Anteil {v}": anteil[v] for v in VARIANTEN},
-                  "Bewertung": ("gestützt" if (anteil >= 0.9).all() else "widerlegt" if (anteil <= 0.1).all()
+                  "kleinster Anteil je Kalibrier- und Strukturvariante": je.min(),
+                  "Bewertung": ("gestützt" if (je >= 0.9).all() else "widerlegt" if (je <= 0.1).all()
                                 else "offen (< 90 % oder variantenabhängig)")})
     erg["aussagen"] = pd.DataFrame(a).set_index("Aussage")
     erg["aussagen"].to_csv(out / "unsicherheit_aussagen.csv")
@@ -250,33 +274,40 @@ def main(n: int = N_LAEUFE, neu_kovarianz: bool = False) -> dict:
         K, gw, gl, vs = pr["zerlege"](x)
         return nm.simuliere(nz, fh, K, vs, gw, gl)[stationen].to_numpy()
 
-    sims = np.array([sim_lauf(x) for x in xs[:100]])
+    sims = np.array([sim_lauf(x) for x in xs[ref][:100]])
+    K_hat, gw_hat, gl_hat, vs_hat = pr["zerlege"](x_hat[referenz])
     sim_hat = nm.simuliere(nz, fh, K_hat, vs_hat, gw_hat, gl_hat)[stationen]
     fehler = sim_hat - fh.ziele[stationen]
     erg["parameterstreuung"] = pd.DataFrame({"Streuung aus Parametern [bar]": np.nanmean(sims.std(axis=0), axis=0),
                                              "RMSE Holdout Hochlast [bar]": np.sqrt((fehler**2).mean())}, index=stationen)
     erg["parameterstreuung"].to_csv(out / "unsicherheit_parameterstreuung.csv")
-    _bericht(erg, n, out)
+    _bericht(erg, n_je, out)
     return erg
 
 
-def _bericht(erg: dict, n: int, out) -> None:
+def _bericht(erg: dict, n_je: int, out) -> None:
     p = erg["parameter"].copy()
-    log = p.index.str.startswith("log")
-    p.loc[log, "Faktor (1 SD)"] = np.exp(p.loc[log, "Standardabweichung"])
+    for v in erg["varianten"]:
+        log = p.index.str.startswith("log")
+        p.loc[log, (v, "Faktor (1 SD)")] = np.exp(p.loc[log, (v, "Standardabweichung")])
+    p = p.sort_index(axis=1)
     text = ["# Unsicherheitsläufe zum Auslegungsfall (automatisch erzeugt)", "",
-            f"{n} Läufe je Strukturvariante und Lastfall; Parameter aus der Laplace-Näherung der Kalibrierung, "
-            f"Rücklauf ± {SIGMA_RUECKLAUF_K} K, Ost zwischen Plan A und 2025, PS1 P95–P99, V06-Mindest-Δp {V06_MINDEST}.", "",
-            f"Kontrolle ohne Streuung (Ost nach Plan A, V06 1,2 bar): erf. KWK-Δp {erg['kontrolle']}", "",
+            f"Kalibriervarianten {erg['varianten']} (Referenz {erg['referenz']}), je {n_je} Läufe je Strukturvariante und "
+            f"Lastfall; Parameter aus der Laplace-Näherung je Variante, Rücklauf ± {SIGMA_RUECKLAUF_K} K, Ost zwischen "
+            f"Plan A und 2025, PS1 P95–P99, V06-Mindest-Δp {V06_MINDEST}.", "",
+            f"Kontrolle ohne Streuung (Referenz, Ost nach Plan A, V06 1,2 bar): erf. KWK-Δp {erg['kontrolle']}", "",
             "## Aussagen (Anteil der Läufe, in denen die Aussage gilt)", _md(erg["aussagen"].round(3)), "",
             "## Quantile", _md(erg["quantile"].T.round(3)), "",
+            "## Median je Kalibriervariante", _md(erg["median_je_kalibrierung"].T.round(3)), "",
             "## Maßgebende Station (Anteil)", _md(erg["massgebend"].round(3)), "",
+            _md(erg["massgebend_je_kalibrierung"].round(3)), "",
             "## Beiträge zur Streuung der erf. KWK-Δp (quadratisch)", _md(erg["beitrag"].round(3)), "",
             "## Rangkorrelation Eingangsgröße – erf. KWK-Δp", _md(erg["rang"].round(2)), "",
-            "## Einflussreichste Parameter (nur Parameterstreuung, P90)", _md(erg["parameter_einfluss"].round(2)), "",
-            "## Parameterstreuung gegen Holdout-Fehler", _md(erg["parameterstreuung"].round(3)), "",
-            "## Parameter (Laplace-Näherung)", _md(p.round(3)), "",
-            "## Knie der Strukturvariante (P95 je Kante, Heizperiode)", _md(erg["knie"].round(1).to_frame())]
+            "## Einflussreichste Parameter (nur Parameterstreuung, P90, Referenzvariante)",
+            _md(erg["parameter_einfluss"].round(2)), "",
+            "## Parameterstreuung gegen Holdout-Fehler (Referenzvariante)", _md(erg["parameterstreuung"].round(3)), "",
+            "## Parameter (Laplace-Näherung je Kalibriervariante)", _md(p.round(3)), "",
+            "## Knie der Strukturvariante (P95 je Kante, Heizperiode)", _md(erg["knie"].round(1))]
     (out / "unsicherheit_zusammenfassung.md").write_text("\n".join(text), encoding="utf-8")
 
 

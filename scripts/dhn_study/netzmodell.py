@@ -369,6 +369,17 @@ def hebel_vergleich(fall: Fall, reg: pd.DataFrame, sim: pd.DataFrame) -> tuple[p
     return f(km), f(ks), f(se)
 
 
+def hebel_vergleich_fest(fall: Fall, reg: pd.DataFrame, sim: pd.DataFrame, fest: str = "KWK-Δp") -> tuple[pd.DataFrame, ...]:
+    """Wie ``hebel_vergleich``, aber mit dem Koeffizienten von ``fest`` auf 1 gesetzt: Ziel minus Regressor wird auf die
+    übrigen Regressoren regressiert (Gegenprobe gegen eine durch die Regelung verzerrte KWK-Δp)."""
+    from dataclasses import replace
+
+    u = reg[fest].to_numpy()[:, None]
+    f2 = replace(fall, ziele=fall.ziele.assign(**{z: fall.ziele[z] - u[:, 0] for z in HEBEL_ZIELE}))
+    s2 = sim.assign(**{z: sim[z] - u[:, 0] for z in HEBEL_ZIELE})
+    return hebel_vergleich(f2, reg.drop(columns=fest), s2)
+
+
 def kalibrier_problem(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_sigma: float = 0.3, gewicht_sigma: float = 0.3,
                       grundlast_sigma: float = 40.0, gewichtung: np.ndarray | None = None, paar_gewicht: float = 0.0,
                       hebel: dict | None = None, kanten_sigma: dict[str, float] | None = None) -> dict:

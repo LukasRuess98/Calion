@@ -14,14 +14,16 @@ Stand: 2026-10-02 · Bezug: `Plan_belastbare_Aussagen.md` (Phasen 2–4, Gegenre
 
 **Reproduktion** (Repository-Wurzel, Datensatz unter `data/dhn_a/`):
 ```
-python -m scripts.dhn_study.run_netzmodell                       # mit Kalibrierung, ≈ 30 min
-python -m scripts.dhn_study.run_netzmodell --ohne-kalibrierung   # gespeicherte Kalibrierung, ≈ 1 min
-python -m scripts.dhn_study.unsicherheit                         # Unsicherheitsläufe, ≈ 1–3 min
+python -m scripts.dhn_study.run_netzmodell --ohne-kalibrierung   # veröffentlichte Kalibrierungen, ≈ 2 min
+python -m scripts.dhn_study.unsicherheit                         # Unsicherheitsläufe, ≈ 2–5 min
 python -m scripts.dhn_study.gegenrechnung_pandapipes             # Gegenrechnung, benötigt: pip install pandapipes
 python -m scripts.dhn_study.abbildungen                          # Abbildungen unter abbildungen/
+python -m scripts.dhn_study.mehrfachstart                        # optional: Kalibrierung aus fünf Starts, je ≈ 10–40 min
 ```
+* Die veröffentlichten Kalibrierungen liegen unter `scripts/dhn_study/kalibrierung/` (je Start ein Ordner, `uebersicht.csv` mit den Kosten). Mit `--ohne-kalibrierung` sind alle Zahlen dieses Berichts exakt reproduzierbar.
+* `python -m scripts.dhn_study.run_netzmodell` ohne Option kalibriert neu, ausgehend von der Referenzkalibrierung; `--von-null` startet bei den Prior-Werten. Eine Neukalibrierung kann in einem anderen, gleich guten Optimum enden (Abschnitt 3).
 * Ergebnisse: `results/dhn_study/netzmodell/` (CSV sowie `zusammenfassung.md`, `unsicherheit_zusammenfassung.md`, `pandapipes_zusammenfassung.md`).
-* Code: `scripts/dhn_study/netzmodell.py` (Netz, Löser, Kalibrierung, Mischungsrechnung), `run_netzmodell.py` (Ablauf), `unsicherheit.py` (Ensemble), `gegenrechnung_pandapipes.py` (geschlossener Kreis in pandapipes).
+* Code: `scripts/dhn_study/netzmodell.py` (Netz, Löser, Kalibrierung, Mischungsrechnung), `run_netzmodell.py` (Ablauf), `mehrfachstart.py` (Kalibrierung aus mehreren Starts), `unsicherheit.py` (Ensemble), `gegenrechnung_pandapipes.py` (geschlossener Kreis in pandapipes).
 * Tests: `tests/test_dhn_study.py`.
 
 ---
@@ -44,7 +46,7 @@ python -m scripts.dhn_study.abbildungen                          # Abbildungen u
 **Was das für die Studie heißt:**
 * **F1 ist durch drei Ansätze gestützt:** die Ersatzgesetze der Datenanalyse, das kalibrierte Netzmodell und die Unsicherheitsläufe.
   * Belastbar ist: Das Netz reicht bei Auslegung bis zur Pumpengrenze, und bei P50 reichen die 4,0 bar des Betreibers.
-  * Bei P90 werden die 4,0 bar voraussichtlich erreicht oder überschritten. Das hängt vor allem davon ab, wie stark die Verluste oberhalb des Messbereichs wachsen.
+  * Ob bei P90 die 4,0 bar reichen, ist offen. Im quadratischen Modell werden sie in 73 % der Läufe überschritten, in der linearen Variante in 20 %. Das hängt also vor allem davon ab, wie stark die Verluste oberhalb des Messbereichs wachsen.
 * **Den Speicher S kann man als V-Aussage mit Band beziffern:**
   * Die KWK-Entlastung beträgt 0,3–1,1 bar.
   * Die zusätzliche Ausbaureserve beträgt 1–8 Prozentpunkte.
@@ -69,7 +71,7 @@ Das Ersatznetz bildet den Verbund auf **Sektionsebene** ab: 25 Knoten, 31 Kanten
 | Vor- und Rücklauf | Gekoppelt: Jeder Verbraucher gibt in den Rücklauf zurück, was er im Vorlauf entnimmt. Ein Kantenwiderstand K beschreibt den Verlust von Vor- plus Rücklauf: Δp_nach = Δp_von − K·ṁ·\|ṁ\| (+ Pumpengewinn). Geländehöhen kürzen sich in der Δp heraus. |
 | Pumpstationen | PS1 (Süd, Kante L4c) und PS2 (West, Kante W1), jeweils mit gemessenem Gewinn am Kantenanfang. |
 | KWK intern | Eigene Kante zwischen Messstelle und Sammelschiene. Startwert aus Plan A: 1,1 bar bei 2 350 t/h. |
-| Vermaschung | Kreisströme per Newton-Verfahren auf den Maschenströmen (Spannbaum ab KWK). Stundenweise vektorisiert: 8 351 Stunden in ≈ 0,3 s. |
+| Vermaschung | Kreisströme per Newton-Verfahren auf den Maschenströmen (Spannbaum ab KWK). Stundenweise vektorisiert: 8 351 Stunden in ≈ 0,5 s. |
 | Lasten | Verbraucherstrom = Erzeugung − Übergabe West. Der Großkunde am Standort S ist gemessen. Der Rest wird nach der Anschlussleistung der Teilgebiete verteilt (`sectors.csv`), mit kalibriertem Gewicht und kalibrierter Grundlastverschiebung je Lastgruppe. |
 | Messstellen | 13 Stationen mit Δp-Messung sind Sektionsknoten zugeordnet. Je Station gibt es einen kalibrierten Versatz für die örtlichen Verluste. |
 
@@ -86,7 +88,7 @@ Das Ersatznetz bildet den Verbund auf **Sektionsebene** ab: 25 Knoten, 31 Kanten
 | Grundlastverschiebung je Lastgruppe | σ = 40 kg/s |
 | Stationsversatz | σ = 0,3 bar |
 
-**Kalibrierziele** (nur Trainingswochen; 1 018 Stunden als Stundenpaare, Kältestunden dichter abgetastet und dreifach gewichtet):
+**Kalibrierziele** (nur Trainingswochen; 1 018 Stunden als Stundenpaare; Stunden unter 5 °C dichter abgetastet und dreifach gewichtet):
 1. **Pegel:**
    * Δp an den 13 Stationen;
    * Δp an MVA, GT, Bio-KWK, HW1, PS1, PS2 und der Übergabe West;
@@ -103,15 +105,17 @@ Das Ersatznetz bildet den Verbund auf **Sektionsebene** ab: 25 Knoten, 31 Kanten
 * **Versatz:** an 11 Stationen innerhalb ±0,2 bar. Ausnahmen:
   * **V06 −0,80 bar:** örtlicher Verlust zwischen Sektionsknoten und Regelpunkt, im Modell als konstant angenommen;
   * V12 −0,37 bar.
-* **Widerstandsmultiplikatoren:** Die meisten liegen bei 0,3–2,5. Deutlich außerhalb liegen:
+* **Widerstandsmultiplikatoren:** 21 von 31 liegen zwischen 0,3 und 2,5. Außerhalb liegen:
   * Stammleitung L1 ab KWK **×22,6** und Stammleitung L3 **×14,3**;
-  * Verbundkanten Mitte-L2→L4 und L3→L4 ×0,05 bzw. ×0,12;
-  * Süd-Abschnitte L4d und L4f ×0,14 bzw. ×0,18.
+  * der Südstrang an PS1 (L4c) ×2,6;
+  * die Verbundkanten Mitte-L2→L4 und L3→L4 ×0,05 bzw. ×0,12 sowie die Anbindung L6→Mitte-L3 ×0,24;
+  * die Süd-Abschnitte L4d und L4f ×0,14 bzw. ×0,18;
+  * die Ost-Leitung L6 ×0,17 bzw. ×0,20.
 
   Das Phase-2-Kriterium „Multiplikatoren etwa 0,5–2“ ist damit verfehlt.
 
 **Deutung der Multiplikatoren:** Sie sind **effektive Ersatzwiderstände** einer Sektion, keine Rohrrauigkeiten.
-* L1 und L3 verhalten sich, als wären sie gedrosselt, zum Beispiel durch teilweise geschlossene Armaturen der Sektionierung (WV650/660).
+* L1 und L3 verhalten sich, als wären sie gedrosselt, zum Beispiel durch teilweise geschlossene Armaturen der Sektionierung (Pläne B und C).
 * Die Verbundkanten zur Mitte-L4 verhalten sich, als hätten sie mehr Querschnitt, zum Beispiel durch parallele Leitungen, die im Ersatznetz fehlen.
 * **Frage an den Betreiber:** Armaturenstellungen in L1 und L3 sowie parallele Verbindungen zur Mitte-L4.
 
@@ -209,7 +213,7 @@ Werte in bar je 100 kg/s. Standardfehler der Messung: 0,02 bar (unter 240 kg/s) 
 
 * **Unter 240 kg/s** trifft das Modell die gemessenen Hebel an allen Stationen auf ≤ 0,06 bar, an der MVA auf 6 %. Das sind 2 900 Stunden; die Kalibrierung hat sie nur zum Teil gesehen.
 * **Über 240 kg/s** bleiben die gemessenen Hebel konstant oder fallen sogar. Das Modell lässt sie mit dem Durchfluss wachsen, wie es quadratische Verluste verlangen, und liegt dort beim 2- bis 3,5-fachen.
-  * Die Gegenprobe mit fest auf 1 gesetztem KWK-Δp-Koeffizienten ändert das Bild nicht (V03 gemessen 0,28 gegen Modell 0,61).
+  * Die Gegenprobe mit fest auf 1 gesetztem KWK-Δp-Koeffizienten ändert das Bild nicht (über 240 kg/s: V03 gemessen 0,22 gegen Modell 0,48; Spalten „KWK-Δp-Koeff. 1“ in `hebel_kwk_baender.csv`).
   * Die Rückkopplung der KWK-Regelung allein erklärt es also nicht.
 * **Gegenläufiger Befund:** Das Pegelgesetz der Ost-Kopplung zeigt eine quadratische Abhängigkeit vom KWK-Durchfluss. Gemessen ist f = 0,215, im Modell 0,174 (Abschnitt 4.4).
 * **Mögliche Ursachen**, mit den Stundenwerten nicht trennbar:
@@ -217,7 +221,7 @@ Werte in bar je 100 kg/s. Standardfehler der Messung: 0,02 bar (unter 240 kg/s) 
   2. In Kältestunden laufen die Ost-Erzeuger an der Grenze. Es gibt dann weniger unabhängige Variation, und Fehler in den Regressoren verkleinern den Koeffizienten.
   3. Die Regelung von KWK, PS1 und Ost-Erzeugern wirkt bei Kälte enger zusammen.
 * **Folge:** Für den Auslegungsfall (KWK 405–503 kg/s) ist das Modell die **obere** Abschätzung der Hebel, die konstanten gemessenen Hebel sind die **untere**.
-  * Der KWK-interne Widerstand wurde deshalb eng an den Planwert gebunden (σ = 0,2). Frei kalibriert ging er auf das 2,5- bis 3-fache und hätte die Extrapolation noch steiler gemacht.
+  * Der KWK-interne Widerstand wurde deshalb eng an den Planwert gebunden (σ = 0,2). In einer Kalibrierung ohne diesen Prior ging er auf das 2,5- bis 3-fache und hätte die Extrapolation noch steiler gemacht.
   * Klärung: Feldtest bei hoher Last (Plan 3.3) mit einem Sprung der KWK-Δp und einem Leistungssprung Ost oder HW1.
 
 ![Hebel je Band](abbildungen/netzmodell_hebel_baender.png)
@@ -265,7 +269,7 @@ Beim Süd-Gesetz rechnet das Modell der Pumpstation PS1 mehr Wirkung zu (h 0,60 
 | V24 (City) | 0,09 | 0,12 | 0,26 | +17 Pp | 0,41 |
 | V05 (Süd) | 0,14 | 0,10 | 0,28–0,39 | +14…+24 Pp | 0,31–0,53 |
 
-Pp = Prozentpunkte. V05 liegt je nach Lage vor oder hinter HW1; beide Knoten sind gezeigt.
+Pp = Prozentpunkte. V05 liegt je nach Lage vor oder hinter HW1; beide Knoten sind gezeigt. Die Messwerte sind an denselben 285 Stunden gerechnet wie das Modell (Stunden mit vollständigen Randbedingungen); sie weichen deshalb um bis zu 0,01 von Abschnitt 8 der Datenanalyse (287 Stunden) ab.
 
 * **Kriterium 3.5** (±15 Prozentpunkte) ist an 3 der 4 aussagekräftigen Stationen (R² ≥ 0,3) erfüllt; V15 liegt mit 16 Prozentpunkten knapp darüber. V15 wird am Hausanschluss gemessen.
 * Bei V24 und V05 ist der Tracer mit R² ≈ 0,1 nicht aussagekräftig. Die beiden City-Stationen V17 und V24 liegen am selben Modellknoten, gemessen aber bei 0,28 bzw. 0,09. Das zeigt die Unterschiede innerhalb der City, die das Ersatznetz nicht auflöst.
@@ -286,7 +290,7 @@ Pp = Prozentpunkte. V05 liegt je nach Lage vor oder hinter HW1; beide Knoten sin
 
 **Zwei Reibungsansätze:**
 * **Nikuradse:** Reibungszahl unabhängig vom Durchfluss. Diese Rechnung prüft Löser, Massenbilanz, Pumpen und die gespiegelten Rücklaufströme.
-* **Swamee-Jain** (explizite Näherung der Colebrook-Gleichung): Die Reibungszahl sinkt mit der Reynoldszahl, die Verluste wachsen also schwächer als quadratisch. Diese Rechnung zeigt, wie viel die quadratische Annahme ausmacht. Die Colebrook-Iteration selbst konvergierte in ≈ 20 % der Stunden nicht.
+* **Swamee-Jain** (explizite Näherung der Colebrook-Gleichung): Die Reibungszahl sinkt mit der Reynoldszahl, die Verluste wachsen also schwächer als quadratisch. Diese Rechnung zeigt, wie viel die quadratische Annahme ausmacht. Die Colebrook-Iteration selbst (`friction_model="colebrook"`) konvergierte in einem Testlauf in ≈ 20 % der Stunden nicht.
 
 **Prüfstunden:** 541 Holdout-Stunden mit laufender KWK, darunter alle 241 Hochlaststunden. Eine Umwälzpumpe kann ihre Richtung nicht umkehren; Stunden ohne KWK-Förderung entfallen deshalb.
 

@@ -152,7 +152,13 @@ def rechne(nz: nm.Netz, ppn: PPNetz, b: np.ndarray, gewinn: np.ndarray, dp_kwk: 
 
 
 def main() -> dict:
-    from .run_netzmodell import MINDEST_MITTE, SPEICHER_MW, T_VL_AUSL, aufteilung, lade_kalibrierung
+    from .run_netzmodell import (
+        SPEICHER_MW,
+        aufteilung,
+        auslegung_eingaben,
+        kalibrierung_ordner,
+        lade_kalibrierung,
+    )
 
     out = daten.repo_root() / "results" / "dhn_study" / "netzmodell"
     m = daten.lade_messdaten()
@@ -160,7 +166,7 @@ def main() -> dict:
     ta = daten.lade_aussentemperatur()[0].reindex(m.index)
     nz = nm.netz()
     f = nm.randbedingungen(m, e, nz)
-    kal = lade_kalibrierung(out, nz)
+    kal = lade_kalibrierung(kalibrierung_ordner(out), nz)
     K, gw, gl, vs = kal["K"], kal["gewichte"], kal["grundlast"], kal["versatz"].to_dict()
     hold, _ = aufteilung(f, ta)
     b_all = f.b(nz, gw, gl)
@@ -200,24 +206,9 @@ def main() -> dict:
         max_dm_VL=("max |dm| VL [kg/s]", "max"), max_VL_RL=("max |VL − RL| [kg/s]", "max"))
     erg["vergleich"].to_csv(out / "pandapipes_vergleich.csv")
 
-    # 2) Auslegungsfall (wie run_netzmodell, Ost nach Plan A und wie 2025): erforderliche KWK-Δp, Speicherentlastung
-    anl = daten.lade_anlagen()["plants"]
-    kalt = ta < -2
-    dTd = T_VL_AUSL - float(m.gas_CHP_T_return[ta < -5].median())
-    dh = float(daten.dh(T_VL_AUSL, T_VL_AUSL - dTd))
-    ps1 = m.pump_station_1_p_supply_after_pump - m.pump_station_1_p_supply_before_pump
-    gewinn = np.zeros(len(nz.kanten))
-    gewinn[nz.kanten_ids.index("L4c")] = float(ps1.quantile(0.99))
-    gewinn[nz.kanten_ids.index("W1")] = float((m.pump_station_2_dp_supply_after_pump
-                                               - m.pump_station_2_dp_supply_before_pump)[kalt].median())
-    mindest = {"V06": 1.2, **{s: MINDEST_MITTE for s in nm.MITTE_ZIELE}}
-    gt_an = e["gas_turbine"] > 2
-    ost = {"Ost Plan A": {"MVA": anl["waste_incineration"]["P_max_MW"]["design_minus14C"],
-                          "GT": anl["gas_turbine"]["P_max_MW"]["design_minus14C"],
-                          "BIO": anl["biomass_CHP"]["P_max_MW"]["design_minus14C"]},
-           "Ost wie 2025": {"MVA": float(e["waste_incineration"][kalt].median()),
-                            "GT": float(e["gas_turbine"][kalt & gt_an].median()), "BIO": float(e["biomass_CHP"][kalt].median())}}
-    hw1_mw, hw1_m = anl["boiler_plant_1"]["P_max_MW"]["design_minus14C"], anl["boiler_plant_1"]["m_max_t_h"] / 3.6
+    # 2) Auslegungsfall mit denselben Randbedingungen wie run_netzmodell (Ost nach Plan A und wie 2025)
+    ae = auslegung_eingaben(m, e, ta, nz)
+    dh, gewinn, mindest, hw1_mw, hw1_m = ae["dh"], ae["gewinn"][0], ae["mindest"], ae["hw1_mw"], ae["hw1_m"]
     netze = {"Ersatznetz": None, **{f"pandapipes {mo}": baue_netz(nz, K, m_ref, mo) for mo in ("nikuradse", "swamee-jain")}}
 
     def erf(ppn, P, west, ost_v, speicher=None):
@@ -226,6 +217,8 @@ def main() -> dict:
             dp = nz.dp_knoten(nz.loese(b[None], K, gewinn[None]), K, np.array([4.0]), gewinn[None])[0]
         else:
             dp, *_ = rechne(nz, ppn, b, gewinn, 4.0)
+            if not np.isfinite(dp).all():
+                raise RuntimeError(f"pandapipes konvergiert im Auslegungsfall nicht (P = {P:.1f} MW, {ppn.modell})")
         need = {z: mindest[z] - (dp[nz.idx[nm.STATIONEN[z]]] - 4.0) - vs.get(z, 0.0) for z in mindest}
         return max(need.values()), max(need, key=need.get)
 
@@ -237,8 +230,8 @@ def main() -> dict:
         return lo - 1.0
 
     zeilen = []
-    for var, ost_v in ost.items():
-        for fall, (P, west) in {"P50": (235.0, 1.0), "P90": (252.0, 3.7)}.items():
+    for var, ost_v in ae["ost"].items():
+        for fall, (P, west) in ae["faelle"].items():
             for name, ppn in netze.items():
                 req, bind = erf(ppn, P, west, ost_v)
                 zeilen.append({"Ost": var, "Fall": fall, "Rechnung": name, "erf. KWK-Δp [bar]": req, "maßgebend": bind,
