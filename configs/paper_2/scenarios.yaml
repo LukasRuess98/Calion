@@ -11,8 +11,9 @@
 #   HK0/1/2   = heat curve stages (real / k=0.8 / k=0.6)
 #
 # Feature gates (runner skips until the model feature is implemented):
-#   hot_charging      — HP charges TES at T_VL,max (SB 122°C / MM 100°C);
-#                       TES ΔT = T_VL,max − T_return; 2nd COP series (F2)
+#   hot_charging      — HP charges TES at min(T_VL,max, 95°C atmospheric ceiling),
+#                       i.e. BOTH nets clip to 95°C (SB from 122°C, MM from 100°C);
+#                       TES ΔT = min(T_VL,max,95°C) − T_return; 2nd COP series (F2)
 #   endogenous_siting — MILP chooses TES (and HP) node freely, Σ build ≤ 1 (F3)
 #
 # NODE MAPPING — Stadtbach (32-node swa topo), PROPOSED, pending confirmation:
@@ -132,7 +133,7 @@ scenarios:
     tvl_fix: true
     tes_node: null
     baseline: true
-    description: "Stadtbach baseline — Bestand only (incl. 500 MWh TES + 10 MW P2H), constant T_VL"
+    description: "Stadtbach baseline — Bestand only (incl. 9.9 MW existing P2H; NO existing TES — tes_existing removed 2026-07-08, unsourced), constant T_VL"
     overrides:
       assets:
         hp_sb:
@@ -206,6 +207,211 @@ scenarios:
     description: "Stadtbach: HP/EK at J4, no TES, real heat curve"
     overrides: *tes_off_sb
 
+  - id: "SB-S0-HK0-PIN0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      K2 (docs SS4be, author decision 2026-09-26): identical topology to SB-S0-HK0
+      (hp_sb/ek_sb physically placed at J4/j_man via hp_node, so j_man's role is still
+      'mixed' with a data-closure dump Var) but ALL investment/capacity hard-fixed to 0
+      for hp_sb/ek_sb (same investment:{enabled:false,capacity_max_mw:0.0} pattern as
+      BC-SB-HK0) and TES stays off (tes_off_sb). Label "s0_pin0". Isolates whether the
+      mixed-node balance equation change at j_man ALONE (with zero investment freedom)
+      reproduces BC-SB-HK0's objective -- the direct dominance-superset test.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  - id: "SB-S0-HK0-PIN0-MONTHLY"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Y3 (docs SS4cb, author instruction 2026-10-01): identical to SB-S0-HK0-PIN0 (HP/EK
+      hard-fixed to 0, TES off) but billed on MONATSLEISTUNGSPREIS (12 monthly peaks) instead
+      of the Jahresleistungspreis (single annual peak) -- rate converted 1:1 from the annual
+      127,240 EUR/MW/a to 10,603.3333 EUR/MW/month (127240/12), per the explicit "Rate
+      umgerechnet" instruction (NOT a different real monthly tariff). Run FIRST (before any
+      CAPEX/CO2 corner case) since this is a MODEL change -- prior corner-case runs under the
+      old annual billing would be invalid once this lands.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "SB-S0-HK0-MONTHLY"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Y3 (docs SS4cb, author instruction 2026-10-01): identical to SB-S0-HK0 (free HP/EK
+      investment, no TES) but billed on Monatsleistungspreis instead of Jahresleistungspreis --
+      see SB-S0-HK0-PIN0-MONTHLY's description for the full rationale and rate conversion.
+    overrides:
+      assets:
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "SB-S0-HK0-PIN0-MONTHLY-CORNER"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Y4 (docs SS4cc, author instruction 2026-10-01): the ONE explicitly-authorized corner
+      case -- CAPEX=1.5 Mio. EUR/MW x CO2=65 EUR/t, under the now-valid Monatsleistungspreis
+      (see SB-S0-HK0-PIN0-MONTHLY). PIN0 side (HP/EK hard-fixed to 0, TES off). Tight-gap
+      target (0.15%) run via CALION_MIPGAP/CALION_MIPFOCUS env overrides, not a config change
+      here (keeps this scenario def identical in shape to its siblings).
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+            capex_eur_per_mw: 1500000.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      costs:
+        co2_price_eur_per_t: 65.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "SB-S0-HK0-MONTHLY-CORNER"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Y4 (docs SS4cc, author instruction 2026-10-01): same corner case as
+      SB-S0-HK0-PIN0-MONTHLY-CORNER, free HP/EK investment side (CAPEX=1.5M EUR/MW,
+      CO2=65 EUR/t, monthly billing). Expectation: optimal HP size shrinks to 0 or well
+      below the 1.9-2.1 MW found at the base-case parameters.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            capex_eur_per_mw: 1500000.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      costs:
+        co2_price_eur_per_t: 65.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "SB-S1-HK0-PIN0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      AB1 (docs SS4ci, author instruction 2026-10-04): identity check for SB-S0-HK0-PIN0 (tes_node=
+      null) vs a genuine S1-sited PIN0 (tes_node="S1" PRESERVED, only capacity zeroed). Unlike S0-PIN0,
+      this keeps the TES CANDIDATE placement at j_hkw active (node-role inference may differ from the
+      null-site case, per J2's precedent that candidate placement changes node balance FORM, not just
+      whether something gets built) -- built ONLY if the model-diff in AB1 finds the two are NOT
+      structurally identical.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  - id: "SB-S0-HK0-HPFIX533"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Q2 (docs SS4bl/SS4bm, author instruction 2026-09-29): constructed HP run, replaces the
+      withdrawn N3 SB-S0-HK0 regret analysis. Identical topology to SB-S0-HK0 (hp_sb/ek_sb at
+      J4/j_man) but hp_sb's capacity is HARD-FIXED at 5.325821519771965 MW (the exact size N3's
+      SB-S0-HK0 incumbent built, so the cost decomposition stays comparable to the withdrawn
+      figures) via investment.enabled=false + capacity_mw set directly (heat_pump.py fixes
+      build=1/cap=capacity_init_mw when investable=False and capacity_init_mw>0 -- verified in
+      heat_pump.py:132-134, NOT the same code path as PIN0's capacity_mw=0 case). ek_sb stays
+      fully investable (untouched, inherits the base config's investment.enabled=true) and TES
+      stays off (tes_off_sb) -- everything except hp_sb's capacity is free. A restricted model
+      (one fewer investment decision than real S0-HK0), therefore easier to solve to a tight gap.
+      V1 UPDATE (2026-09-30, docs SS4bq): the original run of this scenario silently charged
+      ZERO CAPEX/Activation (component_assembler.py's old single-flag CAPEX gate treated
+      investment.enabled=false as "pre-existing, no CAPEX" -- correct for Bestand assets, wrong
+      here) -- caught and corrected post-hoc in SS4bp. `investment.capex_charged: true` added
+      below so a re-run of this exact scenario now charges CAPEX correctly without the
+      post-hoc correction step; the new V1 assertion in component_assembler.py would otherwise
+      refuse to build this model at all (fixed nonzero capacity + no capex_charged + no
+      bestand marker = hard error, by design).
+    overrides:
+      assets:
+        hp_sb:
+          capacity_mw: 5.325821519771965
+          investment:
+            enabled: false
+            capex_charged: true
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
   - id: "SB-S0-HK1"
     network: "stadtbach"
     config: "configs/paper_2/Stadtbach_topo.yaml"
@@ -235,6 +441,43 @@ scenarios:
     baseline: false
     description: "Memmingen: HP/EK at j_12, no TES, real heat curve"
     overrides: *tes_off_mm
+
+  - id: "MM-S0-HK0-PIN0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J12"
+    baseline: false
+    description: >
+      O1 (docs SS4bk, author instruction 2026-09-28): mirrors SB-S0-HK0-PIN0 (K2) for
+      Memmingen under the FINAL configuration (Notkühler node-categorization + N1/N2
+      baseline-derived per-node closure caps, already unconditional in
+      constraint_builder.py -- no separate flag needed). Identical topology to
+      MM-S0-HK0 (hp_main/eboiler_main placed at j_12) but ALL investment/capacity hard-
+      fixed to 0 for hp_main/eboiler_main (same pattern as BC-MM-HK0) and TES stays off
+      (tes_off_mm). Label "mm_s0_pin0". Incumbent-pool / dominance-superset isolation
+      run, analogous to SB's K2 but on the final closure config.
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          # Z (2026-10-02, docs SS4ce, self-caught via V1's own assertion firing as
+          # designed): base config's eboiler_main.capacity_mw=5.0 ("INITIAL --
+          # overridden by investment optimizer") was never zeroed here, unlike
+          # hp_main's base capacity_mw=0.0 (already 0, no override needed). With
+          # investment.enabled=False, that 5.0 MW fallback becomes a fixed, uncosted
+          # capacity -- exactly the bug class V1's assertion exists to catch.
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
 
   - id: "MM-S0-HK1"
     network: "memmingen"
@@ -321,7 +564,7 @@ scenarios:
     hp_node: "J4"
     baseline: false
     hot_charging: true
-    description: "Stadtbach: TES at J4, HP charges TES at T_VL,max=122°C, real heat curve"
+    description: "Stadtbach: TES at J4, HP charges TES at 95°C (atmospheric ceiling clips T_VL,max=122°C), real heat curve"
 
   - id: "SB-S3-HK1"
     network: "stadtbach"
@@ -331,7 +574,7 @@ scenarios:
     hp_node: "J4"
     baseline: false
     hot_charging: true
-    description: "Stadtbach: TES at J4, hot charging at 122°C, heat curve stage 1"
+    description: "Stadtbach: TES at J4, hot charging at 95°C (ceiling, clips 122°C), heat curve stage 1"
 
   - id: "SB-S3-HK2"
     network: "stadtbach"
@@ -341,7 +584,7 @@ scenarios:
     hp_node: "J4"
     baseline: false
     hot_charging: true
-    description: "Stadtbach: TES at J4, hot charging at 122°C, heat curve stage 2"
+    description: "Stadtbach: TES at J4, hot charging at 95°C (ceiling, clips 122°C), heat curve stage 2"
 
   - id: "SB-S4-HK0"
     network: "stadtbach"
@@ -436,7 +679,7 @@ scenarios:
     endogenous: true
     hot_charging: true
     colocate: true
-    description: "Stadtbach: TES co-located with HP (free site), hot charging at 122°C, real heat curve"
+    description: "Stadtbach: TES co-located with HP (free site), hot charging at 95°C (ceiling, clips 122°C), real heat curve"
 
   - id: "SB-S7-HK1"
     network: "stadtbach"
@@ -469,7 +712,7 @@ scenarios:
     heat_curve_stage: "HK0"
     tes_node: "S1"
     baseline: false
-    description: "Memmingen: TES at j_1 (Zentrale), HP/EK at j_12, real heat curve"
+    description: "Memmingen: TES at j_9 (Zentrale), HP/EK at j_12, real heat curve"
 
   - id: "MM-S1-HK1"
     network: "memmingen"
@@ -477,7 +720,7 @@ scenarios:
     heat_curve_stage: "HK1"
     tes_node: "S1"
     baseline: false
-    description: "Memmingen: TES at j_1, HP/EK at j_12, heat curve stage 1"
+    description: "Memmingen: TES at j_9 (Zentrale), HP/EK at j_12, heat curve stage 1"
 
   - id: "MM-S1-HK2"
     network: "memmingen"
@@ -485,7 +728,7 @@ scenarios:
     heat_curve_stage: "HK2"
     tes_node: "S1"
     baseline: false
-    description: "Memmingen: TES at j_1, HP/EK at j_12, heat curve stage 2"
+    description: "Memmingen: TES at j_9 (Zentrale), HP/EK at j_12, heat curve stage 2"
 
   - id: "MM-S2-HK0"
     network: "memmingen"
@@ -521,7 +764,7 @@ scenarios:
     tes_node: "S3"
     baseline: false
     hot_charging: true
-    description: "Memmingen: TES at j_12, HP charges TES at T_VL,max=100°C, real heat curve"
+    description: "Memmingen: TES at j_12, HP charges TES at 95°C (atmospheric ceiling clips T_VL,max=100°C), real heat curve"
 
   - id: "MM-S3-HK1"
     network: "memmingen"
@@ -530,7 +773,7 @@ scenarios:
     tes_node: "S3"
     baseline: false
     hot_charging: true
-    description: "Memmingen: TES at j_12, hot charging at 100°C, heat curve stage 1"
+    description: "Memmingen: TES at j_12, hot charging at 95°C (ceiling, clips 100°C), heat curve stage 1"
 
   - id: "MM-S3-HK2"
     network: "memmingen"
@@ -539,7 +782,7 @@ scenarios:
     tes_node: "S3"
     baseline: false
     hot_charging: true
-    description: "Memmingen: TES at j_12, hot charging at 100°C, heat curve stage 2"
+    description: "Memmingen: TES at j_12, hot charging at 95°C (ceiling, clips 100°C), heat curve stage 2"
 
   - id: "MM-S4-HK0"
     network: "memmingen"
@@ -577,7 +820,7 @@ scenarios:
     endogenous: true
     hot_charging: true
     colocate: true
-    description: "Memmingen: TES co-located with HP (free site), hot charging at 100°C, real heat curve"
+    description: "Memmingen: TES co-located with HP (free site), hot charging at 95°C (ceiling, clips 100°C), real heat curve"
 
   - id: "MM-S5-HK1"
     network: "memmingen"
@@ -600,3 +843,231 @@ scenarios:
     hot_charging: true
     colocate: true
     description: "Memmingen: co-located TES+HP (free site), hot charging, heat curve stage 2"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # v3 DoE COMPLETION (2026-09-04) — 4 additions closing reviewer-flagged gaps.
+  # Each addition changes a claim the paper actually makes (Faktor-Regel passes).
+  # Semantic labels for the paper live in DOE_TABLE.tex; internal IDs kept in the
+  # existing scheme for pipeline stability (15 scripts hardcode IDs; rename deferred).
+  #   (a) TES-ONLY   +6  storage value isolated DIRECTLY (S0 only isolated by omission)
+  #   (b) FREE-CO    +6  endogenous + co-located + NORMAL charge -> decouples
+  #                      co-location from hot charging (FREE -> FREE-CO -> FREE-CO-HOT)
+  #   (c) BASE-HK0   +2  baseline at the real heat curve (status quo) so BC-Δ does not
+  #                      bundle "introduce heat-curve control"
+  #   (d) FIX-HP-TVLFIX +2  TVLFIX reference for the storage families (value of
+  #                      heat-curve control WITH storage)
+  # 46 -> 62 runs.
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # (a) TES-ONLY — TES investable, HP/EK fixed to zero (semantic: TES-ONLY)
+  - id: "MM-TESONLY-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES investable at j_9 (Zentrale), HP/EK fixed to zero (TES-ONLY), real heat curve"
+    overrides:
+      assets:
+        hp_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        eboiler_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  - id: "MM-TESONLY-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES-ONLY at j_9, HP/EK zero, heat curve stage 1"
+    overrides:
+      assets:
+        hp_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        eboiler_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  - id: "MM-TESONLY-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    baseline: false
+    description: "Memmingen: TES-ONLY at j_9, HP/EK zero, heat curve stage 2"
+    overrides:
+      assets:
+        hp_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        eboiler_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  - id: "SB-TESONLY-HK0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES investable at j_hkw (Zentrale), HP/EK fixed to zero (TES-ONLY), real heat curve. NOTE: Bestand-P2H handling to confirm before launch."
+    overrides:
+      assets:
+        hp_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        ek_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  - id: "SB-TESONLY-HK1"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES-ONLY at j_hkw, HP/EK zero, heat curve stage 1"
+    overrides:
+      assets:
+        hp_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        ek_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  - id: "SB-TESONLY-HK2"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: "S1"
+    baseline: false
+    description: "Stadtbach: TES-ONLY at j_hkw, HP/EK zero, heat curve stage 2"
+    overrides:
+      assets:
+        hp_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        ek_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+
+  # (b) FREE-CO — endogenous siting, TES co-located with HP, NORMAL charging
+  #     (semantic: FREE-CO). MM-S4/SB-S6 = FREE (separate); these = FREE-CO;
+  #     MM-S5/SB-S7 = FREE-CO-HOT. Chain isolates co-location vs charging temp.
+  - id: "MM-S4CO-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Memmingen: endogenous, TES co-located with HP, NORMAL charging (FREE-CO), real heat curve"
+
+  - id: "MM-S4CO-HK1"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Memmingen: FREE-CO (endogenous, co-located, normal charge), heat curve stage 1"
+
+  - id: "MM-S4CO-HK2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Memmingen: FREE-CO (endogenous, co-located, normal charge), heat curve stage 2"
+
+  - id: "SB-S6CO-HK0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Stadtbach: endogenous, TES co-located with HP, NORMAL charging (FREE-CO), real heat curve"
+
+  - id: "SB-S6CO-HK1"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK1"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Stadtbach: FREE-CO (endogenous, co-located, normal charge), heat curve stage 1"
+
+  - id: "SB-S6CO-HK2"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK2"
+    tes_node: null
+    baseline: false
+    endogenous: true
+    colocate: true
+    description: "Stadtbach: FREE-CO (endogenous, co-located, normal charge), heat curve stage 2"
+
+  # (c) BASE-HK0 — baseline (no investment) at the REAL heat curve (status quo).
+  #     Primary reference; BC-TVLFIX isolates what heat-curve control alone brings.
+  - id: "BC-MM-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: true
+    description: "Memmingen baseline — Bestand only, no HP/EK/TES, REAL heat curve HK0 (status-quo reference)"
+    overrides:
+      assets:
+        hp_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        eboiler_main:
+          capacity_mw: 0.0
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  - id: "BC-SB-HK0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: true
+    description: "Stadtbach baseline — Bestand only (incl. 9.9 MW existing P2H; NO existing TES), REAL heat curve HK0 (status-quo reference)"
+    overrides:
+      assets:
+        hp_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        ek_sb:
+          investment: {enabled: false, capacity_max_mw: 0.0}
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+
+  # (d) FIX-HP-TVLFIX — S2 config (TES at HP node) at constant T_VL. Gives the
+  #     storage families a TVLFIX reference (value of heat-curve control WITH storage).
+  - id: "MM-S2-TVLFIX"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: "S2"
+    baseline: false
+    description: "Memmingen: TES at j_12 (with HP), constant T_VL — TVLFIX reference for storage families"
+
+  - id: "SB-S2-TVLFIX"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "TVLFIX"
+    tvl_fix: true
+    tes_node: "S2"
+    hp_node: "J4"
+    baseline: false
+    description: "Stadtbach: TES at j_man (with HP), constant T_VL — TVLFIX reference for storage families"

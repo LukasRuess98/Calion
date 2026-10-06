@@ -83,14 +83,38 @@ class P2HBlock(BaseComponent):
             raise RuntimeError("Pyomo is required to attach blocks")
         comp = self.name
 
+        # 2026-09-22 E1 FIX (author decision, "Geistervariablen entfernen"): a non-investable
+        # unit with zero capacity is genuinely absent -- but `on` (the commitment binary) used
+        # to still be created whenever min_load > 0, REGARDLESS of whether cap_th_mw is 0 (e.g.
+        # BC-MM's eboiler_main: investment.enabled=False overridden to capacity_mw=0, but
+        # min_load=0.1 inherited unchanged from the base config, so `on` was created as a
+        # completely free, unconstrained ghost binary -- Q is separately forced to 0 via
+        # `Q[t] <= self.cap * on[t]` with self.cap==0 regardless of on[t], so `on` had zero
+        # effect on anything while still existing in a shared MIP). Found alongside hp_main's
+        # analogous cap_x_on issue via IIS on two independent full-year MM infeasibilities
+        # (docs SS4at) -- EBOILER_MAIN_capcons appeared in both. Fix: skip `on` and all three
+        # per-timestep constraints (capcons/minload/link) entirely when disabled, hard-fix
+        # Q[t]/P[t] to exactly 0 instead.
+        self._disabled = (not self.investable) and self.cap <= 0.0
+
         # Variables
         setattr(m, f"{comp}_Qth", pyo.Var(Tset, domain=pyo.NonNegativeReals))
         setattr(m, f"{comp}_Pel", pyo.Var(Tset, domain=pyo.NonNegativeReals))
         Q = getattr(m, f"{comp}_Qth")
         P = getattr(m, f"{comp}_Pel")
 
-        # Add binary on/off variable if min_load > 0
-        if self.min_load > 0:
+        if self._disabled:
+            for t in Tset:
+                Q[t].fix(0.0)
+                P[t].fix(0.0)
+            import logging as _logging_p2h
+            _logging_p2h.getLogger(__name__).info(
+                "[GHOST-VAR] %s: disabled (non-investable, cap=0) -- skipped commitment binary "
+                "`on` and capcons/minload/link constraints entirely, hard-fixed Q/P to 0 "
+                "(%d timesteps)", comp, len(list(Tset)))
+
+        # Add binary on/off variable if min_load > 0 (and the unit actually exists)
+        if self.min_load > 0 and not self._disabled:
             setattr(m, f"{comp}_on", pyo.Var(Tset, domain=pyo.Binary))
             on = getattr(m, f"{comp}_on")
         else:
@@ -183,9 +207,21 @@ class P2HBlock(BaseComponent):
             # Part-load penalty is represented through time-varying efficiency series
             return Q[t] == eff_t * P[t]
 
-        setattr(m, f"{comp}_capcons", pyo.Constraint(Tset, rule=cap_rule))
-        setattr(m, f"{comp}_minload", pyo.Constraint(Tset, rule=min_load_rule))
-        setattr(m, f"{comp}_link", pyo.Constraint(Tset, rule=link))
+        _n_ghost_skipped_p2h = 0
+        if not self._disabled:
+            setattr(m, f"{comp}_capcons", pyo.Constraint(Tset, rule=cap_rule))
+            setattr(m, f"{comp}_minload", pyo.Constraint(Tset, rule=min_load_rule))
+            setattr(m, f"{comp}_link", pyo.Constraint(Tset, rule=link))
+        else:
+            _n_ghost_skipped_p2h = 3
+            import logging as _logging_p2h2
+            _logging_p2h2.getLogger(__name__).info(
+                "[GHOST-VAR] %s: disabled -- skipped %d constraint(s) (capcons/minload/link), "
+                "no `on` Var created", comp, _n_ghost_skipped_p2h)
+            assert getattr(m, f"{comp}_on", None) is None, (
+                f"[GHOST-VAR] {comp}: disabled but `on` Var still exists -- E1 fix incomplete")
+            assert getattr(m, f"{comp}_capcons", None) is None, (
+                f"[GHOST-VAR] {comp}: disabled but capcons Constraint still exists -- E1 fix incomplete")
 
         # Register flows with framework
         self.add_flow(Flow(

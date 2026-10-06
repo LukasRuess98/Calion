@@ -129,16 +129,48 @@ def calculate_demand_charge(
     return model.demand_charge_y * model.year_frac * model.P_buy_peak
 
 
+def calculate_demand_charge_monthly(
+    model,
+    monthly_rate_eur_per_mw_month: float,
+    include_demand: bool = True,
+) -> Any:
+    """Y3 (2026-10-01, docs SS4cb): sum of 12 monthly peak demand charges.
+
+    Replaces the single annual Jahresleistungspreis (calculate_demand_charge) with
+    a Monatsleistungspreis: each calendar month pays its OWN peak import x the
+    (converted) monthly rate, summed over the year -- requires model.P_buy_peak_month
+    (built by constraint_builder.add_grid_market_constraints when given month_groups).
+
+    Args:
+        model: Pyomo model with P_buy_peak_month[month] variables and model.months set
+        monthly_rate_eur_per_mw_month: EUR/MW/month (the annual rate converted, e.g.
+            annual_rate/12 -- "Rate umgerechnet" per the author's instruction)
+        include_demand: Whether to include demand charges
+
+    Returns:
+        Pyomo expression: sum over months of rate * P_buy_peak_month[m]
+    """
+    if not HAVE_PYOMO:
+        raise ImportError("Pyomo is required for cost calculation")
+    if not include_demand:
+        return 0
+    if not hasattr(model, 'P_buy_peak_month'):
+        return 0
+    return sum(monthly_rate_eur_per_mw_month * model.P_buy_peak_month[mo] for mo in model.months)
+
+
 def calculate_investment_costs(
     capex_terms: list[Any],
     activation_terms: list[Any],
     tie_breaker_terms: list[Any],
     storage_install_terms: list[Any],
+    om_terms: list[Any] | None = None,
     include_capex: bool = True,
     include_activation: bool = True,
     include_tie_breaker: bool = True,
     include_storage_install: bool = True,
-) -> tuple[Any, Any, Any, Any]:
+    include_om: bool = True,
+) -> tuple[Any, Any, Any, Any, Any]:
     """Calculate total investment costs.
 
     Args:
@@ -146,20 +178,23 @@ def calculate_investment_costs(
         activation_terms: List of activation cost expressions
         tie_breaker_terms: List of tie-breaker cost expressions
         storage_install_terms: List of storage installation cost expressions
+        om_terms: List of fixed O&M cost expressions (V3, docs SS4bw)
         include_capex: Include CAPEX in total
         include_activation: Include activation costs in total
         include_tie_breaker: Include tie-breaker costs in total
         include_storage_install: Include storage installation costs in total
+        include_om: Include fixed O&M costs in total
 
     Returns:
-        Tuple of (capex_total, activation_total, tie_break_total, storage_install_total)
+        Tuple of (capex_total, activation_total, tie_break_total, storage_install_total, om_total)
     """
     capex = sum(capex_terms) if (capex_terms and include_capex) else 0
     activation = sum(activation_terms) if (activation_terms and include_activation) else 0
     tie_break = sum(tie_breaker_terms) if (tie_breaker_terms and include_tie_breaker) else 0
     storage_install = sum(storage_install_terms) if (storage_install_terms and include_storage_install) else 0
+    om = sum(om_terms) if (om_terms and include_om) else 0
 
-    return capex, activation, tie_break, storage_install
+    return capex, activation, tie_break, storage_install, om
 
 
 def annualize_capex(

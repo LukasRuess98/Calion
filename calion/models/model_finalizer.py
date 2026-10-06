@@ -42,6 +42,7 @@ from .cost_calculator import (
     aggregate_co2_emissions,
     calculate_co2_costs,
     calculate_demand_charge,
+    calculate_demand_charge_monthly,
     calculate_dump_costs,
     calculate_energy_costs,
     calculate_fuel_costs,
@@ -67,6 +68,7 @@ class CostFlags:
     include_activation: bool = True
     include_tie_breaker: bool = True
     include_storage_install: bool = True
+    include_om: bool = True  # V3 (docs SS4bw): fixed O&M
 
     @staticmethod
     def from_config(cfg: dict[str, Any]) -> CostFlags:
@@ -86,6 +88,7 @@ class CostFlags:
             include_activation=bool(costs.get("include_activation_costs", True)),
             include_tie_breaker=bool(costs.get("include_tie_breaker_costs", True)),
             include_storage_install=bool(costs.get("include_storage_installation_costs", True)),
+            include_om=bool(costs.get("include_om_costs", True)),
         )
 
 
@@ -656,7 +659,20 @@ class ModelFinalizer:
                 self.buses.ht_in,
                 self.buses.ht_out,
             )
-        add_grid_market_constraints(self.m)
+        # Y3 (2026-10-01, docs SS4cb): month_groups is None (unchanged, annual-only
+        # behavior) unless grid.demand_charge_mode=monthly is explicitly set. Real
+        # calendar months from the input timestamps (self.table.index), NOT a
+        # generic 30-day assumption.
+        month_groups = None
+        if str(self.cfg.get('grid', {}).get('demand_charge_mode', 'annual')).lower() == 'monthly':
+            from collections import defaultdict
+            _mg: dict[int, list[int]] = defaultdict(list)
+            for _i, _ts in enumerate(self.table.index):
+                _mg[_ts.month].append(_i + 1)
+            month_groups = dict(_mg)
+            logger.info("[FINALIZE] grid.demand_charge_mode=monthly: %d calendar months in input data (sizes: %s)",
+                        len(month_groups), {k: len(v) for k, v in sorted(month_groups.items())})
+        add_grid_market_constraints(self.m, month_groups=month_groups)
 
     # ── Objective ──────────────────────────────────────────────────────────────
 
@@ -678,7 +694,21 @@ class ModelFinalizer:
         dump_cost = calculate_dump_costs(
             m, time_steps, dt_h=dt_h, dump_cost_eur_per_mwh=float(m.dump_cost.value)
         )
+
+        # 2026-09-22 D0 (author decision): the CHP dump electricity-revenue clawback ("Ansatz B"
+        # C3, gating "Strom x (1 - Q_dump/Q_KWK)") is REMOVED. Market revenue for CHP electricity
+        # stays full even when its associated heat is dumped -- a real KWK-Zuschlag stays entirely
+        # OUTSIDE the objective (assumption, documented in MODEL_AND_DOE_CONTROL.md SS4as;
+        # calion.economics.german_subsidies.py is untouched, still report-only). Q_dump_chp itself
+        # (the per-CHP dump variable, its own 5 EUR/MWh operating cost, and the generic per-node
+        # dump being fixed to 0 in CALION_DUMP_MODE=chp_only) are UNCHANGED -- only this clawback
+        # term is gone. chp_dump_clawback removed entirely (was: an extra cost term subtracting
+        # el_eff*Q_dump_chp*sell_price from energy_cost); nothing replaces it.
+
         fuel_costs = calculate_fuel_costs(buses.fuel_cost_terms)
+        # W2 (docs SS4bw-W): variable O&M -- a plain dispatch cost like fuel, NOT
+        # annualized (already per-MWh-delivered within the horizon).
+        var_om_cost = calculate_fuel_costs(buses.var_om_terms) if flags.include_om else 0
 
         co2_cost_total, co2_cost_heat_total, co2_cost_elec_total = calculate_co2_costs(
             m.co2_component_costs, co2_price_eur_per_t=float(m.co2_price.value)
@@ -705,8 +735,17 @@ class ModelFinalizer:
         # Zonal-aware demand charge: Use zone-specific tariffs if available
         has_dynamic_costs = hasattr(m, 'zone_demand_charge_ts') and m.zone_demand_charge_ts
         has_zonal_costs = hasattr(m, 'zone_demand_charge') and m.zone_demand_charge
-        
-        if has_dynamic_costs:
+        # Y3 (2026-10-01, docs SS4cb): monthly-peak billing, mutually exclusive with
+        # the zonal modes above (not combined -- this project's zonal mechanisms
+        # predate and are orthogonal to this experiment).
+        _demand_charge_mode = str(self.cfg.get('grid', {}).get('demand_charge_mode', 'annual')).lower()
+
+        if _demand_charge_mode == 'monthly' and hasattr(m, 'P_buy_peak_month'):
+            _monthly_rate = float(self.cfg.get('grid', {}).get('demand_charge_eur_per_mw_month', 0.0))
+            demand_term = calculate_demand_charge_monthly(m, _monthly_rate, include_demand=flags.include_demand)
+            logger.info("[FINALIZE] Using MONTHLY demand charge: %.2f EUR/MW/month x 12 months",
+                        _monthly_rate)
+        elif has_dynamic_costs:
             # Dynamic zonal costs (hourly tariffs from CSV)
             demand_term = calculate_demand_charge_zonal_dynamic(m, include_demand=flags.include_demand)
             logger.debug("Using dynamic zonal demand charges (hourly from CSV)")
@@ -719,15 +758,17 @@ class ModelFinalizer:
             demand_term = calculate_demand_charge(m, include_demand=flags.include_demand)
             logger.debug("Using global demand charge (no zones defined)")
 
-        capex_total, activation_total, tie_break_total, storage_install_total = calculate_investment_costs(
+        capex_total, activation_total, tie_break_total, storage_install_total, om_total = calculate_investment_costs(
             capex_terms=buses.capex_terms,
             activation_terms=buses.activation_terms,
             tie_breaker_terms=buses.tie_breaker_terms,
             storage_install_terms=buses.storage_install_terms,
+            om_terms=buses.om_terms,
             include_capex=flags.include_capex,
             include_activation=flags.include_activation,
             include_tie_breaker=flags.include_tie_breaker,
             include_storage_install=flags.include_storage_install,
+            include_om=flags.include_om,
         )
 
         if not flags.include_storage_install:
@@ -804,6 +845,21 @@ class ModelFinalizer:
                     slack_var[t] * penalty for t in T_set
                 )
 
+        # 2026-09-25 (I1, author decision, docs SS4bc): epsilon tie-break price on the G3/H1
+        # data-closure quantity (0.01 EUR/MWh, fixed -- independent of m.dump_cost/B2's
+        # CALION_DUMP_PRICE_OVERRIDE) so the solver minimizes the residual instead of being
+        # indifferent to it. NOT a real cost -- excluded from real_costs_EUR (see
+        # extract_artefacts_p2.py's _AUX_COST_KEYS). Cap stays 0.25%, unaffected by this price.
+        DATA_CLOSURE_EPSILON_EUR_PER_MWH = 0.01
+        data_closure_cost = 0
+        data_closure_terms = getattr(m, 'data_closure_terms', [])
+        if data_closure_terms:
+            T_set = list(m.t)
+            for _nid, closure_var in data_closure_terms:
+                data_closure_cost = data_closure_cost + sum(
+                    closure_var[t] * DATA_CLOSURE_EPSILON_EUR_PER_MWH for t in T_set
+                )
+
         create_objective(
             m,
             energy_cost=energy_cost,
@@ -815,10 +871,13 @@ class ModelFinalizer:
             activation_cost=activation_total,
             tie_break_cost=tie_break_total,
             storage_install_cost=storage_install_total,
+            om_cost=om_total,
+            var_om_cost=var_om_cost,
             terminal_value=terminal_value,
             demand_slack_cost=demand_slack_cost,
             return_anchor_cost=return_anchor_cost,
             pressure_reg_cost=pressure_reg_cost,
             lateral_tiebreak_cost=lateral_tiebreak_cost,
             pressure_slack_cost=pressure_slack_cost,
+            data_closure_cost=data_closure_cost,
         )

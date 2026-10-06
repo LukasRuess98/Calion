@@ -17,9 +17,34 @@ Unified physics â€” no brownfield/greenfield distinction:
 Author: CALION Development Team
 """
 
+import json
 import logging
 import math
+import os
+from pathlib import Path
 from typing import Any
+
+_PRESSURE_WIDENING_PATH = (
+    Path(__file__).resolve().parents[3] / "configs" / "paper_2" / "pressure_relief_widening.json"
+)
+_PRESSURE_WIDENING_CACHE: dict | None = None
+
+
+def _pressure_relief_widening() -> dict:
+    """Load the fixed per-node pressure-relief widening table (2026-09-22, B1b).
+
+    One JSON file, loaded once, IDENTICAL for every scenario (never re-derived per run) -- see
+    configs/paper_2/pressure_relief_widening.json for provenance/derivation rule.
+    """
+    global _PRESSURE_WIDENING_CACHE
+    if _PRESSURE_WIDENING_CACHE is None:
+        try:
+            _PRESSURE_WIDENING_CACHE = (
+                json.loads(_PRESSURE_WIDENING_PATH.read_text(encoding="utf-8")).get("nodes", {})
+            )
+        except FileNotFoundError:
+            _PRESSURE_WIDENING_CACHE = {}
+    return _PRESSURE_WIDENING_CACHE
 
 try:
     import pyomo.environ as pyo
@@ -621,15 +646,46 @@ class ThermalNodeBlock(BaseComponent):
                 # coupled pressure system at exactly one filled hour (2025-12-15
                 # 15:00) has no feasible P_supply/P_return (confirmed by direct
                 # gurobipy computeIIS on the infeasible LP snapshot). A whole-year
-                # DH optimisation must not die on one data-artifact hour. The slack
-                # lets that hour's consumer differential fall short, penalised so
-                # heavily it stays EXACTLY 0 in every normal hour (so results are
-                # unchanged except at flagged hours), and slack>0 is an explicit
-                # audit signal, not a silent relaxation. Unbounded-above (penalty,
-                # not a bound, keeps it minimal) so feasibility is GUARANTEED.
-                # NOTE for KPI extraction: model.pressure_slack_cost_expr is a
-                # penalty, NOT a real cost -- net it out of TAC/LCOH and report
-                # sum(slack) as a data-quality flag instead.
+                # DH optimisation must not die on one data-artifact hour.
+                #
+                # 2026-09-22 FIX (B1b, author decision): the slack was found to be
+                # a MATERIAL cost-comparison artefact -- Pressure_slack_cost_EUR
+                # varied by up to 0.7% of the objective and by build decision (V_TES),
+                # meaning "which scenario built more TES" was partly deciding "how much
+                # anomalous-hour slack gets used", and the same mechanism explained 98%
+                # of the previously-reported MM heat-curve lever (MODEL_AND_DOE_CONTROL
+                # SS4an/SS4ao). CALION_PRESSURE_SLACK_MODE selects the treatment
+                # ('objective' default = legacy slack-in-objective everywhere, unchanged;
+                # 'preprocessed' = the fix).
+                #
+                # 2026-09-22 CORRECTION (C1, same day): the first 'preprocessed' version
+                # baked in the YEAR-MAX slack as a CONSTANT all-year widening and removed
+                # the slack Var GLOBALLY (every pressure_drop_enabled node, every hour).
+                # For j_13 (min_required_bar=2.0, widening 3.8686 from 3 December hours)
+                # that made the constraint vacuous for all 8760 hours, not just the 3
+                # anomalous ones -- and a full-year verification run under that version
+                # came back genuinely LP-infeasible (root relaxation infeasible): removing
+                # the safety-net slack EVERYWHERE, even at hours/nodes that never used it
+                # in the reference run, is not equivalent to only reproducing the
+                # reference solution, and something elsewhere in the 8760h search space
+                # needed it. Fix: 'preprocessed' now only overrides the EXACT (node, hour)
+                # pairs listed in pressure_relief_widening.json (from the reference run's
+                # own recorded nonzero slack hours) -- there, the slack Var is forced to 0
+                # (an explicit "no slack return", not silently re-enabled) and the bound is
+                # widened by exactly the historical value at that hour. EVERY other hour,
+                # at this node and every other node, keeps the ordinary penalised slack
+                # mechanism completely unchanged -- 'preprocessed' no longer removes the
+                # general safety net, it only retires it at the specific points it is
+                # known (from the reference run) to have been used.
+                _mode = os.environ.get('CALION_PRESSURE_SLACK_MODE', 'objective').strip().lower()
+                _widen_hours: dict[int, float] = {}
+                if _mode == 'preprocessed':
+                    _wt = _pressure_relief_widening().get(node_id, {}).get('hours', {})
+                    _widen_hours = {int(_h): float(_v) for _h, _v in _wt.items()}
+                    if _widen_hours:
+                        logger.info("[PRESSURE-RELIEF] %s: hard-widened at %d specific hour(s) "
+                                    "(preprocessed, slack fixed to 0 there only; max %.4f bar)",
+                                    node_id, len(_widen_hours), max(_widen_hours.values()))
                 _slack_enabled = bool(config.get('pressure_slack', True))
                 _station_slack = None
                 if _slack_enabled:
@@ -651,12 +707,47 @@ class ThermalNodeBlock(BaseComponent):
                     if not hasattr(model, 'pressure_slack_terms'):
                         model.pressure_slack_terms = []
                     model.pressure_slack_terms.append((_station_slack, _pen))
+                    if _widen_hours:
+                        # "No slack return": at exactly the widened hours, the hard bound
+                        # must carry the relief alone -- fix slack to 0 so it cannot help.
+                        # ── D1 active-assertion (2026-09-22) ────────────────────────────────
+                        # A widened hour that is NOT found in this run's time_set is silent by
+                        # construction for a genuine partial-year run (e.g. a summer-only test
+                        # legitimately never reaches December) -- but for a FULL-YEAR run
+                        # (len(time_set) >= 8760, the horizon the widening table was itself
+                        # derived from) every listed hour MUST be found; anything else means an
+                        # index mismatch between the reference audit and this run, which must
+                        # fail LOUDLY, not silently no-op (this is exactly how the first version
+                        # of this fix produced a false-negative smoke test: a short window
+                        # re-indexes model.t locally, so "not found" looked like "nothing to do"
+                        # instead of "this test cannot exercise the widening at all").
+                        _n_req = len(_widen_hours)
+                        _n_applied = 0
+                        for _th in _widen_hours:
+                            if _th in _station_slack:
+                                _station_slack[_th].fix(0.0)
+                                _n_applied += 1
+                        logger.info("[PRESSURE-RELIEF] %s: applied %d/%d widened hour(s) in this "
+                                    "run's time_set (len=%d)", node_id, _n_applied, _n_req, len(time_set))
+                        assert _n_applied > 0, (
+                            f"[PRESSURE-RELIEF] {node_id}: 0 of {_n_req} widened hours found in "
+                            f"this run's time_set -- CALION_PRESSURE_SLACK_MODE=preprocessed would "
+                            f"silently do nothing for this node. Short-window test using "
+                            f"CALION_HORIZON_START/END must account for the offset "
+                            f"(t_abs = t_offset + t_local); this run cannot exercise the widening.")
+                        if len(time_set) >= 8760 and _n_applied != _n_req:
+                            raise AssertionError(
+                                f"[PRESSURE-RELIEF] {node_id}: full-year run (T={len(time_set)}) but "
+                                f"only {_n_applied}/{_n_req} widened hours from the reference table "
+                                f"were found in this run's time_set -- index mismatch between the "
+                                f"reference audit and this run, investigate before trusting results.")
                 def _station_dp_rule(m, t, _ps=pressure_supply, _pr=pressure_return,
                                       _dp=delta_p_min_station, _lat=lateral_dp_extra,
-                                      _sl=_station_slack):
+                                      _sl=_station_slack, _wh=_widen_hours):
                     _extra = _lat[t] if _lat is not None else 0.0
                     _slack = _sl[t] if _sl is not None else 0.0
-                    return _ps[t] - _pr[t] + _slack >= _dp + _extra
+                    _w = _wh.get(t, 0.0)
+                    return _ps[t] - _pr[t] + _slack >= (_dp - _w) + _extra
                 setattr(model, f'{prefix}_station_dp',
                         pyo.Constraint(time_set, rule=_station_dp_rule))
 

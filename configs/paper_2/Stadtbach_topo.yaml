@@ -26,8 +26,11 @@
 #   AVA:      45 MW waste-heat feed-in (ava_feed) — on EAST arm at j_ava
 #   HWS:      40 MW gas boiler — south zone at j_hws
 #   HWW:      64 MW gas boiler — west zone at j_hww
-#   P2H:      10 MW existing electrode boiler
-#   TES:     500 MWh existing storage
+#   P2H:      9.9 MW existing electrode boiler (p2h_existing)
+#   TES:      NONE — the former tes_existing (500 MWh) was removed 2026-07-08
+#             (unsourced figure; see j_hkw assets comment). tes_sb below is the
+#             ONLY storage and is fully investable. Both networks start at 0 MWh
+#             existing storage — no Bestand offset in Study G / F2.
 #
 # INVESTABLE ASSETS (optimizer sizes these):
 #   hp_sb:    HP at j_hkw, lifting MAN/UPM industrial waste heat (WRG source: Netz-Mitte)
@@ -543,6 +546,16 @@ assets:
     thermal_efficiency: 0.743   # notebook: model.HKW_th_eff
     el_eff: 0.177               # notebook: model.HKW_el_eff (CHP electricity)
     min_load: 0.1
+    # V3 (2026-09-30, docs SS4bw): fixed O&M for existing/Bestand assets, see
+    # Memmingen_P2_base.yaml's chp_main comment for the DEA ch.06 "Gas Engines"
+    # proxy derivation and its flagged-approximate status.
+    om_eur_per_mw_year: 2500.0
+    # W2 (2026-09-30, docs SS4bw-W): variable O&M. DEA ch. 06 "Gas Engines"
+    # gives EUR/MWh_ELECTRICAL (p. 79-80: 4-13 EUR/MWh_e across variants,
+    # representative 8), converted to this asset's own THERMAL-output basis via
+    # its el/th ratio (el_eff/thermal_efficiency = 0.177/0.743 = 0.2382):
+    # 8 x 0.2382 = 1.9 EUR/MWh_th.
+    var_om_eur_per_mwh: 1.9
 
   gtost:
     type: thermal_generator
@@ -551,6 +564,11 @@ assets:
     thermal_efficiency: 0.466   # notebook: model.GTOST_th_eff
     el_eff: 0.36                # notebook: model.GTOST_el_eff (CHP electricity)
     min_load: 0.1
+    # V3 (2026-09-30, docs SS4bw): same proxy/status as hkw above.
+    om_eur_per_mw_year: 2500.0
+    # W2 (2026-09-30, docs SS4bw-W): same DEA ch. 06 source as hkw, converted via
+    # gtost's own el/th ratio (0.36/0.466 = 0.7725): 8 x 0.7725 = 6.18 EUR/MWh_th.
+    var_om_eur_per_mwh: 6.18
 
   bmhkw:
     type: thermal_generator
@@ -559,6 +577,21 @@ assets:
     thermal_efficiency: 0.485   # notebook: model.BMHKW_th_eff
     el_eff: 0.177               # notebook: model.BMHKW_el_eff (CHP electricity)
     min_load: 0.1
+    # V3 (2026-09-30, docs SS4bw): fixed O&M. Derived from DEA/Energinet Technology
+    # Catalogue ch. 09 "Biomass CHP and HOP plants," Fixed O&M (EUR/MW input/year)
+    # columns (~25,000-56,000 EUR/MW_fuel/year across plant-size variants), applied
+    # to bmhkw's own fuel input (14.5/0.485 ~= 29.9 MW). LEAST CERTAIN figure in
+    # this pass: the source table has multiple plant-size/type columns without
+    # clear labels matching this asset's exact scale -- flagged for author review,
+    # not a placeholder guess (order of magnitude is DEA-grounded, exact column
+    # choice is not).
+    om_eur_per_mw_year: 60000.0
+    # W2 (2026-09-30, docs SS4bw-W): variable O&M, DEA ch. 09 "Biomass CHP,"
+    # Variable O&M (EUR/MWh_e) columns, ~1.1-11.4 across the same ambiguous
+    # plant-size/type matrix as the fixed-O&M figure above; ~4 EUR/MWh_e picked
+    # as representative, converted via bmhkw's el/th ratio (0.177/0.485=0.3649):
+    # 4 x 0.3649 = 1.46 EUR/MWh_th. SAME uncertainty flag as om_eur_per_mw_year.
+    var_om_eur_per_mwh: 1.46
 
   # AVA waste-heat take-over: direct feed-in, th_eff=1.0.
   ava_feed:
@@ -574,6 +607,14 @@ assets:
     capacity_mw: 32.0           # Heizwerk Süd, real thermal output at Üzeiten 99/60 °C (user-provided)
     thermal_efficiency: 0.936   # notebook: model.HWS_th_eff
     min_load: 0.1
+    # V3 (2026-09-30, docs SS4bw): fixed O&M. Source: DEA/Energinet Technology
+    # Catalogue ch. 44 "District Heating Boiler, Gas Fired," Fixed O&M table,
+    # 1,000-2,500 EUR/MJ/s/year = EUR/MW/year; 2,000 used as representative.
+    om_eur_per_mw_year: 2000.0
+    # W2 (2026-09-30, docs SS4bw-W): variable O&M. DEA ch. 44 "District Heating
+    # Boiler, Gas Fired," Variable O&M table (p. 326): 0.6-2.2 EUR/MWh;
+    # 1.1 used as representative.
+    var_om_eur_per_mwh: 1.1
 
   hww_boiler:
     type: thermal_generator
@@ -581,6 +622,10 @@ assets:
     capacity_mw: 104.0          # Heizwerk West, real thermal output at Üzeiten 99/60 °C (user-provided)
     thermal_efficiency: 0.924   # notebook: model.HWW_th_eff
     min_load: 0.1
+    # V3 (2026-09-30, docs SS4bw): same source as hws_boiler above.
+    om_eur_per_mw_year: 2000.0
+    # W2 (2026-09-30, docs SS4bw-W): same source as hws_boiler above.
+    var_om_eur_per_mwh: 1.1
 
   p2h_existing:
     type: p2h
@@ -588,6 +633,13 @@ assets:
     capacity_mw: 9.9
     efficiency: 0.99
     min_load: 0.1
+    # V1 (2026-09-30, docs SS4bq): genuinely pre-existing infrastructure (fixed
+    # capacity, no investment block at all) -- explicit bestand marker so the new
+    # investment-flag assertion in component_assembler.py doesn't treat this as an
+    # instance of the Q2/Q3-fix23.9 silent-zero-CAPEX bug class. No CAPEX intended
+    # here, consistent with every other existing asset (hkw/gtost/bmhkw/boilers).
+    investment:
+      bestand: true
 
   # tes_existing removed 2026-07-08 (see j_hkw assets comment above): no
   # documented WV640 basis, unlike every other asset in this file.
@@ -617,11 +669,42 @@ assets:
       # investment cost of 0.8-1.1 M EUR/MW (2017 data); IRENA/JRC put
       # large-scale HP investment at ~600-900 EUR/kW depending on heat
       # source. 400k sat below this band with no documented justification.
-      capex_eur_per_mw: 700000.0
+      # V3 (2026-09-30, docs SS4bw) raised 700k -> 1.0M, upper end of Pieper et
+      # al.'s 0.8-1.1M band -- but that band is itself 2017-price-basis, and V3
+      # did NOT escalate it (the 1.0M stayed nominally at 2017 prices). W1
+      # (2026-09-30, docs SS4bw-W, author-flagged as decision-relevant/urgent:
+      # a 0.3M EUR/MW gap x 4 MW x ANF(5%,20y)=0.08024 = ~96 kEUR/a, ~half of
+      # the ~191-207k EUR/yr SB HP net-benefit finding from Q1/Q2) escalates
+      # this properly: Eurostat sts_inpp_m, geo=DE, nace_r2=C28 (Manufacture of
+      # machinery and equipment n.e.c. -- the correct category for HP hardware,
+      # matching the TES/steel-tank precedent of using the closest real NACE
+      # PPI class rather than a generic index), unit=I21, 2017 annual average
+      # 94.5 -> 2026-08 (latest available) 122.6, factor 1.2974 (+29.7% over 9
+      # years). 1.0M x 1.2974 = 1,297,400, rounded to 1.3M EUR/MW.
+      capex_eur_per_mw: 1300000.0
+      # W1: sensitivities redefined (replaces V3a's 0.7M/1.0M/1.4M set) --
+      # lower = 1.0M (the PRE-escalation V3 value, kept as the optimistic/lower
+      # bound, NOT re-escalated per explicit instruction), base = 1.3M
+      # (escalated, above), upper = base x 1.15 = 1.495M ~= 1.5M.
       activation_cost_eur: 50000.0
       lifetime_years: 20.0
       capacity_min_mw: 0.0
       capacity_max_mw: 50.0
+      # V3 (2026-09-30, docs SS4bw): fixed O&M, previously ABSENT (S1-Audit-Befund,
+      # docs SS4bo). Source: Danish Energy Agency/Energinet, "Technology Data for
+      # Energy Plants for Electricity and District Heating Generation," ch. 40
+      # "Heat pumps" (Fixed O&M table, most large-HP variants 2,000-3,000
+      # EUR/MJ/s/year = EUR/MW/year; 3,000 used as representative). This is
+      # SUBSTANTIALLY LOWER than the 1-2%/yr placeholder floated in the original
+      # V3 ask (3,000/1,000,000 = 0.3%/yr) -- the real primary-source figure
+      # supersedes the un-sourced guess, per the V2e lesson (docs SS4bu/
+      # feedback_primary_source_only_for_cost_anchors).
+      om_eur_per_mw_year: 3000.0
+      # W2 (2026-09-30, docs SS4bw-W): variable O&M, EUR/MWh_th delivered. Same
+      # DEA/Energinet source, ch. 40 "Heat pumps," Variable O&M table (p. 298,
+      # confirmed EUR/MWh HEAT at p. 311): ranges ~1.0-3.7 EUR/MWh across variants
+      # and heat-source pages; 2.5 used as representative.
+      var_om_eur_per_mwh: 2.5
 
   ek_sb:
     type: p2h
@@ -636,34 +719,60 @@ assets:
       enabled: true
       capex_eur_per_mw: 150000.0
       activation_cost_eur: 20000.0
-      lifetime_years: 25.0
+      # V3 (2026-09-30, docs SS4bw): lifetime 25 -> 20y, matching the Danish Energy
+      # Agency/Energinet Technology Catalogue's typical electric-boiler design life
+      # (ch. 41 "Electric Boilers"); 25y had no documented source.
+      lifetime_years: 20.0
       capacity_min_mw: 0.0
       capacity_max_mw: 50.0
+      # V3 (2026-09-30, docs SS4bw): fixed O&M, previously ABSENT. Source: DEA/
+      # Energinet Technology Catalogue ch. 41 "Electric Boilers," Fixed O&M table,
+      # 900-1,100 EUR/MW/year across variants; 1,000 used as representative.
+      om_eur_per_mw_year: 1000.0
+      # W2 (2026-09-30, docs SS4bw-W): variable O&M. DEA/Energinet ch. 41
+      # "Electric Boilers," Variable O&M table (p. 320): 0.5-1.0 EUR/MWh; 0.9
+      # used as representative.
+      var_om_eur_per_mwh: 0.9
 
   tes_sb:
     type: geometric_storage
     # Scenario ΔT = T_VL_min − T_return (worst-case corridor, not the mean);
     # overridden per HK stage by scenario_runner.py.
     delta_T_scenario_k: 36.0    # HK0 baseline: 70 − 60 = 10.0 K worst-case at runtime; static fallback only
-    r_hd: 3.0                   # h/d aspect ratio
-    p_max_bar: 10.0             # max vessel operating pressure
-    V_min_m3: 10.0              # minimum tank volume if built [m³]
-    # 2026-07-20: PROPERLY FIXED (was flagged 2026-07-03, never acted on): this
-    # asset is configured p_max_bar=10 -- a genuine PED-class pressurized vessel
-    # (needed because the heating curve alone reaches T_supply=122C at the -15C
-    # design point, above water's atmospheric boiling point), but V_max_m3/alpha
-    # below previously used ATMOSPHERIC-tank assumptions (large, cheap). Fixed
-    # via first-principles ASME thin-wall pressure vessel sizing (t = P*D/(2*S*E),
-    # P=10 bar=1.0 MPa, S=130 MPa carbon steel allowable stress, E=0.85 radiographed
-    # weld efficiency): at a practical ~60mm shell thickness (typical upper bound
-    # for standard plate/rolling before exotic multi-layer construction), max
-    # diameter ~13.3m, and with r_hd=3 -> V ~5,500 m3. Rounded to 5,000 m3.
-    # Independently corroborates (not just repeats) the 2026-07-03 note's
-    # "~3,000-5,000 m3, ~3x cost" estimate and real commercial PED-rated buffer
-    # tank product lines found this pass (10-500 m3 off-the-shelf; the previously
-    # configured 25,000 m3 unit tank was ~50x that). NOT a vendor quote -- an
-    # engineering estimate, same caveat class as the VDI 2067 assumptions (O-1).
-    V_max_m3: 5000.0            # max tank volume [m³] -- was 50000 (atmospheric-tank scale)
+    # V2b (2026-09-30, docs SS4bs): r_hd/p_max_bar/V_max_m3 below are DEAD CODE at
+    # runtime -- storage_geometry.yaml's per_asset.tes_sb block overrides all
+    # three unconditionally (confirmed via a real solved run's resolved
+    # scenario_meta.json). Left here only for historical traceability of the
+    # (now superseded, see V_max_m3's comment below) old ASME-pressurized-vessel
+    # reasoning; storage_geometry.yaml is the single source of truth for these
+    # three fields -- edit values there, not here.
+    r_hd: 3.0                   # DEAD (overridden by storage_geometry.yaml: r_hd=2.0)
+    p_max_bar: 10.0             # DEAD (overridden by storage_geometry.yaml: p_max_bar=5.5, physically real as of V2f, structurally non-binding for size via pressure_limits_size=False)
+    # V2 (2026-09-30, docs SS4bq/SS4br, author instruction): raised 10 -> 50 m³,
+    # matching storage_geometry.yaml's own documented v_min_realistic_m3 floor
+    # (previously unenforced here -- the ladder's own rungs already stayed above
+    # 50 m³ for SB, so this mainly closes a latent gap rather than changing any
+    # existing result).
+    V_min_m3: 50.0              # minimum tank volume if built [m³]
+    # 2026-07-20 narrative (SUPERSEDED 2026-09-30, docs SS4bs, "Defekt 11" --
+    # kept for history, NOT current reasoning): claimed p_max_bar=10 was "a
+    # genuine PED-class pressurized vessel" need, derived V_max_m3=5,000 via ASME
+    # thin-wall sizing at that pressure. This was WRONG on two counts: (1) the
+    # asset's actual technology is `tes_technology: atmospheric`
+    # (storage_geometry.yaml), t_store_max_c=95°C specifically chosen to stay
+    # BELOW the atmospheric boiling point precisely so NO pressurization is
+    # needed -- there was never a real PED-vessel requirement here; (2) even
+    # taking the pressurized framing at face value, the field this comment
+    # describes was already dead code (see r_hd/p_max_bar note above) --
+    # storage_geometry.yaml's per_asset.tes_sb sets V_max_m3=250,000 (non-
+    # binding) and, until V2b, p_max_bar=100 (deliberately, to numerically
+    # disable the pressure-height bound for an atmospheric tank -- itself a
+    # separate, now also-superseded design choice, see storage_geometry.yaml).
+    # Corrected picture (SS4bs): atmospheric tank, real hydrostatic design
+    # pressure ~3 bar (static column + margin), unit_tank_m3 DERIVED from that
+    # (1,778 m³, see that field's own comment below) -- V_max_m3 here stays
+    # non-binding either way (250,000 from storage_geometry.yaml governs).
+    V_max_m3: 5000.0            # DEAD (overridden by storage_geometry.yaml: V_max_m3=250000, non-binding)
     option_b: false             # Option A: V as single Var; h/d back-calculated post-solve
     # Discrete storage sizes as ENERGY [MWh], scaled down 10x from the previous
     # ladder to match the corrected V_max (linear in V at fixed dT, so this is an
@@ -674,8 +783,26 @@ assets:
     # tanks at the site (beta_tes charged per tank) -- at this scale N is
     # effectively always 1. Exact selection -> tight LP relaxation (the old
     # continuous V + big-M stalled TES-at-consumer-node scenarios at 43-88% gap).
+    # DEAD (V2c, docs SS4bt): this ladder is overridden by storage_geometry.yaml's
+    # per_asset.tes_sb discrete_energies_mwh ([0,37,...,2046], a much larger
+    # ladder -- confirmed via a real solved run's resolved scenario_meta.json,
+    # same pattern already documented for r_hd/p_max_bar/V_max_m3 above). Left
+    # for historical traceability only -- edit storage_geometry.yaml, not here.
     discrete_energies_mwh: [0, 7.3, 14.6, 21.9, 29.2, 36.5, 43.8, 51.1, 58.4, 65.7, 73.0, 84.5]
-    unit_tank_m3: 5000.0        # one realistic single pressurized tank -- was 25000
+    # V2c (2026-09-30, docs SS4bq/SS4br/SS4bs/SS4bt) SUPERSEDES V2b's 1,778 m³:
+    # V2b itself was WRONG -- it applied pressure-VESSEL sizing (a height derived
+    # from a design-pressure rating) to an ATMOSPHERIC, flat-bottomed EN14015/
+    # API650 tank, a tank TYPE with no such ceiling at all (walls carry the full
+    # hydrostatic load via hoop stress, not a "max pressure" formula). Real single
+    # atmospheric tanks reach tens of thousands of m³: Wärmespeicher Reuter West,
+    # Berlin -- ONE tank, 56,000 m³, 45 m tall, 43 m diameter, 2.6 GWh, operating
+    # since 2023. Corrected value: max_tank_m3=50,000 (Reuter-West precedent,
+    # rounded down for margin), mapped directly onto this field -- NOT derived
+    # from any pressure formula. See SS4bt for the full "Defekt 11" re-diagnosis
+    # (wrong NORM applied, not wrong pressure VALUE) and a REQUIRED, still-open
+    # cost-curve plausibility check against Reuter West and steel-tank literature
+    # that found a >2x deviation -- V3 is on HOLD pending author guidance on this.
+    unit_tank_m3: 50000.0        # one realistic single atmospheric tank (Reuter West precedent) -- was 1778 (V2b, wrong physics), 10000 (V2), 5000, 25000
     # variable CAPEX [€/m³] -- was 400 (atmospheric-tank rate). ~3x for a
     # pressure-vessel-class tank: wall thickness alone roughly quadruples
     # (atmospheric large tanks ~15mm shell vs ~60mm derived above for this
@@ -761,14 +888,22 @@ fuels:
     ef_kg_per_mwh_fuel: 200.0
   biomass:
     price_eur_mwh: 20.0
+    # V4 (2026-09-30, docs SS4bw): see Memmingen_P2_base.yaml's identical biomass
+    # comment for the full lifecycle-vs-combustion-CO2 justification.
     ef_kg_per_mwh_fuel: 20.0
   waste_heat:
     price_eur_mwh: 10.0          # AVA take-over: low marginal cost, ~CO2-free
     ef_kg_per_mwh_fuel: 0.0
 
 costs:
+  # V4 (2026-09-30, docs SS4bw): see Memmingen_P2_base.yaml's identical comment for
+  # the full ETS2-forecast-range justification of this value.
   co2_price_eur_per_t: 100.0
-  dump_cost_eur_per_mwh_th: 1000.0
+  # V4 (2026-09-30, docs SS4bw): see Memmingen_P2_base.yaml's identical comment --
+  # 65 EUR/t is the real, legislated 2026 BEHG/nEHS price-corridor maximum.
+  co2_price_sensitivity_behg_2026_eur_per_t: 65.0
+  # 2026-09-22 (author decision, B1a): see Memmingen_P2_base.yaml's identical comment.
+  dump_cost_eur_per_mwh_th: 5.0
 
 emissions:
   ef_el_kg_per_mwh: 400.0       # UNUSED (not read by the model) — grid CO2 uses the HOURLY

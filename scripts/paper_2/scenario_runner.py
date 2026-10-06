@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -37,26 +38,28 @@ sys.path.insert(0, str(_ROOT))
 
 logger = logging.getLogger(__name__)
 
-OUT_BASE = _ROOT / "output" / "paper2_runs"
+# CALION_OUT_BASE lets a campaign write to a FRESH dir (e.g. paper2_runs_v3) without
+# clobbering the current-but-stale results; honoured at import so ProcessPoolExecutor
+# spawn-workers (which re-import this module) inherit the same base. 2026-09-07.
+OUT_BASE = Path(os.environ["CALION_OUT_BASE"]) if os.environ.get("CALION_OUT_BASE") \
+    else _ROOT / "output" / "paper2_runs"
+
+# Disk-safe Gurobi defaults (2026-09-04): the host volume is essentially full, so a
+# B&B run that spills MIP node data to disk crashes with "No space left on device".
+# NodefileStart keeps the node tree in RAM up to this many GB before it would spill;
+# for the paper's per-network models (≤ a few hundred k vars) the tree stays well
+# under this, so they never touch disk. Large solves that exceed it still need real
+# free disk — freeing space remains the proper fix for the full campaign.
+_DISK_SAFE_SOLVER_OPTS = {"NodefileStart": 16.0}
+
 SCENARIOS_YAML = _ROOT / "configs" / "paper_2" / "scenarios.yaml"
 STORAGE_GEOMETRY_YAML = _ROOT / "configs" / "paper_2" / "storage_geometry.yaml"
 
 _STORAGE_GEOM_CACHE: dict | None = None
 
 
-def _load_storage_geometry(cfg: dict | None = None) -> dict:
-    """Atmospheric TES geometry/cost params — OPT-IN via env CALION_ATMOSPHERIC_TES=1.
-
-    Returns {} when disabled, so every existing campaign scenario is bit-for-bit
-    unchanged (the v3 atmospheric model must not silently alter the frozen v1/v2
-    results). When enabled, returns the `storage_geometry:` block of
-    configs/paper_2/storage_geometry.yaml (surface loss, degressive cost,
-    eta_strat, atmospheric ceiling).
-    """
+def _read_storage_geometry_yaml() -> dict:
     global _STORAGE_GEOM_CACHE
-    import os
-    if not os.environ.get("CALION_ATMOSPHERIC_TES"):
-        return {}
     if _STORAGE_GEOM_CACHE is None:
         try:
             _STORAGE_GEOM_CACHE = (yaml.safe_load(
@@ -64,6 +67,32 @@ def _load_storage_geometry(cfg: dict | None = None) -> dict:
         except FileNotFoundError:
             _STORAGE_GEOM_CACHE = {}
     return _STORAGE_GEOM_CACHE
+
+
+def _resolve_tes_technology(scen: dict | None = None) -> str:
+    """Tank technology of a scenario (2026-09-21, v3.2): 'atmospheric' is the STANDARD (set in
+    storage_geometry.yaml: tes_technology). Precedence: scenario key `tes_technology` >
+    legacy env CALION_ATMOSPHERIC_TES (0/false -> pressurized, else atmospheric; A/B only) > yaml default."""
+    import os
+    t = (scen or {}).get("tes_technology")
+    if t:
+        return str(t).strip().lower()
+    e = os.environ.get("CALION_ATMOSPHERIC_TES")
+    if e is not None and e.strip() != "":
+        return "pressurized" if e.strip().lower() in ("0", "false", "no", "off") else "atmospheric"
+    return str(_read_storage_geometry_yaml().get("tes_technology", "atmospheric")).strip().lower()
+
+
+def _load_storage_geometry(cfg: dict | None = None, technology: str | None = None) -> dict:
+    """Atmospheric TES geometry/cost params from configs/paper_2/storage_geometry.yaml.
+
+    STANDARD since 2026-09-21 (was opt-in via env). Returns {} only for technology='pressurized'
+    (legacy base-config tank, Study G / A-B), so frozen legacy runs stay reproducible on purpose.
+    """
+    tech = technology or _resolve_tes_technology(None)
+    if tech == "pressurized":
+        return {}
+    return _read_storage_geometry_yaml()
 
 
 def load_scenarios_config() -> dict:
@@ -224,6 +253,18 @@ def run_single_scenario(
 
     cfg = _load_yaml(cfg_path)
 
+    # 1b. j13_to_j15 uninsulated SENSITIVITY (supplement, opt-in via env).
+    # Base config carries the corrected DN200 U (0.28/0.30). Setting
+    # CALION_J13_UNINSULATED=1 restores the original 1.31/1.40 literals for a
+    # single documented sensitivity run (Memmingen only). See §4b / config comment.
+    import os as _os_j13  # module-level os is shadowed by a later in-function import
+    if _os_j13.environ.get("CALION_J13_UNINSULATED") and "memmingen" in str(scen.get("network", "")).lower():
+        _p = cfg.get("network", {}).get("pipes", {}).get("j13_to_j15")
+        if _p is not None:
+            _p["u_value_supply_w_per_m_k"] = 1.31
+            _p["u_value_return_w_per_m_k"] = 1.40
+            logger.info("[SENSITIVITY] j13_to_j15 U restored to 1.31/1.40 (CALION_J13_UNINSULATED=1)")
+
     # 2. Apply per-scenario overrides from scenarios.yaml
     if scen.get("overrides"):
         cfg = _deep_merge(cfg, scen["overrides"])
@@ -264,9 +305,23 @@ def run_single_scenario(
                 scen_id, _cands, bool(scen.get("colocate", False)),
             )
 
+    # 4c. Node roles, decided ONCE after every asset has been placed (order-independent),
+    # plus a hard guard: a node hosting a heat generator must be producer/mixed.
+    _finalize_node_roles(cfg, scen_id)
+
     if dry_run:
         logger.info("[DRY-RUN] Would solve %s", scen_id)
         return {"id": scen_id, "status": "dry_run", "outdir": str(outdir)}
+
+    # Short-horizon override (env) — MUST be BEFORE the table load and all timeseries
+    # precompute (COP, T_VL, spatial offsets, discharge_mask), or those stay at full-year
+    # length and mismatch the sliced solve. Used for the min_load A/B (a summer AND a
+    # winter month, since min_load binds in low-load hours) — 2026-09-05.
+    import os as _os_hz
+    _hs0, _he0 = _os_hz.environ.get("CALION_HORIZON_START"), _os_hz.environ.get("CALION_HORIZON_END")
+    if _hs0 and _he0:
+        cfg.setdefault("scenario", {})["horizon"] = {"start": _hs0, "end": _he0}
+        logger.info("[%s] HORIZON override -> %s .. %s (before precompute)", scen_id, _hs0, _he0)
 
     # 5. Load data table (needed for outdoor temps and waste heat)
     from calion.run.workflow import _build_workflow_inputs
@@ -394,9 +449,26 @@ def run_single_scenario(
         # all stages. Now every geometric_storage asset is updated so fixed
         # and investable tanks stay consistent within a scenario.
         delta_T_scenario_k = round(T_VL_min_effective - return_temp_c, 2)
-        _geom = _load_storage_geometry(cfg)
+        _tes_tech = _resolve_tes_technology(scen)
+        _geom = _load_storage_geometry(cfg, _tes_tech)
+        # HYBRID-CONFIG GUARD (2026-09-21): an ENABLED tank without CALION_ATMOSPHERIC_TES=1 is built
+        # from the base-config LEGACY pressurized ladder + linear alpha/beta cost (SB up to 84.5 MWh,
+        # 1200 EUR/m3 + 100 kEUR/tank) combined with the authoritative atmospheric V_max/p_max/r_hd
+        # that component_assembler applies unconditionally -> silent hybrid results (found while
+        # preparing step 6: c0 scaling had no effect, LP showed 1.497*V + 124.8/rung). Abort loudly.
+        import os as _os_hy
+        if _tes_tech == "pressurized" and scen.get("tes_technology") != "pressurized"                 and not _os_hy.environ.get("CALION_ALLOW_LEGACY_TES"):
+            _hyb = [k for k, ac in cfg.get("assets", {}).items()
+                    if ac.get("type") == "geometric_storage" and float(ac.get("V_max_m3", 1.0) or 0.0) > 0.0]
+            if _hyb:
+                raise RuntimeError(
+                    f"[{scen_id}] enabled tank {_hyb} resolved to tes_technology=pressurized via the legacy env "
+                    f"CALION_ATMOSPHERIC_TES=0 -> legacy pressurized ladder/cost. Standard is atmospheric "
+                    f"(storage_geometry.yaml). Set scenario key tes_technology: pressurized (Study G) or "
+                    f"CALION_ALLOW_LEGACY_TES=1 to run the legacy A/B on purpose.")
         for _asset_key, _asset_cfg in cfg.get("assets", {}).items():
             if _asset_cfg.get("type") == "geometric_storage":
+                _asset_cfg["tes_technology"] = _tes_tech
                 _asset_cfg["delta_T_scenario_k"] = delta_T_scenario_k
                 # v3: inject atmospheric geometry/cost params (storage_geometry.yaml)
                 # + the scenario return temp, so the loss ΔT and store ceiling work.
@@ -410,9 +482,56 @@ def run_single_scenario(
                     _asset_cfg.setdefault("t_return_c", round(return_temp_c, 2))
                     # Per-asset atmospheric envelope: OVERRIDE the frozen
                     # pressurized caps/ladder (V_max, p_max, r_hd, ladder).
+                    # BUG FIX (2026-09-19): a scenario that explicitly disables the
+                    # tank (V_max_m3 <= 0, e.g. the tes_off_* overrides of BC/S0)
+                    # must NOT get the atmospheric V_max_m3/ladder written back over
+                    # it — that silently re-enabled TES in every "no TES" scenario
+                    # (MM/SB-S0-*, BC-MM built 2-146 MWh tanks), invalidating all
+                    # S0/BC anchors solved with CALION_ATMOSPHERIC_TES=1.
+                    _vmax_sc = _asset_cfg.get("V_max_m3")
+                    _tes_disabled = _vmax_sc is not None and float(_vmax_sc) <= 0.0
                     _pa = (_geom.get("per_asset") or {}).get(_asset_key)
-                    if _pa:
+                    if _pa and not _tes_disabled:
                         _asset_cfg.update(_pa)
+                    elif _tes_disabled:
+                        logger.info("[%s] %s: TES disabled by scenario (V_max_m3<=0) -> "
+                                    "atmospheric per-asset envelope NOT applied",
+                                    scen_id, _asset_key)
+                    # Break-even sensitivity (2026-09-21): scale the tank cost anchor c0 (EUR at v0).
+                    # Applied AFTER the geometry merge so it is never overwritten; default OFF.
+                    import os as _os_c0  # local alias: a later `import os` makes `os` function-local
+                    _c0s = _os_c0.environ.get("CALION_TES_C0_SCALE")
+                    if _c0s and not _tes_disabled and _asset_cfg.get("c0_eur") is not None:
+                        _c0_old = float(_asset_cfg["c0_eur"])
+                        _asset_cfg["c0_eur"] = _c0_old * float(_c0s)
+                        logger.info("[%s] %s: tank cost anchor c0 scaled x%s (%.0f -> %.0f EUR at v0=%s m3)",
+                                    scen_id, _asset_key, _c0s, _c0_old, _asset_cfg["c0_eur"],
+                                    _asset_cfg.get("v0_m3"))
+                    # Discharge mask is a PROPERTY OF THE TECHNOLOGY, applied by
+                    # DEFAULT (2026-09-02): a store with a temperature ceiling
+                    # (t_store_max_c, i.e. atmospheric) cannot inject into a hotter
+                    # supply, so discharge is forbidden where T_VL(t) > ceiling.
+                    # Pressurised (no ceiling -> t_store_max_c unset) is unaffected.
+                    # The env CALION_TES_NO_DISCHARGE_MASK=1 DISABLES it for the
+                    # "what if without the temperature restriction" sensitivity
+                    # (upper bound) — NOT an enabler for the physics.
+                    import os as _os
+                    _tsm = _asset_cfg.get("t_store_max_c")
+                    if T_VL_ts is not None and _tsm is not None \
+                            and not _os.environ.get("CALION_TES_NO_DISCHARGE_MASK"):
+                        _asset_cfg["discharge_mask"] = [
+                            1 if float(tvl) <= float(_tsm) else 0 for tvl in T_VL_ts]
+                        _blocked = sum(1 for x in _asset_cfg["discharge_mask"] if x == 0)
+                        logger.info("[%s] %s: discharge mask ON (ceiling %.0f°C, tech "
+                                    "property) -> %d/%d h blocked (T_VL>ceiling)",
+                                    scen_id, _asset_key, float(_tsm), _blocked, len(T_VL_ts))
+                        # D1 active-assertion (2026-09-22): the mask array's length must match
+                        # the horizon it will be indexed against hour-for-hour (thermal_node.py
+                        # geometric_storage's qd_mask uses `_mask[(t-1) % _n]`) -- a length
+                        # mismatch would silently wrap/misalign instead of failing.
+                        assert len(_asset_cfg["discharge_mask"]) == len(T_VL_ts) > 0, (
+                            f"[{scen_id}] {_asset_key}: discharge_mask length "
+                            f"{len(_asset_cfg['discharge_mask'])} != T_VL_ts length {len(T_VL_ts)}")
                 logger.info(
                     "[%s] geometric_storage %s: delta_T_scenario_k=%.2f K (worst-case; "
                     "T_VL_min=%.1f°C, T_return=%.1f°C)%s",
@@ -450,10 +569,22 @@ def run_single_scenario(
         # Inject COP series into config for the heat pump block
         _inject_cop_series(cfg, cop_ts)
 
-        # F2: hot charging — HP charges the TES at T_charge = T_VL,max via a
-        # second (lower-COP) channel. TES energy density uses the hot ΔT.
+        # F2: hot charging — HP charges the TES at T_charge = min(T_VL,max, ceiling)
+        # via a second (lower-COP) channel. TES energy density uses the hot ΔT.
+        # HOT-vs-ceiling (2026-09-04 storage-tech decision): an atmospheric store
+        # cannot be charged above its boiling-limited ceiling t_store_max_c, so BOTH
+        # the HP lift (COP) AND the usable ΔT are capped there. Without this clip the
+        # HP would spend electricity lifting to T_VL,max (e.g. Stadtbach 122°C) at a
+        # low COP for heat the 95°C store must then throw away. For Memmingen this
+        # barely moves (95 vs 100°C); for Stadtbach it is large (95 vs 122°C).
         if scen.get("hot_charging"):
             T_charge_c = float(hk_stage["T_VL_max_c"])
+            _tes_key_hot = "tes_main" if network == "memmingen" else "tes_sb"
+            _ceiling_c = (cfg.get("assets", {}).get(_tes_key_hot, {}) or {}).get("t_store_max_c")
+            if _ceiling_c is not None and T_charge_c > float(_ceiling_c):
+                logger.info("[%s] HOT charge clipped to store ceiling: %.1f°C -> %.1f°C",
+                            scen_id, T_charge_c, float(_ceiling_c))
+                T_charge_c = float(_ceiling_c)
             cop_hot_ts = np.clip(
                 precompute_cop(
                     T_VL_ts=np.full(len(T_VL_ts), T_charge_c),
@@ -507,7 +638,138 @@ def run_single_scenario(
     (OUT_BASE.parent / "logs").mkdir(parents=True, exist_ok=True)
     cfg.setdefault("run", {}).setdefault("solver_options", {})["LogFile"] = log_path
     cfg["run"]["solver_options"]["LogToConsole"] = 0  # file-only to keep terminal clean
+    # Optional MIPFocus override (env) for solver-policy experiments — MM-S1 is
+    # unit-commitment-limited (needs incumbents), so MIPFocus=2 (bound-focused) starves
+    # the incumbent search; 0 (balanced) / 1 (incumbents) find one fast. Env-gated.
+    import os as _os_mf
+    _mf = _os_mf.environ.get("CALION_MIPFOCUS")
+    if _mf:
+        cfg["run"]["solver_options"]["MIPFocus"] = int(_mf)
+        logger.info("[%s] MIPFocus override -> %s (solver-policy experiment)", scen_id, _mf)
+    _cuts = _os_mf.environ.get("CALION_CUTS")
+    if _cuts is not None and _cuts != "":
+        cfg["run"]["solver_options"]["Cuts"] = int(_cuts)
+        logger.info("[%s] Cuts override -> %s", scen_id, _cuts)
+    _heur = _os_mf.environ.get("CALION_HEURISTICS")
+    if _heur:
+        cfg["run"]["solver_options"]["Heuristics"] = float(_heur)
+        logger.info("[%s] Heuristics override -> %s", scen_id, _heur)
+    # TimeLimit / MIPGap overrides (env) — used by the binary-fix-LP seed step: we only
+    # need the FIRST feasible year-consistent incumbent (to dump as clean_seed), so cap
+    # the time and loosen the gap so the run TERMINATES and the dump hook fires.
+    _tl = _os_mf.environ.get("CALION_TIMELIMIT")
+    if _tl:
+        cfg["run"]["solver_options"]["TimeLimit"] = float(_tl)
+        logger.info("[%s] TimeLimit override -> %s s", scen_id, _tl)
+    _gap = _os_mf.environ.get("CALION_MIPGAP")
+    if _gap:
+        cfg["run"]["solver_options"]["MIPGap"] = float(_gap)
+        logger.info("[%s] MIPGap override -> %s", scen_id, _gap)
+    # Presolve override (env) — inheritance-seed probe: Presolve=0 keeps the model in its
+    # original variable space so a complete external start stays mappable (presolve can
+    # aggregate/substitute vars and drop an otherwise-consistent start -> "did not produce
+    # a new incumbent" with no violation). 2026-09-09.
+    _pre = _os_mf.environ.get("CALION_PRESOLVE")
+    if _pre is not None and _pre != "":
+        cfg["run"]["solver_options"]["Presolve"] = int(_pre)
+        logger.info("[%s] Presolve override -> %s", scen_id, _pre)
+    # FeasibilityTol override (env) — a warm start carrying ~2e-6 numerical noise (e.g. a
+    # neighbour rung's near-zero pump values) exceeds Gurobi's default FeasibilityTol (1e-6)
+    # and is silently rejected ("did not produce a new incumbent", no violation). 1e-5
+    # accepts such starts while staying tight; makes homotopy seeds across rungs robust. 2026-09-10.
+    _ft = _os_mf.environ.get("CALION_FEASTOL")
+    if _ft:
+        cfg["run"]["solver_options"]["FeasibilityTol"] = float(_ft)
+        logger.info("[%s] FeasibilityTol override -> %s", scen_id, _ft)
 
+    # Optional DISCRETE-only MIP start from a prior solution dir (hint mode): seeds the
+    # investment/siting/commitment binaries so Gurobi starts near a known optimum and
+    # the integrality gap collapses. Env-gated so normal runs are unaffected. Uses the
+    # per-scenario path unless a single dir is given (then it is used for this scenario).
+    import os as _os_ws
+    _ws = _os_ws.environ.get("CALION_WARMSTART_FROM")
+    if _ws:
+        cfg["run"]["warmstart_from"] = _ws
+        logger.info("[%s] MIP start: warmstart_from=%s (hint mode, discrete vars only)",
+                    scen_id, _ws)
+
+    # DIAGNOSIS hook: fix the investable TES to a set energy (non-investable) so the
+    # investment size-search is removed and the run isolates dispatch+HP-sizing cost —
+    # used to test whether a stuck incumbent is a config problem or a startpoint problem
+    # (2026-09-05). Power fixed at power_to_energy_ratio×E. Env-gated.
+    # (horizon override moved earlier — before the table load — so precomputed series
+    # match the sliced solve; see the CALION_HORIZON_* block above section 5.)
+
+    # DISPATCH-FIDELITY relaxation: drop the minimum-part-load of existing generators
+    # (min_load -> 0). Their on/off binaries then carry nothing (no startup/min-up/down
+    # in this model), so the per-hour integrality vanishes and only the investment/siting
+    # binaries remain — the small MIP over an LP dispatch we want. Justified by an A/B TAC
+    # test; efficiencies are constant so the distortion is minimal (2026-09-05). Env-gated.
+    if _os_ws.environ.get("CALION_RELAX_MIN_LOAD"):
+        _nrel = 0
+        for _ak, _ac in cfg.get("assets", {}).items():
+            if _ac.get("type") == "thermal_generator" and float(_ac.get("min_load", 0) or 0) > 0:
+                _ac["min_load"] = 0.0
+                _nrel += 1
+        logger.info("[%s] DISPATCH RELAX: min_load->0 on %d thermal generators", scen_id, _nrel)
+
+    # SoC hand-off for the rolling-horizon UC seed: set this month's initial SoC to the
+    # previous month's final SoC (fraction), and FREE the terminal (no cyclic snap-back),
+    # so the seed's storage state is physically continuous across months (2026-09-05).
+    _soc0 = _os_ws.environ.get("CALION_SOC0_FRAC")
+    if _soc0:
+        # Terminal: freed by default (intermediate months flow into the next), but the
+        # LAST seed month must match the YEAR model's cyclic terminal (else the concat
+        # violates E[last]>=terminal*E_max and Gurobi rejects the start). CALION_SOC_TERMINAL
+        # sets it for that month.
+        _term = _os_ws.environ.get("CALION_SOC_TERMINAL")
+        _termv = float(_term) if _term else None
+        for _ak, _ac in cfg.get("assets", {}).items():
+            if _ac.get("type") == "geometric_storage":
+                _ac["soc0_fraction"] = float(_soc0)
+                _ac["terminal_soc_fraction"] = _termv
+        logger.info("[%s] SoC hand-off: soc0_fraction=%s, terminal=%s", scen_id, _soc0,
+                    _termv if _termv is not None else "freed")
+
+    _tesfix = _os_ws.environ.get("CALION_TES_FIX_MWH")
+    if _tesfix:
+        _e = float(_tesfix)
+        for _ak, _ac in cfg.get("assets", {}).items():
+            if _ac.get("type") == "geometric_storage" and float(_ac.get("V_max_m3", 0) or 0) > 0:
+                _ac["investable"] = False
+                _ac["energy_mwh_fixed"] = _e
+                _ac["power_mw_fixed"] = round(float(_ac.get("power_to_energy_ratio", 0.25)) * _e, 4)
+                # V1 (2026-09-30, docs SS4bq): a fixed-size "regret" run wants the
+                # question "what does exactly this tank size cost, all-in" answered --
+                # that means CAPEX must be charged even though capacity isn't a free
+                # decision variable. Defaulting capex_charged=True here is the fix for
+                # the exact bug found in Q3's fix23.9 run (docs SS4bn): CAPEX was
+                # silently 0 because investable=False alone used to also mean
+                # "pre-existing, no CAPEX" via component_assembler.py's old
+                # single-flag gate. Explicit override still possible via
+                # CALION_TES_FIX_NO_CAPEX=1 for the rare case a fixed size really is
+                # meant to represent pre-existing infrastructure.
+                _ac["capex_charged"] = not bool(_os_ws.environ.get("CALION_TES_FIX_NO_CAPEX"))
+                logger.info("[%s] DIAGNOSIS: %s fixed non-investable at %.2f MWh (%.3f MW), "
+                            "capex_charged=%s",
+                            scen_id, _ak, _e, _ac["power_mw_fixed"], _ac["capex_charged"])
+
+    # UC-SEED root-cause fix (2026-09-07): the 7x MIP-start rejection was HP-capacity
+    # INconsistency — each monthly seed sized its own HP, so the concat violated
+    # hp_main_linfix_lo. Fix HP capacity to a COMMON value across all 12 monthly seeds
+    # (like TES is fixed) so the concat is investment-consistent and the complete start is
+    # ACCEPTED. Mirrors the heat_pump investable=False path (cap.fix(capacity_init_mw)).
+    _hpfix = _os_ws.environ.get("CALION_HP_FIX_MW")
+    if _hpfix:
+        _hp = float(_hpfix)
+        for _ak, _ac in cfg.get("assets", {}).items():
+            if _ac.get("type") == "heat_pump":
+                _ac.setdefault("investment", {})["enabled"] = False
+                _ac["capacity_mw"] = _hp
+                logger.info("[%s] SEED: %s HP capacity fixed non-investable at %.4f MW", scen_id, _ak, _hp)
+
+    _export_dir = _make_run_export_dir(cfg, scen_id)
+    logger.info("[%s] per-run export dir: %s", scen_id, _export_dir)
     tmp_cfg_path = _dump_yaml_tmp(cfg)
     t0 = time.perf_counter()
     try:
@@ -535,6 +797,38 @@ def run_single_scenario(
         extract_all_p2(scen_id, cfg, wf, elapsed, outdir, scen)
     except Exception as exc:
         logger.error("[%s] Artefact extraction failed: %s", scen_id, exc)
+
+    # 9b. MANDATORY integrity check of the result dir (defect 5). A failed check marks the run
+    # FAILED (marker file + status), it is never silently accepted.
+    _integrity: list = []
+    try:
+        _tm = _tank_meta(cfg)
+        (outdir / "run_export.json").write_text(
+            json.dumps({"export_dir": str(_export_dir), "scenario": scen_id,
+                        "tes_technology": _resolve_tes_technology(scen),
+                        "tank_config": _tm}, indent=2, default=str), encoding="utf-8")
+        try:  # also into scenario_meta.json so the run identity travels with the result
+            _sm_p = outdir / "scenario_meta.json"
+            _sm = json.loads(_sm_p.read_text(encoding="utf-8")) if _sm_p.exists() else {}
+            _sm["tank_config"] = _tm
+            _sm_p.write_text(json.dumps(_sm, indent=2, default=str), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+        from scripts.paper_2.check_run_integrity import check as _check_integrity
+        _integrity = _check_integrity(str(outdir))
+    except Exception as exc:  # noqa: BLE001
+        _integrity = [f"integrity check itself failed: {exc}"]
+    if _integrity:
+        logger.error("[%s] INTEGRITY CHECK FAILED: %s", scen_id, "; ".join(_integrity))
+        try:
+            (outdir / "FAILED_INTEGRITY.txt").write_text(chr(10).join(_integrity), encoding="utf-8")
+        except OSError:
+            pass
+    else:
+        try:
+            (outdir / "FAILED_INTEGRITY.txt").unlink()
+        except OSError:
+            pass
 
     # ── Incumbent / status check (2026-07-08, fixes O-7) ─────────────────────
     # run_workflow() only RAISES on infeasible/unbounded; a maxTimeLimit or
@@ -590,12 +884,73 @@ def run_single_scenario(
 
     return {
         "id": scen_id,
-        "status": "ok",
+        "status": "failed_integrity" if _integrity else "ok",
+        "integrity_problems": _integrity or None,
         "solve_s": round(elapsed, 1),
         "obj_eur": obj_val,
         "termination": term_cond or None,
         "outdir": str(outdir),
+        "export_dir": str(_export_dir),
     }
+
+
+def _tank_meta(cfg: dict) -> dict:
+    """Tank configuration that defines a run (2026-09-21): technology, cost anchor (incl. break-even
+    scale), 95 degC ceiling, discharge-mask hours, loss model, ladder. Written to run_export.json /
+    scenario_meta.json and folded into run_hash, so two runs that differ in tank physics can never
+    share an identity (hybrid-config hazard, defect 6)."""
+    keys = ("tes_technology", "cost_model", "c0_eur", "v0_m3", "exponent_b", "alpha_tes_eur_per_m3",
+            "beta_tes_eur", "t_store_max_c", "loss_model", "eta_strat", "u_value_w_m2k", "unit_tank_m3",
+            "V_min_m3", "V_max_m3", "r_hd", "p_max_bar", "investable", "energy_mwh_fixed",
+            "power_mw_fixed", "delta_T_scenario_k")
+    out = {}
+    for k, ac in (cfg.get("assets") or {}).items():
+        if ac.get("type") != "geometric_storage":
+            continue
+        d = {kk: ac.get(kk) for kk in keys if kk in ac}
+        dm = ac.get("discharge_mask")
+        d["discharge_mask_hours_blocked"] = None if dm is None else int(sum(1 for x in dm if not x))
+        d["discharge_mask_len"] = None if dm is None else len(dm)
+        lad = ac.get("discrete_energies_mwh")
+        d["ladder_mwh"] = list(lad) if lad else None
+        d["c0_scale_env"] = os.environ.get("CALION_TES_C0_SCALE")
+        out[k] = d
+    return out
+
+
+def _make_run_export_dir(cfg: dict, scen_id: str) -> Path:
+    """Give THIS run its own export directory (2026-09-21, defect 5: shared-export race).
+
+    All runs used to export into the same `output/paper2_runs/{thermal_network,solver,...}`; when
+    two runs finished extraction at the same moment, one result dir received files of the other
+    (cross-network AND same-network mixing). Now: output/exports/<scenario_id>/<run_hash>/, run_hash
+    from config + git commit + timestamp + pid. The directory must be new/empty (assertion).
+    Solver dumps (LP/MPS/SOL, GBs per SB year run) are OFF unless CALION_KEEP_SOLVER_DUMP=1.
+    """
+    import datetime
+    import hashlib
+    import json
+    import subprocess
+    base = Path(os.environ["CALION_EXPORT_BASE"]) if os.environ.get("CALION_EXPORT_BASE")         else _ROOT / "output" / "exports"
+    try:
+        head = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=_ROOT,
+                                       text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:  # noqa: BLE001
+        head = "nogit"
+    ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    blob = (json.dumps(cfg, sort_keys=True, default=str) + json.dumps(_tank_meta(cfg), sort_keys=True, default=str)
+            + head + ts + str(os.getpid()))
+    run_hash = hashlib.sha1(blob.encode("utf-8")).hexdigest()[:8]
+    d = base / scen_id / run_hash
+    if d.exists() and any(d.iterdir()):
+        raise RuntimeError(f"[{scen_id}] export dir {d} is not empty -- refusing to write into "
+                           f"another run's export (shared-export race guard)")
+    d.mkdir(parents=True, exist_ok=True)
+    out = cfg.setdefault("output", {})
+    out["export_dir"] = str(d)
+    if not os.environ.get("CALION_KEEP_SOLVER_DUMP"):
+        out["export_solver_solution"] = False
+    return d
 
 
 def _apply_tes_location(cfg: dict, scen: dict, scen_cfg: dict) -> None:
@@ -626,28 +981,82 @@ def _apply_tes_location(cfg: dict, scen: dict, scen_cfg: dict) -> None:
 
     # Add TES to target node
     if node_id in nodes:
-        # If the node has consumers but no explicit type, unified_config.py would infer
-        # 'mixed' (assets + demands → mixed) and fix its P_supply=10 bar, creating a
-        # pressure loop with the actual source node. Preserve 'consumer' classification —
-        # but ONLY for a node that had no OTHER assets before this move (the case this
-        # was written for: a pure downstream consumer gaining TES as its sole asset).
-        # BUGFIX (2026-07-04): the blanket "no type + has consumers -> consumer" rule
-        # also fired for nodes that already host generation (e.g. Memmingen's j_1:
-        # chp_main+biomass_main+gasboiler_main+consumers, no explicit type) — silently
-        # reclassifying the network's primary producer as a plain consumer. That drops
-        # it from `all_producer_node_ids` in NetworkManager._link_pressure_propagation,
-        # so it never gets a fixed P_supply setpoint -> proven infeasible (IIS pointed
-        # at J_1/J_2/J_3 heat_demand + mass_balance + pipe PWL-flow-sum constraints on
-        # every MM-S1-HK* run; confirmed independent of TES volume, i.e. the TES itself
-        # wasn't the trigger — this node-type side effect was).
+        # History: until 2026-09-21 this helper forced type='consumer' on a consumer node that had
+        # no OTHER asset yet (to avoid the fixed-P_supply pressure loop of a 'mixed' node; 2026-07-04
+        # fix for MM j_1). That decision depended on placement order and silently turned SB j_man
+        # (S2/S3) into a pipe-pinned consumer.
+        # 2026-09-21: NO node-type decision here any more. It used to depend on which assets
+        # happened to be on the node at THIS moment, i.e. on the order of TES vs HP placement
+        # (SB-S2/S3: j_man had no assets yet -> forced 'consumer', HP/EK arrived afterwards ->
+        # Q_pipe pinned to demand, HP heat worthless). Roles are now derived once, after ALL
+        # placements, in _finalize_node_roles().
         target = nodes[node_id]
-        existing_assets = [a for a in target.get('assets', []) if a != tes_asset_key]
-        if 'type' not in target and target.get('consumers') and not existing_assets:
-            target['type'] = 'consumer'
         target.setdefault("assets", []).append(tes_asset_key)
         logger.info("[%s] Placed %s at node %s (%s)", scen["id"], tes_asset_key, node_id, tes_node_key)
     else:
         logger.warning("[%s] Target TES node %s not found in network config", scen["id"], node_id)
+
+
+_STORAGE_ASSET_TYPES = {"geometric_storage"}
+
+
+def _finalize_node_roles(cfg: dict, scen_id: str) -> None:
+    """Derive/verify every node's role AFTER all assets are placed (2026-09-21, defect 4).
+
+    Why: network_manager._link_consumer_demands() pins Q_pipe == Q_demand for every terminal node
+    whose STATIC type is 'consumer'. A generator (HP/EK/CHP/boiler) or a storage on such a node can
+    then neither reduce the pipe flow nor be paid for it -- its heat can only be stored or dumped.
+    The node type used to be set inside the TES placement helper from "assets present right now",
+    i.e. it depended on placement order (SB-S2/S3: j_man forced 'consumer' before HP/EK arrived).
+
+    Rules (mirror UnifiedConfig NodeConfig.from_dict inference, but checked, never order-dependent):
+      * enabled generator assets (thermal_generator / p2h / heat_pump) on the node -> effective
+        type must be 'producer' or 'mixed'; an explicit 'consumer'/'junction' aborts loudly.
+      * a node whose only enabled asset is a storage has nothing to discharge into the pipe flow if
+        it were 'consumer' -> abort loudly (inert storage would silently give 'storage value 0').
+      * disabled storage (V_max_m3 <= 0, tes_off overrides) counts as absent.
+    Endogenous-siting candidate nodes cannot be checked statically (flows are injected at runtime):
+    consumer-type candidates are reported as a WARNING (open item, see MODEL_AND_DOE_CONTROL §4ad).
+    """
+    nodes = cfg.get("network", {}).get("nodes", {}) or {}
+    assets_cfg = cfg.get("assets", {}) or {}
+    problems = []
+    for nid, ncfg in nodes.items():
+        akeys = list(ncfg.get("assets") or [])
+        enabled = []
+        for a in akeys:
+            ac = assets_cfg.get(a, {}) or {}
+            if ac.get("type") in _STORAGE_ASSET_TYPES and float(ac.get("V_max_m3", 1.0) or 0.0) <= 0.0:
+                continue  # disabled tank == absent
+            enabled.append((a, ac.get("type")))
+        if not enabled:
+            continue
+        gens = [a for a, t in enabled if t not in _STORAGE_ASSET_TYPES]
+        stor = [a for a, t in enabled if t in _STORAGE_ASSET_TYPES]
+        has_cons = bool(ncfg.get("consumers") or ncfg.get("demand"))
+        explicit = ncfg.get("type")
+        eff = explicit if explicit else ("mixed" if has_cons else "producer")
+        if gens and eff not in ("producer", "mixed"):
+            problems.append(f"node {nid}: generator(s) {gens} on a node of type '{eff}'")
+        if stor and not gens and eff not in ("producer", "mixed"):
+            problems.append(f"node {nid}: storage {stor} as only asset on a node of type '{eff}' "
+                            f"(pipe would be pinned to demand -> inert storage)")
+    if problems:
+        raise RuntimeError(
+            f"[{scen_id}] node-role check failed (order-independent, after all placements): "
+            + "; ".join(problems)
+            + ". A node with a heat generator/storage must be producer/mixed, otherwise "
+              "network_manager pins Q_pipe==Q_demand and the asset cannot serve the network."
+        )
+    es = cfg.get("endogenous_siting") or {}
+    for c in es.get("candidates", []) or []:
+        n = nodes.get(c, {}) or {}
+        if (n.get("type") or ("mixed" if (n.get("consumers") or n.get("demand")) and n.get("assets") else
+                              "consumer" if (n.get("consumers") or n.get("demand")) else "junction")) == "consumer":
+            logger.warning("[%s] ENDOGENOUS candidate %s is a CONSUMER-type node: runtime flows injected "
+                           "there may be pinned by link_heat_demand (open item, §4ad)", scen_id, c)
+    logger.info("[%s] node-role check OK (%d nodes with assets)", scen_id,
+                sum(1 for n in nodes.values() if n.get("assets")))
 
 
 def _apply_hp_location(cfg: dict, scen: dict, scen_cfg: dict) -> None:
@@ -840,7 +1249,9 @@ def run_all_scenarios(
     else:
         scenarios = all_scenarios
 
-    extra_solver_options = {"Threads": gurobi_threads} if gurobi_threads else None
+    extra_solver_options = dict(_DISK_SAFE_SOLVER_OPTS)
+    if gurobi_threads:
+        extra_solver_options["Threads"] = gurobi_threads
 
     OUT_BASE.mkdir(parents=True, exist_ok=True)
     results = []
@@ -907,7 +1318,8 @@ def run_all_scenarios_parallel(
         len(scenarios), max_workers, gurobi_threads, cpu_count,
     )
 
-    extra_solver_opts = {"Threads": gurobi_threads}
+    extra_solver_opts = dict(_DISK_SAFE_SOLVER_OPTS)
+    extra_solver_opts["Threads"] = gurobi_threads
 
     id_order = {s["id"]: i for i, s in enumerate(scenarios)}
     results: list[dict] = []

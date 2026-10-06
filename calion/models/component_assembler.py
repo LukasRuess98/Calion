@@ -38,6 +38,102 @@ from .blocks.thermal_gen import ThermalGeneratorBlock
 from .cop_calculator import calculate_cop_series
 from .emissions_calculator import EmissionsCalculator
 from .investment_calculator import InvestmentCalculator
+
+
+# ── V1 (2026-09-30, docs SS4bq): decouple investment.enabled's conflated meanings ──
+# `investment.enabled` used to drive THREE separate things at once: (1) whether
+# capacity is a free Pyomo decision variable vs. fixed to a constant
+# (block-constructor `investable=`, UNCHANGED by this fix -- this axis was already
+# correct), (2) whether CAPEX/Activation cost terms are added to the objective
+# (`component_assembler.py`'s own CAPEX-gating `if invest_enabled:` checks -- THIS is
+# where two separate real bugs happened this session: Q2/SB-S0-HK0-HPFIX533, docs
+# SS4bl/SS4bp, and Q3's MM-S2-HK0 fix23.9 regret run, docs SS4bn -- both set
+# capacity_init>0 with investment.enabled=False intending "mandatory investment at a
+# fixed size", but the gate silently read that as "pre-existing Bestand asset, no
+# CAPEX"), and (3) whether result_collector.py trusts a live Pyomo-variable read for
+# reporting vs. falls back to the static config value (the O2 bug, docs SS4bk -- fixed
+# separately in result_collector.py by no longer depending on this flag for reporting
+# at all, see that file's own comment).
+#
+# This resolver makes axis (2) an explicit, independently-settable field
+# (`investment.capex_charged`, defaulting to `investment.enabled` for full backward
+# compatibility with every existing scenario in this project) and adds the
+# active-assertion V1 requires: a nonzero fixed capacity with no CAPEX charged is
+# only valid for a KNOWINGLY pre-existing asset (`investment.bestand: true`,
+# explicit); otherwise it is almost certainly the same silent-zero-CAPEX
+# construction bug found twice already, and raises rather than silently proceeding.
+def _resolve_investment_flags(
+    inv_cfg: dict, capacity_init: float, asset_label: str
+) -> tuple[bool, bool]:
+    """Return (invest_enabled, capex_charged) for one asset's investment config.
+
+    Args:
+        inv_cfg: the asset's `investment:` sub-dict (possibly empty).
+        capacity_init: the capacity/energy value the asset would be FIXED at if
+            investment is disabled (MW for heat_pump/p2h, MWh for geometric_storage's
+            energy_mwh_fixed) -- irrelevant when investment IS enabled.
+        asset_label: asset id, for the assertion's error message only.
+    """
+    invest_enabled = bool(inv_cfg.get("enabled", False))
+    capex_charged = bool(inv_cfg.get("capex_charged", invest_enabled))
+    is_bestand = bool(inv_cfg.get("bestand", False))
+    if (not invest_enabled) and (not capex_charged) and capacity_init > 1e-9 and not is_bestand:
+        raise ValueError(
+            f"V1 investment-flag assertion (docs SS4bq): asset '{asset_label}' has a "
+            f"fixed, nonzero capacity ({capacity_init:.4f}) with investment.enabled="
+            f"False and no explicit investment.capex_charged=True -- this would "
+            f"silently drop CAPEX/Activation from the objective (the exact bug class "
+            f"found in Q2 and Q3's fix23.9 run). If '{asset_label}' is genuinely "
+            f"pre-existing infrastructure, set investment.bestand: true to confirm "
+            f"that is intended. If it represents a mandatory investment decision at a "
+            f"fixed size, set investment.capex_charged: true to charge CAPEX while "
+            f"still fixing the capacity."
+        )
+    return invest_enabled, capex_charged
+
+# ── Authoritative TES geometry (2026-09-12) ──────────────────────────────────
+# storage_geometry.yaml is the SINGLE SOURCE OF TRUTH for TES geometry
+# (r_hd, p_max_bar, V_max_m3, unit_tank_m3). The legacy asset defs in the base/topo
+# configs still carry stale PRESSURIZED geometry (p_max=10, V_max=5000, r_hd=3.0),
+# and the scenario_runner injection of the atmospheric block was opt-in
+# (CALION_ATMOSPHERIC_TES) — easy to forget, which silently produced hybrid results.
+# We therefore override the asset geometry HERE, unconditionally, for the paper's TES
+# assets, and fail-fast if the authoritative source is missing (no silent legacy fallback).
+from pathlib import Path as _Path
+
+_STORAGE_GEOM_YAML = _Path(__file__).resolve().parents[2] / "configs" / "paper_2" / "storage_geometry.yaml"
+_TES_GEOM_KEYS = ("r_hd", "p_max_bar", "V_max_m3", "unit_tank_m3")
+# Assets for which storage_geometry.yaml is mandatory (the Paper-2 TES tanks).
+_TES_AUTHORITATIVE_ASSETS = ("tes_main", "tes_sb")
+_STORAGE_GEOM_CACHE: dict | None = None
+
+
+def _authoritative_tes_geometry(asset_id: str) -> dict:
+    """Return {r_hd, p_max_bar, V_max_m3, unit_tank_m3} for asset_id from
+    storage_geometry.yaml, merging the GLOBAL block with the per-asset override
+    (per-asset wins). Some keys (e.g. unit_tank_m3) are set globally only; the
+    geometry caps (V_max_m3, p_max_bar, r_hd) are usually per-asset. Returns {}
+    if the file/section is absent."""
+    global _STORAGE_GEOM_CACHE
+    if _STORAGE_GEOM_CACHE is None:
+        try:
+            import yaml as _yaml
+            _STORAGE_GEOM_CACHE = (
+                _yaml.safe_load(open(_STORAGE_GEOM_YAML, encoding="utf-8")) or {}
+            ).get("storage_geometry", {})
+        except Exception:
+            _STORAGE_GEOM_CACHE = {}
+    if not _STORAGE_GEOM_CACHE:
+        return {}
+    _glob = _STORAGE_GEOM_CACHE
+    pa = (_STORAGE_GEOM_CACHE.get("per_asset") or {}).get(asset_id, {})
+    out = {}
+    for k in _TES_GEOM_KEYS:
+        if k in pa:
+            out[k] = pa[k]
+        elif k in _glob:
+            out[k] = _glob[k]
+    return out
 from .network_physics import calculate_supply_temperature_series
 
 # ─── Bus Connections Containers ────────────────────────────────────────────────
@@ -65,6 +161,14 @@ class BusConnections:
     activation_terms: list = field(default_factory=list)
     tie_breaker_terms: list = field(default_factory=list)
     storage_install_terms: list = field(default_factory=list)
+    # V3 (docs SS4bw): fixed O&M, previously absent for every technology (S1 audit
+    # finding). Same annualization convention as the others (period_frac-scaled,
+    # NOT divided by lifetime again -- O&M is already an ongoing annual rate).
+    om_terms: list = field(default_factory=list)
+    # W2 (docs SS4bw-W): variable O&M (EUR/MWh_th delivered), DEA-sourced. A plain
+    # dispatch cost like fuel_cost_terms, NOT annualized/period-scaled at all (it's
+    # already per-MWh-actually-delivered within the horizon).
+    var_om_terms: list = field(default_factory=list)
 
     # Fuel cost / CO2 accumulation for generators
     fuel_cost_terms: list = field(default_factory=list)
@@ -98,6 +202,8 @@ class SystemBusConnections:
     activation_terms: list = field(default_factory=list)
     tie_breaker_terms: list = field(default_factory=list)
     storage_install_terms: list = field(default_factory=list)
+    om_terms: list = field(default_factory=list)  # V3 (docs SS4bw): fixed O&M
+    var_om_terms: list = field(default_factory=list)  # W2 (docs SS4bw-W): variable O&M
 
     # Fuel cost / CO2 accumulation for generators
     fuel_cost_terms: list = field(default_factory=list)
@@ -105,6 +211,12 @@ class SystemBusConnections:
 
     # Terminal value expression for storage
     terminal_value_term: Any = None
+
+    # 2026-09-22 (C3, "Ansatz B" emergency-cooler dump): (asset_name, Q_dump_chp_var, el_eff)
+    # tuples for every CHP asset in chp_only dump mode, consumed by model_finalizer's
+    # build_and_set_objective to add the forfeited-electricity-revenue clawback (needs the
+    # market sell-price series, which is only computed there).
+    chp_dump_terms: list = field(default_factory=list)
 
     def get_or_create_node(self, node_id: str) -> BusConnections:
         """Get or create per-node bus connections."""
@@ -143,6 +255,8 @@ class SystemBusConnections:
             activation_terms=list(self.activation_terms),
             tie_breaker_terms=list(self.tie_breaker_terms),
             storage_install_terms=list(self.storage_install_terms),
+            om_terms=list(self.om_terms),
+            var_om_terms=list(self.var_om_terms),
             fuel_cost_terms=list(self.fuel_cost_terms),
             fuel_co2_terms=list(self.fuel_co2_terms),
             terminal_value_term=self.terminal_value_term,
@@ -554,10 +668,10 @@ class ComponentAssembler:
             cop_default = COP_DEFAULT
 
         inv_cfg = p.get("investment", {})
-        invest_enabled = bool(inv_cfg.get("enabled", False))
         cap_min = float(inv_cfg.get("capacity_min_mw", 0.0))
         cap_max = float(inv_cfg.get("capacity_max_mw", capacity_mw))
         cap_init = float(inv_cfg.get("initial_capacity_mw", capacity_mw))
+        invest_enabled, capex_charged = _resolve_investment_flags(inv_cfg, cap_init, name)
 
         block = HeatPumpBlock(
             name,
@@ -603,13 +717,27 @@ class ComponentAssembler:
         # capacity_mw=0, where the bug is invisible).
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
-        if invest_enabled and cap_var is not None and build_var is not None:
+        if cap_var is not None and build_var is not None:
             hp_inv_defaults = self.cfg.get("heat_pumps", {}).get("investment_defaults", {})
             hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
             hp_inv_terms = self.inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
-            sys_buses.capex_terms.extend(hp_inv_terms.capex)
-            sys_buses.activation_terms.extend(hp_inv_terms.activation)
-            sys_buses.tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
+            if capex_charged:
+                sys_buses.capex_terms.extend(hp_inv_terms.capex)
+                sys_buses.activation_terms.extend(hp_inv_terms.activation)
+                sys_buses.tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
+            # V3 (docs SS4bw): O&M is a real ongoing operating cost independent of
+            # whether CAPEX is charged -- a Bestand asset (capex_charged=False) still
+            # needs maintenance. Always applied when the asset has a real capacity.
+            sys_buses.om_terms.extend(hp_inv_terms.om)
+
+        # W2 (docs SS4bw-W): variable O&M (EUR/MWh_th delivered), DEA-sourced (ch. 40
+        # "Heat pumps"). A dispatch cost like fuel -- charged per MWh of heat actually
+        # delivered, independent of capacity/build (applies even to a Bestand HP).
+        var_om_rate = float(inv_cfg.get("var_om_eur_per_mwh", 0.0))
+        if var_om_rate > 0:
+            sys_buses.var_om_terms.append(
+                var_om_rate * sum(fs["Q_th_out"][t] * self.dt_h for t in self.t)
+            )
 
         hp_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "heat_pump")
         self.m.co2_component_costs[name] = hp_co2.to_dict()
@@ -675,12 +803,16 @@ class ComponentAssembler:
         sys_buses.activation_terms.extend(self.buses.activation_terms)
         sys_buses.tie_breaker_terms.extend(self.buses.tie_breaker_terms)
         sys_buses.storage_install_terms.extend(self.buses.storage_install_terms)
+        sys_buses.om_terms.extend(self.buses.om_terms)
+        sys_buses.var_om_terms.extend(self.buses.var_om_terms)
         sys_buses.fuel_cost_terms.extend(self.buses.fuel_cost_terms)
         sys_buses.terminal_value_term = self.buses.terminal_value_term
         self.buses.capex_terms.clear()
         self.buses.activation_terms.clear()
         self.buses.tie_breaker_terms.clear()
         self.buses.storage_install_terms.clear()
+        self.buses.om_terms.clear()
+        self.buses.var_om_terms.clear()
         self.buses.fuel_cost_terms.clear()
 
     def _attach_generator_from_unified(self, asset, node_buses, sys_buses, gen_defaults):
@@ -710,8 +842,44 @@ class ComponentAssembler:
             startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)
             sys_buses.fuel_cost_terms.append(startup_expr)
 
+        # ── Per-CHP emergency-cooler dump, "Ansatz B" (2026-09-22, C3, author decision) ────────
+        # CALION_DUMP_MODE=chp_only (default 'legacy' = unchanged): dump is possible ONLY at
+        # CHP-type generators (P_el_out present), capacity-bounded by that unit's own thermal
+        # output (<= cap_th_mw by construction of Qth itself). Netted OUT of Qth before it
+        # reaches node_buses.ht_out, so the shared node balance sees only the USEFUL heat --
+        # the generic per-node Q_dump_{node} valve is fixed to 0 everywhere in this mode
+        # (constraint_builder.add_per_node_heat_balance), so biomass/gas-boiler/other assets at
+        # the same or other nodes have NO dump outlet and must modulate/shut down via their
+        # existing UC (on/off) instead; a network that cannot balance that way goes INFEASIBLE,
+        # which is reported, not loosened. Electricity-revenue clawback for the forfeited
+        # useful-heat fraction is applied later in model_finalizer.build_and_set_objective
+        # (needs the market sell-price series, only available there) via sys_buses.chp_dump_terms.
+        import os as _os_cd
+        _dump_mode = _os_cd.environ.get('CALION_DUMP_MODE', 'legacy').strip().lower()
+        _is_chp_gen = fs.get("P_el_out") is not None
+        _q_th_useful = fs["Q_th_out"]
+        if _dump_mode == 'chp_only' and _is_chp_gen:
+            _qdump_chp = pyo.Var(self.t, domain=pyo.NonNegativeReals, bounds=(0.0, cap_th))
+            setattr(self.m, f"Q_dump_chp_{name}", _qdump_chp)
+            setattr(self.m, f"{name}_qdump_chp_le_qth",
+                    pyo.Constraint(self.t, rule=lambda mm, t, _qd=_qdump_chp, _qt=fs["Q_th_out"]:
+                                   _qd[t] <= _qt[t]))
+            _dump_cost_term = pyo.Expression(
+                self.t, rule=lambda mm, t, _qd=_qdump_chp: _qd[t] * self.m.dump_cost * self.dt_h)
+            setattr(self.m, f"{name}_dump_cost_expr", _dump_cost_term)
+            sys_buses.fuel_cost_terms.append(sum(_dump_cost_term[t] for t in self.t))
+            _el_eff_val = float(el_eff) if el_eff is not None else 0.0
+            sys_buses.chp_dump_terms.append((name, _qdump_chp, _el_eff_val))
+            logger.info("[ASSEMBLE] %s: chp_only dump mode -- Q_dump_chp_%s bounded by cap_th=%.1f MW, "
+                        "own heat output netted before node balance", name, name, cap_th)
+            # Q_th_out itself is NOT re-created (still bounded 0..cap_th); only what reaches the
+            # SHARED node balance changes -- via a linear Expression, not by mutating fs["Q_th_out"].
+            _q_th_useful = pyo.Expression(
+                self.t, rule=lambda mm, t, _qt=fs["Q_th_out"], _qd=_qdump_chp: _qt[t] - _qd[t])
+            setattr(self.m, f"{name}_Q_th_useful", _q_th_useful)
+
         # Per-node heat output
-        node_buses.ht_out.append(fs["Q_th_out"])
+        node_buses.ht_out.append(_q_th_useful)
         # Global electricity output (if CHP)
         if fs.get("P_el_out") is not None:
             sys_buses.el_out.append(fs["P_el_out"])
@@ -729,6 +897,25 @@ class ComponentAssembler:
 
         fuel_cost_expr = sum(fs["fuel_in"][t] * price * self.dt_h for t in self.t)
         sys_buses.fuel_cost_terms.append(fuel_cost_expr)
+
+        # V3 (docs SS4bw): fixed O&M for existing/Bestand generators -- these carry
+        # NO capital cost (intentional retrofit framing, unchanged), but DO incur
+        # real ongoing maintenance regardless. Based on the asset's real, FIXED
+        # capacity_mw (a plain float here, not a Pyomo Var -- these assets are
+        # dispatch-only, never sized by the optimizer), scaled by period_frac only.
+        om_eur_per_mw_year = float(p.get("om_eur_per_mw_year", 0.0))
+        if om_eur_per_mw_year > 0:
+            sys_buses.om_terms.append(om_eur_per_mw_year * cap_th * self.inv_calc.period_frac)
+
+        # W2 (docs SS4bw-W): variable O&M, DEA-sourced (ch. 44 gas boilers direct;
+        # ch. 06 gas engines / ch. 09 biomass CHP proxies for CHP-type assets,
+        # converted to a thermal-output basis, see config comments for each asset).
+        # Charged on the ACTUAL delivered heat (_q_th_useful, dump-aware), not cap_th.
+        var_om_rate = float(p.get("var_om_eur_per_mwh", 0.0))
+        if var_om_rate > 0:
+            sys_buses.var_om_terms.append(
+                var_om_rate * sum(_q_th_useful[t] * self.dt_h for t in self.t)
+            )
 
         is_chp = fs.get("P_el_out") is not None
         el_eff_val = float(el_eff) if el_eff is not None and is_chp else 0.0
@@ -759,9 +946,9 @@ class ComponentAssembler:
         min_load = float(p.get("min_load", 0.0))
 
         inv_cfg = p.get("investment", {}) or {}
-        invest_enabled = bool(inv_cfg.get("enabled", False))
         cap_min = float(inv_cfg.get("capacity_min_mw", 0.0))
         cap_max = float(inv_cfg.get("capacity_max_mw", cap_th))
+        invest_enabled, capex_charged = _resolve_investment_flags(inv_cfg, cap_th, asset.id)
 
         p2h_name = asset.id.upper()
         block = P2HBlock(
@@ -786,16 +973,27 @@ class ComponentAssembler:
         # Investment costs → system level (ANF via InvestmentCalculator)
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
-        if invest_enabled and cap_var is not None and build_var is not None:
+        if cap_var is not None and build_var is not None:
             p2h_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, {})
             p2h_inv_terms = self.inv_calc.calculate_component_costs(
                 cap_var, build_var, p2h_inv_config)
-            sys_buses.capex_terms.extend(p2h_inv_terms.capex)
-            sys_buses.activation_terms.extend(p2h_inv_terms.activation)
-            sys_buses.tie_breaker_terms.extend(p2h_inv_terms.tie_breaker)
+            if capex_charged:
+                sys_buses.capex_terms.extend(p2h_inv_terms.capex)
+                sys_buses.activation_terms.extend(p2h_inv_terms.activation)
+                sys_buses.tie_breaker_terms.extend(p2h_inv_terms.tie_breaker)
+            # V3 (docs SS4bw): O&M applies independent of capex_charged, see the
+            # matching heat_pump comment above.
+            sys_buses.om_terms.extend(p2h_inv_terms.om)
             logger.info("[ASSEMBLE] %s: investable EK cap∈[%.1f, %.1f] MW, "
                         "capex=%.0f €/MW", p2h_name, cap_min, cap_max,
                         float(inv_cfg.get("capex_eur_per_mw", 0.0)))
+
+        # W2 (docs SS4bw-W): variable O&M, DEA-sourced (ch. 41 "Electric Boilers").
+        var_om_rate = float(inv_cfg.get("var_om_eur_per_mwh", 0.0))
+        if var_om_rate > 0:
+            sys_buses.var_om_terms.append(
+                var_om_rate * sum(fs["Q_th_out"][t] * self.dt_h for t in self.t)
+            )
 
         p2h_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "p2h")
         self.m.co2_component_costs[p2h_name] = p2h_co2.to_dict()
@@ -938,12 +1136,22 @@ class ComponentAssembler:
         # first scenario with a nonzero fixed non-investable HP capacity.
         cap_var = fs.get("capacity")
         build_var = fs.get("build")
-        if invest_enabled and cap_var is not None and build_var is not None:
+        if cap_var is not None and build_var is not None:
             hp_inv_config = InvestmentCalculator.extract_component_config(inv_cfg, hp_inv_defaults)
             hp_inv_terms = self.inv_calc.calculate_component_costs(cap_var, build_var, hp_inv_config)
-            self.buses.capex_terms.extend(hp_inv_terms.capex)
-            self.buses.activation_terms.extend(hp_inv_terms.activation)
-            self.buses.tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
+            if invest_enabled:
+                self.buses.capex_terms.extend(hp_inv_terms.capex)
+                self.buses.activation_terms.extend(hp_inv_terms.activation)
+                self.buses.tie_breaker_terms.extend(hp_inv_terms.tie_breaker)
+            # V3 (docs SS4bw): O&M applies independent of invest_enabled, see the
+            # matching comment in _attach_heat_pump_from_unified.
+            self.buses.om_terms.extend(hp_inv_terms.om)
+            # W2 (docs SS4bw-W): variable O&M, see _attach_heat_pump_from_unified.
+            var_om_rate = float(inv_cfg.get("var_om_eur_per_mwh", 0.0))
+            if var_om_rate > 0:
+                self.buses.var_om_terms.append(
+                    var_om_rate * sum(fs["Q_th_out"][t] * self.dt_h for t in self.t)
+                )
 
         hp_co2 = self.co2_calc.calculate_grid_electricity_emissions(fs["P_el_in"], "heat_pump")
         self.m.co2_component_costs[name] = hp_co2.to_dict()
@@ -1036,6 +1244,7 @@ class ComponentAssembler:
         self.buses.activation_terms.extend(sto_inv_terms.activation)
         self.buses.tie_breaker_terms.extend(sto_inv_terms.tie_breaker)
         self.buses.storage_install_terms.extend(sto_inv_terms.storage_install)
+        self.buses.om_terms.extend(sto_inv_terms.om)  # V3 (docs SS4bw): fixed O&M
 
         # ── Cycling cost (wear + spurious-arbitrage deterrent) ─────────────
         # Charged per MWh flowing through the storage (charge + discharge).
@@ -1068,6 +1277,47 @@ class ComponentAssembler:
         p = dict(asset.params)
         name = asset.id
 
+        # ── Respect an explicit "TES disabled" scenario override ────────────
+        # A scenario that zeroes V_max_m3 (e.g. the S0/BC tes_off_mm/tes_off_sb
+        # overrides) intends NO investable TES at this asset. That must NOT be
+        # clobbered by the atmospheric-geometry authoritative override below —
+        # which exists to fix legacy/pressurized geometry for scenarios that DO
+        # build TES, not to re-enable a tank a scenario deliberately disabled.
+        # BUG (found 2026-09-17): the override previously ran unconditionally,
+        # silently giving every "no TES" S0/BC scenario the full atmospheric
+        # V_max_m3 (e.g. 5000 m3) instead of 0 — the solver then happily
+        # invested in TES anyway, invalidating every S0-anchor comparison.
+        _tes_disabled = float(p.get("V_max_m3", 60000.0)) <= 0.0
+
+        # ── AUTHORITATIVE TES geometry from storage_geometry.yaml ────────────
+        # Override the (possibly stale/pressurized) asset-def geometry with the
+        # single source of truth, then fail-fast if it's missing for a Paper-2 TES
+        # tank — never silently fall back to the legacy pressurized caps.
+        _auth = _authoritative_tes_geometry(name)
+        # tes_technology (2026-09-21): a tank explicitly marked 'pressurized' (Study G / legacy A/B) is
+        # NOT overridden with the atmospheric geometry. Missing key == atmospheric (unchanged behaviour).
+        _pressurized = str(p.get("tes_technology", "atmospheric")).strip().lower() == "pressurized"
+        if _pressurized:
+            _auth = {}
+            logger.warning("[TES-GEOM] %s: tes_technology=pressurized -> atmospheric authoritative "
+                           "geometry NOT applied (legacy/Study-G configuration)", name)
+        if name in _TES_AUTHORITATIVE_ASSETS and not _auth and not _tes_disabled and not _pressurized:
+            raise RuntimeError(
+                f"[TES-GEOM] '{name}': storage_geometry.yaml has no per_asset geometry "
+                f"({', '.join(_TES_GEOM_KEYS)}). Atmospheric geometry is authoritative and "
+                f"MUST be present — refusing legacy pressurized fallback. Fix "
+                f"{_STORAGE_GEOM_YAML.name} (per_asset.{name})."
+            )
+        if _auth and not _tes_disabled:
+            for _gk, _gv in _auth.items():
+                if p.get(_gk) != _gv:
+                    logger.info("[TES-GEOM] %s: %s %s -> %s (storage_geometry.yaml authoritative)",
+                                name, _gk, p.get(_gk), _gv)
+                p[_gk] = _gv
+        elif _tes_disabled:
+            logger.info("[TES-GEOM] %s: V_max_m3<=0 (scenario disables TES) — atmospheric "
+                        "authoritative override SKIPPED, tank stays disabled.", name)
+
         alpha_tes = float(p.get("alpha_tes_eur_per_m3", 500.0))
         beta_tes = float(p.get("beta_tes_eur", 50000.0))
         lifetime_years = float(p.get("lifetime_years", 30.0))
@@ -1076,6 +1326,22 @@ class ComponentAssembler:
         p_max_bar = float(p.get("p_max_bar", 10.0))
         V_min_m3 = float(p.get("V_min_m3", 5.0))
         V_max_m3 = float(p.get("V_max_m3", 60000.0))
+        # Fail-fast consistency guard: runtime geometry MUST equal the authoritative source.
+        # Skipped when TES is deliberately disabled (V_max_m3<=0) — a disabled tank has no
+        # geometry to verify, and forcing the authoritative caps here would re-enable it.
+        if _auth and not _tes_disabled:
+            _runtime = {"r_hd": r_hd, "p_max_bar": p_max_bar, "V_max_m3": V_max_m3,
+                        "unit_tank_m3": p.get("unit_tank_m3")}
+            _mismatch = {k: (_runtime.get(k), _auth[k]) for k in _auth
+                         if _runtime.get(k) is not None and abs(float(_runtime[k]) - float(_auth[k])) > 1e-9}
+            if _mismatch:
+                raise RuntimeError(
+                    f"[TES-GEOM] '{name}': runtime geometry != storage_geometry.yaml "
+                    f"(runtime vs authoritative): {_mismatch}. Aborting to avoid hybrid-config results."
+                )
+            logger.info("[TES-GEOM] %s: geometry VERIFIED against storage_geometry.yaml "
+                        "(r_hd=%.2f, p_max_bar=%.1f, V_max_m3=%.0f, unit_tank_m3=%s)",
+                        name, r_hd, p_max_bar, V_max_m3, p.get("unit_tank_m3"))
         option_b = bool(p.get("option_b", False))
         eff_c = float(p.get("eff_charge", 0.98))
         eff_d = float(p.get("eff_discharge", 0.98))
@@ -1091,6 +1357,12 @@ class ComponentAssembler:
         # energy/power rating (e.g. tes_existing) rather than an optimizer
         # decision. Volume/height are still derived geometrically so it can
         # participate in F4 pressure coupling like an investable tank.
+        # NOTE (V1, docs SS4bq): unlike heat_pump/p2h, geometric_storage has no
+        # `investment.enabled` config field at all -- assets disable TES entirely via
+        # V_min_m3=V_max_m3=0 (e.g. PIN0/S0 scenarios), and this top-level
+        # `investable` key is set False ONLY by the CALION_TES_FIX_MWH diagnostic
+        # mechanism (scenario_runner.py) for regret-style fixed-size runs. A
+        # pre-existing architectural inconsistency vs. heat_pump/p2h, noted not fixed.
         investable = bool(p.get("investable", True))
         energy_mwh_fixed = p.get("energy_mwh_fixed")
         power_mw_fixed = p.get("power_mw_fixed")
@@ -1100,6 +1372,7 @@ class ComponentAssembler:
         # beta_tes charged per tank. Tight LP relaxation vs the continuous V + big-M.
         discrete_energies_mwh = p.get("discrete_energies_mwh")
         unit_tank_m3 = p.get("unit_tank_m3")
+        v_min_realistic_m3 = p.get("v_min_realistic_m3")
 
         # v3 atmospheric geometry (injected per-asset by scenario_runner from
         # storage_geometry.yaml; all default to LEGACY so existing configs are
@@ -1114,6 +1387,7 @@ class ComponentAssembler:
         c0_eur = p.get("c0_eur")
         v0_m3 = p.get("v0_m3")
         exponent_b = p.get("exponent_b")
+        discharge_mask = p.get("discharge_mask")
 
         block = GeometricStorageBlock(
             name=name,
@@ -1139,6 +1413,7 @@ class ComponentAssembler:
             e_min_fraction=e_min_fraction,
             discrete_energies_mwh=discrete_energies_mwh,
             unit_tank_m3=float(unit_tank_m3) if unit_tank_m3 else None,
+            v_min_realistic_m3=float(v_min_realistic_m3) if v_min_realistic_m3 else 0.0,
             loss_model=loss_model,
             cost_model=cost_model,
             eta_strat=eta_strat,
@@ -1149,6 +1424,11 @@ class ComponentAssembler:
             c0_eur=float(c0_eur) if c0_eur is not None else None,
             v0_m3=float(v0_m3) if v0_m3 is not None else None,
             exponent_b=float(exponent_b) if exponent_b is not None else None,
+            discharge_mask=discharge_mask,
+            # V2f: pressure limits size ONLY for the real pressure-vessel (Study-G)
+            # variant. Atmospheric (the default/authoritative path) is a flat-bottomed
+            # EN14015/API650 tank -- p_max_bar must not influence V_max_effective.
+            pressure_limits_size=_pressurized,
         )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
@@ -1195,19 +1475,49 @@ class ComponentAssembler:
 
         # CAPEX: ANF(i, n) × (α × V + β × build), scaled to optimization period.
         # Skipped for non-investable (existing/fixed) tanks — already built, no new spend.
+        # V1 (2026-09-30, docs SS4bq): `capex_charged` decouples this from `investable`
+        # the same way as heat_pump/p2h -- defaults to mirroring `investable` (fully
+        # backward compatible) but can be explicitly overridden. Caught the same bug
+        # class here as Q2: CALION_TES_FIX_MWH's fixed-size regret runs (e.g. Q3's
+        # MM-S2-HK0 fix23.9, docs SS4bn) had investable=False and a nonzero
+        # energy_mwh_fixed, silently charging 0 CAPEX for an intentionally-costed
+        # "what does exactly this tank size cost" run.
+        capex_charged = bool(p.get("capex_charged", investable))
+        _energy_check = float(energy_mwh_fixed) if energy_mwh_fixed is not None else 0.0
+        if (not investable) and (not capex_charged) and _energy_check > 1e-9 and not bool(p.get("bestand", False)):
+            raise ValueError(
+                f"V1 investment-flag assertion (docs SS4bq): geometric_storage asset "
+                f"'{name}' has a fixed, nonzero energy_mwh_fixed={_energy_check:.4f} "
+                f"with investable=False and no explicit capex_charged=True -- this "
+                f"would silently drop CAPEX from the objective (the exact bug class "
+                f"found in Q3's fix23.9 run). If '{name}' is genuinely pre-existing "
+                f"infrastructure, set p['bestand']=True; if it represents a costed "
+                f"fixed-size scenario (e.g. a regret run), set p['capex_charged']=True."
+            )
         V = fs["V_m3"]
         build = fs["build"]
         # beta_tes is charged PER TANK: n_tanks = ceil(V_size / unit_tank) for multi-
         # tank sizes (falls back to the binary build for continuous / even-spacing).
         n_tanks_cost = fs.get("n_tanks", build)
         annual_factor = self.inv_calc.annual_factor(lifetime_years)
-        if investable and annual_factor > 0:
-            # Block builds the CAPEX expression (degressive per-rung, or legacy
-            # α·V + β·N) so degressive cost stays linear via the size binaries.
-            capex_raw = fs.get("capex_raw_expr")
-            if capex_raw is None:
-                capex_raw = alpha_tes * V + beta_tes * n_tanks_cost
+        # Block builds the CAPEX expression (degressive per-rung, or legacy
+        # α·V + β·N) so degressive cost stays linear via the size binaries.
+        # Computed unconditionally (not just if capex_charged) since V3's fixed
+        # O&M (below) is a real ongoing cost independent of whether CAPEX itself
+        # is charged -- a Bestand tank still needs O&M even with sunk CAPEX.
+        capex_raw = fs.get("capex_raw_expr")
+        if capex_raw is None:
+            capex_raw = alpha_tes * V + beta_tes * n_tanks_cost
+        if capex_charged and annual_factor > 0:
             sys_buses.capex_terms.append(annual_factor * capex_raw)
+        # V3 (docs SS4bw): fixed O&M as %/year of the (un-annualized) CAPEX,
+        # scaled by period_frac only (same convention as InvestmentCalculator's
+        # HP/P2H O&M -- see its comment for why NOT annual_factor).
+        om_pct_of_capex_per_year = float(p.get("om_pct_of_capex_per_year", 0.0))
+        if om_pct_of_capex_per_year > 0:
+            sys_buses.om_terms.append(
+                capex_raw * om_pct_of_capex_per_year * self.inv_calc.period_frac
+            )
 
         if cycling_cost_eur > 0:
             Qc = fs["Q_th_in"]
@@ -1227,9 +1537,9 @@ class ComponentAssembler:
         else:
             logger.info(
                 "[GEOMETRIC_STORAGE] %s: FIXED (non-investable) tank, "
-                "E=%.0f MWh, P=%.0f MW → V=%.0f m³ at dT=%.1fK, no CAPEX.",
+                "E=%.0f MWh, P=%.0f MW → V=%.0f m³ at dT=%.1fK, capex_charged=%s.",
                 name, block.energy_mwh_fixed, block.power_mw_fixed,
-                block.V_fixed_m3, delta_T_k,
+                block.V_fixed_m3, delta_T_k, capex_charged,
             )
 
     # ── Thermal Generator / P2H Assembly ──────────────────────────────────────
@@ -1298,6 +1608,20 @@ class ComponentAssembler:
 
         fuel_cost_expr = sum(fs["fuel_in"][t] * price * self.dt_h for t in self.t)
         self.buses.fuel_cost_terms.append(fuel_cost_expr)
+
+        # V3 (docs SS4bw): fixed O&M, see the matching comment in
+        # _attach_generator_from_unified.
+        om_eur_per_mw_year = float(gpar.get("om_eur_per_mw_year", 0.0))
+        if om_eur_per_mw_year > 0:
+            cap_th_fixed = float(par.get("cap_th_mw", 10.0))
+            self.buses.om_terms.append(om_eur_per_mw_year * cap_th_fixed * self.inv_calc.period_frac)
+
+        # W2 (docs SS4bw-W): variable O&M, see _attach_generator_from_unified.
+        var_om_rate = float(gpar.get("var_om_eur_per_mwh", 0.0))
+        if var_om_rate > 0:
+            self.buses.var_om_terms.append(
+                var_om_rate * sum(fs["Q_th_out"][t] * self.dt_h for t in self.t)
+            )
 
         if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0.0) > 0:
             startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)

@@ -22,8 +22,11 @@ Pressure constraint:
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Sequence
+
+logger = logging.getLogger(__name__)
 
 try:
     import pyomo.environ as pyo
@@ -141,6 +144,7 @@ class GeometricStorageBlock(BaseComponent):
         n_discrete_sizes: int = 4,
         discrete_energies_mwh: list | None = None,
         unit_tank_m3: float | None = None,
+        v_min_realistic_m3: float = 0.0,
         # ── v3 atmospheric geometry (all default to LEGACY = pre-v3 behaviour) ──
         loss_model: str = "proportional",   # "surface" | "proportional"(legacy)
         cost_model: str = "linear",         # "degressive" | "linear"(legacy)
@@ -152,6 +156,12 @@ class GeometricStorageBlock(BaseComponent):
         c0_eur: float | None = None,        # degressive C0·(V/V0)^b
         v0_m3: float | None = None,
         exponent_b: float | None = None,
+        discharge_mask: list | None = None, # per-hour 0/1: block discharge where T_VL(t)>T_store_max
+        pressure_limits_size: bool = True,  # V2f: atmospheric flat-bottomed tanks (EN14015/API650) are
+                                             # NOT pressure vessels -- size must NOT derive from p_max_bar.
+                                             # True (default) preserves legacy/pressurized-vessel behaviour
+                                             # (Study G); component_assembler passes False for the
+                                             # atmospheric technology.
         label: str | None = None,
     ):
         super().__init__(name, label)
@@ -184,6 +194,10 @@ class GeometricStorageBlock(BaseComponent):
         # identical tanks at the same site, so beta_tes (fixed cost) applies PER TANK.
         self.discrete_energies_mwh = list(discrete_energies_mwh) if discrete_energies_mwh else None
         self.unit_tank_m3 = float(unit_tank_m3) if unit_tank_m3 else None
+        # Realistic minimum vessel (m³): with beta_tes=0 (turnkey €/m³) the optimizer
+        # could otherwise select an unphysical micro-store. Positive ladder rungs whose
+        # derived volume falls below this floor are dropped (the 0 rung is kept).
+        self.v_min_realistic_m3 = float(v_min_realistic_m3) if v_min_realistic_m3 else 0.0
 
         # ── v3 atmospheric geometry params ──────────────────────────────────
         self.loss_model = str(loss_model)
@@ -196,6 +210,7 @@ class GeometricStorageBlock(BaseComponent):
         self.c0_eur = float(c0_eur) if c0_eur is not None else None
         self.v0_m3 = float(v0_m3) if v0_m3 is not None else None
         self.exponent_b = float(exponent_b) if exponent_b is not None else None
+        self.discharge_mask = list(discharge_mask) if discharge_mask else None
 
         # Atmospheric store ceiling: clip the usable ΔT if the (charge) supply
         # temperature would exceed the tank's boiling-limited ceiling. Uses
@@ -209,11 +224,21 @@ class GeometricStorageBlock(BaseComponent):
         # efficiency η_strat (usable fraction). η_strat=1.0 reproduces legacy.
         self.energy_coeff = self.eta_strat * _energy_coeff_mwh_per_m3(self.delta_T_k)
 
-        # Derive V_max from pressure constraint
-        h_max_from_p = _h_max_from_pressure(self.p_max_bar)
-        # h/d = r_hd  →  d = h/r_hd  →  V = π/4*(h/r_hd)²*h = π*h³/(4*r_hd²)
-        V_max_from_p = math.pi * h_max_from_p**3 / (4.0 * self.r_hd**2)
-        self.V_max_effective = min(self.V_max_m3, V_max_from_p)
+        # Derive V_max from pressure constraint -- ONLY for a real pressure vessel
+        # (Study-G pressurized variant). An atmospheric, flat-bottomed EN 14015 /
+        # API 650 tank has no design-pressure ceiling on height/volume at all (its
+        # wall is sized via hoop stress for whatever hydrostatic load the height
+        # produces); V2f makes this structural, not just numerically non-binding --
+        # p_max_bar is then a real, physically-meaningful design value (reporting/
+        # option_b geometry only) that can never feed into the size cap.
+        self.pressure_limits_size = bool(pressure_limits_size)
+        if self.pressure_limits_size:
+            h_max_from_p = _h_max_from_pressure(self.p_max_bar)
+            # h/d = r_hd  →  d = h/r_hd  →  V = π/4*(h/r_hd)²*h = π*h³/(4*r_hd²)
+            V_max_from_p = math.pi * h_max_from_p**3 / (4.0 * self.r_hd**2)
+            self.V_max_effective = min(self.V_max_m3, V_max_from_p)
+        else:
+            self.V_max_effective = self.V_max_m3
 
         # ── Non-investable / fixed-geometry mode ────────────────────────────
         # Represents a real, already-built tank (e.g. an existing HKW buffer)
@@ -241,6 +266,10 @@ class GeometricStorageBlock(BaseComponent):
                 )
             # Fixed tank's own footprint sets both bounds (report/PWL use V_max_effective;
             # V_min_m3 must match too or the V_lo Big-M constraint below is infeasible).
+            logger.info("[GEOMETRIC_STORAGE] %s: fixed %.1f MWh @ dT=%.1f K -> V=%.0f m3 "
+                        "(OK; limit %.0f m3, p_max_bar=%.1f, r_hd=%.1f)",
+                        name, self.energy_mwh_fixed, self.delta_T_k, self.V_fixed_m3,
+                        self.V_max_effective, self.p_max_bar, self.r_hd)
             self.V_max_effective = self.V_fixed_m3
             self.V_min_m3 = self.V_fixed_m3
 
@@ -262,10 +291,41 @@ class GeometricStorageBlock(BaseComponent):
             # larger than one realistic tank are realised as N = ceil(V/unit) tanks.
             e_list = sorted(set([0.0] + [float(e) for e in self.discrete_energies_mwh]))
             v_list = [e / self.energy_coeff for e in e_list]
+            # Realistic-minimum-vessel floor: drop positive rungs whose volume (at this
+            # scenario's ΔT) is below v_min_realistic_m3, so beta=0 cannot admit a
+            # micro-store. Keep the 0 rung. Applied BEFORE tank-count / cost build.
+            if self.v_min_realistic_m3 > 0:
+                _kept = [(e, v) for e, v in zip(e_list, v_list)
+                         if e <= 0.0 or v >= self.v_min_realistic_m3]
+                if len(_kept) < len(e_list):
+                    logger.info("[GEOMETRIC_STORAGE] %s: dropped %d rung(s) below "
+                                "v_min_realistic=%.0f m³ (beta=0 micro-store guard)",
+                                comp, len(e_list) - len(_kept), self.v_min_realistic_m3)
+                e_list = [e for e, _ in _kept]
+                v_list = [v for _, v in _kept]
             unit = self.unit_tank_m3 or self.V_max_effective
             n_tanks_list = [0 if e <= 0 else max(1, math.ceil(v / unit))
                             for e, v in zip(e_list, v_list)]
             v_ub = max(v_list)
+            # Defensive check (2026-09-02): flag the TRUNCATION signature -- the
+            # volume cap set right at one unit AND the ladder topping out there, so
+            # the multi-tank mechanism is silently disabled and the store is hard-
+            # capped at a single vessel. This is exactly the Stadtbach artefact
+            # (V_max = unit_tank = 5000 m³, ladder ending at ~one tank) that made
+            # "TES = boundary solution" look physical when it was a config cap.
+            # Condition is narrow (cap ≈ unit AND ladder near the cap) so it does
+            # NOT fire on a legitimately single large unit (e.g. one big pit, where
+            # V_max ≠ unit_tank). If larger stores are intended, raise
+            # discrete_energies_mwh AND V_max_m3 above unit_tank_m3.
+            _cap_at_one_unit = abs(self.V_max_m3 - self.unit_tank_m3) < 0.05 * self.unit_tank_m3
+            if self.unit_tank_m3 and max(n_tanks_list) <= 1 and _cap_at_one_unit \
+                    and v_ub >= 0.8 * self.unit_tank_m3:
+                logger.warning(
+                    "[GEOMETRIC_STORAGE] %s: multi-tank never engages -- V_max_m3=%.0f ≈ "
+                    "unit_tank_m3=%.0f and the ladder tops out at V=%.0f m³ (one vessel). "
+                    "The store is HARD-CAPPED at a single tank; if larger stores are "
+                    "intended, raise discrete_energies_mwh AND V_max_m3 above unit_tank_m3.",
+                    comp, self.V_max_m3, self.unit_tank_m3, v_ub)
         elif use_discrete:
             K = self.n_discrete_sizes
             v_list = [self.V_max_effective * k / (K - 1) for k in range(K)]
@@ -306,15 +366,24 @@ class GeometricStorageBlock(BaseComponent):
         self._n_tanks_expr = n_tanks_expr
 
         # ── CAPEX expression (un-annualized; the assembler applies ANF) ──────
-        # Degressive C0·(V/V0)^b is attached PER LADDER RUNG as a constant
-        # selected by the size binary -> the whole term stays LINEAR (no PWL,
-        # no SOS2), and captures economies of scale on the TOTAL volume (so it
-        # also removes the anti-degressive per-tank β penalty). Only valid with
+        # PER-TANK degressive cost (2026-09-04 storage-tech decision): C = N·C_unit(V/N)
+        # with N = _nl[k] tanks and C_unit(v) = c0·(v/v0)^b. The curve is therefore
+        # evaluated at the PER-TANK volume v/N — never above one unit (unit ≈ v0), so
+        # a multi-tank farm never receives the unphysical whole-volume large-scale
+        # discount; each tank pays its own single-vessel price. Attached per rung as a
+        # constant selected by the size binary -> stays LINEAR (no PWL, no SOS2). c0
+        # is turnkey/installed (incl. BoP), so there is NO separate β. Only valid with
         # the discrete ladder; otherwise fall back to legacy linear α·V + β·N.
         if self.cost_model == "degressive" and self.c0_eur and use_discrete:
             _c0, _v0, _b = self.c0_eur, self.v0_m3, self.exponent_b
-            _cost_k = [(_c0 * (_vl[k] / _v0) ** _b) if _vl[k] > 0 else 0.0
-                       for k in range(len(_vl))]
+            _cost_k = []
+            for k in range(len(_vl)):
+                if _vl[k] <= 0:
+                    _cost_k.append(0.0)
+                    continue
+                _N = max(1, int(_nl[k]))
+                _v_per = _vl[k] / _N                       # per-tank volume ≤ unit
+                _cost_k.append(_N * _c0 * (_v_per / _v0) ** _b)
             setattr(m, f"{comp}_capex_raw",
                     pyo.Expression(rule=lambda mm: sum(_cost_k[k] * ysel[k] for k in range(len(_vl)))))
             self._capex_raw_expr = getattr(m, f"{comp}_capex_raw")
@@ -416,40 +485,67 @@ class GeometricStorageBlock(BaseComponent):
         Qd = getattr(m, f"{comp}_Qd")
         cm = dm = active = None  # eliminated (complementarity implied by losses)
 
-        # Standing-loss retention factor per timestep. Legacy ("proportional"):
-        # a fixed fractional decay, size-independent. v3 ("surface"): a fractional
-        # rate λ ∝ V^(-1/3) (bigger stores lose relatively less — the surface-area
-        # benefit), applied SoC-proportionally so it stays exact for a stratified
-        # tank and never drives E<0. λ needs a KNOWN V, so surface loss is applied
-        # for a fixed-geometry tank (V pinned/non-investable — the sizing/dispatch
-        # study G); the endogenous-investment ladder falls back to proportional
-        # (documented: sizing evidence comes from the dispatch class, not the MILP).
-        if self.loss_model == "surface" and self.V_fixed_m3 is not None \
-                and self.u_value_w_m2k > 0 and self.t_return_c is not None:
-            t_hot = self.t_return_c + self.delta_T_k
-            lam = standing_loss_fraction_per_h(
-                self.V_fixed_m3, self.r_hd, self.u_value_w_m2k,
-                t_hot, self.t_amb_c, self.energy_coeff)
-            loss_factor = max(0.0, 1.0 - lam) ** self.dt_h
-        else:
-            if self.loss_model == "surface" and self.V_fixed_m3 is None:
-                import logging
-                logging.getLogger(__name__).info(
-                    "[GEOMETRIC_STORAGE] %s: loss_model=surface with endogenous V "
-                    "-> falling back to proportional loss (sizing evidence uses fixed-V study G).",
-                    comp)
-            loss_factor = float(self.hourly_loss) ** self.dt_h
+        # ── Standing loss ────────────────────────────────────────────────────
+        # Legacy ("proportional"): multiplicative fractional decay E[t]=prev·f,
+        # size-independent (f = hourly_loss^dt).
+        # v3 ("surface"): a CONSTANT standing loss Q̇_loss = U·k(AR)·V^(2/3)·ΔT [MW]
+        # applied ADDITIVELY, and — crucially — computed the SAME way in BOTH the
+        # fixed-V dispatch class and the endogenous investment class, so the
+        # sweep<->MILP cross-validation (T5/F3) compares like with like. In the
+        # investment class the per-rung constants Q̇_loss,k are selected by the size
+        # binary (linear, no McCormick). The loss per m³ falls as V^(-1/3) (the
+        # surface-area benefit). A tiny forced trickle keeps E ≥ Q̇_loss·dt when
+        # near-empty (~0.002 % of capacity) — negligible and identical in both classes.
+        q_loss_mw = None                 # None -> use multiplicative loss_factor (legacy)
+        loss_factor = float(self.hourly_loss) ** self.dt_h
+        _surface = (self.loss_model == "surface" and self.u_value_w_m2k > 0
+                    and self.t_return_c is not None)
+        if _surface:
+            _k_ar = surface_factor(self.r_hd)
+            _dT_loss = max((self.t_return_c + self.delta_T_k) - self.t_amb_c, 0.0)
+            _coef = self.u_value_w_m2k * _k_ar * _dT_loss / 1.0e6   # MW per (m³)^(2/3)
+            if self.V_fixed_m3 is not None:
+                q_loss_mw = _coef * self.V_fixed_m3 ** (2.0 / 3.0)          # scalar
+            elif use_discrete and v_list:
+                _ql_k = [_coef * (v ** (2.0 / 3.0)) for v in v_list]         # per rung
+                setattr(m, f"{comp}_qloss",
+                        pyo.Expression(rule=lambda mm: sum(_ql_k[k] * ysel[k]
+                                                           for k in range(len(v_list)))))
+                q_loss_mw = getattr(m, f"{comp}_qloss")
+            else:
+                logger.info("[GEOMETRIC_STORAGE] %s: surface loss needs fixed V or a "
+                            "discrete ladder; continuous V -> proportional loss.", comp)
         eff_c = max(self.eff_c, 1e-4)
         eff_d = max(self.eff_d, 1e-4)
-        # Initial SOC as an expression of V so it stays feasible for any invested capacity.
-        # E_initial = soc0_fraction × energy_coeff × V  (linear in V, the decision variable).
-        soc0_expr = self.soc0_fraction * E_max_expr
+        # ── Initial SOC (2026-09-22 FIX, defect 7 / B1c) ────────────────────────────────
+        # OLD rule (found while auditing, asymmetric, not cyclic): E[0] was PINNED to a fixed
+        # fraction (soc0_fraction × E_max, both networks 0.5) via a plain Expression -- not a
+        # decision variable, no freedom at all -- while the terminal constraint was only a
+        # ONE-SIDED inequality E[last] >= terminal_soc_fraction × E_max (also 0.5). So a tank
+        # could end the year fuller than it started at no cost; the two fractions happening to
+        # share the same 0.5 value made this easy to miss.
+        # NEW rule: E[0] is a genuine free Var (not fixed), bounded like every other E[t] (0 <=
+        # E0 <= E_max_expr via soc_hi_0 below, mirroring soc_hi), and closed cyclically with a
+        # HARD equality E[last] == E[0] (see terminal_soc_fraction handling further below, which
+        # now enforces this instead of the old one-sided >= 0.5 bound). Start is free, but bound.
+        # Unbounded-above Var (like E[t] itself); soc_hi_0 below does the real bounding via a
+        # Constraint, which works whether E_max_expr is a Var-linked Expression (investable) or
+        # a plain float (fixed tank) -- Pyomo builds `E0 <= <literal>` fine in the latter case.
+        E0 = pyo.Var(domain=pyo.NonNegativeReals)
+        setattr(m, f"{comp}_E0", E0)
+        setattr(m, f"{comp}_soc_hi_0", pyo.Constraint(expr=E0 <= E_max_expr))
+        if self.e_min_fraction > 0.0:
+            setattr(m, f"{comp}_soc_lo_0", pyo.Constraint(expr=E0 >= self.e_min_fraction * E_max_expr))
+        soc0_expr = E0
 
         # SOC dynamics: first timestep uses soc0_expr (linear in V, not a fixed scalar).
         t_first = Tset.first()
         def soc_dyn(mm, t):
             prev = E[t - 1] if t != t_first else soc0_expr
-            return E[t] == prev * loss_factor + eff_c * Qc[t] * self.dt_h - (Qd[t] * self.dt_h) / eff_d
+            gain = eff_c * Qc[t] * self.dt_h - (Qd[t] * self.dt_h) / eff_d
+            if q_loss_mw is not None:      # surface: additive constant standing loss
+                return E[t] == prev + gain - q_loss_mw * self.dt_h
+            return E[t] == prev * loss_factor + gain          # legacy: multiplicative decay
         setattr(m, f"{comp}_soc", pyo.Constraint(Tset, rule=soc_dyn))
 
         # SOC ≤ E_max: bounded by installed capacity (build, not active).
@@ -477,6 +573,22 @@ class GeometricStorageBlock(BaseComponent):
         setattr(m, f"{comp}_qc_lim", pyo.Constraint(Tset, rule=lambda mm, t: Qc[t] <= cap_p))
         setattr(m, f"{comp}_qd_lim", pyo.Constraint(Tset, rule=lambda mm, t: Qd[t] <= cap_p))
 
+        # ── OPTIONAL discharge-temperature mask (A, 2026-09-02) ──────────────
+        # Conservative SENSITIVITY (not the energy-only base): forbid discharge in
+        # hours where the network supply exceeds the store's temperature ceiling
+        # (T_VL(t) > T_store_max), i.e. an atmospheric store cannot inject into a
+        # hotter supply. This is a LOWER bound (ignores return-preheating, which the
+        # energy-only base captures); if the atmospheric-vs-pressurised conclusion
+        # survives this mask, it is robust. mask[t]∈{0,1}, precomputed from T_VL(t)
+        # and t_store_max in scenario_runner. Pressurised (no ceiling) -> all 1s.
+        if self.discharge_mask is not None:
+            _mask = self.discharge_mask
+            _n = len(_mask)
+            def qd_mask(mm, t):
+                mi = _mask[(t - 1) % _n] if _n else 1
+                return Qd[t] <= cap_p * float(mi)
+            setattr(m, f"{comp}_qd_mask", pyo.Constraint(Tset, rule=qd_mask))
+
         # Shared-port valid inequality (2026-07-13). A single-loop stratified tank
         # shares ONE heat-exchanger/pump train between charge and discharge, so
         # COMBINED throughput — not each direction independently — is capacity-
@@ -497,13 +609,15 @@ class GeometricStorageBlock(BaseComponent):
         setattr(m, f"{comp}_shared_port",
                 pyo.Constraint(Tset, rule=lambda mm, t: Qc[t] + Qd[t] <= cap_p))
 
-        # Terminal SOC constraint (cyclic: first ≈ last).
-        # Target is also a linear expression of V so it scales with the invested capacity.
-        if self.terminal_soc_fraction is not None:
-            t_last = Tset.last()
-            target_expr = self.terminal_soc_fraction * E_max_expr
-            setattr(m, f"{comp}_terminal",
-                    pyo.Constraint(expr=E[t_last] >= target_expr))
+        # Terminal SOC constraint (2026-09-22 FIX, defect 7 / B1c): genuinely cyclic now --
+        # E[last] == E0, where E0 is the free initial-SOC Var declared above (soc0_expr).
+        # terminal_soc_fraction is no longer used here (kept as a constructor arg for back-
+        # compat / non-cyclic callers) -- the cyclic equality replaces the old one-sided
+        # E[last] >= terminal_soc_fraction * E_max inequality unconditionally for every
+        # geometric_storage asset, since a hard cyclic SOC condition is a technology-neutral
+        # correctness fix, not a scenario choice.
+        t_last = Tset.last()
+        setattr(m, f"{comp}_terminal", pyo.Constraint(expr=E[t_last] == E0))
 
         # ── Register flows ────────────────────────────────────────────────────
         self.add_flow(Flow(bus="heat", direction="output", variable=Qd, investment=self.investable))

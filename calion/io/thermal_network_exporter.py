@@ -994,22 +994,31 @@ def _extract_network_data_for_dashboard(
         delta_p = getattr(model, f'{prefix}_delta_p_total', None)
         velocity = getattr(model, f'{prefix}_velocity', None)
 
+        # 2026-09-22 (E3, docs SS4au): pyo.value(exception=False) -> None instead of raising
+        # for a VarData that lost every defining constraint (e.g. CALION_PRESSURE_SLACK_MODE=
+        # suspend_hydraulic deactivates delta_p_total's own equality at the 3 suspended hours,
+        # leaving it a free, disconnected Var with no solved value) -- substitute NaN so export
+        # continues instead of aborting the WHOLE thermal_network export for every pipe/node.
+        def _safe_val(_v):
+            _x = pyo.value(_v, exception=False)
+            return float(_x) if _x is not None else float('nan')
+
         if m_dot is not None:
-            vals = [pyo.value(m_dot[t]) for t in time_set]
+            vals = [_safe_val(m_dot[t]) for t in time_set]
             pipe_data['m_dot_series'] = vals
             pipe_data['m_dot_avg'] = sum(vals) / len(vals)
             pipe_data['m_dot_max'] = max(vals)
             dashboard_data['timeseries'][f'{pipe_id}_m_dot'] = vals
 
         if delta_p is not None:
-            vals = [pyo.value(delta_p[t]) for t in time_set]
+            vals = [_safe_val(delta_p[t]) for t in time_set]
             pipe_data['delta_p_series'] = vals
             pipe_data['delta_p_avg'] = sum(vals) / len(vals)
             pipe_data['delta_p_max'] = max(vals)
             dashboard_data['timeseries'][f'{pipe_id}_delta_p'] = vals
 
         if velocity is not None:
-            vals = [pyo.value(velocity[t]) for t in time_set]
+            vals = [_safe_val(velocity[t]) for t in time_set]
             pipe_data['velocity_series'] = vals
             pipe_data['velocity_avg'] = sum(vals) / len(vals)
             pipe_data['velocity_max'] = max(vals)

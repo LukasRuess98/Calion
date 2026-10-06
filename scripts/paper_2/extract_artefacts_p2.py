@@ -113,12 +113,28 @@ def write_geometry_p2(outdir: Path, wf_result, scen: dict) -> dict | None:
             return None
 
         rows = []
-        r_hd = 3.0
-        # Try to read the real aspect ratio from the scenario's asset params
+        # AUTHORITATIVE r_hd from storage_geometry.yaml (NOT a hardcoded 3.0 default, which
+        # produced a pressurized-shaped h/p_betr in the atmospheric run — 2026-09-14).
+        try:
+            from scripts.paper_2.scenario_runner import _load_storage_geometry as _lsg
+            _sg = _lsg({"__force__": True}) or {}
+        except Exception:
+            _sg = {}
+        _scen_ov = {}
         for _acfg in (scen.get("overrides", {}) or {}).get("assets", {}).values():
             if isinstance(_acfg, dict) and "r_hd" in _acfg:
-                r_hd = float(_acfg["r_hd"])
+                _scen_ov["r_hd"] = float(_acfg["r_hd"])
+
+        def _r_hd_for(comp: str) -> float:
+            pa = (_sg.get("per_asset") or {}).get(comp, {})
+            if "r_hd" in pa:
+                return float(pa["r_hd"])
+            if "r_hd" in _sg:
+                return float(_sg["r_hd"])
+            return _scen_ov.get("r_hd", 3.0)
+
         for comp, g in geo_map.items():
+            r_hd = _r_hd_for(comp)
             V = float(g.get("V_m3") or 0.0)
             if V > 0:
                 # V = pi/(4*r_hd^2) * h^3  ->  h = (V * 4 * r_hd^2 / pi)^(1/3)
@@ -184,6 +200,206 @@ def write_node_heat_audit(outdir: Path, wf_result) -> dict | None:
         return payload
     except Exception as exc:
         logger.warning("node_heat_audit extraction failed: %s", exc)
+    return None
+
+
+# Positivliste "reale Kosten" (author-approved Step A, 2026-09-21): everything else is a
+# "Modellhilfsterm" (dump penalty, tie-break/regularisation, terminal value, slack penalties).
+# Start-/Mindestlastkosten: no separate objective term exists in this model (thermal_gen.py's
+# startup_cost_eur is a stored, never-wired-in parameter; min_load only forces fuel consumption,
+# already inside Fuel_cost_EUR) -- reported as 0 with that note, not omitted.
+_REAL_COST_KEYS = {
+    "Capex_cost_EUR": "CAPEX (annuitaetisch, HP/EK/TES/Rohr)",
+    "Activation_cost_EUR": "CAPEX (fixer Aktivierungsanteil je Investitionsentscheidung)",
+    "Fuel_cost_EUR": "Brennstoff (inkl. Mindestlast-Brennstoff)",
+    "Grid_energy_cost_EUR": "Strom (Bezug)",
+    # 2026-09-22 (B1d, author): explicitly KWK, verified -- in BOTH networks the ONLY assets with
+    # P_el_out (electricity generation) are the CHP-type thermal_generators with el_eff configured
+    # (MM: chp_main only; SB: hkw/gtost/bmhkw); HP/EK/P2H are pure electricity consumers, all other
+    # thermal_generators (gasboiler/biomass/ava_feed/boilers) are heat-only. Grid_sell_revenue_EUR
+    # is therefore 100% KWK-Stromerloes in this model, never a non-CHP source.
+    "Grid_sell_revenue_EUR": "Strom (KWK-Erloes Verkauf, negativ)",
+    # 2026-09-22 D0 (author decision): a CHP dump electricity-revenue clawback was tried and
+    # REMOVED -- market revenue for CHP electricity stays full even when its heat is dumped; a
+    # real KWK-Zuschlag stays outside the objective entirely (assumption, MODEL_AND_DOE_CONTROL.md
+    # SS4as). No replacement key.
+    "CO2_cost_EUR": "CO2 (brutto, = Modellwert; siehe CO2_selfuse_netting_adjustment_EUR fuer die genettete Emissions-KPI-Zuordnung)",
+    "Demand_charge_cost_EUR": "Netzentgelt (Lastspitze)",
+    # V3 (2026-09-30, docs SS4bw): fixed O&M, previously ABSENT for every technology (S1-Audit-
+    # Befund, docs SS4bo). Gilt fuer investierbare (HP/EK/TES) UND Bestand-Anlagen (CHP/Kessel) --
+    # O&M ist unabhaengig von capex_charged (reale laufende Wartung auch bei versunkenem CAPEX).
+    "OM_fixed_cost_EUR": "Fixe Betriebskosten (O&M), technologiespezifisch (DEA-Quelle fuer HP/EK/Gaskessel, Ingenieurschaetzung fuer TES/Biomasse-KWK, siehe SS4bw)",
+    # W2 (2026-09-30, docs SS4bw-W): variable O&M, EUR/MWh_th geliefert -- DEA-Quelle fuer HP/EK/
+    # Gaskessel direkt, Gas-Motor/Biomasse-KWK-Kapitel als Proxy (auf thermische Basis umgerechnet,
+    # gleiche Unsicherheit wie die zugehoerigen fixen O&M-Werte). Kein Storage-Wert gefunden.
+    "OM_variable_cost_EUR": "Variable Betriebskosten (O&M), EUR/MWh_th geliefert, technologiespezifisch (siehe SS4bw)",
+}
+_AUX_COST_KEYS = {
+    "Dump_cost_EUR": "Abregel-Strafpreis (Modellparameter, siehe B)",
+    "Tie_breaker_cost_EUR": "Tie-Break-Regularisierung",
+    "Storage_installation_cost_EUR": "Speicher-Installationsterm (einfacher StorageBlock-Pfad; 0 fuer geometric_storage/TES)",
+    "Terminal_value_EUR": "Terminalwert-/-strafterm (Speicher-Endzustand)",
+    "Demand_slack_cost_EUR": "Bedarfs-Slack-Strafe",
+    "Return_anchor_cost_EUR": "Ruecklauftemperatur-Anker-Strafe",
+    "Pressure_reg_cost_EUR": "Druck-Tie-Break-Regularisierung",
+    "Lateral_tiebreak_cost_EUR": "Stich-Verlust-PWL-Tie-Break",
+    "Pressure_slack_cost_EUR": "Druck-Entlastungs-Slack (Datenqualitaets-Ventil)",
+    "Data_closure_epsilon_cost_EUR": (
+        "I1 Epsilon-Tie-Break (0.01 EUR/MWh) auf den G3/H1-Datenschliessungsterm (docs SS4bc) -- "
+        "NICHT real, dient nur der Residuum-Minimierung; bei voller 0.25%-Kappungsgrenze maximal "
+        "ca. 16 EUR (SB), kann keine Investitionsentscheidung beeinflussen."
+    ),
+    # V5 (2026-09-30, docs SS4bw) REMOVED "CO2_selfuse_netting_adjustment_EUR" from this dict --
+    # it existed only to cancel a mismatch caused by CO2_cost_EUR silently holding the CHP-selfuse-
+    # NETTED figure while model.obj optimized GROSS. result_collector.py now reports CO2_cost_EUR
+    # as genuinely gross (matching model.obj), so Objective_residual_EUR is expected to be small on
+    # its own merits, without this cancellation term. The netted figure is preserved as its own
+    # standalone KPI, CO2_cost_net_of_selfuse_EUR (see write_cost_breakdown_p2 below) -- NOT part
+    # of real_costs_EUR/model_aux_terms_EUR, since it never was a real objective term.
+}
+
+
+def write_cost_breakdown_p2(outdir: Path, wf_result, scen_id: str) -> dict | None:
+    """Every additive objective term, individually, categorised real/aux (2026-09-21 Step A).
+
+    Source: calion.run.result_collector's objective dict (captured live from the solved Pyomo
+    model in-process -- these Expression values cannot be reconstructed from a saved .sol file).
+    Asserts (logs an error, does not raise) that sum(all 16 terms, +1 om_cost since V3, docs
+    SS4bw) reproduces OBJ_value_EUR to within 1 EUR; result_collector.py already does the
+    identical check and logs Objective_residual_EUR, this file re-verifies it independently
+    at write time.
+    """
+    try:
+        pf = wf_result.pf_result
+        if pf is None:
+            return None
+        summary = getattr(pf, "summary", None) or {}
+        obj = summary.get("objective", {}) if hasattr(summary, "get") else {}
+        if not obj:
+            return None
+        real = {k: float(obj.get(k) or 0.0) for k in _REAL_COST_KEYS}
+        # Sign fix (2026-09-22): Grid_sell_revenue_EUR is stored POSITIVE in the objective dict
+        # (a revenue magnitude), but components_sum (result_collector.py) computes
+        # `energy_cost - energy_revenue` -- i.e. revenue REDUCES net cost. Summing real.values()
+        # naively double-counted it (found via sum_real_plus_aux_plus_residual_minus_objective_EUR
+        # != 0: exactly 2x Grid_sell_revenue_EUR). Store it negative here so real_total is the true
+        # net cost and the reconciliation sum is exact.
+        real["Grid_sell_revenue_EUR"] = -real["Grid_sell_revenue_EUR"]
+        aux = {k: float(obj.get(k) or 0.0) for k in _AUX_COST_KEYS}
+        # V5 (2026-09-30, docs SS4bw): real["CO2_cost_EUR"] is now read directly -- as of
+        # result_collector.py's V5 fix, obj["CO2_cost_EUR"] IS the gross, model.obj-matching
+        # figure (previously it silently held the CHP-selfuse-NETTED figure, requiring the
+        # swap-in + cancellation-term workaround this comment used to describe; see git history
+        # / docs SS4bw for the removed code). The netted figure -- economics.csv's historical
+        # cost_co2_eur convention -- is preserved as its own standalone KPI below, OUTSIDE the
+        # real/aux reconciliation, since it was never a real objective term.
+        _co2_net_of_selfuse = obj.get("CO2_cost_net_of_selfuse_EUR")
+        obj_total = float(obj.get("OBJ_value_EUR") or 0.0)
+        residual = float(obj.get("Objective_residual_EUR") or 0.0)
+        real_total = sum(real.values())
+        aux_total = sum(aux.values())
+        recon_gap = (real_total + aux_total + residual) - obj_total
+        payload = {
+            "scenario_id": scen_id,
+            "objective_total_EUR": obj_total,
+            "residual_EUR": residual,
+            "residual_note": (
+                "V5 (docs SS4bw): residual_EUR is result_collector's raw obj-vs-components_sum gap, "
+                "now computed with BOTH sides using the GROSS CO2 figure (previously "
+                "components_sum used the CHP-selfuse-netted figure while OBJ_value_EUR did not, "
+                "requiring a cancellation term below -- removed). Expect residual_EUR to be small "
+                "(genuine floating-point/reporting noise only) on its own merits now."
+            ),
+            "co2_cost_net_of_selfuse_EUR": {
+                "value": float(_co2_net_of_selfuse) if _co2_net_of_selfuse is not None else None,
+                "label": (
+                    "V5 (docs SS4bw): CHP-Eigenverbrauchsanteil-genettete CO2-Kosten (Paper-1-"
+                    "Konvention, project_paper1_objective_residual) -- REINE Berichts-KPI, KEIN "
+                    "Objektivterm, NICHT in real_costs_EUR/model_aux_terms_EUR enthalten. Vergleich: "
+                    "real_costs_EUR.CO2_cost_EUR (brutto, = Modellwert)."
+                ),
+            },
+            "reconciliation_check": "OK" if abs(recon_gap) <= 1.0 else "FAIL (>1 EUR: an objective term is still unaccounted)",
+            "data_closure_dump_MWh": {
+                "value": float(obj.get("Data_closure_dump_MWh") or 0.0),
+                "pct_of_annual_demand": float(obj.get("Data_closure_dump_pct_of_demand") or 0.0),
+                "label": (
+                    "G3/H1 Datenschliessungsterm (docs SS4av-SS4ax): 0 EUR/MWh, NICHT in "
+                    "real_costs_EUR oder model_aux_terms_EUR -- Pflicht-KPI (MWh und % des "
+                    "Jahresbedarfs), nur unter CALION_DUMP_MODE=chp_only nonzero, netzweit hart "
+                    "gedeckelt auf 0.25% des Jahresbedarfs (Constraint data_closure_cap; "
+                    "ueberschritten => Lauf infeasible statt still toleriert). Warnung im Log ab "
+                    "0.125%. Die Grenze ist ein Drift-Waechter, keine physikalische Schranke "
+                    "(beobachtetes strukturelles Lieferresiduum: 0.08-0.13% des Jahresbedarfs)."
+                ),
+            },
+            "real_costs_EUR": {k: {"value": v, "label": _REAL_COST_KEYS[k]} for k, v in real.items()},
+            "real_costs_total_EUR": real_total,
+            "model_aux_terms_EUR": {k: {"value": v, "label": _AUX_COST_KEYS[k]} for k, v in aux.items()},
+            "model_aux_terms_total_EUR": aux_total,
+            "sum_real_plus_aux_plus_residual_minus_objective_EUR": recon_gap,
+            "_diagnostic_expr_vs_series_EUR": {  # TEMPORARY (2026-09-22 residual investigation)
+                "energy_cost": {"series_recompute": real["Grid_energy_cost_EUR"] + real["Grid_sell_revenue_EUR"],
+                                "live_expr": obj.get("_diag_energy_cost_expr_EUR")},
+                "dump_cost": {"series_recompute": aux["Dump_cost_EUR"], "live_expr": obj.get("_diag_dump_cost_expr_EUR")},
+                "fuel_cost": {"series_recompute": real["Fuel_cost_EUR"], "live_expr": obj.get("_diag_fuel_cost_expr_EUR")},
+                "co2_cost": {"series_recompute": real["CO2_cost_EUR"], "live_expr": obj.get("_diag_co2_cost_expr_EUR")},
+                "demand_cost": {"series_recompute": real["Demand_charge_cost_EUR"], "live_expr": obj.get("_diag_demand_cost_expr_EUR")},
+            },
+        }
+        with open(outdir / "cost_breakdown.json", "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        if abs(recon_gap) > 1.0:
+            logger.error("[%s] cost_breakdown.json: reconciliation gap=%.2f > 1 EUR tolerance "
+                        "-- breakdown is INCOMPLETE, do not use for the real/aux split.", scen_id, recon_gap)
+        return payload
+    except Exception as exc:
+        logger.warning("[%s] cost_breakdown extraction failed: %s", scen_id, exc)
+    return None
+
+
+def write_pressure_slack_audit_p2(outdir: Path, wf_result) -> dict | None:
+    """Per-node, per-hour pressure-relief-slack audit (2026-09-22, B1b prep).
+
+    Source: result_collector's objective['_pressure_slack_audit'] (captured live from
+    model.pressure_slack_terms). Used to derive a FIXED per-node pressure-bound widening
+    (thermal_node.py's CALION_PRESSURE_SLACK_MODE=preprocessed), which then replaces this
+    slack mechanism entirely -- this file is the evidence base for that widening table.
+    """
+    try:
+        pf = wf_result.pf_result
+        if pf is None:
+            return None
+        summary = getattr(pf, "summary", None) or {}
+        obj_section = summary.get("objective", {}) if hasattr(summary, "get") else {}
+        audit = obj_section.get("_pressure_slack_audit")
+        if not audit:
+            return None
+        with open(outdir / "pressure_slack_audit.json", "w", encoding="utf-8") as f:
+            json.dump(audit, f, indent=2)
+        return audit
+    except Exception as exc:
+        logger.warning("pressure_slack_audit extraction failed: %s", exc)
+    return None
+
+
+def write_dump_audit_p2(outdir: Path, wf_result) -> dict | None:
+    """Per-node, per-hour Q_dump audit (2026-09-22, C2/C3 prep). See write_pressure_slack_audit_p2
+    for the identical pattern; source is result_collector's objective['_dump_audit']."""
+    try:
+        pf = wf_result.pf_result
+        if pf is None:
+            return None
+        summary = getattr(pf, "summary", None) or {}
+        obj_section = summary.get("objective", {}) if hasattr(summary, "get") else {}
+        audit = obj_section.get("_dump_audit")
+        if not audit:
+            return None
+        with open(outdir / "dump_audit.json", "w", encoding="utf-8") as f:
+            json.dump(audit, f, indent=2)
+        return audit
+    except Exception as exc:
+        logger.warning("dump_audit extraction failed: %s", exc)
     return None
 
 
@@ -270,6 +486,29 @@ def extract_all_p2(
     logger.info("[%s] meta.json: status=%s, obj=%.0f €",
                 scen_id, meta.get("status"), meta.get("obj_eur") or 0)
 
+    # K1 (2026-09-27, docs SS4be): copy the unconditional full-solution dump (written by
+    # calion/run/solver.py to the raw export_dir, keyed by a per-run hash the caller doesn't
+    # otherwise know) into THIS scenario's curated OUT_BASE dir, so that CALION_WARMSTART_FROM
+    # (which conventionally points at an OUT_BASE/<scen_id> dir, not the raw export dir) can
+    # find it without the caller needing to track the hash. Copy, not move -- the raw export
+    # dir keeps its own copy too.
+    try:
+        import shutil as _shutil_dump
+        _export_dir = Path(cfg.get('output', {}).get('export_dir', ''))
+        _src_dump = _export_dir / "full_solution_dump.json"
+        if _src_dump.exists():
+            _dst_dump = outdir / "full_solution_dump.json"
+            _shutil_dump.copy2(str(_src_dump), str(_dst_dump))
+            logger.info("[%s] full_solution_dump.json copied to %s (%.1f MB) -- available as a "
+                        "COMPLETE warmstart source via CALION_WARMSTART_FROM=%s",
+                        scen_id, _dst_dump, _dst_dump.stat().st_size / 1e6, outdir)
+        else:
+            logger.warning("[%s] no full_solution_dump.json found at %s -- warmstarting FROM "
+                           "this run will fall back to the partial CSV-based hints.",
+                           scen_id, _export_dir)
+    except Exception as _dump_copy_err:
+        logger.warning("[%s] could not copy full_solution_dump.json: %s", scen_id, _dump_copy_err)
+
     # Paper 2-specific artefacts
     geo = write_geometry_p2(outdir, wf_result, scen)
     if geo:
@@ -278,6 +517,12 @@ def extract_all_p2(
                     geo["E_TES_max_MWh"], geo["p_betr_bar"])
 
     write_node_heat_audit(outdir, wf_result)
+
+    write_pressure_slack_audit_p2(outdir, wf_result)
+
+    write_dump_audit_p2(outdir, wf_result)
+
+    write_cost_breakdown_p2(outdir, wf_result, scen_id)
 
     write_dsm_hourly_p2(outdir, wf_result)
 

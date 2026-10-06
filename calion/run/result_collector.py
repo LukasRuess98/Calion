@@ -109,12 +109,24 @@ def _gather_component_metadata_unified(cfg: dict[str, Any]) -> dict[str, Any]:
         atype = asset_data.get("type", "")
         if atype == "heat_pump":
             cap = float(asset_data.get("capacity_mw", 0.0))
+            inv_cfg = asset_data.get("investment", {}) or {}
+            invest_enabled = bool(inv_cfg.get("enabled", False))
+            # O2 (2026-09-28, docs SS4bk): was hardcoded False regardless of the
+            # asset's real `investment.enabled` config -- this silently skipped the
+            # Pyomo-variable read at line ~1108 below for EVERY unified-config
+            # investable heat pump (both networks: MM hp_main AND SB hp_sb both have
+            # capacity_mw:0.0 + investment.enabled:true), always falling back to the
+            # static config capacity_mw=0.0 -> reported "capacity=0.0 MW, build=0.0"
+            # no matter what the solver actually built. See project memory
+            # project_paper2_primary_balance_double_subtraction.md for the full trail.
+            cap_min = float(inv_cfg.get("capacity_min_mw", 0.0)) if invest_enabled else 0.0
+            cap_max = float(inv_cfg.get("capacity_max_mw", cap)) if invest_enabled else cap
             meta["heat_pumps"].append({
                 "id": asset_id,
                 "max_th": cap,
-                "invest_enabled": False,
-                "cap_min": 0.0,
-                "cap_max": cap,
+                "invest_enabled": invest_enabled,
+                "cap_min": cap_min,
+                "cap_max": cap_max,
                 "cap_init": cap,
             })
         elif atype in ("storage", "geometric_storage"):
@@ -158,10 +170,15 @@ def _gather_component_metadata_unified(cfg: dict[str, Any]) -> dict[str, Any]:
             })
         # In _gather_component_metadata_unified(), ersetze:
         elif atype == "p2h":
+            _p2h_inv_cfg = asset_data.get("investment", {}) or {}
             meta["p2h"] = {
                 "name": asset_id.upper(),  # "EBOILER_MAIN" statt "P2H"
                 "cap_th": float(asset_data.get("capacity_mw", 0.0)),
                 "eff": float(asset_data.get("efficiency", 0.99)),
+                # O2 (2026-09-28, docs SS4bk): p2h had NO invest_enabled/Pyomo-read
+                # path at all -- Thermal_capacity_MW was always the static config
+                # value, no Build_binary reported. See heat_pump fix above, same class.
+                "invest_enabled": bool(_p2h_inv_cfg.get("enabled", False)),
             }
     return meta
 
@@ -615,6 +632,95 @@ def _collect_timeseries_and_summary(
                     objective["node_heat_audit_total_ht_out_MWh"] = round(
                         sum(v["ht_out_MWh"] for v in _node_audit.values()), 1
                     )
+                # ── FULL heat-balance term audit (source of truth = the constraint) ──
+                # Σht_out == Σheatd + ΣQ_dump + Σht_in + Σnetwork_loss + ΣQ_net_buf.
+                # Residual must be ~0 (solver tol). If ~0, any export closure
+                # disagreement is a demand-DEFINITION/reporting error; if not ~0,
+                # it is a real formulation bug (2026-09-03, C1 diagnosis).
+                def _psum(_attr):
+                    _o = getattr(model, _attr, None)
+                    if _o is None:
+                        return None
+                    _s = 0.0
+                    for _t in model.t:
+                        try:
+                            _s += float(pyo.value(_o[_t], exception=False) or 0.0)
+                        except Exception:
+                            pass
+                    return round(_s, 1)
+                _tot_out = round(sum(v["ht_out_MWh"] for v in _node_audit.values()), 1) if _node_audit else None
+                _tot_in = round(sum(v["ht_in_MWh"] for v in _node_audit.values()), 1) if _node_audit else 0.0
+                _hd, _dp = _psum("heatd"), _psum("Q_dump")
+                _nl, _bf = _psum("network_Q_loss_per_timestep"), _psum("Q_net_buf")
+                # Sum every pipe's return-side loss Var (Σ Q_loss_return). In the multi-node
+                # nodal balance, Q_delivered (supply side) embeds the SUPPLY loss and m.heatd
+                # already carries it, so the balance adds ONLY the return loss on top (see
+                # constraint_builder primary_producer_balance, 2026-09-03 fix). Using the full
+                # network_Q_loss here would double-count the supply portion (the −25%
+                # phantom residual seen before this fix).
+                _rl = 0.0
+                try:
+                    for _v in model.component_objects(pyo.Var, active=True):
+                        if _v.name.endswith("Q_loss_return"):
+                            for _t in model.t:
+                                _rl += float(pyo.value(_v[_t], exception=False) or 0.0)
+                except Exception:
+                    _rl = 0.0
+                _rl = round(_rl, 1)
+                _nodal = hasattr(model, "global_dump_balance")
+                # ── AUTHORITATIVE closure = the actual heat-balance CONSTRAINT residual ──
+                # Evaluate every ht_balance* constraint body against its bound. This uses
+                # EXACTLY the constraint's own terms (Q_delivered, return_loss, dump, charge),
+                # so it can never drift the way the heatd/network_loss proxy did — that proxy
+                # showed a phantom −25% (double-counted supply loss) and later −2.08% (heatd
+                # not tracking the j13 U change) while the physical balance was fine. Equality
+                # constraints hold to solver FeasibilityTol, so a nonzero here is a REAL bug.
+                _con_resid_sum = 0.0
+                _con_resid_max = 0.0
+                _con_n = 0
+                try:
+                    for _con in model.component_objects(pyo.Constraint, active=True):
+                        if not _con.name.startswith("ht_balance"):
+                            continue
+                        for _idx in _con:
+                            _c = _con[_idx]
+                            _body = pyo.value(_c.body, exception=False)
+                            _lo = pyo.value(_c.lower, exception=False)
+                            if _body is None or _lo is None:
+                                continue
+                            _r = _body - _lo
+                            _con_resid_sum += abs(_r)
+                            _con_resid_max = max(_con_resid_max, abs(_r))
+                            _con_n += 1
+                except Exception:  # noqa: BLE001 - reporting only
+                    pass
+                _con_resid_sum = round(_con_resid_sum, 3)
+                _con_resid_max = round(_con_resid_max, 4)
+                # Proxy term breakdown kept as DIAGNOSTIC only (not the closure verdict).
+                _loss_term = _rl if _nodal else (_nl or 0.0)
+                _loss_kind = "return_only(nodal)" if _nodal else "network_full(single-node)"
+                if _tot_out is not None:
+                    _rhs = (_hd or 0.0) + (_dp or 0.0) + _tot_in + _loss_term + (_bf or 0.0)
+                    _proxy_resid = round(_tot_out - _rhs, 1) if _hd is not None else None
+                    objective["heat_balance_audit"] = {
+                        # authoritative:
+                        "constraint_residual_sum_MWh": _con_resid_sum,
+                        "constraint_residual_max_MWh": _con_resid_max,
+                        "n_balance_constraints": _con_n,
+                        "closes": bool(_con_resid_max < 1.0),
+                        # diagnostic term breakdown (NOT the verdict):
+                        "sum_ht_out_MWh": _tot_out, "sum_ht_in_MWh": _tot_in,
+                        "sum_heatd_MWh": _hd, "sum_Q_dump_MWh": _dp,
+                        "sum_network_loss_full_MWh": _nl, "sum_return_loss_MWh": _rl,
+                        "sum_Q_net_buf_MWh": _bf,
+                        "proxy_residual_MWh": _proxy_resid, "proxy_loss_kind": _loss_kind,
+                    }
+                    logger.info("[HEAT-BALANCE-AUDIT] constraint residual: sum=%.3f max=%.4f MWh "
+                                "over %d balances -> %s | (diag: ht_out=%.0f heatd=%s netloss_full=%s "
+                                "return=%.0f dump=%s)",
+                                _con_resid_sum, _con_resid_max, _con_n,
+                                "CLOSES" if _con_resid_max < 1.0 else "DOES NOT CLOSE",
+                                _tot_out, _hd, _nl, _rl, _dp)
         except Exception as _exc:  # noqa: BLE001 - reporting only
             logger.debug("node_heat_audit capture failed: %s", _exc)
 
@@ -871,32 +977,84 @@ def _collect_timeseries_and_summary(
     activation_cost = 0.0
     tie_break_cost = 0.0
     storage_install_cost = 0.0
+    om_cost = 0.0  # V3 (docs SS4bw): fixed O&M
+    var_om_cost = 0.0  # W2 (docs SS4bw-W): variable O&M
+    # 2026-09-22 (author-approved Step A, cost_breakdown.json): the objective has 17 additive terms
+    # (constraint_builder.create_objective; 15 as of the original Step A audit, +1 om_cost (V3) and
+    # +1 var_om_cost (W2), both docs SS4bw); only 4 (capex/activation/tie_break/storage_install)
+    # were ever read back here originally. The other terms -- terminal_value, demand_slack,
+    # return_anchor, pressure_reg, lateral_tiebreak, pressure_slack, om_cost, var_om_cost -- would
+    # otherwise silently fall into "Objective_residual_EUR" with no way to tell which one, if any,
+    # was nonzero. Read all of them by name so residual -> ~0 and every term is individually
+    # auditable (cost_breakdown.json). Must run in the SAME process as the solve (these Expressions
+    # live on the live Pyomo model; nothing is reconstructable from a saved .sol file).
+    terminal_value_cost = 0.0
+    demand_slack_cost = 0.0
+    return_anchor_cost = 0.0
+    pressure_reg_cost = 0.0
+    lateral_tiebreak_cost = 0.0
+    pressure_slack_cost = 0.0
+    data_closure_cost = 0.0
 
     if model is not None and HAVE_PYOMO:
-        capex_expr = getattr(model, "capex_cost_expr", None)
-        activation_expr = getattr(model, "activation_cost_expr", None)
-        tie_expr = getattr(model, "tie_break_cost_expr", None)
-        storage_install_expr = getattr(model, "storage_install_cost_expr", None)
-        if capex_expr is not None:
+        def _v(attr):
+            expr = getattr(model, attr, None)
+            if expr is None:
+                return 0.0
             try:
-                capex_cost = float(pyo.value(capex_expr))
+                return float(pyo.value(expr))
             except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                capex_cost = 0.0
-        if activation_expr is not None:
-            try:
-                activation_cost = float(pyo.value(activation_expr))
-            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                activation_cost = 0.0
-        if tie_expr is not None:
-            try:
-                tie_break_cost = float(pyo.value(tie_expr))
-            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                tie_break_cost = 0.0
-        if storage_install_expr is not None:
-            try:
-                storage_install_cost = float(pyo.value(storage_install_expr))
-            except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                storage_install_cost = 0.0
+                return 0.0
+
+        capex_cost = _v("capex_cost_expr")
+        activation_cost = _v("activation_cost_expr")
+        tie_break_cost = _v("tie_break_cost_expr")
+        storage_install_cost = _v("storage_install_cost_expr")
+        om_cost = _v("om_cost_expr")
+        var_om_cost = _v("var_om_cost_expr")
+        terminal_value_cost = _v("terminal_value_expr")
+        demand_slack_cost = _v("demand_slack_cost_expr")
+        return_anchor_cost = _v("return_anchor_cost_expr")
+        pressure_reg_cost = _v("pressure_reg_cost_expr")
+        lateral_tiebreak_cost = _v("lateral_tiebreak_cost_expr")
+        pressure_slack_cost = _v("pressure_slack_cost_expr")
+        data_closure_cost = _v("data_closure_cost_expr")
+        # TEMPORARY diagnostic cross-check (2026-09-22, residual investigation): the 5 "legacy"
+        # buckets (energy/dump/fuel/co2/demand) are ALSO stored as named Expressions on the model
+        # (create_objective's diagnostic block) but this function has always recomputed them
+        # independently from extracted hourly series instead of reading those Expressions. If the
+        # two disagree, the series-recompute (not model.obj) is the one that's wrong. Captured into
+        # objective["_diag_expr_*"], read once, then removed once the residual is understood.
+        _diag_energy_cost_expr = _v("energy_cost_expr")
+        _diag_dump_cost_expr = _v("dump_cost_expr")
+        _diag_fuel_cost_expr = _v("fuel_cost_expr")
+        _diag_co2_cost_expr = _v("co2_cost_expr")
+        _diag_demand_cost_expr = _v("demand_cost_expr")
+
+        # Pressure-slack audit (2026-09-22, B1b prep): model.pressure_slack_terms is a list of
+        # (slack_var, penalty) set by thermal_node.py's station_dp block, one Var per node with
+        # pressure_drop_enabled, indexed over time. The aggregate cost (pressure_slack_cost_expr)
+        # already flows into the objective; this additionally records WHERE/WHEN it is nonzero,
+        # needed to derive a fixed per-node pressure-bound widening (replaces the slack mechanism
+        # entirely once baked in -- see thermal_node.py CALION_PRESSURE_SLACK_MODE).
+        _pressure_slack_audit = {}
+        for _sv, _pen in getattr(model, "pressure_slack_terms", []):
+            _entries = {}
+            for _t in _sv:
+                try:
+                    _val = float(pyo.value(_sv[_t], exception=False) or 0.0)
+                except Exception:  # noqa: BLE001
+                    _val = 0.0
+                if abs(_val) > 1e-9:
+                    _entries[str(_t)] = _val
+            if _entries:
+                _pressure_slack_audit[_sv.name] = {
+                    "penalty_eur_per_bar_h": _pen,
+                    "n_nonzero_hours": len(_entries),
+                    "max_bar": max(_entries.values()),
+                    "sum_bar_h": sum(_entries.values()),
+                    "hours": _entries,
+                }
 
         hp_configs_by_id = {hp_cfg.get("id", f"HP{i}"): hp_cfg
                             for i, hp_cfg in enumerate(cfg.get("system", {}).get("heat_pumps", []))}
@@ -970,22 +1128,26 @@ def _collect_timeseries_and_summary(
 
         cap_value = float(hp.get("cap_init", hp["max_th"]))
         build_value = 1.0 if cap_value > 0 else 0.0
-        if model is not None and HAVE_PYOMO and hp.get("invest_enabled", False):
-            # Only read capacity/build from the model for investable HPs — for fixed HPs
-            # the values are config constants that Gurobi may not include in the solution,
-            # causing pyo.value() to return 0 after load_from().
+        # V1/V5 (2026-09-30, docs SS4bq): previously gated on hp.get("invest_enabled"),
+        # which was the O2 bug (docs SS4bk) -- for a non-investable HP with a genuine
+        # nonzero built capacity (fixed via .fix(), e.g. Q2/SB-S0-HK0-HPFIX533), this
+        # skipped the live read entirely and reported the WRONG static fallback. Fixed
+        # by always attempting the live Pyomo-variable read (via exception=False, which
+        # returns None instead of raising for a genuinely unset var) regardless of
+        # invest_enabled, and only falling back to the static config value when the
+        # live read is unavailable (None) -- not based on a flag that has repeatedly
+        # proven unreliable as a proxy for "does a meaningful value exist here".
+        if model is not None and HAVE_PYOMO:
             cap_var = getattr(model, f"{comp}_cap_mw", None)
             build_var = getattr(model, f"{comp}_build", None)
             if cap_var is not None:
-                try:
-                    cap_value = float(pyo.value(cap_var))
-                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                    cap_value = float(hp.get("cap_init", hp["max_th"]))
+                _v = pyo.value(cap_var, exception=False)
+                if _v is not None:
+                    cap_value = float(_v)
             if build_var is not None:
-                try:
-                    build_value = float(pyo.value(build_var))
-                except (ValueError, TypeError, AttributeError):  # pragma: no cover - defensive
-                    build_value = 1.0 if cap_value > 0 else 0.0
+                _v = pyo.value(build_var, exception=False)
+                if _v is not None:
+                    build_value = float(_v)
         full_load = float((heat_mwh / cap_value) if cap_value > 1e-9 else 0.0)
         avg_cop = float((heat_mwh / pel_mwh) if pel_mwh > 1e-9 else 0.0)
         avg_wrg_ratio = float((q_wrg_mwh / heat_mwh) if heat_mwh > 1e-9 else 0.0)
@@ -1076,11 +1238,33 @@ def _collect_timeseries_and_summary(
         pel_series  = series.get(f"{comp}_Pel_MW",  series.get("P2H_Pel_MW",  _zero_n))
         heat_mwh = float(sum(heat_series) * dt_h)
         pel_mwh = float(sum(pel_series) * dt_h)
+        # O2 (2026-09-28, docs SS4bk): p2h previously never read its own Pyomo
+        # investment variables (unlike heat_pump/storage) -- always reported the
+        # static config capacity_mw, no Build_binary at all. Mirrors the
+        # heat_pump fix above; naming convention verified against
+        # full_solution_dump.json (EK_SB_cap_mw / EK_SB_build).
+        p2h_cap_value = float(meta["p2h"]["cap_th"])
+        p2h_build_value = 1.0 if p2h_cap_value > 0 else 0.0
+        # V1 (2026-09-30, docs SS4bq): same fix as the heat_pump section above --
+        # always attempt the live read, don't gate on invest_enabled.
+        if model is not None and HAVE_PYOMO:
+            p2h_cap_var = getattr(model, f"{comp}_cap_mw", None)
+            p2h_build_var = getattr(model, f"{comp}_build", None)
+            if p2h_cap_var is not None:
+                _v = pyo.value(p2h_cap_var, exception=False)
+                if _v is not None:
+                    p2h_cap_value = float(_v)
+            if p2h_build_var is not None:
+                _v = pyo.value(p2h_build_var, exception=False)
+                if _v is not None:
+                    p2h_build_value = float(_v)
         p2h_section = OrderedDict(
             [
                 ("Heat_output_MWh", heat_mwh),
                 ("Electricity_input_MWh", pel_mwh),
-                ("Thermal_capacity_MW", meta["p2h"]["cap_th"]),
+                ("Thermal_capacity_MW", p2h_cap_value),
+                ("Build_binary", p2h_build_value),
+                ("Investment_enabled", bool(meta["p2h"].get("invest_enabled", False))),
             ]
         )
         if meta["p2h"]["eff"]:
@@ -1137,11 +1321,33 @@ def _collect_timeseries_and_summary(
 
     total_emissions_t = float(grid_co2_t + fuel_emissions_t)
     co2_price = float(cfg.get("costs", {}).get("co2_price_eur_per_t", 0.0))
-    # Prefer model-computed CO2 cost (includes CHP selfuse correction) over naive recalculation
-    if include_co2 and "CO2_total_cost_EUR" in objective:
+    # V5 (2026-09-30, docs SS4bw): CO2_cost_EUR is now the GROSS value (matching what
+    # create_objective's calculate_co2_costs() actually adds to model.obj -- captured
+    # live as co2_cost_expr/_diag_co2_cost_expr_EUR below), NOT the CHP-selfuse-netted
+    # figure. Previously (pre-V5), CO2_cost_EUR silently held the NETTED value while
+    # model.obj optimized GROSS -- the resulting mismatch was papered over by a
+    # dedicated "CO2_selfuse_netting_adjustment_EUR" aux term specifically engineered
+    # to cancel Objective_residual_EUR (extract_artefacts_p2.py's write_cost_breakdown_p2,
+    # Step A). With CO2_cost_EUR now genuinely gross, Objective_residual_EUR should
+    # drop to near-zero WITHOUT that cancellation trick, and the netting term becomes
+    # a real, standalone reporting KPI (CO2_cost_net_of_selfuse_EUR below) instead of
+    # a component of the objective reconciliation.
+    # _diag_co2_cost_expr (captured earlier from model.co2_cost_expr, the live Pyomo
+    # Expression create_objective built from the TRUE gross calculate_co2_costs()
+    # term) is the authoritative gross figure when a live model is present -- same
+    # guard condition used to originally populate it above.
+    if model is not None and HAVE_PYOMO:
+        co2_cost = float(_diag_co2_cost_expr)
+    elif include_co2 and "CO2_total_cost_EUR" in objective:
+        # No live model (e.g. reconstructed from a saved .sol) -- fall back to the
+        # netted figure, the only one available in that case.
         co2_cost = float(objective["CO2_total_cost_EUR"])
     else:
         co2_cost = float(co2_price * total_emissions_t) if include_co2 else 0.0
+    # V5: netted figure preserved as its own explicit, separate KPI (previously
+    # silently WAS CO2_cost_EUR) -- not part of real_costs_EUR/model_aux_terms_EUR.
+    if include_co2 and "CO2_total_cost_EUR" in objective:
+        objective["CO2_cost_net_of_selfuse_EUR"] = float(objective["CO2_total_cost_EUR"])
     dump_cost = float(dump_cost_rate * heat_dump)
 
     demand_cost = 0.0
@@ -1151,9 +1357,48 @@ def _collect_timeseries_and_summary(
         else:
             peak = float(max(pbuy_series, default=0.0))
         objective["P_buy_peak_MW"] = peak
-        demand_cost = float(demand_charge_rate * demand_year_fraction * peak)
+        # Y3 (2026-10-01, docs SS4cb): demand_cost here is ALWAYS the ANNUAL-peak
+        # figure (peak x rate), regardless of what actually drove the objective --
+        # correct for the legacy annual/zonal modes, but WRONG for the new monthly
+        # mode (whose real cost is sum of 12 monthly peaks x monthly rate, not this
+        # formula). Prefer the live model.demand_cost_expr (= _diag_demand_cost_expr,
+        # captured earlier from the model regardless of mode) when available -- same
+        # "trust the live Pyomo Expression over a locally-recomputed guess" pattern
+        # as V5's CO2_cost_EUR fix.
+        if model is not None and HAVE_PYOMO:
+            demand_cost = float(_diag_demand_cost_expr)
+        else:
+            demand_cost = float(demand_charge_rate * demand_year_fraction * peak)
     else:
         objective["P_buy_peak_MW"] = float(max(pbuy_series, default=0.0))
+
+    # Y3 (2026-10-01, docs SS4cb): Jahresspitzen-Diagnose -- always computed (not
+    # gated on demand_charge_mode) so annual vs monthly billing is comparable for
+    # ANY run, independent of which mechanism actually drove its objective.
+    if pbuy_series:
+        _idx_sorted = sorted(range(len(pbuy_series)), key=lambda i: pbuy_series[i], reverse=True)
+        _peak_i = _idx_sorted[0]
+        _peak_ts = str(table.index[_peak_i]) if table is not None and _peak_i < len(table.index) else None
+        objective["Annual_peak_hour_index"] = _peak_i + 1
+        objective["Annual_peak_timestamp"] = _peak_ts
+        objective["Top10_peak_hours_MW"] = [
+            {"hour_index": i + 1, "timestamp": str(table.index[i]) if table is not None and i < len(table.index) else None,
+             "P_buy_MW": pbuy_series[i]}
+            for i in _idx_sorted[:10]
+        ]
+        if table is not None and len(table.index) == len(pbuy_series):
+            _month_peaks: dict[int, float] = {}
+            for _i, _ts in enumerate(table.index):
+                _m = _ts.month
+                _month_peaks[_m] = max(_month_peaks.get(_m, 0.0), pbuy_series[_i])
+            _annual_peak = max(pbuy_series, default=0.0)
+            _annual_charge = demand_charge_rate * demand_year_fraction * _annual_peak
+            _monthly_rate_equiv = demand_charge_rate / 12.0
+            _monthly_charge = sum(_monthly_rate_equiv * p for p in _month_peaks.values())
+            objective["Demand_charge_annual_billing_EUR"] = float(_annual_charge)
+            objective["Demand_charge_monthly_billing_EUR_equiv_rate"] = float(_monthly_charge)
+            objective["Demand_charge_annual_minus_monthly_EUR"] = float(_annual_charge - _monthly_charge)
+            objective["Monthly_peaks_MW"] = {str(k): v for k, v in sorted(_month_peaks.items())}
 
     objective["Grid_energy_cost_EUR"] = energy_cost
     objective["Electricity_base_cost_EUR"] = base_electricity_cost
@@ -1177,6 +1422,15 @@ def _collect_timeseries_and_summary(
     objective["Activation_cost_EUR"] = activation_cost
     objective["Tie_breaker_cost_EUR"] = tie_break_cost
     objective["Storage_installation_cost_EUR"] = storage_install_cost
+    objective["OM_fixed_cost_EUR"] = om_cost
+    objective["OM_variable_cost_EUR"] = var_om_cost
+    objective["Terminal_value_EUR"] = terminal_value_cost
+    objective["Demand_slack_cost_EUR"] = demand_slack_cost
+    objective["Return_anchor_cost_EUR"] = return_anchor_cost
+    objective["Pressure_reg_cost_EUR"] = pressure_reg_cost
+    objective["Lateral_tiebreak_cost_EUR"] = lateral_tiebreak_cost
+    objective["Pressure_slack_cost_EUR"] = pressure_slack_cost
+    objective["Data_closure_epsilon_cost_EUR"] = data_closure_cost
 
     components_sum = (
         energy_cost
@@ -1189,8 +1443,91 @@ def _collect_timeseries_and_summary(
         + activation_cost
         + tie_break_cost
         + storage_install_cost
+        + om_cost
+        + var_om_cost
+        + terminal_value_cost
+        + demand_slack_cost
+        + return_anchor_cost
+        + pressure_reg_cost
+        + lateral_tiebreak_cost
+        + pressure_slack_cost
+        + data_closure_cost
     )
+    objective["_diag_energy_cost_expr_EUR"] = _diag_energy_cost_expr
+    objective["_diag_dump_cost_expr_EUR"] = _diag_dump_cost_expr
+    objective["_diag_fuel_cost_expr_EUR"] = _diag_fuel_cost_expr
+    objective["_diag_co2_cost_expr_EUR"] = _diag_co2_cost_expr
+    objective["_diag_demand_cost_expr_EUR"] = _diag_demand_cost_expr
+    if _pressure_slack_audit:
+        objective["_pressure_slack_audit"] = _pressure_slack_audit
+
+    # Dump audit (2026-09-22, C2/C3 prep): per-node, per-hour Q_dump_{node}[t] -- needed to
+    # attribute WHICH node/hour dumps heat (currently global: any node can dump; C3 will
+    # restrict this to CHP-owning nodes). Every entry (even 0-valued nodes) is skipped except
+    # nodes with any nonzero hour, mirroring the pressure-slack audit's format.
+    _dump_audit = {}
+    if model is not None and HAVE_PYOMO:
+        for _dvo in model.component_objects(pyo.Var, active=True):
+            if not _dvo.name.startswith("Q_dump_"):
+                continue
+            _nid = _dvo.name[len("Q_dump_"):]
+            _dv = _dvo
+            _entries = {}
+            for _t in _dv:
+                try:
+                    _val = float(pyo.value(_dv[_t], exception=False) or 0.0)
+                except Exception:  # noqa: BLE001
+                    _val = 0.0
+                if abs(_val) > 1e-9:
+                    _entries[str(_t)] = _val
+            if _entries:
+                _dump_audit[_nid] = {"n_nonzero_hours": len(_entries), "max_mw": max(_entries.values()),
+                                     "sum_mwh": sum(_entries.values()), "hours": _entries}
+    if _dump_audit:
+        objective["_dump_audit"] = _dump_audit
+    # 2026-09-23 (G3, docs SS4av/SS4aw): mandatory KPI, present in EVERY run's export (0.0 unless
+    # CALION_DUMP_MODE=chp_only actually made per-node dump Vars closure-eligible/unpriced --
+    # legacy-mode dump is real, priced dump and must NOT be reported here).
+    #
+    # 2026-09-23 BUGFIX (H1 verification run, docs SS4ay): the startswith("Q_dump_") scan above
+    # ALSO matches the separate, deliberately UNCAPPED per-CHP-asset "Q_dump_chp_{ASSET}" Vars
+    # (C3/Ansatz B, component_assembler.py) -- e.g. a live BC-SB run reported
+    # data_closure_dump_MWh=2240.48 (0.35%, apparently over the 0.25% cap) when the TRUE
+    # cap-governed quantity (summed only over the real per-node Q_dump_{node_id} closure Vars,
+    # i.e. _dump_audit keys NOT starting with "chp_") was 1599.94 MWh -- almost exactly AT the
+    # 1599.93 MWh cap (0.25% of that run's demand), not over it. The Constraint itself was never
+    # violated; only this KPI's summation was wrong. Excluded "chp_"-prefixed keys from the sum;
+    # _dump_audit itself is left untouched (still useful for CHP-dump-specific diagnostics, e.g.
+    # the D2 SB min-load analysis).
+    import os as _os_dc
+    _is_chp_only = _os_dc.environ.get('CALION_DUMP_MODE', 'legacy').strip().lower() == 'chp_only'
+    _closure_mwh = (
+        sum(v["sum_mwh"] for _nid, v in _dump_audit.items() if not _nid.startswith("chp_"))
+        if _is_chp_only else 0.0
+    )
+    objective["Data_closure_dump_MWh"] = _closure_mwh
+    # 2026-09-23 (H1, docs SS4ax): the cap is a DRIFT GUARD (0.25% of demand), not a physical
+    # limit -- warn loudly (but do not abort a completed, feasible solve) once usage crosses half
+    # the cap (0.125%), so a creeping/large excess is visible in logs well before it would ever
+    # hit the hard infeasibility boundary on some other run.
+    _total_demand_mwh = float(getattr(model, '_data_closure_total_demand_mwh', 0.0) or 0.0)
+    _closure_pct = (100.0 * _closure_mwh / _total_demand_mwh) if _total_demand_mwh > 0 else 0.0
+    objective["Data_closure_dump_pct_of_demand"] = _closure_pct
+    if _is_chp_only and _closure_pct > 0.125:
+        logger.warning(
+            "[DATA-CLOSURE] data_closure_dump_MWh = %.4f MWh = %.4f%% of annual demand "
+            "(%.2f MWh) -- above the 0.125%% drift-guard warning threshold (hard cap 0.25%%). "
+            "Not an error, but investigate before treating this run as routine.",
+            _closure_mwh, _closure_pct, _total_demand_mwh,
+        )
     objective["Objective_residual_EUR"] = objective["OBJ_value_EUR"] - components_sum
+    if abs(objective["Objective_residual_EUR"]) > 1.0:
+        logger.error(
+            "[COST-BREAKDOWN] Objective_residual_EUR = %.2f (> 1 EUR tolerance): the 17 named "
+            "objective terms do NOT reproduce model.obj -- an objective term exists that this "
+            "function still does not capture. Do not treat cost_breakdown.json as complete "
+            "until this is 0.", objective["Objective_residual_EUR"],
+        )
 
     grid_summary["Energy_from_grid_MWh"] = energy_in
     grid_summary["Energy_to_grid_MWh"] = energy_out

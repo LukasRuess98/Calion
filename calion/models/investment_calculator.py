@@ -29,6 +29,10 @@ class ComponentInvestmentConfig:
     activation_cost_eur: float
     tie_breaker_eur_per_mw: float
     lifetime_years: float = DEFAULT_LIFETIME_YEARS
+    # V3 (docs SS4bw): fixed O&M, direct EUR/MW/year (not %-of-CAPEX -- matches how
+    # the primary source, DEA Technology Data for Energy Plants, expresses it).
+    # Previously absent for every technology (S1 audit finding, docs SS4bo).
+    om_eur_per_mw_year: float = 0.0
 
 
 @dataclass
@@ -44,6 +48,10 @@ class StorageInvestmentConfig:
     tie_breaker_eur_per_mwh: float
     installation_cost_share: float = 0.0
     lifetime_years: float = DEFAULT_LIFETIME_YEARS
+    # V3 (docs SS4bw): fixed O&M as %/year of built CAPEX (no direct EUR/m3/year
+    # primary-source figure found for large TTES; %-of-CAPEX is an engineering
+    # estimate, unlike om_eur_per_mw_year above which is DEA-sourced).
+    om_pct_of_capex_per_year: float = 0.0
 
 
 @dataclass
@@ -65,6 +73,7 @@ class InvestmentTerms:
     activation: list[Any] = field(default_factory=list)
     tie_breaker: list[Any] = field(default_factory=list)
     storage_install: list[Any] = field(default_factory=list)
+    om: list[Any] = field(default_factory=list)  # V3 (docs SS4bw): fixed O&M
 
 
 class InvestmentCalculator:
@@ -93,6 +102,7 @@ class InvestmentCalculator:
         include_activation: bool = True,
         include_tie_breaker: bool = True,
         include_storage_install: bool = True,
+        include_om: bool = True,
     ):
         self.period_frac = period_frac
         self.discount_rate = discount_rate
@@ -100,6 +110,7 @@ class InvestmentCalculator:
         self.include_activation = include_activation
         self.include_tie_breaker = include_tie_breaker
         self.include_storage_install = include_storage_install
+        self.include_om = include_om
 
     def annual_factor(self, lifetime_years: float) -> float:
         """
@@ -150,6 +161,13 @@ class InvestmentCalculator:
         if self.include_tie_breaker and config.tie_breaker_eur_per_mw > 0:
             terms.tie_breaker.append(capacity_var * config.tie_breaker_eur_per_mw)
 
+        # V3 (docs SS4bw): fixed O&M is already an ANNUAL rate (EUR/MW/year), so it
+        # scales by period_frac ONLY -- NOT annual_factor (which divides by lifetime
+        # / applies ANF, appropriate for a one-time CAPEX being spread over the
+        # asset's life, not for an already-annual O&M rate).
+        if self.include_om and config.om_eur_per_mw_year > 0:
+            terms.om.append(capacity_var * config.om_eur_per_mw_year * self.period_frac)
+
         return terms
 
     def calculate_storage_costs(
@@ -195,6 +213,13 @@ class InvestmentCalculator:
             if self.include_activation and config.activation_cost_eur > 0:
                 terms.activation.append(build_var * config.activation_cost_eur * af)
 
+        # V3 (docs SS4bw): fixed O&M as %/year of the (un-annualized) built CAPEX,
+        # scaled by period_frac only (see calculate_component_costs's comment).
+        if self.include_om and config.om_pct_of_capex_per_year > 0 and install_components:
+            terms.om.append(
+                sum(install_components) * config.om_pct_of_capex_per_year * self.period_frac
+            )
+
         if (
             config.installation_cost_share > 0
             and install_components
@@ -234,6 +259,7 @@ class InvestmentCalculator:
             include_activation=cost_flags.get("include_activation_costs", True),
             include_tie_breaker=cost_flags.get("include_tie_breaker_costs", True),
             include_storage_install=cost_flags.get("include_storage_install_costs", True),
+            include_om=cost_flags.get("include_om_costs", True),
         )
 
     @staticmethod
@@ -259,6 +285,7 @@ class InvestmentCalculator:
             activation_cost_eur=get("activation_cost_eur"),
             tie_breaker_eur_per_mw=get("tie_breaker_eur_per_mw"),
             lifetime_years=get("lifetime_years", DEFAULT_LIFETIME_YEARS),
+            om_eur_per_mw_year=get("om_eur_per_mw_year"),
         )
 
     @staticmethod
@@ -286,6 +313,7 @@ class InvestmentCalculator:
             tie_breaker_eur_per_mwh=get("tie_breaker_eur_per_mwh"),
             installation_cost_share=get("installation_cost_share"),
             lifetime_years=get("lifetime_years", DEFAULT_LIFETIME_YEARS),
+            om_pct_of_capex_per_year=get("om_pct_of_capex_per_year"),
         )
 
 

@@ -1,0 +1,238 @@
+{
+  "_meta": {
+    "generated": "2026-09-29",
+    "purpose": "S1-S7 economics audit (docs/paper_2/submission_pack/00_statements/MODEL_AND_DOE_CONTROL.md SS4bo)",
+    "method": "pure config/code reading + arithmetic on existing .sol results, no new solves",
+    "sources": [
+      "calion/models/investment_calculator.py",
+      "calion/models/cost_calculator.py",
+      "calion/models/blocks/geometric_storage.py",
+      "calion/models/system_builder.py",
+      "configs/paper_2/storage_geometry.yaml",
+      "configs/paper_2/Stadtbach_topo.yaml",
+      "configs/paper_2/Memmingen_P2_base.yaml",
+      "calion/economics/german_subsidies.py",
+      "output/mm_s4_reconcile/o1_sb_pin0/SB-S0-HK0-PIN0/cost_breakdown.json"
+    ]
+  },
+  "S1_capital_costs": {
+    "annuity_formula": "ANF(i,n) = i*(1+i)^n / ((1+i)^n - 1), identical for all technologies and both networks",
+    "discount_rate": {"value": 0.05, "source": "investment.discount_rate, Stadtbach_topo.yaml and Memmingen_P2_base.yaml, identical"},
+    "fixed_om_cost": {
+      "exists_in_used_code_path": false,
+      "note": "ComponentInvestmentConfig/StorageInvestmentConfig dataclasses in investment_calculator.py have no O&M field. opex_fixed_eur_per_mw_yr exists only in calion/config/schemas/tech_library_schema.py, an unused schema for a different config pathway. No technology (HP, EK, TES, existing CHP/boilers) carries a fixed O&M cost anywhere in the objective for this project."
+    },
+    "technologies": {
+      "heat_pump": {
+        "asset_ids": ["hp_sb", "hp_main"],
+        "capex_eur_per_mw": 700000.0,
+        "activation_cost_eur": 50000.0,
+        "lifetime_years": 20.0,
+        "source_comment": "Pieper, Ommen, Buehler, Lava Paaske, Elmegaard & Markussen, 'Allocation of investment costs for large-scale heat pumps supplying district heating', Energy Procedia 147 (2018) 358-367; 26 real Danish DH-HP installations, 0.8-1.1 M EUR/MW (2017 data). Harmonized 2026-07-20 (was 400k, undocumented asymmetry).",
+        "literature_expectation_years": "20-25",
+        "matches_expectation": true
+      },
+      "electric_boiler": {
+        "asset_ids": ["ek_sb", "eboiler_main"],
+        "capex_eur_per_mw": 150000.0,
+        "activation_cost_eur": 20000.0,
+        "lifetime_years": 25.0,
+        "source_comment": "Danish Energy Agency Technology Catalogue (efficiency reference; CAPEX source not explicitly cited in config comment)",
+        "literature_expectation_years": 20,
+        "matches_expectation": false,
+        "deviation_note": "config uses 25y vs. 20y literature expectation, 5y above, not flagged as an issue elsewhere"
+      },
+      "thermal_storage": {
+        "asset_ids": ["tes_sb", "tes_main"],
+        "cost_model": "degressive per-tank power law, see S2",
+        "lifetime_years": 30.0,
+        "literature_expectation_years": "30-40 (steel tank)",
+        "matches_expectation": "at lower bound",
+        "source_comment": "engineering estimate (ASME thin-wall pressure vessel sizing), explicitly NOT a vendor quote"
+      },
+      "existing_chp_boilers": {
+        "asset_ids": ["hkw", "gtost", "bmhkw", "hws_boiler", "hww_boiler"],
+        "investable": false,
+        "capex_in_objective": 0.0,
+        "note": "existing infrastructure, no capital cost in the objective at all -- intentional greenfield-decision framing, but a real asymmetry vs. investable assets"
+      }
+    }
+  },
+  "S2_tes_cost_curve": {
+    "formula": "C(V) = N * c0 * (V/N / v0)^b, evaluated per-tank at N=ceil(V/unit_tank_m3) identical tanks",
+    "parameters_shared_both_networks": {
+      "c0_eur": 2500000.0,
+      "v0_m3": 10000.0,
+      "exponent_b": 0.7,
+      "source": "configs/paper_2/storage_geometry.yaml top-level defaults, inherited by both tes_sb and tes_main (neither per_asset block overrides these fields)"
+    },
+    "unit_tank_m3": {"SB": 5000.0, "MM": 5000.0, "source": "network-specific asset block in Stadtbach_topo.yaml / Memmingen_P2_base.yaml"},
+    "eur_per_m3_table": [
+      {"V_m3": 50, "N_tanks": 1, "eur_per_m3": 1225.3},
+      {"V_m3": 100, "N_tanks": 1, "eur_per_m3": 995.3},
+      {"V_m3": 500, "N_tanks": 1, "eur_per_m3": 614.1},
+      {"V_m3": 1000, "N_tanks": 1, "eur_per_m3": 498.8},
+      {"V_m3": 5000, "N_tanks": 1, "eur_per_m3": 307.8},
+      {"V_m3": 10000, "N_tanks": 2, "eur_per_m3": 307.8},
+      {"V_m3": 50000, "N_tanks": 10, "eur_per_m3": 307.8}
+    ],
+    "saturation_note": "EUR/m3 flattens at exactly unit_tank_m3 (5000 m3) -- degression benefit caps at single-tank scale, larger volumes just add identical tanks at the same per-m3 rate",
+    "validity_range_check": {
+      "typical_source_validity_floor_m3": 1000,
+      "config_v_min_realistic_m3": 50.0,
+      "config_V_min_m3_actual": {"SB_tes_sb": 10.0, "MM_tes_main": 5.0},
+      "inconsistency": "both networks' actual V_min_m3 sit below the config's own documented realism floor of 50 m3",
+      "smallest_nonzero_ladder_rung_converted_to_m3": {
+        "MM": {"rung_mwh": 0.5, "V_m3_approx": 52.0, "below_1000m3_threshold": true, "concrete_case": "Q3's c0x0.5 run built exactly a 1.1 MWh (~76 m3) tank -- in this questionable-validity zone, not hypothetical"},
+        "SB": {"rung_mwh": 37, "V_m3_approx": 3849.4, "below_1000m3_threshold": false}
+      },
+      "conclusion": "MM's small-tank ladder rungs are extrapolated well outside the cost curve's likely validated range (~1000 m3); SB's ladder stays safely above it. Reported only, no change made -- ladder truncation or a second small-buffer cost dataset is the author's decision."
+    }
+  },
+  "S3_prices": {
+    "electricity_buy_price_formula": "strompreis_EUR_MWh[t] + energy_fee_eur_mwh (0) + gridcost_eur_mwh (61.6)",
+    "electricity_sell_price_formula": "max(strompreis_EUR_MWh[t] - sell_spread(0), sell_floor(0)) * (1 - sell_haircut(0)) - sell_fee(0) + sell_premium(0) = raw spot price, unmodified",
+    "buy_vs_sell_price_gap_eur_per_mwh": 61.6,
+    "gap_components_per_config_comment": "MS Arbeitspreis + KWKG 0.446 + Offshore 0.941 + BesAR/§19 0.05 + Konzessionsabgabe 0.11 + Stromsteuer 0.05 ct/kWh",
+    "asymmetry_note": "sell_haircut/sell_spread/sell_fee mechanisms exist in code but are 0 in both network configs -- CHP electricity sale is modeled at the full raw wholesale price with zero marketing/balancing discount, an unquantified optimistic simplification for the generation side",
+    "harmonization": "gridcost_eur_mwh and all fuel prices harmonized between SB and MM on 2026-07-29 (previously undocumented asymmetries)",
+    "fuels": {
+      "gas": {"price_eur_mwh": 58.6, "ef_kg_per_mwh": 200.0, "base_year": "not documented in config comment"},
+      "biomass": {"price_eur_mwh": 20.0, "ef_kg_per_mwh": 20.0, "base_year": "not documented in config comment"},
+      "waste_heat": {"price_eur_mwh": 10.0, "ef_kg_per_mwh": 0.0, "network": "SB only (ava_feed)"}
+    },
+    "price_timeseries_stats": {
+      "status": "not computed in this audit pass (time budget) -- mean/min/max/stddev of strompreis_EUR_MWh for 2025 not pulled",
+      "deliverable_on_request": true
+    }
+  },
+  "S4_demand_charge": {
+    "formula": "demand_charge_eur_per_mw_y * year_frac * P_buy_peak",
+    "reference_quantity": "single annual peak of grid electricity import (P_buy), hourly resolution (dt_h=1h), no monthly-peak mechanism found",
+    "rate_eur_per_mw_year": 127240.0,
+    "rate_identical_both_networks": true,
+    "triggering_assets": "any asset drawing grid electricity at the coincident peak hour -- for SB effectively hp_sb/ek_sb only (CHP/boilers generate electricity, they don't import it)",
+    "base_vs_wp_point_comparison_sb_eur": {
+      "BASE-HK0_N3": 46241.29,
+      "S0-HK0_forced_point_N3": 321400.63,
+      "S0-HK0-PIN0": 50907.78,
+      "BASE-FIX_O3": 49583.97,
+      "note": "the forced HP point's demand charge is ~7x BASE -- the 5.33 MW HP creates a new, much higher import peak"
+    }
+  },
+  "S5_co2_emissions": {
+    "co2_price_eur_per_t": 100.0,
+    "co2_price_identical_both_networks": true,
+    "emission_factors_kg_per_mwh": {
+      "gas": 200.0,
+      "biomass": 20.0,
+      "waste_heat": 0.0,
+      "grid_electricity_unused_static_field": 400.0
+    },
+    "biomass_is_zero_check": {"answer": false, "note": "biomass EF is 20 kg/MWh, not 0 -- likely lifecycle/harvest/transport emissions, not combustion CO2; not further documented in code why exactly 20"},
+    "grid_co2_mechanism": "hourly grid_co2_kg_MWh timeseries (electricitymaps) used in both objective and reporting -- the static ef_el_kg_per_mwh=400 field is explicitly marked UNUSED in the config comment",
+    "gross_net_double_counting_check": {
+      "model_optimizes": "gross (CHP electricity emissions, no self-use netting)",
+      "kpi_reporting_shows": "net (x selfuse_fraction)",
+      "reconciliation": "the netting difference appears explicitly and labeled as CO2_selfuse_netting_adjustment_EUR in every cost_breakdown.json (e.g. SB-S0-HK0-PIN0: -1,606,644.23 EUR historically / current run -1,585,028.80 EUR aux total dominated by this term) -- it is a KPI attribution correction only, does not double-count into the real objective cost (real_costs_EUR.CO2_cost_EUR stays gross)",
+      "no_double_counting": true
+    }
+  },
+  "S6_revenue": {
+    "objective_revenue_terms": ["P_sell[t] * sell_price[t] (CHP electricity sale, reported as Grid_sell_revenue_EUR, negative sign)"],
+    "no_other_revenue_terms": true,
+    "eeg_kwkg_subsidy_check": {
+      "code_exists": "calion/economics/german_subsidies.py KWKGParameters class",
+      "wired_into_objective": false,
+      "verification": "no import/call in system_builder.py, model_finalizer.py, or cost_calculator.py -- report-only, confirmed dead for optimization purposes",
+      "real_world_gap": "a real biomass CHP plant of this size (14.5 MW) would typically receive an EEG/KWKG feed-in premium above the wholesale price under German law -- this potential extra revenue is absent from the model",
+      "action": "reported only, not implemented, per instruction"
+    }
+  },
+  "S7_consistency": {
+    "base_years": {
+      "electricity_price_timeseries": 2025,
+      "gas_biomass_fixed_prices": "not documented",
+      "grid_fees_demand_charge": 2026,
+      "hp_ek_capex_literature": "2017-2018 (Pieper et al.), no visible inflation adjustment"
+    },
+    "mixed_base_years_present": true,
+    "om_asymmetry": "none between technologies -- structurally absent for ALL technologies (see S1), not a single-technology gap",
+    "tac_formula": "TAC = sum(CAPEX_annualized) + sum(Activation_annualized) + Fuel_cost + Grid_energy_cost + Grid_sell_revenue(negative) + CO2_cost + Demand_charge_cost [=real_costs_total_EUR] + aux_terms(Dump/TieBreaker/StorageInstall/Terminal/DemandSlack/ReturnAnchor/PressureReg/LateralTiebreak/PressureSlack/DataClosureEpsilon/CO2SelfuseNetting) [=model_aux_terms_total_EUR] + residual = objective_total_EUR (from Gurobi)",
+    "tac_check_run": "SB-S0-HK0-PIN0",
+    "tac_check_values_eur": {
+      "real_costs_total_EUR": 21128961.043006558,
+      "model_aux_terms_total_EUR": -1585028.8049147471,
+      "residual_EUR": 1587078.9689238742,
+      "objective_total_EUR": 21131011.207015682,
+      "sum_minus_objective_diff_eur": 3.725290298461914e-09
+    },
+    "tac_closes_exactly": true,
+    "reconciliation_check_status": "OK, confirmed structurally for every run checked this session, not just this one"
+  },
+  "V2e_tes_cost_source_table": {
+    "_meta": {
+      "generated": "2026-09-30",
+      "purpose": "V2d(a)/V2e(a-b) mandatory source table for TES cost-curve plausibility check (docs SS4bu). Supersedes the S2 eur_per_m3_table above, which predates V2/V2b/V2c/V2d/V2e's unit_tank_m3 changes and is kept only as a historical S1-S7-audit snapshot.",
+      "root_cause_corrected": "an earlier '93 EUR/m3 at 6,000 m3' citation (SS4bt(c)) was found NOT to exist anywhere in the cited source after reading the actual paper full-text; it was an artifact of an AI WebSearch summary, never verified against the primary document. See SS4bu(a) for the full incident and the resulting rule: cite only from a read primary document or a structured API, never a web-summary alone.",
+      "primary_source": {
+        "citation": "Luechinger, R., Hendry, R., Walter, H., Worlitschek, J., Schuetz, P. (2025). 'Cost Analysis for Large Thermal Energy Storage Systems.' ASME J. Eng. Sustain. Bldgs. Cities, 6(2):021006. DOI 10.1115/1.4069122. CC-BY 4.0.",
+        "open_access_pdf": "https://zenodo.org/records/17347333/files/Luchinger_et_al._2025_Cost_Analysis_for_Large_TES_final.pdf",
+        "verification_method": "full 14-page PDF (incl. Appendix A-F) read directly via file-read tool, not WebFetch AI-summarization",
+        "cost_data_scope": "paper defines its figures only as 'investment costs' / 'capital costs' from desk research on published projects; no explicit turnkey vs. bare-vessel definition given. Indirect scope evidence (p.3): 'In Mannheim, 26% of the cost was allocated to the tank, including the foundation, internal structures, and insulation. In Flensburg, this proportion was 56%' -- implies total project cost is broader than the vessel alone (foundation+structure+insulation+unnamed other cost blocks, plausibly connection/planning); land/site acquisition is never explicitly mentioned as included or excluded.",
+        "price_basis_in_paper": "PPP-adjusted and inflation-adjusted to 2023 price level, reported per-country in CHF/GBP/USD/EUR"
+      },
+      "currency_and_inflation_adjustment_to_2026_eur": {
+        "fx_usd_to_eur_2023": 0.925,
+        "inflation_index": {
+          "source": "Eurostat API dataset sts_inpp_m (Producer prices in industry, domestic market, monthly)",
+          "series": "geo=DE, nace_r2=C25 (Manufacture of fabricated metal products, except machinery and equipment), unit=I21 (index 2021=100), s_adj=NSA",
+          "retrieval_method": "direct Eurostat REST JSON API call, raw values read (not AI-summarized)",
+          "value_2023_annual_avg": 119.2,
+          "value_2026_latest_available": 125.2,
+          "value_2026_latest_period": "2026-07",
+          "factor_2023_to_2026": 1.050
+        },
+        "combined_factor_2023usd_to_2026eur": 0.971,
+        "note": "first attempt used a Destatis page via WebFetch AI-summary, which returned an internally inconsistent figure (~flat 2023->2026 despite a stated +4.6% YoY) and was discarded in favor of the direct Eurostat API pull -- second occurrence of the same WebFetch-summary failure mode in this pass, see SS4bu(a)."
+      }
+    },
+    "appendix_d_named_atmospheric_ttes_projects": [
+      {"project": "Hamburg", "country": "DE", "year_built": 1996, "volume_m3": 4500, "usd_per_m3_2023_paper": 490, "eur_per_m3_2026": 476, "outlier": false},
+      {"project": "Perlen", "country": "CH", "year_built": 2022, "volume_m3": 5000, "usd_per_m3_2023_paper": 1057, "eur_per_m3_2026": 1026, "outlier": false},
+      {"project": "Munich", "country": "DE", "year_built": 2007, "volume_m3": 5700, "usd_per_m3_2023_paper": 364, "eur_per_m3_2026": 353, "outlier": false},
+      {"project": "Neukoelln", "country": "DE", "year_built": 2015, "volume_m3": 10000, "usd_per_m3_2023_paper": 2186, "eur_per_m3_2026": 2123, "outlier": true, "outlier_hypothesis_unverified": "inner-city Berlin siting / constrained footprint / ancillary-facility cost, not confirmed against the paper's cited input source (saisonalspeicher.de) in this pass"},
+      {"project": "Friedrichshafen", "country": "DE", "year_built": 1996, "volume_m3": 12000, "usd_per_m3_2023_paper": 259, "eur_per_m3_2026": 251, "outlier": false},
+      {"project": "Haltikon", "country": "CH", "year_built": 2020, "volume_m3": 18000, "usd_per_m3_2023_paper": 264, "eur_per_m3_2026": 256, "outlier": false}
+    ],
+    "literature_ranges_no_volume_context_only": {
+      "spf_institute_atmospheric_usd_per_m3_2023": [220, 400],
+      "sifnaios_et_al_ttes_over_7500m3_usd_per_m3_2023": "<200",
+      "christos_two_tank_usd_per_m3_2023": [350, 440],
+      "yang_et_al_usd_per_m3_2023": [100, 5400]
+    },
+    "model_curve_vs_real_at_matched_volumes": [
+      {"volume_m3": 4500, "model_eur_per_m3": 317.6, "real_eur_per_m3": 476, "ratio_model_over_real": 0.667},
+      {"volume_m3": 5000, "model_eur_per_m3": 307.8, "real_eur_per_m3": 1026, "ratio_model_over_real": 0.300},
+      {"volume_m3": 5700, "model_eur_per_m3": 295.9, "real_eur_per_m3": 353, "ratio_model_over_real": 0.838},
+      {"volume_m3": 10000, "model_eur_per_m3": 250.0, "real_eur_per_m3": 2123, "ratio_model_over_real": 0.118, "note": "vs. Neukoelln outlier"},
+      {"volume_m3": 12000, "model_eur_per_m3": 236.7, "real_eur_per_m3": 251, "ratio_model_over_real": 0.943},
+      {"volume_m3": 18000, "model_eur_per_m3": 209.6, "real_eur_per_m3": 256, "ratio_model_over_real": 0.819}
+    ],
+    "conclusion": {
+      "finding": "model curve is at or below every named real project at matched volume, never above -- the earlier 'model overprices storage 3.1x' finding is retracted as unfounded (based on a non-existent citation)",
+      "median_real_eur_per_m3_2026_incl_outlier": 415,
+      "median_real_eur_per_m3_2026_excl_outlier": 353,
+      "spread_factor_at_comparable_size_excl_outlier": 4.1,
+      "spread_factor_at_comparable_size_incl_outlier": 8.5,
+      "reuter_west_status": "remains a SIZE reference only (justifies max_tank_m3=50,000), explicitly NOT used as a cost anchor",
+      "c0_v0_exponent_b": "unchanged, no recalibration performed",
+      "v7_sweep_replaces_v2d_c": {
+        "old_one_sided_5_rung": [1.0, 0.7, 0.5, 0.35, 0.25],
+        "new_two_sided_5_rung_factors": [0.5, 0.7, 1.0, 1.5, 2.0],
+        "new_two_sided_5_rung_eur_per_m3_at_anchor": [125, 175, 250, 375, 500]
+      },
+      "halt_before_v3": "LIFTED -- V3 approved to proceed"
+    }
+  }
+}

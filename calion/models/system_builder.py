@@ -18,6 +18,7 @@ from calion.constants import (
     DEFAULT_CO2_PRICE_EUR_PER_T,
     DEFAULT_DUMP_COST_EUR_PER_MWH_TH,
     HOURS_PER_YEAR,
+    HYDRAULIC_SUSPENDED_HOURS,
 )
 from calion.utils.timeseries import TimeSeriesTable
 
@@ -241,7 +242,16 @@ def _build_model_unified(
     )
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
     m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", DEFAULT_CO2_PRICE_EUR_PER_T)))
-    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
+    _dump_price = float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH))
+    # 2026-09-24 (B2, docs SS4az): env override so the B1a dump-price attribution experiment
+    # (1000 vs 5 EUR/MWh) can be run WITHOUT ever editing the committed config (which holds the
+    # post-B1a value, 5) -- every other run stays reproducible from the same file.
+    import os as _os_dp
+    _dump_price_env = _os_dp.environ.get('CALION_DUMP_PRICE_OVERRIDE')
+    if _dump_price_env:
+        logger.info("[B2] dump_cost_eur_per_mwh_th overridden %s -> %s (env)", _dump_price, _dump_price_env)
+        _dump_price = float(_dump_price_env)
+    m.dump_cost = pyo.Param(initialize=_dump_price)
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
     # ── Zonal demand charges (if configured) ───────────────────────────────
@@ -314,6 +324,18 @@ def _build_model_unified(
     m._unified_config = ucfg
     m._system_buses = sys_buses
 
+    # D1 active-assertion (2026-09-22, C3 "Notkuehler Ansatz B"): a chp_only run that attached the
+    # per-CHP dump/capacity mechanism to ZERO generators (e.g. el_eff detection broke, or a
+    # network genuinely has no CHP) is a silent no-op identical to legacy mode -- fail loudly.
+    import os as _os_sb
+    if _os_sb.environ.get('CALION_DUMP_MODE', 'legacy').strip().lower() == 'chp_only':
+        _n_chp = len(getattr(sys_buses, 'chp_dump_terms', []) or [])
+        logger.info("[DUMP-MODE] chp_only: %d CHP asset(s) got Q_dump_chp (emergency-cooler "
+                    "capacity, bounded by their own thermal output)", _n_chp)
+        assert _n_chp > 0, (
+            "[DUMP-MODE] chp_only requested but 0 CHP assets received a Q_dump_chp mechanism -- "
+            "the emergency-cooler capacity is a no-op, investigate before trusting results.")
+
     # Flatten for compatibility with ModelFinalizer
     buses = sys_buses.to_flat_bus_connections()
 
@@ -333,6 +355,50 @@ def _build_model_unified(
     finalizer.integrate_network()
     finalizer.add_balance_constraints()
     finalizer.build_and_set_objective()
+
+    # E3 (2026-09-22, author decision, docs SS4au): "hydraulischen Constraint-Block fuer
+    # die 3 Dezember-Stunden (8365-8367) vollstaendig aussetzen" -- per-node pressure-slack
+    # widening (C1, CALION_PRESSURE_SLACK_MODE=preprocessed) was still LP-infeasible at
+    # hour 8366 (IIS: whole propagation chain upstream of j_13 + an unrelated J7_TO_J8 PWL
+    # segment, docs SS4at/SS4au) -- suspend the ENTIRE hydraulic/pressure constraint
+    # family network-wide at exactly these 3 hours instead, identically in every scenario.
+    # Post-hoc deactivation (not a per-rule env check) keeps this a single, centrally
+    # audited mechanism instead of N scattered edits across pipe_pair.py/network_manager.py/
+    # thermal_node.py/state_constraints.py.
+    _hyd_mode = _os_sb.environ.get('CALION_PRESSURE_SLACK_MODE', 'objective').strip().lower()
+    if _hyd_mode == 'suspend_hydraulic':
+        _HYD_NAME_FRAGMENTS = (
+            '_station_dp', '_lateral_w_sum', '_lateral_flow_link', '_lateral_dp_extra_def',
+            '_pressure_drop_supply', '_pressure_drop_return', '_pressure_drop_total',
+            'pressure_supply_prop_', 'pressure_return_prop_', '_P_supply_setpoint',
+            '_pressure_supply_min', '_pressure_return_min',
+        )
+        _n_deactivated = 0
+        _n_matched_components = 0
+        for _c in list(m.component_objects(pyo.Constraint, active=True)):
+            _cname = _c.name
+            if not any(_frag in _cname for _frag in _HYD_NAME_FRAGMENTS):
+                continue
+            _n_matched_components += 1
+            for _idx in list(_c.keys()):
+                _t = _idx[0] if isinstance(_idx, tuple) else _idx
+                if _t in HYDRAULIC_SUSPENDED_HOURS:
+                    _c[_idx].deactivate()
+                    _n_deactivated += 1
+        logger.info(
+            "[E3-HYDRAULIC-SUSPEND] suspend_hydraulic: deactivated %d constraint instance(s) "
+            "across %d matched constraint component(s), at %d hour(s) (%s)",
+            _n_deactivated, _n_matched_components, len(HYDRAULIC_SUSPENDED_HOURS),
+            sorted(HYDRAULIC_SUSPENDED_HOURS),
+        )
+        assert _n_matched_components > 0, (
+            "[E3-HYDRAULIC-SUSPEND] suspend_hydraulic requested but 0 constraint components "
+            "matched the hydraulic name-fragment list -- the mechanism is a silent no-op, "
+            "investigate the naming patterns before trusting results.")
+        assert _n_deactivated > 0, (
+            "[E3-HYDRAULIC-SUSPEND] suspend_hydraulic requested but 0 constraint instances "
+            "were deactivated at the target hours -- check HYDRAULIC_SUSPENDED_HOURS against "
+            "this run's time_set (short-window tests must use absolute year-hours).")
 
     return m
 
@@ -393,7 +459,16 @@ def _build_model_legacy(
     )
     m.year_frac = pyo.Param(initialize=float(grid.get("year_fraction", period_frac)))
     m.co2_price = pyo.Param(initialize=float(costs.get("co2_price_eur_per_t", DEFAULT_CO2_PRICE_EUR_PER_T)))
-    m.dump_cost = pyo.Param(initialize=float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH)))
+    _dump_price = float(costs.get("dump_cost_eur_per_mwh_th", DEFAULT_DUMP_COST_EUR_PER_MWH_TH))
+    # 2026-09-24 (B2, docs SS4az): env override so the B1a dump-price attribution experiment
+    # (1000 vs 5 EUR/MWh) can be run WITHOUT ever editing the committed config (which holds the
+    # post-B1a value, 5) -- every other run stays reproducible from the same file.
+    import os as _os_dp
+    _dump_price_env = _os_dp.environ.get('CALION_DUMP_PRICE_OVERRIDE')
+    if _dump_price_env:
+        logger.info("[B2] dump_cost_eur_per_mwh_th overridden %s -> %s (env)", _dump_price, _dump_price_env)
+        _dump_price = float(_dump_price_env)
+    m.dump_cost = pyo.Param(initialize=_dump_price)
     m.demand_charge_y = pyo.Param(initialize=float(grid.get("demand_charge_eur_per_mw_y", 0.0)))
 
     # ── Zonal demand charges (if configured) ───────────────────────────────

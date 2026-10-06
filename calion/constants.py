@@ -134,3 +134,18 @@ G_ACCEL_M_S2 = 9.81
 
 # Standard atmospheric pressure [bar]
 P_ATM_BAR = 1.013
+
+
+# ==========================================
+# E3 Hydraulic Suspension (2026-09-22, author decision, docs SS4au)
+# ==========================================
+# Exact absolute year-hours (1-indexed, matching model.t) at which j_13's December
+# data anomaly (sparse daily metering on V_22/23/24, ffilled to hourly step-holds --
+# see thermal_node.py's pressure-relief comment) makes the coupled pressure system
+# infeasible even after per-node slack widening (C1): the propagation chain upstream
+# of j_13 (j9_to_j10, j10_to_j11, j11_to_j13) and an unrelated PWL segment on
+# J7_TO_J8 are also implicated (IIS, docs SS4at/SS4au). E3 instead suspends the
+# ENTIRE hydraulic/pressure constraint block network-wide at exactly these 3 hours,
+# identically across every scenario, when CALION_PRESSURE_SLACK_MODE=suspend_hydraulic
+# (see system_builder.py). Single source of truth -- do not hardcode this set elsewhere.
+HYDRAULIC_SUSPENDED_HOURS = frozenset({8365, 8366, 8367})

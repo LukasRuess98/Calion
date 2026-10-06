@@ -78,6 +78,20 @@ class HeatPumpBlock(BaseComponent):
             raise RuntimeError("Pyomo is required to attach blocks")
         # Create variables
         comp = self.name
+        # 2026-09-22 E1 FIX (author decision, "Geistervariablen entfernen"): a non-investable unit
+        # with zero existing capacity is genuinely absent from the network, not just "chosen at
+        # 0" -- but the code below used to still create a per-timestep McCormick var `cap_x_on`
+        # bounded by `cap_max_bound = max(capacity_max_mw, capacity_init_mw, 1e-9)`, i.e. a
+        # STRICTLY POSITIVE upper box bound (1e-9) even when both true capacities are exactly 0,
+        # co-existing with the (correct, exact) linear constraint `cap_x_on <= cap == 0`. Found via
+        # IIS on two independently-infeasible full-year MM ablations (docs SS4at): BOTH implicated
+        # `hp_main_cap_x_on`'s upper bound, though algebraically the linear constraint alone
+        # already pins cap_x_on to exactly 0 regardless -- the box bound is a redundant "ghost"
+        # that has no business being anything other than exactly 0 for a unit that cannot exist.
+        # Fix: when truly disabled (not investable AND zero existing capacity), skip cap_x_on and
+        # its 3 linearization constraints entirely, fix on[t]/Q[t]/Q_wrg[t]/Q_def[t]/Q_hot[t] to
+        # exactly 0, and use `cap` (already exactly fixed to 0) directly in cap_rule/min_rule.
+        self._disabled = (not self.investable) and self.capacity_init_mw <= 0.0
         setattr(m, f"{comp}_Q", pyo.Var(Tset, domain=pyo.NonNegativeReals))  # heat out
         setattr(m, f"{comp}_Q_wrg", pyo.Var(Tset, domain=pyo.NonNegativeReals))  # heat from WRG
         setattr(m, f"{comp}_Q_def", pyo.Var(Tset, domain=pyo.NonNegativeReals))  # fallback heat
@@ -134,22 +148,37 @@ class HeatPumpBlock(BaseComponent):
         # of multi-hour solves on HP-investment scenarios (e.g. MM-S2, ~24h).
         # Standard exact (not relaxed) reformulation for y∈{0,1}, x∈[0,x_max]:
         #   z <= x_max * y ;  z <= x ;  z >= x - x_max*(1-y) ;  z >= 0
-        cap_max_bound = max(self.capacity_max_mw, self.capacity_init_mw, 1e-9)
-        setattr(m, f"{comp}_cap_x_on", pyo.Var(
-            Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_max_bound)))
-        cap_x_on = getattr(m, f"{comp}_cap_x_on")
+        _n_ghost_skipped = 0
+        _n_hard_fixed = 0
+        if self._disabled:
+            # Disabled unit: NO cap_x_on Var, NO linearization constraints at all (first-best
+            # per E1) -- fix every per-timestep Var to exactly 0 instead (Zweitbeste Variante,
+            # applied to what's left: Q/Q_wrg/Q_def/on themselves).
+            cap_x_on = None
+            for t in Tset:
+                onv[t].fix(0)
+                Q[t].fix(0.0)
+                Q_wrg[t].fix(0.0)
+                Q_def[t].fix(0.0)
+                _n_hard_fixed += 4
+            _n_ghost_skipped = 3  # linfix_hi/le_cap/lo constraints never created
+        else:
+            cap_max_bound = max(self.capacity_max_mw, self.capacity_init_mw, 1e-9)
+            setattr(m, f"{comp}_cap_x_on", pyo.Var(
+                Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_max_bound)))
+            cap_x_on = getattr(m, f"{comp}_cap_x_on")
 
-        def _linfix_hi(mm, t):
-            return cap_x_on[t] <= cap_max_bound * onv[t]
-        setattr(m, f"{comp}_linfix_hi", pyo.Constraint(Tset, rule=_linfix_hi))
+            def _linfix_hi(mm, t):
+                return cap_x_on[t] <= cap_max_bound * onv[t]
+            setattr(m, f"{comp}_linfix_hi", pyo.Constraint(Tset, rule=_linfix_hi))
 
-        def _linfix_le_cap(mm, t):
-            return cap_x_on[t] <= cap
-        setattr(m, f"{comp}_linfix_le_cap", pyo.Constraint(Tset, rule=_linfix_le_cap))
+            def _linfix_le_cap(mm, t):
+                return cap_x_on[t] <= cap
+            setattr(m, f"{comp}_linfix_le_cap", pyo.Constraint(Tset, rule=_linfix_le_cap))
 
-        def _linfix_lo(mm, t):
-            return cap_x_on[t] >= cap - cap_max_bound * (1 - onv[t])
-        setattr(m, f"{comp}_linfix_lo", pyo.Constraint(Tset, rule=_linfix_lo))
+            def _linfix_lo(mm, t):
+                return cap_x_on[t] >= cap - cap_max_bound * (1 - onv[t])
+            setattr(m, f"{comp}_linfix_lo", pyo.Constraint(Tset, rule=_linfix_lo))
 
         # ── Hot-charging channel (optional) ───────────────────────────────────
         # Q_hot(t): heat delivered at T_charge (for TES charging), sharing the
@@ -159,7 +188,7 @@ class HeatPumpBlock(BaseComponent):
         # hourly source (waste heat or ambient fallback) via its precompute.
         Q_hot = None
         COP_hot = None
-        if self.cop_charge_series is not None:
+        if self.cop_charge_series is not None and not self._disabled:
             setattr(m, f"{comp}_Q_hot", pyo.Var(Tset, domain=pyo.NonNegativeReals))
             Q_hot = getattr(m, f"{comp}_Q_hot")
             times_hot = list(Tset)
@@ -176,18 +205,35 @@ class HeatPumpBlock(BaseComponent):
             COP_hot = pyo.Param(Tset, initialize=cop_hot_map, mutable=False)
             setattr(m, f"{comp}_COP_hot", COP_hot)
 
-        # Constraints
-        def cap_rule(mm, t):
-            if Q_hot is not None:
-                return Q[t] + Q_hot[t] <= cap_x_on[t]
-            return Q[t] <= cap_x_on[t]
-        setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
+        # Constraints. When disabled, Q[t] (and Q_hot, if it existed) are already hard-fixed to
+        # 0 above -- cap/min-load against a Var that no longer exists (cap_x_on is None) would
+        # error, and are redundant anyway (0 <= 0, 0 >= 0), so skip creating them entirely.
+        if not self._disabled:
+            def cap_rule(mm, t):
+                if Q_hot is not None:
+                    return Q[t] + Q_hot[t] <= cap_x_on[t]
+                return Q[t] <= cap_x_on[t]
+            setattr(m, f"{comp}_cap", pyo.Constraint(Tset, rule=cap_rule))
 
-        def min_rule(mm, t):
-            if Q_hot is not None:
-                return Q[t] + Q_hot[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
-            return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
-        setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
+            def min_rule(mm, t):
+                if Q_hot is not None:
+                    return Q[t] + Q_hot[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
+                return Q[t] >= mm.__getattribute__(f"{comp}_minload") * cap_x_on[t]
+            setattr(m, f"{comp}_min", pyo.Constraint(Tset, rule=min_rule))
+        else:
+            _n_ghost_skipped += 2  # cap/min constraints also skipped
+
+        # D1 active-assertion (2026-09-22): log what was removed/fixed; verify no *_cap_x_on
+        # Var with a nonzero box bound survives for a unit whose capacity is forced to 0.
+        if self._disabled:
+            import logging as _logging_hp
+            _logging_hp.getLogger(__name__).info(
+                "[GHOST-VAR] %s: disabled (non-investable, capacity_init_mw=0) -- skipped %d "
+                "linearization constraint(s), hard-fixed %d Var entries (on/Q/Q_wrg/Q_def) to 0, "
+                "no cap_x_on Var created", comp, _n_ghost_skipped, _n_hard_fixed)
+            assert getattr(m, f"{comp}_cap_x_on", None) is None, (
+                f"[GHOST-VAR] {comp}: disabled but cap_x_on still exists -- E1 fix incomplete")
+            assert _n_hard_fixed > 0, f"[GHOST-VAR] {comp}: disabled but nothing was fixed"
 
         def split_balance(mm, t):
             return Q[t] == Q_wrg[t] + Q_def[t]
