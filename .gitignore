@@ -78,3 +78,9 @@ Memmingen_Pandapipes_Share/
 # Speicherstudie DHN-A: Rohdaten, lokale Zuordnungstabellen und DWD-Zwischenspeicher nicht versionieren
 data/raw_dhn_a/
 data/dwd/
+
+# Lokale, vertrauliche Eingaben für das Folgepaper (Klarnamen, Partnerdaten) – nie committen
+data/local/
+configs/local/
+reports/local/
+data/Stadtbach/
