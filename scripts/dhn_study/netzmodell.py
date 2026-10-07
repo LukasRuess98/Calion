@@ -176,10 +176,11 @@ def netz() -> Netz:
 QUELLEN = ["KWK", "MVA", "GT", "BIO", "HW1"]      # Quellmarkierung für die Mischungsrechnung (Temperatur-Tracer)
 
 
-def quellanteile(nz: Netz, m: np.ndarray, b: np.ndarray, eps: float = 1e-6) -> np.ndarray:
-    """Anteil jeder Quelle (``QUELLEN``) am Vorlaufwasser je Knoten (B×N×Q): vollständige Mischung am Knoten,
-    Aufwind entlang der Kantenströme ``m`` (B×E). Quellen sind die KWK (Wurzel) und die Erzeugerknoten mit Einspeisung
-    b > 0. Knoten ohne Zufluss erhalten KWK-Wasser."""
+def quellanteile(nz: Netz, m: np.ndarray, b: np.ndarray, eps: float = 1e-6, quellen: list[str] | None = None) -> np.ndarray:
+    """Anteil jeder Quelle (``quellen``, Standard ``QUELLEN``) am Vorlaufwasser je Knoten (B×N×Q): vollständige Mischung
+    am Knoten, Aufwind entlang der Kantenströme ``m`` (B×E). Quellen sind die KWK (Wurzel, immer an erster Stelle) und
+    die Erzeugerknoten mit Einspeisung b > 0. Knoten ohne Zufluss erhalten KWK-Wasser."""
+    quellen = QUELLEN if quellen is None else quellen
     m, b = np.atleast_2d(m), np.atleast_2d(b)
     B, N = b.shape
     von = np.zeros((len(nz.kanten), N))
@@ -189,8 +190,8 @@ def quellanteile(nz: Netz, m: np.ndarray, b: np.ndarray, eps: float = 1e-6) -> n
         nach[j, nz.idx[z]] = 1.0
     zufluss = np.maximum(nz.A[None, :, :] * m[:, None, :], 0.0)                   # B×N×E: Zufluss in n über e
     oben = np.where((m > 0)[..., None], von[None], nach[None])                    # B×E×N: Knoten stromauf von e
-    ein = np.zeros((B, N, len(QUELLEN)))
-    for q, kn in enumerate(QUELLEN[1:], start=1):
+    ein = np.zeros((B, N, len(quellen)))
+    for q, kn in enumerate(quellen[1:], start=1):
         ein[:, nz.idx[kn], q] = np.maximum(b[:, nz.idx[kn]], 0.0)
     w = nz.idx[nz.wurzel]
     Q = zufluss.sum(axis=2) + ein.sum(axis=2) + eps

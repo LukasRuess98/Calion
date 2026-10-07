@@ -335,6 +335,27 @@ def test_quellanteile_mischung():
     assert np.allclose(misch, phi[n], atol=1e-6)
 
 
+def test_quellanteile_zusaetzliche_quelle_und_screening_begrenzung():
+    from scripts.dhn_study import screening_einspeisung_s as scr
+
+    nz = nm.netz()
+    b = nm.auslegungs_einspeisung(nz, 240.0, 255.0, {"MVA": 40, "GT": 31, "BIO": 13}, 40.0, 150.0)
+    b[0, nz.idx["S"]] += 100.0                                   # Einspeisung am Standort S
+    m = nz.loese(b, nz.k0)
+    quellen = [*nm.QUELLEN, "S"]
+    phi = nm.quellanteile(nz, m, b, quellen=quellen)[0]
+    assert np.allclose(phi.sum(axis=1), 1.0) and phi.min() > -1e-9
+    n = nz.idx["S"]                                                # Mischung am Einspeiseknoten: Netto-Einspeisung
+    zu = np.maximum(nz.A[n] * m[0], 0.0).sum()                    # anteilig zum Zufluss
+    assert b[0, n] > 0 and phi[n, quellen.index("S")] == pytest.approx(b[0, n] / (zu + b[0, n]), rel=1e-6)
+    assert np.allclose(nm.quellanteile(nz, m, b)[0], nm.quellanteile(nz, m, b, quellen=list(nm.QUELLEN))[0])
+    # Screening: positive Einspeisung verdrängt KWK-Wasser höchstens bis zum KWK-Mindestdurchfluss, Entnahme unbegrenzt
+    b0 = np.zeros((3, len(nz.knoten)))
+    kwk0 = np.array([5.0, 50.0, 200.0])
+    b1, begrenzt = scr.einspeisung_s(b0, kwk0, np.array([20.0, 20.0, -20.0]), nz)
+    assert np.allclose(b1[:, nz.idx["S"]], [0.0, 20.0, -20.0]) and list(begrenzt) == [True, False, False]
+
+
 def test_verlust_lineare_fortsetzung():
     K = np.array([2.0e-5])
     m = np.array([[-300.0, -100.0, 0.0, 100.0, 300.0]]).T
