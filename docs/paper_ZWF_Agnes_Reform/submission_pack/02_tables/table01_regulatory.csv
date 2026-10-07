@@ -1,0 +1,7 @@
+Element,StromNEV,AgNes,Fundstelle,Freigabestatus
+Bemessungsgröße Leistungsentgelt,Gemessene Jahreshöchstlast $P^{max}$,Frei bestellte Kapazität $C$,StromNEV §17 / GBK-25-01-1#3,reviewed
+Arbeitspreisstruktur,Ein Arbeitspreis je Tarifpaar,"Zweistufig: $AP_1$ (<=C), $AP_2$>$AP_1$ (>C)",GBK-25-01-1#3,reviewed
+Schwellenwert / Bestellgrenzen,2500 h/a (zwei Tarifpaare),"beta=0.1 x P^max,prev <= C <= P^grid","StromNEV Anlage 4 Nr. 4 (Schwelle 2.500 Benutzungsstunden/Jahr), § 17 (allgemeine LP/AP-Abrechnung)",reviewed/unverified
+Bestellzeitpunkt,n/a (ex-post gemessen),Vor Jahresbeginn (ex ante),GBK-25-01-1#3,reviewed
+Maximaler Leistungsaufschlag bei geringer Nutzung,Unbeschränkt für h->0 (sigma=1000 LP/h),Beschränkt auf AP2-AP1 (Ebene ms: 69.3 EUR/MWh),§3.4 Draft (abgeleitet),derived
+Status Regelwerk,Geltendes Recht,"Festlegungsentwurf (2026-08-06), Konsultation bis 2026-09-18, geplant ab 2029-01-01 (löst StromNEV ab, die zum 2028-12-31 ausläuft, Folge eines EuGH-Urteils)",https://www.bundesnetzagentur.de/DE/Beschlusskammern/GBK/Ebene1_Rahmen/AgNes/start.html,reviewed

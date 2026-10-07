@@ -43,6 +43,22 @@ Every config/bound/solver change with before→after, reason, source (AGENT_PROM
   η_strat scaling; ceiling clip); opt-in flag gating (off→{}, on→atmospheric); legacy path
   bit-for-bit by construction. FULL-SOLVE legacy regression still TODO (deferred — MM refine using box).
 
+### Code hardening (2026-09-02)
+- `geometric_storage.py`: **defensive warning** when the multi-tank mechanism is silently
+  disabled — `V_max_m3 ≈ unit_tank_m3` AND the ladder tops out at ~one vessel. This is the exact
+  Stadtbach artefact (`V_max = unit_tank = 5000 m³`, ladder ending at 84.5 MWh) that made
+  "TES = boundary solution" look physical when it was a config cap. Condition is narrow (cap ≈ unit
+  AND ladder ≥ 0.8·unit) so it does NOT fire on a legitimate single large pit (V_max ≠ unit) or a
+  small buffer whose ladder sits well below the cap. Verified: fires only on the legacy SB config.
+- **Surface loss in the investment MILP — deliberately kept proportional (documented, not exact).**
+  Investigated per-rung exactness: it needs either McCormick E·y linearisation (~hundreds of k
+  vars — the blow-up we avoid, and it would hurt the already-tight SB MILP) or an additive
+  constant-loss SoC recursion (which would change the fixed-V surface loss too and thus invalidate
+  the running Study G). The effect is ~0.1 %/h and the investment MILP is NOT the sizing source —
+  F2 comes from the fixed-V dispatch study where surface loss IS exact. So proportional fallback
+  stays by design; the block logs this reasoning. Revisit only if the investment MILP's own sizing
+  must be exact.
+
 ## Pending (Phase 1 — will be logged here as applied)
 - `geometric_storage.py`: atmospheric envelope (replace pressurized `p_max_bar=10`/5000 m³ cap),
   ~95 °C store-temperature ceiling, surface-area standing loss `U·k(AR)·V^(2/3)·ΔT`, degressive

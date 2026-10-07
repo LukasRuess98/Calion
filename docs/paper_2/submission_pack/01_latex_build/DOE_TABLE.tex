@@ -1,0 +1,90 @@
+% =============================================================================
+% DOE_TABLE.tex — Paper 2 design-of-experiments tables.  \input{DOE_TABLE} in the
+% manuscript.  Requires: booktabs, amssymb (\checkmark).  Two tables:
+%   (1) tab:doe_factors  — COMPACT factor x level, for the MAIN TEXT.
+%   (2) tab:doe_full     — FULL 62-run family list, for the SUPPLEMENT.
+% Semantic labels are the single source of truth (internal IDs shown for
+% reproducibility only).  Levels absent in a network are marked "n.a.".
+% Study G (dispatch-sizing V-sweep, F2) is a DIFFERENT experiment class and is
+% NOT part of this investment-MILP matrix — see its own table.
+% Last updated 2026-09-04 (v3 DoE completion: +TES-ONLY, +FREE-CO, +BASE-HK0,
+% +FIX-HP-TVLFIX; 46 -> 62 runs; MM central node corrected j_1 -> j_9).
+% =============================================================================
+
+% ---- (1) MAIN TEXT: compact factor x level -------------------------------------
+\begin{table}[t]
+\centering
+\caption{Design of experiments (investment MILP). Every run co-optimises hourly
+dispatch with unit commitment; the investment levels are cumulative. Factors are
+defined identically in both networks. The full 62-run list is given in
+Table~\ref{tab:doe_full} (supplement).}
+\label{tab:doe_factors}
+\small
+\begin{tabular}{@{}lp{6.4cm}l@{}}
+\toprule
+Factor & Levels & Role \\
+\midrule
+Investment set & none \,$\to$\, HP+EK \,$\to$\, TES \,$\to$\, HP+EK+TES & isolates each contribution \\
+TES siting     & central / at-HP / remote / free (MILP) & fixed vs.\ endogenous \\
+Co-location    & separate / co-located (endogenous only) & TES node $=$ HP node \\
+Charging       & normal / hot ($\min(T_{\mathrm{VL},\max},95^\circ\mathrm{C})$) & hot charging couples HK to spread \\
+Heat curve     & TVLFIX / HK0 / HK1 / HK2 & constant $T_{\mathrm{VL}}$ vs.\ retrofit stages \\
+Network        & Memmingen / Stadtbach & identical factor definitions \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- (2) SUPPLEMENT: full 62-run family list -----------------------------------
+\begin{table*}[t]
+\centering
+\caption{Full scenario matrix (62 investment MILP runs). Optimised columns:
+\textbf{D}~dispatch, \textbf{H}~HP/EK size, \textbf{T}~TES size, \textbf{L}~location
+(endogenous). ``n.a.'' marks a factor level absent in that network (Memmingen has no
+pump-station nodes). Each family is run across the listed heat-curve stages; internal
+IDs are shown for reproducibility. Central node: Memmingen $j_9$, Stadtbach $j_{hkw}$;
+HP/EK node: Memmingen $j_{12}$, Stadtbach $j_{man}$.}
+\label{tab:doe_full}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llcccc l l cc r@{}}
+\toprule
+Semantic label & Internal ID & \multicolumn{4}{c}{Optimised} & TES site & Charge & \multicolumn{2}{c}{Network} & Runs \\
+\cmidrule(lr){3-6}\cmidrule(lr){9-10}
+ & & D & H & T & L & & & MM & SB & \\
+\midrule
+\multicolumn{11}{@{}l}{\emph{References / decomposition (feeds T3)}}\\
+BASE-FIX      & BC-\{MM,SB\}            & \checkmark &            &            &            & ---     & ---    & \checkmark & \checkmark & 2 \\
+BASE-HK0      & BC-\{MM,SB\}-HK0        & \checkmark &            &            &            & ---     & ---    & \checkmark & \checkmark & 2 \\
+HP-ONLY       & \{MM,SB\}-S0-*          & \checkmark & \checkmark &            &            & ---     & normal & \checkmark & \checkmark & 8 \\
+TES-ONLY      & \{MM,SB\}-TESONLY-*     & \checkmark &            & \checkmark &            & central & normal & \checkmark & \checkmark & 6 \\
+\midrule
+\multicolumn{11}{@{}l}{\emph{Fixed TES siting (feeds T3, F4)}}\\
+FIX-CENTRAL   & \{MM,SB\}-S1-*          & \checkmark & \checkmark & \checkmark &            & central & normal & \checkmark & \checkmark & 6 \\
+FIX-HP        & \{MM,SB\}-S2-*          & \checkmark & \checkmark & \checkmark &            & at-HP   & normal & \checkmark & \checkmark & 6 \\
+FIX-HP (TVLFIX)& \{MM,SB\}-S2-TVLFIX    & \checkmark & \checkmark & \checkmark &            & at-HP   & normal & \checkmark & \checkmark & 2 \\
+FIX-HP-HOT    & \{MM,SB\}-S3-*          & \checkmark & \checkmark & \checkmark &            & at-HP   & hot    & \checkmark & \checkmark & 6 \\
+FIX-REMOTE-A  & SB-S4-*                 & \checkmark & \checkmark & \checkmark &            & Süd     & normal & n.a.       & \checkmark & 3 \\
+FIX-REMOTE-B  & SB-S5-*                 & \checkmark & \checkmark & \checkmark &            & West    & normal & n.a.       & \checkmark & 3 \\
+\midrule
+\multicolumn{11}{@{}l}{\emph{Endogenous siting (feeds F3, F4)}}\\
+FREE          & MM-S4-*, SB-S6-*        & \checkmark & \checkmark & \checkmark & \checkmark & free    & normal & \checkmark & \checkmark & 6 \\
+FREE-CO       & MM-S4CO-*, SB-S6CO-*    & \checkmark & \checkmark & \checkmark & \checkmark & free$=$HP & normal & \checkmark & \checkmark & 6 \\
+FREE-CO-HOT   & MM-S5-*, SB-S7-*        & \checkmark & \checkmark & \checkmark & \checkmark & free$=$HP & hot   & \checkmark & \checkmark & 6 \\
+\midrule
+\multicolumn{10}{@{}r}{\textbf{Total}} & \textbf{62} \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+{\footnotesize Heat-curve stages per family: HK0/HK1/HK2 unless the label carries
+TVLFIX. \textbf{TES-ONLY} adds investable storage with \emph{no new HP/EB} (existing
+plant unchanged) — only the new-investment set differs across the decomposition.
+The existing generation park (incl.\ Stadtbach's 9.9\,MW electrode boiler) is identical
+in every run of a network, baselines included; \emph{neither network has any existing
+storage} (both start at 0\,MWh, so storage-hours are directly comparable). The
+decomposition BASE\,$\to$\,HP-ONLY\,$\to$\,TES-ONLY\,$\to$\,FIX-HP attributes savings to
+each investment; the chain FREE\,$\to$\,FREE-CO\,$\to$\,FREE-CO-HOT separates co-location
+from hot charging (one factor changes per step). BASE-HK0 is the status-quo reference;
+BASE-FIX/{}TVLFIX rows isolate the value of heat-curve control (alone, and with storage
+via FIX-HP\,vs.\,FIX-HP\,(TVLFIX)).}
+\end{table*}

@@ -1,0 +1,314 @@
+sheet_stem,block,row_in_block,excel_row,process,category
+CHI,basic_chemicals,0,6,Lighting,Electricity Other
+CHI,basic_chemicals,1,7,Air compressors,Electricity Other
+CHI,basic_chemicals,2,8,Motor drives,Electricity Other
+CHI,basic_chemicals,3,9,Fans and pumps,Electricity Other
+CHI,basic_chemicals,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+CHI,basic_chemicals,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,basic_chemicals,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+CHI,basic_chemicals,8,14,Ambient heat,Non-electric process heat (<100 C)
+CHI,basic_chemicals,9,15,Electricity,Electricity Thermal
+CHI,basic_chemicals,10,16,Chemicals: Feedstock (energy used as raw material),Feedstock
+CHI,basic_chemicals,19,25,Chemicals: Steam processing,Steam (non-electric boilers)
+CHI,basic_chemicals,31,37,Chemicals: Furnaces - Thermal,Non-electric process heat (400-1000 C)
+CHI,basic_chemicals,37,43,Chemicals: Furnaces - Electric,Electricity Thermal
+CHI,basic_chemicals,39,45,Chemicals: Process cooling - Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,basic_chemicals,40,46,Chemicals: Process cooling - Steam,Non-electric process heat (<100 C)
+CHI,basic_chemicals,51,57,Chemicals: Process cooling - Electric,Electricity Thermal
+CHI,basic_chemicals,52,58,Chemicals: Generic electric process,Electricity Other
+NMM,cement,0,6,Lighting,Electricity Other
+NMM,cement,1,7,Air compressors,Electricity Other
+NMM,cement,2,8,Motor drives,Electricity Other
+NMM,cement,3,9,Fans and pumps,Electricity Other
+NMM,cement,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NMM,cement,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+NMM,cement,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+NMM,cement,8,14,Ambient heat,Non-electric process heat (<100 C)
+NMM,cement,9,15,Electricity,Electricity Thermal
+NMM,cement,10,16,"Cement: Grinding, milling of raw material",Electricity Other
+NMM,cement,11,17,Cement: Pre-heating and pre-calcination,Non-electric process heat (400-1000 C)
+NMM,cement,19,25,Cement: Clinker production (kilns),Non-electric process heat (>1000 C)
+NMM,cement,28,34,"Cement: Grinding, packaging and precasting (electricity)",Electricity Other
+NMM,cement,29,35,Cement: Precasting - Steam,Non-electric process heat (<100 C)
+NMM,ceramics,0,49,Lighting,Electricity Other
+NMM,ceramics,1,50,Air compressors,Electricity Other
+NMM,ceramics,2,51,Motor drives,Electricity Other
+NMM,ceramics,3,52,Fans and pumps,Electricity Other
+NMM,ceramics,5,54,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NMM,ceramics,6,55,Natural gas and biogas,Non-electric process heat (<100 C)
+NMM,ceramics,7,56,Solar and geothermal,Non-electric process heat (<100 C)
+NMM,ceramics,8,57,Ambient heat,Non-electric process heat (<100 C)
+NMM,ceramics,9,58,Electricity,Electricity Thermal
+NMM,ceramics,10,59,Ceramics: Mixing of raw material,Electricity Other
+NMM,ceramics,12,61,Ceramics: Thermal drying and sintering,Non-electric process heat (100-400 C)
+NMM,ceramics,18,67,Ceramics: Steam drying and sintering,Steam (non-electric boilers)
+NMM,ceramics,29,78,Ceramics: Microwave drying and sintering,Electricity Thermal
+NMM,ceramics,31,80,Ceramics: Thermal kiln,Non-electric process heat (>1000 C)
+NMM,ceramics,39,88,Ceramics: Electric kiln,Electricity Thermal
+NMM,ceramics,41,90,Ceramics: Thermal furnace,Non-electric process heat (>1000 C)
+NMM,ceramics,47,96,Ceramics: Electric furnace,Electricity Thermal
+FBT,food_bev_tobacco,0,6,Lighting,Electricity Other
+FBT,food_bev_tobacco,1,7,Air compressors,Electricity Other
+FBT,food_bev_tobacco,2,8,Motor drives,Electricity Other
+FBT,food_bev_tobacco,3,9,Fans and pumps,Electricity Other
+FBT,food_bev_tobacco,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,8,14,Ambient heat,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,9,15,Electricity,Electricity Thermal
+FBT,food_bev_tobacco,11,17,Food: Direct Heat - Thermal,Non-electric process heat (100-400 C)
+FBT,food_bev_tobacco,17,23,Food: Direct Heat - Electric,Electricity Thermal
+FBT,food_bev_tobacco,18,24,Food: Direct Heat - Microwave,Electricity Thermal
+FBT,food_bev_tobacco,20,26,Food: Process Heat - Thermal,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,26,32,Food: Process Heat - Electric,Electricity Thermal
+FBT,food_bev_tobacco,27,33,Food: Process Heat - Microwave,Electricity Thermal
+FBT,food_bev_tobacco,28,34,Food: Steam processing,Steam (non-electric boilers)
+FBT,food_bev_tobacco,40,46,Food: Thermal drying,Non-electric process heat (100-400 C)
+FBT,food_bev_tobacco,46,52,Food: Steam drying,Steam (non-electric boilers)
+FBT,food_bev_tobacco,57,63,Food: Electric drying,Electricity Thermal
+FBT,food_bev_tobacco,58,64,Food: Freeze drying,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,59,65,Food: Microwave drying,Electricity Thermal
+FBT,food_bev_tobacco,61,67,Food: Thermal cooling,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,62,68,Food: Steam cooling,Non-electric process heat (<100 C)
+FBT,food_bev_tobacco,73,79,Food: Electric cooling,Electricity Thermal
+FBT,food_bev_tobacco,74,80,Food: Electric machinery,Electricity Other
+NMM,glass,0,100,Lighting,Electricity Other
+NMM,glass,1,101,Air compressors,Electricity Other
+NMM,glass,2,102,Motor drives,Electricity Other
+NMM,glass,3,103,Fans and pumps,Electricity Other
+NMM,glass,5,105,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NMM,glass,6,106,Natural gas and biogas,Non-electric process heat (<100 C)
+NMM,glass,7,107,Solar and geothermal,Non-electric process heat (<100 C)
+NMM,glass,8,108,Ambient heat,Non-electric process heat (<100 C)
+NMM,glass,9,109,Electricity,Electricity Thermal
+NMM,glass,11,111,Glass: Thermal melting tank,Non-electric process heat (>1000 C)
+NMM,glass,17,117,Glass: Electric melting tank,Electricity Thermal
+NMM,glass,18,118,Glass: Forming,Electricity Other
+NMM,glass,20,120,Glass: Annealing - thermal,Non-electric process heat (400-1000 C)
+NMM,glass,26,126,Glass: Annealing - electric,Electricity Thermal
+NMM,glass,27,127,Glass: Finishing processes,Electricity Other
+MAE,machinery_equipment,0,6,Lighting,Electricity Other
+MAE,machinery_equipment,1,7,Air compressors,Electricity Other
+MAE,machinery_equipment,2,8,Motor drives,Electricity Other
+MAE,machinery_equipment,3,9,Fans and pumps,Electricity Other
+MAE,machinery_equipment,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+MAE,machinery_equipment,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+MAE,machinery_equipment,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+MAE,machinery_equipment,8,14,Ambient heat,Non-electric process heat (<100 C)
+MAE,machinery_equipment,9,15,Electricity,Electricity Thermal
+MAE,machinery_equipment,11,17,Mach. Eq.: Thermal Foundries,Non-electric process heat (>1000 C)
+MAE,machinery_equipment,17,23,Mach. Eq.: Electric Foundries,Electricity Thermal
+MAE,machinery_equipment,19,25,Mach. Eq.: Thermal connection,Non-electric process heat (>1000 C)
+MAE,machinery_equipment,20,26,Mach. Eq.: Electric connection,Electricity Thermal
+MAE,machinery_equipment,22,28,Mach. Eq.: Heat treatment - Thermal,Non-electric process heat (400-1000 C)
+MAE,machinery_equipment,28,34,Mach. Eq.: Heat treatment - Electric,Electricity Thermal
+MAE,machinery_equipment,29,35,Mach. Eq.: Steam processing,Steam (non-electric boilers)
+MAE,machinery_equipment,40,46,Mach. Eq.: General machinery,Electricity Other
+MAE,machinery_equipment,41,47,Mach. Eq.: Product finishing,Electricity Other
+CHI,other_chemicals,0,62,Lighting,Electricity Other
+CHI,other_chemicals,1,63,Air compressors,Electricity Other
+CHI,other_chemicals,2,64,Motor drives,Electricity Other
+CHI,other_chemicals,3,65,Fans and pumps,Electricity Other
+CHI,other_chemicals,5,67,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+CHI,other_chemicals,6,68,Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,other_chemicals,7,69,Solar and geothermal,Non-electric process heat (<100 C)
+CHI,other_chemicals,8,70,Ambient heat,Non-electric process heat (<100 C)
+CHI,other_chemicals,9,71,Electricity,Electricity Thermal
+CHI,other_chemicals,11,73,High-enthalpy heat processing - Steam,Steam (non-electric boilers)
+CHI,other_chemicals,22,84,High-enthalpy heat processing - Electric (microwave),Electricity Thermal
+CHI,other_chemicals,24,86,Chemicals: Furnaces - Thermal,Non-electric process heat (400-1000 C)
+CHI,other_chemicals,30,92,Chemicals: Furnaces - Electric,Electricity Thermal
+CHI,other_chemicals,32,94,Chemicals: Process cooling - Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,other_chemicals,33,95,Chemicals: Process cooling - Steam,Non-electric process heat (<100 C)
+CHI,other_chemicals,44,106,Chemicals: Process cooling - Electric,Electricity Thermal
+CHI,other_chemicals,45,107,Chemicals: Generic electric process,Electricity Other
+NFM,other_nfm,0,116,Lighting,Electricity Other
+NFM,other_nfm,1,117,Air compressors,Electricity Other
+NFM,other_nfm,2,118,Motor drives,Electricity Other
+NFM,other_nfm,3,119,Fans and pumps,Electricity Other
+NFM,other_nfm,5,121,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NFM,other_nfm,6,122,Natural gas and biogas,Non-electric process heat (<100 C)
+NFM,other_nfm,7,123,Solar and geothermal,Non-electric process heat (<100 C)
+NFM,other_nfm,8,124,Ambient heat,Non-electric process heat (<100 C)
+NFM,other_nfm,9,125,Electricity,Electricity Thermal
+NFM,other_nfm,11,127,Metal production - Thermal,Non-electric process heat (>1000 C)
+NFM,other_nfm,17,133,Metal production - Electric,Electricity Thermal
+NFM,other_nfm,19,135,Metal processing - Thermal,Non-electric process heat (>1000 C)
+NFM,other_nfm,24,140,Metal processing - Electric,Electricity Thermal
+NFM,other_nfm,26,142,Metal finishing - Thermal,Non-electric process heat (400-1000 C)
+NFM,other_nfm,30,146,Metal finishing - Steam,Steam (non-electric boilers)
+NFM,other_nfm,41,157,Metal finishing - Electric,Electricity Thermal
+CHI,pharmaceuticals,0,111,Lighting,Electricity Other
+CHI,pharmaceuticals,1,112,Air compressors,Electricity Other
+CHI,pharmaceuticals,2,113,Motor drives,Electricity Other
+CHI,pharmaceuticals,3,114,Fans and pumps,Electricity Other
+CHI,pharmaceuticals,5,116,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,6,117,Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,7,118,Solar and geothermal,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,8,119,Ambient heat,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,9,120,Electricity,Electricity Thermal
+CHI,pharmaceuticals,11,122,High-enthalpy heat processing - Steam,Steam (non-electric boilers)
+CHI,pharmaceuticals,22,133,High-enthalpy heat processing - Electric (microwave),Electricity Thermal
+CHI,pharmaceuticals,24,135,Chemicals: Furnaces - Thermal,Non-electric process heat (400-1000 C)
+CHI,pharmaceuticals,30,141,Chemicals: Furnaces - Electric,Electricity Thermal
+CHI,pharmaceuticals,32,143,Chemicals: Process cooling - Natural gas and biogas,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,33,144,Chemicals: Process cooling - Steam,Non-electric process heat (<100 C)
+CHI,pharmaceuticals,44,155,Chemicals: Process cooling - Electric,Electricity Thermal
+CHI,pharmaceuticals,45,156,Chemicals: Generic electric process,Electricity Other
+NFM,primary_aluminium,0,6,Lighting,Electricity Other
+NFM,primary_aluminium,1,7,Air compressors,Electricity Other
+NFM,primary_aluminium,2,8,Motor drives,Electricity Other
+NFM,primary_aluminium,3,9,Fans and pumps,Electricity Other
+NFM,primary_aluminium,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NFM,primary_aluminium,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+NFM,primary_aluminium,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+NFM,primary_aluminium,8,14,Ambient heat,Non-electric process heat (<100 C)
+NFM,primary_aluminium,9,15,Electricity,Electricity Thermal
+NFM,primary_aluminium,10,16,Alumina production: High-enthalpy heat,Non-electric process heat (>1000 C)
+NFM,primary_aluminium,22,28,LPG,Non-electric process heat (100-400 C)
+NFM,primary_aluminium,23,29,Diesel oil and liquid biofuels,Non-electric process heat (100-400 C)
+NFM,primary_aluminium,24,30,Fuel oil,Non-electric process heat (100-400 C)
+NFM,primary_aluminium,25,31,Natural gas and biogas,Non-electric process heat (100-400 C)
+NFM,primary_aluminium,26,32,Electricity,Electricity Thermal
+NFM,primary_aluminium,29,35,Lighting,Electricity Other
+NFM,primary_aluminium,30,36,Air compressors,Electricity Other
+NFM,primary_aluminium,31,37,Motor drives,Electricity Other
+NFM,primary_aluminium,32,38,Fans and pumps,Electricity Other
+NFM,primary_aluminium,34,40,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NFM,primary_aluminium,35,41,Natural gas and biogas,Non-electric process heat (<100 C)
+NFM,primary_aluminium,36,42,Solar and geothermal,Non-electric process heat (<100 C)
+NFM,primary_aluminium,37,43,Ambient heat,Non-electric process heat (<100 C)
+NFM,primary_aluminium,38,44,Electricity,Electricity Thermal
+NFM,primary_aluminium,39,45,Aluminium electrolysis (smelting),Electricity Thermal
+NFM,primary_aluminium,41,47,Aluminium processing - Thermal,Non-electric process heat (100-400 C)
+NFM,primary_aluminium,46,52,Aluminium processing - Electric,Electricity Thermal
+NFM,primary_aluminium,48,54,Aluminium finishing - Thermal,Non-electric process heat (400-1000 C)
+NFM,primary_aluminium,52,58,Aluminium finishing - Steam,Steam (non-electric boilers)
+NFM,primary_aluminium,63,69,Aluminium finishing - Electric,Electricity Thermal
+ISI,primary_steel,0,6,Lighting,Electricity Other
+ISI,primary_steel,1,7,Air compressors,Electricity Other
+ISI,primary_steel,2,8,Motor drives,Electricity Other
+ISI,primary_steel,3,9,Fans and pumps,Electricity Other
+ISI,primary_steel,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+ISI,primary_steel,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+ISI,primary_steel,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+ISI,primary_steel,8,14,Ambient heat,Non-electric process heat (<100 C)
+ISI,primary_steel,9,15,Electricity,Electricity Thermal
+ISI,primary_steel,10,16,Steel: Sinter/Pellet-making,Non-electric process heat (>1000 C)
+ISI,primary_steel,16,22,Steel: Blast /Basic oxygen furnace,Non-electric process heat (>1000 C)
+ISI,primary_steel,23,29,"Steel: Furnaces, refining and rolling - Thermal",Non-electric process heat (>1000 C)
+ISI,primary_steel,28,34,"Steel: Furnaces, refining and rolling - Electric",Electricity Thermal
+ISI,primary_steel,30,36,Steel: Product finishing - Thermal,Non-electric process heat (400-1000 C)
+ISI,primary_steel,34,40,Steel: Product finishing - Steam,Steam (non-electric boilers)
+ISI,primary_steel,45,51,Steel: Product finishing - Electric,Electricity Thermal
+PPA,pulp_and_paper,0,6,Lighting,Electricity Other
+PPA,pulp_and_paper,1,7,Air compressors,Electricity Other
+PPA,pulp_and_paper,2,8,Motor drives,Electricity Other
+PPA,pulp_and_paper,3,9,Fans and pumps,Electricity Other
+PPA,pulp_and_paper,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,8,14,Ambient heat,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,9,15,Electricity,Electricity Thermal
+PPA,pulp_and_paper,10,16,"Pulp: Wood preparation, grinding",Electricity Other
+PPA,pulp_and_paper,12,18,Pulp: Pulping thermal,Non-electric process heat (100-400 C)
+PPA,pulp_and_paper,23,29,Pulp: Pulping electric,Electricity Other
+PPA,pulp_and_paper,24,30,Pulp: Cleaning,Electricity Other
+PPA,pulp_and_paper,27,33,Lighting,Electricity Other
+PPA,pulp_and_paper,28,34,Air compressors,Electricity Other
+PPA,pulp_and_paper,29,35,Motor drives,Electricity Other
+PPA,pulp_and_paper,30,36,Fans and pumps,Electricity Other
+PPA,pulp_and_paper,32,38,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,33,39,Natural gas and biogas,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,34,40,Solar and geothermal,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,35,41,Ambient heat,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,36,42,Electricity,Electricity Thermal
+PPA,pulp_and_paper,38,44,Paper: Stock preparation - Thermal,Non-electric process heat (<100 C)
+PPA,pulp_and_paper,49,55,Paper: Stock preparation - Mechanical,Electricity Other
+PPA,pulp_and_paper,51,57,Paper: Paper machine - Steam use,Steam (non-electric boilers)
+PPA,pulp_and_paper,62,68,Paper: Paper machine - Electricity,Electricity Other
+PPA,pulp_and_paper,64,70,Paper: Product finishing - Steam use,Steam (non-electric boilers)
+PPA,pulp_and_paper,75,81,Paper: Product finishing - Electricity,Electricity Other
+NFM,secondary_aluminium,0,73,Lighting,Electricity Other
+NFM,secondary_aluminium,1,74,Air compressors,Electricity Other
+NFM,secondary_aluminium,2,75,Motor drives,Electricity Other
+NFM,secondary_aluminium,3,76,Fans and pumps,Electricity Other
+NFM,secondary_aluminium,5,78,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+NFM,secondary_aluminium,6,79,Natural gas and biogas,Non-electric process heat (<100 C)
+NFM,secondary_aluminium,7,80,Solar and geothermal,Non-electric process heat (<100 C)
+NFM,secondary_aluminium,8,81,Ambient heat,Non-electric process heat (<100 C)
+NFM,secondary_aluminium,9,82,Electricity,Electricity Thermal
+NFM,secondary_aluminium,11,84,Secondary aluminium - Thermal,Non-electric process heat (400-1000 C)
+NFM,secondary_aluminium,16,89,Secondary aluminium - Electric,Electricity Thermal
+NFM,secondary_aluminium,18,91,Aluminium processing - Thermal,Non-electric process heat (100-400 C)
+NFM,secondary_aluminium,23,96,Aluminium processing - Electric,Electricity Thermal
+NFM,secondary_aluminium,25,98,Aluminium finishing - Thermal,Non-electric process heat (400-1000 C)
+NFM,secondary_aluminium,29,102,Aluminium finishing - Steam,Steam (non-electric boilers)
+NFM,secondary_aluminium,40,113,Aluminium finishing - Electric,Electricity Thermal
+ISI,secondary_steel,0,55,Lighting,Electricity Other
+ISI,secondary_steel,1,56,Air compressors,Electricity Other
+ISI,secondary_steel,2,57,Motor drives,Electricity Other
+ISI,secondary_steel,3,58,Fans and pumps,Electricity Other
+ISI,secondary_steel,5,60,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+ISI,secondary_steel,6,61,Natural gas and biogas,Non-electric process heat (<100 C)
+ISI,secondary_steel,7,62,Solar and geothermal,Non-electric process heat (<100 C)
+ISI,secondary_steel,8,63,Ambient heat,Non-electric process heat (<100 C)
+ISI,secondary_steel,9,64,Electricity,Electricity Thermal
+ISI,secondary_steel,10,65,Steel: Smelters,Non-electric process heat (>1000 C)
+ISI,secondary_steel,16,71,Steel: Electric arc,Electricity Thermal
+ISI,secondary_steel,18,73,"Steel: Furnaces, refining and rolling - Thermal",Non-electric process heat (>1000 C)
+ISI,secondary_steel,23,78,"Steel: Furnaces, refining and rolling - Electric",Electricity Thermal
+ISI,secondary_steel,25,80,Steel: Product finishing - Thermal,Non-electric process heat (400-1000 C)
+ISI,secondary_steel,29,84,Steel: Product finishing - Steam,Steam (non-electric boilers)
+ISI,secondary_steel,40,95,Steel: Product finishing - Electric,Electricity Thermal
+TEL,textiles_leather,0,6,Lighting,Electricity Other
+TEL,textiles_leather,1,7,Air compressors,Electricity Other
+TEL,textiles_leather,2,8,Motor drives,Electricity Other
+TEL,textiles_leather,3,9,Fans and pumps,Electricity Other
+TEL,textiles_leather,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+TEL,textiles_leather,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+TEL,textiles_leather,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+TEL,textiles_leather,8,14,Ambient heat,Non-electric process heat (<100 C)
+TEL,textiles_leather,9,15,Electricity,Electricity Thermal
+TEL,textiles_leather,10,16,Textiles: Pretreatment with steam,Steam (non-electric boilers)
+TEL,textiles_leather,21,27,Textiles: Wet processing with steam,Steam (non-electric boilers)
+TEL,textiles_leather,32,38,Textiles: Electric general machinery,Electricity Other
+TEL,textiles_leather,34,40,Textiles: Thermal drying,Non-electric process heat (100-400 C)
+TEL,textiles_leather,40,46,Textiles: Steam drying,Steam (non-electric boilers)
+TEL,textiles_leather,51,57,Textiles: Electric drying,Electricity Thermal
+TEL,textiles_leather,52,58,Textiles: Microwave drying,Electricity Thermal
+TEL,textiles_leather,53,59,Textiles: Finishing Electric,Electricity Other
+TRE,transport_equipment,0,6,Lighting,Electricity Other
+TRE,transport_equipment,1,7,Air compressors,Electricity Other
+TRE,transport_equipment,2,8,Motor drives,Electricity Other
+TRE,transport_equipment,3,9,Fans and pumps,Electricity Other
+TRE,transport_equipment,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+TRE,transport_equipment,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+TRE,transport_equipment,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+TRE,transport_equipment,8,14,Ambient heat,Non-electric process heat (<100 C)
+TRE,transport_equipment,9,15,Electricity,Electricity Thermal
+TRE,transport_equipment,11,17,Trans. Eq.: Thermal Foundries,Non-electric process heat (>1000 C)
+TRE,transport_equipment,17,23,Trans. Eq.: Electric Foundries,Electricity Thermal
+TRE,transport_equipment,19,25,Trans. Eq.: Thermal connection,Non-electric process heat (>1000 C)
+TRE,transport_equipment,20,26,Trans. Eq.: Electric connection,Electricity Thermal
+TRE,transport_equipment,22,28,Trans. Eq.: Heat treatment - Thermal,Non-electric process heat (400-1000 C)
+TRE,transport_equipment,28,34,Trans. Eq.: Heat treatment - Electric,Electricity Thermal
+TRE,transport_equipment,29,35,Trans. Eq.: Steam processing,Steam (non-electric boilers)
+TRE,transport_equipment,40,46,Trans. Eq.: General machinery,Electricity Other
+TRE,transport_equipment,41,47,Trans. Eq.: Product finishing,Electricity Other
+WWP,wood_products,0,6,Lighting,Electricity Other
+WWP,wood_products,1,7,Air compressors,Electricity Other
+WWP,wood_products,2,8,Motor drives,Electricity Other
+WWP,wood_products,3,9,Fans and pumps,Electricity Other
+WWP,wood_products,5,11,Diesel oil and liquid biofuels,Non-electric process heat (<100 C)
+WWP,wood_products,6,12,Natural gas and biogas,Non-electric process heat (<100 C)
+WWP,wood_products,7,13,Solar and geothermal,Non-electric process heat (<100 C)
+WWP,wood_products,8,14,Ambient heat,Non-electric process heat (<100 C)
+WWP,wood_products,9,15,Electricity,Electricity Thermal
+WWP,wood_products,10,16,Wood: Specific processes with steam,Steam (non-electric boilers)
+WWP,wood_products,21,27,Wood: Electric mechanical processes,Electricity Other
+WWP,wood_products,23,29,Wood: Thermal drying,Non-electric process heat (<100 C)
+WWP,wood_products,29,35,Wood: Steam drying,Steam (non-electric boilers)
+WWP,wood_products,40,46,Wood: Electric drying,Electricity Thermal
+WWP,wood_products,41,47,Wood: Microwave drying,Electricity Thermal
+WWP,wood_products,42,48,Wood: Finishing Electric,Electricity Other

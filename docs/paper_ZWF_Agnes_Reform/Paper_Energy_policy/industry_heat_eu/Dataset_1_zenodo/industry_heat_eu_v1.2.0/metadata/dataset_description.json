@@ -1,0 +1,263 @@
+{
+  "title": "IndustryHeat-EU: Harmonized Dataset of Industrial Final and Useful Energy Demand by Temperature Level for EU27 and Member States",
+  "short_title": "IndustryHeat-EU",
+  "version": "v1.2.0",
+  "description": "IndustryHeat-EU provides harmonized, machine-readable tables of industrial energy demand for the EU27 aggregate and each Member State. It includes two main components: (1) final energy consumption and (2) useful energy demand disaggregated by energy demand type and industrial subsector. The dataset enables comparative analysis of industrial heat demand, electrification potential, and process temperature distribution across European industries.",
+  "abstract": "IndustryHeat-EU compiles data from JRC-IDEES 2023 to provide detailed insights into industrial energy use and process heat demand across the EU27. The dataset bridges final energy consumption and useful energy demand, offering consistent, sectoral, and temperature-level breakdowns. It is designed to support modelling, techno-economic assessment, and policy design for industrial decarbonization and electrification.",
+  "license": "CC BY 4.0",
+  "keywords": [
+    "industrial energy demand",
+    "useful energy demand",
+    "final energy consumption",
+    "process heat",
+    "temperature bands",
+    "industrial electrification",
+    "EU27",
+    "sector coupling",
+    "energy systems modelling"
+  ],
+  "creators": [
+    {
+      "name": "Vladimir Z. Gjorgievski",
+      "affiliation": "Ss. Cyril and Methodius University in Skopje, Faculty of Electrical Engineering and Information Technologies",
+      "orcid": "0000-0002-7121-8950"
+    },
+    {
+      "name": "Snezana Cundeva",
+      "affiliation": "Ss. Cyril and Methodius University in Skopje, Faculty of Electrical Engineering and Information Technologies",
+      "orcid": "0000-0002-9948-9795"
+    },
+    {
+      "name": "Natasa Markovska",
+      "affiliation": "Macedonian Academy of Sciences and Arts, Research Centre for Energy and Sustainable Development",
+      "orcid": "0000-0003-4598-7585"
+    },
+    {
+      "name": "Neven Duić",
+      "affiliation": "University of Zagreb, Faculty of Mechanical Engineering and Naval Architecture",
+      "orcid": "0000-0003-2376-6466"
+    }
+  ],
+  "contact": {
+    "name": "Vladimir Z. Gjorgievski",
+    "email": "vladgjor@feit.ukim.edu.mk",
+    "affiliation": "Ss. Cyril and Methodius University in Skopje, Faculty of Electrical Engineering and Information Technologies"
+  },
+  "geographical_coverage": "European Union (EU27) and individual Member States",
+  "temporal_coverage": "Reference year: 2023",
+  "units": "TWh",
+  "update_date": "2026-09-11",
+  "provenance": {
+    "primary_sources": [
+      "JRC-IDEES 2023 (Industrial energy data, European Commission Joint Research Centre)"
+    ]
+  },
+  "methodology": {
+    "temperature_bands": [
+      "Electricity Other",
+      "Electricity Thermal",
+      "Steam (non-electric boilers)",
+      "Non-electric process heat <100 C",
+      "Non-electric process heat 100-400 C",
+      "Non-electric process heat 400-1000 C",
+      "Non-electric process heat >1000 C"
+    ],
+    "directory_structure": {
+      "industry_final_energy_consumption": {
+        "description": "Contains CSV files with final energy consumption by energy demand category,  temperature level and industrial subsector for the EU27 and each Member State.",
+        "example_files": [
+          "industry_final_energy_consumption_EU27.csv",
+          "industry_final_energy_consumption_DE.csv",
+          "industry_final_energy_consumption_FR.csv"
+        ]
+      },
+      "industry_useful_energy_demand": {
+        "description": "Contains CSV files with useful energy demand by energy demand category, temperature level and industrial subsector for the EU27 and each Member State.",
+        "example_files": [
+          "industry_useful_energy_demand_EU27.csv",
+          "industry_useful_energy_demand_DE.csv",
+          "industry_useful_energy_demand_FR.csv"
+        ]
+      },
+      "metadata": {
+        "description": "Includes dataset_description.json, citation.bib",
+        "purpose": "Defines structure, methodology, and versioning of the dataset."
+      },
+      "mapping": {
+        "description": "Machine-readable process-to-category mapping and the script that rebuilds every CSV in this archive from JRC-IDEES-2023 using it.",
+        "files": [
+          "process_category_mapping.csv",
+          "build_industryheat_eu.py",
+          "README.md"
+        ]
+      }
+    },
+    "file_structure": {
+      "formats": [
+        "CSV"
+      ],
+      "encoding": "UTF-8",
+      "delimiter": ",",
+      "decimal": ".",
+      "file_naming_convention": "industry_<dataset_type>_<ISO2|EU27>.csv",
+      "dataset_types": [
+        "final_energy_consumption",
+        "useful_energy_demand"
+      ],
+      "row_semantics": "Each row represents a energy demand category (electricity or non-electric process heat, divided by temperature bands).",
+      "column_semantics": "Each numeric column represents energy demand in TWh for a specific industrial subsector."
+    },
+    "file_schema": {
+      "useful_energy_demand_columns": [
+        {
+          "name": "energy_demand_type",
+          "type": "string",
+          "description": "Demand category: electricity by end use, steam, or non-electric process heat by temperature band"
+        },
+        {
+          "name": "Primary Steel (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Secondary Steel (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Chemicals (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Cement (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Pulp and Paper (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Food, Beverages and Tobacco (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Transport Equipment (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Machinery and Equipment (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Textiles and Leather (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Wood and Wood Products (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Non-ferrous Metals (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Ceramics and Glass (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        }
+      ],
+      "final_energy_consumption_columns": [
+        {
+          "name": "energy_demand_type",
+          "type": "string",
+          "description": "Demand category: electricity by end use, steam, or non-electric process heat by temperature band"
+        },
+        {
+          "name": "Primary Steel (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Secondary Steel (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Chemicals (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Cement (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Pulp and Paper (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Food, Beverages and Tobacco (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Transport Equipment (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Machinery and Equipment (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Textiles and Leather (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Wood and Wood Products (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Non-ferrous Metals (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        },
+        {
+          "name": "Ceramics and Glass (TWh)",
+          "type": "number",
+          "unit": "TWh"
+        }
+      ]
+    },
+    "usage_notes": "Both tables are taken directly from the JRC-IDEES-2023 workbooks: the useful energy demand files from the *_ued sheets and the final energy consumption files from the *_fec sheets. No efficiency assumptions are applied here; the two are independent JRC-IDEES outputs sharing one process-to-category mapping, so they are directly comparable. Units, category definitions and the full list of conventions are given in Description.txt and mapping/README.md.",
+    "citation": "Gjorgievski, V.Z., Cundeva, S., Markovska, N., & Duić, N. (2026). IndustryHeat-EU: Harmonized Dataset of Industrial Final and Useful Energy Demand by Temperature Level for EU27 and Member States (v1.2.0) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.17414346",
+    "versioning_policy": "Semantic versioning (MAJOR.MINOR.PATCH). New data years or methodological improvements will increment the minor version. Structural or conceptual revisions will increment the major version.",
+    "access_rights": "open"
+  },
+  "changelog": [
+    {
+      "version": "v1.2.0",
+      "date": "2026-09-11",
+      "summary": "Chemical industry coverage corrected: versions up to v1.1.0 extracted only the 'Basic chemicals' block of the JRC-IDEES CHI sheets; 'Other chemicals' and 'Pharmaceutical products etc.' are now included, with feedstock use remaining excluded. EU27 useful energy demand of the chemical industry rises from 195.3 to 299.7 TWh and the EU27 industry total from 1161.6 to 1266.0 TWh. The process-to-category mapping is now distributed with the dataset as a machine-readable file (mapping/process_category_mapping.csv), together with the script that rebuilds every table in this archive from JRC-IDEES-2023 using it; the conventions it implements are documented in mapping/README.md and in Appendix A of the accompanying paper. Users upgrading from v1.1.0 should note that the split of demand across the seven demand categories also changes; sub-sector totals and country totals do not."
+    },
+    {
+      "version": "v1.1.0",
+      "date": "2026-07-23",
+      "summary": "Update to the JRC-IDEES-2023 edition (reference year 2023)."
+    }
+  ]
+}

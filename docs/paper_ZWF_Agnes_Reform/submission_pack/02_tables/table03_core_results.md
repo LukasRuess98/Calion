@@ -1,0 +1,8 @@
+# Tabelle 3 — Kern-KPI je Standort
+
+| Standort                |   LCOH_inc_00_StromNEV_Fix |   Delta_Netz_Fix_AgNes-StromNEV |   Delta_Netz_DA_AgNes-StromNEV |   Delta_Preis_StromNEV_DA-Fix |   Delta_Preis_AgNes_DA-Fix |   Delta_inter |   C_over_Pmax_AgNes_DA |   E2_over_E_AgNes_DA |
+|:------------------------|---------------------------:|--------------------------------:|-------------------------------:|------------------------------:|---------------------------:|--------------:|-----------------------:|---------------------:|
+| Lebensmittelunternehmen |                      35.45 |                           14.92 |                          15.08 |                         -4.77 |                      -4.61 |          0.16 |                   0.79 |                 0.01 |
+| Chemieunternehmen       |                      53.29 |                            3.77 |                           8.53 |                         -4.77 |                      -0.01 |          4.76 |                   0.78 |                 0.01 |
+| Metallerzeugung         |                      58.51 |                           -4.08 |                          -8.46 |                          0.00 |                      -4.38 |         -4.38 |                   0.15 |                 0.55 |
+| Papierfabrik            |                      45.10 |                            4.92 |                           4.87 |                         -4.87 |                      -4.92 |         -0.05 |                   0.91 |                 0.01 |

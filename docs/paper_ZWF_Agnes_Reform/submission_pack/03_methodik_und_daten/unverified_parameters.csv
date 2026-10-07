@@ -1,0 +1,28 @@
+parameter,value,unit,source
+fixed_price.risk_premium_eur_mwh,15.0,EUR/MWh,"Literaturschätzung (typischer Aufschlag Fixpreis vs. Spotmittel, Industriesegment)"
+tariffs.alpha,0.45,,"Entwurfs-Vorgabe Dokument 2 (Erlösanteil Kapazitätspreis), Szenario"
+tariffs.f,2.75,,"Entwurfs-Vorgabe Dokument 2 (Verhältnis AP2/AP1), Szenario"
+tariffs.beta_min_order,0.1,,Entwurfs-Vorgabe Dokument 2 (Mindestbestellanteil an Vorjahreshöchstlast)
+technologies.hp.capex_eur_kw,650.0,,"Literaturschätzung industrielle Großwärmepumpe (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023; Zühlsdorf et al., IEA HPT Annex 58 High-Temperature Heat Pumps Final Report, 2024, DOI 10.23697/2qxe-av87)"
+technologies.hp.cop,3.0,,Konstanter COP mangels Quell-/Senktemperatur in Rohdaten (keine Temperaturspalte) - Limitation
+technologies.hp.lifetime_a,20.0,,Typischer Ansatz VDI 2067
+technologies.hp.fom_pct_capex_a,0.02,,Typischer O&M-Anteil Großwärmepumpe
+technologies.ek.capex_eur_kw,70.0,,"Literaturschätzung Elektrodenkessel (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023)"
+technologies.ek.eta,0.985,,Typischer Wirkungsgrad Elektrodenkessel
+technologies.ek.lifetime_a,25.0,,Typischer Ansatz VDI 2067
+technologies.ek.fom_pct_capex_a,0.015,,Typischer O&M-Anteil Elektrodenkessel
+technologies.gb.capex_eur_kw,60.0,,Literaturschätzung Gaskessel (Größenordnung)
+technologies.gb.eta,0.9,,Typischer Kesselwirkungsgrad Erdgas
+technologies.gb.lifetime_a,20.0,,Typischer Ansatz VDI 2067
+technologies.gb.fom_pct_capex_a,0.015,,Typischer O&M-Anteil Gaskessel
+technologies.tes.capex_eur_kwh,25.0,,"Literaturschätzung industrieller Wärmespeicher (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023)"
+technologies.tes.loss_per_h,0.002,,Typischer Bereitschaftsverlust Heißwasserspeicher
+technologies.tes.eta_ch,0.97,,Typischer Ladewirkungsgrad
+technologies.tes.eta_dis,0.97,,Typischer Entladewirkungsgrad
+technologies.tes.min_duration_h,2.0,,Konservative Mindest-Vollladedauer (Leistungsgrenze aus Kapazität)
+technologies.tes.lifetime_a,25.0,,Typischer Ansatz VDI 2067
+technologies.tes.fom_pct_capex_a,0.01,,Typischer O&M-Anteil Wärmespeicher
+finance.wacc,0.06,,Typischer industrieller Realzins (Größenordnung)
+energy.gas_eur_mwh_hu,38.0,,"Literaturschätzung Industriegaspreis 2023/24 (Größenordnung, z.B. Destatis-Reihe)"
+energy.co2_eur_t,60.0,,Größenordnung BEHG-Festpreispfad 2026 vor ETS2-Start 2027
+energy.el_levies_eur_mwh,15.37,,"StromStG reduzierter Industriesatz (Größenordnung, Spitzenausgleich-Fall)"

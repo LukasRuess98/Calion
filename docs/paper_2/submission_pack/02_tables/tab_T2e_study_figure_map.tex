@@ -1,0 +1,34 @@
+% =============================================================================
+% tab_T2e_study_figure_map.tex — Paper 2 experiment-to-output map.
+% Source: MODEL_AND_DOE_CONTROL §3 (frozen 2026-09-02) + §3b DoE completion.
+% The 62-run investment-MILP matrix (Table~\ref{tab:t2_scenarios}) is the base
+% decomposition; the studies below are the additional targeted experiment classes.
+% Study G is a separate experiment class (fixed-volume dispatch sizing).
+% =============================================================================
+\begin{table}[htbp]
+  \centering
+  \caption{Experiment design mapped to paper outputs. The 62-run investment-MILP
+  matrix (Table~\ref{tab:t2_scenarios}) provides the base decomposition (T3); the
+  studies below are targeted experiment classes. Run counts are planned.}
+  \label{tab:t2e_study_map}
+  \small
+  \begin{tabular}{@{}lllr@{}}
+  \toprule
+  Study & Purpose / output & Design & Runs \\
+  \midrule
+  Base matrix & Decomposition, headline KPIs (T3) & 62-run investment MILP, commitment on & 62 \\
+  G — Sizing $+$ triangle & F2: TAC vs.\ storage-hours, inner optimum; C2 panel & 2 tech $\times$ 8 $V$ $\times$ 2 HK $\times$ 2 networks & 64 \\
+  C — Siting & F4: siting landscape (median/P90) & enumeration HP $\times$ TES & $\sim$61 \\
+  N — Aggregated vs.\ nodal & F5: wrong-decision cost (bridge to Paper 1) & single-node vs.\ nodal, per network & 6 \\
+  P — Condition space & F6: break-even map $c_{\mathrm{CO_2}}\times$ price ratio & $c_{\mathrm{CO_2}} \times c_{el}/c_{gas}$, hourly EF & 50 \\
+  E — Tornado (tier 2) & F7: sensitivity & re-dispatch per variant & 20 \\
+  H — Headline $+$ baselines & T3: dispatch-optimised, HK-matched baseline & streamlined matrix & $\sim$20 \\
+  I — Model-version invariance & T4: reproducibility & commit e8e445e vs.\ main, 8 scenarios & 8 \\
+  \bottomrule
+  \end{tabular}
+
+  \vspace{2pt}
+  {\footnotesize All sizing and fine-grained claims use the dispatch class
+  (commitment-on, gap-hardened). Study~G varies storage volume at fixed size (a
+  different experiment class from the investment MILP) and is reported separately.}
+\end{table}

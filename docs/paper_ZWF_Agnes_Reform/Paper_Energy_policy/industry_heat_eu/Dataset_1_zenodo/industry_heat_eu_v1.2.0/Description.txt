@@ -1,0 +1,52 @@
+This dataset (v1.2.0) provides final energy consumption and useful energy demand (TWh) by category type and temperature level in 12 industrial subsectors for the EU27 aggregate and each Member State. 
+
+Rows correspond to energy demand category:
+- Electricity Other, 
+- Electricity Thermal, 
+- Steam, 
+- Non-electric process heat <100°C, 
+- Non-electric process heat 100–400°C, 
+- Non-electric process heat 400–1000°C, 
+- Non-electric process heat >1000°C.
+
+Columns provide subsectoral final energy consumption and useful energy demand in TWh:
+- Primary Steel (TWh)
+- Secondary Steel (TWh)
+- Chemicals (TWh)
+- Cement (TWh)
+- Pulp and Paper (TWh)
+- Food, Beverages and Tobacco (TWh)
+- Transport Equipment (TWh)
+- Machinery and Equipment (TWh)
+- Textiles and Leather (TWh)
+- Wood and Wood Products (TWh)
+- Non-ferrous Metals (TWh)
+- Ceramics and Glass (TWh)
+
+The dataset is intended to support industrial heat-demand mapping, electrification feasibility studies, process heating technology assessments, and energy-system modelling.
+Scope note (v1.2.0): the Chemicals column covers the complete JRC-IDEES chemical
+industry (basic chemicals, other chemicals and pharmaceutical products),
+excluding energy carriers used as feedstock. Pulp and Paper excludes printing
+and media reproduction. Mining and quarrying, construction and non-specified
+industry are outside the scope of the 12 sub-sectors reported here.
+
+Process-to-category mapping
+---------------------------
+The assignment of every JRC-IDEES process row to one of the seven demand categories is
+distributed with this dataset as mapping/process_category_mapping.csv, and the script
+mapping/build_industryheat_eu.py rebuilds every CSV in this archive from a clean download
+of JRC-IDEES-2023 plus that file alone.
+
+Conventions worth noting:
+- Electricity that supplies heating or cooling is reported as "Electricity Thermal";
+  electricity for mechanical power and lighting as "Electricity Other".
+- Non-electric process cooling is allocated below 100 deg C, following Madeddu et al. (2020).
+- Steam raised in non-electric boilers is reported as its own category; it falls within the
+  100-400 deg C range. Steam curing of precast concrete (40-80 deg C) is the one exception
+  and is reported below 100 deg C.
+- Where JRC-IDEES reports a process only as an aggregate, the aggregate is assigned to the
+  band of its dominant step. Thermal pulping, which covers digestion, black-liquor
+  evaporation and the lime kiln, is allocated to 100-400 deg C.
+- Drying is allocated by the temperature at which the dryer operates: food and textile
+  dryers to 100-400 deg C, timber kilns below 100 deg C.
+- Feedstock use of energy carriers is excluded throughout.

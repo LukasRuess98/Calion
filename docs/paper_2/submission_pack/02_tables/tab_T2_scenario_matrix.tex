@@ -1,27 +1,77 @@
-\begin{table}[htbp]
-  \centering
-  \caption{Scenario matrix (16 families → 46 MILP runs). Heat-curve stages: TVLFIX (constant $T_{VL}$), HK0/HK1/HK2 (slope $k$ = 1.0 / 0.8 / 0.6).}
-  \label{tab:t2_scenarios}
-  \begin{tabular}{llllllll}
-  \toprule
-  Case study & Family & Description & TES node & WP/EK node & Heat-curve stages & Runs & Features \\
-  \midrule
-  Stadtbach & BC & Baseline (Bestand, no investment) & — (no TES) & j\_man & TVLFIX & 1 & — \\
-  Stadtbach & S0 & WP+EK investment, no TES & — (no TES) & j\_man & TVLFIX, HK0, HK1, HK2 & 4 & — \\
-  Stadtbach & S1 & TES at central node (HKW) & j\_hkw & j\_man & HK0, HK1, HK2 & 3 & — \\
-  Stadtbach & S2 & TES at WP node (MAN) & j\_man & j\_man & HK0, HK1, HK2 & 3 & — \\
-  Stadtbach & S3 & TES at WP node, hot charging & j\_man & j\_man & HK0, HK1, HK2 & 3 & hot charging \\
-  Stadtbach & S4 & TES at Pumpstation Süd & j\_pss & j\_man & HK0, HK1, HK2 & 3 & — \\
-  Stadtbach & S5 & TES at Pumpstation West & j\_psw & j\_man & HK0, HK1, HK2 & 3 & — \\
-  Stadtbach & S6 & Free WP+TES siting (endogenous) & solver-chosen (j\_hkw, j\_man, j\_ost, j\_pss, j\_psw) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
-  Stadtbach & S7 & Free siting, co-located, hot charging & solver-chosen (j\_hkw, j\_man, j\_ost, j\_pss, j\_psw) & solver-chosen (= TES) & HK0, HK1, HK2 & 3 & hot charging, endogenous siting, co-located WP+TES \\
-  Memmingen & BC & Baseline (Bestand, no investment) & — (no TES) & j\_12 & TVLFIX & 1 & — \\
-  Memmingen & S0 & WP+EK investment, no TES & — (no TES) & j\_12 & TVLFIX, HK0, HK1, HK2 & 4 & — \\
-  Memmingen & S1 & TES at central node (Zentrale) & j\_9 & j\_12 & HK0, HK1, HK2 & 3 & — \\
-  Memmingen & S2 & TES at WP node (j\_12) & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & — \\
-  Memmingen & S3 & TES at WP node, hot charging & j\_12 & j\_12 & HK0, HK1, HK2 & 3 & hot charging \\
-  Memmingen & S4 & Free WP+TES siting (endogenous) & solver-chosen (j\_1, j\_3, j\_5, j\_9, j\_12, j\_13) & solver-chosen & HK0, HK1, HK2 & 3 & endogenous siting \\
-  Memmingen & S5 & Free siting, co-located, hot charging & solver-chosen (j\_1, j\_3, j\_5, j\_9, j\_12, j\_13) & solver-chosen (= TES) & HK0, HK1, HK2 & 3 & hot charging, endogenous siting, co-located WP+TES \\
-  \bottomrule
-  \end{tabular}
-\end{table}
+% =============================================================================
+% tab_T2_scenario_matrix.tex — Paper 2 full scenario matrix, grouped BY NETWORK
+% (Memmingen block on top, Stadtbach block below — DoE convention "erst Memmingen,
+% dann Stadtbach", MODEL_AND_DOE_CONTROL §3). 62 investment-MILP runs (v3).
+% Semantic labels are the single source of truth; internal IDs are shown only for
+% reproducibility. Optimised columns: D dispatch, H HP/EK size, T TES size,
+% L location (endogenous siting). Study G (dispatch-sizing V-sweep, F2) is a
+% DIFFERENT experiment class and is NOT part of this matrix — see its own table.
+% Compact factor×level version for the main text: DOE_TABLE.tex (tab:doe_factors).
+% Last updated 2026-09-04 (network-grouped rebuild; reconciled to the 62-run v3 DoE).
+% =============================================================================
+\begin{table*}[t]
+\centering
+\caption{Full scenario matrix (62 investment MILP runs), grouped by network
+(Memmingen first, then Stadtbach). Every run co-optimises hourly dispatch with unit
+commitment; the investment set is cumulative. Optimised columns: \textbf{D}~dispatch,
+\textbf{H}~HP/EK size, \textbf{T}~TES size, \textbf{L}~location (endogenous). Each
+family is run across the listed heat-curve stages (HK0/HK1/HK2 = slope $k$~=~1.0/0.8/0.6;
+TVLFIX = constant~$T_{VL}$). Semantic labels are the single source of truth; internal
+IDs are shown for reproducibility only. Central node: Memmingen~$j_9$, Stadtbach~$j_{hkw}$;
+HP/EK node: Memmingen~$j_{12}$, Stadtbach~$j_{man}$.}
+\label{tab:t2_scenarios}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}ll cccc l l l r@{}}
+\toprule
+Semantic label & Internal ID & \multicolumn{4}{c}{Optimised} & TES site & Charge & Heat-curve stages & Runs \\
+\cmidrule(lr){3-6}
+ & & D & H & T & L & & & & \\
+\midrule
+\multicolumn{10}{@{}l}{\textbf{Memmingen} — radial tree; HP/EK at $j_{12}$, central node $j_9$ \hfill (28 runs)}\\
+\midrule
+BASE-FIX       & BC-MM            & \checkmark &            &            &            & ---          & ---    & TVLFIX               & 1 \\
+BASE-HK0       & BC-MM-HK0        & \checkmark &            &            &            & ---          & ---    & HK0                  & 1 \\
+HP-ONLY        & MM-S0-*          & \checkmark & \checkmark &            &            & ---          & normal & TVLFIX, HK0, HK1, HK2 & 4 \\
+TES-ONLY       & MM-TESONLY-*     & \checkmark &            & \checkmark &            & central ($j_9$)   & normal & HK0, HK1, HK2   & 3 \\
+FIX-CENTRAL    & MM-S1-*          & \checkmark & \checkmark & \checkmark &            & central ($j_9$)   & normal & HK0, HK1, HK2   & 3 \\
+FIX-HP         & MM-S2-*          & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{12}$)  & normal & HK0, HK1, HK2   & 3 \\
+FIX-HP (TVLFIX)& MM-S2-TVLFIX     & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{12}$)  & normal & TVLFIX          & 1 \\
+FIX-HP-HOT     & MM-S3-*          & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{12}$)  & hot    & HK0, HK1, HK2   & 3 \\
+FREE           & MM-S4-*          & \checkmark & \checkmark & \checkmark & \checkmark & free              & normal & HK0, HK1, HK2   & 3 \\
+FREE-CO        & MM-S4CO-*        & \checkmark & \checkmark & \checkmark & \checkmark & free $=$ HP       & normal & HK0, HK1, HK2   & 3 \\
+FREE-CO-HOT    & MM-S5-*          & \checkmark & \checkmark & \checkmark & \checkmark & free $=$ HP       & hot    & HK0, HK1, HK2   & 3 \\
+\midrule
+\multicolumn{10}{@{}l}{\textbf{Stadtbach} — meshed; HP/EK at $j_{man}$, central node $j_{hkw}$, pump stations $j_{pss}$/$j_{psw}$ \hfill (34 runs)}\\
+\midrule
+BASE-FIX       & BC-SB            & \checkmark &            &            &            & ---          & ---    & TVLFIX               & 1 \\
+BASE-HK0       & BC-SB-HK0        & \checkmark &            &            &            & ---          & ---    & HK0                  & 1 \\
+HP-ONLY        & SB-S0-*          & \checkmark & \checkmark &            &            & ---          & normal & TVLFIX, HK0, HK1, HK2 & 4 \\
+TES-ONLY       & SB-TESONLY-*     & \checkmark &            & \checkmark &            & central ($j_{hkw}$) & normal & HK0, HK1, HK2 & 3 \\
+FIX-CENTRAL    & SB-S1-*          & \checkmark & \checkmark & \checkmark &            & central ($j_{hkw}$) & normal & HK0, HK1, HK2 & 3 \\
+FIX-HP         & SB-S2-*          & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{man}$) & normal & HK0, HK1, HK2   & 3 \\
+FIX-HP (TVLFIX)& SB-S2-TVLFIX     & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{man}$) & normal & TVLFIX          & 1 \\
+FIX-HP-HOT     & SB-S3-*          & \checkmark & \checkmark & \checkmark &            & at-HP ($j_{man}$) & hot    & HK0, HK1, HK2   & 3 \\
+FIX-REMOTE-A   & SB-S4-*          & \checkmark & \checkmark & \checkmark &            & Süd ($j_{pss}$)   & normal & HK0, HK1, HK2   & 3 \\
+FIX-REMOTE-B   & SB-S5-*          & \checkmark & \checkmark & \checkmark &            & West ($j_{psw}$)  & normal & HK0, HK1, HK2   & 3 \\
+FREE           & SB-S6-*          & \checkmark & \checkmark & \checkmark & \checkmark & free              & normal & HK0, HK1, HK2   & 3 \\
+FREE-CO        & SB-S6CO-*        & \checkmark & \checkmark & \checkmark & \checkmark & free $=$ HP       & normal & HK0, HK1, HK2   & 3 \\
+FREE-CO-HOT    & SB-S7-*          & \checkmark & \checkmark & \checkmark & \checkmark & free $=$ HP       & hot    & HK0, HK1, HK2   & 3 \\
+\midrule
+\multicolumn{9}{@{}r}{\textbf{Total}} & \textbf{62} \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+{\footnotesize \textbf{TES-ONLY} adds investable storage with \emph{no new HP/EB}
+(existing plant unchanged) — only the new-investment set differs across the
+decomposition. The existing generation park (incl.\ Stadtbach's 9.9\,MW electrode
+boiler) is identical in every run of a network, baselines included; \emph{neither
+network has any existing storage} (both start at 0\,MWh, so storage-hours are directly
+comparable). The decomposition BASE\,$\to$\,HP-ONLY\,$\to$\,TES-ONLY\,$\to$\,FIX-HP
+attributes savings to each investment; the chain FREE\,$\to$\,FREE-CO\,$\to$\,FREE-CO-HOT
+separates co-location from hot charging (one factor changes per step). BASE-HK0 is the
+status-quo reference; BASE-FIX/FIX-HP\,(TVLFIX) isolate the value of heat-curve control
+(alone, and with storage via FIX-HP\,vs.\,FIX-HP\,(TVLFIX)). Remote siting (FIX-REMOTE-A/B)
+exists only in Stadtbach (Memmingen has no pump-station nodes).}
+\end{table*}

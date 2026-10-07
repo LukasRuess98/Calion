@@ -1,0 +1,8 @@
+# Tabelle 2 — Standortübersicht
+
+| Standort                              |   Wärmebedarf [MWh_th/a] |   Wärme-Peak [MW_th] |   Wärme-Volllaststunden [h/a] |   Grundlast Ø [kW] |   Grundlast max [kW] | Spannungsebene   |   P_max,prev [kW] | hat VHT   |   Lastgangjahr |   Preisjahr |
+|:--------------------------------------|-------------------------:|---------------------:|------------------------------:|-------------------:|---------------------:|:-----------------|------------------:|:----------|---------------:|------------:|
+| Lebensmittelunternehmen (Schwarzwald) |                  75046.4 |                18.84 |                          3983 |             5800.2 |              16452.8 | ms               |           16452.8 | False     |           2023 |        2023 |
+| Chemieunternehmen (Essen)             |                  53474.3 |                13.81 |                          3871 |             4640.4 |               6449.3 | ms               |            6449.3 | False     |           2024 |        2024 |
+| Metallerzeugung (Schwarzwald)         |                    254.5 |                 0.14 |                          1885 |              109.6 |                722.9 | ns               |             722.9 | False     |           2023 |        2023 |
+| Papierfabrik (Augsburg)               |                 232767   |                59.9  |                          3886 |            30725.6 |              54927.4 | hs_ms            |           54927.4 | False     |           2023 |        2023 |

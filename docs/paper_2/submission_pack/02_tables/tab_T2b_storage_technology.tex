@@ -1,0 +1,41 @@
+% =============================================================================
+% tab_T2b_storage_technology.tex — Paper 2 storage design options (v3).
+% Source: configs/paper_2/storage_geometry.yaml + MODEL_AND_DOE_CONTROL §1.
+% The two thermal-storage technologies compared in the sizing study (F2). Loss
+% model (surface, constant U·k·V^{2/3}·ΔT) and stratification efficiency are
+% identical for both; they differ in pressure/coupling, charge ceiling, cost
+% curve and buildable volume.
+% =============================================================================
+\begin{table}[htbp]
+  \centering
+  \caption{Thermal-storage design options (the charge-temperature $\leftrightarrow$
+  technology $\leftrightarrow$ volume triangle). Both share a constant surface
+  standing-loss model $U\,k(\mathrm{AR})\,V^{2/3}\,\Delta T$ with
+  $U=0.20\,\mathrm{W/m^2K}$, stratification efficiency $\eta_{\mathrm{strat}}=0.85$,
+  and round-trip efficiency $\eta_{\mathrm{rt}}=0.96$. Atmospheric is the base case;
+  pressurised is the alternative enabling hot charging.}
+  \label{tab:t2b_storage_tech}
+  \small
+  \begin{tabular}{@{}lll@{}}
+  \toprule
+  Property & Atmospheric pit (base case) & Pressurised buffer (alternative) \\
+  \midrule
+  Pressure / coupling      & $\sim$1 bar, hydraulically decoupled (HX) & 10 bar, direct network coupling \\
+  Charge temperature       & ceiling $\sim$95\,$^\circ$C (no hot charging) & up to $T_{VL,\max}$ (hot charging) \\
+  Usable spread $\Delta T$ & network corridor ($\sim$15\,K worst case) & high (MM 36--49\,K per HK stage) \\
+  Cost model               & degressive $C_0\,(V/V_0)^{b}$ & linear $\alpha V + \beta$ \\
+  Cost parameters          & $C_0=670{,}000$\,EUR, $V_0=10{,}000$\,m$^3$, $b=0.657$ & $\alpha=1200$\,EUR/m$^3$, $\beta=100{,}000$\,EUR/tank \\
+  Specific cost (scale)    & $\sim$170\,EUR/m$^3$ @600\,m$^3$ $\to$ $\sim$40\,EUR/m$^3$ @47k\,m$^3$ & $\sim$1200\,EUR/m$^3$ (roughly flat) \\
+  Volume / geometry        & large single store, footprint-limited (AR $h/d=0.2$) & $\le$5000\,m$^3$/vessel, multi-tank above (AR $h/d=2$) \\
+  Realised in              & Stadtbach (large pit, $\sim$500--800\,MWh optimum) & Memmingen (small buffer, $\sim$2\,MWh optimum) \\
+  \bottomrule
+  \end{tabular}
+
+  \vspace{2pt}
+  {\footnotesize Degressive-cost fit to realised Danish pit stores (Marstal
+  10k\,m$^3$~=~67\,EUR/m$^3$; Dronninglund 60k~=~38; Vojens 200k~=~24). The $<$10k\,m$^3$
+  range is an extrapolation of that fit. The 95\,$^\circ$C atmospheric ceiling clips
+  hot charging, which bites Stadtbach's 122\,$^\circ$C supply hardest (2033~h,
+  23.2\,\% of the year at HK0 exceed 95\,$^\circ$C). ASME/PED thin-wall physics sets the
+  5000\,m$^3$ pressurised per-vessel cap.}
+\end{table}

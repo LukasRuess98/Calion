@@ -19,9 +19,19 @@ enter the main campaign's KPI aggregation. The aggregated grid lands in
 results/sweep_{network}_{scenario_id}.csv (+ _optimum.json).
 
 Usage:
-    python scripts/paper_2/capacity_sweep.py SB-S1-HK0                 # 7×7 default
-    python scripts/paper_2/capacity_sweep.py MM-S2-HK0 --n 5 --lo 0.5 --hi 1.5
+    python scripts/paper_2/capacity_sweep.py SB-S1-HK0                 # 7 Q(lin) × 12 V(log) = 84
+    python scripts/paper_2/capacity_sweep.py MM-S2-HK0 --n 5 --nv 10   # coarser Q, 10 V points
     python scripts/paper_2/capacity_sweep.py SB-S1-HK0 --dry-run       # grid only
+
+Grid: Q_WP axis is LINEAR (--n/--lo/--hi around the MILP optimum); V_TES axis is
+LOG-spaced (--nv, default 12 pts) over the FULL MILP size-ladder volume range by
+default, so the sweep covers the same domain the MILP could pick — the sweep can't
+miss the optimum and the sweep↔MILP cross-validation (T4) is valid. --vlo/--vhi
+override to a [vlo,vhi]×optimum window. The knee AND the saturation/'not buildable'
+tail are both resolved (Study G, 2026-09-04). CAPEX per V-point is an additive constant, so the b-band {0.65, 0.776}
+and the design-ΔT tornado {15 K worst-case vs ~24 K median-operating} are reconstructed
+post-hoc from the SAME sweep — no extra solves (dispatch is ΔT-invariant given
+power_to_energy_ratio coupling).
 """
 from __future__ import annotations
 
@@ -63,8 +73,41 @@ def _pin_override(network: str, q_mw: float, v_m3: float) -> dict:
     }
 
 
-def _grid(opt: float, lo: float, hi: float, n: int, vmin: float, vmax: float) -> list[float]:
-    g = np.clip(np.linspace(lo * opt, hi * opt, n), vmin, vmax)
+def _ladder_v_bounds(network: str, dt_k: float = 15.0, eta: float = 0.85) -> tuple[float, float]:
+    """Volume span of the MILP size ladder for this network, at the sweep's ΔT.
+
+    Non-circular replacement for "range = [0.3, 3.0]×guessed_optimum": the sweep
+    must cover the SAME domain the MILP could pick from, else the sweep↔MILP
+    cross-validation (T4) compares different ranges and F2 can miss the true
+    optimum. The sweep fixes HK1 (spec A.3), where ΔT=15 K in both networks, so
+    the ladder (MWh) maps to fixed volumes = eta·ρ·c_p·ΔT·V. Reads the same
+    storage_geometry.yaml ladder the MILP uses; applies the v_min_realistic floor.
+    """
+    import yaml, io
+    g = yaml.safe_load(io.open(_ROOT / "configs/paper_2/storage_geometry.yaml",
+                               encoding="utf-8"))["storage_geometry"]
+    asset = "tes_main" if network == "memmingen" else "tes_sb"
+    mwh = g["per_asset"][asset]["discrete_energies_mwh"]
+    vmin_real = float(g.get("v_min_realistic_m3", 0.0) or 0.0)
+    coeff = eta * 971.8 * 4.189 * dt_k / 3.6e6   # MWh/m³
+    vols = [e / coeff for e in mwh if e > 0 and (e / coeff) >= vmin_real]
+    return min(vols), max(vols)
+
+
+def _grid(opt: float, lo: float, hi: float, n: int, vmin: float, vmax: float,
+          log: bool = False) -> list[float]:
+    """Grid of n points in [lo*opt, hi*opt], clipped to [vmin, vmax].
+
+    log=True → geometric (log) spacing, which for a window [opt/k, opt*k] is
+    symmetric in log AROUND the optimum (densifies near opt) and gives the F2
+    sizing curve a proper shape — the requirement for Study G (2026-09-04).
+    log=False → linear (legacy; kept for the Q_WP axis).
+    """
+    a, b = lo * opt, hi * opt
+    if log and a > 0 and b > 0:
+        g = np.clip(np.geomspace(a, b, n), vmin, vmax)
+    else:
+        g = np.clip(np.linspace(a, b, n), vmin, vmax)
     # de-dupe after clipping (endpoints may collapse onto a bound)
     return sorted({round(float(x), 6) for x in g if x > 0})
 
@@ -88,7 +131,8 @@ _SWEEP_SOLVER_OPTIONS = {
 
 def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
               dry_run: bool = False, chunk_start: int = 0,
-              chunk_end: int | None = None) -> Path | None:
+              chunk_end: int | None = None,
+              nv: int = 12, vlo: float | None = None, vhi: float | None = None) -> Path | None:
     res = load_main_result(scenario_id)
     network = res["network"]
     q_opt, v_opt = res["Q_WP_opt_MW"], res["V_TES_opt_m3"]
@@ -98,7 +142,17 @@ def run_sweep(scenario_id: str, n: int = 7, lo: float = 0.4, hi: float = 1.6,
             "the sweep needs a scenario where BOTH the WP and the TES were built.")
 
     q_grid = _grid(q_opt, lo, hi, n, res["q_min_mw"], res["q_max_mw"])
-    v_grid = _grid(v_opt, lo, hi, n, res["v_min_m3"], res["v_max_m3"])
+    # V axis (F2 sizing curve): log-spaced over the FULL MILP-ladder volume range
+    # by default (non-circular — covers the same domain the MILP could pick, so
+    # the sweep can't miss the optimum and the sweep↔MILP cross-validation is
+    # valid). --vlo/--vhi override to a [vlo,vhi]×optimum window if ever needed.
+    if vlo is None or vhi is None:
+        v_a, v_b = _ladder_v_bounds(network)
+        logger.info("  V range = MILP ladder [%.0f, %.0f] m³ (%.2f–%.2f × optimum %.0f)",
+                    v_a, v_b, v_a / v_opt, v_b / v_opt, v_opt)
+    else:
+        v_a, v_b = vlo * v_opt, vhi * v_opt
+    v_grid = _grid(1.0, v_a, v_b, nv, res["v_min_m3"], res["v_max_m3"], log=True)
     logger.info("Sweep %s (%s): Q_WP*=%.2f MW, V_TES*=%.0f m³ — fixed at HK1 "
                 "(spec A.3, regardless of the seed scenario's own HK stage)",
                 scenario_id, network, q_opt, v_opt)
@@ -250,9 +304,14 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     ap = argparse.ArgumentParser(description="Dispatch-only capacity sweep (Paper 2 Part A)")
     ap.add_argument("scenario_id", help="representative scenario, e.g. SB-S1-HK0")
-    ap.add_argument("--n", type=int, default=7, help="grid points per axis (default 7)")
-    ap.add_argument("--lo", type=float, default=0.4, help="lower factor of optimum")
-    ap.add_argument("--hi", type=float, default=1.6, help="upper factor of optimum")
+    ap.add_argument("--n", type=int, default=7, help="Q_WP grid points (linear, default 7)")
+    ap.add_argument("--lo", type=float, default=0.4, help="lower factor of optimum (Q axis)")
+    ap.add_argument("--hi", type=float, default=1.6, help="upper factor of optimum (Q axis)")
+    ap.add_argument("--nv", type=int, default=12, help="V_TES grid points (log, default 12)")
+    ap.add_argument("--vlo", type=float, default=None,
+                     help="lower factor of optimum (V axis); default = MILP ladder minimum")
+    ap.add_argument("--vhi", type=float, default=None,
+                     help="upper factor of optimum (V axis); default = MILP ladder maximum")
     ap.add_argument("--dry-run", action="store_true", help="build+print grid only")
     ap.add_argument("--chunk-start", type=int, default=0,
                      help="start index (inclusive) into the flat n*n grid, for running "
@@ -269,7 +328,8 @@ def main() -> None:
         merge_sweep_chunks(res["network"], args.scenario_id)
         return
     run_sweep(args.scenario_id, n=args.n, lo=args.lo, hi=args.hi, dry_run=args.dry_run,
-              chunk_start=args.chunk_start, chunk_end=args.chunk_end)
+              chunk_start=args.chunk_start, chunk_end=args.chunk_end,
+              nv=args.nv, vlo=args.vlo, vhi=args.vhi)
 
 
 if __name__ == "__main__":

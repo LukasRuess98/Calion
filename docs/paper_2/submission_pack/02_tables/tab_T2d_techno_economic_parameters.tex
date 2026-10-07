@@ -1,0 +1,51 @@
+% =============================================================================
+% tab_T2d_techno_economic_parameters.tex — Paper 2 techno-economic parameters.
+% Sources: configs/paper_2/Memmingen_P2_base.yaml + Stadtbach_topo.yaml
+%   discount_rate 0.05; lifetimes HP 20 / EK 25 / TES 30 y; CAPEX per asset;
+%   fuels gas 58.6 (EF 200) / biomass 20 (EF 20) EUR/MWh; costs CO2 100 EUR/t;
+%   grid volumetric 61.6 EUR/MWh + demand charge 127240 EUR/MW/y; SB AVA 10 EUR/MWh.
+% Electricity energy price and grid CO2 factor are HOURLY input series (spot +
+% electricitymaps), not scalars.
+% =============================================================================
+\begin{table}[htbp]
+  \centering
+  \caption{Techno-economic parameters (identical across both networks unless noted).
+  Annualised via the annuity method (VDI 2067) at a 5\,\% discount rate over each
+  asset's lifetime. Electricity energy price and the grid CO$_2$ factor are hourly
+  input series, not scalars.}
+  \label{tab:t2d_econ}
+  \small
+  \begin{tabular}{@{}lll@{}}
+  \toprule
+  Parameter & Value & Source / note \\
+  \midrule
+  \multicolumn{3}{@{}l}{\emph{Financial}}\\
+  Discount rate $i$        & 5\,\%/a & VDI 2067 / typical WACC \\
+  Lifetime — Heat pump     & 20\,a & VDI 2067 \\
+  Lifetime — Electrode boiler & 25\,a & VDI 2067 \\
+  Lifetime — TES           & 30\,a & VDI 2067 \\
+  \midrule
+  \multicolumn{3}{@{}l}{\emph{Investment cost (investable assets)}}\\
+  Heat pump (WP)           & 700{,}000\,EUR/MW $+$ 50{,}000\,EUR & Pieper et al.\ 2018; IRENA/JRC band \\
+  \quad capacity bound     & 0--30\,MW (MM), 0--50\,MW (SB) & optimiser bounds \\
+  Electrode boiler (EK)    & 150{,}000\,EUR/MW $+$ 20{,}000\,EUR & DEA Technology Catalogue \\
+  \quad capacity bound     & 0--20\,MW (MM), 0--50\,MW (SB) & optimiser bounds \\
+  TES (base pressurised)   & 1200\,EUR/m$^3$ $+$ 100{,}000\,EUR/tank & see Table~\ref{tab:t2b_storage_tech} for v3 options \\
+  \quad volume bound       & 5--5000\,m$^3$ (MM), 10--5000\,m$^3$ (SB) & optimiser bounds \\
+  \midrule
+  \multicolumn{3}{@{}l}{\emph{Energy \& emissions}}\\
+  Electricity energy price & hourly spot (EUR/MWh) & day-ahead series \\
+  Grid volumetric surcharge & 61.6\,EUR/MWh & MS Arbeitspreis $+$ 2026 levies \\
+  Grid demand charge       & 127{,}240\,EUR/MW/a & Jahresleistungspreis (peak import) \\
+  Gas price                & 58.6\,EUR/MWh (EF 200\,kg/MWh) & commodity, both networks \\
+  Biomass price            & 20.0\,EUR/MWh (EF 20\,kg/MWh) & commodity, both networks \\
+  Waste-heat feed-in (AVA) & 10.0\,EUR/MWh, $\sim$0 CO$_2$ & Stadtbach only \\
+  CO$_2$ price             & 100\,EUR/t & carbon cost in objective \\
+  Grid CO$_2$ factor       & hourly (kg/MWh) & electricitymaps 2025 series \\
+  \midrule
+  \multicolumn{3}{@{}l}{\emph{Operational}}\\
+  Storage cycling cost     & 2.0\,EUR/MWh & wear proxy \\
+  Heat-dump penalty        & 1000\,EUR/MWh$_{\mathrm{th}}$ & discourages spill \\
+  \bottomrule
+  \end{tabular}
+\end{table}

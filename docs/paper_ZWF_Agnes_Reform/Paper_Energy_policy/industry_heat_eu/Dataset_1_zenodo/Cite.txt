@@ -1,0 +1,1 @@
+Gjorgievski, V., Cundeva, S., Markovska, N., & Duić, N. (2026). IndustryHeat-EU: Harmonized Dataset of Industrial Final and Useful Energy Demand by Temperature Level for EU27 and Member States (Version 1.2.0) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.22728673

@@ -638,6 +638,17 @@ def run_single_scenario(
     (OUT_BASE.parent / "logs").mkdir(parents=True, exist_ok=True)
     cfg.setdefault("run", {}).setdefault("solver_options", {})["LogFile"] = log_path
     cfg["run"]["solver_options"]["LogToConsole"] = 0  # file-only to keep terminal clean
+    # Incumbent checkpointing (2026-10-06): Gurobi's native SolFiles parameter writes
+    # <prefix>_<n>.sol after every improving incumbent -- zero custom-callback code,
+    # survives as soon as the FIRST incumbent is found (minutes in, for these MIPs),
+    # not just on a clean solve completion like full_solution_dump.json. Motivated by
+    # two consecutive Windows restarts this week that each killed an in-flight SB-S1
+    # sweep job with no recovery point. Always-on, env-gated off if ever needed.
+    import os as _os_ckpt
+    if _os_ckpt.environ.get("CALION_NO_SOLFILES") != "1":
+        _solfiles_dir = OUT_BASE.parent / "logs" / "solfiles"
+        _solfiles_dir.mkdir(parents=True, exist_ok=True)
+        cfg["run"]["solver_options"]["SolFiles"] = (_solfiles_dir / f"ckpt_{scen_id}").as_posix()
     # Optional MIPFocus override (env) for solver-policy experiments — MM-S1 is
     # unit-commitment-limited (needs incumbents), so MIPFocus=2 (bound-focused) starves
     # the incumbent search; 0 (balanced) / 1 (incumbents) find one fast. Env-gated.

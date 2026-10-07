@@ -1,0 +1,5 @@
+site,netz_regime,procurement,n_steps,rh_opex_el_eur,pf_opex_el_eur
+food,stromnev,fixed,365,5107869.387101493,5103330.461357228
+food,stromnev,dayahead,365,4007332.547660544,4003446.1803027773
+food,agnes,fixed,365,4942371.28146793,4942452.194144121
+food,agnes,dayahead,365,3940946.8509205165,3941411.627024082

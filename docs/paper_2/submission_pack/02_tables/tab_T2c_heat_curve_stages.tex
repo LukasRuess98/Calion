@@ -1,0 +1,38 @@
+% =============================================================================
+% tab_T2c_heat_curve_stages.tex — Paper 2 heat-curve (HK) stages.
+% Source: configs/paper_2/scenarios.yaml (heat_curve_stages block).
+% HK0 = current real network; HK1/HK2 = progressive substation-retrofit scenarios
+% lowering BOTH supply and return floors. A 15 K minimum supply-return spread
+% (VDI 6002 / flow floor) is enforced at runtime in every non-hot-charging run,
+% so the usable storage spread is constant across HK stages under normal charging.
+% =============================================================================
+\begin{table}[htbp]
+  \centering
+  \caption{Heat-curve (HK) transformation stages per network. HK0 is the current
+  real network; HK1/HK2 model progressive consumer-substation retrofits (slope
+  $k$~=~1.0/0.8/0.6) that lower both the supply floor $T_{VL,\min}$ and the return
+  $T_{RL}$. $T_{VL,\max}$ (the hot-charging ceiling) is fixed per network. A 15\,K
+  minimum supply--return spread is enforced at runtime.}
+  \label{tab:t2c_heat_curve}
+  \small
+  \begin{tabular}{@{}llrrrr@{}}
+  \toprule
+  Network & Stage & Slope $k$ & $T_{VL,\min}$ [$^\circ$C] & $T_{RL}$ [$^\circ$C] & $T_{VL,\max}$ [$^\circ$C] \\
+  \midrule
+  Memmingen & HK0 (real) & 1.0 & 74 & 63.6 & 100 \\
+  Memmingen & HK1        & 0.8 & 70 & 55.0 & 100 \\
+  Memmingen & HK2        & 0.6 & 66 & 51.0 & 100 \\
+  \midrule
+  Stadtbach & HK0 (real) & 1.0 & 70 & 60.0 & 122 \\
+  Stadtbach & HK1        & 0.8 & 65 & 50.0 & 122 \\
+  Stadtbach & HK2        & 0.6 & 60 & 45.0 & 122 \\
+  \bottomrule
+  \end{tabular}
+
+  \vspace{2pt}
+  {\footnotesize Under normal charging the usable storage spread is floored at 15\,K
+  in all stages, so storage energy density is HK-invariant; only COP and network
+  losses change with the heat curve. Under hot charging the spread follows
+  $T_{VL,\max}-T_{RL}$, which \emph{does} widen as the retrofit lowers the return
+  (Memmingen: 36.4\,K at HK0 $\to$ 49\,K at HK2).}
+\end{table}

@@ -1,0 +1,49 @@
+﻿Paper-Stelle,Kennzahl/Marker,Wert,Einheit,Quelldatei,Zeile/Run-ID,Config-Hash,Run-ID
+Titel/Fußnote 1,REG-01,"Az. GBK-25-01-1#3, Entwurf 2026-08-06, Konsultation bis 2026-09-18, Anwendung ab 2029-01-01 (löst StromNEV ab, die zum 2028-12-31 ausläuft, Folge eines EuGH-Urteils)",-,config.yaml,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Abstract DE/EN,R-ABS-01,"LCOH^inc zwischen 30,7 und 58,5 EUR/MWh_th (4 Standorte x 4 Regime)",EUR/MWh,lcoh_inc.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Abstract DE/EN,R-ABS-02,TES-Kapazität verschiebt sich um -14.671..1.380 kWh zwischen StromNEV- und AgNes-Fixpreis-Auslegung,-,design_deltas.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Abstract DE/EN,R-ABS-03,"34,7 %",%,rule_validation.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Kernaussagen (ZWF-Kasten),R-CORE-01,"food: 34,7%; chemistry: 0,9%; metal: 9,9%; paper: 27,0%",%,rule_validation.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Kernaussagen (ZWF-Kasten),R-INT-01,substitutiv (Interaktionsterm überwiegend negativ),-,interaction.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§3.3 Dimensionslose Form theta,R-01,"Faktor 8,75",-,fig02_analytics_theta.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-TIME-01,chemistry: 6.440->6.449 kW; paper: 68.005->68.505 kW,-,kpi_validation_15min.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-TIME-02,"chemistry: 0,04%; paper: 0,11%",%,kpi_validation_15min.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-VAL-01,"food: 35040, chemistry: 35136, metal: 35040, paper: 35040",-,data_audit.md,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-VAL-02,1.1e-16,-,test_report.md,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-VAL-03,0.0e+00,-,kpi_s1_s4.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.1 Datenqualität und Validierung,R-VAL-04,96/96 optimal,-,kpi_s1_s4.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-DEC-DESIGN,"-5,1",%,decomposition.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-DEC-DISP,"30,3",%,decomposition.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-DEC-MECH,"74,8",%,decomposition.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-INT-MAX,"4,8",EUR/MWh,interaction.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-INT-MIN,"-4,4",EUR/MWh,interaction.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-INT-NEG-N,2 von 4,-,interaction.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-NET-DA-MAX,"15,1",EUR/MWh,table03_core_results.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-NET-DA-MIN,"-8,5",EUR/MWh,table03_core_results.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-NET-FIX-MAX,"14,9",EUR/MWh,table03_core_results.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.2 Kostenwirkung und Interaktion,R-NET-FIX-MIN,"-4,1",EUR/MWh,table03_core_results.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-DES-EK,0..0 kW über 4 Standorte,kW,design_deltas.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-DES-HP,-4.850..38 kW über 4 Standorte,kW,design_deltas.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-TES-CASE,"(a) h>h*: 3 Standorte, (b) h<h*: 1 Standorte",-,tes_case_check.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-TES-MAX,1.380,kWh,design_deltas.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-TES-MIN,-14.671,kWh,design_deltas.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.3 Auslegung,R-TES-VALUE,361.848 EUR/a Summe über alle S1-Zellen,EUR/a,kpi_s1_s4.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,R-BOOK-MAX,91 %,-,lcoh_inc.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,R-BOOK-MIN,15 %,-,lcoh_inc.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,R-E2,14 % (Mittel),-,lcoh_inc.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,R-RULE-DEV,"34,7",%,rule_validation.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,R-RULE-DIR,höher,-,rule_validation.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,V-01,"bestanden (T08, Abweichung < 0,5% im evaluate-Fall)",-,test_report.md,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.4 Bestellkapazität und Regelgüte,V-04,"food: 0,00%; chemistry: 0,00%; metal: 0,00%; paper: 0,00%",-,rule_kkt_consistency_check.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.5 Fossiler Break-even,R-BE-CO2,"11..30 (über beide Netzregime, 2/8 Ketten konvergiert)",EUR/t,breakeven.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.5 Fossiler Break-even,R-BE-GAS,"13..32 (über beide Netzregime, 7/8 Ketten konvergiert)",EUR/MWh,breakeven.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.5 Fossiler Break-even,R-BE-SHIFT,"food/gas: 104,9%; chemistry/gas: 18,9%; paper/gas: 21,2%",%,breakeven_shift.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.6 Tarifsensitivität / Tab.3,R-SENS-C,63.456,kW,kpi_s5_alpha_f.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.6 Tarifsensitivität / Tab.3,R-SENS-TES,37.895,kWh,kpi_s5_alpha_f.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.6 Tarifsensitivität / Tab.3,R-SENS-THETA,bei theta>1 erreicht C in 0% der Läufe >=98% von P_max (vs. 2% bei theta<=1),-,kpi_s5_alpha_f.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§6.6 Tarifsensitivität / Tab.3,V-02,Technologie-Rangfolge (größter Erzeuger) stabil unter Wärmelast +-10% bei 4/4 Standorten,-,kpi_s9_demand_sensitivity.parquet,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§7.4 Grenzen (Perfect Foresight vs. Rolling Horizon),V-03,"stromnev/fixed: 0,09%; stromnev/dayahead: 0,10%; agnes/fixed: -0,00%; agnes/dayahead: -0,01%",%,rolling_horizon.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§8 Fazit,R-CONCLUSION-01,"AgNes verschiebt die inkrementellen Wärmekosten je nach Standort und Beschaffungsregime um -4,1 bis 14,9 EUR/MWh (Fixpreis) bzw. -8,5 bis 15,1 EUR/MWh (Day-Ahead) ggü. StromNEV.",-,table03_core_results.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+§8 Fazit,R-CONCLUSION-02,"Die auf dem vor Elektrifizierung beobachteten Grundlastgang basierende Ex-ante-Bestellregel weicht im vollständig gekoppelten Elektrifizierungsmodell um bis zu 34,7% von der optimalen Bestellkapazität ab. Die Differenz umfasst die Wirkung des veränderten Gesamtlastgangs sowie Rückkopplungen aus Auslegung, Speicherbetrieb und Bestellentscheidung. Bei reinem Grundlastgang (V-01) bzw. bei Anwendung auf den vom LP realisierten Gesamtlastgang (V-04) trifft die Regel das Optimum exakt - die Abweichung ist damit korrekt der Elektrifizierung selbst zuzuschreiben, nicht einem Fehler der Regel.",-,rule_validation.csv,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Literatur,BIB-01,"Zühlsdorf, B., Armato, V., Poulsen, J. L., Andersen, M. P., Arpagaus, C., Schlosser, F., Dusek, S. (2024). IEA HPT Annex 58 High-Temperature Heat Pumps Final Report. DOI: 10.23697/2qxe-av87.",-,config.yaml,20260922T203807,0ffd2bbbe432ef74,20260922T203807
+Literatur,BIB-03,"Danish Energy Agency, Technology Data for Industrial Process Heat, 2023 (ens.dk Technology Catalogues, Sektor 'Industrial process heat').",-,config.yaml,20260922T203807,0ffd2bbbe432ef74,20260922T203807

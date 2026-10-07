@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "purpose": "Fixed, TIME-LOCAL per-node pressure-relief widening (2026-09-22, B1b/C1 correction). Replaces the slack mechanism ONLY at the exact (node, hour) pairs listed under nodes.*.hours -- everywhere else (including OTHER hours at the SAME node) the normal pressure_slack penalty mechanism (thermal_node.py) stays fully active, unchanged. This is a correction of the first version of this file, which applied the year-max as a CONSTANT all-year widening and made j_13's whole-year requirement (2.0 bar) vacuous; a full-year Pass-2 verification run with that constant version came back genuinely LP-infeasible (root relaxation infeasible), confirming the constant-widening approach was wrong, not just imprecise.",
+    "derivation_rule": "nodes[node]['hours'][hour] = pressure_slack_audit[node]['hours'][hour] from the BASE-FIX reference run named in source_run -- i.e. the EXACT historical slack value at that hour, not a year-max. At runtime (CALION_PRESSURE_SLACK_MODE=preprocessed) the hard bound at exactly these hours is delta_p_min_station - widen_bar, and the slack Var is .fix(0.0) there (no slack return); every other hour at every node keeps the ordinary penalised slack.",
+    "status": "POPULATED (time-local) from Pass-1 BASE-FIX reference runs (dump=5 EUR/MWh, mode=objective).",
+    "source_run": {
+      "MM": "output/mm_s4_reconcile/b1prep_BC-MM (BC-MM)",
+      "SB": "output/mm_s4_reconcile/b1prep_BC-SB (BC-SB, zero slack all year -> no entries)"
+    },
+    "populated_at": "2026-09-22T15:00:54"
+  },
+  "nodes": {
+    "j_13": {
+      "hours": {
+        "8365": 3.8686,
+        "8366": 3.8686,
+        "8367": 3.8686
+      }
+    }
+  }
+}

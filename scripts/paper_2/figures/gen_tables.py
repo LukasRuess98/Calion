@@ -378,6 +378,16 @@ def build_t2() -> None:
 
 # ── T3 / T4 — per-network scenario KPI tables ────────────────────────────────
 OUT_RUNS = _ROOT / "output" / "paper2_runs"
+
+
+def _is_stale(sid: str) -> bool:
+    """True if a run dir predates the physics fixes (S0/BC: the 2026-09-19 tes_off fix; all other
+    families: the 2026-09-12 return-loss/TES-geometry fixes). Stale data must never be tabulated."""
+    import datetime as _dt
+    cut = (_dt.datetime(2026, 9, 19, 23, 0) if (sid.startswith("BC-") or "-S0-" in sid)
+           else _dt.datetime(2026, 9, 13, 0, 0)).timestamp()
+    ec = OUT_RUNS / sid / "economics.csv"
+    return (not ec.exists()) or ec.stat().st_mtime < cut
 _STAGE_ORDER = {"TVLFIX": 0, "HK0": 1, "HK1": 2, "HK2": 3}
 
 
@@ -408,6 +418,35 @@ def _scenario_kpi_table(net_key: str, net_label: str, stem: str, caption: str) -
     if df is None:
         return
     sub = df[df["network"] == net_key].copy()
+    # Exclusions (2026-09-20): (a) monolithic endogenous-siting families (weak LP bound, garbage
+    # incumbents; reported via the enumeration table instead, same policy as build_t5), (b) the
+    # Paper-1 reference run, (c) scenarios whose run data predates the 2026-09-12 physics fixes
+    # (return-loss + TES-geometry) or the 2026-09-19 tes_off fix -> stale, never tabulated.
+    import datetime as _dt
+    # S0/BC ("TES off") need data from AFTER the 2026-09-19 tes_off fix; every other family only
+    # needs data from after the 2026-09-12 return-loss/TES-geometry fixes.
+    _cut_tesoff = _dt.datetime(2026, 9, 19, 23, 0).timestamp()
+    _cut_phys = _dt.datetime(2026, 9, 13, 0, 0).timestamp()
+    _mono = ("MM-S4-", "MM-S5-", "SB-S6-", "SB-S7-")
+    def _drop_reason(sid: str):
+        if sid.startswith(_mono):
+            return "monolithic endogenous (see F3 enumeration table)"
+        if sid == "MM-P1REF":
+            return "Paper-1 reference run"
+        ec = OUT_RUNS / sid / "economics.csv"
+        _cut = _cut_tesoff if (sid.startswith("BC-") or "-S0-" in sid) else _cut_phys
+        if not ec.exists() or ec.stat().st_mtime < _cut:
+            # F2-sweep promotions (S1/S3) are copied from post-fix runs; their copy mtime is
+            # also refreshed, so an old mtime here really means stale Aug-30 data.
+            return "stale (pre-fix data)"
+        return None
+    _keep = []
+    for _sid in sub["scenario_id"]:
+        _r = _drop_reason(_sid)
+        if _r:
+            print(f"    [EXCLUDED] {_sid}: {_r}")
+        _keep.append(_r is None)
+    sub = sub[_keep].copy()
     if sub.empty:
         print(f"  [SKIP] {stem}: no rows for {net_label}")
         return
@@ -436,15 +475,23 @@ def _scenario_kpi_table(net_key: str, net_label: str, stem: str, caption: str) -
 def build_t3() -> None:
     print("T3 — Stadtbach scenario KPIs:")
     _scenario_kpi_table("stadtbach", "Stadtbach", "tab_T3_stadtbach_kpis",
-                        "Stadtbach scenario KPIs (all solved runs): total annual cost, "
-                        "LCOH, cost reduction, CO₂, WP/TES sizing, annual COP.")
+                        "Stadtbach scenario KPIs (post-fix runs only): total annual cost (incl. annualised "
+                        "CAPEX), LCOH, cost reduction vs. baseline BC, CO₂, WP/TES sizing, annual COP. "
+                        "S0 = electrification without storage. S1/S3 (HK0, HK1) are omitted because their "
+                        "cost-optimal storage size is zero (identical to S0). S2 is withheld: its energy balance does not "
+                        "close (unaccounted heat scales with storage throughput). S4/S5 (HK0) were re-solved but did not "
+                        "converge within 4 h (MIP gap >80 %) and are not listed; S1-HK2/S3-HK2 were not run. Endogenous "
+                        "siting (S6/S7) is reported in the F3 enumeration table.")
 
 
 def build_t4() -> None:
     print("T4 — Memmingen scenario KPIs:")
     _scenario_kpi_table("memmingen", "Memmingen", "tab_T4_memmingen_kpis",
-                        "Memmingen scenario KPIs (all solved runs): total annual cost, "
-                        "LCOH, cost reduction, CO₂, WP/TES sizing, annual COP.")
+                        "Memmingen scenario KPIs (post-fix runs only): total annual cost (incl. annualised "
+                        "CAPEX; S1/S3 = best fixed-size storage rung incl. its CAPEX), LCOH, cost reduction vs. "
+                        "baseline BC, CO₂, WP/TES sizing, annual COP. S0 = electrification without storage. "
+                        "S2-HK0 is infeasible (IIS); S2-HK1/HK2 built no storage. Endogenous siting (S4/S5) is "
+                        "reported in the F3 enumeration table.")
 
 
 # ── T5 — validation table ────────────────────────────────────────────────────
@@ -458,7 +505,7 @@ def build_t5() -> None:
     # enumeration decomposition and lives in tab_T3b_T4b_f3_endogenous_siting_FINAL.csv instead.
     # Their monolithic solver stats (e.g. MM-S4-HK0's sign-flipped-bound 47349% gap, G.10) are not
     # meaningful campaign statistics and are excluded here rather than "fixed" per G.10's guidance.
-    endogenous_superseded = {s for s in canonical_ids if s.startswith(("SB-S6-", "MM-S4-"))}
+    endogenous_superseded = {s for s in canonical_ids if s.startswith(("SB-S6-", "MM-S4-", "MM-S5-", "SB-S7-"))}
     gaps, statuses = [], []
     good_closures, good_losses, suspect_runs = [], [], []   # converged / loss-frac / flagged
     excluded_dirs = []   # non-canonical run dirs (F3 enumeration sub-pairs, diagnostics, TEST/DIAG) — reported separately, not mixed into T5
@@ -468,6 +515,9 @@ def build_t5() -> None:
             superseded_dirs.append(d.name)
             continue
         if d.name not in canonical_ids:
+            excluded_dirs.append(d.name)
+            continue
+        if _is_stale(d.name):          # canonical id but pre-fix data (not yet re-solved) -> not counted
             excluded_dirs.append(d.name)
             continue
         vj, mj = d / "validation.json", d / "meta.json"
@@ -578,6 +628,7 @@ def build_t5() -> None:
                 pass
         kind = ("SB-S6/MM-S4 superseded monolithic (G.8)" if name in superseded_dirs
                 else "F3 enumeration sub-pair" if "__hp_" in name and "__tes_" in name
+                else "stale pre-fix data (not yet re-solved)" if (name in canonical_ids and _is_stale(name))
                 else "TEST/DIAG" if ("TEST" in name or "DIAG" in name or "ZZ" in name)
                 else "other diagnostic/superseded")
         excl_rows.append({"Run dir": name, "Kind": kind, "Status": st,
@@ -593,7 +644,77 @@ def build_t5() -> None:
           f"gaps={len(gaps)}")
 
 
-_ALL = {"T1": build_t1, "T2": build_t2, "T3": build_t3, "T4": build_t4, "T5": build_t5}
+# ── F3 — endogenous siting (pairwise enumeration), post-fix, tight-gap pairs only ─────────────
+def build_f3() -> None:
+    """Rebuild the F3 endogenous-siting table from the fresh HK0 site-pair enumeration
+    (MM-S4-HK0__hp_*__tes_*, SB-S6-HK0__hp_*__tes_*). Only pairs solved to MIP gap <= 10 % are
+    tabulated; looser pairs are counted and flagged unreliable (their incumbents are dominated by
+    solver quality, not physics). Every row is compared with the TRUE no-TES S0 of the same network."""
+    import datetime as _dt
+    print("F3 — endogenous siting (site-pair enumeration):")
+    kp = _load_kpis_all()
+    if kp is None:
+        return
+    kp = kp.set_index("scenario_id")
+    cut = _dt.datetime(2026, 9, 13).timestamp()
+    spec = [("Memmingen", "MM-S4-HK0", "MM-S0-HK0", "BC-MM"), ("Stadtbach", "SB-S6-HK0", "SB-S0-HK0", "BC-SB")]
+    rows, notes = [], []
+    for net, base, s0id, bcid in spec:
+        s0 = float(kp.loc[s0id, "TAC_eur_per_a"]); bc = float(kp.loc[bcid, "TAC_eur_per_a"])
+        n_tot = n_loose = n_none = 0
+        cand = []
+        for d in sorted(OUT_RUNS.glob(f"{base}__hp_*__tes_*")):
+            ec, mj, gj = d / "economics.csv", d / "meta.json", d / "geometry.csv"
+            if not ec.exists() or ec.stat().st_mtime < cut or not mj.exists():
+                continue
+            n_tot += 1
+            m = json.loads(mj.read_text())
+            obj, gap = m.get("obj_eur"), m.get("mip_gap")
+            if not obj or gap is None:
+                n_none += 1; continue
+            if float(gap) > 0.10:
+                n_loose += 1; continue
+            hp, tes = d.name.split("__hp_")[1].split("__tes_")
+            etes = 0.0
+            if gj.exists():
+                try:
+                    etes = float(pd.read_csv(gj).iloc[0]["E_TES_max_MWh"])
+                except Exception:  # noqa: BLE001
+                    pass
+            cand.append((float(obj), hp, tes, etes, float(gap) * 100, d.name))
+        for obj, hp, tes, etes, gap, sid in sorted(cand)[:6]:
+            k = kp.loc[sid] if sid in kp.index else None
+            rows.append({
+                "Network": net, "HP site": hp, "TES site": tes,
+                "TAC [M€/a]": _fmt(obj / 1e6, 3),
+                "Δ vs S0 [%]": _fmt(100 * (s0 - obj) / s0, 1),
+                "Δ vs BC [%]": _fmt(100 * (bc - obj) / bc, 1),
+                "E_TES built [MWh]": _fmt(etes, 1),
+                "CO₂ [t/a]": _fmt(k["co2_t_per_a"], 0) if k is not None else "—",
+                "MIP gap [%]": _fmt(gap, 2),
+            })
+        notes.append(f"{net}: {n_tot} pairs solved post-fix; {len(cand)} with gap<=10%, {n_loose} looser "
+                     f"(unreliable), {n_none} without incumbent; true S0 = {s0/1e6:.3f} M€/a, BC = {bc/1e6:.3f} M€/a")
+    for n in notes:
+        print("    " + n)
+    _write(pd.DataFrame(rows), "tab_T3b_T4b_f3_endogenous_siting_FINAL",
+           "Endogenous siting (F3, HK0) from explicit HP-site x TES-site enumeration, post-fix data. Only pairs solved "
+           "to MIP gap $\leq$10\,\% are listed (looser pairs are dominated by solver quality and flagged unreliable); "
+           "$\Delta$ vs S0 compares with the true no-TES S0 of the same network (negative = the pair costs MORE than S0; "
+           "even pairs that built no storage do, so pair solves rank sites against each other but do not demonstrate "
+           "an absolute siting or storage benefit).",
+           "tab:t3b_t4b_f3_final", align="lllrrrrrr")
+
+
+def _load_kpis_all() -> pd.DataFrame | None:
+    p = OUT_RUNS / "scenarios_kpis.csv"
+    if not p.exists():
+        print(f"  [SKIP] {p} missing")
+        return None
+    return pd.read_csv(p)
+
+
+_ALL = {"T1": build_t1, "T2": build_t2, "T3": build_t3, "T4": build_t4, "T5": build_t5, "F3": build_f3}
 
 if __name__ == "__main__":
     which = [a.upper() for a in sys.argv[1:] if a.upper() in _ALL] or list(_ALL)

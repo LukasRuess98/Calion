@@ -1,0 +1,1151 @@
+# =============================================================================
+# STADTBACH DISTRICT HEATING NETWORK
+# Revised reduced-order MILP/PWL network configuration
+# =============================================================================
+#
+# VERSION
+#   Revision: 2026-09-29
+#
+# SOURCE DOCUMENTS
+#   [WV640] Erzeugerausspeisungen und -umwälzungen, Blatt 3, 14.06.2023
+#   [WV650] Netz Mitte/Süd/Nordost/Ost, Stand 25.03.2022
+#   [WV660] Netz West/Nordwest, Stand 25.03.2022
+#
+# MODEL SCOPE
+#   - 33 nodes
+#   - 32 pipe edges
+#   - connected reduced tree: |E| = |V| - 1
+#   - 24 aggregated consumer stations/zones
+#   - 6 modeled source nodes:
+#       j_hkw, j_gtost, j_bmhkw, j_ava, j_pss, j_psw
+#
+# IMPORTANT TOPOLOGY LIMITATION
+#   The real district-heating network is meshed. WV650 and WV660 explicitly
+#   describe a "Separierung", during which selected valves are closed and the
+#   meshing is removed.
+#
+#   This configuration therefore represents a REDUCED TREE-EQUIVALENT of the
+#   separated operating state. It is not a valve-by-valve representation of the
+#   complete physical network.
+#
+#   Each feeder represents an aggregated hydraulic corridor between a zone
+#   busbar and a consumer station. Its diameter is therefore not always equal
+#   to the final station valve DN shown in WV650/WV660.
+#
+# EVIDENCE LABELS USED IN COMMENTS
+#   [PLAN]  directly supported by WV640/WV650/WV660
+#   [DATA]  taken from the input time series or separately supplied asset data
+#   [MODEL] reduced-order or calibration assumption
+#   [TODO]  requires confirmation from GIS, pump curves or operating records
+#
+# PHYSICAL PRODUCER LOCATIONS
+#   Heizkraftwerk:       HKW
+#   GT-Ost:              Beim Grenzgraben 10
+#   Biomasse-HKW:        Beim Grenzgraben 20
+#   AVA takeover:        Am Mittleren Moos 60
+#   Heizwerk Süd:        Alter Postweg 93
+#   Heizwerk West:       Flandernstraße 10
+#
+# AGGREGATION OF PUMP AND HEATING STATIONS
+#   The optimization framework treats secondary generators as pressure-boosted
+#   source nodes. Therefore:
+#
+#     j_pss = hydraulic equivalent of Pumpstation Süd + HWS injection boundary
+#     j_psw = hydraulic equivalent of Pumpstation West + HWW injection boundary
+#
+#   The physical HWS/HWW locations are represented by j_hws/j_hww as downstream
+#   zone busbars. This keeps the existing pressure-booster formulation usable.
+#   It must not be interpreted as exact equipment co-location.
+#
+# DOCUMENTED SEPARATED-STATE TRANSPORT CAPACITIES
+#   [WV650]
+#     SL5: approximately 750 t/h
+#     SL6: approximately 500 t/h
+#     SL7: approximately 300 t/h
+#
+#   hkw_to_ost combines several corridors hydraulically. DN600 is an equivalent
+#   diameter, not a directly documented single DN600 pipe.
+#
+# PRESSURE
+#   The plans identify PN16/PN25 network areas and minimum static pressures.
+#   PN16 is a pressure class, not a 16 bar operating setpoint.
+#
+#   The 15 bar source setpoints below are MODEL assumptions intended to leave
+#   nominal margin below 16 bar. They must be validated against:
+#     - whether the model uses gauge or absolute pressure,
+#     - actual supply and return pressure measurements,
+#     - pump curves,
+#     - temperature-dependent allowable component pressure,
+#     - pressure-relief settings.
+#
+# CAPACITIES
+#   Generator capacities are separately supplied operating capacities at
+#   approximately 99/60 °C. They are not derived from WV640/WV650/WV660.
+#
+# DATA
+#   data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx
+#
+#   Preprocessing:
+#     python scripts/preprocess/merge_acron_sb.py
+#     python scripts/preprocess/clean_stadtbach_west.py
+#
+# =============================================================================
+
+site:
+  input_xlsx: "data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx"
+  columns:
+    datetime: "Datum"
+    price: "strompreis_EUR_MWh"
+    co2_grid: "grid_co2_kg_MWh"
+
+scenario:
+  name: "Stadtbach reduced separated-state topology (Paper 2)"
+  description: >-
+    Reduced 33-node tree-equivalent of the separated Stadtbach district-heating
+    network, based on WV640, WV650 and WV660, with fixed and investable assets.
+  run_mode: PF_ONLY
+  milp_linearize: true
+
+  horizon:
+    start: "2025-01-01 00:00"
+    end: "2025-12-31 23:00"
+
+
+# =============================================================================
+# NETWORK
+# =============================================================================
+
+network:
+  milp_linearize: true
+  primary_producer: "j_hkw"
+
+  physics:
+    heat_loss: true
+    pressure_drop: true
+    transport_delay: true
+
+  # Nominal reference temperatures.
+  supply_temp_c: 99.0
+  return_temp_c: 60.0
+  ground_temp_c: 10.0
+
+  # Absolute temperature floor and minimum consumer-side temperature spread
+  # are separate constraints. The absolute floor is not defined as
+  # return temperature + 10 K.
+  min_supply_delta_T_k: 15.0
+  consumer_min_temp_c: 70.0
+
+  temperature_frame:
+    default_return_band_c: 5.0
+
+    seasons:
+      winter:
+        months: [1, 2, 12]
+        supply_c: 115.0
+        return_c: 62.0
+
+      spring:
+        months: [3, 4, 5]
+        supply_c: 99.0
+        return_c: 61.0
+
+      summer:
+        months: [6, 7, 8]
+        supply_c: 84.0
+        return_c: 62.0
+
+      autumn:
+        months: [9, 10, 11]
+        supply_c: 96.0
+        return_c: 60.0
+
+  heating_curve:
+    enabled: true
+    T_supply_max_c: 122.0
+    T_supply_min_c: 70.0
+    T_outdoor_low_c: -15.0
+    T_outdoor_high_c: 30.0
+
+  linearization:
+    method: "pwl"
+
+    temperature_profile:
+      load_fractions: [0.0, 0.3, 0.6, 1.0]
+      T_supply_c: [70.0, 85.0, 100.0, 122.0]
+      T_return_c: [55.0, 58.0, 62.0, 68.0]
+
+  max_velocity_m_s: 3.0
+
+  parameters:
+    max_velocity_m_s: 3.0
+
+  state_validation:
+    flow_constraints:
+      max_velocity_m_s: 3.0
+
+  pump_efficiency: 0.75
+  pipe_roughness_mm: 0.5
+
+  # Maximum modeled drop per reduced pipe equivalent.
+  # [TODO] Calibrate from measured supply/return pressures and pump curves.
+  max_pressure_drop_bar: 2.0
+  delta_p_min_consumer_bar: 0.7
+
+  # ---------------------------------------------------------------------------
+  # NODES
+  # ---------------------------------------------------------------------------
+
+  nodes:
+
+    # -------------------------------------------------------------------------
+    # PRIMARY PRODUCTION HUB
+    # -------------------------------------------------------------------------
+
+    j_hkw:
+      assets:
+        - hkw
+        - p2h_existing
+        - ek_sb
+        - hp_sb
+        - tes_sb
+
+      pressure:
+        # [MODEL] Not inferred from PN16.
+        # Validate gauge/absolute-pressure convention before final publication.
+        setpoint_bar: 15.0
+
+    # -------------------------------------------------------------------------
+    # EAST BUSBAR
+    # -------------------------------------------------------------------------
+
+    j_ost: {}
+
+    # -------------------------------------------------------------------------
+    # EASTERN PRODUCERS
+    # -------------------------------------------------------------------------
+
+    j_gtost:
+      assets:
+        - gtost
+
+    j_bmhkw:
+      assets:
+        - bmhkw
+
+    j_ava:
+      assets:
+        - ava_feed
+
+    # -------------------------------------------------------------------------
+    # SOUTH AND WEST EQUIVALENT SOURCE BOUNDARIES
+    # -------------------------------------------------------------------------
+    #
+    # The boiler assets remain on the pump-station equivalent nodes because
+    # these nodes are handled as pressure-boosted secondary sources by the
+    # current network implementation.
+    #
+    # Physical locations:
+    #   HWS: Alter Postweg 93
+    #   HWW: Flandernstraße 10
+    # -------------------------------------------------------------------------
+
+    j_pss:
+      assets:
+        - hws_boiler
+
+      pressure:
+        # [MODEL] Equivalent PSS/HWS pressure boundary.
+        setpoint_bar: 15.0
+
+    j_psw:
+      assets:
+        - hww_boiler
+
+      pressure:
+        # [MODEL] Equivalent PSW/HWW pressure boundary.
+        setpoint_bar: 15.0
+
+    # Downstream zone busbars, not additional physical generators.
+    j_hws: {}
+    j_hww: {}
+
+    # -------------------------------------------------------------------------
+    # NETZ MITTE CONSUMERS
+    # -------------------------------------------------------------------------
+
+    j_man:
+      consumers:
+        - column: "MAN_MW"
+
+    j_hoher_weg:
+      consumers:
+        - column: "Hoher_Weg_MW"
+
+    j_hunoldsgraben:
+      consumers:
+        - column: "Hunoldsgraben_MW"
+
+    j_kreissparkasse:
+      consumers:
+        - column: "Kreissparkasse_MW"
+
+    # -------------------------------------------------------------------------
+    # NETZ OST CONSUMERS
+    # -------------------------------------------------------------------------
+
+    j_lechhauser_str:
+      consumers:
+        - column: "Lechhauser_Str_MW"
+
+    j_kuka:
+      consumers:
+        - column: "KUKA_MW"
+
+    j_kurt_schumacher_str:
+      consumers:
+        - column: "Kurt-Schumacher-Str_MW"
+
+    j_hans_boeckler_str:
+      consumers:
+        - column: "Hans-Boeckler-Str_MW"
+
+    j_am_mittleren_moos:
+      consumers:
+        - column: "Am_Mittleren_Moos_MW"
+
+    # -------------------------------------------------------------------------
+    # NETZ SÜD CONSUMERS
+    # -------------------------------------------------------------------------
+
+    j_theodor_heuss_platz:
+      consumers:
+        - column: "Theodor-Heuss-Platz_MW"
+
+    j_fuggerstr:
+      consumers:
+        - column: "Fuggerstr_MW"
+
+    j_sigma_technopark:
+      consumers:
+        - column: "SIGMA_Technopark_MW"
+
+    j_uni:
+      consumers:
+        - column: "UNI_MW"
+
+    j_fraunhofer:
+      consumers:
+        - column: "Fraunhofer_MW"
+
+    j_beethovenpark:
+      consumers:
+        - column: "Beethovenpark_MW"
+
+    j_don_bosco:
+      consumers:
+        - column: "Don_Bosco_MW"
+
+    # -------------------------------------------------------------------------
+    # NETZ WEST CONSUMERS
+    # -------------------------------------------------------------------------
+
+    j_schlettererstr:
+      consumers:
+        - column: "Schlettererstr_MW"
+
+    j_josefinum:
+      consumers:
+        - column: "Josefinum_MW"
+
+    j_klinikum:
+      consumers:
+        - column: "Klinikum_MW"
+
+    j_lise_meitner_str:
+      consumers:
+        - column: "Lise-Meitner-Str_MW"
+
+    j_august_wessels_str:
+      consumers:
+        - column: "August-Wessels-Str_MW"
+
+    j_hooverstr:
+      consumers:
+        - column: "Hooverstr_MW"
+
+    j_grasiger_weg:
+      consumers:
+        - column: "Grasiger_Weg_MW"
+
+    j_siegfried_aufhaeuser_str:
+      consumers:
+        - column: "Siegfried-Aufhaeuser-Str_MW"
+
+
+  # ---------------------------------------------------------------------------
+  # PIPES
+  # ---------------------------------------------------------------------------
+  #
+  # 32 reduced pipe edges for 33 nodes.
+  #
+  # Lengths are reduced trace-distance estimates from the preceding model.
+  # They cannot be fully verified from the text extraction of the PDF plans.
+  # Exact validation requires GIS/DWG polylines.
+  # ---------------------------------------------------------------------------
+
+  pipes:
+
+    # =========================================================================
+    # MAIN TRUNKS
+    # =========================================================================
+
+    hkw_to_ost:
+      from: j_hkw
+      to: j_ost
+      length_m: 5930
+
+      # [MODEL] Hydraulic equivalent for the combined eastern corridors.
+      # Not a claim that WV650 contains one physical DN600 line.
+      #
+      # WV650 gives separated-state capacities of approximately:
+      #   SL5 = 750 t/h
+      #   SL6 = 500 t/h
+      #
+      # A separate aggregate transport-capacity constraint should be added in
+      # code if the pipe class supports a verified mass-flow limit.
+      diameter_mm: 600
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+      bidirectional: true
+
+    hkw_to_pss:
+      from: j_hkw
+      to: j_pss
+      length_m: 4470
+
+      # [PLAN] Pumpstation Süd, armature 297.1: DN350.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    hkw_to_psw:
+      from: j_hkw
+      to: j_psw
+      length_m: 2630
+
+      # [PLAN] Pumpstation West, armature 346.1: DN350.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # =========================================================================
+    # PRODUCER CONNECTIONS TO EAST BUSBAR
+    # =========================================================================
+
+    gtost_to_ost:
+      from: j_gtost
+      to: j_ost
+      length_m: 60
+
+      # [PLAN] GT-Ost, armature 515.1: DN350.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    bmhkw_to_ost:
+      from: j_bmhkw
+      to: j_ost
+      length_m: 60
+
+      # [PLAN] Biomasse-HKW: DN250 connection.
+      diameter_mm: 250
+
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+
+    ava_to_ost:
+      from: j_ava
+      to: j_ost
+      length_m: 870
+
+      # [PLAN] AVA takeover station, armature 810.1: DN350.
+      # Adjacent corridor armatures 809.1/809.2 are DN400, but the producer
+      # connection itself is documented as DN350.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # =========================================================================
+    # SOUTH/WEST SOURCE-TO-ZONE EQUIVALENTS
+    # =========================================================================
+
+    pss_to_hws:
+      from: j_pss
+      to: j_hws
+      length_m: 610
+
+      # [MODEL] Area-equivalent aggregation of HWS injections:
+      #   HWS Südeinspeisung 1: DN350
+      #   HWS Südeinspeisung 2: DN200
+      #
+      # Equivalent diameter:
+      #   sqrt(350² + 200²) ≈ 403 mm -> DN400
+      diameter_mm: 400
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    psw_to_hww:
+      from: j_psw
+      to: j_hww
+      length_m: 960
+
+      # [MODEL] Area-equivalent aggregation of HWW sections:
+      #   SEK1: DN300
+      #   SEK2: DN300
+      #   SEK3: DN250
+      #
+      # Equivalent diameter:
+      #   sqrt(300² + 300² + 250²) ≈ 492 mm -> DN500
+      diameter_mm: 500
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    # =========================================================================
+    # NETZ MITTE FEEDERS
+    # =========================================================================
+
+    hkw_to_man:
+      from: j_hkw
+      to: j_man
+      length_m: 850
+
+      # [MODEL] Reduced corridor diameter.
+      # WV650 contains multiple MAN-area armatures with DN200/300/400.
+      diameter_mm: 400
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    hkw_to_hoher_weg:
+      from: j_hkw
+      to: j_hoher_weg
+      length_m: 650
+
+      # [MODEL] Aggregated upstream feeder, not the terminal station valve DN.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    hkw_to_hunoldsgraben:
+      from: j_hkw
+      to: j_hunoldsgraben
+      length_m: 1170
+
+      # [MODEL] Aggregated corridor.
+      diameter_mm: 200
+
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    hkw_to_kreissparkasse:
+      from: j_hkw
+      to: j_kreissparkasse
+      length_m: 1740
+
+      # [PLAN] Stadtsparkasse/KSK terminal armature is documented as DN125.
+      diameter_mm: 125
+
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # =========================================================================
+    # NETZ OST FEEDERS
+    # =========================================================================
+
+    ost_to_lechhauser:
+      from: j_ost
+      to: j_lechhauser_str
+      length_m: 680
+
+      # [PLAN] Lechhauser Straße includes DN250 terminal branches and a DN350
+      # upstream armature. DN250 is retained for the reduced consumer feeder.
+      diameter_mm: 250
+
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+
+    ost_to_kuka:
+      from: j_ost
+      to: j_kuka
+      length_m: 1740
+
+      # [PLAN] KUKA, armature 995.1: DN250.
+      diameter_mm: 250
+
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+
+    ost_to_kurt_schumacher:
+      from: j_ost
+      to: j_kurt_schumacher_str
+      length_m: 1370
+
+      # [PLAN] Kurt-Schumacher corridor:
+      #   777.1: DN350
+      #   777.2: DN350
+      #   777.3: DN250 toward Medienzentrum
+      #
+      # DN350 represents the main reduced corridor.
+      diameter_mm: 350
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    ost_to_hans_boeckler:
+      from: j_ost
+      to: j_hans_boeckler_str
+      length_m: 1940
+
+      # [PLAN] Hans-Böckler-Straße, armatures 833.1/833.3: DN400.
+      diameter_mm: 400
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    ost_to_am_mittleren_moos:
+      from: j_ost
+      to: j_am_mittleren_moos
+      length_m: 870
+
+      # [MODEL] Consumer feeder estimate.
+      # Do not confuse with the separate AVA connection DN350.
+      diameter_mm: 200
+
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    # =========================================================================
+    # NETZ SÜD FEEDERS
+    # =========================================================================
+
+    pss_to_theodor_heuss:
+      from: j_pss
+      to: j_theodor_heuss_platz
+      length_m: 2350
+
+      # [PLAN] Theodor-Heuss-Platz, armature 735.1: DN200.
+      diameter_mm: 200
+
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    pss_to_fuggerstr:
+      from: j_pss
+      to: j_fuggerstr
+      length_m: 1200
+
+      # [PLAN] Fuggerstraße, armature 441.5: DN150.
+      diameter_mm: 150
+
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+    hws_to_sigma:
+      from: j_hws
+      to: j_sigma_technopark
+      length_m: 450
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+    hws_to_uni:
+      from: j_hws
+      to: j_uni
+      length_m: 910
+
+      # [PLAN] Universität, armature 476.1: DN300.
+      diameter_mm: 300
+
+      u_value_supply_w_per_m_k: 0.32
+      u_value_return_w_per_m_k: 0.34
+
+    hws_to_fraunhofer:
+      from: j_hws
+      to: j_fraunhofer
+      length_m: 2050
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+    hws_to_beethovenpark:
+      from: j_hws
+      to: j_beethovenpark
+      length_m: 2880
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+    hws_to_don_bosco:
+      from: j_hws
+      to: j_don_bosco
+      length_m: 3490
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    # =========================================================================
+    # NETZ WEST FEEDERS
+    # =========================================================================
+
+    psw_to_schlettererstr:
+      from: j_psw
+      to: j_schlettererstr
+      length_m: 620
+      diameter_mm: 150
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+    psw_to_josefinum:
+      from: j_psw
+      to: j_josefinum
+      length_m: 2070
+      diameter_mm: 125
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    hww_to_klinikum:
+      from: j_hww
+      to: j_klinikum
+      length_m: 3160
+
+      # [PLAN] Corridor toward Zentralklinikum: DN250.
+      diameter_mm: 250
+
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+
+    hww_to_lise_meitner:
+      from: j_hww
+      to: j_lise_meitner_str
+      length_m: 2270
+
+      # [MODEL] Reduced terminal feeder estimate.
+      diameter_mm: 125
+
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    hww_to_august_wessels:
+      from: j_hww
+      to: j_august_wessels_str
+      length_m: 2150
+
+      # [MODEL] Estimated terminal feeder.
+      # No direct assignment to armature 850.3 is made: WV660 assigns 850.3
+      # to Siegfried-Aufhäuser-Straße, not August-Wessels-Straße.
+      diameter_mm: 125
+
+      u_value_supply_w_per_m_k: 0.24
+      u_value_return_w_per_m_k: 0.26
+
+    hww_to_hooverstr:
+      from: j_hww
+      to: j_hooverstr
+      length_m: 1000
+
+      # [PLAN] Hooverstraße, armature 620.1: DN250.
+      diameter_mm: 250
+
+      u_value_supply_w_per_m_k: 0.30
+      u_value_return_w_per_m_k: 0.32
+
+    hww_to_grasiger_weg:
+      from: j_hww
+      to: j_grasiger_weg
+      length_m: 1550
+
+      # [PLAN] Grasiger Weg:
+      #   797.1: DN200
+      #   797.2: DN150
+      #   797.3: DN200
+      #
+      # DN200 represents the reduced main feeder.
+      diameter_mm: 200
+
+      u_value_supply_w_per_m_k: 0.28
+      u_value_return_w_per_m_k: 0.30
+
+    hww_to_siegfried_aufhaeuser:
+      from: j_hww
+      to: j_siegfried_aufhaeuser_str
+      length_m: 1470
+
+      # [PLAN] Siegfried-Aufhäuser-Straße:
+      #   850.1: DN200 main branch
+      #   850.3: DN150 secondary/terminal branch
+      #
+      # The reduced consumer feeder represents armature 850.3.
+      diameter_mm: 150
+
+      u_value_supply_w_per_m_k: 0.26
+      u_value_return_w_per_m_k: 0.28
+
+
+# =============================================================================
+# ASSETS
+# =============================================================================
+
+assets:
+
+  # ---------------------------------------------------------------------------
+  # FIXED GENERATION
+  # ---------------------------------------------------------------------------
+
+  hkw:
+    type: thermal_generator
+    fuel: gas
+
+    # [DATA] Thermal operating output around 99/60 °C.
+    capacity_mw: 127.0
+
+    thermal_efficiency: 0.743
+    el_eff: 0.177
+    min_load: 0.1
+
+  gtost:
+    type: thermal_generator
+    fuel: gas
+
+    # [DATA]
+    capacity_mw: 35.0
+
+    thermal_efficiency: 0.466
+    el_eff: 0.36
+    min_load: 0.1
+
+  bmhkw:
+    type: thermal_generator
+    fuel: biomass
+
+    # [DATA]
+    capacity_mw: 14.5
+
+    thermal_efficiency: 0.485
+    el_eff: 0.177
+    min_load: 0.1
+
+  ava_feed:
+    type: thermal_generator
+    fuel: waste_heat
+
+    # [DATA] Direct high-temperature heat takeover.
+    capacity_mw: 45.0
+
+    thermal_efficiency: 1.0
+    min_load: 0.0
+
+  hws_boiler:
+    type: thermal_generator
+    fuel: gas
+
+    # [DATA] Physical HWS at Alter Postweg 93.
+    # Located on j_pss only as a hydraulic equivalent.
+    capacity_mw: 32.0
+
+    thermal_efficiency: 0.936
+    min_load: 0.1
+
+  hww_boiler:
+    type: thermal_generator
+    fuel: gas
+
+    # [DATA] Physical HWW at Flandernstraße 10.
+    # Located on j_psw only as a hydraulic equivalent.
+    capacity_mw: 104.0
+
+    thermal_efficiency: 0.924
+    min_load: 0.1
+
+  p2h_existing:
+    type: p2h
+
+    # 10 MW electric input at 99% conversion efficiency.
+    capacity_mw: 9.9
+    efficiency: 0.99
+    min_load: 0.1
+
+  # No fixed existing TES is modeled.
+
+  # ---------------------------------------------------------------------------
+  # INVESTABLE HEAT PUMP
+  # ---------------------------------------------------------------------------
+
+  hp_sb:
+    type: heat_pump
+    capacity_mw: 0.0
+    min_load: 0.2
+
+    # MAN/UPM low-temperature industrial waste-heat source.
+    # The source is physically associated with the MAN area, while the heat
+    # pump is represented at the central HKW production hub.
+    wrg_source_column: "WRG_1_Celsius"
+    wrg_capacity_column: "WRG1Q_MW"
+
+    cop_default: 3.0
+
+    investment:
+      enabled: true
+      capex_eur_per_mw: 700000.0
+      activation_cost_eur: 50000.0
+      lifetime_years: 20.0
+      capacity_min_mw: 0.0
+      capacity_max_mw: 50.0
+
+  # ---------------------------------------------------------------------------
+  # INVESTABLE ELECTRODE BOILER
+  # ---------------------------------------------------------------------------
+
+  ek_sb:
+    type: p2h
+    capacity_mw: 0.0
+    efficiency: 0.99
+    min_load: 0.1
+
+    investment:
+      enabled: true
+      capex_eur_per_mw: 150000.0
+      activation_cost_eur: 20000.0
+      lifetime_years: 25.0
+      capacity_min_mw: 0.0
+      capacity_max_mw: 50.0
+
+  # ---------------------------------------------------------------------------
+  # INVESTABLE THERMAL STORAGE
+  # ---------------------------------------------------------------------------
+
+  tes_sb:
+    type: geometric_storage
+
+    # Worst-case energy sizing:
+    #   T_supply,min = 70 °C
+    #   T_return,reference = 60 °C
+    #   delta T = 10 K
+    delta_T_scenario_k: 10.0
+
+    r_hd: 3.0
+    p_max_bar: 10.0
+
+    V_min_m3: 10.0
+    V_max_m3: 5000.0
+
+    option_b: false
+
+    # Gross thermal capacity at 5,000 m³ and 10 K:
+    #
+    #   E = V * 1.163 kWh/(m³ K) * delta T
+    #     = 5,000 * 1.163 * 10 / 1,000
+    #     = 58.15 MWh
+    #
+    # Therefore no discrete option exceeds 58.1 MWh.
+    discrete_energies_mwh:
+      - 0.0
+      - 7.3
+      - 14.6
+      - 21.9
+      - 29.2
+      - 36.5
+      - 43.8
+      - 51.1
+      - 58.1
+
+    unit_tank_m3: 5000.0
+
+    alpha_tes_eur_per_m3: 1200.0
+    beta_tes_eur: 100000.0
+    lifetime_years: 30.0
+
+    eff_charge: 0.98
+    eff_discharge: 0.98
+
+    # Assumed hourly retention factor, not a 99.99% hourly loss.
+    loss_hour: 0.9999
+
+    soc0_fraction: 0.5
+    terminal_soc_fraction: 0.5
+
+    power_to_energy_ratio: 0.25
+    e_min_fraction: 0.05
+
+    cycling_cost_eur_per_mwh: 2.0
+
+
+# =============================================================================
+# WASTE HEAT
+# =============================================================================
+
+waste_heat:
+  Q_AW_max_column: "WRG1Q_MW"
+  T_AW_column: "WRG_1_Celsius"
+  T_amb_column: "outdoor_temp_C"
+
+
+# =============================================================================
+# HEAT-PUMP COP MODEL
+# =============================================================================
+
+heat_pumps:
+
+  cop:
+    sink_defaults:
+      Tsink_out_K: 372.15
+      Tsink_in_K: 333.15
+
+    deltaT_K: 20.0
+    deltaTpp_K: 5.0
+    cop_fallback: 3.0
+
+  types:
+    standard:
+      eta: 0.75
+      FQ: 0.10
+
+
+# =============================================================================
+# INVESTMENT ECONOMICS
+# =============================================================================
+
+investment:
+  discount_rate: 0.05
+
+
+# =============================================================================
+# ELECTRICITY GRID
+# =============================================================================
+
+grid:
+  max_import_mw: 5000.0
+  max_export_mw: 5000.0
+
+  # [DATA/MODEL] Retained economic assumption.
+  #
+  # Note: 61.6 EUR/MWh cannot be reconstructed solely from the levy components
+  # listed in the earlier comment. Confirm whether this value additionally
+  # contains network-use charges, procurement adders or other components.
+  gridcost_eur_mwh: 61.6
+
+  demand_charge_eur_per_mw_y: 127240.0
+
+
+# =============================================================================
+# FUELS
+# =============================================================================
+
+fuels:
+
+  gas:
+    price_eur_mwh: 58.6
+    ef_kg_per_mwh_fuel: 200.0
+
+  biomass:
+    price_eur_mwh: 20.0
+    ef_kg_per_mwh_fuel: 20.0
+
+  waste_heat:
+    price_eur_mwh: 10.0
+    ef_kg_per_mwh_fuel: 0.0
+
+
+# =============================================================================
+# OTHER COSTS
+# =============================================================================
+
+costs:
+  co2_price_eur_per_t: 100.0
+  dump_cost_eur_per_mwh_th: 5.0
+
+
+# =============================================================================
+# EMISSIONS
+# =============================================================================
+
+emissions:
+
+  # Backward-compatible fallback only.
+  # Hourly grid emissions are read from grid_co2_kg_MWh.
+  ef_el_kg_per_mwh: 400.0
+
+  ef_gas_kg_per_mwh: 200.0
+  ef_biomass_kg_per_mwh: 20.0
+
+
+# =============================================================================
+# RUN SETTINGS
+# =============================================================================
+
+run:
+  dt_h: 1.0
+  solver: gurobi
+
+  solver_options:
+    MIPGap: 0.005
+    TimeLimit: 86400
+
+    Cuts: 2
+    MIPFocus: 2
+    Heuristics: 0.1
+    NumericFocus: 2
+
+    OutputFlag: 1
+    LogToConsole: 1
+
+
+# =============================================================================
+# OUTPUT
+# =============================================================================
+
+output:
+  log_dir: "output/logs"
+  export_dir: "output/paper2_runs"
+
+  export_thermal_network: true
+  export_solver_solution: true
+
+
+# =============================================================================
+# DISPATCH SERIES MAP
+# =============================================================================
+#
+# Series keys are mapped explicitly to dispatch_hourly.csv columns.
+# AVA is reported separately as waste heat and no longer added to biomass.
+# =============================================================================
+
+dispatch_series_map:
+
+  # Gas CHP, 127 MWth operating capacity.
+  HKW_Q_th_MW: Q_chp_MW
+
+  # Gas CHP/turbine east, 35 MWth.
+  GTOST_Q_th_MW: Q_chp_MW
+
+  # Biomass CHP, 14.5 MWth.
+  BMHKW_Q_th_MW: Q_biomass_MW
+
+  # Direct AVA waste-heat takeover, 45 MWth.
+  AVA_FEED_Q_th_MW: Q_waste_heat_MW
+
+  # Heizwerk Süd equivalent, 32 MWth.
+  HWS_BOILER_Q_th_MW: Q_gasboiler_MW
+
+  # Heizwerk West equivalent, 104 MWth.
+  HWW_BOILER_Q_th_MW: Q_gasboiler_MW
+
+  # Investable central heat pump.
+  hp_sb_Q_th_MW: Q_hp_total_MW

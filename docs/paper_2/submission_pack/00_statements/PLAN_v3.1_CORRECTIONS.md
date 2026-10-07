@@ -16,12 +16,18 @@ both networks** (verified):
 | Memmingen | 15 K (floored ↑ from 10.4) | 15 K | 15 K |
 | Stadtbach | 15 K (floored ↑) | 15 K | 15 K |
 
-- The reviewer's **C2** ("lower HK reduces usable storage density") and the review note ("density
-  rises 40 %") are **both wrong**: density does not vary with HK at all.
-- **C2 must be reframed/dropped.** The HK stages differ only in absolute supply temp (→ COP) and
-  network losses, NOT in storage density. New C2 framing: *lower HK raises COP and cuts losses
-  (win); the storage optimum is set by scale/cost, not by the heat curve.* The genuine HK
-  tradeoff is COP-gain vs. hydraulics (flow), documented elsewhere.
+- Under **NORMAL charging** the density is HK-invariant (floored) — so the draft's claim "lowering
+  supply inflates the volume" does NOT hold in the campaign as run.
+- **BUT C2 is alive via HOT CHARGING** (author 2026-09-02, corrects the "C2 is dead" note): a
+  hot-charged store uses the spread `T_VL,max − T_RL`, which DOES vary with the stage because the
+  retrofit lowers T_RL. Memmingen (T_VL,max=100): HK0 36.4 K → HK1 45 K → HK2 49 K, i.e. **+35 %
+  density, favourable sign**. So the honest, conditional framing: *whether HK lowering helps or
+  hurts storage depends on (a) whether the retrofit lowers the return too and (b) whether the store
+  is hot-charged.* This couples straight into the technology factor (below): hot charging at
+  100/122 °C **requires the pressurised vessel**; atmospheric forces the low 15 K spread and thus
+  large volume. The **charge-temperature ↔ vessel-technology ↔ volume triangle** is the core
+  figure. Hot charging is already implemented (S3/S5/S7) — de-confound it from siting and cross it
+  with the HK stage (QC-review already required this).
 - Stadtbach HK2 does **not** collapse into HK1 — the per-stage `T_RL_c` is honored (HK1 65/50,
   HK2 60/45).
 
@@ -32,22 +38,35 @@ would undo the deliberate 2026-07-20 ASME/PED derivation. The real issue is a **
 (same absolute cap for a 40×-different load: 5,000 m³ ≈ 85 MWh = 17 h for Memmingen but only
 0.4 h for Stadtbach).
 
-## 3. Storage model — HYBRID BY SCALE (decision 2026-09-02)
+## 3. Storage model — TECHNOLOGY AS AN EXPLICIT FACTOR (revises "hybrid by scale")
 
-Technology follows scale (both give an interior optimum; implemented in
-`configs/paper_2/storage_geometry.yaml`, opt-in `CALION_ATMOSPHERIC_TES=1`):
+**Author correction 2026-09-02 (supersedes the earlier per-network hybrid):** "storage isn't
+built → adjust cost until it is" reads as parameter-fitting. Instead, **storage technology is an
+explicit factor of the experimental design**, and the result is *which technology is economic in
+which network, and that it depends on network scale* — a genuine design finding.
 
-| | Memmingen (~2 MWh) | Stadtbach (~500–800 MWh) |
-|---|---|---|
-| Technology | pressurized **buffer** (realistic at small scale) | atmospheric **pit** (realistic at large scale; a farm of pressurised vessels is not) |
-| Cost | **linear** α·V + β (ASME 1200 €/m³ + 100k/tank) | **degressive** C0·(V/V0)^b (one pit, real scale economy) |
-| Cap | 10 bar / 5,000 m³ (non-binding here) | atmospheric / footprint |
-| Loss | surface `V^(2/3)` | surface `V^(2/3)` |
+Three technology levels, each with its OWN cost curve / p_max / vessel limit / charge ceiling,
+**each formula applied IDENTICALLY to both networks** (fixes the review's Point 2 — one formula,
+both networks; a per-network cost model confounds every cross-network claim):
 
-- Resolves the review's "drop degressive": degressive is **correct for the SB pit** (economies of
-  scale of one structure); per-tank β was only right if SB were pressurised vessels — it isn't.
-- **WP1 scope** shrinks as the review suggested for MM (surface loss only, keep linear cost) but
-  SB keeps the degressive pit curve. Surface loss is kept for BOTH (endorsed enhancement).
+| Technology | Cost | p_max | Charge ceiling | Vessel/footprint |
+|---|---|---|---|---|
+| Pressurised buffer | linear α·V + β | 10 bar | none (hot-charge OK) | ≤5,000 m³/vessel, multi-tank above |
+| Atmospheric steel tank | degressive C0·(V/V0)^b | ~1.5 bar | ~95 °C | large single tank |
+| Pit (PTES) | degressive (cheaper C0) | ~1 bar | ~90 °C | very cheap/m³, land-limited |
+
+- Both networks run **all** technologies (a factor); the model reports which wins. Expectation:
+  Memmingen suffices with a pressurised buffer; Stadtbach needs pit/atmospheric at ~800 MWh.
+- **Degression, IF used, applies to both networks** (barely matters at Memmingen's small volumes) —
+  it is a property of the *technology*, not the network. Resolves "different cost model per net."
+- Config: `storage_geometry.yaml` moves from per-network `cost_model` to per-**technology**
+  definitions + a per-network default + a factor-sweep hook. (TO IMPLEMENT.)
+
+## 3b. Code point #2 — surface loss made class-consistent (DONE 2026-09-02)
+The surface standing loss is now a **constant** `U·k(AR)·V^(2/3)·ΔT` computed the SAME way in the
+fixed-V dispatch class and the endogenous investment class (per-rung constant selected by the size
+binary → linear, no McCormick). So the sweep↔MILP cross-validation (T5/F3) compares like with like
+— resolving the review's Point 4. (~0.1 %/h, negligible; `geometric_storage.py`.)
 
 ## 4. Adopted review points
 - **F4 is not ceteris paribus.** An HK stage changes k, T_VL_min AND T_RL together. Add a

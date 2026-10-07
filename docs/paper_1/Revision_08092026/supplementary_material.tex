@@ -1,0 +1,143 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{threeparttable}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage[margin=2.5cm]{geometry}
+
+%% Level/condition name macros, mirrored from the main manuscript so the shared
+%% table files typeset identically here.
+\newcommand{\CP}{\ensuremath{\mathrm{CP}}}
+\newcommand{\CPL}{\ensuremath{\mathrm{CP{+}L}}}
+\newcommand{\ZN}{\ensuremath{\mathrm{ZN}}}
+\newcommand{\NDz}{\ensuremath{\mathrm{ND^{0}}}}
+\newcommand{\Lone}{\ensuremath{\mathrm{L1}}}
+\newcommand{\Ltwo}{\ensuremath{\mathrm{L2}}}
+\newcommand{\Lthree}{\ensuremath{\mathrm{L3}}}
+\newcommand{\Lfour}{\ensuremath{\mathrm{L4}}}
+\newcommand{\Lfive}{\ensuremath{\mathrm{L5}}}
+\newcommand{\Lsix}{\ensuremath{\mathrm{L6}}}
+\newcommand{\NLref}{\ensuremath{\mathrm{NL}}}
+\providecommand{\degree}{\ensuremath{^\circ}}
+
+%% Supplementary numbering: tables become S1, S2, ...
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\title{Supplementary Material\\[2pt]
+  \large Estimation Bias versus Decision Regret in District-Heating Dispatch Optimisation}
+\author{Lukas Ruess \and Alexander Sauer}
+\date{}
+
+\begin{document}
+\maketitle
+
+This Supplementary Material collects supporting tables referenced in the main manuscript.
+Table and figure numbers are prefixed with ``S''. All values are reproduced unchanged from
+the analysis pipeline described in the main text; the data behind each table are released
+with the manuscript.
+
+% tab_contrasts moved to the main text (Table~\ref{tab:contrasts}); not duplicated here.
+\begin{table}[t]
+\centering
+\caption{Objective versus economic cost on the decomposition lineage (EUR/yr). The objective
+carries a systematic non-economic residual (gross CO$_2$ accounting and a storage-cycling
+penalty) that is near-constant across levels and cancels in every bias/regret difference; all
+reported figures use the economic cost.}
+\label{tab:objdecomp}
+\begin{tabular}{lrrr}
+\hline
+Level & Objective & Economic cost & Residual \\
+\hline
+$\CP$   & 195\,994 & 115\,551 & 80\,443 (41.0\,\%) \\
+$\CPL$  & 221\,502 & 135\,288 & 86\,214 (38.9\,\%) \\
+$\NDz$  & 196\,845 & 116\,512 & 80\,332 (40.8\,\%) \\
+$\Lone$ & 222\,227 & 136\,142 & 86\,085 (38.7\,\%) \\
+\hline
+\end{tabular}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Station-resolved hydraulics on Memmingen (real component data). The actual hydraulic
+pumping need is more than an order of magnitude below the installed pump capacity, and every node keeps a
+large differential-pressure margin. Station-level hydraulics therefore move dispatch cost by
+$<1$\,\% and reveal no evaluated hydraulic violation.}
+\label{tab:hydraulics}
+\begin{tabular}{lr}
+\hline
+Quantity & Value \\
+\hline
+Installed pump capacity (Wilo, 5 units) & $110.8$\,kW \\
+Actual hydraulic pumping need (station + lateral) & $\approx 3$\,kW \\
+Pump-capacity margin & $\approx 108$\,kW \\
+Pump-energy share of thermal demand & $\approx 0.080$\,\% \\
+Worst-node total $\Delta p$ (trunk $0.10$ + station $0.60$ + lateral $0.62$) & $1.32$\,bar \\
+Worst-node margin over floor & $2.7$\,bar \\
+Trunk agreement with \texttt{pandapipes} & $<0.007$\,bar \\
+\hline
+\end{tabular}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Solver-gap stability of the decomposition. At a loose optimality tolerance the
+small topology and interaction terms sit within solver noise; only at a
+$0.01$\,\% gap do they resolve to stable values. The as-run $\NDz\!-\!\CP$ row here is the
+combined topology-plus-physics-parameter difference between the copperplate and node-resolved
+configurations (the physics-matched topology main effect alone is $0.25$\,\%; see the main-text
+decomposition); it is reported only to illustrate gap sensitivity. Loss dominance is far above the
+gap throughout.}
+\label{tab:gapstability}
+\begin{tabular}{lrr}
+\hline
+Term & Loose gap ($0.5$\,\%) & Hardened gap ($\le$0.01\,\%) \\
+\hline
+Loss main effect & $95.5$\,\% & $95.9$\,\% \\
+As-run $\NDz\!-\!\CP$ (topology + physics) & $3.9$\,\% & $4.7$\,\% \\
+Interaction & $+0.6$\,\% & $-0.5$\,\% (sign flips) \\
+Closure residual & --- & $0.0$\,e${+}00$\,EUR \\
+\hline
+\end{tabular}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Robustness of the decomposition. The loss-dominance conclusion survives every modelling
+choice examined; where a quantity is sensitive (last-mile loss magnitude, value of temperature
+flexibility) it does not affect the ordering. Values are the loss main effect (\% of the gap) or
+the copperplate regret sign, as applicable.}
+\label{tab:robustness}
+\begin{tabular}{lc}
+\hline
+Modelling choice & Loss dominance holds? \\
+\hline
+Remove the indefensible $\times$ multiplier (defensible $U$) & yes ($95.5\!\to\!95.9$\,\%) \\
+Two lumped-loss calibrations (constant / heating-curve) & yes (regret $-0.5$/$-0.6$\,\%) \\
+Demand-disaggregation rule (demand-share / uniform) & yes ($<0.3$\,pp) \\
+Marginal-heat-cost assumption ($47$--$90$\,EUR/MWh) & yes (regret sign invariant) \\
+Solver-gap tightening ($0.5\% \to 0.01\%$) & yes (loss unmoved; interaction resolves) \\
+Flexible supply temperature (forward) & yes (saving is a loss effect) \\
+\hline
+\end{tabular}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Out-of-sample prediction of the cost gap (loss burden) from observable network
+properties. The estimator is fitted on the synthetic networks up to 15\,km trunk length
+(train $R^2=0.999$) and tested on the held-out longer networks; it predicts the 30\,km
+networks to within a few points and degrades at the 50\,km extrapolation (held-out MAPE
+19\,\%).}
+\label{tab:prediction}
+\begin{tabular}{lrrr}
+\hline
+Held-out length & Actual gap & Predicted & Error \\
+\hline
+30\,km & 61\,\% & 54\,\% & 7\,pts \\
+50\,km & 73\,\% & 54\,\% & 20\,pts \\
+\hline
+\end{tabular}
+\end{table}
+
+\end{document}

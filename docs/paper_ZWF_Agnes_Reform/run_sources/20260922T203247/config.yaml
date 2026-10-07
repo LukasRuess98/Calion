@@ -1,0 +1,272 @@
+# =====================================================================
+# agnes_p2h — Konfiguration
+# Bestellkapazität statt Jahreshöchstlast: AgNes vs. StromNEV für
+# elektrifizierte industrielle Prozesswärme
+# =====================================================================
+# G-03: jeder Parameter mit value, unit, source, status
+#   status: reviewed    -> aus einer konkreten, zitierten Quelle
+#           unverified  -> szenarische/literaturbasierte Schätzung, im
+#                          Text/Limitations offen benannt (kein Preisblatt)
+#           derived     -> aus anderen Feldern dieser Datei berechnet
+# =====================================================================
+
+study:
+  timestep_min: 15
+  currency: EUR
+  solver: highs
+  bands: [PW]                     # nur EIN generisches Prozesswärme-Band
+  band_note: >
+    Die vier Werkslastgänge enthalten nur je EINE aggregierte Wärme- und
+    Stromspalte (kein Temperaturkanal). Die im Draft vorgesehene
+    LT/HT/VHT-Bandtrennung ist aus den Rohdaten nicht rekonstruierbar.
+    VHT (Standort Metall) wird gemäß Teil-3-Entscheidung #2 als
+    Limitation behandelt: die "Heat"-Spalte von Metall (Mittel 29 kW,
+    Max 135 kW) ist zu klein für einen Schmelzofenprozess und bereits
+    in der bestehenden Electricity-Spalte enthalten, falls ein
+    E-Ofen bereits in Betrieb ist.
+  random_seed: 20260915
+
+# ---------------------------------------------------------------------
+# Standorte
+# ---------------------------------------------------------------------
+sites:
+  food:
+    label_de: "Lebensmittelunternehmen (Schwarzwald)"
+    data_file: "Lebensmittelunternehmen_Schwarzwald/Lebensmittel.xlsx"
+    heat_col: "Heat MW"
+    elec_col: "Electricity MW"
+    unit_scale_to_kw: 1000.0        # MW -> kW
+    price_year: 2023
+    load_year: 2023
+    has_vht: false
+    quality_notes: >
+      Ein Intervall mit negativer Electricity (-0.6204 MW, vermutlich
+      Netzeinspeisung/Eigenerzeugung) wird als Einspeisung dokumentiert
+      (Spalte p_export_kw, flags.negative_base_export_kwh) und der
+      abrechnungsrelevante Netzbezug auf 0 kW gesetzt; eine
+      Einspeisevergütung wird nicht modelliert. Wärmelast unverändert.
+    grid_connection_kw: {value: null, unit: "kW", status: proxy_unverified,
+      source: "Keine reale Anschlussleistung verfügbar; Modell verwendet P_GRID_MARGIN-Proxy aus Grundlast- und Wärmelastspitze."}
+  chemistry:
+    label_de: "Chemieunternehmen (Essen)"
+    data_file: "Chemieunternehmen_Essen/Chemie.xlsx"
+    heat_col: "Heat kW"
+    elec_col: "Electricity kW"
+    unit_scale_to_kw: 1.0
+    price_year: 2024
+    load_year: 2024
+    has_vht: false
+    quality_notes: "Keine Auffälligkeiten (min/max plausibel, keine Lücken)."
+    grid_connection_kw: {value: null, unit: "kW", status: proxy_unverified,
+      source: "Keine reale Anschlussleistung verfügbar; Modell verwendet P_GRID_MARGIN-Proxy aus Grundlast- und Wärmelastspitze."}
+  metal:
+    label_de: "Metallerzeugung (Schwarzwald)"
+    data_file: "Metallerzeugung_Schwarzwald/Metallerzeugung.xlsx"
+    heat_col: "Heat kW"
+    elec_col: "Electricity kW"
+    unit_scale_to_kw: 1.0
+    price_year: 2023
+    load_year: 2023
+    has_vht: false        # s. band_note: VHT hier nicht rekonstruierbar -> Limitation
+    quality_notes: >
+      Minimalwert Heat kW ~7e-48 (numerisches Rauschen um 0) wird auf 0
+      geklippt (quality_flag=floor_clipped).
+    grid_connection_kw: {value: null, unit: "kW", status: proxy_unverified,
+      source: "Keine reale Anschlussleistung verfügbar; Modell verwendet P_GRID_MARGIN-Proxy aus Grundlast- und Wärmelastspitze."}
+  paper:
+    label_de: "Papierfabrik (Augsburg)"
+    data_file: "Papierfabrik_augsburg/Papierfabrik.xlsx"
+    heat_col: "Heat MW"
+    elec_col: "Electricity MW"
+    unit_scale_to_kw: 1000.0
+    price_year: 2023
+    load_year: 2023
+    has_vht: false
+    quality_notes: >
+      Rohdatei enthält 2022 UND 2023 (70.080 Zeilen); es wird
+      ausschließlich das Kalenderjahr 2023 verwendet (Filter auf
+      load_year). Gleicher Floor-Clip wie Metall.
+    grid_connection_kw: {value: null, unit: "kW", status: proxy_unverified,
+      source: "Keine reale Anschlussleistung verfügbar; Modell verwendet P_GRID_MARGIN-Proxy aus Grundlast- und Wärmelastspitze."}
+
+# ---------------------------------------------------------------------
+# Preiszeitreihen (Day-Ahead)
+# ---------------------------------------------------------------------
+prices:
+  file_2023: "Strompreise/strompreis_2023.csv"
+  file_2024: "Strompreise/strompreis_2024.csv"
+  provenance_note: >
+    Datenhalter-Klärung (2026-09-15): Die Zeitstempel in
+    strompreis_2023.csv sind fälschlich auf 2019 datiert
+    ("Start date" 01.01.2019-31.12.2019, stündlich, Mittelwert
+    37,67 EUR/MWh der Spalte "Germany/Luxembourg [EUR/MWh] Original
+    resolutions" -- deckungsgleich mit dem bekannten DE/LU-Day-Ahead-
+    Mittel 2019). Datenhalter bestätigt: die Werte SIND die
+    vorgesehene 2023-Preisreihe, nur das Datumslabel ist falsch
+    ("scale/Beschriftung falsch"). Da 2019 und 2023 beide keine
+    Schaltjahre sind (je 8760 h), werden die 8760 Stundenwerte 1:1 auf
+    den Kalender 2023 umgemappt (gleicher Wochentag-Offset wird NICHT
+    erzwungen, reine Stunde-des-Jahres-Abbildung). Diese Korrektur ist
+    in data_audit.md und open_issues.md ausgewiesen.
+  col_2023_raw: "Germany/Luxembourg [€/MWh] Original resolutions"   # EUR/MWh, stündlich
+  col_2024_raw: "strompreis"                                        # EUR/kWh, 15-min
+  col_2024_unit_scale_to_eur_mwh: 1000.0
+  resample_note: >
+    2023-Stundenpreise werden gemäß Draft §5.3 viermal wiederholt
+    (kein Interpolieren) auf 15-min-Raster gebracht (Limitation:
+    unterschätzt Intraday-Arbitrage).
+
+# ---------------------------------------------------------------------
+# Festpreis (FIXED-Beschaffung)
+# ---------------------------------------------------------------------
+fixed_price:
+  method: "annual_mean_day_ahead_plus_risk_premium"
+  reference_profile: "unweighted_annual_mean"
+  method_note: >
+    Fixpreis = ungewichteter Jahresmittelwert der Day-Ahead-Preisreihe +
+    Risikoprämie. Keine rückblickende Gewichtung mit dem realisierten
+    Standort-Grundlastprofil (ex-ante-Referenzpreis).
+  risk_premium_eur_mwh:
+    value: 15.0
+    unit: "EUR/MWh"
+    source: "Literaturschätzung (typischer Aufschlag Fixpreis vs. Spotmittel, Industriesegment)"
+    status: unverified
+
+# ---------------------------------------------------------------------
+# Netzentgelt-Ebenenzuordnung (aus Ist-Höchstlast vor Elektrifizierung)
+# ---------------------------------------------------------------------
+voltage_level_thresholds_kw:
+  ns_max_kw: 1000.0          # < 1 MW  -> NS (Niederspannung, RLM)
+  ms_max_kw: 20000.0         # 1-20 MW -> MS (Mittelspannung)
+  # >= 20 MW -> HS/MS (Umspannung Hochspannung/Mittelspannung)
+  source: "Eigene Vereinfachung typischer DSO-Anschlussgrenzen; keine einzelne amtliche Quelle"
+  status: unverified
+
+# ---------------------------------------------------------------------
+# StromNEV (Referenzregime): zwei Tarifpaare an Schwelle 2500 h/a
+# ---------------------------------------------------------------------
+stromnev:
+  threshold_h: 2500.0
+  threshold_source: "StromNEV § 19 Abs. 2 (Struktur, Schwelle 2.500 Benutzungsstunden/Jahr)"
+  threshold_status: reviewed
+  by_level:
+    ms:
+      pair_ge2500h: {lp_eur_kw_a: 210.72, ap_eur_mwh: 3.7,
+        source: "eam-netz.de, Preisblatt Netzentgelte Strom, Mittelspannung, Basis 2024 (Beispielrechnung registrierende Leistungsmessung)",
+        status: reviewed}
+      pair_lt2500h: {lp_eur_kw_a: 24.0, ap_eur_mwh: 18.0,
+        source: "Abgeleitet aus typischem StromNEV-Tarifverhältnis (LP ca. 1/9, AP ca. 5x ggü. >=2500h-Paar); keine standortscharfe Quelle",
+        status: unverified}
+    hs_ms:
+      pair_ge2500h: {lp_eur_kw_a: 123.12, ap_eur_mwh: 10.2,
+        source: "Stadtwerke Tübingen GmbH, Preisblatt Netzentgelte Strom, gültig ab 01.01.2025, Ebene Hochspannung, Band >=2500 Benutzungsstunden/Jahr (swtue.de)",
+        status: reviewed}
+      pair_lt2500h: {lp_eur_kw_a: 14.0, ap_eur_mwh: 49.6,
+        source: "Abgeleitet aus dem MS-Tarifverhältnis (eam-netz.de: LP_<2500h/LP_>=2500h=0.114, AP_<2500h/AP_>=2500h=4.87) auf den realen SWTü-HS->=2500h-Anker angewandt; <2500h-Paar selbst nicht in den ausgewerteten Quellen gefunden",
+        status: unverified}
+    ns:
+      pair_ge2500h: {lp_eur_kw_a: 164.66, ap_eur_mwh: 20.5,
+        source: "Stadtwerke Tübingen GmbH, Preisblatt Netzentgelte Strom, gültig ab 01.01.2025, Ebene Niederspannung (RLM), Band >=2500 Benutzungsstunden/Jahr (swtue.de)",
+        status: reviewed}
+      pair_lt2500h: {lp_eur_kw_a: 18.8, ap_eur_mwh: 99.7,
+        source: "Abgeleitet aus dem MS-Tarifverhältnis (eam-netz.de) auf den realen SWTü-NS->=2500h-Anker angewandt; <2500h-Paar selbst nicht in den ausgewerteten Quellen gefunden",
+        status: unverified}
+
+# ---------------------------------------------------------------------
+# AgNes (Modus synthetic_first_order): KP=(1-a)k, AP1=1000*a*k/tB, AP2=f*AP1
+# ---------------------------------------------------------------------
+tariffs:
+  mode: synthetic_first_order
+  alpha: {value: 0.45, range: [0.30, 0.60], status: unverified,
+          source: "Entwurfs-Vorgabe Dokument 2 (Erlösanteil Kapazitätspreis), Szenario"}
+  f:     {value: 2.75, range: [2.0, 3.5], status: unverified,
+          source: "Entwurfs-Vorgabe Dokument 2 (Verhältnis AP2/AP1), Szenario"}
+  beta_min_order: {value: 0.10, status: unverified,
+          source: "Entwurfs-Vorgabe Dokument 2 (Mindestbestellanteil an Vorjahreshöchstlast)"}
+  t_B_h: {value: 2500.0, status: reviewed,
+          source: "StromNEV § 19 Abs. 2 Schwelle, als Referenzvollbenutzungsdauer für die erlösäquivalente Konstruktion von k übernommen"}
+  k_by_level:
+    ms:    {value: 219.97, unit: "EUR/(kW*a)", status: derived,
+            source: "Erlösäquivalent zum StromNEV-MS->=2500h-Paar bei t_B=2500h: 210.72 + 3.7*2500/1000"}
+    hs_ms: {value: 148.62, unit: "EUR/(kW*a)", status: derived,
+            source: "Erlösäquivalent zum StromNEV-HS/MS->=2500h-Paar (SWTü) bei t_B=2500h: 123.12 + 10.2*2500/1000"}
+    ns:    {value: 215.91, unit: "EUR/(kW*a)", status: derived,
+            source: "Erlösäquivalent zum StromNEV-NS->=2500h-Paar (SWTü) bei t_B=2500h: 164.66 + 20.5*2500/1000"}
+  declaration_text_de: >
+    Szenarische Kalibrierung, erlösäquivalent nur für das
+    Referenzkollektiv bei unveränderter Absatzstruktur; kein
+    veröffentlichtes Preisblatt. AgNes befindet sich am 2026-09-15 im
+    Festlegungsentwurf (Konsultation bis 2026-09-18, Az. GBK-25-01-1#3,
+    geplantes Inkrafttreten 2029-01-01) -- es existieren keine
+    amtlichen k/t_B-Ziffern je Ebene.
+
+# ---------------------------------------------------------------------
+# Regulatorische Referenz (REG-01)
+# ---------------------------------------------------------------------
+regulatory_reference:
+  reg_01:
+    aktenzeichen: "GBK-25-01-1#3"
+    bezeichnung: "Festlegungsverfahren zur Allgemeinen Netzentgeltsystematik Strom (AgNes)"
+    fassungsdatum_entwurf: "2026-08-06"
+    konsultationsende: "2026-09-18"
+    anwendungszeitpunkt: "2029-01-01 (löst StromNEV ab, die zum 2028-12-31 ausläuft, Folge eines EuGH-Urteils)"
+    url: "https://www.bundesnetzagentur.de/DE/Beschlusskammern/GBK/Ebene1_Rahmen/AgNes/start.html"
+    abrufdatum: "2026-09-15"
+    status: reviewed
+    note: "Der Beitrag vergleicht Regime auf Basis des Entwurfsstands; er prognostiziert keine künftigen Entgelthöhen."
+
+# ---------------------------------------------------------------------
+# Technologien (Prozesswärme-Band PW)
+# ---------------------------------------------------------------------
+technologies:
+  hp:
+    capex_eur_kw: {value: 650.0, status: unverified, source: "Literaturschätzung industrielle Großwärmepumpe (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023; Zühlsdorf et al., IEA HPT Annex 58 High-Temperature Heat Pumps Final Report, 2024, DOI 10.23697/2qxe-av87)"}
+    cop:          {value: 3.0, status: unverified, source: "Konstanter COP mangels Quell-/Senktemperatur in Rohdaten (keine Temperaturspalte) - Limitation"}
+    lifetime_a:   {value: 20, status: unverified, source: "Typischer Ansatz VDI 2067"}
+    fom_pct_capex_a: {value: 0.02, status: unverified, source: "Typischer O&M-Anteil Großwärmepumpe"}
+  ek:
+    capex_eur_kw: {value: 70.0, status: unverified, source: "Literaturschätzung Elektrodenkessel (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023)"}
+    eta:          {value: 0.985, status: unverified, source: "Typischer Wirkungsgrad Elektrodenkessel"}
+    lifetime_a:   {value: 25, status: unverified, source: "Typischer Ansatz VDI 2067"}
+    fom_pct_capex_a: {value: 0.015, status: unverified, source: "Typischer O&M-Anteil Elektrodenkessel"}
+  gb:
+    capex_eur_kw: {value: 60.0, status: unverified, source: "Literaturschätzung Gaskessel (Größenordnung)"}
+    eta:          {value: 0.90, status: unverified, source: "Typischer Kesselwirkungsgrad Erdgas"}
+    lifetime_a:   {value: 20, status: unverified, source: "Typischer Ansatz VDI 2067"}
+    fom_pct_capex_a: {value: 0.015, status: unverified, source: "Typischer O&M-Anteil Gaskessel"}
+  tes:
+    capex_eur_kwh: {value: 25.0, status: unverified, source: "Literaturschätzung industrieller Wärmespeicher (Größenordnung Danish Energy Agency, Technology Data for Industrial Process Heat, 2023)"}
+    loss_per_h:    {value: 0.002, status: unverified, source: "Typischer Bereitschaftsverlust Heißwasserspeicher"}
+    eta_ch:        {value: 0.97, status: unverified, source: "Typischer Ladewirkungsgrad"}
+    eta_dis:       {value: 0.97, status: unverified, source: "Typischer Entladewirkungsgrad"}
+    min_duration_h: {value: 2.0, status: unverified, source: "Konservative Mindest-Vollladedauer (Leistungsgrenze aus Kapazität)"}
+    lifetime_a:    {value: 25, status: unverified, source: "Typischer Ansatz VDI 2067"}
+    fom_pct_capex_a: {value: 0.01, status: unverified, source: "Typischer O&M-Anteil Wärmespeicher"}
+
+finance:
+  wacc: {value: 0.06, status: unverified, source: "Typischer industrieller Realzins (Größenordnung)"}
+  price_base_year: {value: 2024, status: derived, source: "Jüngeres der beiden Lastgang-/Preisjahre"}
+
+energy:
+  gas_eur_mwh_hu: {value: 38.0, status: unverified, source: "Literaturschätzung Industriegaspreis 2023/24 (Größenordnung, z.B. Destatis-Reihe)"}
+  co2_eur_t:      {value: 60.0, status: unverified, source: "Größenordnung BEHG-Festpreispfad 2026 vor ETS2-Start 2027"}
+  ef_gas_t_mwh:   {value: 0.201, status: reviewed, source: "Standard-Emissionsfaktor Erdgas (UBA/DIN EN 16258, Hu-bezogen)"}
+  el_levies_eur_mwh: {value: 15.37, status: unverified, source: "StromStG reduzierter Industriesatz (Größenordnung, Spitzenausgleich-Fall)"}
+
+# ---------------------------------------------------------------------
+# 2x2-Design und Sweeps
+# ---------------------------------------------------------------------
+design:
+  netz_regimes: [stromnev, agnes]
+  procurement_regimes: [fixed, dayahead]
+  configs: [BASE, ELEC, ELEC_noTES, GAS]
+  alpha_grid: [0.30, 0.45, 0.60]
+  f_grid: [2.0, 2.75, 3.5]
+  timestep_1h_twin: true
+  breakeven:
+    max_iter: 25
+    tol_rel: 0.001
+  rolling_horizon:
+    site: food
+    horizon_h: 36
+    step_h: 24

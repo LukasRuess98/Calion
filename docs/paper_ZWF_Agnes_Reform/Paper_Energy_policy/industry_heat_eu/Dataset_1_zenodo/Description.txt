@@ -1,0 +1,42 @@
+Published September 12, 2026 | Version 1.2.0
+Dataset  Open
+IndustryHeat-EU: Harmonized Dataset of Industrial Final and Useful Energy Demand by Temperature Level for EU27 and Member States
+Authors/Creators
+Gjorgievski, Vladimir1
+ORCID icon
+ 
+Cundeva, Snezana2
+ORCID icon
+ 
+Markovska, Natasa3
+ORCID icon
+ 
+Duić, Neven4
+ORCID icon
+Description
+This dataset provides final energy consumption and useful energy demand (TWh) by energy demand type and temperature level in 12 industrial subsectors for the EU27 aggregate and each Member State. The dataset is compiled using Joint Research Centre's Integrated Database of the European Energy System (JRC-IDEES) 2023 dataset, processed following the methodology of S Madeddu et al. (2020).
+
+Rows correspond to energy demand category:
+- Electricity Other, 
+- Electricity Thermal, 
+- Steam, 
+- Non-electric process heat <100°C, 
+- Non-electric process heat 100–400°C, 
+- Non-electric process heat 400–1000°C, 
+- Non-electric process heat >1000°C.
+
+Columns provide subsectoral final energy consumption and useful energy demand in TWh:
+- Primary Steel (TWh)
+- Secondary Steel (TWh)
+- Chemicals (TWh)
+- Cement (TWh)
+- Pulp and Paper (TWh)
+- Food, Beverages and Tobacco (TWh)
+- Transport Equipment (TWh)
+- Machinery and Equipment (TWh)
+- Textiles and Leather (TWh)
+- Wood and Wood Products (TWh)
+- Non-ferrous Metals (TWh)
+- Ceramics and Glass (TWh)
+
+The dataset is intended to support industrial heat-demand mapping, electrification feasibility studies, process heating technology assessments, and energy-system modelling. Associated code and mapping information are provided as well.

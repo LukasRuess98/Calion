@@ -29,7 +29,35 @@ _RHO = 971.8        # kg/m³  (water at ~80°C)
 _CP  = 4189.0       # J/(kg·K)
 _G   = 9.81
 _P_ATM = 1.013      # bar
-_R_HD  = 3.0        # height/diameter ratio for cylindrical TES
+
+_ROOT = Path(__file__).resolve().parents[2]
+_STORAGE_GEOM_CACHE: dict | None = None
+
+
+def _storage_geom() -> dict:
+    """Authoritative TES geometry (storage_geometry.yaml) -- same source the
+    solver itself reads (component_assembler._authoritative_tes_geometry).
+    Never hardcode r_hd/eta_strat here; the eval layer reads, it does not
+    recompute physics the model already computed."""
+    global _STORAGE_GEOM_CACHE
+    if _STORAGE_GEOM_CACHE is None:
+        try:
+            import yaml
+            _STORAGE_GEOM_CACHE = (yaml.safe_load(
+                open(_ROOT / "configs/paper_2/storage_geometry.yaml", encoding="utf-8")
+            ) or {}).get("storage_geometry", {})
+        except Exception:
+            _STORAGE_GEOM_CACHE = {}
+    return _STORAGE_GEOM_CACHE
+
+
+def _r_hd_eta_for(network: str) -> tuple[float, float]:
+    asset = "tes_sb" if "stadtbach" in (network or "").lower() else "tes_main"
+    g = _storage_geom()
+    pa = (g.get("per_asset") or {}).get(asset, {})
+    r_hd = float(pa.get("r_hd", g.get("r_hd", 3.0)))
+    eta = float(g.get("eta_strat", 0.85))
+    return r_hd, eta
 
 # ── Heat curve lookup (from configs/paper_2/scenarios.yaml) ───────────────
 _HK_PARAMS = {
@@ -119,12 +147,18 @@ def _col_sum(rows: list[dict], *patterns: str) -> float:
     return sum(float(r.get(col) or 0) for r in rows)
 
 
-def _tes_geometry(E_MWh: float, delta_T_K: float) -> tuple[float, float]:
-    """Return (V_m3, h_m) for a cylindrical TES given energy and delta-T."""
+def _tes_geometry(E_MWh: float, delta_T_K: float, network: str = "") -> tuple[float, float]:
+    """Return (V_m3, h_m) for a cylindrical TES given energy and delta-T.
+
+    FALLBACK ONLY -- used when geometry.csv is absent (compute_scenario_kpis
+    always prefers the solver's own written V_TES_m3/h_TES_m first). Reads
+    r_hd/eta_strat from storage_geometry.yaml so it matches what the model
+    actually used instead of re-deriving physics with hardcoded constants."""
     if E_MWh <= 0 or delta_T_K <= 0:
         return 0.0, 0.0
-    V = E_MWh * 3.6e9 / (_RHO * _CP * delta_T_K)
-    h = (V * 4.0 * _R_HD ** 2 / math.pi) ** (1.0 / 3.0)
+    r_hd, eta = _r_hd_eta_for(network)
+    V = E_MWh * 3.6e9 / (eta * _RHO * _CP * delta_T_K)
+    h = (V * 4.0 * r_hd ** 2 / math.pi) ** (1.0 / 3.0)
     return round(V, 1), round(h, 2)
 
 
@@ -192,7 +226,7 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
     # LCOH
     Q_total = sum(float(r.get("Q_demand_total_MW") or 0) for r in dispatch_rows)
     lcoh_from_eco = economics.get("lcoh_eur_per_MWh_th")
-    if lcoh_from_eco is not None and float(lcoh_from_eco) > 0:
+    if lcoh_from_eco not in (None, "") and float(lcoh_from_eco) > 0:
         kpis["LCOH_eur_per_MWh"] = round(float(lcoh_from_eco), 2)
     elif TAC is not None and Q_total > 0:
         kpis["LCOH_eur_per_MWh"] = round(TAC / Q_total, 2)
@@ -253,7 +287,7 @@ def compute_scenario_kpis(scen_dir: Path, baseline_kpis: dict | None = None) -> 
             kpis["E_TES_MWh"] = round(E_TES, 1)
             # Derive ΔT from nodes_summary (T_supply_avg - T_return_avg)
             delta_T = _nodes_delta_T(nodes_sum, scen_meta.get("network", ""))
-            V, h = _tes_geometry(E_TES, delta_T)
+            V, h = _tes_geometry(E_TES, delta_T, scen_meta.get("network", ""))
             kpis["V_TES_m3"] = V
             kpis["h_TES_m"] = h
 
