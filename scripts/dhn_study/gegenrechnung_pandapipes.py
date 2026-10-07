@@ -19,7 +19,8 @@ Zwei Reibungsansätze:
   zeigt, wie stark die quadratische Annahme die Extrapolation auf den Auslegungsfall beeinflusst.
 
 Aufruf (benötigt ``pip install pandapipes``):  ``python -m scripts.dhn_study.gegenrechnung_pandapipes``
-Voraussetzung: gespeicherte Kalibrierung aus ``python -m scripts.dhn_study.run_netzmodell``.
+Kalibrierung: die des letzten Laufs von ``python -m scripts.dhn_study.run_netzmodell``, sonst die veröffentlichte
+Referenzkalibrierung (``scripts/dhn_study/kalibrierung/``).
 Ergebnisse: ``results/dhn_study/netzmodell/pandapipes_*.csv`` und ``pandapipes_zusammenfassung.md``.
 """
 

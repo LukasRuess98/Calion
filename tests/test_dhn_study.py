@@ -420,8 +420,11 @@ def test_mehrfachstart_startwerte_und_uebersicht(tmp_path):
     assert np.allclose(c1["multiplikator"], c2["multiplikator"])            # reproduzierbar (fester Seed)
     assert not np.allclose(c1["multiplikator"], ms.startwert("D", nz)["multiplikator"])
     assert set(c1["gewichte"]) == set(nm.LASTGRUPPEN) and len(c1["multiplikator"]) == len(nz.kanten)
-    for name, k in (("A", 100.0), ("B", 103.0), ("C", 120.0)):
+    for name, k, mult in (("A", 100.0, 1.0), ("B", 103.0, 2.0), ("C", 120.0, 3.0), ("D", 103.01, 2.01)):
         (tmp_path / name).mkdir()
         pd.Series({"Start": name, "Kosten": k, "Kosten Daten": k - 10, "Kosten Prior": 10.0}).to_csv(tmp_path / name / "kosten.csv")
+        pd.DataFrame({"Multiplikator": [mult, mult]}, index=pd.Index(["L1", "L2"], name="Kante")).to_csv(
+            tmp_path / name / "kalibrierung_kanten.csv")
     u = ms.uebersicht(tmp_path)
-    assert list(u.index[u["gleich gut"]]) == ["A", "B"]                     # B 3 % über dem besten, C 20 %
+    assert list(u.index[u["gleich gut"]]) == ["A", "B", "D"]                # B, D 3 % über dem besten, C 20 %
+    assert u.loc["D", "Optimum"] == "B" and u.loc["C", "Optimum"] == "C"    # D liegt im selben Optimum wie B

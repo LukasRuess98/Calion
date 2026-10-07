@@ -111,8 +111,8 @@ def kalibriervarianten() -> tuple[list[str], str]:
     if not datei.exists():
         return ["A"], "A"
     u = pd.read_csv(datei, index_col=0)
-    gut = u[u["gleich gut"].astype(str).str.lower() == "true"]
-    return list(gut.index), str(u["Kosten"].idxmin())
+    gut = u[(u["gleich gut"].astype(str).str.lower() == "true") & (u["Optimum"] == u.index)]   # je Optimum ein Vertreter
+    return list(gut.sort_values("Kosten").index), str(u["Kosten"].idxmin())
 
 
 def kalibrierung_ordner(out: Path) -> Path:
@@ -300,7 +300,7 @@ def main(neu_kalibrieren: bool = True, von_null: bool = False) -> dict:
                                  "HW1 [MW]": hw1_mw, "PS1-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("L4c")]),
                                  "PS2-Gewinn [bar]": float(gewinn[0, nz.kanten_ids.index("W1")]), "Mindest-Δp": mindest,
                                  "Speicher S [kg/s]": dm_s, "Band gemessener Hebel [kg/s]": BAND_AUSLEGUNG,
-                                 "Hebel Speicher S, gemessen [bar je 100 kg/s]": {z: round(hebel_s(z), 3) for z in mindest}}
+                                 "Hebel Speicher S, gemessen [bar je 100 kg/s]": {z: round(float(hebel_s(z)), 3) for z in mindest}}
     _bericht(erg, out)
     return erg
 
@@ -385,14 +385,14 @@ def _bericht(erg: dict, out) -> None:
              _md(erg["tracer"].drop(columns="Knoten").round(2)), "",
              "3.6 (Plausibilitätsanker, Modellgesetz − gemessenes Gesetz; Mitte über den Lastbereich P5–P99, Süd P5–P95 der Stunden)",
              _md(erg["kriterien"]["3.6"].round(3)), "", _md(erg["kriterien"]["3.6 Parameter"].round(4)), "",
-             "## Auslegungsfall", f"Annahmen: {erg['auslegung_annahmen']}", "", _md(erg["auslegung"].round(3)), "",
+             "## Auslegungsfall", f"Annahmen: {erg['auslegung_annahmen']}", "", _md(erg["auslegung"]), "",
              f"## Kalibriervarianten (Mehrfachstart; Referenz {erg['referenz']})", "RMSE Holdout Hochlast:",
              _md(erg["guete_varianten"].round(3)), "",
              _md(erg["auslegung_varianten"][["erf. KWK-Δp [bar]", "maßgebend", "Reserve bis 4,0 bar", "Reserve bis Pumpe",
                                             "Entlastung Speicher S, Modell [bar]", "Entlastung Speicher S, gemessener Hebel [bar]",
                                             "Reserve bis 4,0 bar mit Speicher S, Modell",
                                             "Reserve bis 4,0 bar mit Speicher S, gemessener Hebel",
-                                            "Reserve bis 4,0 bar mit Speicher Südende, Modell"]].round(3))]
+                                            "Reserve bis 4,0 bar mit Speicher Südende, Modell"]])]
     (out / "zusammenfassung.md").write_text("\n".join(teile), encoding="utf-8")
 
 

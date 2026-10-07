@@ -19,7 +19,7 @@ Quellen der Unsicherheit:
 Bewertung nach Plan 1.1: Eine Aussage gilt als gestützt, wenn sie in ≥ 90 % der Läufe **jeder** Kombination aus
 Struktur- und Kalibriervariante gilt.
 
-Aufruf: ``python -m scripts.dhn_study.unsicherheit`` (≈ 2–5 min; die Kovarianzen werden beim ersten Lauf berechnet und
+Aufruf: ``python -m scripts.dhn_study.unsicherheit`` (≈ 3 min; die Kovarianzen werden beim ersten Lauf berechnet und
 gespeichert, ``--neu`` erzwingt die Neuberechnung). Voraussetzung: ``python -m scripts.dhn_study.run_netzmodell
 --ohne-kalibrierung`` (gemessene Speicherhebel je Variante).
 Ergebnisse: ``results/dhn_study/netzmodell/unsicherheit_*.csv`` und ``unsicherheit_zusammenfassung.md``.
@@ -248,6 +248,8 @@ def main(n_je: int = N_JE_VARIANTE, neu_kovarianz: bool = False) -> dict:
         "F3: Speicher S entlastet ≥ 0,2 bar (gemessene Hebel)": ("P90", lf["Entlastung S, gemessene Hebel [bar]"] >= 0.2),
         "F3: Speicher S entlastet ≥ 0,15 bar (Modell und gemessene Hebel)": (
             "P90", (lf["Entlastung S, Modell [bar]"] >= 0.15) & (lf["Entlastung S, gemessene Hebel [bar]"] >= 0.15)),
+        "F3: Speicher S entlastet ≥ 0,1 bar (Modell und gemessene Hebel)": (
+            "P90", (lf["Entlastung S, Modell [bar]"] >= 0.1) & (lf["Entlastung S, gemessene Hebel [bar]"] >= 0.1)),
         "F3: Speicher S bringt < 10 Pp Reserve (Modell)": ("P90", lf["Reservegewinn S, Modell [Pp]"] < 10),
         "F3: Südende bringt mehr Reserve als S (Modell)": ("P90", lf["Reservegewinn Südende, Modell [Pp]"]
                                                            > lf["Reservegewinn S, Modell [Pp]"]),

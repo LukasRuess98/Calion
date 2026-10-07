@@ -2,7 +2,8 @@
 
 Die Kalibrierung (``netzmodell.kalibriere``) ist ein nichtlineares Ausgleichsproblem mit 55 Parametern. Aus verschiedenen
 Startwerten kann sie in verschiedenen lokalen Optima enden. Dieses Skript rechnet die Kalibrierung aus mehreren Starts:
-* ``A``: Start bei der veröffentlichten Referenzkalibrierung (prüft, ob sie ein stationärer Punkt ist);
+* ``A``: Start bei der ursprünglichen Kalibrierung des Netzmodells (``kalibrierung/A_start``; sie entstand in einer
+  Kette von Läufen mit Warmstart);
 * ``B``: Start bei den Prior-Werten (alle Multiplikatoren 1, Gewichte 1, Grundlast und Versatz 0);
 * ``C``, ``D``, ``E``: zufällige Starts (log-Multiplikatoren ~ N(0; 0,7), log-Gewichte ~ N(0; 0,2), Grundlast ~ N(0; 20 kg/s)).
 
@@ -10,7 +11,7 @@ Je Start werden die Parameter und die Kosten (Daten- und Prior-Anteil) gespeiche
 höchstens ``TOLERANZ`` über dem besten Wert liegen, gelten als gleich gute **Kalibriervarianten**; Auslegung und
 Unsicherheitsläufe werden mit allen gerechnet.
 
-Aufruf: ``python -m scripts.dhn_study.mehrfachstart [A B C D E]`` (je Start ≈ 5–15 min). Ergebnisse:
+Aufruf: ``python -m scripts.dhn_study.mehrfachstart [A B C D E]`` (je Start ≈ 10–60 min). Ergebnisse:
 ``results/dhn_study/netzmodell/kalibrierungen/<Start>/`` und ``kalibrierungen/uebersicht.csv``. Die veröffentlichten
 Varianten liegen unter ``scripts/dhn_study/kalibrierung/``.
 """
@@ -34,14 +35,14 @@ from .run_netzmodell import (
     speichere_kalibrierung,
 )
 
-STARTS = {"A": "Referenzkalibrierung", "B": "Prior-Werte", "C": "Zufall 1", "D": "Zufall 2", "E": "Zufall 3"}
+STARTS = {"A": "ursprüngliche Kalibrierung", "B": "Prior-Werte", "C": "Zufall 1", "D": "Zufall 2", "E": "Zufall 3"}
 TOLERANZ = 0.05            # relative Kostendifferenz, bis zu der eine Kalibrierung als gleich gut gilt
 
 
 def startwert(name: str, nz: nm.Netz) -> dict | None:
     """Startwert der Kalibrierung für einen Start (``None`` = Prior-Werte)."""
     if name == "A":
-        return lade_kalibrierung(KALIBRIERUNG_REPO / "A", nz)
+        return lade_kalibrierung(KALIBRIERUNG_REPO / "A_start", nz)
     if name == "B":
         return None
     rng = np.random.default_rng({"C": 1, "D": 2, "E": 3}[name])
@@ -58,13 +59,23 @@ def kosten(pr: dict, kal: dict, n_prior: int) -> dict:
             "Kosten Prior": 0.5 * float(np.sum(r[-n_prior:] ** 2))}
 
 
-def uebersicht(ordner) -> pd.DataFrame:
-    """Kosten aller vorhandenen Kalibrierungen in ``ordner`` (Unterordner je Start) und ob sie gleich gut sind."""
+def uebersicht(ordner, gleich_log: float = 0.05) -> pd.DataFrame:
+    """Kosten aller vorhandenen Kalibrierungen in ``ordner`` (Unterordner je Start). Starts, deren Multiplikatoren sich
+    um höchstens ``gleich_log`` (|log-Verhältnis|) unterscheiden, haben dasselbe Optimum; die Spalte „Optimum“ nennt den
+    günstigsten Start der Gruppe. „gleich gut“: Kosten höchstens ``TOLERANZ`` über dem besten Wert."""
     zeilen = {p.name: pd.read_csv(p / "kosten.csv", index_col=0).iloc[:, 0] for p in sorted(ordner.iterdir())
               if (p / "kosten.csv").exists()}
     u = pd.DataFrame(zeilen).T
     for c in ("Kosten", "Kosten Daten", "Kosten Prior"):
         u[c] = pd.to_numeric(u[c])
+    u = u.sort_values("Kosten")
+    mult = {n: np.log(pd.read_csv(ordner / n / "kalibrierung_kanten.csv", index_col=0)["Multiplikator"])
+            if (ordner / n / "kalibrierung_kanten.csv").exists() else None for n in u.index}
+    optimum = {}
+    for n in u.index:
+        optimum[n] = next((o for o in dict.fromkeys(optimum.values()) if mult[n] is not None and mult[o] is not None
+                           and float((mult[n] - mult[o]).abs().max()) <= gleich_log), n)
+    u["Optimum"] = pd.Series(optimum)
     u["relativ zum besten"] = u["Kosten"] / u["Kosten"].min() - 1
     u["gleich gut"] = u["relativ zum besten"] <= TOLERANZ
     return u

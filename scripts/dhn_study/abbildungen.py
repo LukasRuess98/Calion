@@ -247,19 +247,20 @@ def netzmodell_abbildungen(out):
     # 3) Hebel Messung gegen Modell
     h = pd.read_csv(res / "hebel_holdout.csv", header=[0, 1], index_col=0)
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.4), facecolor=FLAECHE)
-    for ax, (reg, titel) in zip(axs, (("KWK-Fluss", "je 100 kg/s KWK-Durchfluss (Ersatz durch Ost)"),
-                                      ("HW1", "je 100 kg/s HW1 (Süd statt Ost)")), strict=True):
+    # Vorzeichen wie in Netzmodell.md, Abschnitt 4.2: „Ost statt KWK“ = −Koeffizient des KWK-Durchflusses
+    for ax, (reg, vz, titel) in zip(axs, (("KWK-Fluss", -1, "je 100 kg/s Ost- statt KWK-Wasser"),
+                                          ("HW1", 1, "je 100 kg/s HW1- statt Ost-Wasser")), strict=True):
         _stil(ax)
         y = range(len(h))
-        ax.errorbar(h[("Messung", reg)], y, xerr=2 * h[("SE Messung", reg)], fmt="o", color=SERIE[0], markersize=7,
+        ax.errorbar(vz * h[("Messung", reg)], y, xerr=2 * h[("SE Messung", reg)], fmt="o", color=SERIE[0], markersize=7,
                     capsize=3, label="Messung ± 2 SE")
-        ax.scatter(h[("Modell", reg)], y, s=60, marker="D", color=SERIE[1], label="Modell", zorder=4)
+        ax.scatter(vz * h[("Modell", reg)], y, s=60, marker="D", color=SERIE[1], label="Modell", zorder=4)
         ax.axvline(0, color=ACHSE, linewidth=0.8)
         ax.set_yticks(list(y))
         ax.set_yticklabels(h.index, fontsize=9)
         ax.set_title(titel, fontsize=10.5, color=TINTE, loc="left")
         ax.set_xlabel("Δp-Änderung [bar]", fontsize=9, color=TINTE2)
-    axs[0].legend(frameon=False, fontsize=9, loc="lower left", labelcolor=TINTE2)
+    axs[0].legend(frameon=False, fontsize=9, loc="lower right", labelcolor=TINTE2)
     fig.suptitle("Hebel aus natürlichen Experimenten (Holdout, Heizperiode): gleiche Regression auf Messung und Modell",
                  fontsize=12, color=TINTE, x=0.01, ha="left")
     fig.tight_layout()
@@ -343,7 +344,9 @@ def unsicherheit_abbildung(out):
     ax.set_xlabel("erforderliche KWK-Δp [bar]", fontsize=9, color=TINTE2)
     ax.set_ylabel("Anteil der Läufe", fontsize=9, color=TINTE2)
     ax.legend(frameon=False, fontsize=8.5, loc="center right", labelcolor=TINTE2)
-    ax.set_title("Erforderliche KWK-Δp (400 Läufe je Fall)", fontsize=10.5, color=TINTE, loc="left")
+    n_fall = int(((lf.Variante == varianten[0]) & (lf.Fall == "P50")).sum())
+    ax.set_title(f"Erforderliche KWK-Δp ({n_fall} Läufe je Fall und Strukturvariante)", fontsize=10.5, color=TINTE,
+                 loc="left")
     ax = axs[1]
     _stil(ax)
     groessen = [("Reservegewinn S, gemessene Hebel [Pp]", "Speicher S,\ngemessene Hebel"),
@@ -362,7 +365,7 @@ def unsicherheit_abbildung(out):
     ax.legend(frameon=False, fontsize=8.5, loc="lower right", labelcolor=TINTE2, title="Median, P5–P95",
               title_fontsize=8.5)
     ax.set_title("Speicher 40 MW: Gewinn an Ausbaureserve", fontsize=10.5, color=TINTE, loc="left")
-    fig.suptitle("Unsicherheitsläufe zum Auslegungsfall (Parameter, Eingangsgrößen, Strukturvarianten)", fontsize=12,
+    fig.suptitle("Unsicherheitsläufe zum Auslegungsfall (Kalibriervarianten, Parameter, Eingangsgrößen, Struktur)", fontsize=12,
                  color=TINTE, x=0.01, ha="left")
     fig.tight_layout()
     fig.savefig(out / "netzmodell_unsicherheit.png", dpi=150, facecolor=FLAECHE)

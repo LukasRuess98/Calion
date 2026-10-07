@@ -27,6 +27,7 @@ Die DWD-Zeitstempel werden in Ortszeit umgerechnet: bis 30.11.1996 MEZ, danach U
 
 **Reproduktion:** Der anonymisierte Datensatz liegt im Repository unter `data/dhn_a/`, einschließlich der Außentemperatur; siehe `data/dhn_a/README.md`. Dann:
 ```
+pip install -e ".[study]"                    # pandas, numpy, pyyaml, scipy, pyarrow, matplotlib
 python -m scripts.dhn_study.run_analyse
 python -m scripts.dhn_study.abbildungen      # Abbildungen Abschnitt 5.6 (benötigt matplotlib)
 python -m pytest -o addopts="" tests/test_dhn_study.py
@@ -45,17 +46,17 @@ Laufzeit ≈ 10 s. Die Ergebnisse stehen unter `results/dhn_study/datenanalyse/`
 
 | Frage | Ergebnis (indikativ, datenbasiert) |
 |---|---|
-| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Das liegt unter den **4,0 bar** aus der statischen Worst-Case-Simulation des Betreibers; das Netz reicht also, **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. **Das kalibrierte Netzmodell bestätigt das:** 3,1–3,4 bar (P50) und 3,8–4,05 bar (P90), maßgebend die Mitte (`Netzmodell.md`, Abschnitt 5). In den Unsicherheitsläufen sind „P50 ≤ 4,0 bar“ und „P90 unter der Pumpengrenze“ gestützt; ob bei P90 4,0 bar reichen, ist offen (Abschnitt 5.2). |
+| **F1:** Reicht das Netz bei Auslegungslast? | Das KWK braucht **≈ 3,2–3,6 bar** Druckdifferenz bei 235–252 MW Verbund-Stundenlast. Bei P90 bestimmt der **Süden** die Anforderung. Das liegt unter den **4,0 bar** aus der statischen Worst-Case-Simulation des Betreibers; das Netz reicht also, **knapp**. Gegen die Pumpengrenze **≈ 5,7 bar** reicht es mit deutlicher Reserve (Abschnitt 6). Bezieht das Westnetz wie 2025 Wärme aus dem Verbund, steigt der Bedarf auf 3,9–4,5 bar. **Das kalibrierte Netzmodell bestätigt das:** 3,0–3,4 bar (P50) und 3,55–4,03 bar (P90) über drei gleich gute Kalibrierungen, maßgebend meist die Mitte (`Netzmodell.md`, Abschnitt 5). In den Unsicherheitsläufen sind „P50 ≤ 4,0 bar“ und „P90 unter der Pumpengrenze“ gestützt; ob bei P90 4,0 bar reichen, ist offen (Abschnitt 5.2). |
 | Was begrenzt heute an kalten Tagen? | Abschnitt 5. Drei Befunde: (1) Der **Süd-Schlechtpunkt V06** am Südende der Stammleitung L4 steht auf seinem Sollwert von ≈ 1,2 bar. Auf ihn regelt die KWK (Abschnitt 5.6). (2) Die KWK-Δp ist **nicht frei erhöhbar**: Jede bar KWK-Δp hebt die MVA-Δp um 0,8–1,0 bar, und bei laufender GT steht die MVA an ihrem Erfahrungswert (7,5 bar, 2025 P99 8,2 bar). Im Kältebetrieb 2025 liegt die wirksame KWK-Grenze deshalb bei **≈ 3,6–4,3 bar**. (3) Der Betrieb **entlastet den Verbund**, indem er das Westnetz auf die eigenen Kessel umstellt. Bei den Kunden ist 2025 bis −5 °C kein Defizit messbar. 2020–2022 lag die Erzeugung an Tagen unter −5 °C dagegen **10–15 % unter dem unbegrenzten Bedarf**. |
 | **F2:** Wie viel Ausbau ist ohne Maßnahmen möglich? | Bis 4,0 bar **+5 % bis +13 %**, bis ≈ 5,7 bar **+24 % bis +34 %**. Mit West-Bezug wie 2025: −5 % bis +1 % bzw. +12 % bis +20 %. |
 | Erzeugungsleistung (n−1) | Plan A: 251 MW im Verbund bei Ausfall der größten KWK-Einheit (KWK 50 + 0 + 44 + 33 MW). Im Referenzfall reicht das bei P50. Bei P90 fehlen ≈ 10–20 MW über ≈ 4 h (**30–60 MWh**). Mit KWK im Umleitbetrieb (267 MW) bleibt praktisch keine Lücke. Nur mit West-Bezug wie 2025 fehlen 80–230 MWh. |
-| **F3:** Was bringt der Speicher am Standort S? | **Hydraulisch spürbar, aber nicht am Engpass Süd.** Ost-Wasser statt KWK-Wasser hebt den Regelpunkt V06 um +0,15 bar je 100 kg/s; im Süden wären es +1,02 bar, also ≈ 7-mal so viel. 40 MW am Standort S senken die erforderliche KWK-Δp bei Auslegung um **≈ 0,3 bar** (gemessene Hebel) bis **0,85–1,1 bar** (Netzmodell). Die Ausbaureserve bis 4,0 bar steigt aber nur um **1–2 Prozentpunkte** (Modell: 8), weil danach V06 im Süden bindet. Die frühere Angabe von 0,08 bar beruhte auf einer verzerrten Regression (Abschnitt 7). **Thermisch:** n−1-Reserve für die P90-Spitze, 30–60 MWh. Wirksamer für den Engpass sind Maßnahmen im Süden (Abschnitt 7, `Netzmodell.md`, Abschnitt 5.1). |
+| **F3:** Was bringt der Speicher am Standort S? | **Hydraulisch spürbar, aber nicht am Engpass Süd.** Ost-Wasser statt KWK-Wasser hebt den Regelpunkt V06 um +0,15 bar je 100 kg/s; im Süden wären es +1,02 bar, also ≈ 7-mal so viel. 40 MW am Standort S senken die erforderliche KWK-Δp bei Auslegung um **0,16–0,34 bar** (gemessene Hebel) bis **0,6–1,1 bar** (Netzmodell). Die Ausbaureserve bis 4,0 bar steigt aber nur um **1–2 Prozentpunkte** (Modell: 5–8), weil danach V06 im Süden bindet. Die frühere Angabe von 0,08 bar beruhte auf einer verzerrten Regression (Abschnitt 7). **Thermisch:** n−1-Reserve für die P90-Spitze, 30–60 MWh. Wirksamer für den Engpass sind Maßnahmen im Süden (Abschnitt 7, `Netzmodell.md`, Abschnitt 5.1). |
 | **F4:** Druck am Standort S | Vorlaufdruck 2025 max. 12,0 bar. Bei Auslegung (KWK-Δp 3,6–4,0 bar, Ruhedruck 8,4–9,1 bar) 11,6–12,8 bar, bis ≈ 14 bar, wenn die KWK bis zur Pumpengrenze fährt. Das ist die Eingangsgröße für den Auslegungsdruck eines direkt angebundenen Speichers (Konzept K1). |
 | Status der Δp-Grenzen | Plan A: Umwälzungen, Δp und Rücklauftemperaturen sind **„derzeitige Erfahrungswerte“**. Laut Betreiber stammen sie aus Erfahrung und statischen Worst-Case-Simulationen. 4,0 bar (KWK) und 7,5 bar (MVA) sind also **keine physikalischen Grenzen**; beide wurden 2025 überschritten. Harte Grenzen sind die Pumpen (KWK ≈ 5,7 bar bei 73,5 m), die Abschaltdrücke Ost (VL 19,5–22 bar, RL 4,4–5,0 bar), PN25 und der Mindest-Ruhedruck. |
 | Stärkste Stellhebel | **Westnetz bei Kälte aus eigenen Kesseln:** ≈ −25 MW Verbundlast, entspricht ≈ −0,7…0,9 bar. **Rücklauf:** −5 K ≈ −0,3 bar, +5 K ≈ +0,5 bar. **HW1/PS1** im Süden: ≈ 1 bar je 100 kg/s HW1. **Ost-Vorlauf über der Heizkurve:** nur im heutigen Kältebetrieb, ≈ +0,8 bar wirksame KWK-Grenze. |
 
 Einschränkungen:
-* Die Aussagen dieses Berichts beruhen auf **Ersatzgesetzen** aus dem Betriebsbereich 2025. Bei Auslegung wird bis zum 1,2- bis 1,3-fachen Massenstrom extrapoliert (bei West-Bezug wie 2025 bis 1,45-fach). Das kalibrierte Netzmodell (`Netzmodell.md`) reproduziert die Anker im Bereich 2025 und liegt bei Auslegung 0,2–0,45 bar darüber.
+* Die Aussagen dieses Berichts beruhen auf **Ersatzgesetzen** aus dem Betriebsbereich 2025. Bei Auslegung wird bis zum 1,2- bis 1,3-fachen Massenstrom extrapoliert (bei West-Bezug wie 2025 bis 1,45-fach). Das kalibrierte Netzmodell (`Netzmodell.md`) reproduziert die Anker im Bereich 2025. Bei Auslegung liegt es bei P50 bis zu 0,17 bar und bei P90 0,20–0,43 bar darüber.
 * Das Süd-Gesetz ist das **heutige Regelverhalten**. Ein anderer Sollwert am Schlechtpunkt verschiebt es.
 * Die Aussagen sind **Plausibilitätsanker** für das Netzmodell. Den Abgleich (Plan, Kriterien 3.1–3.6) dokumentiert `Netzmodell.md`, Abschnitt 4.
 
@@ -359,7 +360,7 @@ Werte in bar je 100 kg/s.
 * Jede Einspeisung, die KWK-Wasser ersetzt, hebt alle Stationen an. Grund: Es entfallen Verluste, die vom KWK-Gesamtdurchfluss abhängen (Anlage, Sammelschiene, Stammleitungen).
 * Am Regelpunkt V06 wirkt der Ersatz im Süden **≈ 7-mal stärker** als im Osten.
 * **40 MW (≈ 156 kg/s) am Standort S heben V06 um ≈ 0,24 bar (0,20–0,27).** Unter Regelung auf V06 senkt die KWK ihre Δp um denselben Betrag (struktureller Durchgriff 1, Netzmodell). Das gilt für das Lastniveau 2025.
-* **Bei Auslegung** ist die Mitte maßgebend. Dort senkt S die erforderliche KWK-Δp um ≈ 0,3 bar (gemessene Hebel, ohne Anstieg mit dem Durchfluss) bis 0,85–1,1 bar (Netzmodell, quadratische Verluste). Über 240 kg/s KWK-Durchfluss wachsen die gemessenen Hebel nicht mehr. Welche Seite gilt, kann nur ein Feldtest bei hoher Last entscheiden (`Netzmodell.md`, Abschnitte 4.3 und 5.1).
+* **Bei Auslegung** ist meist die Mitte maßgebend. Dort senkt S die erforderliche KWK-Δp um 0,16–0,34 bar (gemessene Hebel, ohne Anstieg mit dem Durchfluss) bis 0,6–1,1 bar (Netzmodell, quadratische Verluste). Über 240 kg/s KWK-Durchfluss wachsen die gemessenen Hebel nicht mehr. Welche Seite gilt, kann nur ein Feldtest bei hoher Last entscheiden (`Netzmodell.md`, Abschnitte 4.3 und 5.1).
 * **Korrektur gegenüber der vorigen Fassung** (dort +0,03 bar und ≈ 0,08 bar Speicherwirkung): Die damalige Regression verwendete die Wärmelast in MW und den Ost-Durchfluss als Regressoren. Die Wärmelast ist kein konsistentes Maß des Massenstroms, und Ost-Durchfluss, Last und KWK bewegen sich gemeinsam. Auf exakten Modellwerten liefert dieselbe Regression ebenfalls ≈ 0, obwohl der strukturelle Hebel deutlich größer ist (`Netzmodell.md`, Abschnitt 4.2). Die massenstromkonsistente Regression trifft Messung und Modell gleichermaßen.
 
 ## 8. Temperatur-Tracer (Ost-Wasseranteil, Winter, n = 287 h)
@@ -371,7 +372,7 @@ Werte in bar je 100 kg/s.
 
 Aussagekräftig ist der Tracer nur bei R² ≳ 0,3. Mit 15-min-Werten wird er deutlich schärfer.
 
-Das kalibrierte Netzmodell trifft die Anteile an V22, V11 und V23 auf ±6 Prozentpunkte und an V15 auf +16 Prozentpunkte, wenn auf seine Mischungsanteile dieselbe Regression angewandt wird (`Netzmodell.md`, Abschnitt 4.6).
+Das kalibrierte Netzmodell trifft die Anteile an V22 und V11 auf ±5 Prozentpunkte, an V23 auf +9 und an V15 auf +16 Prozentpunkte, wenn auf seine Mischungsanteile dieselbe Regression angewandt wird (`Netzmodell.md`, Abschnitt 4.6).
 
 ## 9. Signalprüfungen
 
@@ -426,11 +427,11 @@ Das kalibrierte Netzmodell trifft die Anteile an V22, V11 und V23 auf ±6 Prozen
      * Mindest-Δp, das V06 tatsächlich braucht (TAB). ±0,2 bar am Sollwert entsprechen ≈ 3–4 Prozentpunkten Reserve.
      * Pumpenkennlinien von KWK und MVA, nur für Ausbau über +5…13 % nötig.
 4. **Speicher am Standort S:**
-   * **Hydraulisch** senkt er die erforderliche KWK-Δp bei Auslegung um ≈ 0,3 bar (gemessene Hebel) bis 0,85–1,1 bar (Netzmodell). Die Aussage der Studie „+0,1…0,2 bar“ ist damit eher zu klein.
-   * Die **Ausbaureserve** wächst trotzdem nur um 1–2 Prozentpunkte (Netzmodell: 8). Danach bindet der Süd-Regelpunkt V06, den S kaum erreicht. Die qualitative Aussage „lokal“ bleibt also richtig, „klein“ nur für den Engpass im Süden.
+   * **Hydraulisch** senkt er die erforderliche KWK-Δp bei Auslegung um 0,16–0,34 bar (gemessene Hebel) bis 0,6–1,1 bar (Netzmodell). Die Aussage der Studie „+0,1…0,2 bar“ ist damit eher zu klein.
+   * Die **Ausbaureserve** wächst trotzdem nur um 1–2 Prozentpunkte (Netzmodell: 5–8). Danach bindet der Süd-Regelpunkt V06, den S kaum erreicht. Die qualitative Aussage „lokal“ bleibt also richtig, „klein“ nur für den Engpass im Süden.
    * Die frühere Angabe von 0,08 bar ist korrigiert (Abschnitt 7).
    * **Thermisch** deckt er im Referenzfall nur die P90-Spitze bei n−1 (30–60 MWh).
-   * Ein Speicher **im Süden** wirkt am Regelpunkt ≈ 7-mal stärker (Messung 2025). Im Netzmodell erhöht er die Ausbaureserve um ≈ 15 statt 8 Prozentpunkte (obere Schranke). Standortvergleich in Phase 5/6.
+   * Ein Speicher **im Süden** wirkt am Regelpunkt ≈ 7-mal stärker (Messung 2025). Im Netzmodell erhöht er die Ausbaureserve um 14–18 statt 5–8 Prozentpunkte (obere Schranke). Standortvergleich in Phase 5/6.
 5. **Alternativen mit gleicher oder höherer Wirkung,** im Maßnahmenvergleich zu rechnen:
    * **HW1 und PS1 im Süden:** ≈ 0,9–1,0 bar am Regelpunkt je 100 kg/s HW1 (anstelle von Ost- bzw. KWK-Wasser, Abschnitt 7);
    * **Rücklauf −5 K:** ≈ −0,3 bar;

@@ -38,12 +38,19 @@ notebooks = [
     "ipykernel>=6.0",
     "ipywidgets>=8.0",
 ]
+# Speicherstudie DHN-A (scripts/dhn_study, tests/test_dhn_study.py); pandapipes nur für die Gegenrechnung
+study = [
+    "scipy>=1.9",
+    "pyarrow>=10.0",
+    "matplotlib>=3.5",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "black>=22.0",
     "ruff>=0.1",
     "mypy>=1.0",
+    "calion[study]",
 ]
 docs = [
     "sphinx>=5.0",
