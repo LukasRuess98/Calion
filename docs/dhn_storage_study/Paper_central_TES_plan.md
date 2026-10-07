@@ -16,7 +16,13 @@ approval before sharing it outside.
 | Hydraulic layer | The **calibrated meshed Ersatznetz** of this study (`scripts/dhn_study/netzmodell.py`, 25 nodes, 31 edges, 7 meshes, calibration variants A/C/B), **not** the uncalibrated tree of the existing CALION energy configuration. |
 | Site of the central feed-in | **Storage site S** (node `S` on the east transport line L5, consumer V22). It is 1.25 km from the KWK busbar: L1a (854 m) to K1, then L5a (394 m). |
 | Plants | As defined in `data/dhn_a/plants.yaml` and in the existing energy configuration. |
-| Waste heat | The waste-heat columns of the energy-model input are partner B's waste heat. Partner A's waste heat will be provided separately. |
+| Heat pump | **One HP**, 5 MW thermal (assumption), source **only partner A's waste heat** (provided separately by the author). Partner B's waste heat (columns of the energy-model input) is out of scope. |
+| Partner B | Electrode boiler only, 10 MW available, heat-purchase contract as in the specification. |
+| Connection pipe | Same DN as the network trunk at the connection point S (assumption); A2 sweeps ±1–2 DN classes. The repository sources disagree on that DN (Ersatznetz start value DN 400, existing energy configuration DN 600): take it from the operator plans and document it. |
+| TES reference size | Typical literature value for comparable networks, with citation; A1 sweeps around it. |
+| Pump curves | Literature-based generic centrifugal-pump curves, anchored at the nominal points in `plants.yaml`. |
+| Δp master in summer | Derived from the 2025 measurements (regulation signature as in `Datenanalyse_Auslegung.md`, 5.6, restricted to hours without KWK flow). |
+| Prices | 2025 day-ahead, DE-LU bidding zone (SDAC); 15-min MTU from 1 Oct 2025 averaged to hourly values, as in the specification. |
 | Compute | Full-year MILP runs with Gurobi on the author's PC (see §7). |
 
 **Mapping to the specification:**
@@ -106,8 +112,9 @@ Ranges: calibration variants A, C, B.
 3. **The limit definition decides the result.**
    * The east plants already exceeded their 7.5-bar experience value in 548 h of 2025 (MVA, maximum 9.0 bar).
    * With 7.5 bar as a hard limit, F000 itself would violate it, which is the G2 stop.
-   * Proposal: the hard limit is the flow-dependent pump curve (MVA 2 × 500 t/h, 90 m; operator data needed); the
-     substitute is the 2025 maximum per plant. The 7.5 bar value is reported as a soft limit.
+   * Decision: the hard limit is a flow-dependent pump curve from literature, anchored at the nominal points in
+     `plants.yaml` (e.g. MVA 2 × 500 t/h, 90 m). It is checked against the 2025 maximum per plant. The 7.5 bar value is
+     reported as a soft limit.
 4. **The KWK does not run in summer.** Its flow is below 10 kg/s in 99 % of summer hours and in 21 % of heating-period
    hours. In summer the east plants (≈ 29 MW) carry the network.
    * The spec's re-dispatch rule "master takes residual" then fails. A feed-in at S displaces east heat, including the
@@ -125,7 +132,7 @@ Ranges: calibration variants A, C, B.
 2. **MILP resolution:** feed-in points plus the aggregated validated loss model. Demand is distributed to nodes in the
    hydraulic layer with the calibrated load weights.
 3. **Limits:**
-   * East plants: flow-dependent pump curve; substitute is the 2025 maximum per plant.
+   * East plants: flow-dependent pump curve from literature, anchored at `plants.yaml`; checked against the 2025 maximum.
    * KWK: pump limit; 4.0 bar is reported as the experience value.
    * Minimum static pressure per area and supply temperature from `plants.yaml` (saturation check).
 4. **Re-dispatch in Mode H:** the MILP merit order (`proportional_to_milp_split`) instead of "master takes residual",
@@ -139,12 +146,12 @@ Ranges: calibration variants A, C, B.
 | # | Parameter | Substitute |
 |---|---|---|
 | B1 | Partner A waste heat Q_avail(t), T_source(t), year, resolution | announced by the author |
-| B2 | HP at site S: capacity, units, owner, performance map | sweep around a reference size |
+| B2 | ~~HP size~~ resolved: one HP, 5 MW thermal (assumption); no performance map → Carnot-fraction COP (flagged) | B3 sensitivity |
 | B3 | Partner B: electricity-cost components (grid level, levies, reductions), premium range, availability, demand charge | low/high pair (A5), constant 10 MW (flagged) |
-| B4 | TES reference volume, design pressure, T_low | rule-based reference + A1 grid |
-| B5 | Day-ahead prices: year/source of the price column in the energy-model input; 15-min MTU after 1 Oct 2025 | ENTSO-E/SMARD 2025 |
-| B6 | Pump curves of the east plants and the KWK | 2025 maximum per plant |
-| B7 | Connection pipe S ↔ network: DN, route | DN sweep (A2) |
+| B4 | TES reference volume, design pressure, T_low | literature value for comparable networks (cited) + A1 grid |
+| B5 | ~~Prices~~ resolved: 2025 DE-LU day-ahead, hourly means | B2 sensitivity (2023, 2024) |
+| B6 | ~~Pump curves~~ resolved: literature-based generic curves, anchored at `plants.yaml` | check against the 2025 maximum per plant |
+| B7 | ~~Connection pipe~~ resolved: DN of the trunk at S (to be read from the operator plans) | DN sweep (A2) |
 | B8 | Capacities: `plants.yaml` (plan A) vs. the existing energy configuration | plan A values, flagged |
 
 ---
@@ -166,11 +173,9 @@ Ranges: calibration variants A, C, B.
 
 ## 6. Open questions
 
-1. **Partner B waste heat:** is it a second HP source at S (same HP, a second HP) or out of scope? In the specification
-   the HP uses only partner A's waste heat.
-2. **Summer operation:** which plant holds Δp when the KWK is off? The KWK Δp is still measured in summer.
-3. **Pump curves** of the east plants and the KWK — available from the operator?
-4. B2–B5 and B7 as in §4.
+Answered on 2026-10-07 (see §0): partner B's waste heat is out of scope; the summer Δp master is derived from the
+measurements; pump curves and the TES reference size come from literature; HP 5 MW; link DN = trunk DN at S; prices
+2025 DE-LU day-ahead. Still open: partner A's waste-heat data (B1) and partner B's electricity-cost components (B3).
 
 ---
 
