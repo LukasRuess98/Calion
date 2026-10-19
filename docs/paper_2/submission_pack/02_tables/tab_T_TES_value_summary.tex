@@ -1,0 +1,39 @@
+% =============================================================================
+% tab_T_TES_value_summary.tex — Stadtbach TES investment value: cost sweep +
+% tariff/volatility sensitivities, condensed from the 27-row campaign table
+% (tab_Z5_sb_mm_s1_sweep_and_sensitivities.csv). All intervals use the
+% structural PIN0-as-restriction bound (MODEL_AND_DOE_CONTROL.md SS4cb):
+% value_min = max(0, LB(PIN0) - UB(free)), value_max = UB(PIN0) - LB(free).
+% Last updated 2026-10-16 (docs SS4ck-SS4co).
+% =============================================================================
+\begin{table}[t]
+\centering
+\caption{Stadtbach (S1, storage co-located with the primary producer) TES
+investment value as a function of storage cost and tariff/price structure.
+Intervals bound the true value using each run's own MIP gap (never negative,
+by construction). Cost-sweep rows marked~$\dagger$ showed no change in built
+volume versus the \texttt{x1.0} point and only a single Gurobi incumbent over
+the full time limit; treat as an upper bound, not a re-optimised value.}
+\label{tab:tes_value_summary}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+Scenario & Spec.\ cost & \multicolumn{2}{c}{Value interval (EUR/yr)} \\
+ & (EUR/m$^3$) & min & max \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{TES cost sweep (shared PIN0 baseline)}} \\
+x1.0 (base case)        & 179  & 165{,}215 & 230{,}414 \\
+x1.3$^\dagger$           & 233  & 50{,}853  & 162{,}944 \\
+x1.5$^\dagger$           & 269  & 0         & 141{,}167 \\
+x2.0                     & 752  & 0         & 103{,}407 \\
+\addlinespace
+\multicolumn{4}{@{}l}{\textit{Tariff / price sensitivities (own fresh PIN0 each)}} \\
+Grid fee $-$50\%              & --  & 170{,}163 & 224{,}352 \\
+Monthly peak billing          & --  & 168{,}120 & 218{,}653 \\
+CHP marketing discount $-2$\,EUR/MWh & -- & 161{,}647 & 230{,}410 \\
+Price amplitude $\times$1.5   & --  & 396{,}832 & 469{,}959 \\
+Price amplitude $\times$2.0   & --  & 644{,}140 & 721{,}324 \\
+\bottomrule
+\end{tabular}
+\end{table}

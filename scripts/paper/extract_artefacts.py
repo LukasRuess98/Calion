@@ -953,15 +953,18 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
                 "demand_MWh": round(demand, 1),
                 "curtailment_MWh": round(dump, 1),
             }
-            # Closure = the MW conservation the model ACTUALLY solves:
-            #   generation + net_discharge = demand + curtailment.
-            # The L3 dispatch balance is MW-lossless — the spatial supply-temperature
-            # drop is tracked via the enthalpy-flux (W) vars but does NOT remove MW
-            # from this balance (generation ≈ consumer demand, verified). The pipe
-            # thermal losses are a separate temperature-field DIAGNOSTIC, reported as
-            # network_loss_pct — NOT subtracted here. (The old formula subtracted
-            # `losses` from a lossless balance, so every clean run showed a spurious
-            # imbalance ≈ the loss fraction and tripped HIGH_IMBALANCE.)
+            # Closure = the MW conservation the model ACTUALLY solves. Verified
+            # 2026-10-13 (Z4) directly against calion/models/constraint_builder.py's
+            # real per-timestep constraint (line ~594): `supply == demand + charge +
+            # network_loss + return_loss + supply_loss` — pipe losses DO consume real
+            # MW in the current model and must be added to the demand side here.
+            # The "MW-lossless" comment this formula used to carry was true only
+            # BEFORE the 2026-09-03 return-loss and 2026-09-21 supply-loss fixes
+            # (constraint_builder.py's own comments date both); this script was never
+            # updated to match, so every run since those fixes showed a spurious
+            # closure_pass=False of roughly the loss fraction (SB ~3.2%, MM ~25.6%)
+            # even though the model's own balance closes to <2% once losses are
+            # correctly included (re-verified: SB 0.20-0.24%, MM 1.96%).
             eb["network_loss_pct"] = round(losses / demand * 100, 3) if demand > 0 else None
             # Plausibility guard: a stale / wrong-network / no-incumbent dispatch
             # export yields an absurd ratio; flag instead of a meaningless number.
@@ -974,7 +977,7 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
                           closure_note=f"implausible supply/demand ratio {ratio:.2f} "
                                        "— stale or wrong-network dispatch export")
             else:
-                closure_err_pct = abs(supply - dump - demand) / demand * 100
+                closure_err_pct = abs(supply - dump - demand - losses) / demand * 100
                 eb.update(closure_error_pct=round(closure_err_pct, 3),
                           closure_pass=bool(closure_err_pct <= 2.0))
             payload["energy_balance"] = eb

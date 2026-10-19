@@ -1,0 +1,28 @@
+group,label,scenario_id,config_hash,obj_eur,mip_gap_pct,status,V_TES_m3,spec_cost_eur_m3,value_min_eur_yr,value_max_eur_yr,caveat
+SB c0-sweep,PIN0 (shared),SB-S0-HK0-PIN0,2d2e3c14,23370804.47919425,0.14363917256234182,optimal,0.0,,,,reference point
+SB c0-sweep,c0x0.5,SB-S1-HK0,,22981000,0.23,OOM crash (no export),,,,,"INFORMAL: raw Gurobi-log value only, no formal extraction"
+SB c0-sweep,c0x0.7,SB-S1-HK0,,23058000,0.156,controlled kill (no export),,,,,"INFORMAL: raw Gurobi-log value only, no formal extraction"
+SB c0-sweep,c0x1.0 (baseline),SB-S1-HK0,9be66307,23172019.5147328,0.13649685945968862,optimal,30379.4,179.1,165215.3342863731,230414.0433724448,robust (Solution count >1)
+SB c0-sweep,c0x1.3,SB-S1-HK0,636af0bb,23286382.035664476,0.3371978832015679,maxTimeLimit,30379.4,,50852.81335469708,162943.6308282651,"CAVEAT: Solution count 1 -- size likely stuck at warmstart, obj_eur is an upper bound only"
+SB c0-sweep,c0x1.5,SB-S1-HK0,3fcf3897,23362623.716285586,0.5692264519151011,maxTimeLimit,30379.4,,0.0,141166.99696315452,"CAVEAT: Solution count 1 -- size likely stuck at warmstart, obj_eur is an upper bound only"
+SB c0-sweep,c0x2.0,SB-S1-HK0,94420c8d,23369171.040261187,0.43550246338673404,maxTimeLimit,2566.3,751.9,0.0,103406.75448646024,robust (Solution count 10)
+SB Z3 sensitivity,Z3 Netzentgelt -50% (PIN0),SB-S1-HK0-PIN0-NETZ50,7f38d0a2,23344775.339610036,0.12340866762199457,optimal,0.0,,,,own fresh PIN0
+SB Z3 sensitivity,Z3 Netzentgelt -50% (free),SB-S1-HK0-NETZ50,cb4f37f0,23145802.72303915,0.10964852157453128,optimal,30379.4,,170163.1403649263,224351.6470632553,vs own fresh PIN0 above
+SB Z3 sensitivity,Z3 Monatsmaxima (PIN0),SB-S1-HK0-PIN0-MONTHLY,0fa27712,23348317.309320714,0.03502510213419236,optimal,0.0,,,,own fresh PIN0
+SB Z3 sensitivity,Z3 Monatsmaxima (free),SB-S1-HK0-MONTHLY,3e6de470,23172019.514567968,0.18278440149188951,maxTimeLimit,30379.4,,168120.02276854217,218652.63193603233,vs own fresh PIN0 above
+MM Z3 sensitivity,Z3 Netzentgelt -50% (PIN0),MM-S1-HK0-PIN0-NETZ50,f6a95524,417455.0795256355,0.14606935466829682,optimal,0.0,,,,own fresh PIN0
+MM Z3 sensitivity,Z3 Netzentgelt -50% (free),MM-S1-HK0-NETZ50,40133d32,415157.6276298706,0.14562953238606544,optimal,0.0,,1687.677955071791,2902.0440075473743,vs own fresh PIN0 above
+MM Z3 sensitivity,Z3 Monatsmaxima (PIN0),MM-S1-HK0-PIN0-MONTHLY,60080712,417514.3557167185,0.03458656335608252,optimal,0.0,,,,own fresh PIN0
+MM Z3 sensitivity,Z3 Monatsmaxima (free),MM-S1-HK0-MONTHLY,862e9cd5,415651.2729726428,0.13972631101865687,optimal,0.0,,1718.678876914957,2443.856934502488,vs own fresh PIN0 above
+SB Z3 sensitivity,Z3 Preisspreizung x1.5 (PIN0),SB-S1-HK0-PIN0-SPREIZ15,9d70befd,21387532.13815025,0.14960253152228595,optimal,0.0,,,,own fresh PIN0
+SB Z3 sensitivity,Z3 Preisspreizung x1.5 (free),SB-S1-HK0-SPREIZ15,f4818f68,20958703.512587752,0.19624281324579873,maxTimeLimit,30379.4,,396832.3360536806,469958.5749554448,vs own fresh PIN0 above
+SB Z3 sensitivity,Z3 Preisspreizung x2.0 (PIN0),SB-S1-HK0-PIN0-SPREIZ20,565e8780,19075082.401153237,0.1468752414334495,optimal,0.0,,,,own fresh PIN0
+SB Z3 sensitivity,Z3 Preisspreizung x2.0 (free),SB-S1-HK0-SPREIZ20,d93cbfd4,18402926.032953452,0.2671717091523968,maxTimeLimit,30379.4,,644139.7948694602,721323.7802160755,vs own fresh PIN0 above
+MM Z3 sensitivity,Z3 Preisspreizung x1.5 (PIN0),MM-S1-HK0-PIN0-SPREIZ15,3807b027,414252.94998339773,0.12602899903706438,optimal,0.0,,,,own fresh PIN0
+MM Z3 sensitivity,Z3 Preisspreizung x1.5 (free),MM-S1-HK0-SPREIZ15,b82f129d,412253.00423080643,0.1439023362608865,optimal,0.0,,1477.8669062457047,2593.1874569851207,vs own fresh PIN0 above
+MM Z3 sensitivity,Z3 Preisspreizung x2.0 (PIN0),MM-S1-HK0-PIN0-SPREIZ20,276e6d01,409010.59609835286,0.08922093659233572,optimal,0.0,,,,own fresh PIN0
+MM Z3 sensitivity,Z3 Preisspreizung x2.0 (free),MM-S1-HK0-SPREIZ20,1466fd22,405899.99487350957,0.050525853501557215,optimal,0.0,,2745.6781402424676,3315.6856616159203,vs own fresh PIN0 above
+SB Z3 sensitivity,Z3 Vermarktungsabschlag -2 (PIN0),SB-S1-HK0-PIN0-VERMARKT2,fd2ddd8b,23537145.983313948,0.1499923000229926,optimal,0.0,,,,own fresh PIN0
+SB Z3 sensitivity,Z3 Vermarktungsabschlag -2 (free),SB-S1-HK0-VERMARKT2,51244ea8,23340194.892063476,0.14335412454394128,optimal,30379.4,,161647.18463033065,230410.22330483794,vs own fresh PIN0 above
+MM Z3 sensitivity,Z3 Vermarktungsabschlag -2 (PIN0),MM-S1-HK0-PIN0-VERMARKT2,9aba4c96,418142.5897527423,0.14745173847120346,optimal,0.0,,,,own fresh PIN0
+MM Z3 sensitivity,Z3 Vermarktungsabschlag -2 (free),MM-S1-HK0-VERMARKT2,195a5bbc,416251.15574138786,0.14792120345285487,optimal,0.0,,1274.875493475527,2507.157730313542,vs own fresh PIN0 above

@@ -333,14 +333,16 @@ def _energy_balance(dispatch: pd.DataFrame) -> dict:
     losses     = dispatch["Q_loss_total_MW"].fillna(0).sum() \
                  if "Q_loss_total_MW" in dispatch.columns else 0.0
 
-    # Closure = the MW conservation the model solves: generation + net_discharge
-    # = demand. The L3 dispatch balance is MW-lossless (the spatial supply-T drop
-    # is tracked via enthalpy-flux vars, not removed from the MW balance); pipe
-    # thermal losses are a separate temperature-field DIAGNOSTIC, reported as
-    # network_loss_pct — NOT subtracted here. (Subtracting them from a lossless
-    # balance was the spurious ~loss-fraction "HIGH_IMBALANCE".)
+    # Closure = the MW conservation the model ACTUALLY solves. Verified 2026-10-13
+    # (Z4) against constraint_builder.py's real per-timestep constraint (line ~594):
+    # `supply == demand + charge + network_loss + return_loss + supply_loss` — pipe
+    # losses DO consume real MW in the current model, so they belong on the demand
+    # side here. (The "MW-lossless" assumption below was true only before the
+    # 2026-09-03/2026-09-21 pipe-loss fixes; this script was never updated to match,
+    # so every run since showed a spurious imbalance ~= the loss fraction. See
+    # scripts/paper/extract_artefacts.py's matching fix for the numeric cross-check.)
     supply  = gen_total + discharge - charge
-    closure = abs(supply - demand) / demand * 100 if demand > 0 else None
+    closure = abs(supply - demand - losses) / demand * 100 if demand > 0 else None
     loss_pct = losses / demand * 100 if demand > 0 else None
     flag    = "ok" if (closure is not None and closure <= 2.0) else (
               "ZERO_GENERATION" if gen_total == 0 else "HIGH_IMBALANCE")
@@ -358,8 +360,8 @@ def _energy_balance(dispatch: pd.DataFrame) -> dict:
             "Generation = 0 in dispatch_hourly.csv — multi-node dispatch not exported. "
             "Re-run BC-SB with corrected 32-node topology + updated extract_artefacts.py."
             if gen_total == 0 else
-            "Closure = MW conservation (gen+storage vs demand); network_loss_pct is a "
-            "separate thermal-loss diagnostic (dispatch balance is MW-lossless)."
+            "Closure = MW conservation (gen+storage vs demand+pipe losses); "
+            "losses included since 2026-10-13 (Z4), matching the real constraint."
         ),
     }
 

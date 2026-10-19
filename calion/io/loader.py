@@ -260,6 +260,19 @@ def load_input_excel(
     if price_scale != 1.0:
         price = [p * price_scale for p in price]
         logger.info("[LOAD] Electricity price scaled by %.3f", price_scale)
+    # Z3 "Preisspreizung" sensitivity (2026-10-13): scales the SPREAD/amplitude of the
+    # real spot-price series around its own mean, leaving the mean (and hence average
+    # buy/sell revenue level) unchanged -- unlike price_scale_factor above, which shifts
+    # the whole level. This is what makes storage/flexibility more or less valuable
+    # without confounding it with a cheaper/more expensive grid overall. No existing
+    # hook did this (price_scale_factor is a flat multiplier, grid.sell_spread_eur_mwh
+    # is a flat EUR/MWh fee, neither touches variance) -- new, narrowly-scoped mechanism.
+    price_amplitude = float(site_cfg.get("price_amplitude_factor", 1.0))
+    if price_amplitude != 1.0 and price:
+        price_mean = sum(price) / len(price)
+        price = [price_mean + price_amplitude * (p - price_mean) for p in price]
+        logger.info("[LOAD] Electricity price amplitude scaled by %.3f (mean %.3f preserved)",
+                    price_amplitude, price_mean)
     heat = [_to_float(rec.get(heat_col)) for rec in records]
     co2 = [_to_float(rec.get(co2_col)) for rec in records] if co2_col else [0.0] * len(records)
 

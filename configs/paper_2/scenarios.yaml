@@ -375,6 +375,438 @@ scenarios:
           V_min_m3: 0.0
           V_max_m3: 0.0
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # Z3 (docs SS4ce/§4cf, author instruction): tariff/price sensitivities on each
+  # network's "best scenario" (SB-S1-HK0 / MM-S1-HK0, confirmed in §4cf's Z2).
+  # Each needs its OWN PIN0 (unlike the TES-cost-anchor sweep's shared PIN0,
+  # §4ce's explicit caveat) because these change the COST FUNCTION itself, so
+  # PIN0's own dispatch (existing-asset buy/sell) is NOT invariant to them.
+  # Two of Z3's four sensitivities are ready as pure config overrides:
+  #  - "Netzentgelt -50%": gridcost_eur_mwh (volumetric) AND demand_charge_eur_
+  #    per_mw_y (capacity) both halved -- "Netzentgelt" covers both components
+  #    in German grid-tariff usage; halving only one would be an arbitrary,
+  #    undocumented choice.
+  #  - "Monatsmaxima": reuses Y3's already-validated monthly-billing mechanism
+  #    (demand_charge_mode: monthly), rate converted 1:1 from the annual
+  #    127,240 EUR/MW/a (same "Rate umgerechnet" convention as SB-S0-HK0-*-MONTHLY).
+  # The other two (Preisspreizung, Direktvermarktungsabschlag) have NO existing
+  # config hook -- both buy and sell use the same single strompreis_EUR_MWh
+  # column with no separate amplitude-scaling or CHP-sale-discount mechanism.
+  # NOT implemented here; flagged separately before building anything for them.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: "SB-S1-HK0-PIN0-NETZ50"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3 (docs SS4ce/§4cf): PIN0 (HP/EK/TES hard-fixed to 0) for SB-S1-HK0 under
+      Netzentgelt -50% (gridcost_eur_mwh 61.6->30.8, demand_charge_eur_per_mw_y
+      127240->63620). Own PIN0 required -- this sensitivity changes PIN0's own
+      dispatch cost, unlike the c0-sweep's shared baseline.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        gridcost_eur_mwh: 30.8
+        demand_charge_eur_per_mw_y: 63620.0
+
+  - id: "SB-S1-HK0-NETZ50"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: free-investment SB-S1-HK0 under Netzentgelt -50% -- see
+      SB-S1-HK0-PIN0-NETZ50 for the rate derivation.
+    overrides:
+      grid:
+        gridcost_eur_mwh: 30.8
+        demand_charge_eur_per_mw_y: 63620.0
+
+  - id: "MM-S1-HK0-PIN0-NETZ50"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for MM-S1-HK0 under Netzentgelt -50% --
+      see SB-S1-HK0-PIN0-NETZ50 for the rate derivation (MM shares the same
+      61.6/127240 base values, harmonized 2026-07-29).
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        gridcost_eur_mwh: 30.8
+        demand_charge_eur_per_mw_y: 63620.0
+
+  - id: "MM-S1-HK0-NETZ50"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: free-investment MM-S1-HK0 under Netzentgelt -50% -- see
+      SB-S1-HK0-PIN0-NETZ50 for the rate derivation.
+    overrides:
+      grid:
+        gridcost_eur_mwh: 30.8
+        demand_charge_eur_per_mw_y: 63620.0
+
+  - id: "SB-S1-HK0-PIN0-MONTHLY"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for SB-S1-HK0 under Monatsleistungspreis
+      (12 monthly peaks) instead of Jahresleistungspreis -- same rate conversion as
+      SB-S0-HK0-PIN0-MONTHLY (127240/12 = 10603.3333 EUR/MW/month).
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "SB-S1-HK0-MONTHLY"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: free-investment SB-S1-HK0 under Monatsleistungspreis -- see
+      SB-S1-HK0-PIN0-MONTHLY for the rate conversion.
+    overrides:
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "MM-S1-HK0-PIN0-MONTHLY"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for MM-S1-HK0 under Monatsleistungspreis --
+      same rate conversion as SB-S1-HK0-PIN0-MONTHLY.
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  - id: "MM-S1-HK0-MONTHLY"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: free-investment MM-S1-HK0 under Monatsleistungspreis -- see
+      MM-S1-HK0-PIN0-MONTHLY for the rate conversion.
+    overrides:
+      grid:
+        demand_charge_mode: "monthly"
+        demand_charge_eur_per_mw_month: 10603.3333
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Z3 continued (docs SS4cn, author instruction 2026-10-13): the two remaining
+  # sensitivities, now that a real mechanism was found for each on closer code
+  # reading -- NOT new cost assumptions, both are existing, already-wired knobs
+  # that were simply never activated by a scenario override before:
+  #  - "Preisspreizung" (price amplitude): calion/io/loader.py's NEW (this pass)
+  #    site.price_amplitude_factor -- mean-preserving scale of the spot-price
+  #    series' deviation from its own mean (distinct from the pre-existing
+  #    site.price_scale_factor, which is a flat multiplier that also shifts the
+  #    mean -- the wrong lever for a volatility sensitivity).
+  #  - "Direktvermarktungsabschlag" (CHP marketing discount): grid.sell_spread_
+  #    eur_mwh, ALREADY fully wired in calion/models/system_builder.py (feeds
+  #    cost_calculator.py's _sell_price) but never set away from its 0.0 default
+  #    by any scenario in this file before now. -2 EUR/MWh per the instruction.
+  # Each needs its own fresh PIN0 (same §4ce rationale as the other Z3 rows).
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - id: "SB-S1-HK0-PIN0-SPREIZ15"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for SB-S1-HK0 under Preisspreizung x1.5
+      (site.price_amplitude_factor, mean-preserving spot-price spread scale).
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      site:
+        price_amplitude_factor: 1.5
+
+  - id: "SB-S1-HK0-SPREIZ15"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: "Z3: free-investment SB-S1-HK0 under Preisspreizung x1.5."
+    overrides:
+      site:
+        price_amplitude_factor: 1.5
+
+  - id: "SB-S1-HK0-PIN0-SPREIZ20"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for SB-S1-HK0 under Preisspreizung x2.0.
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      site:
+        price_amplitude_factor: 2.0
+
+  - id: "SB-S1-HK0-SPREIZ20"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: "Z3: free-investment SB-S1-HK0 under Preisspreizung x2.0."
+    overrides:
+      site:
+        price_amplitude_factor: 2.0
+
+  - id: "MM-S1-HK0-PIN0-SPREIZ15"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for MM-S1-HK0 under Preisspreizung x1.5.
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      site:
+        price_amplitude_factor: 1.5
+
+  - id: "MM-S1-HK0-SPREIZ15"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Z3: free-investment MM-S1-HK0 under Preisspreizung x1.5."
+    overrides:
+      site:
+        price_amplitude_factor: 1.5
+
+  - id: "MM-S1-HK0-PIN0-SPREIZ20"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for MM-S1-HK0 under Preisspreizung x2.0.
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      site:
+        price_amplitude_factor: 2.0
+
+  - id: "MM-S1-HK0-SPREIZ20"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: "Z3: free-investment MM-S1-HK0 under Preisspreizung x2.0."
+    overrides:
+      site:
+        price_amplitude_factor: 2.0
+
+  - id: "SB-S1-HK0-PIN0-VERMARKT2"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for SB-S1-HK0 under Direktvermarktungs-
+      abschlag -2 EUR/MWh (grid.sell_spread_eur_mwh, already-wired but never
+      activated before this scenario -- see cost_calculator.py's _sell_price).
+    overrides:
+      assets:
+        hp_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        ek_sb:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_sb:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        sell_spread_eur_mwh: 2.0
+
+  - id: "SB-S1-HK0-VERMARKT2"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    hp_node: "J4"
+    baseline: false
+    description: >
+      Z3: free-investment SB-S1-HK0 under Direktvermarktungsabschlag -2 EUR/MWh.
+    overrides:
+      grid:
+        sell_spread_eur_mwh: 2.0
+
+  - id: "MM-S1-HK0-PIN0-VERMARKT2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: PIN0 (HP/EK/TES hard-fixed to 0) for MM-S1-HK0 under Direktvermarktungs-
+      abschlag -2 EUR/MWh.
+    overrides:
+      assets:
+        hp_main:
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        eboiler_main:
+          capacity_mw: 0.0
+          investment:
+            enabled: false
+            capacity_max_mw: 0.0
+        tes_main:
+          V_min_m3: 0.0
+          V_max_m3: 0.0
+      grid:
+        sell_spread_eur_mwh: 2.0
+
+  - id: "MM-S1-HK0-VERMARKT2"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: "S1"
+    baseline: false
+    description: >
+      Z3: free-investment MM-S1-HK0 under Direktvermarktungsabschlag -2 EUR/MWh.
+    overrides:
+      grid:
+        sell_spread_eur_mwh: 2.0
+
   - id: "SB-S0-HK0-HPFIX533"
     network: "stadtbach"
     config: "configs/paper_2/Stadtbach_topo.yaml"
