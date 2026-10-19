@@ -340,7 +340,10 @@ def _energy_balance(dispatch: pd.DataFrame) -> dict:
     # network_loss_pct — NOT subtracted here. (Subtracting them from a lossless
     # balance was the spurious ~loss-fraction "HIGH_IMBALANCE".)
     supply  = gen_total + discharge - charge
-    closure = abs(supply - demand) / demand * 100 if demand > 0 else None
+    # Z4 (2026-10-13) / AC3 (2026-10-19): pipe losses ARE part of the solved balance
+    # (supply == demand + charge + network_loss + return_loss + supply_loss, see
+    # constraint_builder.py); the "lossless" comment above is stale. Subtract them.
+    closure = abs(supply - losses - demand) / demand * 100 if demand > 0 else None
     loss_pct = losses / demand * 100 if demand > 0 else None
     flag    = "ok" if (closure is not None and closure <= 2.0) else (
               "ZERO_GENERATION" if gen_total == 0 else "HIGH_IMBALANCE")

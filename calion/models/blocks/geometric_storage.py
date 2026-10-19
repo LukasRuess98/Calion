@@ -162,9 +162,21 @@ class GeometricStorageBlock(BaseComponent):
                                              # True (default) preserves legacy/pressurized-vessel behaviour
                                              # (Study G); component_assembler passes False for the
                                              # atmospheric technology.
+        # ── AC1/AC2 (2026-10-19) ───────────────────────────────────────────────
+        # Power-related CAPEX [EUR per MW of charge/discharge capacity cap_power]
+        # (pumps, heat-exchanger station, connecting line). 0.0 = legacy behaviour
+        # (power was FREE, bounded only by cap_power <= ratio*E_max).
+        power_capex_eur_per_mw: float = 0.0,
+        # Maximum tank height [m] (building-law / Reuter-West precedent). With a
+        # fixed aspect ratio r_hd = h/d it caps the volume of ONE vessel at
+        # pi*h_max^3/(4*r_hd^2); larger stores are realised as N=ceil(V/unit)
+        # identical vessels (cost evaluated per vessel). None = no height cap.
+        h_max_m: float | None = None,
         label: str | None = None,
     ):
         super().__init__(name, label)
+        self.power_capex_eur_per_mw = float(power_capex_eur_per_mw)
+        self.h_max_m = float(h_max_m) if h_max_m else None
         self.alpha_tes = float(alpha_tes_eur_per_m3)
         self.beta_tes = float(beta_tes_eur)
         self.lifetime_years = float(lifetime_years)
@@ -194,6 +206,14 @@ class GeometricStorageBlock(BaseComponent):
         # identical tanks at the same site, so beta_tes (fixed cost) applies PER TANK.
         self.discrete_energies_mwh = list(discrete_energies_mwh) if discrete_energies_mwh else None
         self.unit_tank_m3 = float(unit_tank_m3) if unit_tank_m3 else None
+        # AC2: height cap -> per-vessel volume cap V_unit = pi*h_max^3/(4*r_hd^2)
+        # (d = h/r_hd, V = pi/4*d^2*h). The binding per-vessel limit is the smaller of
+        # this and the reference-plant volume cap (unit_tank_m3).
+        self.unit_geo_m3 = None
+        if self.h_max_m is not None:
+            self.unit_geo_m3 = math.pi * self.h_max_m ** 3 / (4.0 * self.r_hd ** 2)
+            self.unit_tank_m3 = (min(self.unit_tank_m3, self.unit_geo_m3)
+                                 if self.unit_tank_m3 else self.unit_geo_m3)
         # Realistic minimum vessel (m³): with beta_tes=0 (turnkey €/m³) the optimizer
         # could otherwise select an unphysical micro-store. Positive ladder rungs whose
         # derived volume falls below this floor are dropped (the 0 rung is kept).
@@ -423,6 +443,17 @@ class GeometricStorageBlock(BaseComponent):
             def p_energy_coupling(mm):
                 return cap_p <= default_ratio * E_max_expr
             setattr(m, f"{comp}_p_coupling", pyo.Constraint(rule=p_energy_coupling))
+
+        # AC1 (2026-10-19): power-related CAPEX. Before this, cap_power carried NO cost at
+        # all (only the cap_power <= ratio*E_max coupling above), so the solver had
+        # unlimited free charge/discharge power up to E/4h. The term is linear in the
+        # continuous cap_power; it enters the un-annualized CAPEX expression and is
+        # therefore annualized (ANF) and O&M-scaled exactly like the tank itself.
+        if self.power_capex_eur_per_mw > 0.0:
+            self._capex_raw_expr = self._capex_raw_expr + self.power_capex_eur_per_mw * cap_p
+            logger.info("[GEOMETRIC_STORAGE] %s: power CAPEX %.0f EUR/MW added on cap_power "
+                        "(E/P bound ratio=%s)", comp, self.power_capex_eur_per_mw,
+                        self.power_to_energy_ratio if self.power_to_energy_ratio is not None else 0.25)
 
         # V bounds linked to build decision (Big-M). Skipped in discrete mode,
         # where the size selection already ties V and build exactly (no big-M).
@@ -655,6 +686,17 @@ class GeometricStorageBlock(BaseComponent):
             "capex_raw_expr": self._capex_raw_expr,  # un-annualized CAPEX (degressive or legacy)
             "V_m3": V,
             "cap_power": cap_p,
+            "geom_info": {            # AC1/AC2 reporting (read by result_collector)
+                "r_hd": self.r_hd,
+                "h_max_m": self.h_max_m,
+                "unit_tank_m3": self.unit_tank_m3,
+                "unit_geo_m3": self.unit_geo_m3,
+                "power_capex_eur_per_mw": self.power_capex_eur_per_mw,
+                "p2e_ratio": (float(self.power_to_energy_ratio)
+                              if self.power_to_energy_ratio is not None else 0.25),
+                "p_max_bar": self.p_max_bar,
+                "energy_coeff_mwh_per_m3": self.energy_coeff,
+            },
             "h_m": h_m3,   # None unless option_b=True
             "d_m": d_m3,   # None unless option_b=True
         }

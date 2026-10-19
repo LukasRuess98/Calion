@@ -49,6 +49,41 @@ storage_geometry:
   eta_strat: 0.85            # usable fraction of ρ·c_p·V·ΔT (thermocline/mixing); Danish TTES/PTES monitoring, DEA Tech Data
   u_value_w_m2k: 0.20        # effective standing-loss coefficient (walls+lid), 0.15–0.30 (IEA-DHC Annex XII); midpoint
 
+  # ── AC2 (2026-10-19): vessel HEIGHT CAP ──────────────────────────────────────
+  # Until AC2 the height was only a post-solve by-product of V and r_hd (SB-S1: 30,379 m³ at
+  # r_hd=2 -> h=53.68 m -> 6.131 bar) and exceeded both the documented design pressure
+  # (p_max_bar 5.5 bar ≙ 47.1 m) and the Reuter-West precedent (45 m, building-law reason).
+  # Now h_max_m caps ONE vessel: V_unit = pi*h_max^3/(4*r_hd^2) (r_hd=2: 17,892 m³; r_hd=1.5:
+  # 31,808 m³; r_hd=1: 71,568 m³ -> unit_tank_m3=50,000 binds). Larger stores = N identical vessels,
+  # cost per vessel (degressive curve at V/N, unchanged). Hydrostatic base pressure of 45 m:
+  # 1.013 + 971.8*9.81*45/1e5 = 5.30 bar <= p_max_bar 5.5 (asserted in component_assembler).
+  # Env CALION_TES_HMAX=0 disables the cap (reproduces the pre-AC2 geometry).
+  h_max_m: 45.0
+
+  # ── AC1 (2026-10-19): POWER-RELATED CAPEX on charge/discharge capacity ───────
+  # Until AC1 cap_power (= E/4h, 109.5 MW at the SB-S1 optimum) carried NO cost at all; the DEA
+  # tank datasheet (Energy Storage catalogue v0009, ch. 141) prices the tank ENERGY only
+  # (3.0 M€2015/GWh, 70 % equipment / 30 % installation, no power term) and its reference unit
+  # has 2.9 MW on 175 MWh, i.e. E/P ≈ 60 h (Note B: power "practically limited by the available
+  # pipe dimensions ... and the number of installed valves"). The model's E/P = 4 h is 15x that
+  # reference, so the connection hardware must be priced explicitly. PRIMARY SOURCE (read from
+  # the Excel data sheet, not a web summary): DEA/Energinet "Technology Data for Energy
+  # Transport" (Dec 2025, version 8), sheet "3.1 DH transmission", cost year 2025 [EUR2025]:
+  #     Heat exchanger station   140,161.8 EUR/MW   (range  77,089.0 – 168,194.2)
+  #     Pump station             127,473.2 EUR/MW   (range  70,110.3 – 152,967.8)
+  #     Pipe, single line 0-50 MW   63.19 EUR/MW/m  (range  50.75 – 75.00), per trench-metre of pair
+  # Composition (author: "Pumpen, Armaturen, Anbindeleitung, Druckhaltung"):
+  #   BASE  = pump station + HX station (hydraulic decoupling of the atmospheric tank from the
+  #           16-bar net, as assumed in the c0 turnkey note below) + 200 m connection line
+  #         = 127,473.2 + 140,161.8 + 63.19*200 = 280,274 EUR/MW
+  #   LOW   = pump station only (direct connection, DEA ch. 141 "connected directly"), lower-bound
+  #           values, 100 m line = 70,110.3 + 50.75*100 = 75,185 EUR/MW
+  #   HIGH  = upper-bound pump + HX + 500 m line = 152,967.8 + 168,194.2 + 75.0*500 = 358,663 EUR/MW
+  # The line lengths (200/100/500 m) are the only non-catalogue assumption (site-specific).
+  # Annualised and O&M-scaled with the tank's own ANF / om_pct (30 a), see geometric_storage.py.
+  # Env CALION_TES_POWER_CAPEX=<EUR/MW> overrides; =0 reproduces the pre-AC1 "power is free" model.
+  power_capex_eur_per_mw: 280274.0
+
   # ── Store temperature (atmospheric ceiling) — ACTIVE, technology property ────
   t_store_max_c: 95.0        # atmospheric ceiling (<100°C boiling). Clips hot-charge ΔT AND drives the discharge mask
                              # (T_VL(t)>95°C → no discharge that hour). HOT = min(T_VL,max, 95): MM 95 (vs 100), SB 95 (vs 122).

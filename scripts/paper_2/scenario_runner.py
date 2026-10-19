@@ -507,6 +507,30 @@ def run_single_scenario(
                         logger.info("[%s] %s: tank cost anchor c0 scaled x%s (%.0f -> %.0f EUR at v0=%s m3)",
                                     scen_id, _asset_key, _c0s, _c0_old, _asset_cfg["c0_eur"],
                                     _asset_cfg.get("v0_m3"))
+                    # AC1/AC2 (2026-10-19) scenario-level overrides (env), written INTO the resolved
+                    # asset config so they enter the per-run config hash and scenario_meta.json.
+                    #   CALION_TES_POWER_CAPEX  EUR/MW on cap_power (0 -> legacy "power is free")
+                    #   CALION_TES_P2E_HOURS    E/P duration [h]; power_to_energy_ratio = 1/h
+                    #   CALION_TES_HMAX         max vessel height [m] (0 -> no cap)
+                    #   CALION_TES_RHD          H/D aspect ratio variation (-> r_hd_override)
+                    if not _tes_disabled:
+                        _pc = _os_c0.environ.get("CALION_TES_POWER_CAPEX")
+                        if _pc not in (None, ""):
+                            _asset_cfg["power_capex_eur_per_mw"] = float(_pc)
+                        _ph = _os_c0.environ.get("CALION_TES_P2E_HOURS")
+                        if _ph not in (None, ""):
+                            _asset_cfg["power_to_energy_ratio"] = 1.0 / float(_ph)
+                        _hm = _os_c0.environ.get("CALION_TES_HMAX")
+                        if _hm not in (None, ""):
+                            _asset_cfg["h_max_m"] = float(_hm) if float(_hm) > 0 else None
+                        _rh = _os_c0.environ.get("CALION_TES_RHD")
+                        if _rh not in (None, ""):
+                            _asset_cfg["r_hd_override"] = float(_rh)
+                        logger.info("[%s] %s: AC1/AC2 params -> power_capex=%s EUR/MW, E/P ratio=%s, "
+                                    "h_max=%s m, r_hd_override=%s", scen_id, _asset_key,
+                                    _asset_cfg.get("power_capex_eur_per_mw"),
+                                    _asset_cfg.get("power_to_energy_ratio"),
+                                    _asset_cfg.get("h_max_m"), _asset_cfg.get("r_hd_override"))
                     # Discharge mask is a PROPERTY OF THE TECHNOLOGY, applied by
                     # DEFAULT (2026-09-02): a store with a temperature ceiling
                     # (t_store_max_c, i.e. atmospheric) cannot inject into a hotter

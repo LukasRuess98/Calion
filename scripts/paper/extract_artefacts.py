@@ -974,7 +974,14 @@ def write_validation(outdir: Path, measured_data_path: str | None = None) -> Non
                           closure_note=f"implausible supply/demand ratio {ratio:.2f} "
                                        "— stale or wrong-network dispatch export")
             else:
-                closure_err_pct = abs(supply - dump - demand) / demand * 100
+                # Z4 (2026-10-13) / AC3 (2026-10-19): the dispatch balance the model SOLVES
+                # (constraint_builder.py) is  supply == demand + charge + network_loss +
+                # return_loss + supply_loss, i.e. pipe losses ARE part of it -- the old
+                # "MW-lossless" comment above is stale since the 2026-09-03/09-21 loss fixes
+                # and made every SB run read ~3.0-3.3 % "HIGH_IMBALANCE". Correct residual:
+                #   |generation + net_discharge - curtailment - demand - losses| / demand.
+                # (This code fix had been LOST -- only backfilled validation.json files carried it.)
+                closure_err_pct = abs(supply - dump - losses - demand) / demand * 100
                 eb.update(closure_error_pct=round(closure_err_pct, 3),
                           closure_pass=bool(closure_err_pct <= 2.0))
             payload["energy_balance"] = eb

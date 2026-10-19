@@ -135,10 +135,16 @@ def write_geometry_p2(outdir: Path, wf_result, scen: dict) -> dict | None:
 
         for comp, g in geo_map.items():
             r_hd = _r_hd_for(comp)
+            _gi = g.get("geom_info") or {}
+            if _gi.get("r_hd"):          # AC2: the r_hd actually used by the model (H/D variations)
+                r_hd = float(_gi["r_hd"])
             V = float(g.get("V_m3") or 0.0)
+            # AC2 (2026-10-19): geometry is PER VESSEL. Before, V was treated as ONE tank even
+            # for N>1 (single-tank h of the whole farm). n_tanks absent (old runs) -> 1.
+            n_t = max(1, int(round(float(g.get("n_tanks") or 1)))) if V > 0 else 0
             if V > 0:
-                # V = pi/(4*r_hd^2) * h^3  ->  h = (V * 4 * r_hd^2 / pi)^(1/3)
-                h = (V * 4.0 * r_hd**2 / math.pi) ** (1.0 / 3.0)
+                # V_vessel = pi/(4*r_hd^2) * h^3  ->  h = (V_vessel * 4 * r_hd^2 / pi)^(1/3)
+                h = ((V / n_t) * 4.0 * r_hd**2 / math.pi) ** (1.0 / 3.0)
             else:
                 h = 0.0
             p_betr = _P_ATM + _RHO * _G * h / 1e5 if h > 0 else _P_ATM
@@ -150,6 +156,12 @@ def write_geometry_p2(outdir: Path, wf_result, scen: dict) -> dict | None:
                 "E_TES_max_MWh": round(float(g.get("E_max_MWh") or 0.0), 2),
                 "cap_power_MW": round(float(g.get("cap_power_MW") or 0.0), 2),
                 "p_betr_bar": round(p_betr, 3),
+                "n_tanks": n_t,
+                "r_hd": r_hd,
+                "h_max_m": _gi.get("h_max_m"),
+                "power_capex_eur_per_mw": _gi.get("power_capex_eur_per_mw"),
+                "p2e_ratio": _gi.get("p2e_ratio"),
+                "p_design_bar": _gi.get("p_max_bar"),
             })
 
         # Endogenous site choice (if present)

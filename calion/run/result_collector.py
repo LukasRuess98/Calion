@@ -596,6 +596,16 @@ def _collect_timeseries_and_summary(
                         "E_max_MWh": float(_emax or 0.0),
                         "cap_power_MW": float(_capp or 0.0),
                     }
+                    # AC1/AC2 (2026-10-19): vessel count + geometry/cost-term provenance.
+                    try:
+                        _nt = getattr(model, f"{_comp}_n_tanks", None)
+                        _nt_v = pyo.value(_nt, exception=False) if _nt is not None else None
+                        _geo_sum[_comp]["n_tanks"] = float(_nt_v) if _nt_v is not None else None
+                        _gi = getattr(model, f"{_comp}_geom_info", None)
+                        if isinstance(_gi, dict):
+                            _geo_sum[_comp]["geom_info"] = _gi
+                    except Exception:  # noqa: BLE001 - reporting only
+                        pass
             if _geo_sum:
                 objective["tes_geometry"] = _geo_sum
         except Exception as _exc:  # noqa: BLE001 - reporting only

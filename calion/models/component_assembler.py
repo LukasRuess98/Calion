@@ -1342,6 +1342,32 @@ class ComponentAssembler:
             logger.info("[TES-GEOM] %s: geometry VERIFIED against storage_geometry.yaml "
                         "(r_hd=%.2f, p_max_bar=%.1f, V_max_m3=%.0f, unit_tank_m3=%s)",
                         name, r_hd, p_max_bar, V_max_m3, p.get("unit_tank_m3"))
+        # ── AC1/AC2 (2026-10-19): power-related CAPEX + tank-height cap ──────────
+        # power_capex_eur_per_mw : EUR per MW of cap_power (0 = legacy, power was free).
+        # h_max_m                : max height of ONE vessel [m]; caps the per-vessel volume at
+        #                          pi*h^3/(4*r_hd^2) -> N=ceil(V/unit) vessels above that.
+        # r_hd_override          : scenario-level H/D variation (storage_geometry.yaml's r_hd is
+        #                          re-applied above, so a variation must come through this key).
+        # All three are injected by scenario_runner (yaml defaults + CALION_TES_* env overrides) so
+        # they are part of the resolved config and hence of the per-run export hash.
+        power_capex_eur_per_mw = 0.0 if _tes_disabled else float(p.get("power_capex_eur_per_mw") or 0.0)
+        h_max_m = p.get("h_max_m")
+        h_max_m = float(h_max_m) if (h_max_m and not _tes_disabled and not _pressurized) else None
+        if p.get("r_hd_override") is not None and not _tes_disabled:
+            logger.info("[TES-GEOM] %s: r_hd %.2f -> %.2f (scenario H/D variation)",
+                        name, r_hd, float(p["r_hd_override"]))
+            r_hd = float(p["r_hd_override"])
+        if h_max_m is not None:
+            from ..constants import G_ACCEL_M_S2 as _g_a, P_ATM_BAR as _p_a, RHO_WATER_HOT_KG_M3 as _rho_a
+            _p_hyd = _p_a + _rho_a * _g_a * h_max_m / 1e5
+            if _p_hyd > p_max_bar + 1e-9:
+                raise ValueError(
+                    f"[TES-GEOM] '{name}': h_max_m={h_max_m} m gives a hydrostatic base pressure of "
+                    f"{_p_hyd:.3f} bar > documented design pressure p_max_bar={p_max_bar} bar. "
+                    f"Raise p_max_bar (storage_geometry.yaml) or lower h_max_m.")
+            logger.info("[TES-GEOM] %s: height cap h_max=%.1f m -> base pressure %.3f bar <= design %.2f bar; "
+                        "per-vessel volume cap %.0f m3 at r_hd=%.2f",
+                        name, h_max_m, _p_hyd, p_max_bar, math.pi * h_max_m ** 3 / (4.0 * r_hd ** 2), r_hd)
         option_b = bool(p.get("option_b", False))
         eff_c = float(p.get("eff_charge", 0.98))
         eff_d = float(p.get("eff_discharge", 0.98))
@@ -1429,10 +1455,17 @@ class ComponentAssembler:
             # variant. Atmospheric (the default/authoritative path) is a flat-bottomed
             # EN14015/API650 tank -- p_max_bar must not influence V_max_effective.
             pressure_limits_size=_pressurized,
+            power_capex_eur_per_mw=power_capex_eur_per_mw,
+            h_max_m=h_max_m,
         )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
         self._component_fs[name] = fs
+        # AC2 reporting hook: plain-attribute dict on the model (read by result_collector).
+        try:
+            setattr(self.m, f"{name}_geom_info", dict(fs.get("geom_info") or {}))
+        except Exception:  # noqa: BLE001 - reporting only
+            pass
 
         # BUGFIX (2026-07-03): flows and CAPEX previously went to self.buses
         # (legacy accumulator), which the unified path NEVER merges — the
