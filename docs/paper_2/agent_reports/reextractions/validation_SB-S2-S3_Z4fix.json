@@ -1,0 +1,21 @@
+{
+  "SB-S2-HK0": {
+    "label": "SB-S2-HK0",
+    "generation_MWh": 661125.6,
+    "net_storage_MWh": 0.0,
+    "losses_MWh": 19431.0,
+    "demand_MWh": 639973.5,
+    "closure_error_pct_KORRIGIERT": 0.269,
+    "closure_pass_KORRIGIERT": true
+  },
+  "SB-S3-HK0": {
+    "label": "SB-S3-HK0",
+    "generation_MWh": 661125.6,
+    "net_storage_MWh": 0.0,
+    "losses_MWh": 19431.0,
+    "demand_MWh": 639973.5,
+    "closure_error_pct_KORRIGIERT": 0.269,
+    "closure_pass_KORRIGIERT": true
+  },
+  "note": "Re-Extraktion mit Z4-Fix (2026-10-19), NICHT die Original-validation.json ueberschrieben -- siehe A5(b) im Report"
+}
