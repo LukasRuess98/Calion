@@ -11,6 +11,7 @@ Korrekturen gegenüber dem Studien-Notebook:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -23,17 +24,29 @@ TEMP_STUNDE = "ambient_temperature_hourly.parquet"
 TEMP_TAG = "ambient_temperature_daily.csv"
 
 
+_DATEN_DIR: str | None = os.environ.get("DHN_DATA_DIR")     # optional: anderer Datensatz gleichen Schemas (z. B. synthetisch)
+
+
 def repo_root(start: Path | None = None) -> Path:
-    """Repository-Wurzel: der erste übergeordnete Ordner mit dem Datensatz ``data/dhn_a/`` (auch in einer eigenständigen
-    Veröffentlichung der Studie ohne das übrige Framework)."""
+    """Repository-Wurzel: der erste übergeordnete Ordner mit ``scripts/dhn_study/`` und dem Datensatz ``data/dhn_a/``
+    bzw. der Studienkonfiguration ``configs/central_tes/`` (eigenständige Veröffentlichung ohne Messdaten)."""
     start = Path(start or __file__).resolve()
     for p in [start, *start.parents]:
-        if (p / "data" / "dhn_a").is_dir() and (p / "scripts" / "dhn_study").is_dir():
+        if (p / "scripts" / "dhn_study").is_dir() and ((p / "data" / "dhn_a").is_dir() or (p / "configs" / "central_tes").is_dir()):
             return p
-    raise FileNotFoundError("Repository-Wurzel nicht gefunden (Ordner mit data/dhn_a/ und scripts/dhn_study/)")
+    raise FileNotFoundError("Repository-Wurzel nicht gefunden (Ordner mit scripts/dhn_study/ und data/dhn_a/ oder configs/)")
+
+
+def set_daten_dir(pfad: str | Path | None) -> None:
+    """Datensatz-Ordner umstellen (relativ zur Repository-Wurzel oder absolut); None = Standard ``data/dhn_a``."""
+    global _DATEN_DIR
+    _DATEN_DIR = str(pfad) if pfad else os.environ.get("DHN_DATA_DIR")
 
 
 def daten_dir() -> Path:
+    if _DATEN_DIR:
+        p = Path(_DATEN_DIR)
+        return p if p.is_absolute() else repo_root() / p
     return repo_root() / "data" / "dhn_a"
 
 
@@ -199,7 +212,7 @@ def stationen(region_enthaelt: tuple[str, ...]) -> list[str]:
 
 # Referenzstationen der Auswertung (Regionen laut consumers.csv)
 MITTE_STATIONEN = ["V03", "V10", "V12", "V23", "V24"]     # City, Mitte-L4, L1 – Stationen mit Δp-Messung
-SUED_KRITISCH = "V06"                                   # kritischste Verbundstation (Süd)
+SO_KRITISCH = "V06"                                   # kritischste Verbundstation (Süd)
 SPEICHERSTANDORT = "V22"                                # Großkunde, Speicherstandort S
-SUED_SCHLECHTPUNKTE = ["V06"]                           # Regelpunkt der KWK-Δp (Verbund-Minimum, Südende L4)
+SO_SCHLECHTPUNKTE = ["V06"]                           # Regelpunkt der KWK-Δp (Verbund-Minimum, Südende L4)
 WEST_SCHLECHTPUNKTE = ["V01", "V13"]                    # Regelpunkte des Westnetzes (Leitungsenden W1)

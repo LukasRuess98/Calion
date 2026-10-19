@@ -193,3 +193,14 @@ python -m pytest -o addopts="" tests/test_dhn_study.py
   partner B waste heat) and partner A's waste heat. Only anonymised derivatives go into the repository.
 * First steps locally: answer §6, then P1 starting with the TES block (strategies, masks) and Q_central with link
   capacity, then the HP cascade.
+
+---
+
+## 8. Status 2026-10-08 (results phase)
+
+Phases P1–P6 were run with **HiGHS** (no Gurobi on the execution machine). Code: `scripts/dhn_study/central_tes/`,
+configuration `configs/central_tes/base.yaml`, documentation `docs/dhn_storage_study/central_tes/`, gate reports
+G0–G6 and the sanity check in `reports/central_tes/`. Main results (F111, reference): v = 436 kEUR/a (2 % of the
+operating cost); Shapley partner A 268, partner B 84, TES 84 kEUR/a; ΔC_hyd ≈ 2.5 kEUR/a in every scenario incl. F000
+(hydraulic violations of the energy-only dispatch are caused by the existing plants, not by S); rolling horizon keeps
+68–77 % of the value. Open author decisions: `reports/central_tes/gate_G6.md`.

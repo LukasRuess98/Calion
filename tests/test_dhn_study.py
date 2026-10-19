@@ -327,8 +327,8 @@ def test_quellanteile_mischung():
     # Ein Erzeugerknoten ohne Zufluss führt nur eigenes Wasser; HW1 speist am Knoten HW1 ein
     i_hw1 = nm.QUELLEN.index("HW1")
     assert phi[nz.idx["HW1"], i_hw1] > 0.5
-    # Mischungsbilanz am Knoten SEC2: Zufluss·Anteil = Summe der zufließenden Anteile
-    n = nz.idx["SEC2"]
+    # Mischungsbilanz am Knoten C2: Zufluss·Anteil = Summe der zufließenden Anteile
+    n = nz.idx["C2"]
     zu = np.maximum(nz.A[n] * m[0], 0.0)
     oben = [nz.idx[k[1]] if m[0, j] > 0 else nz.idx[k[2]] for j, k in enumerate(nz.kanten)]
     misch = sum(zu[j] * phi[oben[j]] for j in range(len(nz.kanten))) / zu.sum()
@@ -376,7 +376,7 @@ def test_verlust_lineare_fortsetzung():
     d_q = nz.dp_knoten(m_q, nz.k0, np.array([4.0]))[0]
     d_l = nz.dp_knoten(m_l, nz.k0, np.array([4.0]), m_lin=np.full(len(nz.kanten), 50.0))[0]
     # KWK-versorgte Zielknoten: geringere Verluste -> höherer Δp (Ost-Knoten liegen über der KWK und sinken dagegen)
-    assert all(d_l[nz.idx[k]] > d_q[nz.idx[k]] for k in ("SEC2", "SEC4", "L1G", "SUED_E"))
+    assert all(d_l[nz.idx[k]] > d_q[nz.idx[k]] for k in ("C2", "C4", "L1G", "SO_E"))
 
 
 def test_laplace_kovarianz_lineares_problem():

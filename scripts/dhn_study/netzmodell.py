@@ -27,8 +27,8 @@ from . import daten, hydraulik
 KNOTEN = {
     "KWK": "Erzeuger", "SS": "Erzeuger", "K1": "L1", "S": "Ost-L5", "L5M": "Ost-L5", "K2": "Ost-L5", "L5O": "Ost-L5", "MVA": "Erzeuger",
     "GT": "Erzeuger", "BIO": "Erzeuger", "L6": "Ost-L6", "K3": "Mitte-L3", "L7": "Ost-L7", "K4": "Mitte-L3", "L1G": "L1",
-    "SEC2": "City/Mitte-L2", "SEC3": "Mitte-L3", "SEC4": "Mitte-L4", "PS1": "Süd", "SUED_N": "Süd", "HW1": "Erzeuger",
-    "SUED_S": "Süd", "SUED_E": "Süd", "PS2": "L1", "HW2": "West-WÜ",
+    "C2": "City/Mitte-L2", "C3": "Mitte-L3", "C4": "Mitte-L4", "PS1": "Süd", "SO_N": "Süd", "HW1": "Erzeuger",
+    "SO_S": "Süd", "SO_E": "Süd", "PS2": "L1", "HW2": "West-WÜ",
 }
 # Kanten: id, von, nach, DN [mm], Länge [m] (Schätzwerte, nur Startwert der Kalibrierung). "KWKi" ist der anlageninterne
 # Verlust der KWK zwischen Messstelle (Pumpe) und Sammelschiene; Startwert aus Plan A (1,1 bar bei 2 350 t/h).
@@ -37,25 +37,25 @@ KANTEN = [
     ("L5c", "L5M", "K2", 400, 258), ("L5d", "K2", "L5O", 400, 1800), ("L5e", "L5O", "MVA", 350, 870),
     ("L5f", "L5O", "GT", 350, 60), ("L5g", "L5O", "BIO", 250, 60), ("L6a", "K2", "L6", 350, 1500),
     ("L6b", "L6", "K3", 350, 1500), ("L6c", "K2", "GT", 350, 3000), ("L7a", "K4", "L7", 250, 2500),
-    ("L7b", "L7", "GT", 250, 3500), ("L2", "SS", "SEC2", 350, 600), ("L3", "SS", "SEC3", 350, 800),
-    ("L4a", "SS", "SEC4", 400, 1200), ("L4b", "SEC4", "PS1", 400, 3270), ("L4c", "PS1", "SUED_N", 400, 610),
-    ("L4d", "SUED_N", "HW1", 350, 900), ("L4e", "HW1", "SUED_S", 350, 800), ("L4f", "SUED_S", "SUED_E", 250, 1500),
+    ("L7b", "L7", "GT", 250, 3500), ("L2", "SS", "C2", 350, 600), ("L3", "SS", "C3", 350, 800),
+    ("L4a", "SS", "C4", 400, 1200), ("L4b", "C4", "PS1", 400, 3270), ("L4c", "PS1", "SO_N", 400, 610),
+    ("L4d", "SO_N", "HW1", 350, 900), ("L4e", "HW1", "SO_S", 350, 800), ("L4f", "SO_S", "SO_E", 250, 1500),
     ("L1b", "K1", "L1G", 350, 1400), ("L1c", "L1G", "PS2", 350, 1400), ("W1", "PS2", "HW2", 350, 960),
-    ("M12", "L1G", "SEC2", 350, 700), ("M23", "SEC2", "SEC3", 200, 600), ("M24", "SEC2", "SEC4", 200, 800),
-    ("M34", "SEC3", "SEC4", 250, 700), ("K63", "K3", "SEC3", 350, 300), ("K73", "K4", "SEC3", 250, 600),
+    ("M12", "L1G", "C2", 350, 700), ("M23", "C2", "C3", 200, 600), ("M24", "C2", "C4", 200, 800),
+    ("M34", "C3", "C4", 250, 700), ("K63", "K3", "C3", 350, 300), ("K73", "K4", "C3", 250, 600),
 ]
 # Teilgebiete (sectors.csv) -> Lastknoten
-SEKTOR_KNOTEN = {"L1-": "L1G", "L5-W": "S", "L5-M": "L5M", "L5-O": "L5O", "M2-": "SEC2", "City-": "SEC2", "M3-": "SEC3",
-                 "L6-": "L6", "L7-": "L7", "L4-": "SEC4", "M4-": "SEC4", "Sued-01": "SUED_N", "Sued-02": "SUED_N",
-                 "Sued-03": "SUED_N", "Sued-08": "SUED_N", "Sued-10": "SUED_N", "Sued-04": "SUED_S", "Sued-07": "SUED_S",
-                 "Sued-05": "SUED_E", "Sued-06": "SUED_E", "Sued-09": "SUED_E"}
+SEKTOR_KNOTEN = {"L1-": "L1G", "L5-W": "S", "L5-M": "L5M", "L5-O": "L5O", "M2-": "C2", "City-": "C2", "M3-": "C3",
+                 "L6-": "L6", "L7-": "L7", "L4-": "C4", "M4-": "C4", "Sued-01": "SO_N", "Sued-02": "SO_N",
+                 "Sued-03": "SO_N", "Sued-08": "SO_N", "Sued-10": "SO_N", "Sued-04": "SO_S", "Sued-07": "SO_S",
+                 "Sued-05": "SO_E", "Sued-06": "SO_E", "Sued-09": "SO_E"}
 # Messstationen (Δp) -> Knoten
-STATIONEN = {"V22": "S", "V11": "L5M", "V08": "K2", "V18": "L5O", "V07": "L7", "V15": "K3", "V19": "SEC3", "V03": "SEC2",
-             "V10": "SEC2", "V24": "SEC2", "V12": "SEC4", "V23": "L1G", "V06": "SUED_E"}
+STATIONEN = {"V22": "S", "V11": "L5M", "V08": "K2", "V18": "L5O", "V07": "L7", "V15": "K3", "V19": "C3", "V03": "C2",
+             "V10": "C2", "V24": "C2", "V12": "C4", "V23": "L1G", "V06": "SO_E"}
 # gemessener Großkunde (ein Kunde = ganzes Teilgebiet L5-W): Entnahme direkt aus dem Durchfluss (t/h)
 GROSSKUNDE = ("V22", "S")
 # Lastgruppen mit kalibrierbarem Gewicht (die Anschlussanteile innerhalb einer Gruppe bleiben fest)
-LASTGRUPPEN = {"SEC2": ["SEC2"], "SEC3": ["SEC3"], "SEC4": ["SEC4"], "Süd": ["SUED_N", "SUED_S", "SUED_E"],
+LASTGRUPPEN = {"C2": ["C2"], "C3": ["C3"], "C4": ["C4"], "Süd": ["SO_N", "SO_S", "SO_E"],
                "Ost": ["L5M", "L5O", "L6", "L7"], "L1": ["L1G"]}
 PUMPEN = {"L4c": "pump_station_1", "W1": "pump_station_2"}     # Pumpengewinn am Kantenanfang
 STAMMLEITUNGEN = {"L1a": 1, "L2": 2, "L3": 3, "L4a": 4}          # gas_CHP_flow_line_k
@@ -236,7 +236,7 @@ def verteilung(nz: Netz, rest: np.ndarray, gk_gemessen: np.ndarray, gewichte: di
             kn = LASTGRUPPEN[g]
             v[:, [nz.idx[k] for k in kn]] += c * (basis[kn] / basis[kn].sum()).to_numpy()
             summe += c
-        v[:, nz.idx["SEC2"]] -= summe
+        v[:, nz.idx["C2"]] -= summe
     return v
 
 
@@ -257,7 +257,7 @@ class Fall:
 
     def b(self, nz: Netz, gewichte: dict[str, float] | None = None, grundlast: dict[str, float] | None = None) -> np.ndarray:
         """Einspeisungen B×N. ``grundlast`` [kg/s] je Lastgruppe verschiebt Last zwischen den Gruppen (Summe 0; Rest geht
-        an SEC2): Gruppen mit viel Grundlast haben bei geringer Gesamtlast einen höheren Anteil."""
+        an C2): Gruppen mit viel Grundlast haben bei geringer Gesamtlast einen höheren Anteil."""
         return self.b_fix - verteilung(nz, self.rest, self.gk_gemessen, gewichte, grundlast)
 
     def teil(self, sel) -> Fall:
@@ -318,7 +318,7 @@ def simuliere(nz: Netz, fall: Fall, K: np.ndarray, versatz: dict | None = None,
     return pd.DataFrame(out, index=fall.index)
 
 
-GRUNDLAST_GRUPPEN = ["SEC3", "SEC4", "Süd", "Ost", "L1"]      # SEC2 gleicht aus
+GRUNDLAST_GRUPPEN = ["C3", "C4", "Süd", "Ost", "L1"]      # C2 gleicht aus
 HEBEL_ZIELE = ["V06", "V03", "V12", "V23", "V22", "V15", "MVA", "PS1"]
 HEBEL_REGRESSOREN = ["KWK-Fluss", "KWK-Δp", "Verbraucher", "HW1", "PS1-Gewinn"]
 
@@ -387,7 +387,7 @@ def kalibrier_problem(nz: Netz, fall: Fall, prior_sigma: float = 1.0, versatz_si
     """Residuenfunktion der Kalibrierung (gewichtete kleinste Quadrate über alle Stunden des Falls). Parameter mit Prior:
     * Widerstandsmultiplikator je Kante (log, N(0, ``prior_sigma``)),
     * Lastgewicht je Lastgruppe (log, N(0, ``gewicht_sigma``)),
-    * Grundlastverschiebung je Lastgruppe (kg/s, N(0, ``grundlast_sigma``); SEC2 gleicht aus),
+    * Grundlastverschiebung je Lastgruppe (kg/s, N(0, ``grundlast_sigma``); C2 gleicht aus),
     * Versatz je Station (bar, N(0, ``versatz_sigma``)): örtliche Verluste zwischen Sektionsknoten und Messstelle.
     ``gewichtung`` (je Stunde) kann z. B. Heizperiodenstunden stärker gewichten.
     ``paar_gewicht`` > 0: Der Fall besteht aus aufeinanderfolgenden Stundenpaaren (Zeile 2k, 2k+1); zusätzlich werden die

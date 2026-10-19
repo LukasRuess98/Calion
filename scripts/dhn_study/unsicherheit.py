@@ -45,7 +45,7 @@ from .run_netzmodell import (
 
 N_JE_VARIANTE = 200       # Läufe je Kalibriervariante, Strukturvariante und Lastfall
 SEED = 7
-SIGMA_RUECKLAUF_K = 1.0
+SD_RUECKLAUF_K = 1.0
 V06_MINDEST = (1.0, 1.4)
 KNIE_QUANTIL = 0.95
 VARIANTEN = ("quadratisch", "linear oberhalb P95")
@@ -153,7 +153,7 @@ def main(n_je: int = N_JE_VARIANTE, neu_kovarianz: bool = False) -> dict:
     erg["parameter"].to_csv(out / "unsicherheit_parameter.csv")
 
     ae = auslegung_eingaben(m, e, ta, nz)
-    ens = Ensemble(nz, pr, xs, ae, t_rl=ae["T_RL"] + SIGMA_RUECKLAUF_K * rng.standard_normal(n),
+    ens = Ensemble(nz, pr, xs, ae, t_rl=ae["T_RL"] + SD_RUECKLAUF_K * rng.standard_normal(n),
                    lam_ost=rng.uniform(0.0, 1.0, n), ps1=rng.uniform(ae["ps1_quantile"]["P95"], ae["ps1_quantile"]["P99"], n),
                    v06=rng.uniform(*V06_MINDEST, n))
     # Beiträge zur Streuung der erforderlichen KWK-Δp (quadratische Variante): nur Parameter (inkl. Kalibriervarianten),
@@ -204,7 +204,7 @@ def main(n_je: int = N_JE_VARIANTE, neu_kovarianz: bool = False) -> dict:
             req = need.max(axis=1)
             dm = SPEICHER_MW * ens.mf
             req_s = ens.bedarf(Pv, west, "S", ml).max(axis=1)
-            req_sued = ens.bedarf(Pv, west, "SUED_E", ml).max(axis=1)
+            req_sued = ens.bedarf(Pv, west, "SO_E", ml).max(axis=1)
             req_s_mess = (need - hebel * dm[:, None] / 100).max(axis=1)
             r4 = ens.reserve(P, west, 4.0, m_lin=ml)
             zeilen.append(pd.DataFrame({
@@ -216,7 +216,7 @@ def main(n_je: int = N_JE_VARIANTE, neu_kovarianz: bool = False) -> dict:
                 "Entlastung Südende, Modell [bar]": req - req_sued,
                 "Reservegewinn S, Modell [Pp]": 100 * (ens.reserve(P, west, 4.0, "S", ml) - r4),
                 "Reservegewinn S, gemessene Hebel [Pp]": 100 * (ens.reserve(P, west, 4.0, m_lin=ml, hebel=hebel) - r4),
-                "Reservegewinn Südende, Modell [Pp]": 100 * (ens.reserve(P, west, 4.0, "SUED_E", ml) - r4)}))
+                "Reservegewinn Südende, Modell [Pp]": 100 * (ens.reserve(P, west, 4.0, "SO_E", ml) - r4)}))
     lf = pd.concat(zeilen, ignore_index=True)
     lf.to_csv(out / "unsicherheit_laeufe.csv", index=False)
     erg["laeufe"] = lf
@@ -295,7 +295,7 @@ def _bericht(erg: dict, n_je: int, out) -> None:
     p = p.sort_index(axis=1)
     text = ["# Unsicherheitsläufe zum Auslegungsfall (automatisch erzeugt)", "",
             f"Kalibriervarianten {erg['varianten']} (Referenz {erg['referenz']}), je {n_je} Läufe je Strukturvariante und "
-            f"Lastfall; Parameter aus der Laplace-Näherung je Variante, Rücklauf ± {SIGMA_RUECKLAUF_K} K, Ost zwischen "
+            f"Lastfall; Parameter aus der Laplace-Näherung je Variante, Rücklauf ± {SD_RUECKLAUF_K} K, Ost zwischen "
             f"Plan A und 2025, PS1 P95–P99, V06-Mindest-Δp {V06_MINDEST}.", "",
             f"Kontrolle ohne Streuung (Referenz, Ost nach Plan A, V06 1,2 bar): erf. KWK-Δp {erg['kontrolle']}", "",
             "## Aussagen (Anteil der Läufe, in denen die Aussage gilt)", _md(erg["aussagen"].round(3)), "",

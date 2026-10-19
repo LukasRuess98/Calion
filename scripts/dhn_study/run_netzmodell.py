@@ -26,14 +26,14 @@ PAAR_GEWICHT = 1.0
 HEBEL_GEWICHT = 1.0
 # Der KWK-interne Verlust wächst quadratisch mit dem KWK-Durchfluss; der gemessene Hebel des KWK-Durchflusses bleibt aber über
 # 130–330 kg/s konstant. Der interne Verlust wird deshalb eng an den Planwert gebunden (sonst falsche Extrapolation).
-KANTEN_SIGMA = {"KWKi": 0.2}
+KANTEN_PRIOR_SD = {"KWKi": 0.2}
 MINDEST_MITTE = 1.0
 # Temperatur-Tracer (Datenanalyse Abschnitt 8): Station -> (Temperatursignal, Modellknoten). V05 (Süd) liegt ohne
 # Lageangabe entweder vor oder hinter HW1; beide Knoten werden gezeigt.
 TRACER_STATIONEN = {"V22": ("V22_T_supply", "S"), "V11": ("V11_T_supply", "L5M"), "V15": ("V15_house_T_supply", "K3"),
-                    "V23": ("V23_T_supply", "L1G"), "V17": ("V17_T_supply", "SEC2"), "V12": ("V12_T_supply", "SEC4"),
-                    "V24": ("V24_T_supply", "SEC2"), "V05 (vor HW1)": ("V05_T_supply", "SUED_N"),
-                    "V05 (hinter HW1)": ("V05_T_supply", "SUED_S")}
+                    "V23": ("V23_T_supply", "L1G"), "V17": ("V17_T_supply", "C2"), "V12": ("V12_T_supply", "C4"),
+                    "V24": ("V24_T_supply", "C2"), "V05 (vor HW1)": ("V05_T_supply", "SO_N"),
+                    "V05 (hinter HW1)": ("V05_T_supply", "SO_S")}
 # KWK-Durchflussbänder der Hebelprüfung; das Band ab 180 kg/s (Kältebetrieb) verankert die Speicherentlastung
 BAENDER = ((0, 180), (180, 240), (240, 600), (180, 600))
 BAND_AUSLEGUNG = (180, 600)
@@ -66,7 +66,7 @@ def kalibrier_eingaben(m: pd.DataFrame, e: pd.DataFrame, ta: pd.Series, f: nm.Fa
 def kalibrier_problem(nz: nm.Netz, ein: dict) -> dict:
     """Residuenfunktion der Kalibrierung mit den Einstellungen dieses Laufs (``nm.kalibrier_problem``)."""
     return nm.kalibrier_problem(nz, ein["ft"], gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
-                                kanten_sigma=KANTEN_SIGMA)
+                                kanten_sigma=KANTEN_PRIOR_SD)
 
 
 def auslegung_eingaben(m: pd.DataFrame, e: pd.DataFrame, ta: pd.Series, nz: nm.Netz) -> dict:
@@ -146,7 +146,7 @@ def main(neu_kalibrieren: bool = True, von_null: bool = False) -> dict:
     if neu_kalibrieren:
         start = None if von_null else lade_kalibrierung(KALIBRIERUNG_REPO / kalibriervarianten()[1], nz)
         kal = nm.kalibriere(nz, ft, gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
-                            kanten_sigma=KANTEN_SIGMA, start=start)
+                            kanten_sigma=KANTEN_PRIOR_SD, start=start)
     else:
         kal = lade_kalibrierung(KALIBRIERUNG_REPO / kalibriervarianten()[1], nz)
     erg["kal"] = kal
@@ -190,7 +190,7 @@ def main(neu_kalibrieren: bool = True, von_null: bool = False) -> dict:
     # Strukturelle Hebel im Modell (Störung +10 kg/s anstelle von KWK-Wasser, KWK-Δp fest), Hochlast-Holdout
     fh = f.teil(hoch)
     struk = {k: nm.hebel_modell(nz, fh, kal["K"], kn, gw, gl) for k, kn in
-             (("Süd (HW1)", "HW1"), ("Ost (MVA)", "MVA"), ("Standort S", "S"), ("Südende", "SUED_E"))}
+             (("Süd (HW1)", "HW1"), ("Ost (MVA)", "MVA"), ("Standort S", "S"), ("Südende", "SO_E"))}
     erg["hebel_struktur"] = pd.DataFrame(struk).loc[[nm.STATIONEN[s] for s in ["V06", "V03", "V22", "V15"]]]
     erg["hebel_struktur"].index = ["V06", "V03/V10/V24", "V22", "V15"]
     erg["hebel_struktur"].to_csv(out / "hebel_struktur.csv")
@@ -362,8 +362,8 @@ def auslegung_tabelle(nz: nm.Netz, kal: dict, ae: dict, fh: nm.Fall, ost_hebel: 
                            "Reserve bis 4,0 bar mit Speicher S, Modell": reserve(P, west, ost_v, 4.0, {"S": SPEICHER_MW}),
                            "Reserve bis 4,0 bar mit Speicher S, gemessener Hebel": reserve(P, west, ost_v, 4.0,
                                                                                             gemessener_hebel=True),
-                           "Entlastung Speicher Südende, Modell [bar]": req - rechne(P, west, ost_v, {"SUED_E": SPEICHER_MW})[0],
-                           "Reserve bis 4,0 bar mit Speicher Südende, Modell": reserve(P, west, ost_v, 4.0, {"SUED_E": SPEICHER_MW})})
+                           "Entlastung Speicher Südende, Modell [bar]": req - rechne(P, west, ost_v, {"SO_E": SPEICHER_MW})[0],
+                           "Reserve bis 4,0 bar mit Speicher Südende, Modell": reserve(P, west, ost_v, 4.0, {"SO_E": SPEICHER_MW})})
     return pd.DataFrame(zeilen).set_index(["Ost", "Fall"]), hebel_s
 
 

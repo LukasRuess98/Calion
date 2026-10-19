@@ -83,4 +83,6 @@ data/dwd/
 data/local/
 configs/local/
 reports/local/
-data/Stadtbach/
+
+# generated synthetic example (python -m scripts.dhn_study.central_tes.synthetic_data)
+data/synthetic/

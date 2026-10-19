@@ -68,7 +68,7 @@ def signatur(m, e, ta, kd, vb, pfad):
     sv = hydraulik.regelpunkt_signatur(kd[verbund], dp_kwk, e["verbund"] / 10, maske=ta < 8)
     sw = hydraulik.regelpunkt_signatur(kd[west], dp_west, (e["hx_west"] + e["boilers_west"]) / 10, maske=ta < 8)
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.6), facecolor=FLAECHE, sharey=True)
-    for ax, s, titel, regel in ((axs[0], sv, "Verbund – Quelle KWK-Δp", daten.SUED_SCHLECHTPUNKTE),
+    for ax, s, titel, regel in ((axs[0], sv, "Verbund – Quelle KWK-Δp", daten.SO_SCHLECHTPUNKTE),
                                 (axs[1], sw, "Westnetz – Quelle Heizwerk-West-Δp", daten.WEST_SCHLECHTPUNKTE)):
         _stil(ax)
         for st, r in s.iterrows():
@@ -152,7 +152,7 @@ def schema(kd, ta, vb, pfad):
     for a, b in leitungen_west:
         (x1, y1), (x2, y2) = knoten[a], knoten[b]
         ax.plot([x1, x2], [y1, y2], color=GEDAEMPFT, linewidth=1.8, zorder=1, linestyle=(0, (4, 2)))
-    erzeuger = {"KWK": "KWK\n(Druckhalter)", "Ost": "MVA · GT · Bio-KWK\n(Ost-Transport L5–L7)", "HW1": "HW1", "HW2": "Heizwerk West\n(HW2, WÜ)",
+    erzeuger = {"KWK": "KWK\n(Druckhalter)", "Ost": "MVA · GT · Bio-KWK\n(Ost-Transport L5–L7)", "HW1": "HW1", "HW2": "West\n(HW2, WÜ)",
                 "PS1": "PS1", "PS2": "PS2"}
     versatz = {"HW2": (-20, -34), "PS2": (6, 10), "KWK": (12, 8), "Ost": (-60, 14)}
     for k, lab in erzeuger.items():
@@ -160,7 +160,7 @@ def schema(kd, ta, vb, pfad):
         ax.scatter(x, y, marker="s", s=170, color=TINTE, zorder=3)
         ax.annotate(lab, (x, y), xytext=versatz.get(k, (10, 6)), textcoords="offset points", fontsize=9.5, color=TINTE,
                     fontweight="bold")
-    regel = set(daten.SUED_SCHLECHTPUNKTE + daten.WEST_SCHLECHTPUNKTE)
+    regel = set(daten.SO_SCHLECHTPUNKTE + daten.WEST_SCHLECHTPUNKTE)
     for k in knoten:
         if k in erzeuger:
             continue
@@ -271,7 +271,7 @@ def netzmodell_abbildungen(out):
     baender = ["0–180 kg/s", "180–240 kg/s", "240–600 kg/s"]
     fig, axs = plt.subplots(1, 4, figsize=(11, 3.9), facecolor=FLAECHE, sharey=False)
     for ax, (st, titel) in zip(axs, (("V03", "V03 – City"), ("V06", "V06 – Regelpunkt Süd"), ("V22", "V22 – Standort S"),
-                                     ("PS1", "PS1 – Pumpstation Süd")), strict=True):
+                                     ("PS1", "PS1 – pump station 1")), strict=True):
         _stil(ax)
         d = hb.loc[st].reindex(baender)
         x = np.arange(len(baender))

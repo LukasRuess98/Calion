@@ -238,7 +238,7 @@ def main() -> dict:
                 zeilen.append({"Ost": var, "Fall": fall, "Rechnung": name, "erf. KWK-Δp [bar]": req, "maßgebend": bind,
                                "Reserve bis 4,0 bar": reserve(ppn, P, west, ost_v),
                                "Entlastung Speicher S [bar]": req - erf(ppn, P, west, ost_v, {"S": SPEICHER_MW})[0],
-                               "Entlastung Speicher Südende [bar]": req - erf(ppn, P, west, ost_v, {"SUED_E": SPEICHER_MW})[0]})
+                               "Entlastung Speicher Südende [bar]": req - erf(ppn, P, west, ost_v, {"SO_E": SPEICHER_MW})[0]})
     erg["auslegung"] = pd.DataFrame(zeilen).set_index(["Ost", "Fall", "Rechnung"])
     erg["auslegung"].to_csv(out / "pandapipes_auslegung.csv")
     from .run_analyse import _md

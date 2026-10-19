@@ -27,7 +27,7 @@ from . import daten
 from . import netzmodell as nm
 from .run_netzmodell import (
     KALIBRIERUNG_REPO,
-    KANTEN_SIGMA,
+    KANTEN_PRIOR_SD,
     PAAR_GEWICHT,
     kalibrier_eingaben,
     kalibrier_problem,
@@ -94,7 +94,7 @@ def main(namen: list[str]) -> pd.DataFrame:
     n_prior = len(pr["namen"])
     for name in namen:
         kal = nm.kalibriere(nz, ein["ft"], gewichtung=ein["gewichtung"], paar_gewicht=PAAR_GEWICHT, hebel=ein["hebel"],
-                            kanten_sigma=KANTEN_SIGMA, start=startwert(name, nz))
+                            kanten_sigma=KANTEN_PRIOR_SD, start=startwert(name, nz))
         ziel = out / name
         ziel.mkdir(exist_ok=True)
         speichere_kalibrierung(kal, nz, ziel)

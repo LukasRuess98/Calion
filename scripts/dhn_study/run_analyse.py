@@ -67,7 +67,7 @@ def main() -> dict:
     # 5) Hydraulische Begrenzung bei Kälte: aktive Grenzen, Ost-Kopplung, Schlechtpunktregelung Süd, Versorgung kalter Werktage
     kd = daten.kunden_dp(m)
     mitte_min = kd[daten.MITTE_STATIONEN].min(axis=1)
-    sued_min = kd[daten.SUED_SCHLECHTPUNKTE].min(axis=1)
+    sued_min = kd[daten.SO_SCHLECHTPUNKTE].min(axis=1)
     dp_chp = m.gas_CHP_p_supply - m.gas_CHP_p_return
     dT = m.gas_CHP_T_supply - m.gas_CHP_T_return
     ps1 = m.pump_station_1_p_supply_after_pump - m.pump_station_1_p_supply_before_pump
@@ -79,7 +79,7 @@ def main() -> dict:
     # Regelpunkte der Schlechtpunktregelung: Netzzugehörigkeit und Regelsignatur (Heizperiode, Ta < 8 °C)
     vb = daten.lade_verbraucher()
     erg["netz"] = hydraulik.netz_zugehoerigkeit({st: m[f"{st}_p_supply"] for st in vb.index if f"{st}_p_supply" in m},
-                                                {"KWK": m.gas_CHP_p_supply, "Heizwerk West": m.boiler_plant_2_secondary_p_supply},
+                                                {"KWK": m.gas_CHP_p_supply, "HW2 (west)": m.boiler_plant_2_secondary_p_supply},
                                                 maske=ta < 8)
     erg["netz"]["Region"] = vb.region.reindex(erg["netz"].index)
     erg["netz"].to_csv(out_dir / "netzzugehoerigkeit.csv")
@@ -92,7 +92,7 @@ def main() -> dict:
         erg[k]["Region"] = vb.region.reindex(erg[k].index)
         erg[k].to_csv(out_dir / f"{k}.csv")
     erg["sollwert_monat"] = pd.DataFrame({st: kd[st].groupby(m.index.month).median() for st in
-                                          daten.SUED_SCHLECHTPUNKTE + daten.WEST_SCHLECHTPUNKTE}).assign(
+                                          daten.SO_SCHLECHTPUNKTE + daten.WEST_SCHLECHTPUNKTE}).assign(
         **{"KWK-Δp": dp_chp.groupby(m.index.month).median(), "HW2-West-Δp": dp_west.groupby(m.index.month).median()})
     erg["grenzen"] = hydraulik.aktive_grenzen(pd.DataFrame({"dp_ost": dp_ost, "dp_kwk": dp_chp, "dp_sued": sued_min,
                                                             "dp_mitte": mitte_min, "gt_an": gt_an}), ta)
@@ -217,14 +217,14 @@ def main() -> dict:
     #     Bei festem Verbrauch und fester HW1 bedeutet weniger KWK-Durchfluss Ersatz durch Ost-Einspeisung; Hebel Ost =
     #     −Koeffizient KWK-Fluss. Hebel Süd (anstelle von KWK-Wasser) = HW1 − KWK-Fluss. Heizperiode (Ta < 8 °C).
     reg_e = netzmodell.hebel_regressoren(m, e, m.index)[ta < 8]
-    roh = anker.netzhebel({k: kd[k][ta < 8] for k in [*daten.SUED_SCHLECHTPUNKTE, *daten.MITTE_STATIONEN, "V22", "V15"]}, reg_e)
+    roh = anker.netzhebel({k: kd[k][ta < 8] for k in [*daten.SO_SCHLECHTPUNKTE, *daten.MITTE_STATIONEN, "V22", "V15"]}, reg_e)
     roh = roh.set_index("Ziel")
     erg["einspeisehebel"] = pd.DataFrame({"je 100 kg/s Ost statt KWK": -roh["KWK-Fluss"], "SE Ost": roh["SE KWK-Fluss"],
                                           "je 100 kg/s Süd statt KWK": roh["HW1"] - roh["KWK-Fluss"],
                                           "je 100 kg/s Süd statt Ost": roh["HW1"], "SE Süd statt Ost": roh["SE HW1"],
                                           "je bar KWK-Δp (regelungsverzerrt)": roh["KWK-Δp"]})
     erg["einspeisehebel"].to_csv(out_dir / "einspeisehebel.csv")
-    rp = erg["einspeisehebel"].loc[daten.SUED_SCHLECHTPUNKTE[0]]
+    rp = erg["einspeisehebel"].loc[daten.SO_SCHLECHTPUNKTE[0]]
     m_sp = float(hydraulik.massenstrom(SPEICHER_MW, T_VL_AUSL, T_VL_AUSL - dT0))
     # Unter Regelung auf den Regelpunkt senkt die KWK ihre Δp, bis er wieder auf Sollwert liegt; der strukturelle
     # Durchgriff der KWK-Δp ist 1 (Netzmodell), der gemessene Koeffizient ist durch die Regelung nach unten verzerrt.
@@ -288,7 +288,7 @@ def _bericht(erg: dict, out_dir) -> None:
              "## Thermische Spitze am Auslegungstag (Profile Lastgang 2020–2022, Werktage < −2 °C)", _md(erg["spitze"].round(1), index=False), "",
              "## Netzhebel", _md(erg["netzhebel"].round(3), index=False), "",
              "## Einspeise-Hebel (massenstromkonsistent, Heizperiode)", _md(erg["einspeisehebel"].round(3)), "",
-             f"Speicher am Standort S (hydraulisch, Regelung auf {daten.SUED_SCHLECHTPUNKTE[0]}): {erg['speicher_hydraulik']}", "",
+             f"Speicher am Standort S (hydraulisch, Regelung auf {daten.SO_SCHLECHTPUNKTE[0]}): {erg['speicher_hydraulik']}", "",
              f"Vorlaufdruck am Standort S: {erg['druck_standort_s']}", "", "## Tracer", _md(erg["tracer"].round(2))]
     (out_dir / "zusammenfassung.md").write_text("\n".join(teile), encoding="utf-8")
 

@@ -43,6 +43,7 @@ study = [
     "scipy>=1.9",
     "pyarrow>=10.0",
     "matplotlib>=3.5",
+    "highspy>=1.7",      # solver of the central-TES study (scripts/dhn_study/central_tes)
 ]
 dev = [
     "pytest>=7.0",

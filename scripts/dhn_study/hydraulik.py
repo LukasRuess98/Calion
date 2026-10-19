@@ -149,7 +149,7 @@ def aktive_grenzen(x: pd.DataFrame, ta: pd.Series, klassen=(-15, -2, 2, 8, 30),
 
 def netz_zugehoerigkeit(p_stationen: dict[str, pd.Series], p_quellen: dict[str, pd.Series],
                         maske: pd.Series | None = None) -> pd.DataFrame:
-    """Korrelation der stündlichen Vorlaufdruck-Änderungen jeder Station mit den Druckquellen (z. B. KWK, Heizwerk West).
+    """Korrelation der stündlichen Vorlaufdruck-Änderungen jeder Station mit den Druckquellen (z. B. KWK, HW2 (west)).
 
     Hydraulisch getrennte Netze (Wärmeübertrager) teilen keine Druckschwankungen; die Station gehört zum Netz der Quelle
     mit der höchsten Korrelation (Spalte ``Netz``).
