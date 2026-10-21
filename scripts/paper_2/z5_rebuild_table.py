@@ -4,6 +4,10 @@ The original tab_Z5_sb_mm_s1_sweep_and_sensitivities.csv (docs SS4cn) and its ge
 script were not found in the workspace on 2026-10-19; this rebuilds the table directly from the
 solved run directories (meta.json / geometry.csv / run_export.json) -- nothing typed by hand.
 
+Two columns (AC, 2026-10-21): "package" = PIN0 vs free (HP+EK+TES together, the old Z5 definition) and
+"storage_only" = TES-free reference (HP/EK free, no storage) vs free, i.e. the value of the storage alone.
+Output: tab_Z5b_package_vs_storage_only.csv (the committed tab_Z5_... stays untouched).
+
 Value interval per pair (Y1 structural-bound method, docs SS4cb):
     LB(run) = obj*(1-gap)           (Gurobi MIPGap is relative to the incumbent)
     value in [ max(0, LB(PIN0) - UB(free)) , UB(PIN0) - LB(free) ]   [EUR/yr]
@@ -51,11 +55,49 @@ PAIRS = [  # (net, label, pin0_dir, free_dir, cost spec EUR/m3 note)
     ("MM", "price amplitude x2.0", "_z3b/mm_pin0_spreiz20/paper2_runs/MM-S1-HK0-PIN0-SPREIZ20", "_z3b/mm_free_spreiz20/paper2_runs/MM-S1-HK0-SPREIZ20"),
 ]
 
+# TES-free reference runs (HP/EK free, no storage built) for the PURE storage value.
+# Preferred: the dedicated clean reference run; fallback PROXY: runs whose siting allowed TES but built none.
+REFS = {
+    "SB": [("ac3_s0free_notes", "_ac/ac3_s0free_notes/paper2_runs/SB-S0-HK0"),
+           ("proxy SB-S3 (no TES built)", "_s2/sb_s3_resolve/paper2_runs/SB-S3-HK0")],
+    "MM": [("proxy MM-S2 (no TES built)", "v7_final/MM-S2-HK0")],
+}
+# AC rows (new model): only listed if the run exists on disk
+AC_ROWS = [
+    ("SB", "AC1 power priced 280,274 EUR/MW, c0x1.0", SB_PIN0, "_ac/ac1_p1_c0x1.0/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC1 power priced 75,185 EUR/MW, c0x1.0", SB_PIN0, "_ac/ac1_p3_low75k/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC1 power priced 280,274 EUR/MW, c0x1.5", SB_PIN0, "_ac/ac1_p2b_c0x1.5/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC1d E/P 8 h (power free)", SB_PIN0, "_ac/ac1d_ep8b/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC1d E/P 12 h (power free)", SB_PIN0, "_ac/ac1d_ep12/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC2 H/D 2.0, h<=45 m (power free)", SB_PIN0, "_ac/ac2_hd2_h45_old/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC2 H/D 1.5, h<=45 m (power free)", SB_PIN0, "_ac/ac2_hd15_h45_old/paper2_runs/SB-S1-HK0"),
+    ("SB", "AC2 H/D 1.0, h<=45 m (power free)", SB_PIN0, "_ac/ac2_hd1_h45_old/paper2_runs/SB-S1-HK0"),
+]
+BASE_ROWS = {"base c0x1.0", "c0x1.3", "c0x1.5", "c0x2.0", "base"}  # rows with a valid TES-free reference
+
+
+def pick_ref(net):
+    for lab, d in REFS[net]:
+        if (O / d / "meta.json").exists():
+            return lab, load(d)
+    return None, None
+
+
 def main(out):
     rows = []
-    for net, lab, p, f in PAIRS:
+    all_pairs = list(PAIRS) + [r for r in AC_ROWS if (O / r[3] / "meta.json").exists()]
+    for net, lab, p, f in all_pairs:
         P, F = load(p), load(f)
         lo = max(0.0, P["lb"] - F["ub"]); hi = P["ub"] - F["lb"]
+        # PURE storage value = TES-free reference vs the free run (valid only where the case has its own
+        # TES-free reference, i.e. the cost/price/geometry cases of the base tariff -- not the tariff
+        # sensitivities, which would need a TES-free run each).
+        has_ref = (lab in BASE_ROWS) or lab.startswith("AC")
+        rl, R = pick_ref(net) if has_ref else (None, None)
+        if R is not None:
+            s_lo = max(0.0, R["lb"] - F["ub"]); s_hi = R["ub"] - F["lb"]
+        else:
+            s_lo = s_hi = None
         rows.append({
             "network": net, "case": lab,
             "pin0_dir": P["rel"], "free_dir": F["rel"],
@@ -65,6 +107,10 @@ def main(out):
             "V_TES_m3": F["V"], "E_TES_MWh": F["E"],
             "value_lo_eur_a": round(lo, 0), "value_hi_eur_a": round(hi, 0),
             "value_hi_pct_of_pin0_tac": round(100 * hi / P["ub"], 3),
+            "package_value_lo_eur_a": round(lo, 0), "package_value_hi_eur_a": round(hi, 0),
+            "storage_only_lo_eur_a": None if s_lo is None else round(s_lo, 0),
+            "storage_only_hi_eur_a": None if s_hi is None else round(s_hi, 0),
+            "storage_only_reference": rl if R is not None else "n/a (no TES-free reference for this tariff case)",
             "free_export_hash": F["hash"],
             "caveat": ("solution_count==1: size never left the warm start -> obj is an upper bound "
                        "(valid for the interval's lower end, may overstate the optimum)") if F["sc"] == 1 and F["V"] else ("" if F["sc"] else "solution count not recoverable from a run-local Gurobi log"),
@@ -73,9 +119,10 @@ def main(out):
     with open(out, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
     for r in rows:
-        print(f"{r['network']} {r['case']:24s} [{r['value_lo_eur_a']:>10,.0f}; {r['value_hi_eur_a']:>10,.0f}] "
-              f"V={r['V_TES_m3']} sc={r['free_solution_count']} gap={r['free_gap_pct']}%")
+        so = "n/a" if r["storage_only_lo_eur_a"] is None else f"[{r['storage_only_lo_eur_a']:,.0f}; {r['storage_only_hi_eur_a']:,.0f}]"
+        print(f"{r['network']} {r['case']:42s} package [{r['value_lo_eur_a']:>9,.0f}; {r['value_hi_eur_a']:>9,.0f}]  "
+              f"storage-only {so:>20s}  V={r['V_TES_m3']} sc={r['free_solution_count']} gap={r['free_gap_pct']}%")
 
 if __name__ == "__main__":
     import sys
-    main(sys.argv[1] if len(sys.argv) > 1 else R / "docs/paper_2/submission_pack/02_tables/tab_Z5_sb_mm_s1_sweep_and_sensitivities.csv")
+    main(sys.argv[1] if len(sys.argv) > 1 else R / "docs/paper_2/submission_pack/02_tables/tab_Z5b_package_vs_storage_only.csv")

@@ -3306,3 +3306,27 @@ Folgerung: **Die Kernaussage „SB-Speicher hat positiven Wert 165–230 k€/a�
 
 Monotonie-Argument für c0×1,5: jede Lösung mit Speicher ist bei höherem c0 teurer, die TES-lose Lösung unverändert; wenn bei ×1,0 nichts gebaut wird, wird bei ×1,5 erst recht nichts gebaut (Obergrenze des Werts ≤ der von ×1,0). Der Lauf `ac1_p2b_c0x1.5` bleibt in der Warteschlange (Auftrag des Autors), aber am Ende (bringt keine neue Information).
 Neu aufgenommen zur Spannenaussage: `ac1_p3_low75k` (c0×1,0, Leistungskosten NIEDRIG = 75.185 €/MW) — zeigt, ob der Speicher bei günstiger Direktanbindung zurückkommt (Break-even-Information).
+### AC-Umsetzung der drei Punkte (2026-10-21)
+
+**1. Z5/F_TES auf zwei Definitionen umgestellt.** `scripts/paper_2/z5_rebuild_table.py` erzeugt `docs/paper_2/submission_pack/02_tables/tab_Z5b_package_vs_storage_only.csv` (die committete `tab_Z5_...csv` bleibt unverändert als Altstand):
+- **Paketwert** = PIN0 vs. frei (HP + EK + TES zusammen, bisherige Z5-Definition).
+- **reiner Speicherwert** = speicherfreier Referenzlauf (HP/EK frei, TES aus) vs. frei, jeweils mit Y1-Schranken `[max(0, LB(Ref) − UB(frei)), UB(Ref) − LB(frei)]`.
+- Referenz: sobald `ac3_s0free_notes` fertig ist, wird dieser Lauf automatisch genommen; bis dahin ein Proxy (SB-S3 bzw. MM-S2: Standortfreigabe erlaubte TES, gebaut wurde keiner). Neu rechnen mit demselben Skript.
+- Nur für Fälle mit eigener Referenz (Basistarif: c0-Sweep, AC1/AC2-Läufe). Die Tarif-/Preisspreizungs-Sensitivitäten bräuchten je einen eigenen speicherfreien Lauf (nicht gerechnet) und stehen daher nur mit Paketwert in der Tabelle.
+
+Ergebnis mit Proxy-Referenz (Altmodell, Leistung gratis):
+
+| SB-Fall | Paketwert [€/a] | reiner Speicherwert [€/a] |
+|---|---|---|
+| c0×1,0 | [165.215; 230.414] | **[103.592; 176.528]** |
+| c0×1,3 | [50.853; 162.944] | [0; 109.058] |
+| c0×1,5 | [0; 141.167] | [0; 87.281] |
+| c0×2,0 | [0; 103.407] | [0; 49.521] |
+| P1 Leistung 280.274 €/MW | [19.888; 95.933] | **[0; 42.047]** (Inkumbent: kein Speicher) |
+| MM Basis | [1.273; 2.419] | [0; 601] |
+
+Der reine Speicherwert ist also im Basisfall rund 60 k€/a kleiner als der bisher genannte; die Aussage „Speicherwert 165–230 k€/a“ ist in der Arbeit durch „Paketwert“ bzw. die Spalte „reiner Speicherwert“ zu ersetzen.
+
+**2. Code committet** auf `Loc_TES_Study_P2` (Commit 812c460, nicht gepusht).
+
+**3. Annahme Anbindung/Leistungskosten festgehalten.** Basis = 280.274 €/MW (Pumpstation + WÜ-Station + 200 m Leitung, DEA Energy Transport Blatt 3.1, Dez. 2025). Ob der atmosphärische SB-Tank bei 16 bar Netzdruck ohne Wärmeübertrager direkt angebunden werden könnte (DEA Kap. 141: „connected directly“), ist eine **Fachfrage für Auslegung/Betreiber, nicht aus Quellen entscheidbar**. Deshalb wird die niedrige Variante (nur Pumpstation, untere Katalogwerte, 100 m Leitung = 75.185 €/MW) als Untergrenzen-Sensitivität gerechnet (`ac1_p3_low75k`, in der Warteschlange); die Aussage der Arbeit wird als Spanne formuliert, nicht als Punktwert. Lebensdauer der Anbindungskomponenten = 30 a wie der Tank (Katalog: 45 a für Transportanlagen), Preisbasis 2025-€ vs. 2026-€ beim Tank: je < 5 % Effekt, nicht angepasst.
