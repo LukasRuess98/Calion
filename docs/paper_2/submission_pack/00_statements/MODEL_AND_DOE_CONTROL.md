@@ -3226,3 +3226,83 @@ Log-log-Elastizität zwischen den beiden einzigen Punkten mit nachgewiesener ech
 **Layout-Nacharbeit bei F\_TES1:** erster Entwurf hatte überlappende Realprojekt-Labels (Friedrichshafen/Haltikon nur 4 EUR/m³ auseinander, bei Log-Skala nicht unterscheidbar) und eine die Daten verdeckende Legende — behoben (Labels zusammengeführt wo <2% log-Abstand, Legende über den Plot verschoben, explizite Log-Achsen-Ticks ergänzt). Alle 4 Abbildungen visuell geprüft (PNG gelesen) vor Übernahme ins Submission-Pack.
 
 **Nicht Teil dieses Durchgangs:** F1/F2 (Architektur-Schema, Netzkarten) und F8/F9 (räumliche Profile, SoC) aus dem alten Programm bleiben bei Bedarf separat verfügbar (zeigen Netzstruktur/Dispatch-Mechanik, nicht die Kostenaussage — nicht direkt vom Datenwechsel betroffen, aber nicht erneut geprüft). Fließtext-Einbindung (§4 Results) steht noch aus.
+
+---
+
+## §4cq — 2026-10-19: AC-Block (vor dem Schreiben) — TES-Leistung bepreist, Geometrie konsistent gemacht, Protokoll-Lücken
+
+Branch: `Loc_TES_Study_P2` (Code-Änderungen zunächst unkommittiert). Alle AC-Läufe isoliert unter `output/_ac/<tag>/` (eigenes `CALION_OUT_BASE`, Logs, Solfiles, Nodefiles), Launcher `scripts/paper_2/ac_run.sh`; `output/v7_final` und bestehende `output/exports/<id>/<hash>` werden nicht beschrieben.
+
+### AC1a — Befund: TES-Leistung hatte keinen Kosteneinfluss
+
+- `cap_power` ist eine freie kontinuierliche Variable mit der einzigen Restriktion `cap_power ≤ power_to_energy_ratio · E_max` (`geometric_storage.py`, Block „Power capacity“; Zusatzrestriktionen `qc_lim`, `qd_lim`, `shared_port`). Sie taucht in **keinem** Kostenterm auf (CAPEX-Ausdruck = nur Tank, `c0·(v/v0)^b`·N; O&M = 0,5 % dieses CAPEX).
+- E/P = 4 h entsteht ausschließlich aus `power_to_energy_ratio: 0.25` (Netzwerk-YAMLs; Default im Code ebenfalls 0,25). Eine Begründung ist nirgends dokumentiert (kein Kommentar, kein Quellverweis) — es ist ein Default, keine abgeleitete Größe.
+- SB-S1 (c0×1,0, `output/v7_final/SB-S1-HK0`): E = 438 MWh, `cap_power` = 109,5 MW. Nachrechnung aus `dispatch_hourly.csv`: Ladespitze 109,5 MW (99-%-Quantil ebenfalls 109,5 MW), Entladespitze 81,1 MW, ≈ 70 Vollzyklen/a, 589 h mit > 27 MW Durchsatz. Die Leistung wird also tatsächlich ausgefahren — sie ist kein rein formaler Wert.
+- **Primärquelle zur Einordnung** (DEA/Energinet, *Technology Data – Energy Storage*, v0009, Kap. 141 Large-scale Hot Water Tanks, gelesen aus dem PDF): Investition nur energiebezogen, 3,0 M€₂₀₁₅/GWh (70 % Ausrüstung, 30 % Installation), **kein Leistungsterm**; Referenzeinheit 175 MWh bei 2,9 MW Ein-/Ausgangsleistung, d. h. E/P ≈ 60 h (Note B: Leistung „practically limited by the available pipe dimensions for charge/discharge and the number of installed valves“). Das Modell rechnet mit E/P = 4 h, dem ~15-fachen der Katalog-Referenzleistung.
+
+### AC1b — Leistungsbezogener Investitionsterm
+
+- Implementierung: `power_capex_eur_per_mw · cap_power` wird im un-annualisierten `capex_raw` des Tanks addiert (linear, keine neuen Variablen), damit werden ANF (30 a) und O&M-Satz (0,5 %) identisch zum Tank angewandt. Default im Code 0 (= Altmodell); in `storage_geometry.yaml` jetzt 280.274 €/MW. Env `CALION_TES_POWER_CAPEX=<€/MW>` überschreibt (0 = Altmodell, „Leistung gratis“).
+- **Primärquelle (Excel-Datenblatt direkt gelesen, nicht Web-Zusammenfassung):** DEA/Energinet *Technology Data for Energy Transport* (Version 8, Dez. 2025), Blatt „3.1 DH transmission“, Kostenjahr 2025:
+
+| Komponente | Zentralwert | Spanne (unten – oben) |
+|---|---|---|
+| Wärmeübertragerstation [€/MW] | 140.161,8 | 77.089,0 – 168.194,2 |
+| Pumpstation [€/MW] | 127.473,2 | 70.110,3 – 152.967,8 |
+| Leitung, Einzelstrang 0–50 MW [€/MW/m] | 63,19 | 50,75 – 75,00 (je Trassenmeter Paar) |
+
+- Zusammensetzung (Nutzerliste „Pumpen, Armaturen, Anbindeleitung, Druckhaltung“): **BASIS** = Pumpstation + WÜ-Station (hydraulische Entkopplung des atmosphärischen Tanks vom 16-bar-Netz, wie in `storage_geometry.yaml` angenommen) + 200 m Leitung = **280.274 €/MW**; **NIEDRIG** = nur Pumpstation (Direktanbindung, Kap. 141 „connected directly“), untere Werte, 100 m Leitung = **75.185 €/MW**; **HOCH** = oberer Pumpen- und WÜ-Wert + 500 m Leitung = **358.663 €/MW**. Die Leitungslängen sind die einzige nicht aus dem Katalog stammende Annahme (standortabhängig).
+- Größenordnung: 109,5 MW × 280.274 €/MW = 30,7 M€ vs. 5,44 M€ Tank; annualisiert (ANF 0,0651 + 0,5 % O&M) ≈ 2,2 M€/a — das ist ~10× der bisherige Speicherwert [165 k; 230 k] €/a. Der Kostenterm kann das Ergebnis also qualitativ ändern; die Optimierung wird die Leistung reduzieren.
+- Eigene Unschärfe, offen benannt: Lebensdauer von Pumpen/WÜ (hier 30 a wie Tank, Katalog Transportanlagen 45 a), Preisbasis Tank-c0 (2026-€) vs. Leistungsterm (2025-€) — beides < 5 % Effekt auf den Zielwert, nicht angepasst.
+
+### AC1c/d — Läufe (Protokoll: MIPFocus 3, Ziel-Gap 0,15 %, TimeLimit 172.800 s, PIN0 = gemeinsame Referenz)
+
+PIN0: `SB-S0-HK0-PIN0` (= SB-S1-PIN0, AB1 bewiesen identisch) bleibt gültig — mit deaktiviertem TES (V_max = 0) berühren weder Leistungsterm noch Höhenkappe das Modell, und der Diff der Branches `main`→`Loc_TES_Study_P2` ist an `scenarios.yaml`/`loader.py` rein additiv (0 gelöschte Zeilen). UB(PIN0) = 23.370.804,48 €, Gap 0,1436 %.
+
+| Tag | Beschreibung | Env | Warmstart |
+|---|---|---|---|
+| ac1_p1_c0x1.0 | c0×1,0, Leistung bepreist (280.274 €/MW), Geometrie wie bisher | `CALION_TES_HMAX=0` | PIN0-Dump + `CALION_SEED_FILL_ZERO=1` |
+| ac1_p2_c0x1.5 | c0×1,5, sonst wie oben | idem | idem |
+| ac1d_ep8_c0x1.0 | E/P = 8 h, Leistung unbepreist (Altmodell) | `CALION_TES_POWER_CAPEX=0 CALION_TES_P2E_HOURS=8 CALION_TES_HMAX=0` | `v7_final/SB-S1-HK0` |
+
+Warmstart-Wahl begründet: Die alte S1-Lösung (30.379 m³, 109,5 MW) wäre im bepreisten Modell ein teurer Start (≈ +2 M€/a); der PIN0-Start ist garantiert zulässig, Gurobi akzeptierte ihn (Startwert 2,33708e7 = PIN0). Da die B&B-Schranke unabhängig vom Inkumbenten gilt, ist das Wert-Intervall auch bei „stuck“ Inkumbent korrekt: `Wert ∈ [max(0, LB(PIN0) − UB(frei)), UB(PIN0) − LB(frei)]`.
+
+**Stand 2026-10-19 17:17:** Ressourcen-Vorgabe des Autors: alle Bot-Läufe zusammen höchstens 50 % CPU (33 von 66 logischen CPUs) und 50 % RAM (~96 GB von 192 GB). Gemessen vor dem Eingriff: 89 % RAM / 100 % CPU. **P2 (c0×1,5) und EP8 (E/P 8 h) wurden nach ~1 h Laufzeit abgebrochen und zurückgestellt (Neustart später, Fortschritt war: Gap P2 0,41 %, Inkumbent = PIN0; EP8 erste zulässige Lösung).** P1 läuft weiter (Gap 0,41 %, Inkumbent = PIN0), per Affinität auf CPUs 0–15 begrenzt (~40 GB RAM). Zurückgestellte Warteschlange in dieser Reihenfolge: P2, EP8, E/P 12 h, H/D-Läufe (1/1,5/2 mit 45-m-Kappe), SB-MONTHLY frei (Altmodell). Die Parallel-Session fährt max. einen Lauf auf CPUs 16–32 (Altmodell, `output/_s2/`). Ergebnisse: AUSSTEHEND (wird hier nachgetragen).
+
+### AC2 — Geometrie konsistent
+
+- **Befund:** Höhe ist keine Modellvariable, sondern wurde nachträglich aus `V` und `r_hd` berechnet (`h = (4·r_hd²·V/π)^(1/3)`). SB-S1: V = 30.379 m³, `r_hd` = 2 → **h = 53,68 m → 6,131 bar** (geometry.csv), dokumentierter Auslegungsdruck 5,5 bar (≙ 47,1 m) und Reuter-West-Referenz 45 m werden überschritten. Zusätzlich wurde `h` bisher für das gesamte Volumen als **ein** Behälter berechnet.
+- **Umsetzung:** neuer Parameter `h_max_m` (45 m, `storage_geometry.yaml`) deckelt das Volumen **eines** Behälters auf `V_unit = π·h_max³/(4·r_hd²)` (r_hd = 2: 17.892 m³; 1,5: 31.809 m³; 1: 71.568 m³ → dann greift `unit_tank_m3` = 50.000 m³); größere Speicher = N = ceil(V/unit) gleiche Behälter, Kosten je Behälter nach unveränderter Kurve. Aktive Assertion: hydrostatischer Fußdruck von `h_max_m` (45 m: 5,30 bar) ≤ `p_max_bar` (5,5 bar), sonst ValueError. `geometry.csv` meldet jetzt Höhe/Druck **je Behälter** plus `n_tanks`, `r_hd`, `h_max_m`, `power_capex_eur_per_mw`, `p2e_ratio`. Env: `CALION_TES_HMAX` (0 = aus), `CALION_TES_RHD` (H/D-Variation).
+- **Analytisch (vor jedem Solve, `output/_ac/analysis/ac2_geometry_rung_table.csv`):** der 438-MWh-Tank (30.379 m³) passt bei H/D ≤ 1,5 in einen Behälter (H/D 1,5: 44,3 m; H/D 1: 33,8 m, 4,24 bar), bei H/D = 2 braucht er zwei Behälter (je 42,6 m): Investition 5,44 → 6,70 M€ (+23 %), annualisiert +≈ 88 k€/a — rund 40–50 % des bisherigen Speicherwerts. **Die Geometrie bewegt die Kosten also deutlich.** Das Flächenfaktor-Argument (k(2)/k(1) = 1,05, nur Verluste) ist demgegenüber klein.
+- **Nicht modelliert (Limitation):** Stratifikationseffizienz `eta_strat` = 0,85 ist unabhängig von H/D; kleineres H/D (breiter Tank) hätte real schlechtere Schichtung. DEA Kap. 141: typisches H/D 1:1,5–2,5.
+- H/D-Läufe (1 / 1,5 / 2, jeweils mit 45-m-Kappe): AUSSTEHEND (nach P1/P2, auf dem Modell, in dem TES nicht null ist).
+
+### AC3 — Protokoll-Lücken
+
+- **Z4-Bilanzfix:** Im Arbeitsbaum von `main` fehlte der Code-Fix (`scripts/paper/extract_artefacts.py`, `tools/validation_stadtbach.py`), in `Loc_TES_Study_P2` (cee960b) ist er vorhanden — Ursache war der Branch-Stand, kein Verlust. Backfill für die noch alten JSONs mit `scripts/paper_2/backfill_closure_ac3.py` (Altwert bleibt in `closure_fix_note`): SB-S2/S3 3,305 % → **0,269 %** (bestanden), MM-S2/S3 25,57 % → **1,959 %** (bestanden); SB-S1, SB-S0-PIN0, MM-S0/S1 waren bereits korrigiert.
+- **Z5-Tabelle:** `scripts/paper_2/z5_rebuild_table.py` rekonstruiert alle Intervalle direkt aus den Lauf-Verzeichnissen (Y1-Methodik) und reproduziert die Tabelle `tab_Z5_...csv` der Branch (z. B. SB Basis [165.215; 230.414], c0×1,3 [50.853; 162.944], Spreizung ×2,0 [644.140; 721.324]).
+- **SB-S2/S3 mit S1-Warmstart, c0×0,5/0,7:** laufen in der Parallel-Session (Altmodell, beide Env = 0, `output/_s2/`). **SB-MONTHLY (frei):** noch offen, durch AC-Session zu starten (bestehender Lauf = Warmstart, `obj` identisch auf 10 Stellen, Solution count 1).
+- **Veraltet bleiben (Neubau nach Abschluss der AC-Läufe):** Tabellen T3–T5, Figuren F2–F9 und die F_TES-Abbildungen sind auf dem Altmodell (Leistung gratis, keine Höhenkappe) berechnet; je nach AC1-Ergebnis müssen sie neu erzeugt werden.
+
+### AC-Befund (2026-10-20, Definitionsfrage, VOR dem Schreiben klären): „TES-Wert“ gegen PIN0 enthält den HP/EK-Investitionswert
+
+- **PIN0 = keine Investition in HP, EK und TES.** Das freie Modell SB-S1 darf aber hp_sb, ek_sb und tes_sb investieren. Die Z5-/F_TES-Intervalle `PIN0 − frei` ([165.215; 230.414] €/a im Basisfall) sind daher der Wert des **gesamten Investitionspakets**, nicht des Speichers allein.
+- Beleg (Parallel-Session, Altmodell, `output/_s2/sb_s2_resolve2`): SB-S2-HK0 mit gültigem PIN0-Start — Speicher wird **nicht** gebaut (build = 0, V = 0), aber hp_sb 1,8 MW — erreicht obj 23.318.968,91 € (Gap 0,187 %, Solution count 10). Gegenüber PIN0 (23.370.804,48 €) sind das **≈ 51,8 k€/a allein aus der Wärmepumpe**. Der frühere S2-Wert 23.384.317,87 € war der abgelehnte/gestuckte Warmstart (Fehler des Warmstarts, nicht des Modells).
+- Folge: der reine Speicherwert im Altmodell ist ≈ UB(S2) − UB(S1) = 23.318.969 − 23.172.020 ≈ **147 k€/a** (nicht 199 k€/a), korrekt als Intervall mit dem Y1-Verfahren gegen einen **frei investierenden Lauf ohne TES** (HP/EK frei, TES aus) zu berechnen. Der vorhandene Lauf `SB-S0-HK0` (23.384.317,87 €, Gap 0,46 %) taugt dafür nicht (offenbar derselbe schwache Start).
+- Konsequenz für AC1: der P1-Inkumbent (bepreiste Leistung, 23.317.533 € bei 2026-10-20 15:00, Gap 0,18 %) ist von S2 ohne Speicher (23.318.969 €) praktisch nicht zu unterscheiden. Die „53 k€/a Ersparnis gegenüber PIN0“ sind sehr wahrscheinlich die Wärmepumpe, nicht der Speicher. Der Speicherwert bei bepreister Leistung liegt damit **bei ≈ 0** (Obergrenze UB(S2) − LB(P1) ≈ 44 k€/a, solange die Lücke nicht geschlossen ist). Verbindlich erst nach Ende von P1 (geometry.csv: V_TES, cap_power).
+- **Maßnahme:** Referenzlauf `ac3_s0free_notes` (SB-S0-HK0, HP/EK frei, TES aus, PIN0-Start, Ziel-Gap 0,15 %) steht an erster Stelle der Warteschlange; er liefert den sauberen TES-freien Vergleichswert für alle Intervalle (Altmodell, bepreist, E/P, Geometrie). Z5-Tabelle und F_TES-Abbildungen müssen danach auf diese Definition umgestellt werden (Spalte „Paketwert vs. PIN0“ und „reiner Speicherwert vs. TES-frei“).
+### AC1c — ERGEBNIS P1 (2026-10-21): bei bepreister Leistung wird KEIN Speicher gebaut
+
+Lauf `ac1_p1_c0x1.0` (SB-S1-HK0, c0×1,0, `power_capex_eur_per_mw` = 280.274, Geometrie wie bisher, PIN0-Start, MIPFocus 3, Ziel-Gap 0,15 %): Zeitlimit 172.800 s erreicht, `maxTimeLimit`, **obj = 23.317.347,09 €, Gap 0,1822 %**, **Gurobi-Log: „Solution count 10“** (echte Exploration, Inkumbenten-Folge 23,371 → 23,317 Mio. €, der Speicher wurde gesucht und verworfen). Hinweis: das Feld `solution_count` in `meta.json` ist **unzuverlässig** (steht bei allen Läufen auf 1); belastbar ist nur die Zeile „Solution count“ im Gurobi-Log (`<OUT_BASE>/../logs/gurobi_<id>.log`). Die Stuck-Warmstart-Einordnung aus §4ck/A2/A3 (c0×1,3, c0×1,5, c0×0,5 mit Log-Solution-count 1) bleibt davon unberührt.
+**`geometry.csv`: build = 0, V_TES = 0, cap_power = 0** — der Optimierer investiert bei Leistungskosten von 280.274 €/MW nicht in den Speicher (bei SB-S1-HK0 mit Tankstandort j_hkw).
+
+| Größe | Wert [€/a] | Berechnung |
+|---|---|---|
+| Paketwert HP/EK vs. PIN0 | **[19.899; 95.934]** | LB(PIN0)=23.337.246 − UB(P1)=23.317.347; UB(PIN0)=23.370.804 − LB(P1)=23.274.870 |
+| reiner Speicherwert (bepreist) vs. TES-frei | **[0; ≈ 42.000]** | Untergrenze 0 (P1 baut nichts); Obergrenze UB(S3, kein TES)=23.316.919 − LB(P1)=23.274.870 |
+| reiner Speicherwert Altmodell (Leistung gratis) | ≈ 147.000 | UB(S2)=23.318.969 − UB(S1)=23.172.020, gap-behaftet |
+
+Folgerung: **Die Kernaussage „SB-Speicher hat positiven Wert 165–230 k€/a“ gilt nur, wenn Lade-/Entladeleistung kostenlos ist.** Schon mit dem Basis-Wert aus dem DEA-Transportkatalog (Pumpstation + WÜ-Station + 200 m Leitung, 280.274 €/MW) ist der optimale Speicher null. Die Intervalle sind bis zum Referenzlauf ohne TES (`ac3_s0free_notes`, in der Warteschlange) vorläufig; Gap-Rest 0,18 % liegt in der Größenordnung des Paketwerts, aber der Inkumbent baut definitiv nichts.
+
+Monotonie-Argument für c0×1,5: jede Lösung mit Speicher ist bei höherem c0 teurer, die TES-lose Lösung unverändert; wenn bei ×1,0 nichts gebaut wird, wird bei ×1,5 erst recht nichts gebaut (Obergrenze des Werts ≤ der von ×1,0). Der Lauf `ac1_p2b_c0x1.5` bleibt in der Warteschlange (Auftrag des Autors), aber am Ende (bringt keine neue Information).
+Neu aufgenommen zur Spannenaussage: `ac1_p3_low75k` (c0×1,0, Leistungskosten NIEDRIG = 75.185 €/MW) — zeigt, ob der Speicher bei günstiger Direktanbindung zurückkommt (Break-even-Information).
