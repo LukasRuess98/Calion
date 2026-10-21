@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-16T11:47:48.790280</dc:date>
+    <dc:date>2026-10-21T16:08:55.012439</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -38,47 +38,47 @@ z
 " style="fill: #ffffff"/>
    </g>
    <g id="patch_3">
-    <path d="M 56.432428 13132.883841 
-L 87.217021 13132.883841 
-L 87.217021 44.121629 
-L 56.432428 44.121629 
+    <path d="M 56.432428 14822.560396 
+L 87.217021 14822.560396 
+L 87.217021 38.729027 
+L 56.432428 38.729027 
 z
-" clip-path="url(#p09a72903c1)" style="fill: #86847f"/>
+" clip-path="url(#p8e9c955566)" style="fill: #86847f"/>
    </g>
    <g id="patch_4">
-    <path d="M 106.084998 13132.883841 
-L 136.869592 13132.883841 
-L 136.869592 155.450127 
-L 106.084998 155.450127 
+    <path d="M 106.084998 14822.560396 
+L 136.869592 14822.560396 
+L 136.869592 164.475198 
+L 106.084998 164.475198 
 z
-" clip-path="url(#p09a72903c1)" style="fill: #179c7d"/>
+" clip-path="url(#p8e9c955566)" style="fill: #179c7d"/>
    </g>
    <g id="patch_5">
-    <path d="M 155.737569 13132.883841 
-L 186.522162 13132.883841 
-L 186.522162 36.553146 
-L 155.737569 36.553146 
+    <path d="M 155.737569 14822.560396 
+L 186.522162 14822.560396 
+L 186.522162 71.518652 
+L 155.737569 71.518652 
 z
-" clip-path="url(#p09a72903c1)" style="fill: #f58220"/>
+" clip-path="url(#p8e9c955566)" style="fill: #f58220"/>
    </g>
    <g id="patch_6">
-    <path d="M 205.390139 13132.883841 
-L 236.174733 13132.883841 
-L 236.174733 36.553146 
-L 205.390139 36.553146 
+    <path d="M 205.390139 14822.560396 
+L 236.174733 14822.560396 
+L 236.174733 72.815434 
+L 205.390139 72.815434 
 z
-" clip-path="url(#p09a72903c1)" style="fill: #f58220"/>
+" clip-path="url(#p8e9c955566)" style="fill: #f58220"/>
    </g>
    <g id="matplotlib.axis_1">
     <g id="xtick_1">
      <g id="line2d_1">
       <defs>
-       <path id="m3535ccf682" d="M 0 0 
+       <path id="m99f67992f3" d="M 0 0 
 L 0 3.5 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m3535ccf682" x="71.824725" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m99f67992f3" x="71.824725" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_1">
@@ -89,7 +89,7 @@ L 0 3.5
     <g id="xtick_2">
      <g id="line2d_2">
       <g>
-       <use xlink:href="#m3535ccf682" x="121.477295" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m99f67992f3" x="121.477295" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_2">
@@ -101,7 +101,7 @@ L 0 3.5
     <g id="xtick_3">
      <g id="line2d_3">
       <g>
-       <use xlink:href="#m3535ccf682" x="171.129865" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m99f67992f3" x="171.129865" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_3">
@@ -112,7 +112,7 @@ L 0 3.5
     <g id="xtick_4">
      <g id="line2d_4">
       <g>
-       <use xlink:href="#m3535ccf682" x="220.782436" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m99f67992f3" x="220.782436" y="183.452506" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_4">
@@ -126,66 +126,66 @@ L 0 3.5
     <g id="ytick_1">
      <g id="line2d_5">
       <defs>
-       <path id="m9c96550e34" d="M 0 0 
+       <path id="m7071477ecc" d="M 0 0 
 L -3.5 0 
 " style="stroke: #52514e; stroke-width: 0.8"/>
       </defs>
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="167.782375" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="178.404542" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_5">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="170.824445" transform="rotate(-0 40.445313 170.824445)">23.15</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="181.446613" transform="rotate(-0 40.445313 181.446613)">23.15</text>
      </g>
     </g>
     <g id="ytick_2">
      <g id="line2d_6">
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="139.779996" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="146.775696" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_6">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="142.822066" transform="rotate(-0 40.445313 142.822066)">23.20</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="149.817766" transform="rotate(-0 40.445313 149.817766)">23.20</text>
      </g>
     </g>
     <g id="ytick_3">
      <g id="line2d_7">
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="111.777617" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="115.14685" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_7">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="114.819687" transform="rotate(-0 40.445313 114.819687)">23.25</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="118.18892" transform="rotate(-0 40.445313 118.18892)">23.25</text>
      </g>
     </g>
     <g id="ytick_4">
      <g id="line2d_8">
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="83.775238" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="83.518003" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_8">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="86.817308" transform="rotate(-0 40.445313 86.817308)">23.30</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="86.560074" transform="rotate(-0 40.445313 86.560074)">23.30</text>
      </g>
     </g>
     <g id="ytick_5">
      <g id="line2d_9">
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="55.772859" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="51.889157" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_9">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="58.814929" transform="rotate(-0 40.445313 58.814929)">23.35</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="54.931227" transform="rotate(-0 40.445313 54.931227)">23.35</text>
      </g>
     </g>
     <g id="ytick_6">
      <g id="line2d_10">
       <g>
-       <use xlink:href="#m9c96550e34" x="47.445313" y="27.77048" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
+       <use xlink:href="#m7071477ecc" x="47.445313" y="20.260311" style="fill: #52514e; stroke: #52514e; stroke-width: 0.8"/>
       </g>
      </g>
      <g id="text_10">
-      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="30.81255" transform="rotate(-0 40.445313 30.81255)">23.40</text>
+      <text style="font-size: 8.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #52514e" x="40.445313" y="23.302381" transform="rotate(-0 40.445313 23.302381)">23.40</text>
      </g>
     </g>
     <g id="text_11">
@@ -203,16 +203,16 @@ L 245.161848 183.452506
 " style="fill: none; stroke: #52514e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="text_12">
-    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="71.824725" y="40.121629" transform="rotate(-0 71.824725 40.121629)">23.371M</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="71.824725" y="34.729027" transform="rotate(-0 71.824725 34.729027)">23.371M</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="121.477295" y="151.450127" transform="rotate(-0 121.477295 151.450127)">23.172M</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="121.477295" y="160.475198" transform="rotate(-0 121.477295 160.475198)">23.172M</text>
    </g>
    <g id="text_14">
-    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="171.129865" y="32.553146" transform="rotate(-0 171.129865 32.553146)">23.384M</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="171.129865" y="67.518652" transform="rotate(-0 171.129865 67.518652)">23.319M</text>
    </g>
    <g id="text_15">
-    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="220.782436" y="32.553146" transform="rotate(-0 220.782436 32.553146)">23.384M</text>
+    <text style="font-size: 7.5px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1a19" x="220.782436" y="68.815434" transform="rotate(-0 220.782436 68.815434)">23.317M</text>
    </g>
    <g id="text_16">
     <text style="font-size: 9px; font-family: 'Frutiger LT Com 45 Light', 'Frutiger LT Com', 'Frutiger', 'Arial', 'Helvetica', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1a19" x="47.445313" y="13.751719" transform="rotate(-0 47.445313 13.751719)">Storage only pays off co-located with the primary producer (S1)</text>
@@ -220,7 +220,7 @@ L 245.161848 183.452506
   </g>
  </g>
  <defs>
-  <clipPath id="p09a72903c1">
+  <clipPath id="p8e9c955566">
    <rect x="47.445313" y="19.751719" width="197.716535" height="163.700787"/>
   </clipPath>
  </defs>
