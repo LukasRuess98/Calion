@@ -21,7 +21,8 @@ import psutil
 ROOT = Path(__file__).resolve().parents[2]
 QUEUE = ROOT / "output" / "_ac" / "queue.json"
 LOG = ROOT / "output" / "_ac" / "scheduler.log"
-SLOT_A = list(range(0, 16))
+SLOTS = {"A": list(range(0, 16)), "B": list(range(16, 32))}   # 2 x 16 of 66 logical CPUs <= 50 % cap
+SLOT_A = SLOTS["A"]
 RAM_CAP_GB = 96.0
 RAM_PER_JOB_GB = 45.0
 CYCLE_S = 120
@@ -46,14 +47,24 @@ def solves():
     return out
 
 
-def slot_a_busy(sol):
+def slot_busy(sol, slot):
+    """A slot is busy if any solve is pinned inside it; a solve with a wide (unpinned) affinity that is
+    younger than 5 min counts as occupying every slot (it has not been pinned yet)."""
+    cpus = set(SLOTS[slot])
     for p in sol:
         try:
-            if set(p.cpu_affinity()) & set(SLOT_A) and len(p.cpu_affinity()) <= 20:
+            aff = set(p.cpu_affinity())
+            if aff & cpus and len(aff) <= 20:
+                return True
+            if len(aff) > 20 and time.time() - p.create_time() < 300:
                 return True
         except psutil.Error:
             pass
     return False
+
+
+def slot_a_busy(sol):          # kept for the log line
+    return slot_busy(sol, "A")
 
 
 def bot_ram_gb(sol):
@@ -82,7 +93,7 @@ def done(job):
     return any(d.glob("*/meta.json"))
 
 
-def launch(job):
+def launch(job, slot="A"):
     args = ["bash", "scripts/paper_2/ac_run.sh", job["tag"], job["scenario"], job.get("warmstart", "-")]
     args += [f"{k}={v}" for k, v in job.get("env", {}).items()]
     env = dict(os.environ, AC_THREADS=str(job.get("threads", 16)))
@@ -94,7 +105,7 @@ def launch(job):
         try:
             for ch in psutil.Process(proc.pid).children(recursive=True):
                 if "scenario_runner" in " ".join(ch.cmdline()):
-                    ch.cpu_affinity(SLOT_A)
+                    ch.cpu_affinity(SLOTS[slot])
                     return proc, ch.pid
         except psutil.Error:
             pass
@@ -127,16 +138,18 @@ def main():
         ram = bot_ram_gb(sol)
         if ram > RAM_CAP_GB:
             log(f"ALERT bot RAM {ram:.0f} GB > cap {RAM_CAP_GB:.0f} GB")
-        if pending and not running and not slot_a_busy(sol) and ram + RAM_PER_JOB_GB <= RAM_CAP_GB:
+        free = [s for s in SLOTS if not slot_busy(sol, s)]
+        if pending and free and ram + RAM_PER_JOB_GB <= RAM_CAP_GB:
+            slot = free[0]
             job = pending[0]
-            log(f"LAUNCH {job['tag']} ({job['scenario']}) bot RAM before = {ram:.0f} GB")
-            proc, pid = launch(job)
+            log(f"LAUNCH {job['tag']} ({job['scenario']}) slot {slot} bot RAM before = {ram:.0f} GB")
+            proc, pid = launch(job, slot)
             job["state"] = "running"
             save_queue(q)
             running[job["tag"]] = proc
-            log(f"STARTED {job['tag']} python PID {pid} pinned to CPUs 0-15")
+            log(f"STARTED {job['tag']} python PID {pid} pinned to slot {slot} CPUs {SLOTS[slot][0]}-{SLOTS[slot][-1]}")
         elif pending:
-            log(f"wait: next={pending[0]['tag']} slotA_busy={slot_a_busy(sol)} botRAM={ram:.0f}GB "
+            log(f"wait: next={pending[0]['tag']} freeSlots={free} botRAM={ram:.0f}GB "
                 f"solves={len(sol)} pending={len(pending)}")
         time.sleep(CYCLE_S)
 
