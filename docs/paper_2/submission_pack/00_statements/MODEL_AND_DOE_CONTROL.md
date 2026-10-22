@@ -3408,3 +3408,27 @@ Sweep 0 / 10 / 25 / 50 / 100 / 280 k€/MW_th auf SB-S1 (neues Modell: Leistung 
 
 ### AE4 — Warteschlange
 `ac4_mid22k` und `ac4_low9k` (noch nicht gestartet) ersetzt durch den Sweep `ac5_k025`, `ac5_k010`, `ac5_k050`, `ac5_k100`, `ac5_k000` (in dieser Reihenfolge). E/P 8 h/12 h, H/D 2,0, c0×1,5 und die Preisspreizungsfälle laufen jetzt beim 25-k€/MW-Punkt (Sweep-Mitte): `ac5_k025_ep8`, `ac5_k025_ep12`, `ac5_k025_hd2`, `ac5_k025_c1.5`, `ac5_spreiz15_k025`, `ac5_spreiz20_k025` (+ Referenzen `ac4_ref_spreiz15/20/netz50`); SB-MONTHLY frei bleibt im Altmodell mit allen fünf Env.
+---
+
+## §4cu — 2026-10-22: AG — P3 abgebrochen, Referenzen wiederverwendbar (mit Befund zum Tankblock), Ressourcen, Reihenfolge
+
+*(§4ct = AF1 „Preisstand umdrehen“ wird von der Parallel-Session geschrieben; AF2/AF3 siehe unten und §4cs.)*
+
+### AG1 — P3 (`ac1_p3_low75k`) abgebrochen
+Abbruch bei Gurobi-Zeit 109.265 s von 172.800 s, Gap 0,31 %, Inkumbent 23,320 Mio. €. **Grund: nicht vergleichbar mit dem neuen Modell** — gestartet ohne hydraulische Kappe (nur E/P ≤ 4 h, bis 109,5 MW), mit H/D 2 und ohne Höhenkappe, E/P fest. Nicht gepatcht, kein Ergebnis wird verwendet; Verzeichnis archiviert unter `output/_ac/aborted_ac1_p3_low75k`. Der 75-k€/MW-Punkt wird bei Bedarf im neuen Modell nachgerechnet. Der frei gewordene Slot B lief um 23:10:20 mit `ac6_c20_k025` an (PID 66824).
+
+### AG2 — Wiederverwendbarkeit von PIN0 und speicherfreier Referenz (kein Solve)
+**Frage:** Gehen c0 und Einbindungskosten in PIN0 bzw. in die speicherfreie Referenz ein?
+- **c0-Skalierung und Leistungskosten: nein.** `scenario_runner.py` wendet `CALION_TES_C0_SCALE` nur an, wenn der Tank nicht deaktiviert ist (`if _c0s and not _tes_disabled`, Zeile 504) und die AC1/AC2-Env (Leistungskosten, E/P, Höhenkappe, H/D, hydraulische Kappe) nur `if not _tes_disabled` (Zeile 517); `component_assembler.py` setzt `power_capex_eur_per_mw = 0.0 if _tes_disabled` (Zeile 1353). PIN0 und `SB-S0-HK0` sind beide über `V_max_m3 = 0` als deaktiviert markiert → ihr Zielfunktionswert ist unabhängig von c0 und Einbindungskosten, ihr Konfigurations-Hash (`run_export.json`: `c0_scale_env: null`) ändert sich mit dem Sweep nicht.
+- **Ergebnis:** **EINE** PIN0 (`SB-S0-HK0-PIN0`, UB 23.370.804 €) und **EINE** speicherfreie Referenz (`ac3_s0free_notes`, Proxy bis fertig: SB-S3) für den gesamten c0-/Einbindungskosten-Sweep; in der Tabelle als gemeinsame Referenz gekennzeichnet; die Warteschlange enthält keine zusätzlichen Referenzläufe je Sweep-Punkt (nur die Tarif-Referenzen, da dort der Strompreis die Referenz ändert).
+- **Befund (neu, wichtig):** `V_max_m3 = 0` schaltet den Tank **nicht strukturell** ab. In den Lösungs-Dumps von PIN0 existieren `tes_sb_build/size_sel/V_m3/cap_power/E/Qc/Qd/E0` (12 Ladderstufen 0–84,5 MWh aus dem alten Netzwerk-YAML-Ladder, das bei deaktiviertem Tank nicht überschrieben wird; die Gurobi-Zeilenzahl der Referenz (9.224.291) entspricht dem freien Modell). PIN0/Referenz *dürften* also einen kleinen Tank (≤ 84,5 MWh, Leistung frei) bauen; das Ergebnis zeigt build = 0 (`v7_final`: V_TES = 0). Folgen: (i) der Y1-Intervallansatz bleibt gültig (konservativ), (ii) „speicherfrei“ ist für die laufende Referenz ein **Ergebnis**, keine Modellrestriktion — nach Laufende `geometry.csv` prüfen. **Maßnahme:** die neuen Tarif-Referenzen (`SB-S0-HK0-SPREIZ15/20`, `-NETZ50`) setzen zusätzlich `discrete_energies_mwh: [0]` (strikt speicherfrei; Blocktest: V ∈ [0,0], 1 Stufe, cap_power ∈ [0,0]).
+
+### AG3 — Speicherplatz und RAM
+Die 26 untätigen Python-Prozesse (je ≈ 1,1 GB, zusammen 27,6 GB, CPU-Zeit 0) sind **nicht unsere**: Kette Worker → 42584 (gestartet 10-22 22:02) → 37688 → 36080, wobei 36080 ein Python-Prozess der interaktiven RDP-Sitzung des Autors ist (bereits beim ersten Listing am 19.10. vorhanden; frühere Pool-Generation: Elternprozess 40632, 10-19 14:02). Unsere Läufe nutzen **keinen** ProcessPool (nicht-parallele `run_all_scenarios`), eigene Waisen aus abgebrochenen Läufen gibt es keine (P2/EP8/P3 sind vollständig beendet, geprüft). **Unangetastet.** Wird der Pool vom Autor geschlossen, werden ≈ 28 GB frei.
+**Dritter Slot:** RAM allein würde reichen (Bot-Läufe 28 + ≈ 50 GB, Kappe 96 GB), **die CPU-Kappe nicht**: drei Slots à 16 Threads = 48 von 66 (73 %) bei Vorgabe ≤ 50 % (33). Nicht möglich, ohne die Vorgabe zu lockern. Stand 23:15: RAM 52 % belegt, 92 GB frei.
+
+### AG4 — Reihenfolge der Warteschlange
+`ac6_c20_k025` (läuft, Slot B) → `ac6_c20_k050` → Sweep-Punkte c0×1,0 `ac5_k010`, `ac5_k050`, `ac5_k100`, `ac5_k000` (k025 entfällt: durch `ac6_c20_k025` abgedeckt) → E/P 8 h/12 h und H/D 2,0 am deutschen Basispunkt (c0×2,0, 25 k€/MW: `ac6_c20_k025_ep8/ep12/hd2`) → Tarif- und Preisspreizungsfälle (`ac6_spreiz15/20_c20_k025` + Referenzen) → `ac4_ref_netz50` → SB-MONTHLY (Altmodell).
+
+### AF2/AF3 — Stand
+AF2 (entscheidende Ecke c0×2,0 mit 25 bzw. 50 k€/MW, E/P endogen, Kappe 51,8 MW, H/D 1,5, ≤ 45 m): `ac6_c20_k025` läuft; `ac6_c20_k050` folgt. Auswertung: `scripts/paper_2/af2_corner_table.py` → `tab_AF2_decisive_corner.csv` (V_TES, Behälter, Leistung, E/P, Vollzyklen, €/m³ der gebauten Größe, reiner Speicherwert mit Intervall). AF3: der 25-%-Anlagenanteil des KWW-Katalogs ist als **unbelegte Übertragung** und dominante Unsicherheit der Bottom-up-Rechnung gekennzeichnet (Skript und YAML); P3-Regel erledigt (verworfen, siehe AG1).

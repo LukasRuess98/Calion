@@ -1518,7 +1518,7 @@ scenarios:
     description: "AD4: TES-free reference for SB-S1-HK0-SPREIZ15 (price amplitude x1.5)."
     overrides:
       assets:
-        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0, discrete_energies_mwh: [0]}   # AG2: strictly TES-free (ladder [0]); V_max=0 alone leaves the legacy 0-84.5 MWh ladder buildable
       site:
         price_amplitude_factor: 1.5
 
@@ -1532,7 +1532,7 @@ scenarios:
     description: "AD4: TES-free reference for SB-S1-HK0-SPREIZ20 (price amplitude x2.0)."
     overrides:
       assets:
-        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0, discrete_energies_mwh: [0]}   # AG2: strictly TES-free (ladder [0]); V_max=0 alone leaves the legacy 0-84.5 MWh ladder buildable
       site:
         price_amplitude_factor: 2.0
 
@@ -1546,7 +1546,7 @@ scenarios:
     description: "AD4: TES-free reference for SB-S1-HK0-NETZ50 (grid fee -50 %)."
     overrides:
       assets:
-        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0, discrete_energies_mwh: [0]}   # AG2: strictly TES-free (ladder [0]); V_max=0 alone leaves the legacy 0-84.5 MWh ladder buildable
       grid:
         gridcost_eur_mwh: 30.8
         demand_charge_eur_per_mw_y: 63620.0
