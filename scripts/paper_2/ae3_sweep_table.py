@@ -29,6 +29,7 @@ POINTS = [  # (kEUR/MW, run dir, note)
     (280, "_ac/ac1_p1_c0x1.0/paper2_runs/SB-S1-HK0", "stress test (transmission station, outside scope); old geometry"),
 ]
 PIN0 = "v7_final/SB-S0-HK0-PIN0"
+HYD_CAP_MW = 51.8
 REFS = [("ac3_s0free_notes", "_ac/ac3_s0free_notes/paper2_runs/SB-S0-HK0"),
         ("proxy SB-S3 (no TES built)", "_s2/sb_s3_resolve/paper2_runs/SB-S3-HK0")]
 ANCHORS = {"bottom-up AE2 (22-34, mid 28)": (22.2, 34.2), "house-substation upper anchor (70)": (70.0, 70.0),
@@ -64,6 +65,12 @@ def main():
         if not (O / d / "meta.json").exists():
             continue
         F = load(d)
+        # AF3: P3 ran without the hydraulic cap and with H/D 2 -> keep it ONLY if the chosen power is within
+        # the 51.8 MW cap (and then it is comparable only because no storage resp. <= cap was chosen);
+        # otherwise DISCARD (never patched).
+        if d.startswith("_ac/ac1_p3") and F["P"] > HYD_CAP_MW + 1e-6:
+            print(f"P3 DISCARDED: chosen power {F['P']:.1f} MW > hydraulic cap {HYD_CAP_MW} MW (ran without cap, H/D 2)")
+            continue
         lo = max(0.0, Rf["lb"] - F["ub"]); hi = Rf["ub"] - F["lb"]
         rows.append({"conn_cost_kEUR_per_MW": k, "run": d.split("/")[1], "obj_eur": round(F["ub"]), "gap_pct": round(F["gap"], 4),
                      "V_TES_m3": F["V"], "n_tanks": F["n_tanks"], "E_MWh": F["E"], "chosen_power_MW": F["P"],

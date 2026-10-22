@@ -103,7 +103,8 @@ storage_geometry:
   # AE2 (2026-10-22): the scale-rule values above (8.8 / 22.1 kEUR/MW) are SUPERSEDED by a bottom-up
   # build-up (scripts/paper_2/connection_cost_bottom_up.py): (a) line 50-100 m, DEA Energy Transport 3.1
   # P = 330*C^-0.571 EUR/MW/m (1.7-3.5 kEUR/MW at 51.8 MW) + (b,c) pumps, fittings, pressure holding,
-  # control = EQUIPMENT share (25 %) of the KWW Technikkatalog 2026 table 39 pump station, > 1 MW,
+  # control = EQUIPMENT share (25 %; UNSUPPORTED transfer, dominant uncertainty, AF3) of the KWW Technikkatalog
+  # 2026 table 39 pump station, > 1 MW,
   # 82-123 EUR/kW_th -> 20.5-30.8 kEUR/MW; total 22.2-34.2 kEUR/MW_th at 51.8 MW (mid 28.2). Pumps vs
   # fittings vs control are not split in the catalogue (no separate surcharge can be sourced). No heat
   # exchanger (tank connected directly, DEA ch. 141). Upper anchor 70 EUR/kW (DEA Heating Installations

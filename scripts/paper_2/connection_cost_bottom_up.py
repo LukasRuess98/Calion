@@ -14,6 +14,13 @@ Positions and sources (all read from the primary documents, not from web summari
                         on the producer site needs the equipment, not the network-station civil works ->
                         equipment share 20.5 - 30.8 EUR/kW_th.  The catalogue does NOT split pumps vs.
                         fittings vs. control, so no separate percentage surcharge can be sourced.
+ !! UNSUPPORTED ASSUMPTION (AF3, 2026-10-22) !! Taking the catalogue's 25 % "Anlagenkosten" share of a NETWORK
+ pump station (incl. building/civil work, 75 % installation) as the cost of an on-site tank-connection
+ equipment set is MY transfer, not a catalogue value. The KWW table flags even its own 25/75 split ("FM":
+ for lack of sound data the ratio is carried over from the larger plants). This share is the DOMINANT
+ uncertainty of the bottom-up: equipment-only 20.5-30.8 vs the full station 82-123 kEUR/MW is a factor
+ of 4, while the line (1.7-3.5 kEUR/MW) hardly matters. The connection-cost SWEEP (0-280 kEUR/MW)
+ covers this uncertainty; the bottom-up value must not be used as a point value.
  NOT included: heat exchanger (the tank is connected directly, DEA Energy Storage ch. 141) -- if a
  hydraulic decoupling were needed it would be a separate, priced position.
  Reference anchors (not part of the bottom-up): 70 EUR/kW = DEA Heating Installations ch. 203 p. 44,
