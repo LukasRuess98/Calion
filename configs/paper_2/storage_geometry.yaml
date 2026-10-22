@@ -72,17 +72,36 @@ storage_geometry:
   #     Heat exchanger station   140,161.8 EUR/MW   (range  77,089.0 – 168,194.2)
   #     Pump station             127,473.2 EUR/MW   (range  70,110.3 – 152,967.8)
   #     Pipe, single line 0-50 MW   63.19 EUR/MW/m  (range  50.75 – 75.00), per trench-metre of pair
-  # Composition (author: "Pumpen, Armaturen, Anbindeleitung, Druckhaltung"):
-  #   BASE  = pump station + HX station (hydraulic decoupling of the atmospheric tank from the
-  #           16-bar net, as assumed in the c0 turnkey note below) + 200 m connection line
-  #         = 127,473.2 + 140,161.8 + 63.19*200 = 280,274 EUR/MW
-  #   LOW   = pump station only (direct connection, DEA ch. 141 "connected directly"), lower-bound
-  #           values, 100 m line = 70,110.3 + 50.75*100 = 75,185 EUR/MW
-  #   HIGH  = upper-bound pump + HX + 500 m line = 152,967.8 + 168,194.2 + 75.0*500 = 358,663 EUR/MW
-  # The line lengths (200/100/500 m) are the only non-catalogue assumption (site-specific).
+  # >>> AD1 (2026-10-22) SCOPE CHECK -- THE 280,274 EUR/MW FIGURE IS WITHDRAWN AS A TANK-CONNECTION COST <<<
+  # The rows above belong to the DEA *transmission-system* station set: "Heat exchanger stations are
+  # normally only found in connection with transmission networks" (Energy Transport catalogue p. 79),
+  # i.e. transmission (<110 C, 25 bar) -> distribution interface stations. The catalogue prices them as
+  # EPC / overnight cost, whose installation share covers "engineering, civil works, buildings,
+  # installation and commissioning" (p. 26), per MW of transmission capacity (p. 28); the pipe row is
+  # per TRENCH metre (note C, unpaved area). It is a network-interface cost incl. civil works, NOT the
+  # connection of a storage tank on the same site. 280,274 x 109.5 MW = 30.7 MEUR = 5.6x the tank
+  # itself (annualised 2.15 MEUR/a vs 0.38 MEUR/a) -- implausible for an on-site connection. It is kept
+  # ONLY as a stress-test upper bound (run ac1_p1, no storage built); it is NOT the base value.
+  #
+  # REPLACEMENT (primary source): DEA/Energinet "Technology Data for Heating Installations" (version
+  # Oct 2025), ch. 203 District heating substation, p. 44 "Economy of scale effects": a complete
+  # indirect DH unit (plate heat exchanger + valves + controllers + pumps + heat meter, installed)
+  # costs 3,700 EUR at 12.3 kW (= 300 EUR/kW) and 23,500 EUR at 320 kW (= 70 EUR/kW). Fit
+  # cost ~ P^0.568. This is the nearest catalogue item to "pump station, valves, plate HX, control" of a
+  # tank connection; above 250 kW the catalogue says units are individually designed.
+  #   HIGH = 70 EUR/kW measured at 320 kW + 100 m line at 63.2 EUR/MW/m (sheet 3.1, DH transmission,
+  #          trench pair incl. civil works -> conservative) = 70,000 + 6,320 = 76,300 EUR/MW
+  #   MID  = 16.6 EUR/kW for 10 MW trains (fit extrapolated 31x beyond the data, 110 MW as 11 trains)
+  #          + 6,320 line = 22,100 EUR/MW
+  #   LOW  = 5.9 EUR/kW at the full 110 MW (fit extrapolated 340x beyond the data)
+  #          + 3,160 line (31.6 EUR/MW/m, 50-100 MW class) = 8,800 EUR/MW
+  # The extrapolation beyond 320 kW is NOT catalogue data; MID/LOW are a derived range, HIGH is the
+  # only measured anchor. No re-calibration to a desired outcome: the range is fixed by the scale rule
+  # above, and the result is reported over the whole range (8.8 / 22.1 / 76.3 kEUR/MW; stress 280).
   # Annualised and O&M-scaled with the tank's own ANF / om_pct (30 a), see geometric_storage.py.
   # Env CALION_TES_POWER_CAPEX=<EUR/MW> overrides; =0 reproduces the pre-AC1 "power is free" model.
-  power_capex_eur_per_mw: 280274.0
+  power_capex_eur_per_mw: 22100.0
+
 
   # ── Store temperature (atmospheric ceiling) — ACTIVE, technology property ────
   t_store_max_c: 95.0        # atmospheric ceiling (<100°C boiling). Clips hot-charge ΔT AND drives the discharge mask
@@ -203,7 +222,7 @@ storage_geometry:
       # siting/reference-plant precedent (unit_tank_m3 below), never a design-pressure formula.
       p_max_bar: 5.5
       V_max_m3: 5000.0             # non-binding (top rung ~3200 m³ at ΔT≈10 K); MM stays N=1
-      r_hd: 2.0
+      r_hd: 1.5                    # AD5 (2026-10-22): base geometry H/D 1.5 with the 45 m cap -> one vessel up to 31,809 m3
       # storage-hours [0,0.5,1,2,3,4,6,8,10,12,16,22,28] × mean load 1.084 MW
       discrete_energies_mwh: [0, 0.5, 1.1, 2.2, 3.3, 4.3, 6.5, 8.7, 10.8, 13.0, 17.4, 23.9, 30.4]
     tes_sb:     # Stadtbach — atmospheric steel TANK FARM (N=ceil(V/50000) vessels)
@@ -212,6 +231,11 @@ storage_geometry:
       # ~45 m design height + margin); structurally non-binding for the atmospheric technology.
       p_max_bar: 5.5
       V_max_m3: 250000.0           # non-binding (top rung reaches ~2× the ~800 MWh knee)
-      r_hd: 2.0
+      r_hd: 1.5                    # AD5: base geometry H/D 1.5 with the 45 m cap (H/D 2.0 = geometry sensitivity, 2 vessels at 438 MWh)
+      # AD2 (2026-10-22): power is a DECISION variable with its own cost (power_capex_eur_per_mw above):
+      # E/P bound relaxed to >= 1 h (non-binding), hydraulic cap = one DN600 line at v_max 3 m/s and
+      # dT 35 K = 971.8 kg/m3 * 3 m/s * 0.2827 m2 * 4.19 kJ/kgK * 35 K = 120.9 MW -> 120 MW.
+      power_to_energy_ratio: 1.0
+      power_max_mw: 120.0
       # storage-hours [0,0.5,1,2,3,4,6,8,10,12,16,22,28] × mean load 73.06 MW
       discrete_energies_mwh: [0, 37, 73, 146, 219, 292, 438, 585, 731, 877, 1169, 1607, 2046]

@@ -3330,3 +3330,44 @@ Der reine Speicherwert ist also im Basisfall rund 60 k€/a kleiner als der bish
 **2. Code committet** auf `Loc_TES_Study_P2` (Commit 812c460, nicht gepusht).
 
 **3. Annahme Anbindung/Leistungskosten festgehalten.** Basis = 280.274 €/MW (Pumpstation + WÜ-Station + 200 m Leitung, DEA Energy Transport Blatt 3.1, Dez. 2025). Ob der atmosphärische SB-Tank bei 16 bar Netzdruck ohne Wärmeübertrager direkt angebunden werden könnte (DEA Kap. 141: „connected directly“), ist eine **Fachfrage für Auslegung/Betreiber, nicht aus Quellen entscheidbar**. Deshalb wird die niedrige Variante (nur Pumpstation, untere Katalogwerte, 100 m Leitung = 75.185 €/MW) als Untergrenzen-Sensitivität gerechnet (`ac1_p3_low75k`, in der Warteschlange); die Aussage der Arbeit wird als Spanne formuliert, nicht als Punktwert. Lebensdauer der Anbindungskomponenten = 30 a wie der Tank (Katalog: 45 a für Transportanlagen), Preisbasis 2025-€ vs. 2026-€ beim Tank: je < 5 % Effekt, nicht angepasst.
+---
+
+## §4cr — 2026-10-22: AD — Leistungskosten-Geltungsbereich geprüft, 280.274 €/MW zurückgezogen, Geometrie/Leistung endogen
+
+### AD1 — Geltungsbereich der 280.274 €/MW (Selbstkorrektur)
+
+**Quelle der 280.274 €/MW:** DEA/Energinet, *Technology Data for Energy Transport*, Version 8 (Dez. 2025), Excel-Blatt **„3.1 DH transmission“**, Kostenjahr 2025; Zeilen „Investment costs; Heat exchanger station [€/MW]“ = 140.161,8, „Investment costs; Pump station [€/MW]“ = 127.473,2, „Investment costs; single line, 0–50 MW [€/MW/m]“ = 63,19 (Note C: „per trench meter transmission pipeline pair in unpaved areas“), plus 200 m (eigene Annahme). Technologie: **Übergabe-/Pumpstationen des Fernwärme-TRANSMISSIONSnetzes**.
+
+**Abgrenzung (PDF-Belege):** Wärmeübertragerstationen „are normally only found in connection with transmission networks“ (S. 79), Übergabe von Transmission (< 110 °C, 25 bar) auf Verteilnetz. Der Katalog bepreist EPC/Overnight; der Installationsanteil umfasst „engineering, civil works, buildings, installation and commissioning“ (S. 26); Stationen sind „unit cost per MW capacity“ (S. 28). Die Leitungszeile gilt je **Trassenmeter** (Tiefbau). Das Blatt trennt bei den Stationszeilen nicht in Ausrüstung/Installation.
+**Befund:** Die Position enthält Tiefbau/Gebäude und ist ein Netzschnittstellen-Preis, **nicht die Einbindung eines Speichers am selben Standort**. Meine Verwendung als „Tankeinbindung“ in §4cq war ein Geltungsbereichsfehler; die dortige Formulierung „Primärquelle für die Leistungskosten“ ist hiermit zurückgenommen.
+
+**Gegenrechnung (Modellwerte, ANF 0,0651 + O&M 0,5 %):** 280.274 €/MW × 109,5 MW = **30,7 Mio. €** Leistungs-CAPEX → **2,15 Mio. €/a**; Tank (30.379 m³) 5,44 Mio. € → 0,38 Mio. €/a; **Faktor 5,6** (Ihr Wert 6,8 beruht auf 2,46 Mio. €/a bzw. 5,57 Mio. € Tankpreis; mit den Modellwerten ergibt sich 5,6, die Größenordnung ist dieselbe). **Nicht plausibel** für eine Standort-Einbindung: Kap. 141 beschreibt den Tank als „connected directly“ an das Netz und bepreist ihn inkl. Fundament; die Anbindung der Referenzeinheit ist darin vermutlich enthalten, aber nicht ausgewiesen (Annahme).
+
+**Ersatzquelle (Primärquelle, aus dem PDF gelesen):** DEA/Energinet, *Technology Data for Heating Installations*, Version Okt. 2025, Kap. 203 „District heating substation“, **S. 44 „Economy of scale effects“**: komplette indirekte Fernwärme-Übergabestation (Plattenwärmeübertrager, Armaturen, Regler, Pumpen, Wärmemengenzähler, installiert) kostet **3.700 € bei ≈ 12,3 kW (300 €/kW)** und **23.500 € bei 320 kW (70 €/kW)**; Skalenexponent aus den beiden Punkten b = 0,568; oberhalb 250 kW „individually designed“ (S. 43). Spanne für die Tankeinbindung (Pumpen, Armaturen, Plattenwärmeübertrager, Regelung) plus Anbindeleitung (Blatt 3.1, 100 m):
+
+| Fall | Ansatz | €/MW_th |
+|---|---|---|
+| NIEDRIG | 5,9 €/kW bei 110 MW (Fit, 340× über die Datenbasis extrapoliert) + 100 m Leitung (31,6 €/MW/m) | **8.800** |
+| MITTEL | 16,6 €/kW bei 10-MW-Strängen (Fit, 31× extrapoliert; 110 MW als 11 Stränge) + 100 m Leitung (63,2 €/MW/m) | **22.100** |
+| HOCH | 70 €/kW gemessen bei 320 kW + 100 m Leitung | **76.300** |
+
+Nur der HOCH-Wert ist ein gemessener Katalogpunkt; NIEDRIG/MITTEL folgen der Skalenregel (Extrapolation, offen gekennzeichnet). Das MITTEL-Ergebnis (22 k€/MW) liegt in der erwarteten Größenordnung 20–50 k€/MW_th, wurde aber **nicht dahin kalibriert**; die Spanne ist durch die Skalenregel festgelegt. Ergebnis wird über die ganze Spanne berichtet (8,8 / 22,1 / 76,3 k€/MW) und der alte Wert 280 k€/MW als **Stresstest-Obergrenze**.
+
+**Konsequenz für bisherige Läufe:**
+- P1 (280.274 €/MW, kein Speicher gebaut) = Stresstest, nicht Basis.
+- P3 (75.185 €/MW) ≈ HOCH-Ende der gültigen Spanne (76.300): bleibt als Lauf gültig und ist jetzt das HOCH-Ergebnis.
+- Neue Läufe: `ac4_mid22k` (22.100), `ac4_low9k` (8.800) — beide c0×1,0, 48 h, PIN0-Start.
+
+### AD2 — E/P endogen
+- Wo E/P = 4 h entsteht: `power_to_energy_ratio: 0.25` in den Netzwerk-YAMLs (`Stadtbach_topo.yaml:821`, `Memmingen_P2_base.yaml:548`), Kommentar nur „full discharge in ~4 h“, keine Begründung/Quelle; Code-Default ebenfalls 0,25 (`geometric_storage.py`). Eine Auslegungsableitung existiert nicht.
+- **Umsetzung:** Leistung ist Entscheidungsvariable mit Kostenterm (`power_capex_eur_per_mw`), E/P-Bindung auf ≥ 1 h gelockert (`power_to_energy_ratio: 1.0`, praktisch nicht bindend), Obergrenze aus Hydraulik: `power_max_mw: 120` = eine DN600-Leitung bei v_max 3 m/s und ΔT 35 K (971,8 kg/m³ · 3 m/s · 0,2827 m² · 4,19 kJ/kgK · 35 K = 120,9 MW). Neue Env `CALION_TES_POWER_MAX`. Das Modell wählt Leistung und Dauer selbst.
+- Zusätzlich E/P 8 h und 12 h (`ac4_mid22k_ep8/ep12`) bei MITTEL-Kosten; PIN0 gemeinsam, speicherfreie Referenz `ac3_s0free_notes`. Ausgabe je Lauf: V_TES, gewählte Leistung (`cap_power_MW`), Vollzyklen (aus `dispatch_hourly.csv`), Speicherwert allein.
+
+### AD5 — Basisgeometrie
+`storage_geometry.yaml`: `r_hd` = 1,5 für beide Netze (ein Behälter bis 31.809 m³ bei 45 m Höhe); H/D = 2,0 als Geometrie-Sensitivität (`ac4_mid22k_hd2`): bei 438 MWh zwei Behälter, +23 % Investition ≈ +88 k€/a (berechnet).
+
+### Altmodell-Reproduktion (geändert)
+Für die Altmodell-Läufe (Leistung gratis, H/D 2, E/P 4 h, keine Höhenkappe) jetzt **fünf** Env nötig: `CALION_TES_POWER_CAPEX=0 CALION_TES_HMAX=0 CALION_TES_RHD=2.0 CALION_TES_P2E_HOURS=4 CALION_TES_POWER_MAX=0`.
+
+### AD4 — speicherfreie Referenzen
+Nur dort nötig, wo ein Speicher gebaut wird. Alle SB-Tariffälle haben im Altmodell einen Speicher gebaut; Referenzszenarien ergänzt (`SB-S0-HK0-SPREIZ15`, `-SPREIZ20`, `-NETZ50`). In der Queue: Preisspreizung ×1,5 und ×2,0 jeweils frei (MITTEL-Kosten) + Referenz; `ac4_ref_netz50` mit niedrigster Priorität. MM: Speicher in keinem Lauf gebaut → Spalte „reiner Speicherwert“ = 0 mit Vermerk.

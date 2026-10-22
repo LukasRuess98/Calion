@@ -1503,3 +1503,50 @@ scenarios:
     hp_node: "J4"
     baseline: false
     description: "Stadtbach: TES at j_man (with HP), constant T_VL — TVLFIX reference for storage families"
+
+
+  # ── AD4 (2026-10-22): TES-free references (HP/EK free, TES off) under the tariff sensitivities ──────
+  # Needed for the PURE storage value (= TES-free reference - free run) of the SB cases in which a
+  # storage is built. Same overrides as the matching free run, plus the tes_off_sb anchor.
+  - id: "SB-S0-HK0-SPREIZ15"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "AD4: TES-free reference for SB-S1-HK0-SPREIZ15 (price amplitude x1.5)."
+    overrides:
+      assets:
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+      site:
+        price_amplitude_factor: 1.5
+
+  - id: "SB-S0-HK0-SPREIZ20"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "AD4: TES-free reference for SB-S1-HK0-SPREIZ20 (price amplitude x2.0)."
+    overrides:
+      assets:
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+      site:
+        price_amplitude_factor: 2.0
+
+  - id: "SB-S0-HK0-NETZ50"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "AD4: TES-free reference for SB-S1-HK0-NETZ50 (grid fee -50 %)."
+    overrides:
+      assets:
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0}
+      grid:
+        gridcost_eur_mwh: 30.8
+        demand_charge_eur_per_mw_y: 63620.0

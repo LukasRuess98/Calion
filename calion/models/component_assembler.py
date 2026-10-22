@@ -1353,6 +1353,9 @@ class ComponentAssembler:
         power_capex_eur_per_mw = 0.0 if _tes_disabled else float(p.get("power_capex_eur_per_mw") or 0.0)
         h_max_m = p.get("h_max_m")
         h_max_m = float(h_max_m) if (h_max_m and not _tes_disabled and not _pressurized) else None
+        # AD2: hydraulic power cap [MW] (None = no cap; E/P bound alone applies)
+        power_max_mw = p.get("power_max_mw")
+        power_max_mw = float(power_max_mw) if (power_max_mw and not _tes_disabled) else None
         if p.get("r_hd_override") is not None and not _tes_disabled:
             logger.info("[TES-GEOM] %s: r_hd %.2f -> %.2f (scenario H/D variation)",
                         name, r_hd, float(p["r_hd_override"]))
@@ -1457,6 +1460,7 @@ class ComponentAssembler:
             pressure_limits_size=_pressurized,
             power_capex_eur_per_mw=power_capex_eur_per_mw,
             h_max_m=h_max_m,
+            power_max_mw=power_max_mw,
         )
 
         fs = block.attach(self.m, self.t, self.cfg, {})
@@ -1489,6 +1493,8 @@ class ComponentAssembler:
             power_bound = _p2e_ratio * max(float(e) for e in discrete_energies_mwh)
         else:
             power_bound = _p2e_ratio * block.V_max_effective * block.energy_coeff
+        if power_max_mw is not None:
+            power_bound = min(power_bound, power_max_mw)   # AD2: tighter, still exact big-M
 
         if name in self._endog_group_of:
             # F3 siting: discharge distributed over candidates; charge likewise

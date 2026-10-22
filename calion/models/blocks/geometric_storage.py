@@ -172,11 +172,16 @@ class GeometricStorageBlock(BaseComponent):
         # pi*h_max^3/(4*r_hd^2); larger stores are realised as N=ceil(V/unit)
         # identical vessels (cost evaluated per vessel). None = no height cap.
         h_max_m: float | None = None,
+        # AD2 (2026-10-22): hydraulic upper bound on charge/discharge power [MW] (one connection line at
+        # its velocity limit). With power priced (power_capex_eur_per_mw) and a wide E/P bound
+        # (power_to_energy_ratio >= 1) the optimiser then CHOOSES the power itself.
+        power_max_mw: float | None = None,
         label: str | None = None,
     ):
         super().__init__(name, label)
         self.power_capex_eur_per_mw = float(power_capex_eur_per_mw)
         self.h_max_m = float(h_max_m) if h_max_m else None
+        self.power_max_mw = float(power_max_mw) if power_max_mw else None
         self.alpha_tes = float(alpha_tes_eur_per_m3)
         self.beta_tes = float(beta_tes_eur)
         self.lifetime_years = float(lifetime_years)
@@ -424,9 +429,12 @@ class GeometricStorageBlock(BaseComponent):
             cap_p.fix(self.power_mw_fixed)
         elif self.power_to_energy_ratio is not None:
             ratio = float(self.power_to_energy_ratio)
+            _ub = self.V_max_effective * self.energy_coeff * ratio
+            if self.power_max_mw is not None:
+                _ub = min(_ub, self.power_max_mw)
             setattr(m, f"{comp}_cap_power", pyo.Var(
                 domain=pyo.NonNegativeReals,
-                bounds=(0.0, self.V_max_effective * self.energy_coeff * ratio),
+                bounds=(0.0, _ub),
             ))
             cap_p = getattr(m, f"{comp}_cap_power")
             def p_energy_coupling(mm):
@@ -692,6 +700,7 @@ class GeometricStorageBlock(BaseComponent):
                 "unit_tank_m3": self.unit_tank_m3,
                 "unit_geo_m3": self.unit_geo_m3,
                 "power_capex_eur_per_mw": self.power_capex_eur_per_mw,
+                "power_max_mw": self.power_max_mw,
                 "p2e_ratio": (float(self.power_to_energy_ratio)
                               if self.power_to_energy_ratio is not None else 0.25),
                 "p_max_bar": self.p_max_bar,

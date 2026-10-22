@@ -513,6 +513,7 @@ def run_single_scenario(
                     #   CALION_TES_P2E_HOURS    E/P duration [h]; power_to_energy_ratio = 1/h
                     #   CALION_TES_HMAX         max vessel height [m] (0 -> no cap)
                     #   CALION_TES_RHD          H/D aspect ratio variation (-> r_hd_override)
+                    #   CALION_TES_POWER_MAX    hydraulic cap on cap_power [MW] (0 -> none)
                     if not _tes_disabled:
                         _pc = _os_c0.environ.get("CALION_TES_POWER_CAPEX")
                         if _pc not in (None, ""):
@@ -523,6 +524,9 @@ def run_single_scenario(
                         _hm = _os_c0.environ.get("CALION_TES_HMAX")
                         if _hm not in (None, ""):
                             _asset_cfg["h_max_m"] = float(_hm) if float(_hm) > 0 else None
+                        _pm = _os_c0.environ.get("CALION_TES_POWER_MAX")
+                        if _pm not in (None, ""):
+                            _asset_cfg["power_max_mw"] = float(_pm) if float(_pm) > 0 else None
                         _rh = _os_c0.environ.get("CALION_TES_RHD")
                         if _rh not in (None, ""):
                             _asset_cfg["r_hd_override"] = float(_rh)
