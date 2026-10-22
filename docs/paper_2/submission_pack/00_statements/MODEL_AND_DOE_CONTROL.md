@@ -3371,3 +3371,40 @@ Für die Altmodell-Läufe (Leistung gratis, H/D 2, E/P 4 h, keine Höhenkappe) j
 
 ### AD4 — speicherfreie Referenzen
 Nur dort nötig, wo ein Speicher gebaut wird. Alle SB-Tariffälle haben im Altmodell einen Speicher gebaut; Referenzszenarien ergänzt (`SB-S0-HK0-SPREIZ15`, `-SPREIZ20`, `-NETZ50`). In der Queue: Preisspreizung ×1,5 und ×2,0 jeweils frei (MITTEL-Kosten) + Referenz; `ac4_ref_netz50` mit niedrigster Priorität. MM: Speicher in keinem Lauf gebaut → Spalte „reiner Speicherwert“ = 0 mit Vermerk.
+---
+
+## §4cs — 2026-10-22: AE — hydraulische Kappe auf dT 15 K, Einbindungskosten bottom-up, Sweep als Ergebnisachse
+
+### AE1 — Hydraulische Leistungsobergrenze (Korrektur 120 → 51,8 MW)
+Die 120 MW aus §4cr rechneten mit dT = 35 K; das Modell arbeitet mit der 15-K-Mindestspreizung (`delta_T_scenario_k` = 15 K, VDI-6002-Boden, `scenario_runner.py`). Neu, mit den Projektkonstanten (ρ = 971,8 kg/m³, c_p = 4,189 kJ/(kg·K)):
+
+| Größe | Wert |
+|---|---|
+| Nennweite / Innendurchmesser | DN600, 0,600 m (A = 0,2827 m²) |
+| Geschwindigkeit | 3,0 m/s (Projektgrenze) |
+| Volumenstrom | 0,848 m³/s = 3.054 m³/h |
+| Massenstrom | 824 kg/s |
+| dT | 15 K |
+| **P_max = ṁ·c_p·dT** | **51,8 MW** (bei 35 K: 120,9 MW; DN700 bei 15 K: 70,5 MW) |
+
+`storage_geometry.yaml`: `per_asset.tes_sb.power_max_mw = 51.8`. Eine größere Nennweite wird **nicht** durch Anheben der Kappe freigeschaltet; sie müsste als eigene bepreiste Investition modelliert werden (nicht umgesetzt).
+**Betroffene Läufe:** Mit der 120-MW-Kappe wurde **kein** Lauf gestartet (Stand 2026-10-22 22:58: nur `ac3_s0free_notes` (TES aus) und `ac1_p3_low75k` laufen, die Warteschlange war nicht angelaufen). `ac1_p3_low75k` (75 k€/MW) startete **vor** AD/AE ohne jede hydraulische Kappe (nur E/P ≤ 4 h-Bindung, bis 109,5 MW) und mit H/D 2 ohne Höhenkappe: gültig als Sweep-Punkt nur, wenn die gewählte Leistung ≤ 51,8 MW ist (Prüfung nach Laufende, Vermerk in der Sweep-Tabelle). `ac1_p1` (280 k€/MW) baut nichts, davon unberührt.
+
+### AE2 — Einbindungskosten bottom-up (statt Skalenregel)
+Skript `scripts/paper_2/connection_cost_bottom_up.py`; Positionen, Quelle, Geltungsbereich:
+
+| Position | Quelle (Primärdokument) | Geltungsbereich | Wert |
+|---|---|---|---|
+| (a) Anbindeleitung, 50–100 m | DEA/Energinet *Energy Transport* v8 (Dez. 2025), Blatt 3.1, Note D: P = 330·C^−0,571 €/MW/m je Trassenmeter eines Leitungspaares | korrekt je Meter; enthält Tiefbau (für eine kurze Werksleitung konservativ) | **1,7–3,5 k€/MW** bei 51,8 MW |
+| (b)+(c) Pumpen, Armaturen, Druckhaltung, MSR | KWW *Technikkatalog Wärmeplanung* 2026 (v1.1, Excel), **Tabelle 39 „Pumpstationen“** (Quelle KEA-BW Technikkatalog BW v1.1, Blatt 4.1), > 1 MW: 82–123 €/kW_th installiert, **davon 25 % Anlagenkosten**, 75 % Installation | Netz-Pumpstation inkl. Tiefbau/Gebäude; für eine Standort-Einbindung wird nur der **Anlagenanteil** (Pumpen, Armaturen, Messtechnik) angesetzt | **20,5–30,8 k€/MW** |
+| gesamt | | Wärmeübertrager nicht enthalten (Tank „connected directly“, DEA Kap. 141) | **22,2–34,2 k€/MW_th**, Mitte 28,2 (bei 10 MW: 24,9–39,6) |
+
+**Lücken (offen gekennzeichnet):** Der Katalog trennt Pumpen, Armaturen und MSR nicht, daher ist **kein separater prozentualer Zuschlag mit Quelle** belegbar; (b)+(c) stehen als gemeinsamer Anlagenanteil. Einen Pumpen-Herstellerkatalog (Preisliste je Volumenstrom/Förderhöhe) habe ich nicht als Primärdokument gefunden; Herstellerangebote wären der nächste Schritt. Die Ergebnisse werden deshalb nicht als Punktwert verwendet (siehe AE3).
+**Anker:** 70 €/kW (DEA *Heating Installations* Kap. 203, S. 44) bleibt **oberer Anker**, ausdrücklich als Hausübergabestation bei 320 kW gekennzeichnet und **nicht** auf 110 MW skaliert. 280 k€/MW bleibt **Stresstest** (Transmissions-Pump- und Wärmeübertragerstation inkl. Tiefbau), außerhalb des Geltungsbereichs. Die Skalenregel-Werte 8,8 und 22,1 k€/MW aus §4cr sind **ersetzt**.
+**Nebenbefund (Tankpreis):** KWW Tabelle 51 (TTES-Behälterspeicher 2026) nennt 530 €/m³ bei 10.000 m³ (650 €/m³ bei 1.000 m³; 500 €/m³ bei 20.000 m³); das Modell rechnet mit 250 €/m³ bei 10.000 m³ (DEA/IEA, reale Projekte 251–476 €/m³). Der Punkt c0×2,0 (≈ 500 €/m³) entspricht damit dem deutschen Katalogpreis; die c0-Sweep-Aussage bei ×1,5 bis ×2,0 ist für den deutschen Preisstand relevanter als der Basisfall.
+
+### AE3 — Einbindungskosten als Ergebnisachse
+Sweep 0 / 10 / 25 / 50 / 100 / 280 k€/MW_th auf SB-S1 (neues Modell: Leistung endogen, E/P ≥ 1 h, Kappe 51,8 MW, H/D 1,5, ≤ 45 m); **75 k€/MW = `ac1_p3_low75k`** (vor AE1 gestartet, Vermerk), **280 = `ac1_p1`**. Läufe: `ac5_k000`, `ac5_k010`, `ac5_k025`, `ac5_k050`, `ac5_k100`; PIN0 gemeinsam (`SB-S0-HK0-PIN0`), speicherfreie Referenz `ac3_s0free_notes` (Proxy SB-S3, bis sie fertig ist). Ausgabe je Punkt (Skript `scripts/paper_2/ae3_sweep_table.py` → `tab_AE3_connection_cost_sweep.csv`): V_TES, gewählte Leistung, resultierendes E/P, Vollzyklen/a, reiner Speicherwert. Zielaussage: „Der Speicher wird gebaut, solange die Einbindung unter X k€/MW kostet“, gestellt gegen die Anker (bottom-up 22–34, Haus-Anker 70, Stresstest 280); damit entfallen Punktwert und Herstellerangebot als Voraussetzung. Ergebnis: AUSSTEHEND.
+
+### AE4 — Warteschlange
+`ac4_mid22k` und `ac4_low9k` (noch nicht gestartet) ersetzt durch den Sweep `ac5_k025`, `ac5_k010`, `ac5_k050`, `ac5_k100`, `ac5_k000` (in dieser Reihenfolge). E/P 8 h/12 h, H/D 2,0, c0×1,5 und die Preisspreizungsfälle laufen jetzt beim 25-k€/MW-Punkt (Sweep-Mitte): `ac5_k025_ep8`, `ac5_k025_ep12`, `ac5_k025_hd2`, `ac5_k025_c1.5`, `ac5_spreiz15_k025`, `ac5_spreiz20_k025` (+ Referenzen `ac4_ref_spreiz15/20/netz50`); SB-MONTHLY frei bleibt im Altmodell mit allen fünf Env.

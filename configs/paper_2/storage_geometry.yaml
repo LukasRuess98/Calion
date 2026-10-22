@@ -100,7 +100,17 @@ storage_geometry:
   # above, and the result is reported over the whole range (8.8 / 22.1 / 76.3 kEUR/MW; stress 280).
   # Annualised and O&M-scaled with the tank's own ANF / om_pct (30 a), see geometric_storage.py.
   # Env CALION_TES_POWER_CAPEX=<EUR/MW> overrides; =0 reproduces the pre-AC1 "power is free" model.
-  power_capex_eur_per_mw: 22100.0
+  # AE2 (2026-10-22): the scale-rule values above (8.8 / 22.1 kEUR/MW) are SUPERSEDED by a bottom-up
+  # build-up (scripts/paper_2/connection_cost_bottom_up.py): (a) line 50-100 m, DEA Energy Transport 3.1
+  # P = 330*C^-0.571 EUR/MW/m (1.7-3.5 kEUR/MW at 51.8 MW) + (b,c) pumps, fittings, pressure holding,
+  # control = EQUIPMENT share (25 %) of the KWW Technikkatalog 2026 table 39 pump station, > 1 MW,
+  # 82-123 EUR/kW_th -> 20.5-30.8 kEUR/MW; total 22.2-34.2 kEUR/MW_th at 51.8 MW (mid 28.2). Pumps vs
+  # fittings vs control are not split in the catalogue (no separate surcharge can be sourced). No heat
+  # exchanger (tank connected directly, DEA ch. 141). Upper anchor 70 EUR/kW (DEA Heating Installations
+  # ch. 203, HOUSE substation at 320 kW, NOT scaled to MW size); 280 kEUR/MW = stress test, out of scope.
+  # The default below is the bottom-up MID value; the result axis is the connection-cost SWEEP
+  # (0 / 10 / 25 / 50 / 100 / 280 kEUR/MW), see MODEL_AND_DOE_CONTROL.md section 4cs.
+  power_capex_eur_per_mw: 28200.0
 
 
   # ── Store temperature (atmospheric ceiling) — ACTIVE, technology property ────
@@ -233,9 +243,15 @@ storage_geometry:
       V_max_m3: 250000.0           # non-binding (top rung reaches ~2× the ~800 MWh knee)
       r_hd: 1.5                    # AD5: base geometry H/D 1.5 with the 45 m cap (H/D 2.0 = geometry sensitivity, 2 vessels at 438 MWh)
       # AD2 (2026-10-22): power is a DECISION variable with its own cost (power_capex_eur_per_mw above):
-      # E/P bound relaxed to >= 1 h (non-binding), hydraulic cap = one DN600 line at v_max 3 m/s and
-      # dT 35 K = 971.8 kg/m3 * 3 m/s * 0.2827 m2 * 4.19 kJ/kgK * 35 K = 120.9 MW -> 120 MW.
+      # E/P bound relaxed to >= 1 h (non-binding), hydraulic cap = ONE connection line.
+      # AE1 (2026-10-22) CORRECTION: the first cap (120 MW) used dT = 35 K; the model works with the
+      # 15 K minimum spread (delta_T_scenario_k = 15 K, VDI 6002 floor) -> the cap follows the same dT:
+      #   nominal diameter DN600 (D_i = 0.600 m, A = 0.2827 m2), v_max = 3.0 m/s (project pipe limit),
+      #   volume flow Q = A*v = 0.848 m3/s = 3,054 m3/h, mass flow = 971.8 kg/m3 * Q = 824 kg/s,
+      #   P = m_dot * c_p * dT = 824 kg/s * 4.189 kJ/(kg K) * 15 K = 51.8 MW  (-> 51.8; dT 35 K would be 120.9 MW).
+      # A larger bore (DN700: 70.5 MW at 15 K) is NOT unlocked by raising this cap; it would have to be
+      # modelled as its own priced investment. Runs started with the old 120 MW cap: none (checked 2026-10-22).
       power_to_energy_ratio: 1.0
-      power_max_mw: 120.0
+      power_max_mw: 51.8
       # storage-hours [0,0.5,1,2,3,4,6,8,10,12,16,22,28] × mean load 73.06 MW
       discrete_energies_mwh: [0, 37, 73, 146, 219, 292, 438, 585, 731, 877, 1169, 1607, 2046]
