@@ -1,0 +1,3 @@
+run,full_cycles_per_yr,total_charge_MWh_per_yr,total_discharge_MWh_per_yr,implied_net_loss_MWh_per_yr,SOC_P5_MWh,SOC_P50_MWh,SOC_P95_MWh,hours_charging,hours_discharging,hours_at_charge_limit_cap_power,hours_at_discharge_limit_cap_power,hours_T_supply_gt_95C_mask_proxy,corr_charge_vs_price,corr_discharge_vs_price,corr_charge_vs_chp,corr_charge_vs_biomass
+SB-S1-HK0 (c0x1.0),69.945,32556.7,30635.9,1920.7,23.7,232.1,437.3,1561,2289,125,0,6552,0.305,-0.084,0.604,0.128
+SB-S1-HK0-SPREIZ20,89.302,41524.5,39114.2,2410.2,30.6,251.7,583.8,1535,2407,146,0,6552,0.334,-0.057,0.67,0.098
