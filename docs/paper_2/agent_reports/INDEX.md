@@ -13,7 +13,7 @@ Stand 2026-10-22. Tranche 1 = A1-A5, B1-B4, E1. Dieser Index wird bei jedem Teil
 | B2 | `B2_speicherbetrieb_findings.md`, `tables/B2_speicherbetrieb_summary.csv`, `tables/B2_speicherbetrieb_monatsprofil.csv`, `scripts/build_b2_speicherbetrieb.py` | geliefert | Mechanismus: KWK-Glättung + Gasboiler/EK-Verdrängung, nicht Preisarbitrage |
 | B3 | `tables/B3_bau_entscheidungen.csv`, `scripts/build_B3_B4.py` | geliefert | 36 Laeufe, Quelle geometry.csv/cost_breakdown.json |
 | B4 | `tables/B4_konvergenz_provenienz.csv`, `scripts/build_B3_B4.py` | geliefert | 36 Laeufe; Stichprobe gg. Referenztabelle verifiziert (alle 6 Punkte exakt); Fix eines Parsing-Bugs (kumulatives Logfile `output/logs/`, siehe unten) vor Auslieferung |
-| E1 | `DRAFT_4ck_ff.md` | geliefert | Faktensammlung 06.-22.10., referenziert §4ck/§4cr |
+| E1 | `E1_faktensammlung_laeufe.md` | geliefert | Faktensammlung 06.-22.10., referenziert §4ck/§4cr. **Umbenannt** von urspruenglich `DRAFT_4ck_ff.md` (Namenskollision mit der GLEICHNAMIGEN, inhaltlich anderen Datei aus der v4-Stage-1-Lieferung auf `main` entdeckt — diese alte Datei bleibt unter ihrem Namen unberuehrt erhalten). |
 | §4cr-Fragen + Defekte 14/15 | `C4CR_FRAGEN_UND_DEFEKTLISTE.md` | geliefert | alle genannten Hauptergebnisse "unveraendert"; Tag-Vorschlag NICHT ausgefuehrt (wartet auf Freigabe) |
 
 **Tranche 1 VOLLSTAENDIG (A1-A5, B1-B4, E1).** STOPP, wartet auf Rueckmeldung (Agent-Auftrag v5.1 §7).
