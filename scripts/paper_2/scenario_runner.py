@@ -153,6 +153,35 @@ def _load_outdoor_temps(table, cfg: dict) -> np.ndarray | None:
     return None
 
 
+_SB_MEASURED_TEMP_CACHE: tuple[np.ndarray, np.ndarray] | None = None
+
+
+def _load_measured_sb_temperatures() -> tuple[np.ndarray, np.ndarray] | None:
+    """v9 E1: real 2025 hourly HKW supply/return measurement (Stadtbach), gap-filled.
+
+    Source: HKW_Temp_VL.xlsx / HKW_Temp_RL.xlsx (data/Stadtbach/11_Messwerte_Acron/HKW/),
+    pre-processed into configs/paper_2/calibration/sb_hkw_temp_vl_rl_2025_hourly.csv
+    (2 NaN hours in each raw series filled: VL via the v8-A2b-calibrated heating curve,
+    RL via the annual mean -- see docs/paper_2/agent_reports/v9/REPORT_v9.md A1/A4).
+    Cached at module level since this is read identically for every SB-HK0 scenario.
+    """
+    global _SB_MEASURED_TEMP_CACHE
+    if _SB_MEASURED_TEMP_CACHE is not None:
+        return _SB_MEASURED_TEMP_CACHE
+    csv_path = _ROOT / "configs" / "paper_2" / "calibration" / "sb_hkw_temp_vl_rl_2025_hourly.csv"
+    if not csv_path.exists():
+        logger.warning("v9 E1: measured-temperature cache not found at %s", csv_path)
+        return None
+    import csv as _csv_mod
+    vl, rl = [], []
+    with open(csv_path, encoding="utf-8") as f:
+        for row in _csv_mod.DictReader(f):
+            vl.append(float(row["T_VL_measured_C"]))
+            rl.append(float(row["T_RL_measured_C"]))
+    _SB_MEASURED_TEMP_CACHE = (np.array(vl), np.array(rl))
+    return _SB_MEASURED_TEMP_CACHE
+
+
 def _load_hp_source_temps(cfg: dict, table) -> np.ndarray | None:
     """Fallback source-temperature series from the first HP's WRG column."""
     for a in cfg.get("assets", {}).values():
@@ -429,6 +458,63 @@ def run_single_scenario(
         cfg.setdefault("heat_pumps", {}).setdefault("cop", {})
         cfg["heat_pumps"]["cop"]["supply_temp_min_c"] = T_VL_min_effective
         cfg["heat_pumps"]["cop"]["supply_temp_max_c"] = hk_stage["T_VL_max_c"]
+
+        # v9 E1 (2026-10-23, docs agent_reports/v9): UNIFIED temperature basis.
+        # Previously model.supply_temp_series (network physics: mass flow, pipe
+        # losses, node temperatures) was fed by network.temperature_frame (SB,
+        # seasonal constants 84-115 degC) or a second, k-less heating-curve
+        # formula (MM) -- a DIFFERENT series than T_VL_ts above, which only ever
+        # drove COP/discharge-mask/TES-delta_T. v8 A4/A2 found these two series
+        # disagree by up to 88% of discharge-hours (SB) and don't move together
+        # under HK1/HK2 (MM). Fix: inject T_VL_ts (and a matching per-timestep
+        # return series) as network.parameters.supply_temp_dict/return_temp_dict,
+        # which network_manager._setup_temperatures already prefers (priority 1)
+        # over temperature_frame (priority 2) -- so every consumer (node temps,
+        # pipe losses, mass flow, AND the pre-existing COP/mask/delta_T path)
+        # now reads the SAME series. CALION_LEGACY_TEMPERATURE_FRAME=1 restores
+        # the old (disconnected) behavior for comparison/reproducibility.
+        import os as _os_e1  # local alias: module-level `os` is shadowed later in this function
+        if not _os_e1.environ.get("CALION_LEGACY_TEMPERATURE_FRAME"):
+            T_RL_ts = None
+            if network == "stadtbach" and scen.get("heat_curve_stage") == "HK0" and not tvl_fix:
+                _measured = _load_measured_sb_temperatures()
+                if _measured is not None and len(_measured[0]) == len(T_VL_ts):
+                    T_VL_ts = _measured[0]
+                    T_RL_ts = _measured[1]
+                    logger.info(
+                        "[%s] v9 E1: SB-HK0 network-physics temperature = REAL 2025 MEASUREMENT "
+                        "(HKW_Temp_VL/RL.xlsx, mean VL=%.1f degC, mean RL=%.1f degC), "
+                        "NOT temperature_frame -- replaces T_VL_ts for ALL downstream uses "
+                        "(COP, mask, TES-delta_T, network physics).",
+                        scen_id, float(np.mean(T_VL_ts)), float(np.mean(T_RL_ts)),
+                    )
+                else:
+                    logger.warning(
+                        "[%s] v9 E1: measured SB temperature cache unavailable/length-mismatched "
+                        "-- falling back to the calibrated heating-curve T_VL_ts for the network-"
+                        "physics injection (still unified, just not the raw measurement).",
+                        scen_id,
+                    )
+            if T_RL_ts is None:
+                # HK1/HK2, MM, or TVL-fix: no per-timestep return measurement wired
+                # yet (B1b, MM-A2 calibration deferred) -- broadcast the existing
+                # scalar return_temp_c so the injection is still unified (same
+                # series feeds network physics as feeds COP/mask/delta_T), even
+                # though it is constant rather than time-varying for now.
+                T_RL_ts = np.full(len(T_VL_ts), return_temp_c)
+                logger.info(
+                    "[%s] v9 E1: network-physics temperature = unified T_VL_ts (heating-curve "
+                    "formula, mean=%.1f degC); return broadcast at constant %.1f degC "
+                    "(no per-timestep return series wired for this stage yet).",
+                    scen_id, float(np.mean(T_VL_ts)), return_temp_c,
+                )
+            cfg.setdefault("network", {}).setdefault("parameters", {})
+            cfg["network"]["parameters"]["supply_temp_dict"] = {
+                i: float(v) for i, v in enumerate(T_VL_ts)
+            }
+            cfg["network"]["parameters"]["return_temp_dict"] = {
+                i: float(v) for i, v in enumerate(T_RL_ts)
+            }
 
         # Inject per-scenario delta_T into every geometric_storage TES asset
         # (tes_main/tes_sb, and tes_existing where present).
