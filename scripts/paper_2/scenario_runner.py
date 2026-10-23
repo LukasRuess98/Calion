@@ -535,6 +535,37 @@ def run_single_scenario(
         # all stages. Now every geometric_storage asset is updated so fixed
         # and investable tanks stay consistent within a scenario.
         delta_T_scenario_k = round(T_VL_min_effective - return_temp_c, 2)
+        # v9 E2 (2026-10-23, docs agent_reports/v9): delta_T_scenario_k = t_store_max_c -
+        # T_RL,ref instead of the legacy T_VL_min_effective - return_temp_c floor. The
+        # legacy formula bounded the TES's usable spread by the COLDEST point of the
+        # (now largely obsolete, v9 E1) heating curve floor -- a worst-case that doesn't
+        # reflect how an atmospheric tank is actually charged/discharged against its own
+        # 95 degC ceiling (t_store_max_c) and the REAL return temperature. T_RL,ref is the
+        # annual mean of the v9 E1 return series (T_RL_ts, real measurement for SB-HK0,
+        # broadcast-constant otherwise) -- CALION_TES_DELTA_T_P90=1 switches the reference
+        # to the P90 return temperature (colder reference -> smaller, more conservative
+        # delta_T) as the sensitivity the task asked for. Per-asset, since t_store_max_c
+        # varies by TES technology (atmospheric 95 degC vs a future pressurized option).
+        import os as _os_e2
+        _delta_t_mode = _os_e2.environ.get("CALION_TES_DELTA_T_MODE", "store_max")
+        _delta_t_p90 = bool(_os_e2.environ.get("CALION_TES_DELTA_T_P90"))
+        _t_rl_ref = None
+        if _delta_t_mode != "legacy_floor" and "T_RL_ts" in dir():
+            _t_rl_ts_local = locals().get("T_RL_ts")
+            if _t_rl_ts_local is not None:
+                _t_rl_ref = (float(np.percentile(_t_rl_ts_local, 90)) if _delta_t_p90
+                             else float(np.mean(_t_rl_ts_local)))
+                logger.info(
+                    "[%s] v9 E2: T_RL,ref=%.2f degC (%s of the v9-E1 return series) will drive "
+                    "delta_T_scenario_k = t_store_max_c - T_RL,ref per TES asset (mode=%s).",
+                    scen_id, _t_rl_ref, "P90" if _delta_t_p90 else "annual mean", _delta_t_mode,
+                )
+        if _t_rl_ref is None and _delta_t_mode != "legacy_floor":
+            logger.warning(
+                "[%s] v9 E2: requested mode=%s but no v9-E1 return series available (legacy "
+                "temperature path active?) -- falling back to the legacy floor formula.",
+                scen_id, _delta_t_mode,
+            )
         _tes_tech = _resolve_tes_technology(scen)
         _geom = _load_storage_geometry(cfg, _tes_tech)
         # HYBRID-CONFIG GUARD (2026-09-21): an ENABLED tank without CALION_ATMOSPHERIC_TES=1 is built
@@ -555,7 +586,17 @@ def run_single_scenario(
         for _asset_key, _asset_cfg in cfg.get("assets", {}).items():
             if _asset_cfg.get("type") == "geometric_storage":
                 _asset_cfg["tes_technology"] = _tes_tech
-                _asset_cfg["delta_T_scenario_k"] = delta_T_scenario_k
+                _asset_delta_t = delta_T_scenario_k
+                _asset_tsm = _asset_cfg.get("t_store_max_c")
+                if _t_rl_ref is not None and _asset_tsm is not None:
+                    _asset_delta_t = round(float(_asset_tsm) - _t_rl_ref, 2)
+                    logger.info(
+                        "[%s] v9 E2: %s delta_T_scenario_k = t_store_max_c(%.1f) - "
+                        "T_RL,ref(%.2f) = %.2f K (was legacy %.2f K)",
+                        scen_id, _asset_key, _asset_tsm, _t_rl_ref, _asset_delta_t,
+                        delta_T_scenario_k,
+                    )
+                _asset_cfg["delta_T_scenario_k"] = _asset_delta_t
                 # v3: inject atmospheric geometry/cost params (storage_geometry.yaml)
                 # + the scenario return temp, so the loss ΔT and store ceiling work.
                 # setdefault -> a per-asset config value overrides the global default.
@@ -616,6 +657,25 @@ def run_single_scenario(
                         _rh = _os_c0.environ.get("CALION_TES_RHD")
                         if _rh not in (None, ""):
                             _asset_cfg["r_hd_override"] = float(_rh)
+                        # v9 E2: rescale the hydraulic connection cap (power_max_mw, e.g. the
+                        # 51.8 MW DN600-at-15K figure in storage_geometry.yaml, see B4 in v8/v9
+                        # reports) to the delta_T actually in force this scenario. The cap is
+                        # linear in delta_T (power = m_dot_max * cp * delta_T), so rescaling by
+                        # the ratio to the legacy 15 K reference reproduces the same implicit
+                        # m_dot_max without needing to know it explicitly. Skipped if the legacy
+                        # delta_T mode is active (then delta_T IS still ~15K, no rescale needed)
+                        # or an explicit CALION_TES_POWER_MAX override was just set above.
+                        if (_delta_t_mode != "legacy_floor" and _pm in (None, "")
+                                and _asset_cfg.get("power_max_mw")):
+                            _legacy_cap = float(_asset_cfg["power_max_mw"])
+                            _new_cap = round(_legacy_cap * (_asset_cfg["delta_T_scenario_k"] / 15.0), 2)
+                            _asset_cfg["power_max_mw"] = _new_cap
+                            logger.info(
+                                "[%s] v9 E2: %s hydraulic connection cap rescaled %.1f -> %.1f MW "
+                                "(legacy assumed 15K, now delta_T=%.2fK)",
+                                scen_id, _asset_key, _legacy_cap, _new_cap,
+                                _asset_cfg["delta_T_scenario_k"],
+                            )
                         logger.info("[%s] %s: AC1/AC2 params -> power_capex=%s EUR/MW, E/P ratio=%s, "
                                     "h_max=%s m, r_hd_override=%s", scen_id, _asset_key,
                                     _asset_cfg.get("power_capex_eur_per_mw"),
@@ -647,9 +707,10 @@ def run_single_scenario(
                             f"[{scen_id}] {_asset_key}: discharge_mask length "
                             f"{len(_asset_cfg['discharge_mask'])} != T_VL_ts length {len(T_VL_ts)}")
                 logger.info(
-                    "[%s] geometric_storage %s: delta_T_scenario_k=%.2f K (worst-case; "
+                    "[%s] geometric_storage %s: delta_T_scenario_k=%.2f K (mode=%s; "
                     "T_VL_min=%.1f°C, T_return=%.1f°C)%s",
-                    scen_id, _asset_key, delta_T_scenario_k,
+                    scen_id, _asset_key, _asset_cfg["delta_T_scenario_k"],
+                    _delta_t_mode if _t_rl_ref is not None else "legacy_floor",
                     T_VL_min_effective, return_temp_c,
                     f", loss={_asset_cfg.get('loss_model')}/cost={_asset_cfg.get('cost_model')}" if _geom else "",
                 )
