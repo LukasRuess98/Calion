@@ -657,7 +657,13 @@ class ComponentAssembler:
             topping_vars = []
             skipped = []
             for sib_id in sibling_ids:
-                sib_fs = self._component_fs.get(sib_id)
+                # Different attach paths key _component_fs differently (thermal
+                # generators via _attach_generator_from_unified use asset.id.upper(),
+                # heat pumps/P2H/geometric_storage use the raw asset.id) -- try all
+                # three forms defensively rather than assume one convention.
+                sib_fs = (self._component_fs.get(sib_id)
+                          or self._component_fs.get(sib_id.upper())
+                          or self._component_fs.get(sib_id.lower()))
                 sib_q = sib_fs.get("Q_th_out") if isinstance(sib_fs, dict) else None
                 if sib_q is not None:
                     topping_vars.append(sib_q)
@@ -910,6 +916,16 @@ class ComponentAssembler:
             startup_cost_eur=float(p.get("startup_cost_eur", 0.0)),
         )
         fs = block.attach(self.m, self.t, self.cfg, {})
+        # v9 E3b (2026-10-23): unlike heat_pump/p2h/geometric_storage attach paths,
+        # thermal generators from the unified config were never registered in
+        # self._component_fs (this function works entirely through the node_buses/
+        # sys_buses aggregation instead) -- so no other block could look up a gas/
+        # biomass generator's own heat-output variable by asset id. Needed for the
+        # preheat topping-up constraint (_finalize_couplings) to find co-located
+        # generators like hkw/gtost/bmhkw. Purely additive: nothing previously read
+        # self._component_fs[asset.id] for a thermal_generator, so this cannot
+        # change any existing behavior.
+        self._component_fs[asset.id] = fs
 
         if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0) > 0:
             startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)

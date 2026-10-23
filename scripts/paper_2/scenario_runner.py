@@ -613,17 +613,13 @@ def run_single_scenario(
         for _asset_key, _asset_cfg in cfg.get("assets", {}).items():
             if _asset_cfg.get("type") == "geometric_storage":
                 _asset_cfg["tes_technology"] = _tes_tech
-                _asset_delta_t = delta_T_scenario_k
-                _asset_tsm = _asset_cfg.get("t_store_max_c")
-                if _t_rl_ref is not None and _asset_tsm is not None:
-                    _asset_delta_t = round(float(_asset_tsm) - _t_rl_ref, 2)
-                    logger.info(
-                        "[%s] v9 E2: %s delta_T_scenario_k = t_store_max_c(%.1f) - "
-                        "T_RL,ref(%.2f) = %.2f K (was legacy %.2f K)",
-                        scen_id, _asset_key, _asset_tsm, _t_rl_ref, _asset_delta_t,
-                        delta_T_scenario_k,
-                    )
-                _asset_cfg["delta_T_scenario_k"] = _asset_delta_t
+                # v9 E2: delta_T_scenario_k here is a PLACEHOLDER (legacy scalar) --
+                # t_store_max_c is not yet on _asset_cfg at this point (it is injected
+                # below from storage_geometry.yaml's _geom block, further down in this
+                # SAME loop iteration). The real, t_store_max_c-aware value is set
+                # further down (search "v9 E2: %s delta_T_scenario_k FINAL"), at the
+                # same point the discharge mask already reliably reads t_store_max_c.
+                _asset_cfg["delta_T_scenario_k"] = delta_T_scenario_k
                 # v3: inject atmospheric geometry/cost params (storage_geometry.yaml)
                 # + the scenario return temp, so the loss ΔT and store ceiling work.
                 # setdefault -> a per-asset config value overrides the global default.
@@ -684,25 +680,11 @@ def run_single_scenario(
                         _rh = _os_c0.environ.get("CALION_TES_RHD")
                         if _rh not in (None, ""):
                             _asset_cfg["r_hd_override"] = float(_rh)
-                        # v9 E2: rescale the hydraulic connection cap (power_max_mw, e.g. the
-                        # 51.8 MW DN600-at-15K figure in storage_geometry.yaml, see B4 in v8/v9
-                        # reports) to the delta_T actually in force this scenario. The cap is
-                        # linear in delta_T (power = m_dot_max * cp * delta_T), so rescaling by
-                        # the ratio to the legacy 15 K reference reproduces the same implicit
-                        # m_dot_max without needing to know it explicitly. Skipped if the legacy
-                        # delta_T mode is active (then delta_T IS still ~15K, no rescale needed)
-                        # or an explicit CALION_TES_POWER_MAX override was just set above.
-                        if (_delta_t_mode != "legacy_floor" and _pm in (None, "")
-                                and _asset_cfg.get("power_max_mw")):
-                            _legacy_cap = float(_asset_cfg["power_max_mw"])
-                            _new_cap = round(_legacy_cap * (_asset_cfg["delta_T_scenario_k"] / 15.0), 2)
-                            _asset_cfg["power_max_mw"] = _new_cap
-                            logger.info(
-                                "[%s] v9 E2: %s hydraulic connection cap rescaled %.1f -> %.1f MW "
-                                "(legacy assumed 15K, now delta_T=%.2fK)",
-                                scen_id, _asset_key, _legacy_cap, _new_cap,
-                                _asset_cfg["delta_T_scenario_k"],
-                            )
+                        # v9 E2: power_max_mw rescale moved below (search "v9 E2: %s hydraulic
+                        # connection cap rescaled") -- it needs the FINAL, t_store_max_c-aware
+                        # delta_T_scenario_k, which isn't correct yet at this point (see comment
+                        # above the "PLACEHOLDER" line). Keep _pm (the CALION_TES_POWER_MAX
+                        # override, if any) in scope for that later block to check.
                         logger.info("[%s] %s: AC1/AC2 params -> power_capex=%s EUR/MW, E/P ratio=%s, "
                                     "h_max=%s m, r_hd_override=%s", scen_id, _asset_key,
                                     _asset_cfg.get("power_capex_eur_per_mw"),
@@ -718,6 +700,29 @@ def run_single_scenario(
                     # (upper bound) — NOT an enabler for the physics.
                     import os as _os
                     _tsm = _asset_cfg.get("t_store_max_c")
+                    # v9 E2 FINAL (2026-10-23): t_store_max_c is NOW available (injected from
+                    # storage_geometry.yaml above, unlike at the earlier PLACEHOLDER point) --
+                    # compute the real delta_T_scenario_k = t_store_max_c - T_RL,ref here, and
+                    # rescale the hydraulic connection cap (power_max_mw) to match.
+                    if _delta_t_mode != "legacy_floor" and _t_rl_ref is not None and _tsm is not None:
+                        _old_asset_delta_t = _asset_cfg["delta_T_scenario_k"]
+                        _asset_cfg["delta_T_scenario_k"] = round(float(_tsm) - _t_rl_ref, 2)
+                        logger.info(
+                            "[%s] v9 E2: %s delta_T_scenario_k FINAL = t_store_max_c(%.1f) - "
+                            "T_RL,ref(%.2f) = %.2f K (was legacy %.2f K)",
+                            scen_id, _asset_key, _tsm, _t_rl_ref,
+                            _asset_cfg["delta_T_scenario_k"], _old_asset_delta_t,
+                        )
+                        if "_pm" in dir() and locals().get("_pm") in (None, "") and _asset_cfg.get("power_max_mw"):
+                            _legacy_cap = float(_asset_cfg["power_max_mw"])
+                            _new_cap = round(_legacy_cap * (_asset_cfg["delta_T_scenario_k"] / 15.0), 2)
+                            _asset_cfg["power_max_mw"] = _new_cap
+                            logger.info(
+                                "[%s] v9 E2: %s hydraulic connection cap rescaled %.1f -> %.1f MW "
+                                "(legacy assumed 15K, now delta_T=%.2fK)",
+                                scen_id, _asset_key, _legacy_cap, _new_cap,
+                                _asset_cfg["delta_T_scenario_k"],
+                            )
                     if T_VL_ts is not None and _tsm is not None \
                             and not _os.environ.get("CALION_TES_NO_DISCHARGE_MASK"):
                         _asset_cfg["discharge_mask"] = [
