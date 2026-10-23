@@ -733,6 +733,42 @@ def run_single_scenario(
                         assert len(_asset_cfg["discharge_mask"]) == len(T_VL_ts) > 0, (
                             f"[{scen_id}] {_asset_key}: discharge_mask length "
                             f"{len(_asset_cfg['discharge_mask'])} != T_VL_ts length {len(T_VL_ts)}")
+                        # v9 E3 (2026-10-23, docs agent_reports/v9): discharge_mode switch.
+                        # "preheat" (E3b, new default): don't apply the binary mask above
+                        # (component_assembler's qd_mask stays unbuilt in this mode) --
+                        # instead compute the per-hour topping fraction alpha(t) = max(0,
+                        # (T_VL(t)-T_store)/(T_store-T_RL(t))) and let
+                        # _finalize_couplings add a cross-asset constraint requiring
+                        # co-located fuel/electric generation >= alpha(t)*Qd(t). At
+                        # T_VL(t)<=T_store, alpha=0 -> no topping required -> identical to
+                        # the mask being "open" at that hour (same testfall as mask-off).
+                        # "mask" (E3a, sensitivity): exact legacy binary behavior, unchanged.
+                        _discharge_mode = _os.environ.get("CALION_TES_DISCHARGE_MODE", "preheat")
+                        _asset_cfg["discharge_mode"] = _discharge_mode
+                        if _discharge_mode == "preheat":
+                            _t_rl_for_alpha = T_RL_ts if "T_RL_ts" in dir() and locals().get("T_RL_ts") is not None else None
+                            if _t_rl_for_alpha is not None:
+                                _alpha_ts = [
+                                    max(0.0, (float(tvl) - float(_tsm)) / (float(_tsm) - float(trl)))
+                                    if float(_tsm) > float(trl) else 0.0
+                                    for tvl, trl in zip(T_VL_ts, _t_rl_for_alpha)
+                                ]
+                                _asset_cfg["preheat_alpha_ts"] = _alpha_ts
+                                _n_pos = sum(1 for a in _alpha_ts if a > 1e-9)
+                                logger.info(
+                                    "[%s] %s: v9 E3b preheat mode -- alpha>0 in %d/%d hours "
+                                    "(mean alpha where >0 = %.3f); binary mask NOT applied, "
+                                    "topping-up constraint added instead.",
+                                    scen_id, _asset_key, _n_pos, len(_alpha_ts),
+                                    (sum(a for a in _alpha_ts if a > 1e-9) / _n_pos) if _n_pos else 0.0,
+                                )
+                            else:
+                                logger.warning(
+                                    "[%s] %s: v9 E3b preheat mode requested but no v9-E1 return "
+                                    "series available -- falling back to discharge_mode=mask.",
+                                    scen_id, _asset_key,
+                                )
+                                _asset_cfg["discharge_mode"] = "mask"
                 logger.info(
                     "[%s] geometric_storage %s: delta_T_scenario_k=%.2f K (mode=%s; "
                     "T_VL_min=%.1f°C, T_return=%.1f°C)%s",

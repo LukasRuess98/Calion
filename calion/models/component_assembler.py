@@ -619,6 +619,79 @@ class ComponentAssembler:
         # Endogenous co-location: with colocate=true the TES group shares the
         # HP group's site binaries, so no extra constraint is needed here.
 
+        # v9 E3b (2026-10-23, docs agent_reports/v9): preheat discharge mode.
+        # A geometric_storage asset with a non-None "preheat_alpha_ts" in its fs
+        # dict (set only when discharge_mode="preheat") needs: topping-up heat
+        # from OTHER generators at the SAME node >= alpha[t] * Qd[t] for every t
+        # -- alpha[t] = max(0, (T_VL(t)-T_store)/(T_store-T_RL(t))) is the
+        # fraction of the discharged heat that the 95 degC tank cannot deliver
+        # on its own at hour t (computed in scenario_runner, injected via the
+        # asset config). "Other generators at the same node" = every asset
+        # listed alongside this TES in its network.nodes.<node>.assets entry
+        # (the SAME static node-membership the rest of the model already uses
+        # for siting), excluding the TES itself. Only assets whose fs dict
+        # exposes "Q_th_out" (thermal_generator, heat_pump, geometric_storage's
+        # OWN charge/discharge, p2h) can top up; others are skipped with a
+        # warning, not silently ignored.
+        nodes_cfg = self.cfg.get("network", {}).get("nodes", {})
+        for tes_id, tes_fs in list(self._component_fs.items()):
+            alpha_ts = tes_fs.get("preheat_alpha_ts") if isinstance(tes_fs, dict) else None
+            if alpha_ts is None:
+                continue
+            Qd = tes_fs.get("Q_th_out")
+            if Qd is None:
+                continue
+            tes_node = next(
+                (nid for nid, nc in nodes_cfg.items() if tes_id in (nc.get("assets") or [])),
+                None,
+            )
+            if tes_node is None:
+                logger.warning(
+                    "[PREHEAT] %s: discharge_mode=preheat but its node (for finding co-located "
+                    "topping-up generators) could not be determined -- no topping constraint "
+                    "added, Qd stays UNCONSTRAINED beyond cap_p. Check network.nodes.*.assets.",
+                    tes_id,
+                )
+                continue
+            sibling_ids = [a for a in (nodes_cfg[tes_node].get("assets") or []) if a != tes_id]
+            topping_vars = []
+            skipped = []
+            for sib_id in sibling_ids:
+                sib_fs = self._component_fs.get(sib_id)
+                sib_q = sib_fs.get("Q_th_out") if isinstance(sib_fs, dict) else None
+                if sib_q is not None:
+                    topping_vars.append(sib_q)
+                else:
+                    skipped.append(sib_id)
+            if not topping_vars:
+                logger.warning(
+                    "[PREHEAT] %s (node %s): discharge_mode=preheat but NO co-located asset "
+                    "exposes a usable heat-output variable (siblings=%s, all skipped=%s) -- no "
+                    "topping constraint added, Qd stays UNCONSTRAINED beyond cap_p.",
+                    tes_id, tes_node, sibling_ids, skipped,
+                )
+                continue
+            if skipped:
+                logger.info(
+                    "[PREHEAT] %s (node %s): topping-up generators = %s (skipped, no Q_th_out: %s)",
+                    tes_id, tes_node, [s for s in sibling_ids if s not in skipped], skipped,
+                )
+            else:
+                logger.info("[PREHEAT] %s (node %s): topping-up generators = %s",
+                            tes_id, tes_node, sibling_ids)
+
+            def _preheat_rule(mm, t, _alpha=alpha_ts, _Qd=Qd, _topping=tuple(topping_vars)):
+                a = float(_alpha[(t - 1) % len(_alpha)]) if _alpha else 0.0
+                return sum(v[t] for v in _topping) >= a * _Qd[t]
+
+            setattr(self.m, f"{tes_id}_preheat_topping", pyo.Constraint(self.t, rule=_preheat_rule))
+            _n_alpha_pos = sum(1 for a in alpha_ts if a > 1e-9)
+            logger.info(
+                "[PREHEAT] %s: topping constraint added (%d/%d hours with alpha>0, mean alpha "
+                "where >0 = %.3f)", tes_id, _n_alpha_pos, len(alpha_ts),
+                (sum(a for a in alpha_ts if a > 1e-9) / _n_alpha_pos) if _n_alpha_pos else 0.0,
+            )
+
     def _attach_hp_from_unified(self, asset, node_buses, sys_buses):
         """Attach a heat pump from unified config to per-node buses."""
         p = dict(asset.params)
@@ -1417,6 +1490,8 @@ class ComponentAssembler:
         v0_m3 = p.get("v0_m3")
         exponent_b = p.get("exponent_b")
         discharge_mask = p.get("discharge_mask")
+        discharge_mode = p.get("discharge_mode", "mask")
+        preheat_alpha_ts = p.get("preheat_alpha_ts")
 
         block = GeometricStorageBlock(
             name=name,
@@ -1454,6 +1529,8 @@ class ComponentAssembler:
             v0_m3=float(v0_m3) if v0_m3 is not None else None,
             exponent_b=float(exponent_b) if exponent_b is not None else None,
             discharge_mask=discharge_mask,
+            discharge_mode=discharge_mode,
+            preheat_alpha_ts=preheat_alpha_ts,
             # V2f: pressure limits size ONLY for the real pressure-vessel (Study-G)
             # variant. Atmospheric (the default/authoritative path) is a flat-bottomed
             # EN14015/API650 tank -- p_max_bar must not influence V_max_effective.

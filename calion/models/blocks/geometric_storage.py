@@ -157,6 +157,9 @@ class GeometricStorageBlock(BaseComponent):
         v0_m3: float | None = None,
         exponent_b: float | None = None,
         discharge_mask: list | None = None, # per-hour 0/1: block discharge where T_VL(t)>T_store_max
+        discharge_mode: str = "mask",       # v9 E3: "mask" (binary, legacy/E3a) or "preheat" (E3b,
+                                             # allow discharge always, require topping-up elsewhere)
+        preheat_alpha_ts: list | None = None,  # v9 E3b: per-hour topping fraction, see scenario_runner
         pressure_limits_size: bool = True,  # V2f: atmospheric flat-bottomed tanks (EN14015/API650) are
                                              # NOT pressure vessels -- size must NOT derive from p_max_bar.
                                              # True (default) preserves legacy/pressurized-vessel behaviour
@@ -236,6 +239,8 @@ class GeometricStorageBlock(BaseComponent):
         self.v0_m3 = float(v0_m3) if v0_m3 is not None else None
         self.exponent_b = float(exponent_b) if exponent_b is not None else None
         self.discharge_mask = list(discharge_mask) if discharge_mask else None
+        self.discharge_mode = discharge_mode
+        self.preheat_alpha_ts = list(preheat_alpha_ts) if preheat_alpha_ts else None
 
         # Atmospheric store ceiling: clip the usable ΔT if the (charge) supply
         # temperature would exceed the tank's boiling-limited ceiling. Uses
@@ -620,7 +625,19 @@ class GeometricStorageBlock(BaseComponent):
         # energy-only base captures); if the atmospheric-vs-pressurised conclusion
         # survives this mask, it is robust. mask[t]∈{0,1}, precomputed from T_VL(t)
         # and t_store_max in scenario_runner. Pressurised (no ceiling) -> all 1s.
-        if self.discharge_mask is not None:
+        # v9 E3 (2026-10-23, docs agent_reports/v9): the binary mask above is a
+        # LOWER bound (a discharge hour is either fully allowed or fully
+        # forbidden, ignoring that a "topping-up" heater at the same node could
+        # let the tank partially preheat the flow). discharge_mode="preheat"
+        # (E3b, new default) skips the binary gate entirely -- Qd stays bounded
+        # only by qd_lim (cap_p) above -- and instead exposes `alpha` (the
+        # per-hour topping fraction) via the fs dict, so component_assembler's
+        # _finalize_couplings can add the cross-asset "topping heat >=
+        # alpha[t]*Qd[t]" constraint once every block is attached (it needs
+        # other assets' Q_th_out, not available from inside this single-asset
+        # block). discharge_mode="mask" (E3a sensitivity) reproduces the exact
+        # legacy binary behavior, unchanged.
+        if self.discharge_mode == "mask" and self.discharge_mask is not None:
             _mask = self.discharge_mask
             _n = len(_mask)
             def qd_mask(mm, t):
@@ -689,6 +706,12 @@ class GeometricStorageBlock(BaseComponent):
             "Q_th_out": Qd,
             "Q_th_in": Qc,
             "SOC": E,
+            # v9 E3b: non-None only in preheat mode -- signals to
+            # _finalize_couplings that this asset needs the topping-up
+            # cross-asset constraint built (alpha[t]*Qd[t] <= co-located
+            # fuel/electric generation).
+            "preheat_alpha_ts": (self.preheat_alpha_ts
+                                  if self.discharge_mode == "preheat" else None),
             "build": build,
             "n_tanks": self._n_tanks_expr,
             "capex_raw_expr": self._capex_raw_expr,  # un-annualized CAPEX (degressive or legacy)
