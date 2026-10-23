@@ -217,3 +217,62 @@ beheben; blockiert v9 nicht.
 Codeaenderung) verhalten sich exakt wie in B1-B6 dokumentiert. Freigabe fuer C2.**
 
 ---
+
+## C2 — Status
+
+C1 ist abgeschlossen und freigegeben. Die zwei genehmigten PIN0-Solves (SB-PIN0-HK0, MM-PIN0-HK0) sind
+startbereit, werden aber aktuell ZURUECKGEHALTEN: Ressourcenpruefung unmittelbar vor dem geplanten Start zeigte
+das System bereits ueber dem vom Auftrag selbst zitierten 50%/50%-Cap (CPU-Durchschnitt 66,5-72,5%, RAM
+60,8-63,9% genutzt, python/gurobi-Prozesse allein 79,8-85,7 GB von 192 GB), verursacht durch 2 laufende
+Peer-Jobs (`ac3_s0free_notes`, `ac6_c20_k025`, letzterer mit 48h-TimeLimit) + 14 wartende in deren Queue.
+Mit Lukas abgestimmt (2026-10-23): **warten, bis CPU/RAM combined unter 50% liegen**, periodisch pruefen,
+dann SEQUENTIELL starten (SB zuerst oder MM zuerst je nach Queue-Lage; sequentiell wegen v9-M3 oben). Kein
+Zeitdruck-Workaround (z.B. reduzierte Threads) gewaehlt, um den Matched-Effort-Vergleich zur Alt-Baseline
+(SB-S0-HK0-PIN0: 16 Threads) nicht zu verfaelschen.
+
+---
+
+## B4 = E4 — Primärquelle druckbeaufschlagter Speicher (Recherche, kein Code)
+
+**Methode:** NICHT per WebSearch-KI-Summary. Direkter Download der Originaldokumente von der offiziellen
+Danish-Energy-Agency-Seite `ens.dk/en/analyses-and-statistics/technology-data-energy-storage` (gefunden über
+die offizielle ens.dk-Navigation, nicht geraten): `tech_data_energy_storage.pdf` (16,6 MB, Katalog
+"Technology Data — Energy storage", ISBN 978-87-94447-46-1, Stand der genutzten Kapitel Juli 2026/Februar
+2025 laut Amendment Sheet) und die zugehörige `tech_data_energy_storage_sheets.xlsx` (336 KB, strukturierte
+Zahlenblätter je Kapitel) — dieselbe Quellenfamilie ("DEA/Energinet Technology Data"), die
+`storage_geometry.yaml` bereits mehrfach als Primärquelle zitiert (z.B. `eta_strat: 0.85`, Leistungs-Anker
+28,2k€/MW, Anschlusskosten-Bausteine).
+
+**Befund (negativ, aber belegt): Es gibt in dieser Primärquelle KEIN Kapitel/Datenblatt für einen
+druckbeaufschlagten (≥110°C) WASSER-Tank mit volumenbasierter Bepreisung.**
+- Kapitel **141b "Large TTES"** (Tank-Speicher, Standardtechnologie, auf der der bestehende €250/m³-Anker
+  beruht): max. Speichertemperatur **99°C** (Stickstoff-Inertisierung, DE/EN-Standard). Fußnote K im
+  Datenblatt (XLSX, Zeile 48): *"Assuming the TTES is equipped with a nitrogen-based inerting system... With
+  a steam-based system, however, the storage can operate at higher temperatures, typically in the range of
+  100–105°C"* — **aber OHNE separate Kostenangabe**; dieselbe Spezifik-Investition
+  (4,34 M€/GWh Kapazität bei 2025/est., Spanne 3,64-5,91 M€/GWh über alle Jahre/Szenarien) gilt für beide
+  Varianten. DEA selbst gibt also für 100-105°C KEINEN Kostenaufschlag an.
+- Kapitel **143 "Carnot Batteries and High-temperature Thermal Energy Storage"** (PDF S. 72-86, neu seit
+  Feb-2025-Amendment) behandelt NUR Fest-/Flüssigsalz-Medien (143a Rock-based, 143b Molten-salt), explizit
+  NICHT Wasser. Wörtliches Zitat (PDF S. 80, Abschnitt "Thermal energy storage"): *"In tank thermal energy
+  storage, the thermal energy is stored in hot water contained in steel tanks (See 141 Large-scale Hot Water
+  Tanks). **Pressurized versions allow for higher temperatures and greater energy density but come at
+  greater complexity and higher cost. To reduce costs, mediums other than water are normally considered when
+  higher temperatures are required, in order to stay at atmospheric pressure** within the storage system
+  (Pressurized tanks and systems are much more costly to design, build and operate due to the increased need
+  for safety considerations and added strength)."* Kein numerischer Kostenfaktor für diese Aussage gegeben
+  (rein qualitativ) — und selbst wenn, wäre 143a/b (Fels/Salz) nicht direkt auf die bestehende
+  Wasser-Tank-Kostenkurve (C=N·c0·((V/N)/v0)^b) übertragbar, da anderes Speichermedium (keine ρ·c_p·ΔT-Wasser-
+  Physik).
+
+**Konsequenz / zwei Optionen (keine davon umgesetzt, nur dokumentiert — B4 ist reine Recherche):**
+1. Für Szenarien bis 105°C: bestehende Kostenkurve UNVERÄNDERT weiterverwenden (DEA selbst setzt keinen
+   Aufschlag an) — direkt durch Fußnote K belegt.
+2. Für echte ≥110°C-Druckspeicher: KEIN DEA-Primäranker verfügbar. Entweder (a) eine andere Primärquelle
+   suchen (außerhalb des heutigen Umfangs), oder (b) den qualitativen DEA-Hinweis ("deutlich teurer, keine
+   Zahl") explizit als "vermutet, nicht belegt" kennzeichnen, falls ein Pauschalfaktor im Modell gebraucht
+   wird.
+Status: belegt (Negativbefund). Primärquellen-Dateien liegen im Scratchpad (`dea_download/
+tech_data_energy_storage.pdf`, `tech_data_energy_storage_sheets.xlsx`), nicht im Repo (nicht angefragt).
+
+---
