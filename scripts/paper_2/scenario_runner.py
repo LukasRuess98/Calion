@@ -302,6 +302,33 @@ def run_single_scenario(
     if scen.get("tes_node") and not scen.get("baseline"):
         _apply_tes_location(cfg, scen, scen_cfg)
 
+    # v9 E5 (2026-10-23, docs agent_reports/v9): topology fix for SB. Previously
+    # hkw_to_man was one-way (j_hkw -> j_man only, no bidirectional flag) AND
+    # ek_sb was moved to j_man alongside hp_sb (same hp_assets list) -- v8 A1
+    # found j_man is a dead-end node (only consumer: MAN_MW, no other pipes),
+    # so BOTH the WP and EK there could structurally only ever serve the local
+    # MAN load, never feed back into the wider network. Fix: (a) make
+    # hkw_to_man bidirectional so MAN-site waste heat/excess CAN flow back
+    # toward j_hkw; (b) stop moving ek_sb to j_man -- it stays at its base-
+    # config location (j_hkw) per this task's E5, only hp_sb still moves.
+    # CALION_LEGACY_TOPOLOGY=1 restores the old one-way pipe + hp_sb+ek_sb-at-
+    # j_man behavior for comparison/reproducibility.
+    import os as _os_e5
+    if scen.get("network", "memmingen") == "stadtbach" and not _os_e5.environ.get("CALION_LEGACY_TOPOLOGY"):
+        _hkw_to_man = cfg.get("network", {}).get("pipes", {}).get("hkw_to_man")
+        if _hkw_to_man is not None and not _hkw_to_man.get("bidirectional"):
+            _hkw_to_man["bidirectional"] = True
+            logger.info("[%s] v9 E5: hkw_to_man set bidirectional (was one-way j_hkw->j_man)",
+                        scen_id)
+        _sb_hp_assets = scen_cfg.get("hp_assets", {}).get("stadtbach")
+        if isinstance(_sb_hp_assets, list) and "ek_sb" in _sb_hp_assets:
+            scen_cfg = dict(scen_cfg)
+            scen_cfg["hp_assets"] = dict(scen_cfg["hp_assets"])
+            scen_cfg["hp_assets"]["stadtbach"] = [a for a in _sb_hp_assets if a != "ek_sb"]
+            logger.info("[%s] v9 E5: ek_sb excluded from hp_assets relocation -- stays at its "
+                        "base-config node (j_hkw), only hp_sb moves to the scenario hp_node",
+                        scen_id)
+
     # 3b. Apply HP/EK node location (spec §3.3: HP/EK fixed at the waste-heat
     # node — SB "J4", MM j_12). Mapped via scenarios.yaml hp_nodes/hp_assets.
     if scen.get("hp_node"):
