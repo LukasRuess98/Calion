@@ -1,0 +1,5 @@
+scenario_id,network,HP_var_capacity_MW,HP_build,EK_var_capacity_MW,EK_build,HP_EK_node_effective,source_path
+SB-S1-HK0,SB,2.5058,1.0,0.0,0.0,j_man (siehe B3-Korrektur),output/v7_final/SB-S1-HK0/full_solution_dump.json
+SB-S2-HK0,SB,1.8396,1.0,0.0,0.0,j_man (siehe B3-Korrektur),output/_s2/sb_s2_resolve2/paper2_runs/SB-S2-HK0/full_solution_dump.json
+SB-S3-HK0,SB,1.8481,1.0,0.0,0.0,j_man (siehe B3-Korrektur),output/_s2/sb_s3_resolve/paper2_runs/SB-S3-HK0/full_solution_dump.json
+MM-S1-HK0,MM,0.0,0.0,0.1029,1.0,j_12,output/v7_final/MM-S1-HK0/full_solution_dump.json
