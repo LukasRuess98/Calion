@@ -138,7 +138,7 @@ durch E5 (nur für `network=="stadtbach"` aktiv), alle drei bestehenden MM-Erzeu
 | Netz | Stunden mit α>0 (von 8.760) | Mittel wo α>0 | Max α | Mittel über alle 8.760h |
 |---|---|---|---|---|
 | SB (`tes_sb`, reale Messung) | 4.976 (56,8 %) | 0,268 | **0,838** | 0,152 |
-| MM (`tes_main`, Heizkurve) | 84 (1,0 %) | 0,058 | — (nicht separat geloggt, Größenordnung < SB-Mittel) | — |
+| MM (`tes_main`, Heizkurve) | 84 (1,0 %) | 0,058 | **0,141** | 0,0006 |
 
 SB liegt deutlich höher, weil die reale Messreihe (Mittel 99,9°C) den Schwellwert `t_store_max_c=95°C` sehr
 viel häufiger überschreitet als MMs generische Heizkurve (Mittel 82,6°C).
