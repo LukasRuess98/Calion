@@ -50,7 +50,12 @@ OUT_BASE = Path(os.environ["CALION_OUT_BASE"]) if os.environ.get("CALION_OUT_BAS
 # for the paper's per-network models (≤ a few hundred k vars) the tree stays well
 # under this, so they never touch disk. Large solves that exceed it still need real
 # free disk — freeing space remains the proper fix for the full campaign.
-_DISK_SAFE_SOLVER_OPTS = {"NodefileStart": 16.0}
+# 2026-10-26 (ported from Loc_TES_Study_P2 commit 3ba8aeb, peer coordination for the
+# shared 50% RAM cap during C2): CALION_NODEFILE_START (GB) overrides the in-RAM node-tree
+# budget, CALION_NODEFILE_DIR picks the spill directory if given (else Gurobi's default).
+_DISK_SAFE_SOLVER_OPTS = {"NodefileStart": float(os.environ.get("CALION_NODEFILE_START", 16.0))}
+if os.environ.get("CALION_NODEFILE_DIR"):
+    _DISK_SAFE_SOLVER_OPTS["NodefileDir"] = os.environ["CALION_NODEFILE_DIR"]
 
 SCENARIOS_YAML = _ROOT / "configs" / "paper_2" / "scenarios.yaml"
 STORAGE_GEOMETRY_YAML = _ROOT / "configs" / "paper_2" / "storage_geometry.yaml"
