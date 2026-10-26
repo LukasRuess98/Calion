@@ -122,13 +122,28 @@ Status: umgesetzt, Build-Test folgt in C1.
 aus `network.nodes.<knoten>.assets` gelesen (derselben Liste, die auch das Siting nutzt) — nicht hartcodiert.
 **Testfall erfüllt:** bei `T_VL(t)≤95°C` ist `α(t)=0`, die Constraint wird `Σ(...)≥0` (trivial erfüllt) — identisch
 zu "Maske aus" in diesen Stunden.
-**Welche Erzeuger dürfen nachheizen (geprüft, KORRIGIERT zur Auftragsannahme):** Für SB-S1 (TES an j_hkw) sind
-das laut `network.nodes.j_hkw.assets` NUR **`hkw`** (Gas-KWK), **`p2h_existing`**, **`ek_sb`** (bleibt jetzt dort,
-E5) und **`hp_sb`** — NICHT "Kessel" (`hws_boiler`/`hww_boiler` sitzen an eigenen Knoten "Heizwerk Süd"/"Heizwerk
-West", nicht an j_hkw). Die Auftragsannahme "j_hkw: HKW, Kessel, EK, KWK" trifft also auf **Kessel** NICHT zu —
-`hkw` selbst ist bereits die KWK-Anlage am Knoten.
+**Welche Erzeuger dürfen nachheizen (geprüft, KORRIGIERT zur Auftragsannahme UND zu meinem eigenen ersten
+Entwurf):** Für SB-S1 (TES an j_hkw) sind das laut `network.nodes.j_hkw.assets` NUR **`hkw`** (Gas-KWK),
+**`p2h_existing`** und **`ek_sb`** (bleibt jetzt dort, E5) — NICHT "Kessel" (`hws_boiler`/`hww_boiler` sitzen an
+eigenen Knoten "Heizwerk Süd"/"Heizwerk West", nicht an j_hkw) und NICHT `hp_sb`. Die Auftragsannahme "j_hkw:
+HKW, Kessel, EK, KWK" trifft also auf **Kessel** NICHT zu — `hkw` selbst ist bereits die KWK-Anlage am Knoten.
+**Selbstkorrektur:** meine erste Fassung dieses Abschnitts (vor dem C1-Build-Test) hatte `hp_sb` fälschlich mit
+aufgeführt — tatsächlich sitzt `hp_sb` seit E5 an `j_man`, nicht mehr an `j_hkw`, ist also KEIN Geschwister von
+`tes_sb` mehr. Bestätigt durch die reale Logzeile aus C1: `[PREHEAT] tes_sb (node j_hkw): topping-up generators
+= ['hkw', 'p2h_existing', 'ek_sb']`.
+Für MM-S1 (TES `tes_main` an `j_9`): `['chp_main', 'biomass_main', 'gasboiler_main']` — keine Standortänderung
+durch E5 (nur für `network=="stadtbach"` aktiv), alle drei bestehenden MM-Erzeuger am Knoten.
+
+**α-Statistik (nachgerechnet aus den v9-E1-Reihen, C1-Build-Test bestätigt):**
+| Netz | Stunden mit α>0 (von 8.760) | Mittel wo α>0 | Max α | Mittel über alle 8.760h |
+|---|---|---|---|---|
+| SB (`tes_sb`, reale Messung) | 4.976 (56,8 %) | 0,268 | **0,838** | 0,152 |
+| MM (`tes_main`, Heizkurve) | 84 (1,0 %) | 0,058 | — (nicht separat geloggt, Größenordnung < SB-Mittel) | — |
+
+SB liegt deutlich höher, weil die reale Messreihe (Mittel 99,9°C) den Schwellwert `t_store_max_c=95°C` sehr
+viel häufiger überschreitet als MMs generische Heizkurve (Mittel 82,6°C).
 `CALION_TES_DISCHARGE_MODE=mask` restauriert exakt das alte binäre Verhalten (E3a-Sensitivität).
-Status: umgesetzt, Build-Test folgt in C1.
+Status: umgesetzt, Build-Test in C1 bestätigt.
 
 ## B5 = E5 — Topologie (umgesetzt)
 
