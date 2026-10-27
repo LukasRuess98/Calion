@@ -19,6 +19,7 @@ python -m scripts.dhn_study.central_tes.consolidate              # results/centr
 python -m scripts.dhn_study.central_tes.paper_fig_system         # paper figure 0 (system concept)
 python -m scripts.dhn_study.central_tes.paper_figures            # paper figures 1–7 (PDF, 600 dpi PNG/TIFF)
 python -m scripts.dhn_study.central_tes.paper_tables             # reports/central_tes/paper_tables.md
+python -m scripts.dhn_study.central_tes.dispatch_comparison --uc-sets ist prozent   # 2025 dispatch: measured vs. MILP F000 (≈ 6 min)
 python -m pytest -o addopts="" tests/test_central_tes.py
 python -m scripts.dhn_study.central_tes.name_scan <files to commit>   # real-name scan (needs the local term lists)
 ```

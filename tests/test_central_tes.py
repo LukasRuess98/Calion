@@ -230,3 +230,36 @@ def test_unserved_mode_hosting():
     idx = [hy.nz.idx[k] for k in hy.south_w]
     mf = 1e3 / hy.dh
     assert np.allclose((b1 - b0)[:, idx].sum(axis=1), 5.0 * mf, rtol=1e-6)     # south withdrawal shrinks by 5 MW
+
+
+def test_dispatch_comparison_gleiche_bewertung_regel_uc():
+    """Kraftwerkseinsatz-Vergleich: ein MILP-Fahrplan, als „IST“ bewertet, ergibt exakt die MILP-Zielfunktion (eine
+    Kostenlogik); die Regel deckt die Last in den Modellgrenzen; die Zerlegung ist additiv; UC hält Mindestlasten."""
+    from scripts.dhn_study.central_tes import dispatch_comparison as dc
+
+    cfg = C.load(overrides={"solver.mip_rel_gap": 1e-6})
+    x = inputs.build(cfg).loc["2025-01-13":"2025-01-16"].copy()
+    s = cop.series(x, cfg)
+    sched, info, _ = dc.milp_f000(x, s, cfg)
+    k = dc.kosten(sched, x, cfg)
+    assert k["gesamt"].sum() == pytest.approx(info["objective"], rel=1e-9)
+    teile = [f"{g}_{c}" for g in milp.EXISTING for c in ("brennstoff", "co2", "steuer", "stromerloes")]
+    assert k[teile].to_numpy().sum() == pytest.approx(info["objective"], rel=1e-9)
+    r = dc.regel(x, cfg)
+    lo, hi = milp.plant_bounds(x, cfg)
+    assert np.allclose(r[[f"Q_{g}" for g in milp.EXISTING]].sum(axis=1), x["D"], atol=1e-6)
+    for g in milp.EXISTING:
+        assert (r[f"Q_{g}"] <= hi[g] + 1e-6).all() and (r[f"Q_{g}"] >= lo[g] - 1e-6).all()
+    kr = dc.kosten(r, x, cfg)
+    assert kr["gesamt"].sum() >= info["objective"] - 1e-6                  # das LP-Optimum ist nie teurer als die Regel
+    z = dc.zerlegung(r, sched, kr, k)
+    assert z["Wert [M€/a]"].sum() * 1e6 == pytest.approx(k["gesamt"].sum() - kr["gesamt"].sum(), abs=1.0)
+    ml = {"KWK": 20.0, "GT": 5.0, "HW1": 2.0}
+    su, iu = dc.milp_uc(x, s, cfg, ml, dc.ANFAHRKOSTEN_EUR, {g: False for g in ml})
+    for g, pm in ml.items():
+        q = su[f"Q_{g}"]
+        assert ((q < 1e-6) | (q >= pm - 1e-6)).all()
+    assert iu["objective"] >= info["objective"] - 1e-6
+    ku = dc.kosten(su, x, cfg)                    # Zielfunktion = Betrieb + Anfahrkosten + Notkühlungsstrafe
+    assert (ku["gesamt"] + ku["anfahrkosten"] + ku["notkuehlung_strafe"]).sum() == pytest.approx(iu["objective"], rel=1e-6)
+    assert ku["anfahrkosten"].sum() == pytest.approx(sum(dc.ANFAHRKOSTEN_EUR[g] * su[f"start_{g}"].sum() for g in ml), rel=1e-9)
