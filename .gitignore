@@ -86,3 +86,6 @@ reports/local/
 
 # generated synthetic example (python -m scripts.dhn_study.central_tes.synthetic_data)
 data/synthetic/
+
+# Day-Ahead-Preise (energy-charts.info, lokal per API abgerufen; inputs.prices liest data/prices/raw_<Jahr>.json)
+data/prices/

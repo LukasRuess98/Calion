@@ -253,9 +253,10 @@ bei niedrigen Preisen.
 - **Personal, Fahrweise in Schichten, Netzführung** (Druckhaltung, Temperaturvorgaben über das Δp-Kriterium hinaus) sind
   nicht abgebildet.
 - **Day-Ahead-Preise:**
-  - Die Datei `data/prices/raw_2025.json` (energy-charts.info, Quelle BNetzA | SMARD.de, CC BY 4.0) liegt nicht im Repository.
-  - Sie wurde für diesen Lauf monatsweise über die API abgerufen.
-  - Wer das Skript ausführt, braucht sie unter `data/prices/` (gleiches Format wie die übrigen `raw_<Jahr>.json`).
+  - Die Datei `data/prices/raw_2025.json` (energy-charts.info, Quelle BNetzA | SMARD.de, CC BY 4.0) ist gitignored
+    und liegt nicht im Repository.
+  - Sie wurde für diesen Lauf monatsweise über die API abgerufen (Format der API: `unix_seconds`, `price`; DE-LU).
+  - Wer das Skript ausführt, braucht sie lokal unter `data/prices/`; `inputs.prices` liest `raw_<Jahr>.json`.
 
 ## Dateien
 
