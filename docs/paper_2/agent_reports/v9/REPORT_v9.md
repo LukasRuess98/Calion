@@ -233,17 +233,96 @@ Codeaenderung) verhalten sich exakt wie in B1-B6 dokumentiert. Freigabe fuer C2.
 
 ---
 
-## C2 — Status
+## C2 — Ergebnisse (abgeschlossen)
 
-C1 ist abgeschlossen und freigegeben. Die zwei genehmigten PIN0-Solves (SB-PIN0-HK0, MM-PIN0-HK0) sind
-startbereit, werden aber aktuell ZURUECKGEHALTEN: Ressourcenpruefung unmittelbar vor dem geplanten Start zeigte
-das System bereits ueber dem vom Auftrag selbst zitierten 50%/50%-Cap (CPU-Durchschnitt 66,5-72,5%, RAM
-60,8-63,9% genutzt, python/gurobi-Prozesse allein 79,8-85,7 GB von 192 GB), verursacht durch 2 laufende
-Peer-Jobs (`ac3_s0free_notes`, `ac6_c20_k025`, letzterer mit 48h-TimeLimit) + 14 wartende in deren Queue.
-Mit Lukas abgestimmt (2026-10-23): **warten, bis CPU/RAM combined unter 50% liegen**, periodisch pruefen,
-dann SEQUENTIELL starten (SB zuerst oder MM zuerst je nach Queue-Lage; sequentiell wegen v9-M3 oben). Kein
-Zeitdruck-Workaround (z.B. reduzierte Threads) gewaehlt, um den Matched-Effort-Vergleich zur Alt-Baseline
-(SB-S0-HK0-PIN0: 16 Threads) nicht zu verfaelschen.
+Beide PIN0-Solves wurden SEQUENTIELL unter dem v9-Modell mit Matched-Effort-Settings (MIPFocus=3,
+TimeLimit=28800s, MIPGap=0,0015, Threads=16, jeweils auf CPUs 0-15 gepinnt zur Koordination mit dem
+parallel laufenden Peer-Job auf CPUs 16-31) gegen die Alt-Baseline gerechnet. Start erst nach Freigabe
+durch Lukas (CPU/RAM-Cap combined < 50%, spaeter praezisiert auf "nur Bot-Last").
+
+### SB-S0-HK0-PIN0
+
+| | Alt-Baseline (v7/v8) | v9 | Delta |
+|---|---|---|---|
+| Status | optimal | optimal | |
+| obj_eur | 23.370.804,48 | 23.314.348,08 | **-56.456,40 EUR (-0,24 %)** |
+| Gap | 0,1436 % | 0,1455 % | |
+| Solve-Zeit | — | 27.626,65 s (~7,67 h) | |
+
+Kostenzeilen-Delta (v9 minus Alt-Baseline, EUR/Jahr):
+
+| Kostenzeile | Alt-Baseline | v9 | Delta |
+|---|---|---|---|
+| CAPEX | 0,00 | 0,00 | 0,00 |
+| Aktivierungsanteil | 0,00 | 0,00 | 0,00 |
+| Brennstoff | 25.562.924,48 | 25.620.400,44 | +57.475,96 |
+| Strom (Bezug) | 31.688,08 | 26.345,26 | -5.342,82 |
+| Strom (KWK-Erloes, negativ) | -11.236.233,76 | -11.345.675,03 | -109.441,27 |
+| CO2 (brutto) | 6.742.426,77 | 6.754.021,29 | +11.594,52 |
+| Netzentgelt | 52.058,28 | 38.236,96 | -13.821,32 |
+| O&M fix | 1.547.000,00 | 1.547.000,00 | 0,00 |
+| O&M variabel | 667.760,28 | 671.330,13 | +3.569,85 |
+| Modellhilfsterme (Summe) | 3.180,34 | 2.689,03 | -491,31 |
+| **TOTAL** | **23.370.804,48** | **23.314.348,08** | **-56.456,40** |
+
+Bilanzschluss (heat-balance-audit): residual sum=0,000 MWh, max=0,0000 MWh ueber 61.320 Bilanzen -> CLOSES
+(Diagnose: ht_out=661.209 MWh, heatd=639.973,5 MWh, netloss_full=19.667,5 MWh, return=7.484 MWh,
+dump=537,8 MWh). Netzverluste absolut (v9) = 19.667,5 MWh (~2,97 % von ht_out); ein quantifizierter
+Alt-Baseline-Vergleichswert fuer netloss_full wurde in keinem frueheren Report gefunden (nicht verfuegbar,
+daher kein Delta ausgewiesen, nur die v9-Groesse als belegt).
+
+reconciliation_check: "OK" (Summe real+aux+residual-objective = 0,00 EUR).
+
+### MM-S0-HK0-PIN0
+
+| | Alt-Baseline (v7/v8) | v9 | Delta |
+|---|---|---|---|
+| Status | optimal | optimal | |
+| obj_eur | 418.018,21 | 419.817,29 | **+1.799,08 EUR (+0,43 %)** |
+| Gap | 0,1465 % | 0,1479 % | |
+| Solve-Zeit | — | 2.253,6 s (~37,6 min) | |
+
+Kostenzeilen-Delta (v9 minus Alt-Baseline, EUR/Jahr):
+
+| Kostenzeile | Alt-Baseline | v9 | Delta |
+|---|---|---|---|
+| CAPEX | 0,00 | 0,00 | 0,00 |
+| Aktivierungsanteil | 0,00 | 0,00 | 0,00 |
+| Brennstoff | 293.967,82 | 287.839,08 | -6.128,74 |
+| Strom (Bezug) | 868,03 | 1.338,94 | +470,91 |
+| Strom (KWK-Erloes, negativ) | -11.250,48 | -11.370,97 | -120,49 |
+| CO2 (brutto) | 35.018,00 | 33.476,54 | -1.541,46 |
+| Netzentgelt | 1.126,25 | 1.541,47 | +415,22 |
+| O&M fix | 76.000,00 | 76.000,00 | 0,00 |
+| O&M variabel | 19.735,86 | 19.538,18 | -197,68 |
+| Modellhilfsterme (Summe) | 2.552,72 | 11.454,07 | **+8.901,35** |
+| **TOTAL** | **418.018,21** | **419.817,29** | **+1.799,08** |
+
+**Befund:** alle ECHTEN Kostenzeilen (Brennstoff, CO2, Netzentgelt, O&M) bewegen sich unter v9 fuer MM in
+Summe GUENSTIGER (Brennstoff -6.128,74, CO2 -1.541,46 dominieren gegenueber den kleinen Erhoehungen bei
+Strombezug/Netzentgelt). Der gesamte TOTAL-Anstieg stammt fast ausschliesslich aus den Modellhilfstermen:
+`Pressure_slack_cost_EUR` = 11.379,68 EUR (v9) vs. nicht einzeln ausgewiesen in der Alt-Baseline (dort nur
+als Teil der 2.552,72 EUR Summe sichtbar). Label dieses Terms: "Druck-Entlastungs-Slack
+(Datenqualitaets-Ventil)" — kein realer Kostenterm, sondern ein Modellierungs-Slack. Vermutung (nicht
+geprueft): die v9-Topologieaenderung (E5) oder die neue Temperaturbasis (E1) aktiviert diesen Slack bei MM
+staerker als unter der Alt-Baseline. **Dies ist eine offene Beobachtung fuer eine spaetere Runde, kein
+Blocker fuer C2 und nicht Gegenstand dieses Auftrags (STOPP, siehe unten).**
+
+Bilanzschluss (heat-balance-audit): residual sum=0,000 MWh, max=0,0000 MWh ueber 17.520 Bilanzen -> CLOSES
+(Diagnose: ht_out=11.688 MWh, heatd=9.433,2 MWh, netloss_full=2.424,7 MWh, return=1.069 MWh, dump=9,6 MWh).
+Netzverluste absolut (v9) = 2.424,7 MWh (~20,75 % von ht_out, deutlich hoeher als SB, plausibel fuer das
+kleinere MM-Netz). Auch hier kein quantifizierter Alt-Baseline-Vergleichswert gefunden.
+
+reconciliation_check: "OK" (Summe real+aux+residual-objective ≈ 0,00 EUR, Restabweichung 1,16e-10 EUR,
+Rundungsrauschen).
+
+### Fazit C2
+
+Beide Netze loesen unter dem v9-Modell fehlerfrei und mit Gap nahe dem Matched-Effort-Ziel (0,15 %). SB
+wird unter v9 guenstiger (-0,24 %), MM teurer (+0,43 %), wobei MMs Mehrpreis fast vollstaendig ein
+Modellierungs-Slack-Term ist, nicht ein realer Kosteneffekt. Bilanzschluss ist fuer beide Netze exakt
+(CLOSES, residual=0). **C2 abgeschlossen. Nach C2 STOPP (Auftrag v9) — keine weiteren Investitionslaeufe,
+keine B4-Umsetzung, kein C3 ohne neue explizite Anweisung.**
 
 ---
 
