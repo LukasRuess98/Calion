@@ -506,6 +506,13 @@ def run_single_scenario(
         # now reads the SAME series. CALION_LEGACY_TEMPERATURE_FRAME=1 restores
         # the old (disconnected) behavior for comparison/reproducibility.
         import os as _os_e1  # local alias: module-level `os` is shadowed later in this function
+        # v10 A3 (robustness only, no behavior change): bind T_RL_ts unconditionally so
+        # it is always a real name in this function's scope (None under
+        # CALION_LEGACY_TEMPERATURE_FRAME=1, where the block below is skipped) -- replaces
+        # the "T_RL_ts" in dir()/locals().get("T_RL_ts") lookups at E2/E3b below, which
+        # worked but relied on dir() reflecting an unset local, a fragile pattern to move
+        # code around.
+        T_RL_ts = None
         if not _os_e1.environ.get("CALION_LEGACY_TEMPERATURE_FRAME"):
             T_RL_ts = None
             if network == "stadtbach" and scen.get("heat_curve_stage") == "HK0" and not tvl_fix:
@@ -582,8 +589,8 @@ def run_single_scenario(
         _delta_t_mode = _os_e2.environ.get("CALION_TES_DELTA_T_MODE", "store_max")
         _delta_t_p90 = bool(_os_e2.environ.get("CALION_TES_DELTA_T_P90"))
         _t_rl_ref = None
-        if _delta_t_mode != "legacy_floor" and "T_RL_ts" in dir():
-            _t_rl_ts_local = locals().get("T_RL_ts")
+        if _delta_t_mode != "legacy_floor" and T_RL_ts is not None:
+            _t_rl_ts_local = T_RL_ts
             if _t_rl_ts_local is not None:
                 _t_rl_ref = (float(np.percentile(_t_rl_ts_local, 90)) if _delta_t_p90
                              else float(np.mean(_t_rl_ts_local)))
@@ -756,7 +763,7 @@ def run_single_scenario(
                         _discharge_mode = _os.environ.get("CALION_TES_DISCHARGE_MODE", "preheat")
                         _asset_cfg["discharge_mode"] = _discharge_mode
                         if _discharge_mode == "preheat":
-                            _t_rl_for_alpha = T_RL_ts if "T_RL_ts" in dir() and locals().get("T_RL_ts") is not None else None
+                            _t_rl_for_alpha = T_RL_ts if T_RL_ts is not None else None
                             if _t_rl_for_alpha is not None:
                                 _alpha_ts = [
                                     max(0.0, (float(tvl) - float(_tsm)) / (float(_tsm) - float(trl)))
