@@ -339,6 +339,31 @@ def run_single_scenario(
     if scen.get("hp_node"):
         _apply_hp_location(cfg, scen, scen_cfg)
 
+    # v10 B2 (2026-10-29, docs agent_reports/v10): the TES-at-waste-heat-node
+    # "S2" scenario family (SB-S2-*/MM-S2-*, TES co-located with the HP at
+    # j_man/j_12) charges from the generic node heat balance -- A2 found this
+    # mixes network inflow (often < t_store_max_c, see A2) with the HP's own
+    # output under E2's new store_max-based delta_T, which ASSUMES the charge
+    # reaches close to t_store_max_c. That assumption only actually holds for
+    # "S3" (hot_charging: true), which closes a dedicated HP->TES pipe at the
+    # HP's own (lower-COP, higher-temperature) hot channel instead. So S2 is
+    # physically inconsistent under v9 E2 and is dropped; S3 is the only
+    # supported TES-at-waste-heat-node variant going forward.
+    # CALION_LEGACY_S2_CHARGING=1 restores the old (E2-inconsistent) S2 run
+    # for comparison/reproducibility.
+    import os as _os_b2
+    if (scen.get("tes_node") == "S2" and not scen.get("baseline")
+            and not scen.get("hot_charging")
+            and not _os_b2.environ.get("CALION_LEGACY_S2_CHARGING")):
+        raise ValueError(
+            f"[{scen_id}] v10 B2: TES-at-waste-heat-node scenario 'S2' (tes_node=S2, "
+            f"generic node-bus charging) is physically inconsistent under v9 E2 "
+            f"(delta_T assumes ~t_store_max_c charging, A2 shows network inflow is "
+            f"often colder) and is no longer a supported run. Use the matching 'S3' "
+            f"scenario (hot_charging: true, dedicated HP->TES channel) instead, or "
+            f"set CALION_LEGACY_S2_CHARGING=1 to force this run anyway for comparison."
+        )
+
     # 4. Apply DSM consumers (if any configured)
     _apply_dsm(cfg, scen, scen_cfg)
 
