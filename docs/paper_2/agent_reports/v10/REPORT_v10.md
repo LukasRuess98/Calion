@@ -198,3 +198,69 @@ Build-Tests unter derselben scenario_id. A2s Erzeuger-Deckungsschätzung musste 
 Die scenario-id-Überschreibungsgefahr ist bereits aus v9/C2 bekannt (dort: SB/MM-PIN0-Altbaseline), bleibt
 aber ein wiederkehrendes Muster, das ein dediziertes Archivierungsschema (vor jedem `force_rerun=True`-Lauf
 auf eine bekannte alte scenario_id) verdienen würde — nicht in diesem Auftrag umgesetzt (außerhalb des Scopes).
+
+---
+
+## C1 — Ergebnisse (SB-REF-HK0)
+
+**Status/Gap/TAC:** `maxTimeLimit` (48h-Budget ausgeschöpft, nicht die 0,15%-Ziel-Gap — wie in der
+Zeitschätzung oben als wahrscheinlichstes Ergebnis vermerkt). Gap am Ende **0,517%**. Solution count 10
+(beste 10 Inkumbenten zwischen 21,9497 und 21,9576 Mio EUR, letzte Verbesserung spät im Lauf). Objektivwert
+**21.949.652,47 EUR**. Laufzeit 174.052,3 s (≈ 48,35 h). n_vars 7.375.930, n_constraints 9.276.851 (fast
+identisch zu PIN0: 7.349.659 / 9.162.968 — Δ nur durch die zusätzlichen WP/EK-Investitionsvariablen).
+
+**Gebaut (WP/EK/TES):**
+
+| Asset | Kapazität | Build |
+|---|---|---|
+| HP hp_sb | 11,9 MW | 1,0 (gebaut) |
+| TES (Speicher) | 0,0 MWh / 0,0 MW | 0,0 (per Szenario-Override hart deaktiviert, wie vorgesehen) |
+
+TES-Deaktivierung via `discrete_energies_mwh: [0]` wirkte wie in der Scenario-Definition erwartet — Geometrie
+bestätigt `V=0 m³, h=0 m, E=0 MWh`. EK (p2h_existing) erscheint nicht in der Design-Extraktion als separat
+investierbares Asset in diesem Lauf (nameplate-fixiert, siehe A2-Kapazitätsargument oben: 9,9 MW_el, nicht Teil
+der Investitionsentscheidung in REF).
+
+**Kostenvergleich vs PIN0 (SB-S0-HK0-PIN0, obj=23.314.348,08 EUR, gap 0,1455%):**
+
+Δ Objektiv: **−1.364.695,61 EUR (−5,85%)** — reiner WP-Effekt ohne TES (das ist der "E5-Effekt", den C1 laut
+Auftrag zeigen soll: Speicherwert-Referenz).
+
+| Kostenzeile | PIN0 [EUR] | REF (C1) [EUR] | Δ [EUR] |
+|---|---|---|---|
+| Capex_cost | 0,0 | 1.240.995,1 | +1.240.995,1 |
+| Activation_cost | 0,0 | 4.012,1 | +4.012,1 |
+| Fuel_cost | 25.620.400,4 | 21.110.859,2 | −4.509.541,2 |
+| Grid_energy_cost | 26.345,3 | 26.770,9 | +425,7 |
+| Grid_sell_revenue | −11.345.675,0 | −8.771.829,3 | +2.573.845,7 |
+| CO2_cost (brutto) | 6.754.021,3 | 5.638.093,8 | −1.115.927,4 |
+| Demand_charge_cost | 38.237,0 | 41.840,4 | +3.603,4 |
+| OM_fixed_cost | 1.547.000,0 | 1.582.689,7 | +35.689,7 |
+| OM_variable_cost | 671.330,1 | 681.027,7 | +9.697,5 |
+| **real_costs_total** | 23.311.659,06 | 21.554.459,59 | **−1.757.199,47** |
+
+Mechanismus: Der WP-Zubau (11,9 MW, Jahresnutzung 48.886 MWh_th über die Leitung hkw_to_man, siehe unten)
+ersetzt knapp 4,51 Mio EUR Brennstoffkosten und 1,12 Mio EUR CO2-Kosten (brutto), kostet aber 1,24 Mio EUR
+Jahres-CAPEX und reduziert die KWK-Stromverkaufserlöse um 2,57 Mio EUR (weniger Kessel-/KWK-Fahrt → weniger
+Kuppelstrom). Netto bleibt ein klarer Vorteil des WP-Zubaus allein (ohne TES) von knapp 1,36 Mio EUR/Jahr TAC.
+Der Dump_cost (Modell-Aux-Term, 395.192,9 EUR) wurde separat geprüft und erklärt den Rest der Differenz
+zwischen real_costs_total (−1.757.199,47 EUR Δ) und objective_total (−1.364.695,61 EUR Δ) vollständig
+(objective_total = real_costs_total + Dump_cost, beide Läufe; alle übrigen model_aux_terms sind 0, inkl.
+Pressure_slack_cost_EUR — SB hat keine j_13-Druckstation, die A1-Problematik betrifft nur MM).
+
+**WP-Einspeisung via hkw_to_man:** Leitung führt in diesem Lauf ausschließlich Vorwärtsfluss (hkw → j_man),
+**0 Stunden Rückfluss**. Summe 48.886,2 MWh_th/a, Peak 11,914 MW (≈ Nennleistung der gebauten WP). Das
+bestätigt, dass die WP an j_man in REF rein lastdeckend arbeitet und nicht in Gegenrichtung ins hkw-Bündel
+einspeist — plausibel für diese Topologie ohne TES-Pufferung.
+
+**Bilanzschluss:** `[HEAT-BALANCE-AUDIT]` meldet Restsumme 0,001 MWh über 61.320 Knotenbilanzen (max. Einzel-
+residuum 0,0000 MWh) → **schließt**. Diagnosekomponenten: ht_out=645.030, heatd=639.973,5, netzloss_full=
+19.667,5, return=7.484, dump=79.038,6 MWh.
+
+**Laufzeit/RAM:** 174.052,3 s (48,35 h) auf 16 gepinnten Threads (CPUs 16-31, Peer-Koordination "Slot B"),
+NodefileStart=6 GB. Gemessener RAM-Peak während des Laufs ≈ 67,8 GB (peer-gemeldet und selbst verifiziert kurz
+vor Lauf-Ende). Node-Explorationsrate deutlich langsamer als die Alt-Modell-Schätzung (76.037 Knoten in 48h vs.
+die aus v7_final abgeleitete ≈35h-Erwartung) — die Bound blieb ab ca. Stunde 20 bei 21,836 Mio EUR stehen, die
+Gap schloss danach nur noch über Inkumbenten-Heuristiken (10 Verbesserungen in den letzten ~28h). Für C2/C3
+realistisch einplanen: ebenfalls Ausschöpfung des TimeLimits statt Erreichen der 0,15%-Ziel-Gap ist der
+wahrscheinlichere Ausgang, nicht die Ausnahme.

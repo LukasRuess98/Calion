@@ -1550,3 +1550,30 @@ scenarios:
       grid:
         gridcost_eur_mwh: 30.8
         demand_charge_eur_per_mw_y: 63620.0
+  # ── v10 Teil C1/C3a (2026-10-29): plain TES-free references at standard pricing ──
+  # (distinct from PIN0, where HP/EK are ALSO hard-fixed to 0 -- here HP/EK are
+  # free/investable, only TES is strictly off). Reference for the pure storage
+  # value of SB-S1-HK0 / MM-S1-HK0; also isolates E5's WP/EK siting effect
+  # (SB: hp_sb -> j_man, ek_sb stays at j_hkw) with no TES interaction.
+  - id: "SB-REF-HK0"
+    network: "stadtbach"
+    config: "configs/paper_2/Stadtbach_topo.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    hp_node: "J4"
+    baseline: false
+    description: "v10 C1: WP/EK frei (hp_sb->j_man, ek_sb bleibt j_hkw, E5), TES strikt aus -- Referenz fuer reinen Speicherwert von SB-S1-HK0."
+    overrides:
+      assets:
+        tes_sb: {V_min_m3: 0.0, V_max_m3: 0.0, discrete_energies_mwh: [0]}
+
+  - id: "MM-REF-HK0"
+    network: "memmingen"
+    config: "configs/paper_2/Memmingen_P2_base.yaml"
+    heat_curve_stage: "HK0"
+    tes_node: null
+    baseline: false
+    description: "v10 C3a: WP/EK frei (Basis-Lage j_12, unveraendert), TES strikt aus -- Referenz fuer reinen Speicherwert von MM-S1-HK0."
+    overrides:
+      assets:
+        tes_main: {V_min_m3: 0.0, V_max_m3: 0.0, discrete_energies_mwh: [0]}
