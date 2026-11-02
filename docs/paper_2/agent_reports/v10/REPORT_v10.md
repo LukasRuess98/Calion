@@ -341,3 +341,48 @@ ht_out=665.717, heatd=639.973,5, netzloss_full=19.667,5, return=7.484, dump=86.0
 
 **Laufzeit/RAM:** 174.098,8 s (48,36 h), 16 gepinnte Threads (CPUs 16-31). RAM zuletzt vor Lauf-Ende bei
 ≈52 GB gemessen (deutlich unter dem 96-GB-Eigenbudget). NodefileStart=6 GB.
+
+---
+
+## C3a — Ergebnisse (MM-REF-HK0)
+
+**Status/Gap/TAC:** `optimal` — **Ziel-Gap erreicht** (0,1015% < 0,15%-Vorgabe), deutlich schneller als SB.
+Solution count 1. Objektivwert **419.235,11 EUR**. Laufzeit 8.327,1 s (≈ 2,31 h, innerhalb des 4h-Budgets).
+n_vars 4.599.010, n_constraints 4.940.651.
+
+**Gebaut (WP/EK/TES):** **HP hp_main: capacity=0,0 MW, build=0,0 — keine WP gebaut**, obwohl in REF frei
+erlaubt (anders als SB-REF-HK0, wo die WP gebaut wurde). Unter v9/HK0-Ökonomie lohnt sich der WP-Zubau in
+MM offenbar nicht, selbst ohne TES-Restriktion. TES: wie vorgesehen hart auf 0 (`V=0 m³, E=0 MWh`). Keine
+WP-Einspeisung zu berichten (hp_main nicht gebaut → kein Pendant zu "hkw_to_man" aktiv).
+
+**Kostenvergleich vs PIN0 (MM-S0-HK0-PIN0, obj=419.817,29 EUR, gap 0,1479%):**
+
+Δ Objektiv: **−582,18 EUR (−0,14%)** — bei identischem Nicht-Zubau (kein HP in beiden Läufen) ist dies
+**kein realer Investitionseffekt**, sondern Lösungs-Rauschen zwischen zwei nahe-optimalen MILP-Läufen mit
+unterschiedlichem Warmstart. Aufschlüsselung bestätigt das:
+
+| Kostenzeile | PIN0 [EUR] | REF (C3a) [EUR] | Δ [EUR] |
+|---|---|---|---|
+| Capex_cost | 0,0 | 1.127,0 | +1.127,0 |
+| Fuel_cost | 287.839,1 | 285.273,3 | −2.565,8 |
+| CO2_cost (brutto) | 33.476,5 | 32.627,8 | −848,8 |
+| Demand_charge_cost | 1.541,5 | 1.870,9 | +329,4 |
+| **real_costs_total** | 408.363,23 | 408.420,80 | **+57,58** |
+| **Pressure_slack_cost_EUR** (Aux, A1) | **11.379,68** | **10.744,28** | **−635,41** |
+
+**Beantwortung der A1(c)-Offenlegung:** Die reale Kostensumme (`real_costs_total`) steigt in REF sogar
+leicht (+57,58 EUR) — die gesamte scheinbare TAC-Verbesserung (−582,18 EUR) kommt aus einer Verschiebung
+von `Pressure_slack_cost_EUR` (−635,41 EUR, ≈6% des eigenen Werts), die zwischen zwei strukturell
+identischen (kein WP-Zubau) MILP-Läufen allein durch unterschiedliche Warmstart-Pfade zu leicht anderen
+bindenden Stunden am j_13-Druckslack führt. **Schlussfolgerung für C3b:** Verschiebungen von
+`Pressure_slack_cost_EUR` in der Größenordnung von ein paar hundert EUR zwischen MM-Läufen sind als
+Lösungs-Rauschen zu werten, nicht als Signal — erst eine Änderung, die diese Hunderte-EUR-Bandbreite klar
+übersteigt, ist bei MM-S1-HK0 vs MM-REF-HK0 als realer Effekt interpretierbar.
+
+**Bilanzschluss:** `[HEAT-BALANCE-AUDIT]` Restsumme 0,000 MWh über 17.520 Knotenbilanzen → **schließt**.
+Kein `Objective_residual_EUR`-Befund (Residual ≈0 in beiden Läufen) — das v10-M2-Phänomen aus C2 tritt hier
+NICHT auf (passend zur dortigen Vermutung: tritt nur bei tatsächlich gebautem/zyklisch betriebenem TES im
+Preheat-Modus auf; hier ist TES hart deaktiviert).
+
+**Laufzeit/RAM:** 8.327,1 s (2,31 h), 16 gepinnte Threads (CPUs 16-31), NodefileStart=6 GB. RAM nicht
+separat gemessen (Lauf beendete sich vor der nächsten geplanten Messung).
