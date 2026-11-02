@@ -1,0 +1,14 @@
+# LOCAL ONLY (gitignored). Real names / partner data. Never commit.
+partner_a:
+  file: "data/local/20241028_Daten Abwärme MAN 2023 Kopernikus-Projekt SynErgie_V2.xlsx"
+  streams:
+    water_1: {sheet: "Nutzwasser_MAN_AUG_A29", header_row: 13}
+    water_2: {sheet: "Nutzwasser_MAN_AUG_A7",  header_row: 13}
+    water_3: {sheet: "Nutzwasser_MAN_AUG_C11,C12", header_row: 13}
+    water_4: {sheet: "Abwasser_MAN_AUG_C36", header_row: 13, daily: true}
+  cache: data/local/partner_a_hourly_2023.parquet
+grid_co2:
+  file: "data/local/2025_04_14_Import_Data_stadtbach.xlsx"
+  column: grid_co2_kg_MWh
+  cache: data/local/grid_co2_2025.parquet
+name_scan_terms: [MAN, UPM, Stadtbach, swa, SWA, Augsburg, HKW, AVA, GT-Ost, BMHKW, HWS, HWW, PSS, PSW, Hammerschmiede, Lechhausen, Stadtbachstr, Hans-Böckler, SynErgie, Kopernikus, Malvasierbach, "WV640", "WV650", "WV660"]

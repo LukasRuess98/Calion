@@ -1,0 +1,14 @@
+# tested with Python 3.13 (versions pinned as tested; Python 3.11+ required)
+pyomo==6.10.1
+highspy==1.15.1
+numpy==2.5.3
+pandas==2.3.3
+scipy==1.16.3
+pyarrow==25.0.1
+PyYAML==6.0.3
+matplotlib==3.11.2
+fonttools==4.65.0
+pandapipes==0.15.0
+pandapower==3.3.3
+openpyxl==3.1.5
+pytest==9.1.1

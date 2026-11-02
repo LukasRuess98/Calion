@@ -1,0 +1,20 @@
+[project]
+name = "calion-central-tes-dhn-a"
+version = "1.0.0"
+description = "Central TES at an industrial prosumer site in a meshed district heating network: MILP dispatch, hydraulic coupling, rolling horizon, Shapley attribution"
+requires-python = ">=3.11"
+license = {text = "CC-BY-4.0"}
+authors = [{name = "Lukas Ruess"}, {name = "Alexander Sauer"}]
+dependencies = [
+  "pyomo==6.10.1", "highspy==1.15.1", "numpy==2.5.3", "pandas==2.3.3", "scipy==1.16.3", "pyarrow==25.0.1",
+  "PyYAML==6.0.3", "matplotlib==3.11.2", "fonttools==4.65.0",
+]
+
+[project.optional-dependencies]
+validation = ["pandapipes==0.15.0", "pandapower==3.3.3"]
+partner-xlsx = ["openpyxl==3.1.5"]
+test = ["pytest==9.1.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

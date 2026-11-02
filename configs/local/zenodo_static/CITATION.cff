@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this software or data, please cite the article and this record."
+title: "CALION central-TES study (DHN-A): model code, synthetic example and aggregated results"
+version: 1.0.0
+date-released: 2026-10-16
+license: CC-BY-4.0
+type: software
+doi: 10.5281/zenodo.XXXXXXX
+authors:
+  - family-names: Ruess
+    given-names: Lukas
+    affiliation: "Fraunhofer IPA; Institute for Energy Efficiency in Production (EEP), University of Stuttgart"
+  - family-names: Sauer
+    given-names: Alexander
+    affiliation: "Fraunhofer IPA; Institute for Energy Efficiency in Production (EEP), University of Stuttgart"
+keywords:
+  - district heating
+  - thermal energy storage
+  - heat pump
+  - electrode boiler
+  - industrial waste heat
+  - mixed-integer linear programming
+  - hydraulic network
+  - rolling horizon
+  - Shapley value
+  - pandapipes
+preferred-citation:
+  type: article
+  title: "Central thermal energy storage at an industrial prosumer site: value, hydraulic limits and foresight in a meshed district heating network"
+  authors:
+    - family-names: Ruess
+      given-names: Lukas
+    - family-names: Sauer
+      given-names: Alexander
+  journal: Energy
+  publisher:
+    name: Elsevier
+  year: 2026
+  doi: 10.1016/j.energy.2026.XXXXXX

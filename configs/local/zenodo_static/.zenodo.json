@@ -1,0 +1,18 @@
+{
+  "title": "CALION central-TES study (DHN-A): model code, synthetic example and aggregated results",
+  "upload_type": "software",
+  "version": "1.0.0",
+  "description": "<p>Supplementary code and data for L. Ruess, A. Sauer, <i>Central thermal energy storage at an industrial prosumer site: value, hydraulic limits and foresight in a meshed district heating network</i>, Energy (2026). Hourly MILP dispatch (Pyomo/HiGHS) of an existing district heating network with a central pressurised TES, an industrial waste-heat heat pump and an electrode boiler, coupled to a calibrated hydraulic equivalent network (Mode E / Mode H), Shapley attribution, rolling horizon, south hosting capacity and a pandapipes cross-check. The package contains the model code, configuration, tests, a synthetic example input that runs the pipeline end to end, the aggregated results behind all tables and figures, and the figure PDFs. Measured network data, operator plan data and partner data are under non-disclosure agreements and are not included.</p>",
+  "creators": [
+    {"name": "Ruess, Lukas", "affiliation": "Fraunhofer IPA; Institute for Energy Efficiency in Production (EEP), University of Stuttgart"},
+    {"name": "Sauer, Alexander", "affiliation": "Fraunhofer IPA; Institute for Energy Efficiency in Production (EEP), University of Stuttgart"}
+  ],
+  "keywords": ["district heating", "thermal energy storage", "heat pump", "electrode boiler", "industrial waste heat", "MILP", "hydraulic network", "rolling horizon", "Shapley value", "pandapipes"],
+  "license": "cc-by-4.0",
+  "access_right": "open",
+  "language": "eng",
+  "related_identifiers": [
+    {"identifier": "10.1016/j.energy.2026.XXXXXX", "relation": "isSupplementTo", "resource_type": "publication-article", "scheme": "doi"}
+  ],
+  "notes": "Funding: this work was funded by the German Federal Ministry for Economic Affairs and Energy (BMWE) on the basis of a decision by the German Bundestag within the project eProNet (grant no. 03EN6057B). Replace the placeholder DOI of the article before publishing."
+}
