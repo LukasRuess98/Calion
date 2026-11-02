@@ -1,7 +1,8 @@
 # REPORT v10 — Prüfpunkte + Kernlaufsatz Modell v9
 
 Antwort auf `docs/paper_2/agent_prompts/v10_Kernlaufsatz.md`. Basis: Tag `p2-v9-model`, Branch `p2_v9_consolidation`.
-Status: Teil A + B abgeschlossen; Teil C läuft (siehe Zeitplan unten).
+Status: **Teil A, B und C abgeschlossen.** Alle vier vorgeschriebenen Läufe (C1-C3b) fertig, siehe
+Gesamtfazit am Ende des Dokuments. Gemäß Auftrag: STOPP nach Teil C.
 
 ---
 
@@ -386,3 +387,93 @@ Preheat-Modus auf; hier ist TES hart deaktiviert).
 
 **Laufzeit/RAM:** 8.327,1 s (2,31 h), 16 gepinnte Threads (CPUs 16-31), NodefileStart=6 GB. RAM nicht
 separat gemessen (Lauf beendete sich vor der nächsten geplanten Messung).
+
+---
+
+## C3b — Ergebnisse (MM-S1-HK0) — letzter Lauf der Kampagne
+
+**Status/Gap/TAC:** `optimal` — **Ziel-Gap erreicht** (0,1497% < 0,15%, knapp). Solution count 1.
+Objektivwert **419.368,69 EUR**. Laufzeit 7.946,7 s (≈ 2,21 h, innerhalb des 4h-Budgets). Warmstart korrekt
+von `MM-S0-HK0-PIN0` (nicht von C3a/REF).
+
+**Gebaut (WP/EK/TES):** **Beides null** — HP hp_main: capacity=0,0 MW, build=0,0; Storage: capacity=0,0 MWh,
+power=0,0 MW, build=0,0. Obwohl TES hier (anders als in C3a) frei erlaubt war (`tes_node: "S1"`, TES an j_9),
+entscheidet sich das Modell für **keinen Zubau — weder WP noch TES**. Das ist dasselbe Nicht-Investitions-
+Ergebnis wie in C3a, nur jetzt mit TES-Option tatsächlich verfügbar statt hart gesperrt. Keine WP-Einspeisung
+zu berichten (kein hp_main gebaut); keine TES-Betriebsdetails zu berichten (TES nicht gebaut, keine
+Lade/Entlade-Zyklen).
+
+**Kostenvergleich vs PIN0 und vs REF (C3a):**
+
+Δ Objektiv vs PIN0: −448,60 EUR (−0,11%). Δ Objektiv vs REF: **+133,58 EUR (+0,03%)** — beide Größen liegen
+innerhalb der in C3a etablierten Rausch-Bandbreite (dort: −635,41 EUR Pressure-Slack-Verschiebung zwischen
+zwei strukturell identischen Nicht-Zubau-Läufen). Mit Δ(S1-REF)=+133,58 EUR ist diese Differenz hier sogar
+noch kleiner als die C3a-Bandbreite selbst — **kein belastbares Signal, weder für noch gegen TES an j_9**,
+weil das Modell TES an dieser Stelle schlicht nicht baut.
+
+| Kostenzeile | PIN0 [EUR] | REF (C3a) [EUR] | S1 (C3b) [EUR] | ΔS1−REF |
+|---|---|---|---|---|
+| Capex_cost | 0,0 | 1.127,0 | 1.127,0 | +0,0 |
+| Activation_cost | 0,0 | 1.604,9 | 1.604,9 | +0,0 |
+| Fuel_cost | 287.839,1 | 285.273,3 | 285.143,6 | −129,6 |
+| Grid_energy_cost | 1.338,9 | 1.461,2 | 1.490,7 | +29,5 |
+| Grid_sell_revenue | −11.371,0 | −11.188,1 | −11.165,4 | +22,7 |
+| CO2_cost (brutto) | 33.476,5 | 32.627,8 | 32.609,4 | −18,4 |
+| Demand_charge_cost | 1.541,5 | 1.870,9 | 2.120,4 | +249,5 |
+| OM_fixed_cost | 76.000,0 | 76.093,6 | 76.093,6 | +0,0 |
+| OM_variable_cost | 19.538,2 | 19.550,3 | 19.544,9 | −5,3 |
+| **real_costs_total** | 408.363,23 | 408.420,80 | 408.569,23 | +148,43 |
+| Pressure_slack_cost_EUR (Aux) | 11.379,68 | 10.744,28 | 10.729,53 | −14,74 |
+
+(Capex_cost/Activation_cost sind in REF und S1 identisch — ein kleiner, vom WP/TES-Zubau unabhängiger
+Fixanteil, vermutlich ein anderes, in beiden Läufen gleich gebautes Asset (z. B. EK), das `design_helpers`
+hier nicht separat protokolliert; für den TES-Wertvergleich irrelevant, da er sich exakt heraushebt.)
+
+**Fazit MM (C3a+C3b zusammen):** Unter v9/HK0-Ökonomie investiert MM **in keinem der beiden Szenarien** in
+WP oder TES — weder wenn nur WP erlaubt ist (C3a) noch wenn zusätzlich TES an j_9 erlaubt ist (C3b). Beide
+Läufe konvergieren auf praktisch denselben ("Nichts bauen")-Betriebspunkt, mit Abweichungen, die vollständig
+durch Lösungs-Rauschen (Warmstart-abhängige Pressure-Slack-Stundenverteilung) erklärt sind. Dies steht im
+Kontrast zu Stadtbach (C1/C2), wo sowohl WP als auch TES tatsächlich gebaut werden. Eine Ursachenklärung
+(warum MM unter HK0 nicht investiert — A1s Hydraulik-Befund, andere Lastcharakteristik, oder schlicht ein
+für MM ungünstigeres WP/TES-Kostenverhältnis am gewählten Standort) ist **außerhalb des Scopes dieses
+Auftrags** (nur Teil-C-Läufe, kein zusätzlicher Analyse-Auftrag) und wird hier nur als Befund festgehalten.
+
+**Bilanzschluss:** `[HEAT-BALANCE-AUDIT]` Restsumme 0,000 MWh über 17.520 Knotenbilanzen → **schließt**.
+Kein v10-M2-Residual-Befund (Objective_residual_EUR ≈0) — konsistent mit der C2-Vermutung, dass dieser
+Effekt an ein tatsächlich gebautes, zyklisch betriebenes Preheat-TES gebunden ist (hier: TES nicht gebaut).
+
+**Laufzeit/RAM:** 7.946,7 s (2,21 h), 16 gepinnte Threads (CPUs 16-31), NodefileStart=6 GB.
+
+---
+
+## Gesamtfazit Teil C (alle vier Läufe)
+
+| Lauf | Status | Gap | Obj [EUR] | gebaut WP | gebaut TES | Δ vs PIN0 | Δ vs REF |
+|---|---|---|---|---|---|---|---|
+| C1 SB-REF-HK0 | maxTimeLimit | 0,517% | 21.949.652 | 11,9 MW | — (gesperrt) | −1.364.696 (−5,85%) | — |
+| C2 SB-S1-HK0 | maxTimeLimit | 2,121% | 22.127.975 | 13,8 MW | 146,0 MWh/38,8 MW | −1.186.373 (−5,09%) | +178.322 (+0,81%, **nicht belastbar**, Gap-Band größer) |
+| C3a MM-REF-HK0 | **optimal** | 0,1015% | 419.235 | 0 (nicht gebaut) | — (gesperrt) | −582 (−0,14%, Rauschen) | — |
+| C3b MM-S1-HK0 | **optimal** | 0,1497% | 419.369 | 0 (nicht gebaut) | 0 (nicht gebaut) | −449 (−0,11%, Rauschen) | +134 (+0,03%, Rauschen) |
+
+**Kernaussagen:**
+1. **Stadtbach investiert** (WP in beiden Läufen, TES zusätzlich in S1); **Memmingen investiert in keinem
+   der beiden v10-Läufe** (weder WP noch TES) — ein klarer, struktureller Unterschied zwischen den beiden
+   Netzen unter v9/HK0-Ökonomie, nicht weiter ursachengeklärt (außerhalb des Scopes).
+2. Für SB ist der reine WP-Wert (C1 vs PIN0) gut belegt (−5,85%, Gap 0,517%, deutlich innerhalb Rauschband).
+   Der zusätzliche TES-Wert (C2 vs C1) ist **nicht belastbar** — C2s Gap (2,121%) ist größer als die
+   beobachtete Differenz selbst; eine Aussage zum Vorzeichen des TES-Zusatzwerts an j_hkw erfordert einen
+   weiteren, besser konvergierten Lauf (außerhalb des Scopes dieses Auftrags).
+3. Für MM sind beide Läufe gut konvergiert (Ziel-Gap erreicht), das Ergebnis ist aber ein doppeltes
+   Negativ-Finding: kein WP-, kein TES-Zubau unter den gegebenen Randbedingungen (Standort j_12/j_9, HK0).
+4. **v10-M2** (Objective_residual_EUR, 82.204 EUR in C2) bleibt ungeklärt, tritt nur bei tatsächlich
+   gebautem/zyklisch betriebenem Preheat-TES auf (C2); C1/C3a/C3b zeigen das Artefakt nicht. Für alle TAC-
+   Vergleiche wurde durchgehend `objective_total_EUR` (roher MILP-Wert) verwendet, nicht die möglicherweise
+   unvollständige `real_costs_EUR`-Zerlegung.
+5. **v10-M1** (verlorene v7-S1-Dispatchreihe) bleibt wie in A2 dokumentiert ein offener Daten-Befund, ohne
+   Auswirkung auf die hier gelieferten Teil-C-Ergebnisse (die stützen sich nicht auf die verlorene Reihe).
+
+**Resourcen/Koordination:** alle vier Läufe liefen sequenziell (v9-M3-Lehre: kein Parallelbau), gepinnt auf
+CPUs 16-31 ("Slot B"), koordiniert mit der Peer-Session (eigene Jobs auf "Slot A", 0-15). RAM-Eigenverbrauch
+blieb durchgehend unter dem 96-GB-Eigenbudget (Peak beobachtet: ≈68 GB während C1/C2-Übergang).
+
+**STOPP nach Teil C — wie im Auftrag vorgeschrieben. Keine weitere Arbeit ohne neue explizite Anweisung.**
