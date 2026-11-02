@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Central thermal energy storage in a multi-feed-in district heating network (DHN-A): code and configuration package"
+abstract: >
+  Code and configuration package for the paper 'Central thermal energy storage at an industrial prosumer site:
+  value attribution, hydraulic feasibility and foresight limits in a multi-feed-in district heating network'
+  (working title, submitted to Energy). Hourly energy MILP (Pyomo, HiGHS) with a temperature-class thermal energy
+  storage, an industrial waste-heat heat pump and an electrode boiler, coupled to a calibrated meshed hydraulic
+  substitute network; factorial Shapley attribution, sensitivities, rolling horizon and hosting capacity. Includes a
+  synthetic example data set. Operational data of the network and partner data are confidential and not included.
+authors:
+  - family-names: "Ruess"
+    given-names: "Lukas"
+    affiliation: "Institute for Energy Efficiency in Production EEP, University of Stuttgart, and Fraunhofer Institute for Manufacturing Engineering and Automation IPA"
+    orcid: "https://orcid.org/0009-0005-5010-3520"
+license: MIT
+version: "{version}"
+date-released: "{date}"
+keywords:
+  - district heating
+  - thermal energy storage
+  - heat pump
+  - electrode boiler
+  - industrial waste heat
+  - MILP
+  - hydraulic network model
+  - Shapley value
+  - rolling horizon

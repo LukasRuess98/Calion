@@ -1,0 +1,75 @@
+# SYNTHETIC EXAMPLE DATA - not measured, not derived from measurements; for testing the pipeline only
+network:
+  name: SYNTHETIC
+  pressure_class: PN25
+  note: SYNTHETIC EXAMPLE DATA - not measured, not derived from measurements; for
+    testing the pipeline only
+plants:
+  gas_CHP:
+    dz_m: 0.0
+    P_max_MW:
+      design_minus14C: 125
+    m_max_t_h: 2400
+    pumps:
+      arrangement: supply
+      installed: 4x700 t/h
+      head_m: 70.0
+    dp_internal_bar: 1.0
+    dp_max_outlet_bar: 4.0
+    static_pressure_bar:
+      normal: 8.4
+  waste_incineration:
+    dz_m: 0.0
+    P_max_MW:
+      transition: 45
+    m_max_t_h:
+      transition: 1000
+    pumps:
+      arrangement: return
+      installed: 2x550 t/h
+      head_m: 85.0
+    dp_internal_bar: 0.8
+    dp_max_outlet_bar: 7.5
+    shutdown_bar:
+      p_return_below: 4.5
+      p_supply_above: 20.0
+  gas_turbine:
+    dz_m: 0.0
+    P_max_MW:
+      transition: 35
+    m_max_t_h:
+      transition: 700
+    pumps:
+      arrangement: return
+      installed: 2x700 t/h
+      head_m: 85.0
+    dp_internal_bar: 1.2
+    dp_max_outlet_bar: 7.5
+    shutdown_bar:
+      p_return_below: 4.0
+      p_supply_above: 20.0
+  biomass_CHP:
+    dz_m: 0.0
+    P_max_MW:
+      transition: 14.5
+    m_max_t_h:
+      transition: 400
+    pumps:
+      arrangement: return
+      installed: 2x220 t/h
+      head_m: 100.0
+    dp_internal_bar: 0.9
+    dp_max_outlet_bar: 7.5
+    shutdown_bar:
+      p_return_below: 4.5
+      p_supply_above: 21.0
+  boiler_plant_1:
+    dz_m: 0.0
+    P_max_MW:
+      design_minus14C: 40
+    m_max_t_h: 600
+    pumps:
+      arrangement: return
+      installed: 3x300 m3/h
+      head_m: 60.0
+    dp_internal_bar: 0.7

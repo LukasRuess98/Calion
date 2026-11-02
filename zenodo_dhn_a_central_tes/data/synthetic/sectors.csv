@@ -1,0 +1,23 @@
+sub_area,section,region,network_volume_m3,customers,connected_MW,note
+L1-A,L,L1G,495,53,35.0,synthetic
+L5-W,L,S,285,44,32.0,synthetic
+L5-M,L,L5M,162,26,35.0,synthetic
+L5-O,L,L5O,414,13,35.0,synthetic
+M2-A,L,C2,257,46,60.0,synthetic
+City-A,L,C2,454,56,60.0,synthetic
+M3-A,L,C3,295,32,35.0,synthetic
+L6-A,L,L6,456,35,35.0,synthetic
+L7-A,L,L7,253,19,35.0,synthetic
+L4-A,L,C4,137,24,17.5,synthetic
+M4-A,L,C4,237,40,17.5,synthetic
+Sued-01,L,SO_N,489,47,2.0,synthetic
+Sued-02,L,SO_N,340,12,2.0,synthetic
+Sued-03,L,SO_N,472,49,2.0,synthetic
+Sued-08,L,SO_N,398,42,2.0,synthetic
+Sued-10,L,SO_N,375,28,2.0,synthetic
+Sued-04,L,SO_S,114,13,5.0,synthetic
+Sued-07,L,SO_S,271,5,5.0,synthetic
+Sued-05,L,SO_E,161,22,3.33,synthetic
+Sued-06,L,SO_E,128,47,3.33,synthetic
+Sued-09,L,SO_E,177,9,3.33,synthetic
+W-A,W1,west,300,20,20.0,"synthetic (secondary network, excluded)"

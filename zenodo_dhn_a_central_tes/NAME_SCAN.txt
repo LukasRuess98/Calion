@@ -1,0 +1,2 @@
+Real-name scan of this package (2026-11-02): 66 text files scanned against 298 terms of the local, non-public term lists (real names of city, network, operator, partners, plants, streets, consumers and signal labels; word-boundary match). Result: 0 hits of real names. 7 reviewed hits are not real names: generic German words contained in the term lists (e.g. 'Daten') and the authors' affiliation in CITATION.cff.
+Binary files (Parquet) contain only the synthetic example data generated from a fixed seed.
