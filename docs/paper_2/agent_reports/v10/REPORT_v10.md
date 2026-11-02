@@ -264,3 +264,80 @@ die aus v7_final abgeleitete ≈35h-Erwartung) — die Bound blieb ab ca. Stunde
 Gap schloss danach nur noch über Inkumbenten-Heuristiken (10 Verbesserungen in den letzten ~28h). Für C2/C3
 realistisch einplanen: ebenfalls Ausschöpfung des TimeLimits statt Erreichen der 0,15%-Ziel-Gap ist der
 wahrscheinlichere Ausgang, nicht die Ausnahme.
+
+---
+
+## C2 — Ergebnisse (SB-S1-HK0)
+
+**Status/Gap/TAC:** `maxTimeLimit` (48h-Budget ausgeschöpft). Gap am Ende **2,121%** (schlechter als C1,
+Bound stagnierte früher und stärker — 81.112 Knoten/2.551.375 Simplex-Iterationen in 172.857,7 s). Solution
+count 10. Objektivwert **22.127.974,67 EUR**. Laufzeit 174.098,8 s (≈ 48,36 h). Warmstart korrekt von
+`SB-S0-HK0-PIN0` (nicht von C1/REF — wie vorgeschrieben, keine Transplantation zwischen TES-Standorten).
+
+**Gebaut (WP/EK/TES):**
+
+| Asset | Kapazität | Build |
+|---|---|---|
+| HP hp_sb | 13,8 MW | 1,0 (gebaut; größer als in REF: 11,9 MW — TES ermöglicht/verlangt mehr WP-Leistung) |
+| TES tes_sb | V=4.538,3 m³, h=23,5 m, E=146,0 MWh, p=3,25 bar, Leistung=38,8 MW | 1,0 (gebaut) |
+
+**Speicherbetrieb:** SOC-Band 7,3–146,0 MWh (nie vollständig leer, min ≈5% der Kapazität). Ladesumme
+21.079,1 MWh/a, Entladesumme 20.023,1 MWh/a (Rundtrip-Verlust ≈5%, plausibel). Peak-Lade-/Entladeleistung
+je 38,8 MW (symmetrisch, = cap_power). **≈137 Vollzyklen/Jahr** (Entladesumme/E_max) — kurzzyklischer
+Tages-/Mehrtagespuffer an der Zentrale (j_hkw), keine Saisonspeicherung; passt zur kleinen Kapazität bei
+vergleichsweise hoher Leistung.
+
+**WP-Einspeisung via hkw_to_man:** wie in C1 ausschließlich Vorwärtsfluss, **0 Stunden Rückfluss**. Summe
+52.628,8 MWh_th/a, Peak 13,791 MW (≈ Nennleistung der gebauten WP, etwas höher als in REF).
+
+**Kostenvergleich vs PIN0 und vs REF:**
+
+Δ Objektiv vs PIN0: **−1.186.373,41 EUR (−5,09%)**. Δ Objektiv vs REF: **+178.322,20 EUR (+0,81%)** — TES
+zusätzlich zur WP macht das Ergebnis in diesem (noch nicht konvergierten) Lauf nominal leicht *teurer*, nicht
+günstiger.
+
+| Kostenzeile | PIN0 [EUR] | REF (C1) [EUR] | S1 (C2) [EUR] | ΔS1−PIN0 | ΔS1−REF |
+|---|---|---|---|---|---|
+| Capex_cost | 0 | 1.240.995 | 1.600.924 | +1.600.924 | +359.929 |
+| Activation_cost | 0 | 4.012 | 4.012 | +4.012 | +0 |
+| Fuel_cost | 25.620.400 | 21.110.859 | 20.717.115 | −4.903.286 | −393.744 |
+| Grid_energy_cost | 26.345 | 26.771 | 65.157 | +38.812 | +38.386 |
+| Grid_sell_revenue | −11.345.675 | −8.771.829 | −8.994.913 | +2.350.762 | −223.083 |
+| CO2_cost (brutto) | 6.754.021 | 5.638.094 | 5.562.224 | −1.191.797 | −75.870 |
+| Demand_charge_cost | 38.237 | 41.840 | 376.609 | +338.372 | **+334.769** |
+| OM_fixed_cost | 1.547.000 | 1.582.690 | 1.600.965 | +53.965 | +18.276 |
+| OM_variable_cost | 671.330 | 681.028 | 683.339 | +12.009 | +2.312 |
+| **real_costs_total** | 23.311.659 | 21.554.460 | 21.615.433 | **−1.696.226** | **+60.973** |
+
+**Mechanismus vs REF:** Der TES-Zubau senkt Fuel (−393.744 EUR) und CO2 (−75.870 EUR) weiter, aber treibt
+`Demand_charge_cost_EUR` (Netzentgelt Lastspitze) um **+334.769 EUR** nach oben — die größere WP (13,8 statt
+11,9 MW) plus die TES-Ladeleistung (bis 38,8 MW) erzeugen eine neue, höhere Strom-Lastspitze beim Laden. Dazu
+kommt ein verschlechterter KWK-Stromerlös (−223.083 EUR) und mehr Netzstrombezug (+38.386 EUR). Netto kippt
+das knapp ins Minus (vs REF).
+
+**Wichtiger Vorbehalt — Gap-Band vs Interpretierbarkeit:** Die ΔS1−REF von +178.322 EUR (+0,81% von S1s
+Objektiv) ist **kleiner als die Summe der beiden Optimality-Gaps** (REF 0,517% ≈ ±113.000 EUR; S1 2,121% ≈
+±469.000 EUR — S1s Gap-Band allein ist bereits >2,5× so groß wie die beobachtete Differenz). Die Aussage
+"TES zusätzlich zur WP ist unter v9/E3b teurer als WP allein" ist bei diesem Konvergenzstand **nicht
+belastbar** — das echte Vorzeichen bleibt offen, bis beide Läufe deutlich näher an ihre Ziel-Gap (0,15%)
+kommen. Festzuhalten ist nur der Mechanismus (Demand-Charge-Treiber), nicht das Netto-Vorzeichen.
+
+**Neuer Befund (Meldepflicht v10-M2) — Objective_residual_EUR in cost_breakdown.json:** Der Lauf löst eine
+im Code bereits vorhandene Tripwire aus: `[COST-BREAKDOWN] Objective_residual_EUR = 82.204,43 EUR (> 1 EUR
+Toleranz)` — die 17 benannten Objektivterme reproduzieren `model.obj` nicht vollständig (0,37% des
+Objektivwerts fehlt, Quelle nicht identifiziert). In C1/REF war dieser Residualterm exakt 0 (TES dort über
+`discrete_energies_mwh:[0]` hart deaktiviert); er taucht hier zum ersten Mal auf, sobald TES im Preheat-Modus
+tatsächlich gebaut und zyklisch betrieben wird — Verdacht liegt nahe bei einem TES-Kostenterm (degressive
+Kostenkurve `_cost_k[k]*ysel[k]`, geometric_storage.py ~L400-421) oder einer bislang nicht erfassten
+Kopplungs-/Tie-Break-Größe im Preheat-Pfad, aber **nicht verifiziert** — eine echte Ursachenklärung wäre ein
+Code-Eingriff außerhalb des für diesen Auftrag autorisierten Scopes (nur B2 war freigegeben) und wurde daher
+NICHT vorgenommen. Folge für diesen Report: `objective_total_EUR` (roher MILP-Wert) ist weiterhin autoritativ
+und wird oben für alle TAC-Vergleiche verwendet; die Kostenzeilen-Tabelle (`real_costs_EUR`) für S1 ist um
+82.204,43 EUR zu niedrig, Quelle unbekannt. Wird in C3 (MM) gegengeprüft, ob derselbe Effekt auftritt.
+
+**Bilanzschluss:** `[HEAT-BALANCE-AUDIT]` meldet Restsumme 0,001 MWh über 61.320 Knotenbilanzen (max.
+0,0000 MWh) → **schließt** (physikalisch unabhängig vom Kosten-Residuum oben). Diagnosekomponenten:
+ht_out=665.717, heatd=639.973,5, netzloss_full=19.667,5, return=7.484, dump=86.067,4 MWh.
+
+**Laufzeit/RAM:** 174.098,8 s (48,36 h), 16 gepinnte Threads (CPUs 16-31). RAM zuletzt vor Lauf-Ende bei
+≈52 GB gemessen (deutlich unter dem 96-GB-Eigenbudget). NodefileStart=6 GB.
