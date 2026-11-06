@@ -55,6 +55,10 @@ OUT_BASE = (
     else _ROOT / "output" / os.environ["CALION_RUN_TAG"] if os.environ.get("CALION_RUN_TAG")
     else _ROOT / "output" / "paper2_runs"
 )
+# v12 (2026-11-06): Gurobi logs, SolFiles checkpoints and scenario_runner.log used to go to the SHARED
+# OUT_BASE.parent/"logs" for every campaign, so a tagged re-run of an existing scenario_id (e.g. v12 C0
+# SB-S0-HK0-PIN0) overwrote the earlier campaign's log and checkpoints. A tagged campaign now keeps its own.
+LOG_DIR = (OUT_BASE / "_logs") if os.environ.get("CALION_RUN_TAG") else (OUT_BASE.parent / "logs")
 
 # Disk-safe Gurobi defaults (2026-09-04): the host volume is essentially full, so a
 # B&B run that spills MIP node data to disk crashes with "No space left on device".
@@ -940,8 +944,8 @@ def run_single_scenario(
     # Inject per-scenario Gurobi log path and any parallel-runner solver overrides
     if extra_solver_options:
         cfg.setdefault("run", {}).setdefault("solver_options", {}).update(extra_solver_options)
-    log_path = (OUT_BASE.parent / "logs" / f"gurobi_{scen_id}.log").as_posix()
-    (OUT_BASE.parent / "logs").mkdir(parents=True, exist_ok=True)
+    log_path = (LOG_DIR / f"gurobi_{scen_id}.log").as_posix()
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     cfg.setdefault("run", {}).setdefault("solver_options", {})["LogFile"] = log_path
     cfg["run"]["solver_options"]["LogToConsole"] = 0  # file-only to keep terminal clean
     # Incumbent checkpointing (2026-10-06): Gurobi's native SolFiles parameter writes
@@ -952,7 +956,7 @@ def run_single_scenario(
     # sweep job with no recovery point. Always-on, env-gated off if ever needed.
     import os as _os_ckpt
     if _os_ckpt.environ.get("CALION_NO_SOLFILES") != "1":
-        _solfiles_dir = OUT_BASE.parent / "logs" / "solfiles"
+        _solfiles_dir = LOG_DIR / "solfiles"
         _solfiles_dir.mkdir(parents=True, exist_ok=True)
         cfg["run"]["solver_options"]["SolFiles"] = (_solfiles_dir / f"ckpt_{scen_id}").as_posix()
     # Optional MIPFocus override (env) for solver-policy experiments — MM-S1 is
@@ -1675,14 +1679,14 @@ if __name__ == "__main__":
     from multiprocessing import freeze_support
     freeze_support()
 
-    (OUT_BASE.parent / "logs").mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout),
             logging.FileHandler(
-                str(OUT_BASE.parent / "logs" / "scenario_runner.log"),
+                str(LOG_DIR / "scenario_runner.log"),
                 encoding="utf-8",
             ),
         ],
