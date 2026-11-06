@@ -162,7 +162,21 @@ class HeatPumpBlock(BaseComponent):
                 Q_def[t].fix(0.0)
                 _n_hard_fixed += 4
             _n_ghost_skipped = 3  # linfix_hi/le_cap/lo constraints never created
-        else:
+        # v12 B6 (2026-11-06, decision E1): the default channel Q_def (constant COP_default, no source
+        # limit, no supply-temperature coupling) is OFF unless CALION_HP_DEFAULT_CHANNEL=on. HP heat then
+        # comes only from the WRG source with the Lorenz COP series (Q_wrg <= WRG capacity).
+        import os as _os_b6
+        _hp_def_ch = _os_b6.environ.get("CALION_HP_DEFAULT_CHANNEL", "off").strip().lower()
+        if _hp_def_ch not in ("on", "off"):
+            raise ValueError(f"CALION_HP_DEFAULT_CHANNEL must be 'on' or 'off', got {_hp_def_ch!r}")
+        if _hp_def_ch == "off" and not self._disabled:
+            for t in Tset:
+                Q_def[t].fix(0.0)
+        import logging as _logging_b6
+        _logging_b6.getLogger(__name__).info(
+            "[B6] %s: default channel Q_def %s (CALION_HP_DEFAULT_CHANNEL=%s)", comp,
+            "OFF (fixed 0, heat only via WRG source)" if _hp_def_ch == "off" else "ON", _hp_def_ch)
+        if not self._disabled:
             cap_max_bound = max(self.capacity_max_mw, self.capacity_init_mw, 1e-9)
             setattr(m, f"{comp}_cap_x_on", pyo.Var(
                 Tset, domain=pyo.NonNegativeReals, bounds=(0.0, cap_max_bound)))

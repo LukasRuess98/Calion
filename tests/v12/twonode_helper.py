@@ -22,7 +22,7 @@ TOPO = ROOT / "configs" / "paper_2" / "Stadtbach_topo.yaml"
 
 
 def make_cfg(cap_mw: float = 6.0, start="2025-01-01 00:00", end="2025-01-02 23:00", primary_demand=True,
-             bidirectional=True) -> dict:
+             bidirectional=True, hp_mw: float = 0.0) -> dict:
     full = yaml.safe_load(TOPO.read_text(encoding="utf-8"))
     cfg = copy.deepcopy(full)
     cfg["site"]["input_xlsx"] = str(ROOT / full["site"]["input_xlsx"])
@@ -40,6 +40,14 @@ def make_cfg(cap_mw: float = 6.0, start="2025-01-01 00:00", end="2025-01-02 23:0
     cfg["assets"] = {"hkw": copy.deepcopy(full["assets"]["hkw"]),
                      "wh_man": {"type": "thermal_generator", "fuel": "waste_heat", "capacity_mw": float(cap_mw),
                                 "thermal_efficiency": 1.0, "min_load": 0.0}}
+    if hp_mw > 0:   # v12 B6 test: real hp_sb (WRG source) fixed at hp_mw at j_man
+        hp = copy.deepcopy(full["assets"]["hp_sb"])
+        hp["capacity_mw"] = float(hp_mw)
+        hp["investment"]["enabled"] = False
+        hp["investment"]["capex_charged"] = True   # fixed design: CAPEX still charged (V1 guard)
+        cfg["assets"]["hp_sb"] = hp
+        net["nodes"]["j_man"]["assets"].append("hp_sb")
+        cfg["heat_pumps"] = full.get("heat_pumps", {})
     cfg["assets"]["hkw"]["min_load"] = 0.0
     cfg["assets"]["hkw"]["capacity_mw"] = 400.0   # pre-check compares capacity with the site-wide demand column
     cfg.setdefault("run", {})["solver"] = "gurobi"
