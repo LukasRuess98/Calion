@@ -41,8 +41,20 @@ logger = logging.getLogger(__name__)
 # CALION_OUT_BASE lets a campaign write to a FRESH dir (e.g. paper2_runs_v3) without
 # clobbering the current-but-stale results; honoured at import so ProcessPoolExecutor
 # spawn-workers (which re-import this module) inherit the same base. 2026-09-07.
-OUT_BASE = Path(os.environ["CALION_OUT_BASE"]) if os.environ.get("CALION_OUT_BASE") \
+#
+# v11 B2 (2026-11-06, docs agent_reports/v11, v10-M1): CALION_OUT_BASE alone was opt-in
+# and easy to forget -- every run that didn't set it landed in the SAME output/paper2_runs/
+# regardless of which task/campaign produced it, so a throwaway build-test under a real
+# scenario_id silently destroyed that scenario_id's real result (lost: output/paper2_runs/
+# SB-S1-HK0's v7-vintage dispatch, 2026-10-23). CALION_RUN_TAG gives every campaign its own
+# output/<tag>/ namespace without requiring the full CALION_OUT_BASE path each time; the
+# collision guard below (not this path choice alone) is what actually prevents the v10-M1
+# failure mode, so an operator who forgets to set a tag still can't silently overwrite.
+OUT_BASE = (
+    Path(os.environ["CALION_OUT_BASE"]) if os.environ.get("CALION_OUT_BASE")
+    else _ROOT / "output" / os.environ["CALION_RUN_TAG"] if os.environ.get("CALION_RUN_TAG")
     else _ROOT / "output" / "paper2_runs"
+)
 
 # Disk-safe Gurobi defaults (2026-09-04): the host volume is essentially full, so a
 # B&B run that spills MIP node data to disk crashes with "No space left on device".
@@ -261,6 +273,20 @@ def run_single_scenario(
     if (outdir / "meta.json").exists() and not force_rerun:
         logger.info("[SKIP] %s — already complete (meta.json exists)", scen_id)
         return {"id": scen_id, "status": "skipped", "outdir": str(outdir)}
+
+    # v11 B2 (2026-11-06, docs agent_reports/v11, v10-M1): force_rerun on an occupied
+    # output dir used to silently overwrite it -- the exact mechanism that destroyed
+    # SB-S1-HK0's real v7 result under a 2026-10-23 build-test. A genuine re-run within
+    # the same campaign must pick a new CALION_RUN_TAG (or move the old dir aside by
+    # hand); this function never does it implicitly.
+    if (outdir / "meta.json").exists() and force_rerun:
+        raise RuntimeError(
+            f"[{scen_id}] v11 B2: force_rerun=True but {outdir} already holds a completed "
+            f"run (meta.json exists) -- refusing to overwrite it (v10-M1 failure mode). "
+            f"Set CALION_RUN_TAG to a new campaign tag (or CALION_OUT_BASE to a fresh path) "
+            f"before re-running this scenario_id, or move/rename the existing {outdir} "
+            f"yourself first if you are certain it should be replaced in place."
+        )
 
     # Feature-gated scenarios (hot charging, endogenous siting) are defined in
     # the matrix but skipped until the corresponding model feature lands.
