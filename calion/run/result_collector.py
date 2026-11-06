@@ -1495,6 +1495,20 @@ def _collect_timeseries_and_summary(
                                      "sum_mwh": sum(_entries.values()), "hours": _entries}
     if _dump_audit:
         objective["_dump_audit"] = _dump_audit
+    # v12 B1 (2026-11-06): system heat balance R(t) from the solved model (calion/run/balance_check.py).
+    # Written to validation.json (key system_balance, status balance_fail) by extract_artefacts_p2.
+    if model is not None and HAVE_PYOMO:
+        try:
+            from calion.run.balance_check import balance_from_model
+            _sb = balance_from_model(model)
+            if _sb is not None:
+                objective["_system_balance"] = _sb
+                (logger.error if _sb["status"] != "ok" else logger.info)(
+                    "[BALANCE] system balance %s: R min %.4f / max %.4f MW, sum %.1f MWh%s",
+                    _sb["status"], _sb["R_min_MW"], _sb["R_max_MW"], _sb["R_sum_MWh"],
+                    (" -- " + "; ".join(_sb["reasons"])) if _sb["reasons"] else "")
+        except Exception as _sb_err:  # noqa: BLE001
+            logger.warning("[BALANCE] system balance check failed: %s", _sb_err)
     # 2026-09-23 (G3, docs SS4av/SS4aw): mandatory KPI, present in EVERY run's export (0.0 unless
     # CALION_DUMP_MODE=chp_only actually made per-node dump Vars closure-eligible/unpriced --
     # legacy-mode dump is real, priced dump and must NOT be reported here).

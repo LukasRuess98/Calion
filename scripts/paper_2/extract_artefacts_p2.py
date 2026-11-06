@@ -415,6 +415,27 @@ def write_dump_audit_p2(outdir: Path, wf_result) -> dict | None:
     return None
 
 
+def write_system_balance_p2(outdir: Path, wf_result) -> dict | None:
+    """v12 B1 (2026-11-06): merge result_collector's objective['_system_balance'] into validation.json
+    (key system_balance; top-level status 'balance_fail' if the check fails) and write the hourly R(t)
+    to system_balance_hourly.json. Must run AFTER the Paper 1 extractor (which writes validation.json)."""
+    try:
+        pf = wf_result.pf_result
+        if pf is None:
+            return None
+        summary = getattr(pf, "summary", None) or {}
+        obj_section = summary.get("objective", {}) if hasattr(summary, "get") else {}
+        sb = obj_section.get("_system_balance")
+        if not sb:
+            logger.warning("system balance: no _system_balance in result (non-network model?)")
+            return None
+        from calion.run.balance_check import merge_into_validation
+        return merge_into_validation(outdir, sb)
+    except Exception as exc:
+        logger.warning("system balance extraction failed: %s", exc)
+    return None
+
+
 def write_dsm_hourly_p2(outdir: Path, wf_result) -> bool:
     """Write dsm_hourly.csv: delta(t), dpos(t), dneg(t) for each DSM consumer."""
     try:
@@ -533,6 +554,8 @@ def extract_all_p2(
     write_pressure_slack_audit_p2(outdir, wf_result)
 
     write_dump_audit_p2(outdir, wf_result)
+
+    write_system_balance_p2(outdir, wf_result)
 
     write_cost_breakdown_p2(outdir, wf_result, scen_id)
 

@@ -823,6 +823,33 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             # Junction: flow balance handled by NetworkManager
             pass
 
+    # ── v12 B1 (2026-11-06): register the system-balance terms for calion.run.balance_check ──
+    # R(t) = sum heat-out (generators + storage discharge) - sum demand - sum pipe losses
+    #        - sum dump - sum heat-in (storage charge). Evaluated by result_collector after the solve.
+    _bal_gen, _bal_in, _bal_dump = [], [], []
+    for _bn_id, _bn in system_buses.nodes.items():
+        _bal_gen.extend(_bn.ht_out)
+        _bal_in.extend(_bn.ht_in)
+        _bd = getattr(model, f"Q_dump_{_bn_id}", None)
+        if _bd is not None:
+            _bal_dump.append(_bd)
+    _bal_loss = []
+    if unified_config is not None:
+        for _pid in unified_config.pipes:
+            _ppfx = _pid.upper().replace('-', '_')
+            for _suffix in ("_Q_loss_supply", "_Q_loss_return"):
+                _lv = getattr(model, f"{_ppfx}{_suffix}", None)
+                if _lv is not None:
+                    _bal_loss.append(_lv)
+    _bal_demand = [
+        (lambda m, t, _nid=_nid: _node_effective_demand(m, _nid, t))
+        for _nid in unified_config.nodes
+        if getattr(model, f"{_nid.upper().replace('-', '_')}_Q_demand", None) is not None
+        or getattr(model, f"heatd_{_nid}", None) is not None
+    ]
+    model._v12_balance_terms = {"gen": _bal_gen, "store_in": _bal_in, "dump": _bal_dump,
+                                "loss": _bal_loss, "demand": _bal_demand}
+
     # ── Mass-balance correction for nodes with local heat generation ────────
     # BUGFIX (2026-07-07): thermal_node.py's `{prefix}_mass_balance` constraint
     # (Sigma m_dot_in == Sigma m_dot_out [+ m_dot_demand]) is built while nodes
