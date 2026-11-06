@@ -394,6 +394,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     # and no separate network_loss term is needed.  For single-producer networks
     # (Memmingen) this is algebraically equivalent to the old approach.
     _bidi_signed_q_terms = []   # list of callables t → Pyomo expression [MW]
+    _primary_own_demand_nodes = []   # v12 B2b: set only on the nodal path (see below)
 
     if unified_config is not None and primary_producer_id is not None:
         # Nodal balance for primary producer: collect Q_delivered (supply side) for
@@ -478,6 +479,13 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             # mixed pipe lists are no longer needed in primary balance.
             _all_consumer_demand_nodes = []
             _secondary_mixed_q_pipes = []
+            # v12 B2b (2026-11-06, v12-M1): the outgoing pipes cover every OTHER node's demand,
+            # but the primary producer's OWN local demand (e.g. Memmingen j_9: V_15/V_16) was
+            # dropped together with the list above -- it was served without any generation
+            # (MM: 252 MWh/a phantom heat in every run since the nodal path). Keep it as a
+            # separate term (NOT via _all_consumer_demand_nodes, which would also switch on
+            # the legacy network_loss term in primary_producer_balance and double-count losses).
+            _primary_own_demand_nodes = [primary_producer_id]
             logger.info(
                 "[CONSTRAINT] Primary producer %s: nodal balance with %d outgoing pipe terms",
                 primary_producer_id, len(_bidi_signed_q_terms),
@@ -572,7 +580,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     m, t, _out=ht_out, _in=ht_in, _d=dump_var,
                     _qc=consumer_demand_nodes, _qp=secondary_q_pipes,
                     _bidi=_bidi_signed_q_terms, _rl=_return_loss_terms,
-                    _sl=_supply_loss_terms,
+                    _sl=_supply_loss_terms, _own=_primary_own_demand_nodes,
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
@@ -593,6 +601,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     supply_loss = sum(sl[t] for sl in _sl) if (_sl and _bidi) else 0
                     return supply == (_d[t] + charge + network_loss + return_loss + supply_loss
                                       + sum(_node_effective_demand(m, nid, t) for nid in _qc)
+                                      + sum(_node_effective_demand(m, nid, t) for nid in _own)
                                       + sum(qp[t] for qp in _qp)
                                       + sum(f(t) for f in _bidi))
 
