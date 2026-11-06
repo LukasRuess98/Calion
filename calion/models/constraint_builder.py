@@ -395,6 +395,82 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
     # (Memmingen) this is algebraically equivalent to the old approach.
     _bidi_signed_q_terms = []   # list of callables t → Pyomo expression [MW]
     _primary_own_demand_nodes = []   # v12 B2b: set only on the nodal path (see below)
+    _CP = 4.186  # kJ/(kg·K), same constant as pipe_pair.py
+
+    def _make_signed_q_fn(m_dot_v, T_sup_p, T_ret_p, cp=_CP):
+        # 2026-07-08: this freezes T_sup_p/T_ret_p to Python floats via
+        # pyo.value() at build time -- only valid if they're Params, not
+        # Vars. Today this holds by construction: this function is only
+        # ever called for bidirectional pipes, and L3+ node classification
+        # (network_manager.py _classify_node_temperature_mode) deliberately
+        # excludes every node adjacent to a bidirectional pipe from getting a
+        # Var T_supply/T_return, specifically so this stays valid. Assert
+        # rather than silently freezing a Var if that invariant ever
+        # breaks (same bug class as the pre-2026-07-07 mass-balance bugs).
+        assert isinstance(T_sup_p, pyo.Param), (
+            f"_make_signed_q_fn: T_sup_p is a {type(T_sup_p).__name__}, not a Param -- "
+            f"freezing it via pyo.value() would silently bake in a stale ΔT. "
+            f"This should only be reachable for bidirectional-pipe-adjacent nodes, "
+            f"which L3+ classification excludes from ever getting a Var T_supply."
+        )
+        assert isinstance(T_ret_p, pyo.Param), (
+            f"_make_signed_q_fn: T_ret_p is a {type(T_ret_p).__name__}, not a Param -- "
+            f"same concern as T_sup_p above."
+        )
+
+        def _signed_q(t):
+            coeff = cp * (pyo.value(T_sup_p[t]) - pyo.value(T_ret_p[t])) / 1000
+            return m_dot_v[t] * coeff
+        return _signed_q
+
+    def _bidi_pipe_signed_q(pipe_id):
+        """Signed heat transfer from_node -> to_node of a bidirectional pipe [MW], or None.
+
+        v12 B2 (2026-11-06): one expression for BOTH ends of a bidirectional pipe, identical to the
+        term j_hkw has always used: +m_dot*cp*dT (Params) is the heat that leaves from_node and
+        arrives at to_node; in reverse-flow hours (m_dot < 0) it is negative, i.e. to_node SENDS
+        heat. Before v12 the to_node end used Q_consumer (>= 0 in either direction), so in reverse
+        hours both ends received the same heat (v11-M1: phantom heat, SB C1/C2 -94/-101 GWh/a).
+        Pipe losses stay where they were: the supply/return loss of every pipe is charged exactly
+        once in the primary producer balance (_supply_loss_terms / _return_loss_terms below).
+        """
+        pfx = pipe_id.upper().replace('-', '_')
+        m_dot_v = getattr(model, f'{pfx}_m_dot', None)
+        T_sup = getattr(model, f'{pfx}_T_supply_in', None)
+        T_ret = getattr(model, f'{pfx}_T_return_in', None)
+        if m_dot_v is None or T_sup is None or T_ret is None:
+            return None
+        return _make_signed_q_fn(m_dot_v, T_sup, T_ret)
+
+    class _SignedPipeTerm:
+        """Indexable wrapper (term[t]) around _bidi_pipe_signed_q, so the node balances below keep
+        their `_qp[t]` / `qo[t]` form for both one-way and bidirectional pipes (v12 B2)."""
+        def __init__(self, fn):
+            self._fn = fn
+
+        def __getitem__(self, t):
+            return self._fn(t)
+
+    def _pipe_inflow_term(pipe_id, pipe_cfg):
+        """Heat arriving at pipe_cfg.to_node: signed m_dot*cp*dT for a bidirectional pipe
+        (negative in reverse-flow hours), else Q_consumer (fallback Q_delivered) as before."""
+        if getattr(pipe_cfg, 'bidirectional', False):
+            fn = _bidi_pipe_signed_q(pipe_id)
+            assert fn is not None, (
+                f"v12 B2: bidirectional pipe {pipe_id} lacks m_dot/T_supply_in/T_return_in -- "
+                f"refusing to fall back to Q_consumer (that is exactly the v11-M1 phantom-heat bug)")
+            return _SignedPipeTerm(fn)
+        pfx = pipe_id.upper().replace('-', '_')
+        return getattr(model, f'{pfx}_Q_consumer', getattr(model, f'{pfx}_Q_delivered', None))
+
+    def _pipe_outflow_term(pipe_id, pipe_cfg):
+        """Heat leaving pipe_cfg.from_node (non-primary): signed for a bidirectional pipe, else
+        Q_delivered as before."""
+        if getattr(pipe_cfg, 'bidirectional', False):
+            fn = _bidi_pipe_signed_q(pipe_id)
+            assert fn is not None, f"v12 B2: bidirectional pipe {pipe_id} lacks m_dot/T params"
+            return _SignedPipeTerm(fn)
+        return getattr(model, f"{pipe_id.upper().replace('-', '_')}_Q_delivered", None)
 
     if unified_config is not None and primary_producer_id is not None:
         # Nodal balance for primary producer: collect Q_delivered (supply side) for
@@ -402,35 +478,6 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
         # already included, so neither a demand proxy nor a network_loss term is needed.
         # For single-producer networks (Memmingen) this is equivalent to the old approach:
         #   sum(Q_del_all) = sum(Q_consumer + loss) = sum(D) + total_losses.
-        _CP = 4.186  # kJ/(kg·K), same constant as pipe_pair.py
-
-        def _make_signed_q_fn(m_dot_v, T_sup_p, T_ret_p, cp=_CP):
-            # 2026-07-08: this freezes T_sup_p/T_ret_p to Python floats via
-            # pyo.value() at build time -- only valid if they're Params, not
-            # Vars. Today this holds by construction: this function is only
-            # ever called for bidirectional pipes off the primary producer,
-            # and L3+ node classification (network_manager.py
-            # _classify_node_temperature_mode) deliberately excludes every
-            # node adjacent to a bidirectional pipe from getting a Var
-            # T_supply/T_return, specifically so this stays valid. Assert
-            # rather than silently freezing a Var if that invariant ever
-            # breaks (same bug class as the pre-2026-07-07 mass-balance bugs).
-            assert isinstance(T_sup_p, pyo.Param), (
-                f"_make_signed_q_fn: T_sup_p is a {type(T_sup_p).__name__}, not a Param -- "
-                f"freezing it via pyo.value() would silently bake in a stale ΔT. "
-                f"This should only be reachable for bidirectional-pipe-adjacent nodes, "
-                f"which L3+ classification excludes from ever getting a Var T_supply."
-            )
-            assert isinstance(T_ret_p, pyo.Param), (
-                f"_make_signed_q_fn: T_ret_p is a {type(T_ret_p).__name__}, not a Param -- "
-                f"same concern as T_sup_p above."
-            )
-
-            def _signed_q(t):
-                coeff = cp * (pyo.value(T_sup_p[t]) - pyo.value(T_ret_p[t])) / 1000
-                return m_dot_v[t] * coeff
-            return _signed_q
-
         for _out_pipe_id, _out_pipe_cfg in unified_config.pipes.items():
             if _out_pipe_cfg.from_node != primary_producer_id:
                 continue
@@ -624,11 +671,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 if unified_config is not None:
                     for pipe_id, pipe_cfg in unified_config.pipes.items():
                         if pipe_cfg.to_node == node_id:
-                            pipe_pfx = pipe_id.upper().replace('-', '_')
-                            q_pipe_in = getattr(
-                                model, f'{pipe_pfx}_Q_consumer',
-                                getattr(model, f'{pipe_pfx}_Q_delivered', None)
-                            )
+                            q_pipe_in = _pipe_inflow_term(pipe_id, pipe_cfg)   # v12 B2
                             break  # use first (typically only) incoming pipe
 
                 # Collect outgoing pipes' Q_delivered variables.
@@ -641,8 +684,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 if unified_config is not None:
                     for pipe_id, pipe_cfg in unified_config.pipes.items():
                         if pipe_cfg.from_node == node_id:
-                            pipe_pfx = pipe_id.upper().replace('-', '_')
-                            qd = getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            qd = _pipe_outflow_term(pipe_id, pipe_cfg)   # v12 B2
                             if qd is not None:
                                 q_pipes_out.append(qd)
 
@@ -734,11 +776,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 if unified_config is not None:
                     for pipe_id, pipe_cfg in unified_config.pipes.items():
                         if pipe_cfg.to_node == node_id:
-                            pipe_pfx = pipe_id.upper().replace('-', '_')
-                            q_pipe_in = getattr(
-                                model, f'{pipe_pfx}_Q_consumer',
-                                getattr(model, f'{pipe_pfx}_Q_delivered', None)
-                            )
+                            q_pipe_in = _pipe_inflow_term(pipe_id, pipe_cfg)   # v12 B2
                             break
 
                 # BUGFIX (2026-07-07): collect outgoing pipes' Q_delivered, mirroring the
@@ -756,8 +794,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                 if unified_config is not None:
                     for pipe_id, pipe_cfg in unified_config.pipes.items():
                         if pipe_cfg.from_node == node_id:
-                            pipe_pfx = pipe_id.upper().replace('-', '_')
-                            qd = getattr(model, f'{pipe_pfx}_Q_delivered', None)
+                            qd = _pipe_outflow_term(pipe_id, pipe_cfg)   # v12 B2
                             if qd is not None:
                                 q_pipes_out.append(qd)
 
