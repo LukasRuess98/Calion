@@ -169,9 +169,11 @@ def main():
     # peak) -> UB_c = r * max_k peak_k + sum_k obj_k. With storage this concatenation is NOT feasible (SOC link);
     # a sequential hand-off pass is required instead (not done here).
     ub_candidates = []
-    if args.ub_run:
+    if args.ub_run and (Path(args.ub_run) / "meta.json").exists():
         ub_candidates.append({"source": f"weg_a:{args.ub_run}",
                               "UB_EUR": float(json.loads((Path(args.ub_run) / "meta.json").read_text(encoding="utf-8"))["obj_eur"])})
+    elif args.ub_run:
+        print(f"WARNING: --ub-run {args.ub_run} has no meta.json (yet) -- Weg-A UB not used")
     if not has_tes:
         import pandas as pd
         for cap in cap_list:
