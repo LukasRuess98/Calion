@@ -603,6 +603,45 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
             len(_supply_loss_terms),
         )
 
+    # ── v12 junction energy fix (2026-11-09, author decision on v12-M2) ─────────────────────
+    # Nodes WITHOUT their own heat balance (pure junctions such as SB j_ost/j_hws/j_hww and
+    # pass-through consumers such as MM j_11/j_5/j_4) are coupled only by mass balance. Their
+    # incoming pipes convert m_dot to heat with the upstream node's dT, the outgoing pipes with the
+    # node's own dT, which is lower by the spatial supply-temperature offset (L3+ light). The
+    # difference E_j(t) = sum_in - sum_out - demand_j > 0 disappeared without any balance, i.e. the
+    # supply loss was charged twice (explicitly via Q_loss_supply AND implicitly as E_j): SB +1,031
+    # MWh/a, MM +72 MWh/a (v12 A1 / C0). The primary balance now credits sum_j E_j(t), so every
+    # supply loss is charged exactly once (explicitly) and the system balance closes (R = 0).
+    # CALION_LEGACY_JUNCTION_ENERGY=1 restores the old behaviour for reproducibility.
+    import os as _os_jx
+    _junction_energy_terms = []
+    if unified_config is not None and not _os_jx.environ.get("CALION_LEGACY_JUNCTION_ENERGY"):
+        for _jn_id, _jn_cfg in unified_config.nodes.items():
+            _jn_buses = system_buses.nodes.get(_jn_id)
+            _has_balance = _jn_buses is not None and (
+                _jn_cfg.type in ("producer", "mixed")
+                or (_jn_cfg.type == "consumer" and _jn_buses.ht_out
+                    and hasattr(model, f"heatd_{_jn_id}")))
+            if _has_balance:
+                continue
+            _ins, _outs = [], []
+            for _pid, _pcfg in unified_config.pipes.items():
+                if _pcfg.to_node == _jn_id:
+                    _term = _pipe_inflow_term(_pid, _pcfg)
+                    if _term is not None:
+                        _ins.append(_term)
+                if _pcfg.from_node == _jn_id:
+                    _term = _pipe_outflow_term(_pid, _pcfg)
+                    if _term is not None:
+                        _outs.append(_term)
+            if not _ins and not _outs:
+                continue
+            _junction_energy_terms.append(
+                lambda m, t, _i=_ins, _o=_outs, _nid=_jn_id: (
+                    sum(q[t] for q in _i) - sum(q[t] for q in _o) - _node_effective_demand(m, _nid, t)))
+        logger.info("[CONSTRAINT] v12 junction energy: %d nodes without own heat balance credited "
+                    "in the primary balance", len(_junction_energy_terms))
+
     # Per-node heat balance constraints
     for node_id, node_cfg in unified_config.nodes.items():
         node_buses = system_buses.nodes.get(node_id)
@@ -628,6 +667,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     _qc=consumer_demand_nodes, _qp=secondary_q_pipes,
                     _bidi=_bidi_signed_q_terms, _rl=_return_loss_terms,
                     _sl=_supply_loss_terms, _own=_primary_own_demand_nodes,
+                    _jx=_junction_energy_terms,
                 ):
                     supply = sum((f[t] for f in _out), start=0)
                     charge = sum((f[t] for f in _in), start=0)
@@ -649,6 +689,7 @@ def add_per_node_heat_balance(model, system_buses, unified_config):
                     return supply == (_d[t] + charge + network_loss + return_loss + supply_loss
                                       + sum(_node_effective_demand(m, nid, t) for nid in _qc)
                                       + sum(_node_effective_demand(m, nid, t) for nid in _own)
+                                      - sum(f(m, t) for f in _jx)
                                       + sum(qp[t] for qp in _qp)
                                       + sum(f(t) for f in _bidi))
 
