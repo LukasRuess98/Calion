@@ -1,0 +1,6 @@
+run_id: SB-HK0-WP8-TES146-source-B5TEST
+hp_mw: 8.0
+ek_mw: 0.0
+tes_mwh: 146.0
+tes_site: source
+note: v12 C1 design (WP 8 MW at j_man, TES 146 MWh at j_man, S3 hot charging), B5 test on 48 h

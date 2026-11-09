@@ -251,6 +251,80 @@ def _load_waste_heat(cfg: dict, table) -> tuple[np.ndarray, np.ndarray, np.ndarr
     return Q_AW, T_AW, T_amb
 
 
+_FIXED_DESIGN_KEYS = {"run_id", "hp_mw", "ek_mw", "tes_mwh", "tes_power_mw", "tes_site", "note"}
+_TES_SITE_OF_NODE = {None: "none", "S1": "hub", "S3": "source"}
+
+
+def _load_fixed_design() -> dict | None:
+    """v12 B5: CALION_FIXED_DESIGN=<yaml> -> design dict (validated), or None if unset."""
+    path = os.environ.get("CALION_FIXED_DESIGN")
+    if not path:
+        return None
+    d = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    unknown = set(d) - _FIXED_DESIGN_KEYS
+    if unknown:
+        raise ValueError(f"CALION_FIXED_DESIGN {path}: unknown key(s) {sorted(unknown)}")
+    for k in ("run_id", "hp_mw", "ek_mw", "tes_mwh", "tes_site"):
+        if k not in d:
+            raise ValueError(f"CALION_FIXED_DESIGN {path}: missing required key '{k}'")
+    if d["tes_site"] not in ("hub", "source", "none"):
+        raise ValueError(f"CALION_FIXED_DESIGN {path}: tes_site must be hub|source|none, got {d['tes_site']!r}")
+    for k in ("hp_mw", "ek_mw", "tes_mwh"):
+        d[k] = float(d[k])
+        if d[k] < 0:
+            raise ValueError(f"CALION_FIXED_DESIGN {path}: {k} must be >= 0")
+    if (d["tes_mwh"] > 0) != (d["tes_site"] != "none"):
+        raise ValueError(f"CALION_FIXED_DESIGN {path}: tes_mwh={d['tes_mwh']} inconsistent with tes_site={d['tes_site']}")
+    if d["tes_site"] == "source" and d["hp_mw"] <= 0:
+        # Author decision 2026-11-09 (v12): TES at the source node charges ONLY via the HP hot channel (S3);
+        # without an HP it can never charge -> its value is structurally 0, the point is reported, not solved.
+        raise ValueError(f"CALION_FIXED_DESIGN {path}: TES at the source with hp_mw=0 cannot charge (S3 hot "
+                         f"charging only) -- structurally zero value, do not solve this point")
+    d["_path"] = str(path)
+    return d
+
+
+def _apply_fixed_design(cfg: dict, scen: dict, design: dict, scen_id: str) -> None:
+    """v12 B5: fix every design decision (HP MW, EK MW, TES energy/power, TES site) -> operation-only MILP.
+
+    The TES site is taken from the BASE scenario's tes_node (S1 hub, S3 source + hot charging, none = S0)
+    and must match design['tes_site']. CAPEX of the fixed sizes is still charged (capex_charged=True), so
+    the objective is the full TAC of that design; size 0 removes the asset (no CAPEX, no Vars beyond fixed 0).
+    """
+    site = _TES_SITE_OF_NODE.get(scen.get("tes_node"), "unsupported")
+    if site != design["tes_site"]:
+        raise ValueError(f"[{scen_id}] v12 B5: design tes_site={design['tes_site']} but base scenario tes_node="
+                         f"{scen.get('tes_node')} (= {site}); use S0 for none, S1 for hub, S3 for source")
+    assets = cfg.get("assets", {})
+    network = scen.get("network", "memmingen")
+    hp_keys = [k for k, a in assets.items() if a.get("type") == "heat_pump"]
+    ek_keys = [k for k in (["ek_sb"] if network == "stadtbach" else ["eboiler_main"]) if k in assets]
+    tes_keys = [k for k, a in assets.items() if a.get("type") == "geometric_storage"]
+    for keys, mw, label in ((hp_keys, design["hp_mw"], "HP"), (ek_keys, design["ek_mw"], "EK")):
+        for k in keys:
+            inv = assets[k].setdefault("investment", {})
+            inv["enabled"] = False
+            inv["capacity_max_mw"] = mw
+            assets[k]["capacity_mw"] = mw
+            inv["capex_charged"] = mw > 0
+            logger.info("[%s] B5 FIXED DESIGN: %s %s = %.3f MW (capex_charged=%s)", scen_id, label, k, mw, mw > 0)
+    for k in tes_keys:
+        a = assets[k]
+        if design["tes_mwh"] <= 0:
+            a["V_min_m3"] = 0.0
+            a["V_max_m3"] = 0.0
+            logger.info("[%s] B5 FIXED DESIGN: TES %s off", scen_id, k)
+            continue
+        a["investable"] = False
+        a["energy_mwh_fixed"] = design["tes_mwh"]
+        p_mw = design.get("tes_power_mw")
+        a["power_mw_fixed"] = round(float(p_mw) if p_mw is not None
+                                    else float(a.get("power_to_energy_ratio", 0.25)) * design["tes_mwh"], 4)
+        a["capex_charged"] = True
+        logger.info("[%s] B5 FIXED DESIGN: TES %s = %.2f MWh / %.3f MW at %s (%s), capex_charged=True",
+                    scen_id, k, design["tes_mwh"], a["power_mw_fixed"], scen.get("tes_node"), design["tes_site"])
+
+
 def run_single_scenario(
     scen: dict,
     scen_cfg: dict,
@@ -270,6 +344,14 @@ def run_single_scenario(
     Returns:
         Result dict with keys: id, status, solve_s, obj_eur, outdir.
     """
+    # v12 B5: fixed design -> own run id (output dir) derived from the design file, never the base id
+    _fixed_design = _load_fixed_design()
+    if _fixed_design is not None:
+        scen = dict(scen)
+        scen["base_id"] = scen["id"]
+        scen["id"] = str(_fixed_design["run_id"])
+        logger.info("[%s] B5 FIXED DESIGN from %s on base scenario %s", scen["id"], _fixed_design["_path"],
+                    scen["base_id"])
     scen_id = scen["id"]
     outdir = OUT_BASE / scen_id
 
@@ -1088,6 +1170,9 @@ def run_single_scenario(
                 _ac.setdefault("investment", {})["enabled"] = False
                 _ac["capacity_mw"] = _hp
                 logger.info("[%s] SEED: %s HP capacity fixed non-investable at %.4f MW", scen_id, _ak, _hp)
+
+    if _fixed_design is not None:
+        _apply_fixed_design(cfg, scen, _fixed_design, scen_id)
 
     _export_dir = _make_run_export_dir(cfg, scen_id)
     logger.info("[%s] per-run export dir: %s", scen_id, _export_dir)

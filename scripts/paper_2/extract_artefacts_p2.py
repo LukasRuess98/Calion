@@ -557,6 +557,20 @@ def extract_all_p2(
 
     write_system_balance_p2(outdir, wf_result)
 
+    # v12 B5: free-binary census and the fixed-design file (if any) next to the results
+    try:
+        _census = (getattr(wf_result.pf_result, "solver", None) or {}).get("binary_census")
+        if _census:
+            with open(outdir / "binary_census.json", "w", encoding="utf-8") as f:
+                json.dump(_census, f, indent=2)
+        import os as _os_fd
+        _fd = _os_fd.environ.get("CALION_FIXED_DESIGN")
+        if _fd:
+            import shutil as _shutil_fd
+            _shutil_fd.copy2(_fd, outdir / "fixed_design.yaml")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[%s] binary census / fixed design copy failed: %s", scen_id, exc)
+
     write_cost_breakdown_p2(outdir, wf_result, scen_id)
 
     write_dsm_hourly_p2(outdir, wf_result)

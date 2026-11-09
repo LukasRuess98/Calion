@@ -660,6 +660,30 @@ def _solve_scenario(
         "model_built": model is not None,
     }
 
+    # v12 B5 (2026-11-06): census of the binaries that remain FREE after build (fixed design runs fix
+    # investment/size/build binaries; what is left are the operating binaries). Per Var component.
+    if model is not None and HAVE_PYOMO:
+        try:
+            _census: dict[str, int] = {}
+            _n_fixed = 0
+            for _vc in model.component_objects(pyo.Var, active=True):
+                _nb = 0
+                for _vd in _vc.values():
+                    if _vd.is_binary() or _vd.is_integer():
+                        if _vd.fixed:
+                            _n_fixed += 1
+                        else:
+                            _nb += 1
+                if _nb:
+                    _census[_vc.name] = _nb
+            solver_meta["binary_census"] = {"free_total": sum(_census.values()), "fixed_total": _n_fixed,
+                                            "free_by_component": dict(sorted(_census.items(), key=lambda kv: -kv[1]))}
+            logger.info("[B5] free binaries after build: %d (fixed: %d); largest blocks: %s",
+                        sum(_census.values()), _n_fixed,
+                        ", ".join(f"{k}={v}" for k, v in list(solver_meta["binary_census"]["free_by_component"].items())[:8]))
+        except Exception as _bc_err:  # noqa: BLE001
+            logger.warning("[B5] binary census failed: %s", _bc_err)
+
     if model is not None and HAVE_PYOMO:
         # ─── Solver compatibility check ──────────────────────────────
         milp_linearize = _is_milp_linearized(cfg)
