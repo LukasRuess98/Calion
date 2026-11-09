@@ -42,11 +42,13 @@ def months():
         yield m, f"{YEAR}-{m:02d}-01 00:00", f"{YEAR}-{m:02d}-{last:02d} 23:00"
 
 
-def _cpu_list(spec: str | None):
+def _cpu_list(spec: str | None, threads: int = 1):
+    """CPU range 'a-b' -> list of CPU groups of size `threads` (one group per concurrently running block)."""
     if not spec:
         return None
     a, b = spec.split("-")
-    return list(range(int(a), int(b) + 1))
+    cpus = list(range(int(a), int(b) + 1))
+    return [cpus[i:i + threads] for i in range(0, len(cpus) - threads + 1, threads)]
 
 
 def run_block(job, args, cpu_pool):
@@ -71,17 +73,18 @@ def run_block(job, args, cpu_pool):
             env.update(job["soc"])
         out.mkdir(parents=True, exist_ok=True)
         with open(out / "block.out", "w", encoding="utf-8") as fh:
-            p = subprocess.Popen([sys.executable, "-m", "scripts.paper_2.scenario_runner", "-s", args.scenario, "-g", "1"],
+            p = subprocess.Popen([sys.executable, "-m", "scripts.paper_2.scenario_runner", "-s", args.scenario,
+                                  "-g", str(args.threads)],
                                  cwd=ROOT, env=env, stdout=fh, stderr=subprocess.STDOUT)
-            cpu = cpu_pool.pop() if cpu_pool else None
+            grp = cpu_pool.pop() if cpu_pool else None
             try:
-                if cpu is not None:
+                if grp is not None:
                     import psutil
-                    psutil.Process(p.pid).cpu_affinity([cpu])
+                    psutil.Process(p.pid).cpu_affinity(list(grp))
                 p.wait()
             finally:
-                if cpu is not None:
-                    cpu_pool.append(cpu)
+                if grp is not None:
+                    cpu_pool.append(grp)
     if not meta.exists():
         txt = (out / "block.out").read_text(encoding="utf-8", errors="replace") if (out / "block.out").exists() else ""
         status = "infeasible" if "infeasible" in txt.lower() else "error"
@@ -106,6 +109,7 @@ def main():
     ap.add_argument("--ub-run")
     ap.add_argument("--lambdas", help="12 water values EUR/MWh at the START of months 1..12 (lambda_13 = lambda_1)")
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--threads", type=int, default=1, help="Gurobi threads per block (CPU group size)")
     ap.add_argument("--cpus")
     ap.add_argument("--timelimit", type=int, default=3600)
     ap.add_argument("--gap", type=float, default=1e-4)
@@ -130,7 +134,7 @@ def main():
     assert len(lambdas) == 12
     caps = sorted({float(c) for c in args.caps.split(",")})
     cap_list = caps + [None]   # None = uncapped
-    cpu_pool = _cpu_list(args.cpus)
+    cpu_pool = _cpu_list(args.cpus, args.threads)
 
     def make_jobs(base, caps_, lam):
         jobs = []
