@@ -33,9 +33,14 @@
 #             existing storage — no Bestand offset in Study G / F2.
 #
 # INVESTABLE ASSETS (optimizer sizes these):
-#   hp_sb:    HP at j_hkw, lifting MAN/UPM industrial waste heat (WRG source: Netz-Mitte)
-#   ek_sb:    electrode boiler at j_hkw (0–50 MW, capex 150 k€/MW)
-#   tes_sb:   TES at j_hkw (0–5000 MWh, capex 16.5 k€/MWh)
+#   hp_sb:    HP lifting MAN/UPM industrial waste heat (WRG source: Netz-Mitte). Listed under j_hkw
+#             below, but every Paper-2 scenario with hp_node "J4" (scenarios.yaml) MOVES it to j_man,
+#             the physical source node (scenario_runner._apply_hp_location); since v9 E5 the feeder
+#             hkw_to_man is made bidirectional so its heat can flow back to j_hkw (signed node balance
+#             at both ends since v12 B2). v12 fixed-design runs: always at j_man (decision E2).
+#   ek_sb:    electrode boiler at j_hkw (0–50 MW, capex 150 k€/MW); stays at j_hkw (v9 E5)
+#   tes_sb:   TES, investable or fixed (v12 B5); site per scenario tes_node: S1 = j_hkw (hub),
+#             S3 = j_man (source, charged only via the HP hot channel), S0/PIN0 = none
 #
 # DATA: data/Stadtbach/stadtbach_acron_combined_cleaned.xlsx
 #   Build with: python scripts/preprocess/merge_acron_sb.py
@@ -645,9 +650,11 @@ assets:
   # documented WV640 basis, unlike every other asset in this file.
 
   # ── Investable assets (optimizer sizes these) ──────────────────────────────
-  # HP at j_hkw (central hub) lifting MAN/UPM low-temp industrial waste heat (WRG from Netz-Mitte).
-  # Physical WRG source is at j_man; the HP is co-located at the production hub as a modeling
-  # simplification (DH transport of low-grade heat to HP is not modeled explicitly).
+  # HP lifting MAN/UPM low-temp industrial waste heat (WRG from Netz-Mitte). Physical WRG source is at
+  # j_man. NOTE (v12 B8, 2026-11-09, report v11 W4): the base config lists hp_sb at j_hkw, but every
+  # Paper-2 scenario with hp_node "J4" moves it to j_man (scenario_runner._apply_hp_location), and the
+  # v12 campaign always places it there (E2). The former "co-located at the hub" wording described the
+  # pre-v9 base config only.
   hp_sb:
     type: heat_pump
     capacity_mw: 0.0
