@@ -164,12 +164,31 @@ def main():
                           "blocks": [{k: r[k] for k in ("month", "status", "obj", "bound", "gap", "solve_s")} for r in rows]})
     feas = [iv["LB_EUR"] for iv in intervals if iv["LB_EUR"] is not None]
     lb = min(feas) if feas else None
-    ub = None
+    # Upper bounds. (a) Weg-A incumbent of the same design (--ub-run). (b) WITHOUT storage the month blocks of one cap
+    # are independent: their incumbents form a feasible annual schedule whose demand charge is r * (its real annual
+    # peak) -> UB_c = r * max_k peak_k + sum_k obj_k. With storage this concatenation is NOT feasible (SOC link);
+    # a sequential hand-off pass is required instead (not done here).
+    ub_candidates = []
     if args.ub_run:
-        ub = float(json.loads((Path(args.ub_run) / "meta.json").read_text(encoding="utf-8"))["obj_eur"])
+        ub_candidates.append({"source": f"weg_a:{args.ub_run}",
+                              "UB_EUR": float(json.loads((Path(args.ub_run) / "meta.json").read_text(encoding="utf-8"))["obj_eur"])})
+    if not has_tes:
+        import pandas as pd
+        for cap in cap_list:
+            rows = [r for r in res if r["cap"] == cap]
+            if any(r["obj"] is None for r in rows):
+                continue
+            peaks = []
+            for r in rows:
+                dh = Path(r["out"]) / r["run_id"] / "dispatch_hourly.csv"
+                peaks.append(float(pd.read_csv(dh)["P_buy_MW"].max()))
+            ub_candidates.append({"source": f"blocks:cap={cap}", "annual_peak_MW": max(peaks),
+                                  "UB_EUR": rate * max(peaks) + sum(r["obj"] for r in rows)})
+    ub = min((c["UB_EUR"] for c in ub_candidates), default=None)
     out = {"scenario": args.scenario, "design": design, "rate_EUR_per_MW_a": rate, "caps_MW": caps,
            "lambdas_EUR_per_MWh": lambdas if has_tes else None, "refs": {"T_RL_ref_C": args.ref_trl, "T_avg_C": args.ref_tvl},
-           "LB_EUR": lb, "UB_EUR": ub, "UB_source": args.ub_run,
+           "LB_EUR": lb, "UB_EUR": ub, "UB_candidates": ub_candidates,
+           "UB_source": min(ub_candidates, key=lambda c: c["UB_EUR"])["source"] if ub_candidates else None,
            "width_EUR": (ub - lb) if (ub is not None and lb is not None) else None,
            "width_pct": (100 * (ub - lb) / ub) if (ub is not None and lb is not None) else None,
            "binding_interval": min((iv for iv in intervals if iv["LB_EUR"] is not None), key=lambda iv: iv["LB_EUR"],
