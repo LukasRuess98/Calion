@@ -177,7 +177,7 @@ def _load_outdoor_temps(table, cfg: dict) -> np.ndarray | None:
 _SB_MEASURED_TEMP_CACHE: tuple[np.ndarray, np.ndarray] | None = None
 
 
-def _load_measured_sb_temperatures() -> tuple[np.ndarray, np.ndarray] | None:
+def _load_measured_sb_temperatures(table=None) -> tuple[np.ndarray, np.ndarray] | None:
     """v9 E1: real 2025 hourly HKW supply/return measurement (Stadtbach), gap-filled.
 
     Source: HKW_Temp_VL.xlsx / HKW_Temp_RL.xlsx (data/Stadtbach/11_Messwerte_Acron/HKW/),
@@ -188,19 +188,36 @@ def _load_measured_sb_temperatures() -> tuple[np.ndarray, np.ndarray] | None:
     """
     global _SB_MEASURED_TEMP_CACHE
     if _SB_MEASURED_TEMP_CACHE is not None:
-        return _SB_MEASURED_TEMP_CACHE
+        return _slice_measured_to_table(_SB_MEASURED_TEMP_CACHE, table)
     csv_path = _ROOT / "configs" / "paper_2" / "calibration" / "sb_hkw_temp_vl_rl_2025_hourly.csv"
     if not csv_path.exists():
         logger.warning("v9 E1: measured-temperature cache not found at %s", csv_path)
         return None
     import csv as _csv_mod
-    vl, rl = [], []
+    vl, rl, ts = [], [], []
     with open(csv_path, encoding="utf-8") as f:
         for row in _csv_mod.DictReader(f):
             vl.append(float(row["T_VL_measured_C"]))
             rl.append(float(row["T_RL_measured_C"]))
-    _SB_MEASURED_TEMP_CACHE = (np.array(vl), np.array(rl))
-    return _SB_MEASURED_TEMP_CACHE
+            ts.append(str(row["timestamp"])[:19])
+    _SB_MEASURED_TEMP_CACHE = (np.array(vl), np.array(rl), ts)
+    return _slice_measured_to_table(_SB_MEASURED_TEMP_CACHE, table)
+
+
+def _slice_measured_to_table(cache, table):
+    """v12 B9 (2026-11-09): return (VL, RL) aligned to the table's timestamps (full year: unchanged). A sliced
+    horizon (CALION_HORIZON_*) used to drop the measurement because of the length mismatch and fall back to the
+    heating curve -- a decomposition block then ran different network physics than the full-year model."""
+    vl, rl, ts = cache
+    if table is None or not hasattr(table, "index") or len(table.index) == len(vl):
+        return vl, rl
+    pos = {t: i for i, t in enumerate(ts)}
+    try:
+        idx = [pos[str(t)[:19]] for t in table.index]
+    except KeyError as exc:
+        logger.warning("v9 E1 / v12 B9: table timestamp %s not in the measured series -- no slice", exc)
+        return vl, rl
+    return vl[idx], rl[idx]
 
 
 def _load_hp_source_temps(cfg: dict, table) -> np.ndarray | None:
@@ -653,7 +670,7 @@ def run_single_scenario(
         if not _os_e1.environ.get("CALION_LEGACY_TEMPERATURE_FRAME"):
             T_RL_ts = None
             if network == "stadtbach" and scen.get("heat_curve_stage") == "HK0" and not tvl_fix:
-                _measured = _load_measured_sb_temperatures()
+                _measured = _load_measured_sb_temperatures(table)
                 if _measured is not None and len(_measured[0]) == len(T_VL_ts):
                     T_VL_ts = _measured[0]
                     T_RL_ts = _measured[1]
@@ -731,6 +748,11 @@ def run_single_scenario(
             if _t_rl_ts_local is not None:
                 _t_rl_ref = (float(np.percentile(_t_rl_ts_local, 90)) if _delta_t_p90
                              else float(np.mean(_t_rl_ts_local)))
+                # v12 B9: a decomposition block must use the FULL-YEAR reference, not its own month's mean
+                if _os_e2.environ.get("CALION_REF_TRL_C"):
+                    logger.info("[%s] v12 B9: T_RL,ref override %.2f -> %s degC (CALION_REF_TRL_C)",
+                                scen_id, _t_rl_ref, _os_e2.environ["CALION_REF_TRL_C"])
+                    _t_rl_ref = float(_os_e2.environ["CALION_REF_TRL_C"])
                 logger.info(
                     "[%s] v9 E2: T_RL,ref=%.2f degC (%s of the v9-E1 return series) will drive "
                     "delta_T_scenario_k = t_store_max_c - T_RL,ref per TES asset (mode=%s).",
@@ -1538,6 +1560,12 @@ def _apply_spatial_temperature_offsets(cfg: dict, T_VL_ts, scen_id: str) -> None
         T_avg = float(_np.mean(T_VL_ts))
     except Exception:
         T_avg = float(net.get("supply_temp_c", 90.0))
+    # v12 B9: decomposition blocks use the FULL-YEAR mean supply temperature for the node offsets
+    if os.environ.get("CALION_REF_TVL_AVG_C"):
+        logger.info("[%s] v12 B9: spatial-offset T_avg override %.3f -> %s degC (CALION_REF_TVL_AVG_C)",
+                    scen_id, T_avg, os.environ["CALION_REF_TVL_AVG_C"])
+        T_avg = float(os.environ["CALION_REF_TVL_AVG_C"])
+    logger.info("[%s] v12 B9 reference: spatial-offset T_avg = %.4f degC", scen_id, T_avg)
 
     # adjacency from -> [(to, pipe_cfg)]; identify the root (plant)
     adj: dict[str, list] = {}
