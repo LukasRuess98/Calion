@@ -1008,6 +1008,7 @@ def _collect_timeseries_and_summary(
     storage_cycling_cost = 0.0   # v12 B4
     startup_cost = 0.0           # v12 B4
     chp_dump_cost = 0.0          # v12 B4
+    soc_boundary_value = 0.0     # v12 B9 (decomposition blocks only)
 
     if model is not None and HAVE_PYOMO:
         def _v(attr):
@@ -1044,6 +1045,8 @@ def _collect_timeseries_and_summary(
                 startup_cost += _val
             elif _lbl == "chp_dump":
                 chp_dump_cost += _val
+            elif _lbl == "soc_boundary_value":
+                soc_boundary_value += _val
         # TEMPORARY diagnostic cross-check (2026-09-22, residual investigation): the 5 "legacy"
         # buckets (energy/dump/fuel/co2/demand) are ALSO stored as named Expressions on the model
         # (create_objective's diagnostic block) but this function has always recomputed them
@@ -1459,6 +1462,7 @@ def _collect_timeseries_and_summary(
     objective["Storage_cycling_cost_EUR"] = storage_cycling_cost
     objective["Startup_cost_EUR"] = startup_cost
     objective["CHP_dump_cost_EUR"] = chp_dump_cost
+    objective["SOC_boundary_value_EUR"] = soc_boundary_value
 
     components_sum = (
         energy_cost
@@ -1483,6 +1487,7 @@ def _collect_timeseries_and_summary(
         + storage_cycling_cost
         + startup_cost
         + chp_dump_cost
+        + soc_boundary_value
     )
     objective["_diag_energy_cost_expr_EUR"] = _diag_energy_cost_expr
     objective["_diag_dump_cost_expr_EUR"] = _diag_dump_cost_expr

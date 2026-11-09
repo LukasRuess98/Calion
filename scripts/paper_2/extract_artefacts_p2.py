@@ -262,6 +262,7 @@ _AUX_COST_KEYS = {
     # residual (82,204 EUR). Model parameter without a cited source (v12-M3) -> aux, not real cost.
     "Storage_cycling_cost_EUR": "Speicher-Zyklierkosten (cycling_cost_eur_per_mwh x (Qc+Qd); Modellparameter 2 EUR/MWh ohne Quelle, v12-M3)",
     "CHP_dump_cost_EUR": "KWK-Notkuehler-Dump (nur CALION_DUMP_MODE=chp_only)",
+    "SOC_boundary_value_EUR": "B9-Zerlegung: Wasserwert-Randterm +l_s*E0 - l_e*E_end (nur Blocklaeufe, sonst 0)",
     "Data_closure_epsilon_cost_EUR": (
         "I1 Epsilon-Tie-Break (0.01 EUR/MWh) auf den G3/H1-Datenschliessungsterm (docs SS4bc) -- "
         "NICHT real, dient nur der Residuum-Minimierung; bei voller 0.25%-Kappungsgrenze maximal "

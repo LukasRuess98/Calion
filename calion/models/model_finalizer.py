@@ -757,6 +757,12 @@ class ModelFinalizer:
             # Fallback: Global cost (backward compatibility)
             demand_term = calculate_demand_charge(m, include_demand=flags.include_demand)
             logger.debug("Using global demand charge (no zones defined)")
+        # v12 B9 (2026-11-09): decomposition blocks exclude the (annual, non-separable) demand charge; the
+        # orchestrator adds r * P_bar once per year outside the blocks.
+        import os as _os_dcoff
+        if _os_dcoff.environ.get("CALION_DEMAND_CHARGE_OFF"):
+            demand_term = 0
+            logger.info("[B9] demand charge term OFF in this model (CALION_DEMAND_CHARGE_OFF)")
 
         capex_total, activation_total, tie_break_total, storage_install_total, om_total = calculate_investment_costs(
             capex_terms=buses.capex_terms,

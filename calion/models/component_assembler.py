@@ -1677,6 +1677,33 @@ class ComponentAssembler:
             sys_buses.fuel_cost_terms.append(cycling_expr)
             _register_obj_extra(self.m, "storage_cycling", cycling_expr)
 
+        # v12 B9 (2026-11-09): SOC boundary modes for the monthly time decomposition (Weg B).
+        #   cyclic (default): unchanged, E[last] == E0 (free E0).
+        #   handoff: E0 fixed to CALION_SOC_START_MWH (state handed over from the previous block),
+        #            terminal free (optionally valued with CALION_SOC_END_VALUE EUR/MWh).
+        #   free:    E0 and E[last] both free (Lagrangian block of the lower bound).
+        # Boundary values: + lambda_start * E0 - lambda_end * E[last] (EUR; lambda in EUR/MWh) -> objective,
+        # reported separately (soc_boundary_value), never in the fuel cost line.
+        import os as _os_b9
+        _soc_mode = _os_b9.environ.get("CALION_SOC_MODE", "cyclic").strip().lower()
+        if _soc_mode not in ("cyclic", "handoff", "free"):
+            raise ValueError(f"CALION_SOC_MODE must be cyclic|handoff|free, got {_soc_mode!r}")
+        if _soc_mode != "cyclic":
+            _E = getattr(self.m, f"{name}_E")
+            _E0 = getattr(self.m, f"{name}_E0")
+            getattr(self.m, f"{name}_terminal").deactivate()
+            if _soc_mode == "handoff":
+                _E0.fix(float(_os_b9.environ["CALION_SOC_START_MWH"]))
+            _lam_s = float(_os_b9.environ.get("CALION_SOC_START_VALUE", 0.0) or 0.0)
+            _lam_e = float(_os_b9.environ.get("CALION_SOC_END_VALUE", 0.0) or 0.0)
+            _t_last = self.t.last()
+            _bval = _lam_s * _E0 - _lam_e * _E[_t_last]
+            if _lam_s or _lam_e:
+                sys_buses.fuel_cost_terms.append(_bval)
+                _register_obj_extra(self.m, "soc_boundary_value", _bval)
+            logger.info("[B9] %s: SOC mode %s (E0 %s), boundary values start %.3f / end %.3f EUR/MWh",
+                        name, _soc_mode, "fixed=%.3f MWh" % _E0.value if _E0.fixed else "free", _lam_s, _lam_e)
+
         if investable:
             logger.info(
                 "[GEOMETRIC_STORAGE] %s: V=[%.0f, %.0f] m³, alpha=%.0f €/m³, "

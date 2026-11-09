@@ -1135,6 +1135,12 @@ def add_grid_market_constraints(model, month_groups: dict[int, list[int]] | None
     # Peak demand tracking (for demand charges)
     if not hasattr(model, 'P_buy_peak'):
         model.P_buy_peak = pyo.Var(domain=pyo.NonNegativeReals)
+    # v12 B9 (2026-11-09): peak cap for the decomposition -- with an outer cap P_bar on the annual grid
+    # peak the monthly blocks decouple (the annual demand charge is then added once, outside the blocks).
+    import os as _os_pk
+    if _os_pk.environ.get("CALION_PEAK_CAP_MW"):
+        model.P_buy_peak.setub(float(_os_pk.environ["CALION_PEAK_CAP_MW"]))
+        logger.info("[B9] P_buy_peak capped at %.4f MW (CALION_PEAK_CAP_MW)", model.P_buy_peak.ub)
     model.peak_con = pyo.Constraint(
         model.t,
         rule=lambda m, t: m.P_buy_peak >= m.P_buy[t]
