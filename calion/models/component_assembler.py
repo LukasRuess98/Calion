@@ -91,6 +91,19 @@ def _resolve_investment_flags(
         )
     return invest_enabled, capex_charged
 
+
+def _register_obj_extra(m, label: str, expr) -> None:
+    """v12 B4 (2026-11-06): non-fuel terms that are appended to the FUEL cost bucket of the objective
+    (storage cycling cost, startup cost, per-CHP dump cost) are also registered here by name, so
+    result_collector can report them as their own cost lines. Before, they existed only inside
+    model.fuel_cost_expr and showed up as Objective_residual_EUR (v10 C2: 82,204 EUR = 2 EUR/MWh
+    TES cycling cost x 41,102 MWh throughput)."""
+    lst = getattr(m, "_v12_obj_extras", None)
+    if lst is None:
+        lst = []
+        m._v12_obj_extras = lst
+    lst.append((label, expr))
+
 # ── Authoritative TES geometry (2026-09-12) ──────────────────────────────────
 # storage_geometry.yaml is the SINGLE SOURCE OF TRUTH for TES geometry
 # (r_hd, p_max_bar, V_max_m3, unit_tank_m3). The legacy asset defs in the base/topo
@@ -930,6 +943,7 @@ class ComponentAssembler:
         if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0) > 0:
             startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)
             sys_buses.fuel_cost_terms.append(startup_expr)
+            _register_obj_extra(self.m, "startup", startup_expr)
 
         # ── Per-CHP emergency-cooler dump, "Ansatz B" (2026-09-22, C3, author decision) ────────
         # CALION_DUMP_MODE=chp_only (default 'legacy' = unchanged): dump is possible ONLY at
@@ -956,7 +970,9 @@ class ComponentAssembler:
             _dump_cost_term = pyo.Expression(
                 self.t, rule=lambda mm, t, _qd=_qdump_chp: _qd[t] * self.m.dump_cost * self.dt_h)
             setattr(self.m, f"{name}_dump_cost_expr", _dump_cost_term)
-            sys_buses.fuel_cost_terms.append(sum(_dump_cost_term[t] for t in self.t))
+            _chp_dump_sum = sum(_dump_cost_term[t] for t in self.t)
+            sys_buses.fuel_cost_terms.append(_chp_dump_sum)
+            _register_obj_extra(self.m, "chp_dump", _chp_dump_sum)
             _el_eff_val = float(el_eff) if el_eff is not None else 0.0
             sys_buses.chp_dump_terms.append((name, _qdump_chp, _el_eff_val))
             logger.info("[ASSEMBLE] %s: chp_only dump mode -- Q_dump_chp_%s bounded by cap_th=%.1f MW, "
@@ -1350,6 +1366,7 @@ class ComponentAssembler:
                 cycling_cost_eur * (Qc[t] + Qd[t]) * self.dt_h for t in self.t
             )
             self.buses.fuel_cost_terms.append(cycling_expr)
+            _register_obj_extra(self.m, "storage_cycling", cycling_expr)
             logger.info(
                 "[STORAGE] Cycling cost %.2f €/MWh added to objective "
                 "(arbitrage requires spread > %.2f €/MWh_th round-trip).",
@@ -1658,6 +1675,7 @@ class ComponentAssembler:
                 cycling_cost_eur * (Qc[t] + Qd[t]) * self.dt_h for t in self.t
             )
             sys_buses.fuel_cost_terms.append(cycling_expr)
+            _register_obj_extra(self.m, "storage_cycling", cycling_expr)
 
         if investable:
             logger.info(
@@ -1758,6 +1776,7 @@ class ComponentAssembler:
         if fs.get("startup_var") is not None and fs.get("startup_cost_eur", 0.0) > 0:
             startup_expr = fs["startup_cost_eur"] * sum(fs["startup_var"][t] for t in self.t)
             self.buses.fuel_cost_terms.append(startup_expr)
+            _register_obj_extra(self.m, "startup", startup_expr)
             logger.info(
                 "[ASSEMBLE] %s: startup cost %.0f EUR/start added to objective.",
                 key.upper(), fs["startup_cost_eur"],

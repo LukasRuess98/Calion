@@ -245,6 +245,8 @@ _REAL_COST_KEYS = {
     # Gaskessel direkt, Gas-Motor/Biomasse-KWK-Kapitel als Proxy (auf thermische Basis umgerechnet,
     # gleiche Unsicherheit wie die zugehoerigen fixen O&M-Werte). Kein Storage-Wert gefunden.
     "OM_variable_cost_EUR": "Variable Betriebskosten (O&M), EUR/MWh_th geliefert, technologiespezifisch (siehe SS4bw)",
+    # v12 B4 (2026-11-06): were inside the fuel bucket of the objective only -> Objective_residual_EUR
+    "Startup_cost_EUR": "Anfahrkosten thermischer Erzeuger (startup_cost_eur; in beiden Configs nicht gesetzt)",
 }
 _AUX_COST_KEYS = {
     "Dump_cost_EUR": "Abregel-Strafpreis (Modellparameter, siehe B)",
@@ -256,6 +258,10 @@ _AUX_COST_KEYS = {
     "Pressure_reg_cost_EUR": "Druck-Tie-Break-Regularisierung",
     "Lateral_tiebreak_cost_EUR": "Stich-Verlust-PWL-Tie-Break",
     "Pressure_slack_cost_EUR": "Druck-Entlastungs-Slack (Datenqualitaets-Ventil)",
+    # v12 B4 (2026-11-06): TES cycling cost was inside the fuel bucket only and caused the v10 C2
+    # residual (82,204 EUR). Model parameter without a cited source (v12-M3) -> aux, not real cost.
+    "Storage_cycling_cost_EUR": "Speicher-Zyklierkosten (cycling_cost_eur_per_mwh x (Qc+Qd); Modellparameter 2 EUR/MWh ohne Quelle, v12-M3)",
+    "CHP_dump_cost_EUR": "KWK-Notkuehler-Dump (nur CALION_DUMP_MODE=chp_only)",
     "Data_closure_epsilon_cost_EUR": (
         "I1 Epsilon-Tie-Break (0.01 EUR/MWh) auf den G3/H1-Datenschliessungsterm (docs SS4bc) -- "
         "NICHT real, dient nur der Residuum-Minimierung; bei voller 0.25%-Kappungsgrenze maximal "
@@ -364,6 +370,19 @@ def write_cost_breakdown_p2(outdir: Path, wf_result, scen_id: str) -> dict | Non
         if abs(recon_gap) > 1.0:
             logger.error("[%s] cost_breakdown.json: reconciliation gap=%.2f > 1 EUR tolerance "
                         "-- breakdown is INCOMPLETE, do not use for the real/aux split.", scen_id, recon_gap)
+        # v12 B4: every objective term individually vs pyo.value(model.obj); residual > 1 EUR is an error
+        try:
+            _res = float(obj.get("Objective_residual_EUR") or 0.0)
+            _vj = outdir / "validation.json"
+            _vp = json.loads(_vj.read_text(encoding="utf-8")) if _vj.exists() else {}
+            _vp["objective_residual"] = {"value_EUR": _res, "pass": abs(_res) <= 1.0,
+                                         "rule": "|obj - sum of named terms| <= 1 EUR (v12 B4)"}
+            _vj.write_text(json.dumps(_vp, indent=2, default=str), encoding="utf-8")
+            if abs(_res) > 1.0:
+                logger.error("[%s] v12 B4: Objective_residual_EUR = %.2f > 1 EUR -- an objective term is "
+                             "not reported as its own cost line", scen_id, _res)
+        except Exception as _vr_err:  # noqa: BLE001
+            logger.warning("[%s] objective residual -> validation.json failed: %s", scen_id, _vr_err)
         return payload
     except Exception as exc:
         logger.warning("[%s] cost_breakdown extraction failed: %s", scen_id, exc)
