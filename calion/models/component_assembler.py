@@ -1694,6 +1694,9 @@ class ComponentAssembler:
             getattr(self.m, f"{name}_terminal").deactivate()
             if _soc_mode == "handoff":
                 _E0.fix(float(_os_b9.environ["CALION_SOC_START_MWH"]))
+            if _os_b9.environ.get("CALION_SOC_END_MWH"):
+                # last block of the sequential UB pass closes the annual cycle on January's start state
+                _E[self.t.last()].fix(float(_os_b9.environ["CALION_SOC_END_MWH"]))
             _lam_s = float(_os_b9.environ.get("CALION_SOC_START_VALUE", 0.0) or 0.0)
             _lam_e = float(_os_b9.environ.get("CALION_SOC_END_VALUE", 0.0) or 0.0)
             _t_last = self.t.last()

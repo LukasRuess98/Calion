@@ -54,3 +54,9 @@ def test_peak_cap_and_demand_charge_off(tmp_path):
     v, cb = _run(tmp_path, "peak", CALION_PEAK_CAP_MW="0.5", CALION_DEMAND_CHARGE_OFF="1")
     assert max(v["P_buy"].values()) <= 0.5 + 1e-6
     assert cb["real_costs_EUR"]["Demand_charge_cost_EUR"]["value"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_handoff_with_fixed_end_closes_cycle(tmp_path):
+    v, cb = _run(tmp_path, "endfix", CALION_SOC_MODE="handoff", CALION_SOC_START_MWH="80", CALION_SOC_END_MWH="60")
+    assert v["tes_sb_E0"]["None"] == pytest.approx(80.0)
+    assert _e_end(v) == pytest.approx(60.0, abs=1e-6)

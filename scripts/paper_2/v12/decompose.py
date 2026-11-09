@@ -110,6 +110,11 @@ def main():
     ap.add_argument("--timelimit", type=int, default=3600)
     ap.add_argument("--gap", type=float, default=1e-4)
     ap.add_argument("--rate", type=float, help="demand charge EUR/MW/a (default: from the scenario config)")
+    ap.add_argument("--lambda0", type=float, default=0.0, help="initial constant water value EUR/MWh (storage)")
+    ap.add_argument("--lb-iters", type=int, default=0, help="subgradient iterations on the water values (storage)")
+    ap.add_argument("--lambda-step", type=float, default=0.2, help="subgradient step EUR/MWh per MWh, divided by iter+1")
+    ap.add_argument("--anchor-cap", help="peak cap [MW] for the water-value iterations (default: largest cap)")
+    ap.add_argument("--ub-seq", help="storage: caps for the sequential hand-off UB pass, comma list or auto")
     args = ap.parse_args()
 
     work = Path(args.work)
@@ -120,33 +125,73 @@ def main():
     rate = args.rate if args.rate is not None else float(cfg["grid"]["demand_charge_eur_per_mw_y"])
     design = yaml.safe_load(Path(args.design).read_text(encoding="utf-8")) if args.design else None
     has_tes = bool(design and float(design.get("tes_mwh", 0)) > 0)
-    lambdas = [float(x) for x in args.lambdas.split(",")] if args.lambdas else [0.0] * 12
+    lambdas = ([float(x) for x in args.lambdas.split(",")] if args.lambdas
+               else [float(args.lambda0)] * 12)
     assert len(lambdas) == 12
     caps = sorted({float(c) for c in args.caps.split(",")})
     cap_list = caps + [None]   # None = uncapped
-
-    jobs = []
-    for ci, cap in enumerate(cap_list):
-        ctag = "inf" if cap is None else f"{cap:.4f}"
-        for m, start, end in months():
-            j = dict(cap=cap, month=m, start=start, end=end, out=str(work / f"cap_{ctag}" / f"m{m:02d}"))
-            j["run_id"] = args.scenario
-            if design:
-                d = dict(design, run_id=f"B9-{ctag}-m{m:02d}")
-                dp = work / "_designs" / f"{d['run_id']}.yaml"
-                dp.parent.mkdir(parents=True, exist_ok=True)
-                dp.write_text(yaml.safe_dump(d), encoding="utf-8")
-                j["design"], j["run_id"] = str(dp), d["run_id"]
-            if has_tes:
-                j["soc"] = {"CALION_SOC_MODE": "free", "CALION_SOC_START_VALUE": repr(lambdas[m - 1]),
-                            "CALION_SOC_END_VALUE": repr(lambdas[m % 12])}
-            jobs.append(j)
-
     cpu_pool = _cpu_list(args.cpus)
-    t0 = time.time()
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        res = list(ex.map(lambda j: run_block(j, args, cpu_pool), jobs))
-    print(f"{len(res)} blocks in {time.time() - t0:.0f} s")
+
+    def make_jobs(base, caps_, lam):
+        jobs = []
+        for cap in caps_:
+            ctag = "inf" if cap is None else f"{cap:.4f}"
+            for m, start, end in months():
+                j = dict(cap=cap, month=m, start=start, end=end, out=str(base / f"cap_{ctag}" / f"m{m:02d}"))
+                j["run_id"] = args.scenario
+                if design:
+                    d = dict(design, run_id=f"B9-{ctag}-m{m:02d}")
+                    dp = base / "_designs" / f"{d['run_id']}.yaml"
+                    dp.parent.mkdir(parents=True, exist_ok=True)
+                    dp.write_text(yaml.safe_dump(d), encoding="utf-8")
+                    j["design"], j["run_id"] = str(dp), d["run_id"]
+                if has_tes:
+                    j["soc"] = {"CALION_SOC_MODE": "free", "CALION_SOC_START_VALUE": repr(lam[m - 1]),
+                                "CALION_SOC_END_VALUE": repr(lam[m % 12])}
+                jobs.append(j)
+        return jobs
+
+    def run_all(jobs):
+        t0 = time.time()
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            res_ = list(ex.map(lambda j: run_block(j, args, cpu_pool), jobs))
+        print(f"{len(res_)} blocks in {time.time() - t0:.0f} s", flush=True)
+        return res_
+
+    def soc_state(r):
+        """(E0, E_end) of a block from its solution dump (storage designs only)."""
+        v = json.loads((Path(r["out"]) / r["run_id"] / "full_solution_dump.json").read_text(encoding="utf-8"))["vars"]
+        e0k = next(k for k in v if k.endswith("_E0"))
+        e = v[e0k[:-1]]   # <tes>_E
+        return float(v[e0k]["None"]), float(e[str(max(int(k) for k in e))])
+
+    def boundary_value(r):
+        cb = json.loads((Path(r["out"]) / r["run_id"] / "cost_breakdown.json").read_text(encoding="utf-8"))
+        return float(cb["model_aux_terms_EUR"].get("SOC_boundary_value_EUR", {}).get("value", 0.0))
+
+    # water values (storage designs): projected subgradient on the Lagrangian dual at the anchor cap
+    lam_trace = []
+    if has_tes and args.lb_iters > 0:
+        anchor = float(args.anchor_cap) if args.anchor_cap else caps[-1]
+        best = (None, list(lambdas))
+        lam = list(lambdas)
+        for it in range(args.lb_iters):
+            res_it = run_all(make_jobs(work / f"lam{it:02d}", [anchor], lam))
+            if any(r["bound"] is None for r in res_it):
+                lam_trace.append({"iter": it, "lambdas": lam, "L_EUR": None})
+                break
+            L = sum(r["bound"] for r in res_it)
+            st = {r["month"]: soc_state(r) for r in res_it}
+            g = [st[k][0] - st[(k - 2) % 12 + 1][1] for k in range(1, 13)]   # E0_k - E_end_{k-1}, cyclic
+            lam_trace.append({"iter": it, "lambdas": lam, "L_EUR": L, "subgradient_MWh": g})
+            print(f"lambda iter {it}: L = {L:.0f} EUR, max|g| = {max(abs(x) for x in g):.1f} MWh", flush=True)
+            if best[0] is None or L > best[0]:
+                best = (L, list(lam))
+            step = args.lambda_step / (it + 1)
+            lam = [lam[k] + step * g[k] for k in range(12)]
+        lambdas = best[1]
+
+    res = run_all(make_jobs(work / "final" if has_tes else work, cap_list, lambdas))
 
     def block_sum(cap):
         rows = [r for r in res if r["cap"] == cap]
@@ -157,51 +202,87 @@ def main():
     intervals = []
     lo_edges = [0.0] + caps
     for i, hi in enumerate(cap_list):
-        s, rows = block_sum(hi)
+        s_, rows = block_sum(hi)
         lo = lo_edges[i]
-        intervals.append({"P_lo_MW": lo, "P_hi_MW": hi, "sum_block_bounds_EUR": s,
-                          "LB_EUR": None if s is None else rate * lo + s,
+        intervals.append({"P_lo_MW": lo, "P_hi_MW": hi, "sum_block_bounds_EUR": s_,
+                          "LB_EUR": None if s_ is None else rate * lo + s_,
                           "blocks": [{k: r[k] for k in ("month", "status", "obj", "bound", "gap", "solve_s")} for r in rows]})
-    feas = [iv["LB_EUR"] for iv in intervals if iv["LB_EUR"] is not None]
-    lb = min(feas) if feas else None
-    # Upper bounds. (a) Weg-A incumbent of the same design (--ub-run). (b) WITHOUT storage the month blocks of one cap
-    # are independent: their incumbents form a feasible annual schedule whose demand charge is r * (its real annual
-    # peak) -> UB_c = r * max_k peak_k + sum_k obj_k. With storage this concatenation is NOT feasible (SOC link);
-    # a sequential hand-off pass is required instead (not done here).
+    feas = [iv for iv in intervals if iv["LB_EUR"] is not None]
+    lb = min(iv["LB_EUR"] for iv in feas) if feas else None
+    binding = min(feas, key=lambda iv: iv["LB_EUR"]) if feas else None
+
+    # upper bounds
+    # (a) Weg-A incumbent of the same design (--ub-run).
+    # (b) no storage: the blocks of one cap are independent; their incumbents form a feasible annual schedule,
+    #     UB_c = r * (its real annual peak) + sum_k obj_k.
+    # (c) storage: sequential hand-off pass at cap c: month k starts at the end state of month k-1, its end state is
+    #     valued with lambda_{k+1} (no draining), December ends on the January start state (annual cycle closed).
+    #     Feasible annual schedule -> UB = r * peak + sum_k (obj_k - boundary term_k).
+    import pandas as pd
     ub_candidates = []
     if args.ub_run and (Path(args.ub_run) / "meta.json").exists():
         ub_candidates.append({"source": f"weg_a:{args.ub_run}",
                               "UB_EUR": float(json.loads((Path(args.ub_run) / "meta.json").read_text(encoding="utf-8"))["obj_eur"])})
     elif args.ub_run:
         print(f"WARNING: --ub-run {args.ub_run} has no meta.json (yet) -- Weg-A UB not used")
+
+    def peak(r):
+        return float(pd.read_csv(Path(r["out"]) / r["run_id"] / "dispatch_hourly.csv")["P_buy_MW"].max())
+
     if not has_tes:
-        import pandas as pd
         for cap in cap_list:
             rows = [r for r in res if r["cap"] == cap]
             if any(r["obj"] is None for r in rows):
                 continue
-            peaks = []
-            for r in rows:
-                dh = Path(r["out"]) / r["run_id"] / "dispatch_hourly.csv"
-                peaks.append(float(pd.read_csv(dh)["P_buy_MW"].max()))
-            ub_candidates.append({"source": f"blocks:cap={cap}", "annual_peak_MW": max(peaks),
-                                  "UB_EUR": rate * max(peaks) + sum(r["obj"] for r in rows)})
+            pk = max(peak(r) for r in rows)
+            ub_candidates.append({"source": f"blocks:cap={cap}", "annual_peak_MW": pk,
+                                  "UB_EUR": rate * pk + sum(r["obj"] for r in rows)})
+    elif args.ub_seq:
+        if args.ub_seq != "auto":
+            seq_caps = [float(c) for c in args.ub_seq.split(",")]
+        else:
+            seq_caps = [binding["P_hi_MW"]] if binding and binding["P_hi_MW"] is not None else [caps[-1]]
+        for cap in seq_caps:
+            jan = next((r for r in res if r["cap"] == cap and r["month"] == 1 and r["obj"] is not None), None)
+            e_start = soc_state(jan)[0] if jan else 0.5 * float(design["tes_mwh"])
+            e_prev, rows, ok = e_start, [], True
+            base = work / "ubseq"
+            ctag = f"{cap:.4f}"
+            for m, start, end in months():
+                d = dict(design, run_id=f"B9U-{ctag}-m{m:02d}")
+                dp = base / "_designs" / f"{d['run_id']}.yaml"
+                dp.parent.mkdir(parents=True, exist_ok=True)
+                dp.write_text(yaml.safe_dump(d), encoding="utf-8")
+                soc = {"CALION_SOC_MODE": "handoff", "CALION_SOC_START_MWH": repr(e_prev),
+                       "CALION_SOC_START_VALUE": "0", "CALION_SOC_END_VALUE": repr(lambdas[m % 12])}
+                if m == 12:
+                    soc["CALION_SOC_END_MWH"] = repr(e_start)
+                    soc["CALION_SOC_END_VALUE"] = "0"
+                j = dict(cap=cap, month=m, start=start, end=end, out=str(base / f"cap_{ctag}" / f"m{m:02d}"),
+                         run_id=d["run_id"], design=str(dp), soc=soc)
+                r = run_block(j, args, cpu_pool)
+                if r["obj"] is None:
+                    ok = False
+                    break
+                rows.append(r)
+                e_prev = soc_state(r)[1]
+            if ok:
+                pk = max(peak(r) for r in rows)
+                ub_candidates.append({"source": f"seq_handoff:cap={cap}", "annual_peak_MW": pk, "E_start_MWh": e_start,
+                                      "UB_EUR": rate * pk + sum(r["obj"] - boundary_value(r) for r in rows)})
     ub = min((c["UB_EUR"] for c in ub_candidates), default=None)
     out = {"scenario": args.scenario, "design": design, "rate_EUR_per_MW_a": rate, "caps_MW": caps,
-           "lambdas_EUR_per_MWh": lambdas if has_tes else None, "refs": {"T_RL_ref_C": args.ref_trl, "T_avg_C": args.ref_tvl},
+           "lambdas_EUR_per_MWh": lambdas if has_tes else None, "lambda_trace": lam_trace,
+           "refs": {"T_RL_ref_C": args.ref_trl, "T_avg_C": args.ref_tvl},
            "LB_EUR": lb, "UB_EUR": ub, "UB_candidates": ub_candidates,
            "UB_source": min(ub_candidates, key=lambda c: c["UB_EUR"])["source"] if ub_candidates else None,
            "width_EUR": (ub - lb) if (ub is not None and lb is not None) else None,
            "width_pct": (100 * (ub - lb) / ub) if (ub is not None and lb is not None) else None,
-           "binding_interval": min((iv for iv in intervals if iv["LB_EUR"] is not None), key=lambda iv: iv["LB_EUR"],
-                                   default=None) and None,
+           "binding_interval": [binding["P_lo_MW"], binding["P_hi_MW"]] if binding else None,
            "intervals": intervals}
-    if feas:
-        bi = min((iv for iv in intervals if iv["LB_EUR"] is not None), key=lambda iv: iv["LB_EUR"])
-        out["binding_interval"] = [bi["P_lo_MW"], bi["P_hi_MW"]]
     (work / "decomposition.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(json.dumps({k: out[k] for k in ("LB_EUR", "UB_EUR", "width_EUR", "width_pct", "binding_interval")}, indent=1))
-
+    print(json.dumps({k: out[k] for k in ("LB_EUR", "UB_EUR", "width_EUR", "width_pct", "binding_interval", "UB_source")},
+                     indent=1))
 
 if __name__ == "__main__":
     main()
