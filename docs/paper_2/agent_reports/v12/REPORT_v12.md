@@ -1,7 +1,7 @@
 # REPORT v12 — Bilanzfix + Ergebniskampagne
 
 Antwort auf `docs/paper_2/agent_prompts/v12_Bilanzfix.md` (Fassung v12.3, 2026-11-06). Branch `p2_v9_consolidation`, Basis 7aa6a49.
-Dieser Report wird fortlaufend ergänzt. Stand: **Teil 0 und Teil A abgeschlossen**, Teil B in Arbeit.
+Dieser Report wird fortlaufend ergänzt. Stand 2026-11-09: **Teil 0, A und B (ohne B9) abgeschlossen**; C0 SB fertig, C0 MM und C1 laufen.
 
 ---
 
@@ -59,6 +59,13 @@ Punkt 1 ist durch die Änderungen v12.1 → v12.2 überholt.
 **W2 — „Warmstart je Block aus C0“ (Teil D) bei Weg A.** Weg A hat keine Blöcke. Umsetzung: Warmstart je Lauf aus dem C0-Dump derselben
 Netz/HK-Stufe; „je Block“ gilt nur, falls Weg B nötig wird.
 
+**W3 — TES an der Quelle (j_man / j_12) ist in v12 als Rasterachse gesetzt, der Code lässt dort seit v10-B2 aber nur heiße
+WP-Ladung zu (S3).** Knotenladung („S2“) bricht ab (`scenario_runner.py`, v10 B2: ΔT-Annahme ≈ t_store_max_c, Netzladung oft kälter).
+Folge für S3: ohne WP kann der Speicher an der Quelle nicht laden, sein Wert ist dann konstruktionsbedingt 0.
+**Entscheidung Lukas (2026-11-09): S3, heiße WP-Ladung.** Die Rasterpunkte (WP 0, TES > 0, Quelle) werden nicht gerechnet, sondern als
+„strukturell 0“ berichtet; B5 lehnt diese Kombination ausdrücklich ab. Stufe 1 hat damit je Netz und HK 5 statt 6 Läufe (SB 10, MM 10).
+RQ2 (Hub vs. Quelle) wird nur bei WP > 0 verglichen.
+
 ---
 
 ## Meldepflichten
@@ -77,6 +84,19 @@ MM-Zielwerts von rund 419 k€. In ΔTAC fällt der Term weitgehend heraus (glei
 
 **v12-M2 — Grundversatz R > 0 ist ein Modelleffekt an Sammelknoten ohne Wärmebilanz (konservativ, keine Behebung nötig).**
 Siehe A1. Er bleibt unter allen B1-Schwellen.
+
+**v12-M3 (NEU) — Speicher-Zyklierkosten 2 €/MWh ohne Quelle, Größenordnung des Speicherwerts.** Ursache des v10-C2-Residuums
+(B4): `cycling_cost_eur_per_mwh: 2.0` (`Stadtbach_topo.yaml:836`, `Memmingen_P2_base.yaml:556`, eingeführt mit `2a971f2`,
+2026-08-07, ohne Quellenangabe) wird je MWh Lade- **und** Entladeleistung angesetzt. In v10-C2: 2 × 41.102 MWh = **82.204 €/a**.
+Das liegt in der Größenordnung des bisher gemessenen Speicherwerts [96; 160] k€/a und senkt jeden Speicherwert entsprechend.
+Wert **nicht geändert** (Autorenentscheidung, Kostenanker brauchen eine Primärquelle). Er steht jetzt als eigene Hilfszeile
+`Storage_cycling_cost_EUR` in `cost_breakdown.json`. Frage an Lukas: 2 €/MWh beibehalten (mit Quelle), auf 0 setzen oder als
+Sensitivität führen?
+
+**v12-M4 (NEU) — Weg A erreicht 0,05 % im einfachsten Design nicht.** C0 SB-PIN0 (WP 0, TES 0): nach 12 h Gap 0,112 %
+(Intervallbreite 26,0 k€ statt ≤ 12 k€). Die Schranke steht ab ≈ 14.000 s bei 2,3279e7, danach verbessert sich nur der Inkumbent
+(Verlauf in C). Die freien Binärvariablen bestehen zu 93 % aus Pumpen-PWL-Segmenten (`*_pp_seg`, 128 von 138 je Stunde, B5-Zählung).
+Ob B9 nötig wird, entscheidet laut Auftrag C1; die Vorbereitung von B9 läuft parallel.
 
 ---
 
@@ -209,3 +229,60 @@ Satz je MW und Jahr (`demand_charge_eur_per_mw_y`). Monatsabrechnung nur im Szen
 | Leitungsverzögerung | `pipe_pair.py` | τ = 0 im MILP (Log: „MILP linear delay τ=0, no delay applied“); bidirektionale Leitungen ohne Verzögerung |
 
 Fazit: Für Weg B sind nur SOC (inkl. zyklischem Rand) und die Jahresspitze echte Kopplungen.
+
+---
+
+## B — Code (je Punkt eigener Commit und Test)
+
+Alle Tests: `tests/v12/` (18 Tests zu B1/B2/B2b/B4/B5/B6/B7; zusammen mit bestehenden Bilanz-, Investitions- und Collector-Tests 40 grün).
+Bestehender Fehlschlag ohne Bezug zu v12: `tests/test_model_finalizer_passthrough.py::test_unified_network_cfg_preserves_return_v2_and_warmup_overrides`
+schlägt vor und nach allen v12-Änderungen gleich fehl (`model_finalizer.py:389`).
+
+| Punkt | Commit | Inhalt | Test (Ergebnis) |
+|---|---|---|---|
+| B2b (v12-M1) | `58cb569` | Primärknoten-Eigenlast als eigener Term in der Primärbilanz (nicht über `_all_consumer_demand_nodes`, sonst würde `network_loss` doppelt zählen) | `test_b2b_primary_demand.py`: 2-Knoten-Netz aus der SB-Config, 48 h, max abs(R) < 1e-6 MW (vorher 26,84 MW) |
+| B2 (v11-M1) | `0dd0165` | Zu- **und** Ableitung bidirektionaler Leitungen an Sekundärknoten vorzeichenrichtig (`_make_signed_q_fn`, Param-Assertion bleibt), beide Zweige (Mischknoten, Verbraucher mit Anlagen); kein Rückfall auf `Q_consumer` (Assertion); Verluste unverändert genau einmal in der Primärbilanz | `test_b2_bidi_balance.py`: 9 Rückfluss- + 39 Vorwärtsstunden, max abs(R) = 1e-13 MW (vorher 48/48 h Rückfluss, R bis −27 MW) |
+| B1 | `36f84f0`, Fix `dbaea76` | `calion/run/balance_check.py`: R(t) aus dem Modell (Terme registriert in `add_per_node_heat_balance`) und aus Dumps; `validation.json` → `system_balance`; `status = balance_fail` bei min R < −0,05 MW, max abs(R) > 0,5 MW oder abs(Σ R) > 0,2 %; `system_balance_hourly.json`. Fix: Dump-Variante zählt den heißen WP-Kanal (`Q_hot`) mit | `test_b1_balance_check.py` (6): SB-PIN0 v9 → ok; SB-C1 v10 → balance_fail (4.900 h); MM-PIN0 v9 (vor B2b) → balance_fail; Modellvariante = unabhängige Rechnung |
+| B6 | `7158707` | `CALION_HP_DEFAULT_CHANNEL=off/on`, Default off: `Q_def` je Stunde auf 0 fixiert | `test_b6_hp_default_channel.py` (3): Default → `Q_def` = 0, WP-Wärme ≤ WRG-Kapazität (gelöst, 48 h); on → frei; ungültig → Fehler |
+| B5 | `101b841` | `CALION_FIXED_DESIGN=<yaml>` (run_id, hp_mw, ek_mw, tes_mwh, tes_power_mw, tes_site); Standort gegen Basisszenario geprüft (S0/S1/S3); Größen fix, CAPEX weiter angesetzt; `binary_census.json` | `test_b5_fixed_design.py` (6): 4 Validierungsfälle; 48 h volles SB-Netz, C1-Design (27/48 h Rückfluss, Bilanz ok) und Hub-Design: keine `*_build`/`*_size_sel` frei, WP 8 MW, `Q_def` 0, CAPEX > 0 |
+| B4 | `7051e29` | Ursache 82.204 € = TES-Zyklierkosten (2 €/MWh × 41.102,2 MWh) im Brennstofftopf der Zielfunktion ohne eigene Kostenzeile; dieselbe Klasse: Anfahr- und KWK-Dump-Kosten. Alle drei benannt registriert und berichtet; Residuum > 1 € → Fehler in Log und `validation.json` | `test_b4_objective_residual.py` (2): v10-C2-Residuum = 2 × TES-Durchsatz (±1e-3 €); 48-h-C1-Design: Zyklierzeile = 2 × Durchsatz, Residuum ≤ 1 € (alter Code: 652,37 € = 2 × Durchsatz) |
+| B7 | `91a3ecb` | `scripts/paper_2/v12/runs_log.py` → `runs_v12.csv` (Teil-E-Spalten) | `test_b7_runs_log.py` |
+| B8 | `a16c188` | Kopf- und WP-Kommentar `Stadtbach_topo.yaml` (nur Kommentare) | — |
+| Logs | `515101b` | Getaggte Kampagnen schreiben Gurobi-Log, SolFiles und Runner-Log nach `output/<tag>/_logs` (v12-C0 hätte sonst das v9-Log überschrieben) | — |
+
+**B5 — verbleibende Binärvariablen nach Block** (48-h-Test, C1-Design; Jahreswerte = × 182,5):
+
+| Block | je Stunde | Anteil |
+|---|---|---|
+| Pumpen-PWL-Segmente `*_pp_seg` (32 Leitungen × 4) | 128 | 92,8 % |
+| Ein/Aus thermische Erzeuger + P2H (`HKW_on`, `GTOST_on`, `BMHKW_on`, `HWS_BOILER_on`, `HWW_BOILER_on`, `P2H_EXISTING_on`) | 6 | 4,3 % |
+| WP `hp_sb_on` | 1 | 0,7 % |
+| Flussrichtung `HKW_TO_MAN_flow_dir`, `HKW_TO_OST_flow_dir` | 2 | 1,4 % |
+| Netzmodus `grid_mode` | 1 | 0,7 % |
+| Investition/Größe (`*_build`, `*_size_sel`) | 0 (2 fixiert) | — |
+
+Jahresmodell: ≈ 1,21 Mio. freie Binärvariablen.
+
+---
+
+## C — Validierung (Zwischenstand)
+
+**C0 SB-S0-HK0-PIN0** (Weg A, `MIPGap=0.0005`, 12 h, MIPFocus 3, Warmstart v9-PIN0-Dump, Commit `515101b`; Start 06.11. 16:45, Ende
+07.11. 05:07): `maxTimeLimit`, UB **23.305.437 €**, Gap **0,1117 %**, LB 23.279.411 €, Breite 26.026 €. Regression: v9-PIN0 23.314.348 €
+(Gap 0,146 %), Differenz −8.911 € innerhalb der alten Lücke → bestanden. `validation.json` status **ok**: R ∈ [+0,038; +0,250] MW,
+Σ 1.030,7 MWh (identisch mit A1, nur Sammelknoten-Versatz v12-M2), Residuum 0 €.
+Breite über die Zeit (Gurobi-Log `output/v12/_logs/gurobi_SB-S0-HK0-PIN0.log`):
+
+| t [s] | Inkumbent | Schranke | Gap |
+|---|---|---|---|
+| 1.319 | 2,3314e7 | 2,3264e7 | 0,22 % |
+| 5.071 | 2,33131e7 | 2,3277e7 | 0,15 % |
+| 14.374 | 2,33104e7 | 2,3279e7 | 0,14 % |
+| 26.027 | 2,33079e7 | 2,3279e7 | 0,12 % |
+| 40.484 | 2,3306e7 | 2,3279e7 | 0,11 % |
+| 43.200 (Ende) | 2,330544e7 | 2,327941e7 | 0,1117 % |
+
+**C0 MM-S0-HK0-PIN0**: läuft seit 09.11. 08:16 (4 h). Warmstart aus v9 abgelehnt (erwartet: B2b ändert die Bilanz an j_9).
+
+**C1** (WP 8 MW + TES 146 MWh an j_man, S3, HK0, Weg A 12 h): läuft seit 09.11. 08:22
+(`output/v12/_designs/SB-HK0-WP8-T146-source.yaml`).
