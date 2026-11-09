@@ -1,7 +1,7 @@
 # REPORT v12 — Bilanzfix + Ergebniskampagne
 
 Antwort auf `docs/paper_2/agent_prompts/v12_Bilanzfix.md` (Fassung v12.3, 2026-11-06). Branch `p2_v9_consolidation`, Basis 7aa6a49.
-Dieser Report wird fortlaufend ergänzt. Stand 2026-11-09: **Teil 0, A und B (ohne B9) abgeschlossen**; C0 SB fertig, C0 MM und C1 laufen.
+Dieser Report wird fortlaufend ergänzt. Stand 2026-11-09 23:30: Teil 0, A, B abgeschlossen (B9 gebaut); Sammelknoten-Fix; C0 MM fertig; C0 SB (Weg A) neu gestartet; C1 über Weg B läuft.
 
 ---
 
@@ -85,13 +85,21 @@ MM-Zielwerts von rund 419 k€. In ΔTAC fällt der Term weitgehend heraus (glei
 **v12-M2 — Grundversatz R > 0 ist ein Modelleffekt an Sammelknoten ohne Wärmebilanz (konservativ, keine Behebung nötig).**
 Siehe A1. Er bleibt unter allen B1-Schwellen.
 
+**v12-M2 — Entscheidung Lukas (2026-11-09): Sammelknoten im Modell fixen.** Umgesetzt (`0821421`): Knoten ohne eigene
+Wärmebilanz liefern E_j(t) = Σ Zufluss − Σ Abfluss − Last; die Primärbilanz verrechnet Σ_j E_j(t), jeder Vorlaufverlust zählt genau
+einmal. Test `tests/v12/test_junction_energy.py` (SB und MM 48 h: max |R| < 1e-5 MW; Legacy-Schalter `CALION_LEGACY_JUNCTION_ENERGY=1`
+zeigt den alten Versatz). Auslöser: C0 MM vor dem Fix `balance_fail` über das Summenkriterium (+72,4 MWh = 0,77 % der Last, ausschließlich
+die 8 Durchgangsknoten j_11/j_5/j_4/j_2/j_10/j_3/j_13/j_7, belegt mit `a1_node_residual.py`). Alle C0-Ergebnisse vor dem Fix liegen unter
+`output/v12/_superseded_prejunction/`.
+
 **v12-M3 (NEU) — Speicher-Zyklierkosten 2 €/MWh ohne Quelle, Größenordnung des Speicherwerts.** Ursache des v10-C2-Residuums
 (B4): `cycling_cost_eur_per_mwh: 2.0` (`Stadtbach_topo.yaml:836`, `Memmingen_P2_base.yaml:556`, eingeführt mit `2a971f2`,
 2026-08-07, ohne Quellenangabe) wird je MWh Lade- **und** Entladeleistung angesetzt. In v10-C2: 2 × 41.102 MWh = **82.204 €/a**.
 Das liegt in der Größenordnung des bisher gemessenen Speicherwerts [96; 160] k€/a und senkt jeden Speicherwert entsprechend.
 Wert **nicht geändert** (Autorenentscheidung, Kostenanker brauchen eine Primärquelle). Er steht jetzt als eigene Hilfszeile
 `Storage_cycling_cost_EUR` in `cost_breakdown.json`. Frage an Lukas: 2 €/MWh beibehalten (mit Quelle), auf 0 setzen oder als
-Sensitivität führen?
+Sensitivität führen? **Entscheidung Lukas (2026-11-09): beibehalten (2 €/MWh); Lukas sucht die Quelle.** Im Paper bis dahin als
+Modellparameter ohne Quelle kennzeichnen.
 
 **v12-M4 (NEU) — Weg A erreicht 0,05 % im einfachsten Design nicht.** C0 SB-PIN0 (WP 0, TES 0): nach 12 h Gap 0,112 %
 (Intervallbreite 26,0 k€ statt ≤ 12 k€). Die Schranke steht ab ≈ 14.000 s bei 2,3279e7, danach verbessert sich nur der Inkumbent
@@ -286,3 +294,35 @@ Breite über die Zeit (Gurobi-Log `output/v12/_logs/gurobi_SB-S0-HK0-PIN0.log`):
 
 **C1** (WP 8 MW + TES 146 MWh an j_man, S3, HK0, Weg A 12 h): läuft seit 09.11. 08:22
 (`output/v12/_designs/SB-HK0-WP8-T146-source.yaml`).
+
+### Stand 2026-11-09 23:30 (nach Sammelknoten-Fix)
+
+**Weg B gebaut (B9) und am C0-SB-Design getestet** (`scripts/paper_2/v12/decompose.py`, Commits `946ffb4` … `5b48b45`):
+- Monatsblöcke mit Spitzenkappung P̄ (Leistungspreis in den Blöcken aus), Jahresreferenzen der Temperatur fest (gemessene SB-Reihe per
+  Zeitstempel geschnitten; T_RL,ref = 61,528991 °C, T_avg = 99,876927 °C). Ohne diese Korrektur war ein Monatsblock ein anderes Modell als das
+  Jahr (Heizkurve statt Messung; Januar-Block unzulässig).
+- LB = min über Intervalle [c_i; c_{i+1}] von r·c_i + Σ_k Schranke_k(c_{i+1}). UB ohne Speicher: Block-Inkumbenten einer Kappung sind ein
+  zulässiger Jahresfahrplan, UB = r·(Jahresspitze) + Σ_k obj_k. Mit Speicher: Wasserwerte per Subgradient (LB), sequentielle Übergabe mit
+  geschlossenem Jahreszyklus (UB).
+- **C0 SB-PIN0 (nach Fix): LB 23.237.359 €, UB 23.241.823 €, Breite 4.464 € = 0,019 %** (168 Blöcke, alle optimal, max. 145 s, Wandzeit 30 min).
+  Bindendes Intervall P ∈ [0,25; 0,28] MW. Ohne Kappung kaufen die Blöcke bis 10 MW Netzstrom für den Bestands-Elektrokessel (r·10 MW =
+  1,27 M€), deshalb braucht es Kappungen oberhalb der Spitze.
+
+**C0 MM-PIN0 (Weg A, nach Fix):** optimal, Zielwert **428.672 €**, Gap **0,043 %** (Breite 183 €) in 4.208 s → Weg A erfüllt das Ziel für
+MM. Bilanz ok. Weg B für MM war schlechter (1.717 € = 0,40 %, Raster nahe 0 zu grob) und wird für MM nicht verwendet.
+
+**C0 SB (Weg A, nach Fix):** erster Neulauf um 13:12 mit „Out of memory“ abgebrochen (2 h, parallel zu 16 B9-Blöcken). Erst um 22:58
+bemerkt — Slot A stand 10 h leer. Neu gestartet 23:0x mit `CALION_NODEFILE_START=4` (Ende ≈ 11:00). Er wird für C3 (Vergleich Weg A vs. B)
+gebraucht.
+
+**C1 über Weg B, erster Versuch (1 Thread je Block, 14 Kappungen, λ₀ = 40 €/MWh):** Blöcke mit Speicher brauchen im Median 30 min
+(max. 62 min) statt 2 min ohne Speicher; 168 Blöcke 6,8 h. LB 23.372.606 €, bindend das unterste Intervall [0; 0,25] → Raster nach unten zu
+grob. Hochrechnung ≈ 13–15 h je Speicher-Design → Stufe 1 (SB: 6 Speicher-Designs) würde die 4-Tage-Bedingung reißen.
+**Entscheidung Lukas (2026-11-09 23:xx):** 4 Threads je Block (4 Blöcke parallel), Blocklücke 0,02 %, Raster 6–8 Stufen um die bindende
+Spitze; MM über Weg A, SB über Weg B; C1 neu messen und die Laufzeit je Speicher-Design vor Stufe 1 melden. C1 v2 läuft
+(`output/v12/_b9/c1v2`, Raster {0; 0,05; 0,1; 0,15; 0,2; 0,25; 0,3; 0,4} MW, 4 λ-Iterationen an 0,25 MW, sequentielle UB), danach C2 (MM,
+WP 1 MW + TES 14,0 MWh an j_12, Weg A).
+
+**W4 — C2-Standort und Median-Stufe.** Der Auftrag nennt für C2 keinen Speicherstandort; gewählt: Quelle j_12 (S3), analog zu C1.
+Median der MM-Leiter ohne 0 (10 Stufen 1,4 … 67,2 MWh) = (11,2 + 16,8)/2 = **14,0 MWh** (keine Leiterstufe; die Festauslegung erlaubt jeden
+Wert). m³ folgt aus dem Lauf.
