@@ -108,7 +108,10 @@ def balance_from_dump(run_dir: str | Path) -> dict[str, Any]:
 
     # Heat-out terms: thermal generators / P2H (*_Qth), heat pumps (<hp>_Q), storage discharge (*_Qd)
     hp_ids = {k[:-len("_Q_wrg")] for k in v if k.endswith("_Q_wrg")}
-    gen_names = [k for k in v if k.endswith("_Qth")] + [f"{h}_Q" for h in hp_ids] + [k for k in v if k.endswith("_Qd")]
+    # + HP hot channel (<hp>_Q_hot, S3 hot charging): it feeds the TES directly and is NOT part of <hp>_Q, while
+    #   the matching TES charge (*_Qc) is subtracted below -- without it a hot-charging run shows false phantom heat
+    gen_names = ([k for k in v if k.endswith("_Qth")] + [f"{h}_Q" for h in hp_ids] + [k for k in v if k.endswith("_Qd")]
+                 + [f"{h}_Q_hot" for h in hp_ids if f"{h}_Q_hot" in v])
     gen = sum((s(k) for k in gen_names), np.zeros(T))
     charge = sum((s(k) for k in v if k.endswith("_Qc")), np.zeros(T))
     loss = sum((s(k) for k in v if k.endswith("_Q_loss_supply") or k.endswith("_Q_loss_return")), np.zeros(T))
