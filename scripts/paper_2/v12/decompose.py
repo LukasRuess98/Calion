@@ -87,8 +87,12 @@ def run_block(job, args, cpu_pool):
         status = "infeasible" if "infeasible" in txt.lower() else "error"
         return dict(job, status=status, obj=None, bound=None, gap=None, solve_s=None)
     m = json.loads(meta.read_text(encoding="utf-8"))
-    obj, gap = float(m["obj_eur"]), float(m.get("mip_gap") or 0.0)
-    return dict(job, status=m["status"], obj=obj, bound=obj - gap * abs(obj), gap=gap, solve_s=m.get("solve_s"))
+    # final P2 meta (obj_eur/status) or, if the extractor was interrupted, the P1 meta (objective/solver_status)
+    obj = float(m["obj_eur"] if "obj_eur" in m else m["objective"])
+    gap = float(m.get("mip_gap") or 0.0)
+    status = m.get("status", m.get("solver_status"))
+    return dict(job, status=status, obj=obj, bound=obj - gap * abs(obj), gap=gap,
+                solve_s=m.get("solve_s", m.get("solve_time_s")))
 
 
 def main():
